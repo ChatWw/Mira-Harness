@@ -39,15 +39,14 @@ const pos = computed(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .eyeball {
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   transition: all 0.15s;
   overflow: hidden;
 }
+
 .pupil-inner {
   border-radius: 50%;
   transition: transform 0.1s ease-out;

@@ -171,48 +171,45 @@ const getStatusType = (status: string) => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .dashboard-page {
-  padding: 20px;
+  padding: $spacing-lg;
 }
 
 .page-header {
-  margin-bottom: 24px;
-}
+  margin-bottom: $spacing-xl;
 
-.page-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--cp-text);
-  margin-bottom: 8px;
-}
+  h1 {
+    font-size: $font-2xl;
+    font-weight: 600;
+    color: $text;
+    margin-bottom: $spacing-xs;
+  }
 
-.page-header p {
-  color: var(--cp-text-secondary);
-  font-size: 14px;
+  p {
+    color: $text-secondary;
+    font-size: $font-sm;
+  }
 }
 
 .stats-row {
-  margin-bottom: 20px;
+  margin-bottom: $spacing-lg;
 }
 
 .stat-card {
-  margin-bottom: 20px;
+  margin-bottom: $spacing-lg;
 }
 
 .stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  @include flex-align-center;
+  gap: $spacing-md;
 }
 
 .stat-icon {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: $radius-lg;
+  @include flex-center;
 }
 
 .stat-info {
@@ -220,25 +217,23 @@ const getStatusType = (status: string) => {
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: $font-2xl;
   font-weight: 600;
-  color: var(--cp-text);
-  margin-bottom: 4px;
+  color: $text;
+  margin-bottom: $spacing-xs;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: var(--cp-text-secondary);
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 
 .content-row {
-  margin-bottom: 20px;
+  margin-bottom: $spacing-lg;
 }
 
 .card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  @include flex-between;
 }
 
 .chart-placeholder {
@@ -247,38 +242,37 @@ const getStatusType = (status: string) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--cp-text-tertiary);
-}
+  color: $text-tertiary;
 
-.chart-placeholder p {
-  margin-top: 12px;
-  font-size: 14px;
+  p {
+    margin-top: $spacing-sm;
+    font-size: $font-sm;
+  }
 }
 
 .quick-links {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: $spacing-sm;
 }
 
 .quick-link-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 8px;
-  background: var(--cp-bg-elevated);
+  @include flex-align-center;
+  gap: $spacing-sm;
+  padding: $spacing-md;
+  border-radius: $radius-md;
+  background: $bg-elevated;
   cursor: pointer;
   transition: all 0.2s;
-}
 
-.quick-link-item:hover {
-  background: var(--cp-primary-lighter);
-  transform: translateY(-2px);
-}
+  &:hover {
+    background: $primary-lighter;
+    transform: translateY(-2px);
+  }
 
-.quick-link-item span {
-  font-size: 14px;
-  color: var(--cp-text);
+  span {
+    font-size: $font-sm;
+    color: $text;
+  }
 }
 </style>

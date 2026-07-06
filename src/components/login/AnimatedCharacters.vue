@@ -197,13 +197,75 @@ const yellowMouthStyle = computed(() => ({
 }))
 </script>
 
-<style scoped>
-.characters-container { position: relative; width: 550px; height: 400px; }
-.char { position: absolute; bottom: 0; transition: all 0.7s ease-in-out; transform-origin: bottom center; }
-.purple { left: 70px; width: 180px; background: var(--cp-primary); border-radius: 10px 10px 0 0; z-index: 1; }
-.black { left: 240px; width: 120px; height: 310px; background: #2D2D2D; border-radius: 8px 8px 0 0; z-index: 2; }
-.orange { left: 0; width: 240px; height: 200px; background: #FF9B6B; border-radius: 120px 120px 0 0; z-index: 3; }
-.yellow { left: 310px; width: 140px; height: 230px; background: #E8D754; border-radius: 70px 70px 0 0; z-index: 4; }
-.eyes { position: absolute; display: flex; transition: all 0.7s ease-in-out; }
-.mouth { position: absolute; width: 80px; height: 4px; background: #2D2D2D; border-radius: 4px; transition: all 0.2s ease-out; }
+<style scoped lang="scss">
+$char-dark: #2D2D2D;
+$char-orange: #FF9B6B;
+$char-yellow: #E8D754;
+$char-white: white;
+
+$transition-smooth: all 0.7s ease-in-out;
+$transition-quick: all 0.2s ease-out;
+
+.characters-container {
+  position: relative;
+  width: 550px;
+  height: 400px;
+}
+
+.char {
+  position: absolute;
+  bottom: 0;
+  transition: $transition-smooth;
+  transform-origin: bottom center;
+
+  &.purple {
+    left: 70px;
+    width: 180px;
+    background: $primary;
+    border-radius: 10px 10px 0 0;
+    z-index: 1;
+  }
+
+  &.black {
+    left: 240px;
+    width: 120px;
+    height: 310px;
+    background: $char-dark;
+    border-radius: 8px 8px 0 0;
+    z-index: 2;
+  }
+
+  &.orange {
+    left: 0;
+    width: 240px;
+    height: 200px;
+    background: $char-orange;
+    border-radius: 120px 120px 0 0;
+    z-index: 3;
+  }
+
+  &.yellow {
+    left: 310px;
+    width: 140px;
+    height: 230px;
+    background: $char-yellow;
+    border-radius: 70px 70px 0 0;
+    z-index: 4;
+  }
+}
+
+.eyes {
+  position: absolute;
+  display: flex;
+  transition: $transition-smooth;
+}
+
+.mouth {
+  position: absolute;
+  width: 80px;
+  height: 4px;
+  background: $char-dark;
+  border-radius: 4px;
+  transition: $transition-quick;
+}
 </style>

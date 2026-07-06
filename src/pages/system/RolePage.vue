@@ -43,21 +43,19 @@ const roleList = [
 ]
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .system-page {
-  padding: 20px;
-}
+  padding: $spacing-lg;
 
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
+  .page-header {
+    @include flex-between;
+    margin-bottom: $spacing-lg;
 
-.page-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--cp-text);
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: $text;
+    }
+  }
 }
 </style>

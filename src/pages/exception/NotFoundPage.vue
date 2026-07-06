@@ -14,38 +14,36 @@
 <script setup lang="ts">
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .not-found-page {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cp-bg);
-}
+  @include flex-center;
+  background: $bg;
 
-.content {
-  text-align: center;
-  padding: 40px;
-}
+  .content {
+    text-align: center;
+    padding: $spacing-xl;
 
-.error-code {
-  font-size: 120px;
-  font-weight: 700;
-  color: var(--cp-primary);
-  line-height: 1;
-  margin-bottom: 24px;
-}
+    .error-code {
+      font-size: 120px;
+      font-weight: 700;
+      color: $primary;
+      line-height: 1;
+      margin-bottom: $spacing-lg;
+    }
 
-h1 {
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--cp-text);
-  margin-bottom: 12px;
-}
+    h1 {
+      font-size: 32px;
+      font-weight: 600;
+      color: $text;
+      margin-bottom: $spacing-sm;
+    }
 
-p {
-  font-size: 16px;
-  color: var(--cp-text-secondary);
-  margin-bottom: 32px;
+    p {
+      font-size: 16px;
+      color: $text-secondary;
+      margin-bottom: $spacing-2xl;
+    }
+  }
 }
 </style>

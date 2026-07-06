@@ -120,20 +120,20 @@ defineExpose({
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .captcha-wrapper {
   display: inline-block;
 }
 
 .captcha-canvas {
-  border: 1px solid var(--cp-border);
+  border: 1px solid $border;
   border-radius: 4px;
   cursor: pointer;
   transition: border-color 0.2s;
   display: block;
-}
 
-.captcha-canvas:hover {
-  border-color: var(--cp-primary);
+  &:hover {
+    border-color: $primary;
+  }
 }
 </style>
