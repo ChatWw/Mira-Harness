@@ -1,0 +1,150 @@
+/* 全局样式 - SCSS 版本 */
+@use './variables.scss' as *;
+@use './mixins.scss' as *;
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: $font-family;
+  color: $text;
+  background: $bg;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: $font-sm;
+  line-height: $line-height-normal;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color $transition-fast;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+// ==================== 滚动条样式 ====================
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $bg-elevated;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border;
+  border-radius: $radius-sm;
+
+  &:hover {
+    background: $text-tertiary;
+  }
+}
+
+// ==================== 工具类 ====================
+
+// 文本对齐
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+// 文本截断
+.truncate {
+  @include text-ellipsis;
+}
+
+.line-clamp-2 {
+  @include text-clamp(2);
+}
+
+.line-clamp-3 {
+  @include text-clamp(3);
+}
+
+// Flex 布局
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  @include flex-center;
+}
+
+.flex-between {
+  @include flex-between;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+// 间距
+.mt-sm { margin-top: $spacing-sm; }
+.mt-md { margin-top: $spacing-md; }
+.mt-lg { margin-top: $spacing-lg; }
+
+.mb-sm { margin-bottom: $spacing-sm; }
+.mb-md { margin-bottom: $spacing-md; }
+.mb-lg { margin-bottom: $spacing-lg; }
+
+.ml-sm { margin-left: $spacing-sm; }
+.ml-md { margin-left: $spacing-md; }
+.ml-lg { margin-left: $spacing-lg; }
+
+.mr-sm { margin-right: $spacing-sm; }
+.mr-md { margin-right: $spacing-md; }
+.mr-lg { margin-right: $spacing-lg; }
+
+.pt-sm { padding-top: $spacing-sm; }
+.pt-md { padding-top: $spacing-md; }
+.pt-lg { padding-top: $spacing-lg; }
+
+.pb-sm { padding-bottom: $spacing-sm; }
+.pb-md { padding-bottom: $spacing-md; }
+.pb-lg { padding-bottom: $spacing-lg; }
+
+.pl-sm { padding-left: $spacing-sm; }
+.pl-md { padding-left: $spacing-md; }
+.pl-lg { padding-left: $spacing-lg; }
+
+.pr-sm { padding-right: $spacing-sm; }
+.pr-md { padding-right: $spacing-md; }
+.pr-lg { padding-right: $spacing-lg; }
+
+// ==================== 暗色模式样式 ====================
+
+[data-theme='dark'] {
+  body {
+    color: $dark-text;
+    background: $dark-bg;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: $dark-bg-elevated;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: $dark-border;
+
+    &:hover {
+      background: $dark-text-tertiary;
+    }
+  }
+}

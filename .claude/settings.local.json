@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\(package\\\\.json|vite\\\\.config|tsconfig|index\\\\.html|App\\\\.vue|main\\\\.ts|\\\\.css$\\)\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(sleep 3 && cat /tmp/vite-dev.log)",
+      "Bash(kill 96330)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -1,0 +1,170 @@
+/* Element Plus 主题定制 - SCSS 版本 */
+@use './variables.scss' as *;
+@use './mixins.scss' as *;
+
+// 使用 SCSS 变量覆盖 Element Plus 默认主题
+// 注意：Element Plus 使用 CSS 变量，我们需要通过 :root 来覆盖
+
+:root {
+  // 主题色
+  --el-color-primary: #{$primary};
+  --el-color-primary-light-3: #{$primary-light};
+  --el-color-primary-light-5: #{$primary-lighter};
+  --el-color-primary-dark-2: #{$primary-hover};
+
+  // 成功色
+  --el-color-success: #{$success};
+
+  // 警告色
+  --el-color-warning: #{$warning};
+
+  // 危险色
+  --el-color-danger: #{$danger};
+
+  // 信息色
+  --el-color-info: #{$info};
+
+  // 文本色
+  --el-text-color-primary: #{$text};
+  --el-text-color-regular: #{$text-secondary};
+  --el-text-color-secondary: #{$text-tertiary};
+  --el-text-color-placeholder: #{$text-placeholder};
+
+  // 边框色
+  --el-border-color: #{$border};
+  --el-border-color-light: #{$border-light};
+  --el-border-color-lighter: #{$border-light};
+
+  // 背景色
+  --el-bg-color: #{$bg};
+  --el-bg-color-page: #{$bg};
+  --el-bg-color-overlay: #{$bg-overlay};
+  --el-fill-color-blank: #{$bg};
+  --el-fill-color-light: #{$bg-elevated};
+
+  // 圆角
+  --el-border-radius-base: #{$radius-sm};
+  --el-border-radius-small: #{$radius-sm};
+  --el-border-radius-round: #{$radius-full};
+
+  // 字体
+  --el-font-family: #{$font-family};
+  --el-font-size-base: #{$font-sm};
+  --el-font-size-small: #{$font-xs};
+  --el-font-size-large: #{$font-base};
+
+  // 过渡
+  --el-transition-duration: #{$transition-base};
+  --el-transition-duration-fast: #{$transition-fast};
+}
+
+// 暗色模式
+[data-theme='dark'] {
+  // 背景色
+  --el-bg-color: #{$dark-bg};
+  --el-bg-color-page: #{$dark-bg};
+  --el-bg-color-overlay: #{$dark-bg-overlay};
+  --el-fill-color-blank: #{$dark-bg-elevated};
+  --el-fill-color-light: #{$dark-bg-elevated};
+
+  // 文本色
+  --el-text-color-primary: #{$dark-text};
+  --el-text-color-regular: #{$dark-text-secondary};
+  --el-text-color-secondary: #{$dark-text-tertiary};
+  --el-text-color-placeholder: #{$dark-text-placeholder};
+
+  // 边框色
+  --el-border-color: #{$dark-border};
+  --el-border-color-light: #{$dark-border-light};
+  --el-border-color-lighter: #{$dark-border-light};
+}
+
+// ==================== 组件样式覆盖 ====================
+
+// 按钮组件
+.el-button {
+  font-weight: $font-medium;
+  transition: all $transition-fast;
+
+  &--primary {
+    &:hover {
+      background-color: $primary-hover;
+      border-color: $primary-hover;
+    }
+
+    &:active {
+      background-color: $primary-active;
+      border-color: $primary-active;
+    }
+  }
+}
+
+// 输入框组件
+.el-input {
+  &__wrapper {
+    transition: all $transition-fast;
+    border-radius: $radius-md;
+  }
+}
+
+// 表格组件
+.el-table {
+  &__header {
+    th {
+      background-color: $bg-elevated;
+      font-weight: $font-semibold;
+    }
+  }
+
+  &__row {
+    transition: background-color $transition-fast;
+
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+}
+
+// 对话框组件
+.el-dialog {
+  border-radius: $radius-lg;
+  box-shadow: $shadow-xl;
+
+  &__header {
+    font-weight: $font-semibold;
+    border-bottom: 1px solid $border;
+  }
+}
+
+// 消息提示
+.el-message {
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+}
+
+// 下拉菜单
+.el-dropdown-menu {
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+
+  &__item {
+    transition: background-color $transition-fast;
+
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+}
+
+// 分页组件
+.el-pagination {
+  .el-pager li {
+    border-radius: $radius-sm;
+    transition: all $transition-fast;
+
+    &.is-active {
+      background-color: $primary;
+      color: white;
+    }
+  }
+}

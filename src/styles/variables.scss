@@ -1,0 +1,146 @@
+// ==================== 颜色系统 ====================
+
+// 主题色（默认：青色）
+$primary: #06b6d4;
+$primary-hover: #0891b2;
+$primary-active: #0e7490;
+$primary-light: rgba(6, 182, 212, 0.1);
+$primary-lighter: rgba(6, 182, 212, 0.05);
+
+// 语义色
+$success: #10b981;
+$warning: #f59e0b;
+$danger: #ef4444;
+$info: #3b82f6;
+
+// 中性色 - 亮色模式
+$bg: #ffffff;
+$bg-elevated: #fafafa;
+$bg-overlay: #ffffff;
+$bg-hover: #f4f4f5;
+
+$text: #18181b;
+$text-secondary: #71717a;
+$text-tertiary: #a1a1aa;
+$text-placeholder: #d4d4d8;
+
+$border: #e4e4e7;
+$border-light: #f4f4f5;
+
+// 中性色 - 暗色模式（用于主题切换）
+$dark-bg: #18181b;
+$dark-bg-elevated: #27272a;
+$dark-bg-overlay: #3f3f46;
+$dark-bg-hover: #3f3f46;
+
+$dark-text: #fafafa;
+$dark-text-secondary: #a1a1aa;
+$dark-text-tertiary: #71717a;
+$dark-text-placeholder: #52525b;
+
+$dark-border: #3f3f46;
+$dark-border-light: #27272a;
+
+// ==================== 布局变量 ====================
+
+// 侧边栏
+$sidebar-width: 240px;
+$sidebar-collapsed-width: 64px;
+$sidebar-bg: $bg;
+$sidebar-text: $text;
+$sidebar-text-hover: $primary;
+$sidebar-active-bg: $primary-light;
+
+// 头部
+$header-height: 64px;
+$header-bg: $bg;
+$header-border: $border;
+$header-text: $text;
+
+// 登录页
+$login-left-bg-start: $primary;
+$login-left-bg-end: $primary;
+$login-right-bg: $bg;
+$login-text: $text;
+$login-input-border: #d4d4d8;
+$login-input-bg: $bg;
+
+// ==================== 字体系统 ====================
+
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+// 字号
+$font-xs: 12px;
+$font-sm: 14px;
+$font-base: 16px;
+$font-lg: 18px;
+$font-xl: 20px;
+$font-2xl: 24px;
+$font-3xl: 30px;
+$font-4xl: 36px;
+
+// 字重
+$font-normal: 400;
+$font-medium: 500;
+$font-semibold: 600;
+$font-bold: 700;
+
+// 行高
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// ==================== 间距系统 ====================
+
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-2xl: 48px;
+$spacing-3xl: 64px;
+
+// ==================== 圆角系统 ====================
+
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+$radius-full: 9999px;
+
+// ==================== 阴影系统 ====================
+
+$shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+$shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+$shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+$shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+$shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+$dark-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+$dark-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+$dark-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+
+// ==================== 过渡动画 ====================
+
+$transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+$transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+// ==================== 响应式断点 ====================
+
+$breakpoint-xs: 480px;
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-2xl: 1536px;
+
+// ==================== Z-index 层级 ====================
+
+$z-dropdown: 1000;
+$z-sticky: 1020;
+$z-fixed: 1030;
+$z-modal-backdrop: 1040;
+$z-modal: 1050;
+$z-popover: 1060;
+$z-tooltip: 1070;

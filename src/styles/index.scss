@@ -1,0 +1,7 @@
+// 主 SCSS 入口文件
+// 导入顺序：变量 -> mixins -> 全局样式 -> Element Plus 覆盖
+
+@use './variables.scss' as *;
+@use './mixins.scss' as *;
+@use './global.scss';
+@use './element-override.scss';

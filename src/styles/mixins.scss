@@ -1,0 +1,283 @@
+// ==================== 布局 Mixins ====================
+@use './variables.scss' as *;
+
+// Flex 居中
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Flex 列居中
+@mixin flex-column-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+// Flex 行居中（垂直）
+@mixin flex-align-center {
+  display: flex;
+  align-items: center;
+}
+
+// Flex 行两端对齐
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Grid 居中
+@mixin grid-center {
+  display: grid;
+  place-items: center;
+}
+
+// 绝对定位居中
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+// 绝对定位铺满
+@mixin absolute-full {
+  position: absolute;
+  inset: 0;
+}
+
+// ==================== 文本处理 ====================
+
+// 单行文本截断
+@mixin text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 多行文本截断
+@mixin text-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $lines;
+  overflow: hidden;
+}
+
+// 文本不可选择
+@mixin user-select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+// ==================== 响应式设计 ====================
+
+// 媒体查询 - 最小宽度
+@mixin media-min($breakpoint) {
+  @media (min-width: $breakpoint) {
+    @content;
+  }
+}
+
+// 媒体查询 - 最大宽度
+@mixin media-max($breakpoint) {
+  @media (max-width: $breakpoint - 1px) {
+    @content;
+  }
+}
+
+// 媒体查询 - 范围
+@mixin media-between($min, $max) {
+  @media (min-width: $min) and (max-width: $max - 1px) {
+    @content;
+  }
+}
+
+// 快捷断点
+@mixin mobile {
+  @include media-max($breakpoint-md) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @include media-between($breakpoint-md, $breakpoint-lg) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @include media-min($breakpoint-lg) {
+    @content;
+  }
+}
+
+// ==================== 视觉效果 ====================
+
+// 悬停效果
+@mixin hover-lift {
+  transition: transform $transition-base, box-shadow $transition-base;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+// 按钮悬停
+@mixin hover-scale($scale: 1.05) {
+  transition: transform $transition-fast;
+
+  &:hover {
+    transform: scale($scale);
+  }
+}
+
+// 玻璃态效果
+@mixin glass-effect($opacity: 0.1) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+// 渐变背景
+@mixin gradient-bg($start, $end, $angle: 135deg) {
+  background: linear-gradient($angle, $start, $end);
+}
+
+// ==================== 滚动条样式 ====================
+
+@mixin scrollbar($width: 8px, $track-color: $bg-elevated, $thumb-color: $border) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: $radius-sm;
+
+    &:hover {
+      background: $text-tertiary;
+    }
+  }
+}
+
+// ==================== 动画 ====================
+
+// 淡入淡出
+@mixin fade-in($duration: $transition-base) {
+  animation: fadeIn $duration ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// 滑入
+@mixin slide-in-up($duration: $transition-base) {
+  animation: slideInUp $duration ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ==================== 隐藏元素 ====================
+
+// 视觉隐藏但保留可访问性
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+// ==================== 清除浮动 ====================
+
+@mixin clearfix {
+  &::after {
+    content: '';
+    display: table;
+    clear: both;
+  }
+}
+
+// ==================== 主题切换支持 ====================
+
+// 暗色模式
+@mixin dark-mode {
+  [data-theme='dark'] & {
+    @content;
+  }
+}
+
+// ==================== 常用组合 ====================
+
+// 卡片样式
+@mixin card($padding: $spacing-lg) {
+  padding: $padding;
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+}
+
+// 输入框样式
+@mixin input-style {
+  padding: $spacing-sm $spacing-md;
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  font-size: $font-sm;
+  color: $text;
+  transition: border-color $transition-fast;
+
+  &:hover {
+    border-color: $primary;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px $primary-light;
+  }
+
+  &::placeholder {
+    color: $text-placeholder;
+  }
+}
+
+// 按钮重置
+@mixin button-reset {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}

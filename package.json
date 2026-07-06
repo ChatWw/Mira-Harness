@@ -1,0 +1,35 @@
+{
+  "name": "core-platform",
+  "version": "1.0.0",
+  "description": "中台基座前端项目",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "vue",
+    "platform",
+    "admin",
+    "login"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.2",
+    "lucide-vue-next": "^0.468.0",
+    "marked": "^18.0.5",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.6.4",
+    "vue3-puzzle-vcode": "^1.1.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "sass": "^1.101.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vue-tsc": "^2.2.0"
+  }
+}
