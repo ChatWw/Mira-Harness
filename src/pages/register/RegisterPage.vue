@@ -414,7 +414,7 @@ const agreementHtml = computed(() => {
   }
 
   :deep(strong) {
-    color: $primary;
+    color: var(--cp-primary);
   }
 }
 

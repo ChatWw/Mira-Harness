@@ -1,11 +1,21 @@
 // ==================== 颜色系统 ====================
 
 // 主题色（默认：青色）
+// 注意：以下 SCSS 变量仅用于编译时不变的场景（如间距、字号）
+// 对于需要动态切换的主题色，请使用 CSS 变量：var(--cp-primary)
 $primary: #06b6d4;
 $primary-hover: #0891b2;
 $primary-active: #0e7490;
 $primary-light: rgba(6, 182, 212, 0.1);
 $primary-lighter: rgba(6, 182, 212, 0.05);
+
+// CSS 变量（运行时动态，通过 theme.ts 设置）
+// 在组件样式中使用这些变量可以实现主题动态切换：
+// - var(--cp-primary)          主题色
+// - var(--cp-primary-hover)    hover 状态
+// - var(--cp-primary-light)    浅色（10% 透明度）
+// - var(--cp-primary-lighter)  更浅（5% 透明度）
+// - var(--el-color-primary)    Element Plus 主题色
 
 // 语义色
 $success: #10b981;

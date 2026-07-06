@@ -198,7 +198,7 @@ async function onSubmit() {
   padding: $spacing-2xl;
   color: white;
   overflow: hidden;
-  @include gradient-bg($login-left-bg-start, $login-left-bg-end);
+  @include gradient-bg(var(--cp-login-left-bg-start), var(--cp-login-left-bg-end));
 }
 
 .brand {
@@ -322,11 +322,11 @@ async function onSubmit() {
     transition: box-shadow $transition-fast;
 
     &:hover {
-      box-shadow: 0 0 0 1px $primary inset;
+      box-shadow: 0 0 0 1px var(--cp-primary) inset;
     }
 
     &.is-focus {
-      box-shadow: 0 0 0 1px $primary inset !important;
+      box-shadow: 0 0 0 1px var(--cp-primary) inset !important;
     }
   }
 
@@ -345,7 +345,7 @@ async function onSubmit() {
   transition: color $transition-fast;
 
   &:hover {
-    color: $primary;
+    color: var(--cp-primary);
   }
 }
 
@@ -388,10 +388,10 @@ async function onSubmit() {
     font-size: $font-lg;
     font-weight: $font-semibold;
     margin-bottom: $spacing-2xl;
-    color: $primary;
+    color: var(--cp-primary);
 
     .brand-icon {
-      background: $primary-light;
+      background: var(--cp-primary-light);
     }
   }
 }

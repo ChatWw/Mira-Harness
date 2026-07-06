@@ -45,6 +45,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/system/MenuPage.vue'),
         meta: { title: '菜单管理' },
       },
+      {
+        path: '/test/theme',
+        name: 'ThemeTest',
+        component: () => import('@/pages/test/ThemeTestPage.vue'),
+        meta: { title: '主题测试' },
+      },
     ],
   },
   {

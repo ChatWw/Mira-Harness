@@ -52,6 +52,7 @@ core-platform/
 │   │   ├── login/       # 登录页
 │   │   ├── register/    # 注册页
 │   │   ├── system/      # 系统管理（用户/角色/菜单）
+│   │   ├── test/        # 测试页面（ThemeTestPage）
 │   │   └── exception/   # 异常页面
 │   ├── router/          # 路由配置
 │   ├── stores/          # 状态管理
@@ -168,21 +169,43 @@ core-platform/
 
 ### 主题切换实现
 
-通过修改 HTML 根元素的 `data-theme` 属性：
+通过修改 HTML 根元素的 `data-theme` 属性和 CSS 变量实现动态主题切换：
+
 ```typescript
 document.documentElement.setAttribute('data-theme', 'dark')
+document.documentElement.style.setProperty('--cp-primary', '#9333ea')
 ```
 
-SCSS 中使用 `@include dark-mode` 适配：
+**SCSS 变量 vs CSS 变量**：
+- **SCSS 变量**（`$primary`）：编译时固定，用于不需要动态变化的值（如间距、字号）
+- **CSS 变量**（`var(--cp-primary)`）：运行时动态，用于需要主题切换的颜色
+
+SCSS 中使用 `@include dark-mode` 适配暗色模式：
 ```scss
 .component {
   background: $bg;
+  color: var(--cp-primary);  // 使用 CSS 变量实现动态主题色
   
   @include dark-mode {
     background: $dark-bg;
   }
 }
 ```
+
+**可用的 CSS 变量**：
+- `--cp-primary` - 主题色
+- `--cp-primary-hover` - hover 状态
+- `--cp-primary-light` - 浅色（10% 透明度）
+- `--el-color-primary` - Element Plus 主题色
+
+> 📘 详细说明见 [THEME_COLOR_SWITCH_FIX.md](./wiki/reports/THEME_COLOR_SWITCH_FIX.md)
+
+### 主题测试页面
+
+访问 `/test/theme` 可以测试主题切换功能，验证：
+- Element Plus 组件是否跟随主题色变化
+- 自定义样式是否正确使用 CSS 变量
+- 浏览器 DevTools 排查方法
 
 ---
 

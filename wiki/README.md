@@ -20,6 +20,7 @@
 项目报告、迁移报告、技术决策记录等
 
 - [SCSS_MIGRATION_REPORT.md](./reports/SCSS_MIGRATION_REPORT.md) - SCSS 迁移完成报告
+- [THEME_COLOR_SWITCH_FIX.md](./reports/THEME_COLOR_SWITCH_FIX.md) - 主题色动态切换修复报告
 
 ---
 
@@ -73,6 +74,11 @@
 
 **我想了解 SCSS 迁移的完整情况**  
 → 查看 [SCSS_MIGRATION_REPORT.md](./reports/SCSS_MIGRATION_REPORT.md)
+
+### 主题系统相关文档
+
+**主题色切换不生效怎么办？**  
+→ 查看 [THEME_COLOR_SWITCH_FIX.md](./reports/THEME_COLOR_SWITCH_FIX.md)
 
 ---
 
