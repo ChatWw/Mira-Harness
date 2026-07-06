@@ -171,79 +171,79 @@ const handleLogout = async () => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+// ==================== 布局容器 ====================
 .layout {
   display: flex;
   min-height: 100vh;
-  background: var(--cp-bg);
+  background: $bg;
 }
 
+// ==================== 侧边栏 ====================
 .sidebar {
-  width: 240px;
-  background: var(--cp-sidebar-bg);
-  border-right: 1px solid var(--cp-border);
-  transition: width 0.3s;
+  width: $sidebar-width;
+  background: $sidebar-bg;
+  border-right: 1px solid $border;
+  transition: width $transition-base;
   flex-shrink: 0;
+
+  &.collapsed {
+    width: $sidebar-collapsed-width;
+  }
+
+  &-header {
+    height: $header-height;
+    @include flex-align-center;
+    padding: 0 $spacing-md;
+    border-bottom: 1px solid $border;
+  }
+
+  &-menu {
+    border: none;
+    background: $sidebar-bg;
+
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      color: $sidebar-text;
+    }
+
+    :deep(.el-menu-item:hover),
+    :deep(.el-sub-menu__title:hover) {
+      color: $primary;
+      background: $bg-elevated;
+    }
+
+    :deep(.el-menu-item.is-active) {
+      color: $primary;
+      background: $sidebar-active-bg;
+    }
+  }
 }
 
-.sidebar.collapsed {
-  width: 64px;
-}
-
-.sidebar-header {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--cp-border);
-}
-
+// ==================== 品牌标识 ====================
 .brand {
-  display: flex;
-  align-items: center;
+  @include flex-align-center;
   gap: 12px;
+
+  &-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: $radius-md;
+    background: $primary;
+    color: white;
+    @include flex-center;
+    flex-shrink: 0;
+  }
+
+  &-text {
+    font-size: $font-lg;
+    font-weight: $font-semibold;
+    color: $text;
+    white-space: nowrap;
+  }
 }
 
-.brand-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--cp-primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.brand-text {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--cp-text);
-  white-space: nowrap;
-}
-
-.sidebar-menu {
-  border: none;
-  background: var(--cp-sidebar-bg);
-}
-
-.sidebar-menu :deep(.el-menu-item),
-.sidebar-menu :deep(.el-sub-menu__title) {
-  color: var(--cp-sidebar-text);
-}
-
-.sidebar-menu :deep(.el-menu-item:hover),
-.sidebar-menu :deep(.el-sub-menu__title:hover) {
-  color: var(--cp-primary);
-  background: var(--cp-bg-elevated);
-}
-
-.sidebar-menu :deep(.el-menu-item.is-active) {
-  color: var(--cp-primary);
-  background: var(--cp-sidebar-active-bg);
-}
-
+// ==================== 主容器 ====================
 .main-container {
   flex: 1;
   display: flex;
@@ -251,84 +251,81 @@ const handleLogout = async () => {
   min-width: 0;
 }
 
+// ==================== 头部 ====================
 .header {
-  height: 60px;
-  background: var(--cp-header-bg);
-  border-bottom: 1px solid var(--cp-header-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  height: $header-height;
+  background: $header-bg;
+  border-bottom: 1px solid $header-border;
+  @include flex-between;
   padding: 0 20px;
   flex-shrink: 0;
-}
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  &-left {
+    @include flex-align-center;
+    gap: $spacing-md;
+  }
+
+  &-right {
+    @include flex-align-center;
+    gap: 12px;
+  }
 }
 
 .collapse-btn {
   font-size: 20px;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
+// ==================== 主题色选择器 ====================
 .color-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @include flex-align-center;
+  gap: $spacing-sm;
   min-width: 120px;
 }
 
 .color-dot {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
+  border-radius: $radius-full;
   flex-shrink: 0;
 }
 
 .check-icon {
   margin-left: auto;
-  color: var(--cp-primary);
+  color: $primary;
 }
 
+// ==================== 用户信息 ====================
 .user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @include flex-align-center;
+  gap: $spacing-sm;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px $spacing-sm;
   border-radius: 6px;
-  transition: background 0.2s;
-}
+  transition: background $transition-base;
 
-.user-info:hover {
-  background: var(--cp-bg-elevated);
+  &:hover {
+    background: $bg-elevated;
+  }
 }
 
 .user-name {
-  font-size: 14px;
-  color: var(--cp-text);
+  font-size: $font-sm;
+  color: $text;
   max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @include text-ellipsis;
 }
 
+// ==================== 内容区域 ====================
 .content {
   flex: 1;
   overflow: auto;
-  background: var(--cp-bg);
+  background: $bg;
 }
 
+// ==================== 过渡动画 ====================
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity $transition-fast;
 }
 
 .fade-enter-from,
@@ -336,17 +333,18 @@ const handleLogout = async () => {
   opacity: 0;
 }
 
-@media (max-width: 768px) {
+// ==================== 响应式设计 ====================
+@include media-max($breakpoint-md) {
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    z-index: 1000;
-  }
+    z-index: $z-sticky;
 
-  .sidebar.collapsed {
-    transform: translateX(-100%);
+    &.collapsed {
+      transform: translateX(-100%);
+    }
   }
 
   .user-name {

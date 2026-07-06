@@ -316,105 +316,110 @@ const agreementHtml = computed(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+// ==================== 页面容器 ====================
 .register-page {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cp-bg);
+  @include flex-center;
+  background: $bg;
   padding: 40px 20px;
 }
 
 .register-container {
   width: 100%;
   max-width: 600px;
-  background: var(--cp-bg-elevated);
-  border-radius: 12px;
+  background: $bg-elevated;
+  border-radius: $radius-lg;
   padding: 40px;
-  box-shadow: var(--cp-shadow-md);
+  box-shadow: $shadow-md;
 }
 
+// ==================== 头部 ====================
 .register-header {
   text-align: center;
   margin-bottom: 40px;
+
+  h1 {
+    font-size: 28px;
+    font-weight: $font-bold;
+    color: $text;
+    margin-bottom: $spacing-sm;
+  }
+
+  p {
+    font-size: $font-sm;
+    color: $text-secondary;
+  }
 }
 
-.register-header h1 {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--cp-text);
-  margin-bottom: 8px;
-}
+// ==================== 表单样式 ====================
+.register-form {
+  :deep(.el-form-item__label) {
+    color: $text;
+  }
 
-.register-header p {
-  font-size: 14px;
-  color: var(--cp-text-secondary);
-}
-
-.register-form :deep(.el-form-item__label) {
-  color: var(--cp-text);
-}
-
-.register-form :deep(.el-input__wrapper) {
-  background: var(--cp-bg);
+  :deep(.el-input__wrapper) {
+    background: $bg;
+  }
 }
 
 .captcha-row {
-  display: flex;
+  @include flex-align-center;
   gap: 12px;
-  align-items: center;
   width: 100%;
 }
 
 .submit-btn {
   width: 100%;
   height: 44px;
-  font-size: 16px;
+  font-size: $font-base;
 }
 
 .login-link {
   text-align: center;
-  font-size: 14px;
-  color: var(--cp-text-secondary);
+  font-size: $font-sm;
+  color: $text-secondary;
   margin-top: 20px;
 }
 
+// ==================== 协议弹窗 ====================
 .agreement-content {
   max-height: 500px;
   overflow-y: auto;
   padding: 20px;
-  background: var(--cp-bg);
-  border-radius: 8px;
-  color: var(--cp-text);
-  line-height: 1.8;
+  background: $bg;
+  border-radius: $radius-md;
+  color: $text;
+  line-height: $line-height-relaxed;
+  @include scrollbar;
+
+  :deep(h1) {
+    font-size: $font-2xl;
+    margin-bottom: 20px;
+    color: $text;
+  }
+
+  :deep(h2) {
+    font-size: $font-lg;
+    margin: 20px 0 10px;
+    color: $text;
+  }
+
+  :deep(p) {
+    margin: 10px 0;
+  }
+
+  :deep(ul) {
+    padding-left: 20px;
+  }
+
+  :deep(strong) {
+    color: $primary;
+  }
 }
 
-.agreement-content :deep(h1) {
-  font-size: 24px;
-  margin-bottom: 20px;
-  color: var(--cp-text);
-}
-
-.agreement-content :deep(h2) {
-  font-size: 18px;
-  margin: 20px 0 10px;
-  color: var(--cp-text);
-}
-
-.agreement-content :deep(p) {
-  margin: 10px 0;
-}
-
-.agreement-content :deep(ul) {
-  padding-left: 20px;
-}
-
-.agreement-content :deep(strong) {
-  color: var(--cp-primary);
-}
-
-@media (max-width: 768px) {
+// ==================== 响应式设计 ====================
+@include media-max($breakpoint-md) {
   .register-container {
     padding: 30px 20px;
   }
