@@ -10,8 +10,8 @@
 
 body {
   font-family: $font-family;
-  color: $text;
-  background: $bg;
+  color: var(--cp-text);
+  background: var(--cp-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: $font-sm;
@@ -20,6 +20,7 @@ body {
 
 #app {
   min-height: 100vh;
+  background: var(--cp-bg);
 }
 
 a {
@@ -128,23 +129,86 @@ input {
 .pr-md { padding-right: $spacing-md; }
 .pr-lg { padding-right: $spacing-lg; }
 
+// ==================== CSS 变量系统 ====================
+
+:root {
+  // 背景色
+  --cp-bg: #{$bg};
+  --cp-bg-elevated: #{$bg-elevated};
+  --cp-bg-overlay: #{$bg-overlay};
+  --cp-bg-hover: #{$bg-hover};
+
+  // 文本色
+  --cp-text: #{$text};
+  --cp-text-secondary: #{$text-secondary};
+  --cp-text-tertiary: #{$text-tertiary};
+  --cp-text-placeholder: #{$text-placeholder};
+
+  // 边框色
+  --cp-border: #{$border};
+  --cp-border-light: #{$border-light};
+
+  // 主题色
+  --cp-primary: #{$primary};
+  --cp-primary-hover: #{$primary-hover};
+  --cp-primary-light: #{$primary-light};
+  --cp-primary-lighter: #{$primary-lighter};
+
+  // 语义色
+  --cp-success: #{$success};
+  --cp-warning: #{$warning};
+  --cp-danger: #{$danger};
+  --cp-info: #{$info};
+
+  // 统计卡片图标背景色（亮色模式）
+  --cp-stat-icon-success-bg: #ecfdf5;
+  --cp-stat-icon-success-color: #10b981;
+  --cp-stat-icon-info-bg: #eff6ff;
+  --cp-stat-icon-info-color: #3b82f6;
+  --cp-stat-icon-warning-bg: #fef3c7;
+  --cp-stat-icon-warning-color: #f59e0b;
+  --cp-stat-icon-purple-bg: #f3e8ff;
+  --cp-stat-icon-purple-color: #9333ea;
+}
+
 // ==================== 暗色模式样式 ====================
 
 [data-theme='dark'] {
-  body {
-    color: $dark-text;
-    background: $dark-bg;
-  }
+  // 背景色
+  --cp-bg: #{$dark-bg};
+  --cp-bg-elevated: #{$dark-bg-elevated};
+  --cp-bg-overlay: #{$dark-bg-overlay};
+  --cp-bg-hover: #{$dark-bg-hover};
 
-  ::-webkit-scrollbar-track {
-    background: $dark-bg-elevated;
-  }
+  // 文本色
+  --cp-text: #{$dark-text};
+  --cp-text-secondary: #{$dark-text-secondary};
+  --cp-text-tertiary: #{$dark-text-tertiary};
+  --cp-text-placeholder: #{$dark-text-placeholder};
 
-  ::-webkit-scrollbar-thumb {
-    background: $dark-border;
+  // 边框色
+  --cp-border: #{$dark-border};
+  --cp-border-light: #{$dark-border-light};
 
-    &:hover {
-      background: $dark-text-tertiary;
-    }
+  // 统计卡片图标背景色（暗色模式 - 降低饱和度和亮度）
+  --cp-stat-icon-success-bg: rgba(16, 185, 129, 0.15);
+  --cp-stat-icon-success-color: #34d399;
+  --cp-stat-icon-info-bg: rgba(59, 130, 246, 0.15);
+  --cp-stat-icon-info-color: #60a5fa;
+  --cp-stat-icon-warning-bg: rgba(245, 158, 11, 0.15);
+  --cp-stat-icon-warning-color: #fbbf24;
+  --cp-stat-icon-purple-bg: rgba(147, 51, 234, 0.15);
+  --cp-stat-icon-purple-color: #a78bfa;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: var(--cp-bg-elevated);
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: var(--cp-border);
+
+  &:hover {
+    background: var(--cp-text-tertiary);
   }
 }

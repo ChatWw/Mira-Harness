@@ -9,7 +9,7 @@
       <el-col :xs="24" :sm="12" :md="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: #ecfdf5; color: #10b981;">
+            <div class="stat-icon stat-icon-success">
               <el-icon :size="24"><User /></el-icon>
             </div>
             <div class="stat-info">
@@ -22,7 +22,7 @@
       <el-col :xs="24" :sm="12" :md="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: #eff6ff; color: #3b82f6;">
+            <div class="stat-icon stat-icon-info">
               <el-icon :size="24"><Document /></el-icon>
             </div>
             <div class="stat-info">
@@ -35,7 +35,7 @@
       <el-col :xs="24" :sm="12" :md="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: #fef3c7; color: #f59e0b;">
+            <div class="stat-icon stat-icon-warning">
               <el-icon :size="24"><Warning /></el-icon>
             </div>
             <div class="stat-info">
@@ -48,7 +48,7 @@
       <el-col :xs="24" :sm="12" :md="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: #f3e8ff; color: #9333ea;">
+            <div class="stat-icon stat-icon-purple">
               <el-icon :size="24"><Setting /></el-icon>
             </div>
             <div class="stat-info">
@@ -182,12 +182,12 @@ const getStatusType = (status: string) => {
   h1 {
     font-size: $font-2xl;
     font-weight: 600;
-    color: $text;
+    color: var(--cp-text);
     margin-bottom: $spacing-xs;
   }
 
   p {
-    color: $text-secondary;
+    color: var(--cp-text-secondary);
     font-size: $font-sm;
   }
 }
@@ -212,6 +212,27 @@ const getStatusType = (status: string) => {
   @include flex-center;
 }
 
+// 统计图标主题色
+.stat-icon-success {
+  background: var(--cp-stat-icon-success-bg);
+  color: var(--cp-stat-icon-success-color);
+}
+
+.stat-icon-info {
+  background: var(--cp-stat-icon-info-bg);
+  color: var(--cp-stat-icon-info-color);
+}
+
+.stat-icon-warning {
+  background: var(--cp-stat-icon-warning-bg);
+  color: var(--cp-stat-icon-warning-color);
+}
+
+.stat-icon-purple {
+  background: var(--cp-stat-icon-purple-bg);
+  color: var(--cp-stat-icon-purple-color);
+}
+
 .stat-info {
   flex: 1;
 }
@@ -219,13 +240,13 @@ const getStatusType = (status: string) => {
 .stat-value {
   font-size: $font-2xl;
   font-weight: 600;
-  color: $text;
+  color: var(--cp-text);
   margin-bottom: $spacing-xs;
 }
 
 .stat-label {
   font-size: $font-sm;
-  color: $text-secondary;
+  color: var(--cp-text-secondary);
 }
 
 .content-row {
@@ -242,7 +263,7 @@ const getStatusType = (status: string) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: $text-tertiary;
+  color: var(--cp-text-tertiary);
 
   p {
     margin-top: $spacing-sm;
@@ -261,18 +282,18 @@ const getStatusType = (status: string) => {
   gap: $spacing-sm;
   padding: $spacing-md;
   border-radius: $radius-md;
-  background: $bg-elevated;
+  background: var(--cp-bg-elevated);
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background: $primary-lighter;
+    background: var(--cp-primary-lighter);
     transform: translateY(-2px);
   }
 
   span {
     font-size: $font-sm;
-    color: $text;
+    color: var(--cp-text);
   }
 }
 </style>

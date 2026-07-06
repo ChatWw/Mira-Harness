@@ -66,6 +66,8 @@
   --el-bg-color-overlay: #{$dark-bg-overlay};
   --el-fill-color-blank: #{$dark-bg-elevated};
   --el-fill-color-light: #{$dark-bg-elevated};
+  --el-fill-color: #{$dark-bg-hover};
+  --el-fill-color-dark: #{$dark-bg-overlay};
 
   // 文本色
   --el-text-color-primary: #{$dark-text};
@@ -77,6 +79,17 @@
   --el-border-color: #{$dark-border};
   --el-border-color-light: #{$dark-border-light};
   --el-border-color-lighter: #{$dark-border-light};
+  --el-border-color-dark: #{$dark-border};
+
+  // 遮罩
+  --el-overlay-color: rgba(0, 0, 0, 0.7);
+  --el-overlay-color-light: rgba(0, 0, 0, 0.5);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.3);
+
+  // 禁用状态
+  --el-disabled-bg-color: #{$dark-bg-elevated};
+  --el-disabled-text-color: #{$dark-text-tertiary};
+  --el-disabled-border-color: #{$dark-border-light};
 }
 
 // ==================== 组件样式覆盖 ====================
@@ -88,13 +101,99 @@
 
   &--primary {
     &:hover {
-      background-color: $primary-hover;
-      border-color: $primary-hover;
+      background-color: var(--cp-primary-hover);
+      border-color: var(--cp-primary-hover);
     }
 
     &:active {
-      background-color: $primary-active;
-      border-color: $primary-active;
+      background-color: var(--cp-primary-active, #{$primary-active});
+      border-color: var(--cp-primary-active, #{$primary-active});
+    }
+  }
+}
+
+// 亮色模式下的 link 按钮优化
+// Element Plus 官方 hover 使用 light-5 会变淡，改用 light-3（稍微变淡）提高可读性
+.el-button.is-link {
+  &.el-button--primary:not(:disabled) {
+    &:hover,
+    &:focus {
+      color: var(--el-color-primary-light-3);
+    }
+  }
+
+  &.el-button--success:not(:disabled) {
+    &:hover,
+    &:focus {
+      color: var(--el-color-success-light-3);
+    }
+  }
+
+  &.el-button--warning:not(:disabled) {
+    &:hover,
+    &:focus {
+      color: var(--el-color-warning-light-3);
+    }
+  }
+
+  &.el-button--danger:not(:disabled) {
+    &:hover,
+    &:focus {
+      color: var(--el-color-danger-light-3);
+    }
+  }
+
+  &.el-button--info:not(:disabled) {
+    &:hover,
+    &:focus {
+      color: var(--el-color-info-light-3);
+    }
+  }
+}
+
+// 暗色模式下的 link 按钮优化
+// 根据 Element Plus 官方实现：暗色模式下 dark-2 会变亮，light-3 会变暗
+// 所以我们使用 dark-2（在暗色模式下会自动变亮）
+[data-theme='dark'] {
+  .el-button.is-link {
+    // 主色按钮：hover 使用 dark-2（暗色模式下会变亮）
+    &.el-button--primary:not(:disabled) {
+      &:hover,
+      &:focus {
+        color: var(--el-color-primary-dark-2);
+      }
+    }
+
+    // 成功按钮
+    &.el-button--success:not(:disabled) {
+      &:hover,
+      &:focus {
+        color: var(--el-color-success-dark-2);
+      }
+    }
+
+    // 警告按钮
+    &.el-button--warning:not(:disabled) {
+      &:hover,
+      &:focus {
+        color: var(--el-color-warning-dark-2);
+      }
+    }
+
+    // 危险按钮
+    &.el-button--danger:not(:disabled) {
+      &:hover,
+      &:focus {
+        color: var(--el-color-danger-dark-2);
+      }
+    }
+
+    // 信息按钮
+    &.el-button--info:not(:disabled) {
+      &:hover,
+      &:focus {
+        color: var(--el-color-info-dark-2);
+      }
     }
   }
 }
@@ -111,7 +210,7 @@
 .el-table {
   &__header {
     th {
-      background-color: $bg-elevated;
+      background-color: var(--el-fill-color-light);
       font-weight: $font-semibold;
     }
   }
@@ -119,9 +218,19 @@
   &__row {
     transition: background-color $transition-fast;
 
-    &:hover {
-      background-color: $bg-hover;
+    &:hover > td {
+      background-color: var(--cp-bg-hover) !important;
     }
+  }
+}
+
+// 暗色模式下的表格特殊处理
+[data-theme='dark'] {
+  .el-table {
+    --el-table-bg-color: #{$dark-bg-elevated};
+    --el-table-tr-bg-color: #{$dark-bg-elevated};
+    --el-table-row-hover-bg-color: #{$dark-bg-hover};
+    --el-table-header-bg-color: #{$dark-bg};
   }
 }
 
@@ -151,7 +260,7 @@
     transition: background-color $transition-fast;
 
     &:hover {
-      background-color: $bg-hover;
+      background-color: var(--cp-bg-hover);
     }
   }
 }

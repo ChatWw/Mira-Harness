@@ -176,14 +176,14 @@ const handleLogout = async () => {
 .layout {
   display: flex;
   min-height: 100vh;
-  background: $bg;
+  background: var(--cp-bg);
 }
 
 // ==================== 侧边栏 ====================
 .sidebar {
   width: $sidebar-width;
-  background: $sidebar-bg;
-  border-right: 1px solid $border;
+  background: var(--cp-bg);
+  border-right: 1px solid var(--cp-border);
   transition: width $transition-base;
   flex-shrink: 0;
 
@@ -195,27 +195,27 @@ const handleLogout = async () => {
     height: $header-height;
     @include flex-align-center;
     padding: 0 $spacing-md;
-    border-bottom: 1px solid $border;
+    border-bottom: 1px solid var(--cp-border);
   }
 
   &-menu {
     border: none;
-    background: $sidebar-bg;
+    background: var(--cp-bg);
 
     :deep(.el-menu-item),
     :deep(.el-sub-menu__title) {
-      color: $sidebar-text;
+      color: var(--cp-text);
     }
 
     :deep(.el-menu-item:hover),
     :deep(.el-sub-menu__title:hover) {
-      color: $primary;
-      background: $bg-elevated;
+      color: var(--cp-primary);
+      background: var(--cp-bg-elevated);
     }
 
     :deep(.el-menu-item.is-active) {
-      color: $primary;
-      background: $sidebar-active-bg;
+      color: var(--cp-primary);
+      background: var(--cp-primary-light);
     }
   }
 }
@@ -229,7 +229,7 @@ const handleLogout = async () => {
     width: 36px;
     height: 36px;
     border-radius: $radius-md;
-    background: $primary;
+    background: var(--cp-primary);
     color: white;
     @include flex-center;
     flex-shrink: 0;
@@ -238,7 +238,7 @@ const handleLogout = async () => {
   &-text {
     font-size: $font-lg;
     font-weight: $font-semibold;
-    color: $text;
+    color: var(--cp-text);
     white-space: nowrap;
   }
 }
@@ -254,8 +254,8 @@ const handleLogout = async () => {
 // ==================== 头部 ====================
 .header {
   height: $header-height;
-  background: $header-bg;
-  border-bottom: 1px solid $header-border;
+  background: var(--cp-bg);
+  border-bottom: 1px solid var(--cp-border);
   @include flex-between;
   padding: 0 20px;
   flex-shrink: 0;
@@ -291,7 +291,7 @@ const handleLogout = async () => {
 
 .check-icon {
   margin-left: auto;
-  color: $primary;
+  color: var(--cp-primary);
 }
 
 // ==================== 用户信息 ====================
@@ -304,13 +304,13 @@ const handleLogout = async () => {
   transition: background $transition-base;
 
   &:hover {
-    background: $bg-elevated;
+    background: var(--cp-bg-elevated);
   }
 }
 
 .user-name {
   font-size: $font-sm;
-  color: $text;
+  color: var(--cp-text);
   max-width: 100px;
   @include text-ellipsis;
 }
@@ -319,7 +319,7 @@ const handleLogout = async () => {
 .content {
   flex: 1;
   overflow: auto;
-  background: $bg;
+  background: var(--cp-bg);
 }
 
 // ==================== 过渡动画 ====================

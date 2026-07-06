@@ -54,7 +54,7 @@ const roleList = [
     h1 {
       font-size: 24px;
       font-weight: 600;
-      color: $text;
+      color: var(--cp-text);
     }
   }
 }
