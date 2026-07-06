@@ -8,7 +8,14 @@
       "Bash(kill 96330)",
       "Bash(git init *)",
       "Bash(git config *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git commit *)",
+      "Bash(grep -E \"\\\\.\\(css|scss\\)$\")"
     ]
   }
 }
