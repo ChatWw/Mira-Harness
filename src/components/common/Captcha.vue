@@ -126,14 +126,14 @@ defineExpose({
 }
 
 .captcha-canvas {
-  border: 1px solid $border;
-  border-radius: 4px;
+  border: 1px solid var(--cp-border);
+  border-radius: $radius-sm;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color $transition-base;
   display: block;
 
   &:hover {
-    border-color: $primary;
+    border-color: var(--cp-primary);
   }
 }
 </style>

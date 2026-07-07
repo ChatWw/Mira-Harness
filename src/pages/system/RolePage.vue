@@ -52,8 +52,8 @@ const roleList = [
     margin-bottom: $spacing-lg;
 
     h1 {
-      font-size: 24px;
-      font-weight: 600;
+      font-size: $font-2xl;
+      font-weight: $font-semibold;
       color: var(--cp-text);
     }
   }

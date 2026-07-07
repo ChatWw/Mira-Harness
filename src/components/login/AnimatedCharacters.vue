@@ -155,7 +155,7 @@ const purpleStyle = computed(() => ({
 const purpleEyesStyle = computed(() => ({
   left: hiding.value ? '20px' : isLookingAtEachOther.value ? '55px' : `${45 + purplePos.faceX}px`,
   top: hiding.value ? '35px' : isLookingAtEachOther.value ? '65px' : `${40 + purplePos.faceY}px`,
-  gap: '32px',
+  gap: '2rem', // $spacing-xl (32px)
 }))
 const purpleLookX = computed(() => hiding.value ? (isPurplePeeking.value ? 4 : -4) : isLookingAtEachOther.value ? 3 : undefined)
 const purpleLookY = computed(() => hiding.value ? (isPurplePeeking.value ? 5 : -4) : isLookingAtEachOther.value ? 4 : undefined)
@@ -169,7 +169,7 @@ const blackStyle = computed(() => ({
 const blackEyesStyle = computed(() => ({
   left: hiding.value ? '10px' : isLookingAtEachOther.value ? '32px' : `${26 + blackPos.faceX}px`,
   top: hiding.value ? '28px' : isLookingAtEachOther.value ? '12px' : `${32 + blackPos.faceY}px`,
-  gap: '24px',
+  gap: '1.5rem', // $spacing-lg (24px)
 }))
 const blackLookX = computed(() => hiding.value ? -4 : isLookingAtEachOther.value ? 0 : undefined)
 const blackLookY = computed(() => hiding.value ? -4 : isLookingAtEachOther.value ? -4 : undefined)
@@ -180,7 +180,7 @@ const orangeStyle = computed(() => ({
 const orangeEyesStyle = computed(() => ({
   left: hiding.value ? '50px' : `${82 + orangePos.faceX}px`,
   top: hiding.value ? '85px' : `${90 + orangePos.faceY}px`,
-  gap: '32px',
+  gap: '2rem', // $spacing-xl (32px)
 }))
 
 const yellowStyle = computed(() => ({
@@ -189,7 +189,7 @@ const yellowStyle = computed(() => ({
 const yellowEyesStyle = computed(() => ({
   left: hiding.value ? '20px' : `${52 + yellowPos.faceX}px`,
   top: hiding.value ? '35px' : `${40 + yellowPos.faceY}px`,
-  gap: '24px',
+  gap: '1.5rem', // $spacing-lg (24px)
 }))
 const yellowMouthStyle = computed(() => ({
   left: hiding.value ? '10px' : `${40 + yellowPos.faceX}px`,
@@ -221,7 +221,7 @@ $transition-quick: all 0.2s ease-out;
   &.purple {
     left: 70px;
     width: 180px;
-    background: $primary;
+    background: var(--cp-primary);
     border-radius: 10px 10px 0 0;
     z-index: 1;
   }

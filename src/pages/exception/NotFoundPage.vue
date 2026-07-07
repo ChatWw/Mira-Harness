@@ -18,30 +18,30 @@
 .not-found-page {
   min-height: 100vh;
   @include flex-center;
-  background: $bg;
+  background: var(--cp-bg);
 
   .content {
     text-align: center;
     padding: $spacing-xl;
 
     .error-code {
-      font-size: 120px;
-      font-weight: 700;
-      color: $primary;
+      font-size: 7.5rem; // 120px
+      font-weight: $font-bold;
+      color: var(--cp-primary);
       line-height: 1;
       margin-bottom: $spacing-lg;
     }
 
     h1 {
-      font-size: 32px;
-      font-weight: 600;
-      color: $text;
+      font-size: $font-3xl;
+      font-weight: $font-semibold;
+      color: var(--cp-text);
       margin-bottom: $spacing-sm;
     }
 
     p {
-      font-size: 16px;
-      color: $text-secondary;
+      font-size: $font-base;
+      color: var(--cp-text-secondary);
       margin-bottom: $spacing-2xl;
     }
   }

@@ -321,96 +321,96 @@ const agreementHtml = computed(() => {
 .register-page {
   min-height: 100vh;
   @include flex-center;
-  background: $bg;
-  padding: 40px 20px;
+  background: var(--cp-bg);
+  padding: $spacing-2xl $spacing-lg;
 }
 
 .register-container {
   width: 100%;
   max-width: 600px;
-  background: $bg-elevated;
+  background: var(--cp-bg-elevated);
   border-radius: $radius-lg;
-  padding: 40px;
+  padding: $spacing-2xl;
   box-shadow: $shadow-md;
 }
 
 // ==================== 头部 ====================
 .register-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: $spacing-2xl;
 
   h1 {
-    font-size: 28px;
+    font-size: $font-3xl;
     font-weight: $font-bold;
-    color: $text;
+    color: var(--cp-text);
     margin-bottom: $spacing-sm;
   }
 
   p {
     font-size: $font-sm;
-    color: $text-secondary;
+    color: var(--cp-text-secondary);
   }
 }
 
 // ==================== 表单样式 ====================
 .register-form {
   :deep(.el-form-item__label) {
-    color: $text;
+    color: var(--cp-text);
   }
 
   :deep(.el-input__wrapper) {
-    background: $bg;
+    background: var(--cp-bg);
   }
 }
 
 .captcha-row {
   @include flex-align-center;
-  gap: 12px;
+  gap: $spacing-sm;
   width: 100%;
 }
 
 .submit-btn {
   width: 100%;
-  height: 44px;
+  height: 2.75rem; // 44px
   font-size: $font-base;
 }
 
 .login-link {
   text-align: center;
   font-size: $font-sm;
-  color: $text-secondary;
-  margin-top: 20px;
+  color: var(--cp-text-secondary);
+  margin-top: $spacing-lg;
 }
 
 // ==================== 协议弹窗 ====================
 .agreement-content {
   max-height: 500px;
   overflow-y: auto;
-  padding: 20px;
-  background: $bg;
+  padding: $spacing-lg;
+  background: var(--cp-bg);
   border-radius: $radius-md;
-  color: $text;
+  color: var(--cp-text);
   line-height: $line-height-relaxed;
   @include scrollbar;
 
   :deep(h1) {
     font-size: $font-2xl;
-    margin-bottom: 20px;
-    color: $text;
+    margin-bottom: $spacing-lg;
+    color: var(--cp-text);
   }
 
   :deep(h2) {
     font-size: $font-lg;
-    margin: 20px 0 10px;
-    color: $text;
+    margin: $spacing-lg 0 $spacing-xs;
+    color: var(--cp-text);
   }
 
   :deep(p) {
-    margin: 10px 0;
+    margin: $spacing-xs 0;
   }
 
   :deep(ul) {
-    padding-left: 20px;
+    padding-left: $spacing-lg;
   }
 
   :deep(strong) {
@@ -421,7 +421,7 @@ const agreementHtml = computed(() => {
 // ==================== 响应式设计 ====================
 @include media-max($breakpoint-md) {
   .register-container {
-    padding: 30px 20px;
+    padding: $spacing-xl $spacing-lg;
   }
 
   .register-form {

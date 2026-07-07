@@ -33,6 +33,9 @@ const pos = computed(() => {
 })
 </script>
 
-<style scoped>
-.pupil { border-radius: 50%; transition: transform 0.1s ease-out; }
+<style scoped lang="scss">
+.pupil {
+  border-radius: $radius-full;
+  transition: transform $transition-fast;
+}
 </style>

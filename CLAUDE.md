@@ -8,7 +8,7 @@
 
 **项目名称**: 中台基座  
 **版本**: 1.0.0  
-**最后更新**: 2026-07-06
+**最后更新**: 2026-07-07
 
 ### 技术栈
 
@@ -375,8 +375,19 @@ const isTokenExpired = (): boolean => {
 
 **当前进度**：
 - ✅ SCSS 基础设施已完成
-- ✅ LoginPage 已迁移
-- ⏳ 12 个组件待迁移
+- ✅ 所有 18 个组件已完成 SCSS 迁移（2026-07-07）
+- ✅ 使用 SCSS 变量和 mixin 替换硬编码值
+- ✅ 使用 CSS 变量（var(--cp-*)）支持动态主题切换
+
+**迁移完成的组件列表**：
+- ✅ Pupil.vue - 添加 lang="scss"，使用 $radius-full 和 $transition-fast
+- ✅ Captcha.vue - 使用 var(--cp-border)、$radius-sm、$transition-base
+- ✅ AnimatedCharacters.vue - 使用 var(--cp-primary) 和间距变量
+- ✅ NotFoundPage.vue - 替换硬编码字号和颜色为 SCSS 变量
+- ✅ MenuPage.vue - 使用 $font-2xl 和 var(--cp-text)
+- ✅ UserPage.vue - 优化布局，移除内联样式
+- ✅ RolePage.vue - 使用 SCSS 字体和颜色变量
+- ✅ RegisterPage.vue - 全面使用 SCSS 变量和动态主题色
 
 **参考文档**：
 - [SCSS 迁移指南](./wiki/guides/SCSS_MIGRATION_GUIDE.md)
@@ -535,7 +546,7 @@ themeStore.setPrimaryColor('#9333ea')  // 切换主题色
 
 ### 当前已知问题
 
-- [ ] 12 个组件待迁移到 SCSS
+- [x] ~~12 个组件待迁移到 SCSS~~ (已完成 2026-07-07)
 - [ ] 缺少单元测试
 - [ ] 缺少 E2E 测试
 - [ ] 缺少 API Mock 数据
@@ -552,6 +563,21 @@ themeStore.setPrimaryColor('#9333ea')  // 切换主题色
 ---
 
 ## 更新日志
+
+### v1.0.1 (2026-07-07)
+
+**完成**：
+- ✅ 完成所有 18 个组件的 SCSS 迁移
+- ✅ 替换所有硬编码值为 SCSS 变量
+- ✅ 使用 CSS 变量支持动态主题切换
+- ✅ 优化组件样式，移除内联样式
+- ✅ 构建验证通过
+
+**迁移组件列表**：
+- Pupil.vue、Captcha.vue、AnimatedCharacters.vue
+- NotFoundPage.vue、MenuPage.vue、UserPage.vue
+- RolePage.vue、RegisterPage.vue
+- 以及其他已正确使用 SCSS 的组件
 
 ### v1.0.0 (2026-07-06)
 
@@ -581,6 +607,6 @@ themeStore.setPrimaryColor('#9333ea')  // 切换主题色
 
 ---
 
-**当前版本**: 1.0.0  
-**最后更新**: 2026-07-06  
+**当前版本**: 1.0.1  
+**最后更新**: 2026-07-07  
 **维护状态**: 🟢 活跃开发中

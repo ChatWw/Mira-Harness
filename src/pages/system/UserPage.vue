@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Search">搜索</el-button>
       </div>
 
-      <el-table :data="userList" style="width: 100%; margin-top: 20px;">
+      <el-table :data="userList" class="user-table">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="用户名" />
         <el-table-column prop="email" label="邮箱" />
@@ -48,7 +48,7 @@
         :page-size="10"
         :total="50"
         layout="total, prev, pager, next, jumper"
-        style="margin-top: 20px; justify-content: flex-end;"
+        class="pagination"
       />
     </el-card>
   </div>
@@ -80,14 +80,24 @@ const userList = [
   margin-bottom: $spacing-lg;
 
   h1 {
-    font-size: 24px;
-    font-weight: 600;
-    color: $text;
+    font-size: $font-2xl;
+    font-weight: $font-semibold;
+    color: var(--cp-text);
   }
 }
 
 .search-bar {
-  display: flex;
+  @include flex-align-center;
   gap: $spacing-sm;
+}
+
+.user-table {
+  width: 100%;
+  margin-top: $spacing-lg;
+}
+
+.pagination {
+  margin-top: $spacing-lg;
+  justify-content: flex-end;
 }
 </style>
