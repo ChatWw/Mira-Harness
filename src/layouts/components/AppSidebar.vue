@@ -1,0 +1,135 @@
+<template>
+  <aside class="app-sidebar" :class="{ collapsed: appStore.sidebarCollapsed }">
+    <div v-if="layoutStore.config.showLogo" class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <Sparkles :size="20" />
+        </div>
+        <transition name="fade">
+          <span v-show="!appStore.sidebarCollapsed" class="brand-text">
+            {{ layoutStore.config.dynamicTitle }}
+          </span>
+        </transition>
+      </div>
+    </div>
+
+    <el-menu
+      :default-active="currentRoute"
+      :collapse="appStore.sidebarCollapsed"
+      :collapse-transition="false"
+      router
+      class="sidebar-menu"
+    >
+      <template v-for="item in menuList" :key="item.id">
+        <el-sub-menu v-if="item.children" :index="item.id">
+          <template #title>
+            <el-icon><component :is="item.icon" /></el-icon>
+            <span>{{ item.title }}</span>
+          </template>
+          <el-menu-item
+            v-for="child in item.children"
+            :key="child.id"
+            :index="child.path"
+          >
+            <el-icon><component :is="child.icon" /></el-icon>
+            <span>{{ child.title }}</span>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-menu-item v-else :index="item.path">
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.title }}</span>
+        </el-menu-item>
+      </template>
+    </el-menu>
+  </aside>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { Sparkles } from 'lucide-vue-next'
+import { useAppStore } from '@/stores/app'
+import { useLayoutStore } from '@/stores/layout'
+import { MENU_LIST } from '@/config/menu'
+
+const route = useRoute()
+const appStore = useAppStore()
+const layoutStore = useLayoutStore()
+
+const currentRoute = computed(() => route.path)
+const menuList = MENU_LIST
+</script>
+
+<style scoped lang="scss">
+.app-sidebar {
+  width: 240px;
+  background: var(--cp-bg-elevated);
+  border-right: 1px solid var(--cp-border);
+  display: flex;
+  flex-direction: column;
+  transition: width $transition-base;
+
+  &.collapsed {
+    width: 64px;
+  }
+
+  .sidebar-header {
+    height: 64px;
+    @include flex-center;
+    border-bottom: 1px solid var(--cp-border);
+
+    .brand {
+      @include flex-align-center;
+      gap: $spacing-sm;
+      padding: 0 $spacing-md;
+
+      .brand-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, var(--cp-primary), var(--cp-primary-hover));
+        border-radius: $radius-md;
+        @include flex-center;
+        color: white;
+        flex-shrink: 0;
+      }
+
+      .brand-text {
+        font-size: $font-lg;
+        font-weight: $font-semibold;
+        color: var(--cp-text);
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .sidebar-menu {
+    flex: 1;
+    border: none;
+    overflow-y: auto;
+  }
+
+  @include media-max($breakpoint-md) {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform $transition-base;
+
+    &:not(.collapsed) {
+      transform: translateX(0);
+    }
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity $transition-base;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

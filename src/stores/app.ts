@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useAppStore = defineStore('app', () => {
-  const appName = ref('中台基座')
   const sidebarCollapsed = ref(false)
 
   function toggleSidebar() {
@@ -10,7 +9,6 @@ export const useAppStore = defineStore('app', () => {
   }
 
   return {
-    appName,
     sidebarCollapsed,
     toggleSidebar,
   }

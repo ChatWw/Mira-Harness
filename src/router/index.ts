@@ -18,7 +18,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     redirect: '/dashboard',
-    component: () => import('@/layouts/BasicLayout.vue'),
+    component: () => import('@/layouts/index.vue'),
     meta: { requiresAuth: true },
     children: [
       {
