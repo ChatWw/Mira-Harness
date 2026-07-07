@@ -15,7 +15,10 @@
       "Bash(git push *)",
       "Bash(git checkout *)",
       "Bash(git commit *)",
-      "Bash(grep -E \"\\\\.\\(css|scss\\)$\")"
+      "Bash(grep -E \"\\\\.\\(css|scss\\)$\")",
+      "Bash(git rm *)",
+      "WebFetch(domain:fantastic-admin.hurui.me)",
+      "WebSearch"
     ]
   }
 }
