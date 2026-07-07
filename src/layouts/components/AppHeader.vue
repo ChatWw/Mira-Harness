@@ -15,7 +15,7 @@
         <el-button
           text
           :icon="themeStore.themeMode === 'dark' ? Sunny : Moon"
-          @click="themeStore.toggleThemeMode()"
+          @click="handleThemeToggle"
         />
       </el-tooltip>
 
@@ -69,6 +69,10 @@ const appStore = useAppStore();
 const themeStore = useThemeStore();
 const userStore = useUserStore();
 const layoutStore = useLayoutStore();
+
+function handleThemeToggle(event: MouseEvent) {
+  themeStore.toggleThemeModeWithTransition(event);
+}
 
 async function handleCommand(command: string) {
   if (command === "logout") {

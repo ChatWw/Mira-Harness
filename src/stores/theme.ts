@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import type { ThemeMode } from '@/types'
 import {
   DEFAULT_PRIMARY_COLOR,
@@ -8,6 +8,17 @@ import {
   PRIMARY_COLOR_STORAGE_KEY,
   PRESET_COLORS,
 } from '@/config/theme'
+
+type ViewTransitionController = {
+  ready: Promise<void>
+}
+
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (updateCallback: () => void | Promise<void>) => ViewTransitionController
+}
+
+const THEME_TRANSITION_ATTR = 'data-theme-transition'
+const THEME_TRANSITION_DURATION = 450
 
 export const useThemeStore = defineStore('theme', () => {
   const themeMode = ref<ThemeMode>(
@@ -22,19 +33,96 @@ export const useThemeStore = defineStore('theme', () => {
   // 在 store 创建时初始化主题
   applyTheme()
 
-  // 监听变化并应用主题
-  watch([themeMode, primaryColor], () => {
-    applyTheme()
-  })
-
   function toggleThemeMode() {
-    themeMode.value = themeMode.value === 'light' ? 'dark' : 'light'
-    localStorage.setItem(THEME_STORAGE_KEY, themeMode.value)
+    const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
+    setThemeMode(nextMode)
   }
 
   function setPrimaryColor(color: string) {
     primaryColor.value = color
     localStorage.setItem(PRIMARY_COLOR_STORAGE_KEY, color)
+    applyTheme()
+  }
+
+  async function toggleThemeModeWithTransition(event?: MouseEvent) {
+    const documentWithTransition = document as DocumentWithViewTransition
+
+    if (
+      !documentWithTransition.startViewTransition ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      toggleThemeMode()
+      return
+    }
+
+    const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
+    const root = document.documentElement
+    const { x, y } = resolveTransitionOrigin(event)
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    )
+    const clipPath = [
+      `circle(0px at ${x}px ${y}px)`,
+      `circle(${endRadius}px at ${x}px ${y}px)`,
+    ]
+
+    root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
+
+    const transition = documentWithTransition.startViewTransition(() => {
+      setThemeMode(nextMode)
+    })
+
+    try {
+      await transition.ready
+
+      const animation = root.animate(
+        {
+          clipPath: nextMode === 'dark' ? clipPath : [...clipPath].reverse(),
+        },
+        {
+          duration: THEME_TRANSITION_DURATION,
+          easing: 'ease-in-out',
+          fill: 'both',
+          pseudoElement:
+            nextMode === 'dark' ? '::view-transition-new(root)' : '::view-transition-old(root)',
+        }
+      )
+
+      await animation.finished.catch(() => undefined)
+    } finally {
+      root.removeAttribute(THEME_TRANSITION_ATTR)
+    }
+  }
+
+  function setThemeMode(mode: ThemeMode) {
+    if (themeMode.value === mode) {
+      return
+    }
+
+    themeMode.value = mode
+    localStorage.setItem(THEME_STORAGE_KEY, mode)
+    applyTheme()
+  }
+
+  function resolveTransitionOrigin(event?: MouseEvent) {
+    const fallback = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    }
+
+    if (!event) {
+      return fallback
+    }
+
+    if (event.clientX === 0 && event.clientY === 0) {
+      return fallback
+    }
+
+    return {
+      x: event.clientX,
+      y: event.clientY,
+    }
   }
 
   function applyTheme() {
@@ -113,6 +201,7 @@ export const useThemeStore = defineStore('theme', () => {
     primaryColor,
     presetColors,
     toggleThemeMode,
+    toggleThemeModeWithTransition,
     setPrimaryColor,
   }
 })

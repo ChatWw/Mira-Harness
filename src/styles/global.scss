@@ -212,3 +212,25 @@ input {
     background: var(--cp-text-tertiary);
   }
 }
+
+// ==================== 主题切换扩散动画 ====================
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(root) {
+  animation-duration: 0s;
+}
+
+[data-theme-transition='dark']::view-transition-old(root),
+[data-theme-transition='light']::view-transition-new(root) {
+  z-index: 1;
+}
+
+[data-theme-transition='dark']::view-transition-new(root),
+[data-theme-transition='light']::view-transition-old(root) {
+  z-index: 9999;
+}
