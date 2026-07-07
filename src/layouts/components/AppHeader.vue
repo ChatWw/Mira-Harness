@@ -20,11 +20,7 @@
       </el-tooltip>
 
       <el-tooltip content="全局配置">
-        <el-button
-          text
-          :icon="Setting"
-          @click="layoutStore.openSettings()"
-        />
+        <el-button text :icon="Setting" @click="layoutStore.openSettings()" />
       </el-tooltip>
 
       <el-dropdown trigger="click" @command="handleCommand">
@@ -52,26 +48,45 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { Expand, Fold, Moon, Sunny, Setting, User, SwitchButton } from '@element-plus/icons-vue'
-import { useAppStore } from '@/stores/app'
-import { useThemeStore } from '@/stores/theme'
-import { useUserStore } from '@/stores/user'
-import { useLayoutStore } from '@/stores/layout'
+import { ElMessageBox } from "element-plus";
+import { useRouter } from "vue-router";
+import {
+  Expand,
+  Fold,
+  Moon,
+  Sunny,
+  Setting,
+  User,
+  SwitchButton,
+} from "@element-plus/icons-vue";
+import { useAppStore } from "@/stores/app";
+import { useThemeStore } from "@/stores/theme";
+import { useUserStore } from "@/stores/user";
+import { useLayoutStore } from "@/stores/layout";
 
-const router = useRouter()
-const appStore = useAppStore()
-const themeStore = useThemeStore()
-const userStore = useUserStore()
-const layoutStore = useLayoutStore()
+const router = useRouter();
+const appStore = useAppStore();
+const themeStore = useThemeStore();
+const userStore = useUserStore();
+const layoutStore = useLayoutStore();
 
-function handleCommand(command: string) {
-  if (command === 'logout') {
-    userStore.logout()
-    router.push('/login')
-  } else if (command === 'profile') {
+async function handleCommand(command: string) {
+  if (command === "logout") {
+    try {
+      await ElMessageBox.confirm("确认退出当前账号登录吗？", "退出登录", {
+        confirmButtonText: "确认",
+        cancelButtonText: "取消",
+        type: "warning",
+      });
+
+      userStore.logout();
+      router.push("/login");
+    } catch {
+      // 用户取消退出，不执行后续操作
+    }
+  } else if (command === "profile") {
     // 跳转到个人资料页面（待实现）
-    console.log('跳转到个人资料')
+    console.log("跳转到个人资料");
   }
 }
 </script>
