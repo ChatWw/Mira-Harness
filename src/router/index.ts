@@ -42,6 +42,26 @@ const router = createRouter({
 })
 
 /**
+ * 组件映射表（用于动态导入）
+ */
+const componentMap: Record<string, () => Promise<any>> = {
+  '/pages/dashboard/DashboardPage.vue': () => import('@/pages/dashboard/DashboardPage.vue'),
+  '/pages/system/UserPage.vue': () => import('@/pages/system/UserPage.vue'),
+  '/pages/system/RolePage.vue': () => import('@/pages/system/RolePage.vue'),
+  '/pages/system/MenuPage.vue': () => import('@/pages/system/MenuPage.vue'),
+  '/pages/system/DeptPage.vue': () => import('@/pages/system/DeptPage.vue'),
+  '/pages/system/LogPage.vue': () => import('@/pages/system/LogPage.vue'),
+  '/pages/system/SettingsPage.vue': () => import('@/pages/system/SettingsPage.vue'),
+  '/pages/profile/ProfileInfoPage.vue': () => import('@/pages/profile/ProfileInfoPage.vue'),
+  '/pages/profile/ProfileSecurityPage.vue': () => import('@/pages/profile/ProfileSecurityPage.vue'),
+  '/pages/message/MessageListPage.vue': () => import('@/pages/message/MessageListPage.vue'),
+  '/pages/message/MessageSettingsPage.vue': () => import('@/pages/message/MessageSettingsPage.vue'),
+  '/pages/components/ProTableDemo.vue': () => import('@/pages/components/ProTableDemo.vue'),
+  '/pages/components/ProFormDemo.vue': () => import('@/pages/components/ProFormDemo.vue'),
+  '/pages/components/DetailLayoutDemo.vue': () => import('@/pages/components/DetailLayoutDemo.vue'),
+}
+
+/**
  * 根据菜单数据生成路由
  */
 function generateRoutes(menus: MenuItem[]): RouteRecordRaw[] {
@@ -51,10 +71,16 @@ function generateRoutes(menus: MenuItem[]): RouteRecordRaw[] {
     items.forEach((item) => {
       // 如果有 path 和 component，生成路由
       if (item.path && item.component) {
+        const componentLoader = componentMap[item.component]
+        if (!componentLoader) {
+          console.warn(`组件 ${item.component} 未在 componentMap 中注册`)
+          return
+        }
+
         const route: RouteRecordRaw = {
           path: item.path,
           name: item.name || item.id,
-          component: () => import(`../pages${item.component}`),
+          component: componentLoader,
           meta: {
             title: item.title,
             icon: item.icon,
