@@ -18,7 +18,11 @@
       "Bash(grep -E \"\\\\.\\(css|scss\\)$\")",
       "Bash(git rm *)",
       "WebFetch(domain:fantastic-admin.hurui.me)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(head -44 /Volumes/VrenDisk/project/core-platform/src/stores/user.ts)",
+      "Bash(echo \"        avatar: '',\")",
+      "Bash(tail -56 /Volumes/VrenDisk/project/core-platform/src/stores/user.ts)",
+      "Bash(mv /tmp/user_new.ts /Volumes/VrenDisk/project/core-platform/src/stores/user.ts)"
     ]
   }
 }
