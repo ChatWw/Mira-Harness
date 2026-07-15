@@ -4,6 +4,13 @@ export interface UserInfo {
   email: string
   avatar?: string
   roles?: string[]
+  username?: string
+  nickname?: string
+  phone?: string
+  deptId?: string
+  deptName?: string
+  status?: number
+  createdAt?: string
 }
 
 export interface LoginPayload {
@@ -20,13 +27,32 @@ export interface MenuItem {
   icon?: string
   path?: string
   children?: MenuItem[]
+  permission?: string
+  component?: string
+  name?: string
 }
 
 // 布局模式
-export type LayoutMode = 'sidebar-header' | 'header-only' | 'sidebar-only'
+export type LayoutMode = 'sidebar-header' | 'header-only' | 'sidebar-only' | 'mixed' | 'top-menu'
 
 // 页面切换动画
 export type PageTransition = 'fade' | 'fade-slide' | 'slide-up' | 'slide-right' | 'zoom' | 'none'
+
+// 新增类型
+export type ContentWidth = 'full' | '1200' | '1400' | '1600'
+export type ContentPadding = 'compact' | 'normal' | 'comfortable'
+export type CornerRadius = 'sharp' | 'medium' | 'rounded'
+export type ComponentSize = 'large' | 'default' | 'small'
+export type AnimationSpeed = 'fast' | 'normal' | 'slow'
+export type FooterStyle = 'simple' | 'split' | 'multi'
+export type FooterYearMode = 'auto' | 'custom'
+export type TabStyle = 'card' | 'chrome' | 'plain'
+
+export interface FooterLink {
+  text: string
+  url: string
+  target?: '_blank' | '_self'
+}
 
 // 布局配置
 export interface LayoutConfig {
