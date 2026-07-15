@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { UserInfo, LoginPayload } from '@/types'
+import { usePermissionStore } from './permission'
 
 const TOKEN_KEY = 'core-platform-token'
 const USER_INFO_KEY = 'core-platform-user'
@@ -74,6 +75,10 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_INFO_KEY)
     localStorage.removeItem(TOKEN_EXPIRE_KEY)
+
+    // 重置权限状态
+    const permissionStore = usePermissionStore()
+    permissionStore.reset()
   }
 
   // 刷新 token 过期时间（用户活动时调用）

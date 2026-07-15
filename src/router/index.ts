@@ -200,10 +200,9 @@ export function resetRouter() {
 }
 
 // 路由守卫
-let isRouteAdded = false
-
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
+  const permissionStore = usePermissionStore()
   const requiresAuth = to.meta.requiresAuth !== false
 
   // 设置页面标题
@@ -219,23 +218,23 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // 已登录但未添加动态路由
-    if (!isRouteAdded) {
+    if (!permissionStore.isRoutesAdded) {
       try {
         await addDynamicRoutes()
-        isRouteAdded = true
+        permissionStore.setRoutesAdded(true)
         // 重新导航到目标路由
         next({ ...to, replace: true })
       } catch (error) {
         console.error('添加动态路由失败:', error)
         // 添加路由失败，退出登录
         userStore.logout()
+        permissionStore.reset()
         next({ path: '/login', query: { redirect: to.fullPath } })
       }
       return
     }
 
     // 权限验证
-    const permissionStore = usePermissionStore()
     if (to.meta.permission && !permissionStore.hasPermission(to.meta.permission as string)) {
       // 无权限，跳转到 404
       next('/404')
