@@ -199,6 +199,9 @@ export function resetRouter() {
   })
 }
 
+// 标记动态路由是否已在当前会话中添加
+let routesAddedInSession = false
+
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
@@ -217,10 +220,13 @@ router.beforeEach(async (to, from, next) => {
       return
     }
 
-    // 已登录但未添加动态路由
-    if (!permissionStore.isRoutesAdded) {
+    // 已登录但未在当前会话中添加动态路由
+    // 注意：即使 permissionStore.isRoutesAdded 为 true（从持久化恢复），
+    // 也需要在当前会话中重新添加路由，因为 Vue Router 实例是新创建的
+    if (!routesAddedInSession) {
       try {
         await addDynamicRoutes()
+        routesAddedInSession = true
         permissionStore.setRoutesAdded(true)
         // 重新导航到目标路由
         next({ ...to, replace: true })

@@ -39,4 +39,9 @@ export const usePermissionStore = defineStore('permission', () => {
     setRoutesAdded,
     reset
   }
+}, {
+  persist: {
+    key: 'cp-permission',
+    storage: localStorage,
+  }
 })
