@@ -1,9 +1,9 @@
 import request from './request'
-import type { PageParams, PageResult } from './types'
+import type { PageParams, PageResult, LoginResult } from './types'
 import type { UserInfo } from '@/types'
 
 export const userApi = {
-  login(data: { username: string; password: string }) {
+  login(data: { username: string; password: string }): Promise<LoginResult> {
     return request.post('/auth/login', data)
   },
   getInfo() {

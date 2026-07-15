@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { UserInfo, LoginPayload } from '@/types'
 import { usePermissionStore } from './permission'
+import { userApi } from '@/api/user'
 
 const TOKEN_KEY = 'core-platform-token'
 const USER_INFO_KEY = 'core-platform-user'
@@ -36,36 +37,47 @@ export const useUserStore = defineStore('user', () => {
   })
 
   async function login(payload: LoginPayload) {
-    // Demo 登录逻辑
-    if (payload.account === 'admin' && payload.password === '12345678') {
-      const mockToken = 'demo-token-' + Date.now()
-      const mockUser: UserInfo = {
-        id: '1',
-        name: '超级管理员',
-        email: 'admin@example.com',
-        avatar: '',
-      }
+    try {
+      // 调用登录 API（将 account 映射为 username）
+      const result = await userApi.login({
+        username: payload.account,
+        password: payload.password,
+      })
 
-      token.value = mockToken
-      userInfo.value = mockUser
+      if (result.token && result.userInfo) {
+        token.value = result.token
+        userInfo.value = result.userInfo
 
-      // 计算过期时间
-      let expireTime: number
-      if (payload.remember) {
-        // 30 天免登录：30 * 24 * 60 * 60 * 1000 = 2592000000 毫秒
-        expireTime = Date.now() + 30 * 24 * 60 * 60 * 1000
+        // 计算过期时间
+        let expireTime: number
+        if (payload.remember) {
+          // 30 天免登录
+          expireTime = Date.now() + 30 * 24 * 60 * 60 * 1000
+        } else {
+          // 不勾选则 7 天过期
+          expireTime = Date.now() + 7 * 24 * 60 * 60 * 1000
+        }
+
+        localStorage.setItem(TOKEN_KEY, result.token)
+        localStorage.setItem(USER_INFO_KEY, JSON.stringify(result.userInfo))
+        localStorage.setItem(TOKEN_EXPIRE_KEY, expireTime.toString())
+
+        // 加载用户权限
+        const permissionStore = usePermissionStore()
+        if (result.permissions) {
+          permissionStore.setPermissions(result.permissions)
+        }
+
+        return { success: true }
       } else {
-        // 不勾选则 7 天过期
-        expireTime = Date.now() + 7 * 24 * 60 * 60 * 1000
+        return { success: false, message: '登录失败，请稍后重试' }
       }
-
-      localStorage.setItem(TOKEN_KEY, mockToken)
-      localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser))
-      localStorage.setItem(TOKEN_EXPIRE_KEY, expireTime.toString())
-
-      return { success: true }
-    } else {
-      return { success: false, message: '账号或密码错误' }
+    } catch (error: any) {
+      console.error('登录失败:', error)
+      return {
+        success: false,
+        message: error.message || '网络错误，请稍后重试'
+      }
     }
   }
 
