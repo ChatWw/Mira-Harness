@@ -38,7 +38,10 @@ const layoutRoute: RouteRecordRaw = {
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: [...staticRoutes],
+  routes: [
+    ...staticRoutes,
+    { ...layoutRoute, name: 'Layout' },
+  ],
 })
 
 /**
@@ -254,8 +257,5 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach(() => {
   // 可以在这里添加页面加载完成后的逻辑
 })
-
-// 添加 Layout 路由名称
-router.addRoute({ ...layoutRoute, name: 'Layout' })
 
 export default router
