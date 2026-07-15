@@ -1,5 +1,12 @@
 <template>
-  <aside class="app-sidebar" :class="{ collapsed: appStore.sidebarCollapsed }">
+  <aside
+    class="app-sidebar"
+    :class="{ collapsed: appStore.sidebarCollapsed }"
+    :style="{
+      width: appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
+      '--sidebar-width': appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
+    }"
+  >
     <div v-if="layoutStore.config.showLogo" class="sidebar-header">
       <div class="brand">
         <div class="brand-icon">
@@ -16,7 +23,8 @@
     <el-menu
       :default-active="currentRoute"
       :collapse="appStore.sidebarCollapsed"
-      :collapse-transition="false"
+      :collapse-transition="layoutStore.config.sidebarCollapseAnimation"
+      :unique-opened="layoutStore.config.uniqueOpened"
       router
       class="sidebar-menu"
     >
@@ -62,16 +70,12 @@ const menuList = MENU_LIST
 
 <style scoped lang="scss">
 .app-sidebar {
-  width: 240px;
   background: var(--cp-bg-elevated);
   border-right: 1px solid var(--cp-border);
   display: flex;
   flex-direction: column;
   transition: width $transition-base;
-
-  &.collapsed {
-    width: 64px;
-  }
+  position: relative;
 
   .sidebar-header {
     height: 64px;
@@ -79,7 +83,8 @@ const menuList = MENU_LIST
     border-bottom: 1px solid var(--cp-border);
 
     .brand {
-      @include flex-align-center;
+      @include flex-center;
+      justify-content: flex-start;
       gap: $spacing-sm;
       padding: 0 $spacing-md;
 
@@ -95,7 +100,7 @@ const menuList = MENU_LIST
 
       .brand-text {
         font-size: $font-lg;
-        font-weight: $font-semibold;
+        font-weight: 600;
         color: var(--cp-text);
         white-space: nowrap;
       }
@@ -106,6 +111,22 @@ const menuList = MENU_LIST
     flex: 1;
     border: none;
     overflow-y: auto;
+    background: transparent;
+
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      height: 48px;
+      line-height: 48px;
+    }
+
+    :deep(.el-menu-item.is-active) {
+      background: var(--cp-primary-lighter);
+      color: var(--cp-primary);
+
+      .el-icon {
+        color: var(--cp-primary);
+      }
+    }
   }
 
   @include media-max($breakpoint-md) {
@@ -113,7 +134,7 @@ const menuList = MENU_LIST
     left: 0;
     top: 0;
     bottom: 0;
-    z-index: 1000;
+    z-index: $z-fixed;
     transform: translateX(-100%);
     transition: transform $transition-base;
 
