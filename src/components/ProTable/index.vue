@@ -76,7 +76,7 @@
           <slot :name="column.prop" v-bind="scope" />
         </template>
         <template v-else-if="column.dict" #default="{ row }">
-          {{ column.dict[row[column.prop]] || row[column.prop] }}
+          {{ (column.dict && column.dict[row[column.prop]]) || row[column.prop] }}
         </template>
       </el-table-column>
 

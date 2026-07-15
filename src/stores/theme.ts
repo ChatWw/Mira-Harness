@@ -202,6 +202,7 @@ export const useThemeStore = defineStore('theme', () => {
     presetColors,
     toggleThemeMode,
     toggleThemeModeWithTransition,
+    setThemeMode,
     setPrimaryColor,
   }
 })

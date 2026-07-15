@@ -20,12 +20,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useLayoutStore } from '@/stores/layout'
-import type { ContentMaxWidth, ContentPadding } from '@/types'
+import type { ContentWidth, ContentPadding } from '@/types'
 
 interface Props {
   title?: string
   description?: string
-  maxWidth?: ContentMaxWidth
+  maxWidth?: ContentWidth
   padding?: ContentPadding
 }
 

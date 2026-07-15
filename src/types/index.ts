@@ -57,8 +57,38 @@ export interface FooterLink {
 // 布局配置
 export interface LayoutConfig {
   mode: LayoutMode
+  sidebarWidth: number
+  collapsedWidth: number
+  uniqueOpened: boolean
+  fixedSidebar: boolean
   showLogo: boolean
+  showFooter: boolean
   fixedHeader: boolean
-  dynamicTitle: string
+  headerHeight: number
+  showBreadcrumb: boolean
+  breadcrumbIcon: boolean
+  enableTabs: boolean
+  tabStyle: TabStyle
+  maxTabs: number
+  tabPersist: boolean
+  contentMaxWidth: ContentWidth
+  contentPadding: ContentPadding
   pageTransition: PageTransition
+  animationSpeed: AnimationSpeed
+  sidebarCollapseAnimation: boolean
+  themeTransitionAnimation: boolean
+  cornerRadius: CornerRadius
+  componentSize: ComponentSize
+  watermark: boolean
+  watermarkText: string
+  footerStyle: FooterStyle
+  footerHeight: number
+  footerCopyright: string
+  footerYearMode: FooterYearMode
+  footerYearStart: number | null
+  footerYearEnd: number | null
+  footerIcp: string
+  footerIcpLink: string
+  footerLinks: FooterLink[]
+  dynamicTitle: string
 }

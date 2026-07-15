@@ -37,7 +37,7 @@
                 :disabled="getDisabled(field)"
                 clearable
                 style="width: 100%"
-                @change="val => field.onChange?.(val, model)"
+                @change="(val: any) => field.onChange?.(val, model)"
               >
                 <el-option
                   v-for="opt in getOptions(field)"
@@ -53,7 +53,7 @@
               <el-radio-group
                 v-model="model[field.prop]"
                 :disabled="getDisabled(field)"
-                @change="val => field.onChange?.(val, model)"
+                @change="(val: any) => field.onChange?.(val, model)"
               >
                 <el-radio
                   v-for="opt in getOptions(field)"
@@ -70,7 +70,7 @@
               <el-checkbox-group
                 v-model="model[field.prop]"
                 :disabled="getDisabled(field)"
-                @change="val => field.onChange?.(val, model)"
+                @change="(val: any) => field.onChange?.(val, model)"
               >
                 <el-checkbox
                   v-for="opt in getOptions(field)"
@@ -87,7 +87,7 @@
               <el-switch
                 v-model="model[field.prop]"
                 :disabled="getDisabled(field)"
-                @change="val => field.onChange?.(val, model)"
+                @change="(val: any) => field.onChange?.(val, model)"
               />
             </template>
 
@@ -167,7 +167,7 @@ const currentStep = ref(0)
 watch(() => props.schema, (schema) => {
   schema.forEach(field => {
     if (field.defaultValue !== undefined && props.model[field.prop] === undefined) {
-      props.model[field.prop] = field.defaultValue
+      (props.model as any)[field.prop] = field.defaultValue
     }
   })
 }, { immediate: true })
