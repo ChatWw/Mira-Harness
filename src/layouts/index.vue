@@ -1,5 +1,9 @@
 <template>
-  <div class="layout" :class="layoutClasses">
+  <div
+    class="layout"
+    :class="layoutClasses"
+    :style="{ '--layout-sidebar-width': `${sidebarOffset}px` }"
+  >
     <!-- 侧边栏 -->
     <AppSidebar v-if="showSidebar" />
 
@@ -47,6 +51,14 @@ const showHeader = computed(() => {
   const mode = layoutStore.config.mode
   return mode === 'sidebar-header' || mode === 'header-only' || mode === 'mixed' || mode === 'top-menu'
 })
+
+// 固定侧边栏会脱离 flex 文档流，主容器需要使用同一个实时宽度预留空间。
+// 将这个值集中在布局根节点，避免顶栏、标签栏和内容区各自计算偏移量。
+const sidebarOffset = computed(() => (
+  appStore.sidebarCollapsed
+    ? layoutStore.config.collapsedWidth
+    : layoutStore.config.sidebarWidth
+))
 
 const layoutClasses = computed(() => {
   const classes = [`layout--${layoutStore.config.mode}`]
@@ -121,76 +133,13 @@ const layoutClasses = computed(() => {
   }
 
   // ========== 固定顶栏 ==========
+  // 页面只有 app-main 可以滚动，顶栏和标签栏处于 main-container 的普通 flex
+  // 文档流中时已经天然固定在视口顶部。不要再使用 position: fixed，否则它们
+  // 会按视口宽度计算，同时脱离主容器，导致侧边栏折叠时出现横向溢出。
   &--fixed-header {
-    &.layout--sidebar-header,
-    &.layout--mixed {
-      :deep(.app-header) {
-        position: fixed;
-        top: 0;
-        right: 0;
-        left: v-bind('layoutStore.config.sidebarWidth + "px"');
-        z-index: $z-sticky;
-        transition: left $transition-base;
-      }
-
-      :deep(.tabs-bar) {
-        position: fixed;
-        top: v-bind('layoutStore.config.headerHeight + "px"');
-        right: 0;
-        left: v-bind('layoutStore.config.sidebarWidth + "px"');
-        z-index: $z-sticky;
-        transition: left $transition-base;
-      }
-
-      &.sidebar-collapsed {
-        :deep(.app-header) {
-          left: v-bind('layoutStore.config.collapsedWidth + "px"');
-        }
-
-        :deep(.tabs-bar) {
-          left: v-bind('layoutStore.config.collapsedWidth + "px"');
-        }
-      }
-
-      // 为主内容区添加 padding-top，避免被固定定位的头部遮挡
-      :deep(.app-main) {
-        padding-top: v-bind('layoutStore.config.headerHeight + "px"');
-      }
-
-      &.layout--with-tabs {
-        :deep(.app-main) {
-          padding-top: v-bind('(layoutStore.config.headerHeight + 48) + "px"');
-        }
-      }
-    }
-
-    &.layout--header-only,
-    &.layout--top-menu {
-      :deep(.app-header) {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: $z-sticky;
-      }
-
-      :deep(.tabs-bar) {
-        position: fixed;
-        top: v-bind('layoutStore.config.headerHeight + "px"');
-        left: 0;
-        right: 0;
-        z-index: $z-sticky;
-      }
-
-      :deep(.app-main) {
-        padding-top: v-bind('layoutStore.config.headerHeight + "px"');
-      }
-
-      &.layout--with-tabs {
-        :deep(.app-main) {
-          padding-top: v-bind('(layoutStore.config.headerHeight + 48) + "px"');
-        }
-      }
+    :deep(.app-header),
+    :deep(.tabs-bar) {
+      position: relative;
     }
   }
 
@@ -203,10 +152,23 @@ const layoutClasses = computed(() => {
       bottom: 0;
       z-index: $z-sticky;
     }
+
+    &.layout--sidebar-header,
+    &.layout--sidebar-only,
+    &.layout--mixed {
+      .main-container {
+        margin-left: var(--layout-sidebar-width);
+        transition: margin-left $transition-base;
+      }
+    }
   }
 
   // ========== 响应式 ==========
   @include media-max($breakpoint-md) {
+    .main-container {
+      margin-left: 0 !important;
+    }
+
     // 移动端：侧边栏收起，固定头部不偏移
     &--fixed-header {
       :deep(.app-header),
