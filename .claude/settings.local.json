@@ -30,7 +30,9 @@
       "Bash(kill 86067)",
       "Bash(lsof -ti:9000)",
       "Bash(xargs kill -9)",
-      "Bash(kill 87433)"
+      "Bash(kill 87433)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(kill %1)"
     ]
   }
 }

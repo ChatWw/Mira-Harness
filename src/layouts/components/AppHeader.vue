@@ -177,11 +177,13 @@ async function handleCommand(command: string) {
 
 <style scoped lang="scss">
 .app-header {
+  width: 100%;
   background: var(--cp-bg);
   border-bottom: 1px solid var(--cp-border);
   padding: 0 $spacing-lg;
   @include flex-between;
   gap: $spacing-md;
+  flex-shrink: 0;
 
   .header-left {
     @include flex-center;

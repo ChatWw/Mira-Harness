@@ -70,17 +70,20 @@ const menuList = MENU_LIST
 
 <style scoped lang="scss">
 .app-sidebar {
+  height: 100%;
   background: var(--cp-bg-elevated);
   border-right: 1px solid var(--cp-border);
   display: flex;
   flex-direction: column;
   transition: width $transition-base;
   position: relative;
+  flex-shrink: 0;
 
   .sidebar-header {
     height: 64px;
     @include flex-center;
     border-bottom: 1px solid var(--cp-border);
+    flex-shrink: 0;
 
     .brand {
       @include flex-center;

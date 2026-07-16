@@ -1,8 +1,5 @@
 <template>
-  <main
-    class="app-main"
-    :style="mainStyle"
-  >
+  <main class="app-main">
     <transition :name="transitionName" mode="out-in">
       <router-view :key="$route.fullPath" />
     </transition>
@@ -15,20 +12,17 @@ import { useLayoutStore } from '@/stores/layout'
 
 const layoutStore = useLayoutStore()
 
-const mainStyle = computed(() => ({
-  paddingTop: layoutStore.config.fixedHeader ? '64px' : '0',
-}))
-
 const transitionName = computed(() => layoutStore.config.pageTransition)
 </script>
 
 <style scoped lang="scss">
 .app-main {
   flex: 1;
+  width: 100%;
+  min-height: 0;
   padding: $spacing-lg;
   background: var(--cp-bg);
   overflow-y: auto;
-  transition: padding-top $transition-base;
 
   @include media-max($breakpoint-md) {
     padding: $spacing-md;

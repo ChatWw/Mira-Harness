@@ -99,12 +99,14 @@ function getYearText(): string {
 
 <style scoped lang="scss">
 .app-footer {
+  width: 100%;
   background: var(--cp-bg);
   border-top: 1px solid var(--cp-border);
   color: var(--cp-text-secondary);
   font-size: $font-xs;
   @include flex-center;
   padding: 0 $spacing-lg;
+  flex-shrink: 0;
 
   @include media-max($breakpoint-md) {
     padding: 0 $spacing-md;

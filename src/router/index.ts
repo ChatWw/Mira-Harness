@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
 import { MENU_LIST } from '@/config/menu'
 import type { MenuItem } from '@/types'
+import { dynamicRoutes } from './modules'
 
 // 静态路由（无需权限）
 const staticRoutes: RouteRecordRaw[] = [
@@ -45,63 +46,17 @@ const router = createRouter({
 })
 
 /**
- * 组件映射表（用于动态导入）
+ * 根据权限过滤路由
  */
-const componentMap: Record<string, () => Promise<any>> = {
-  '/pages/dashboard/DashboardPage.vue': () => import('@/pages/dashboard/DashboardPage.vue'),
-  '/pages/system/UserPage.vue': () => import('@/pages/system/UserPage.vue'),
-  '/pages/system/RolePage.vue': () => import('@/pages/system/RolePage.vue'),
-  '/pages/system/MenuPage.vue': () => import('@/pages/system/MenuPage.vue'),
-  '/pages/system/DeptPage.vue': () => import('@/pages/system/DeptPage.vue'),
-  '/pages/system/LogPage.vue': () => import('@/pages/system/LogPage.vue'),
-  '/pages/system/SettingsPage.vue': () => import('@/pages/system/SettingsPage.vue'),
-  '/pages/profile/ProfileInfoPage.vue': () => import('@/pages/profile/ProfileInfoPage.vue'),
-  '/pages/profile/ProfileSecurityPage.vue': () => import('@/pages/profile/ProfileSecurityPage.vue'),
-  '/pages/message/MessageListPage.vue': () => import('@/pages/message/MessageListPage.vue'),
-  '/pages/message/MessageSettingsPage.vue': () => import('@/pages/message/MessageSettingsPage.vue'),
-  '/pages/components/ProTableDemo.vue': () => import('@/pages/components/ProTableDemo.vue'),
-  '/pages/components/ProFormDemo.vue': () => import('@/pages/components/ProFormDemo.vue'),
-  '/pages/components/DetailLayoutDemo.vue': () => import('@/pages/components/DetailLayoutDemo.vue'),
-}
-
-/**
- * 根据菜单数据生成路由
- */
-function generateRoutes(menus: MenuItem[]): RouteRecordRaw[] {
-  const routes: RouteRecordRaw[] = []
-
-  function traverse(items: MenuItem[]) {
-    items.forEach((item) => {
-      // 如果有 path 和 component，生成路由
-      if (item.path && item.component) {
-        const componentLoader = componentMap[item.component]
-        if (!componentLoader) {
-          console.warn(`组件 ${item.component} 未在 componentMap 中注册`)
-          return
-        }
-
-        const route: RouteRecordRaw = {
-          path: item.path,
-          name: item.name || item.id,
-          component: componentLoader,
-          meta: {
-            title: item.title,
-            icon: item.icon,
-            permission: item.permission,
-          },
-        }
-        routes.push(route)
-      }
-
-      // 递归处理子菜单
-      if (item.children && item.children.length > 0) {
-        traverse(item.children)
-      }
-    })
-  }
-
-  traverse(menus)
-  return routes
+function filterRoutes(routes: RouteRecordRaw[], permissions: string[]): RouteRecordRaw[] {
+  return routes.filter((route) => {
+    // 如果路由没有权限要求，默认可访问
+    if (!route.meta?.permission) {
+      return true
+    }
+    // 检查用户是否有该权限
+    return permissions.includes(route.meta.permission as string)
+  })
 }
 
 /**
@@ -145,14 +100,14 @@ export async function addDynamicRoutes() {
     ? MENU_LIST.flatMap((menu) => getAllPermissions(menu))
     : getAllPermissions(MENU_LIST[0]) // 非管理员只给工作台权限
 
-  // 过滤菜单
+  // 过滤菜单（用于侧边栏显示）
   const filteredMenus = filterMenus(MENU_LIST, userPermissions)
 
-  // 生成路由
-  const dynamicRoutes = generateRoutes(filteredMenus)
+  // 过滤路由（根据权限）
+  const filteredRoutes = filterRoutes(dynamicRoutes, userPermissions)
 
   // 添加路由到 layout 下
-  dynamicRoutes.forEach((route) => {
+  filteredRoutes.forEach((route) => {
     router.addRoute('Layout', route)
   })
 

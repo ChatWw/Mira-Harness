@@ -169,6 +169,7 @@ function scrollToActiveTab() {
 
 <style scoped lang="scss">
 .tabs-bar {
+  width: 100%;
   display: flex;
   align-items: center;
   height: 40px;
@@ -176,6 +177,7 @@ function scrollToActiveTab() {
   border-bottom: 1px solid var(--cp-border);
   padding: 0 $spacing-md;
   gap: $spacing-sm;
+  flex-shrink: 0;
 
   .tabs-container {
     flex: 1;
