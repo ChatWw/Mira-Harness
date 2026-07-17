@@ -4,8 +4,8 @@
     :class="layoutClasses"
     :style="{ '--layout-sidebar-width': `${sidebarOffset}px` }"
   >
-    <!-- 系统级导航：品牌、一级菜单与全局操作 -->
-    <GlobalHeader v-if="showGlobalHeader" :show-navigation="layoutStore.config.mode !== 'header-only'" />
+    <!-- 系统级导航：品牌、应用选择器与账户入口 -->
+    <GlobalHeader v-if="showGlobalHeader" />
 
     <div class="layout-workspace">
       <!-- 侧边栏：仅承担工作区导航 -->

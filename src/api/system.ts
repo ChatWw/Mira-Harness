@@ -1,6 +1,6 @@
 import request from './request'
 import type { PageParams, PageResult } from './types'
-import type { MenuItem, MicroApp, MicroAppRuntimeConfig } from '@/types'
+import type { ApplicationOption, MenuItem, MicroApp, MicroAppRuntimeConfig } from '@/types'
 
 // 角色相关接口
 export const roleApi = {
@@ -20,8 +20,8 @@ export const roleApi = {
 
 // 菜单相关接口
 export const menuApi = {
-  getMyMenus() {
-    return request.get('/menus/my') as unknown as Promise<MenuItem[]>
+  getMyMenus(params?: { app_code?: string }) {
+    return request.get('/menus/my', { params }) as unknown as Promise<MenuItem[]>
   },
   getList(params?: { app_code?: string }) {
     return request.get('/menu/list', { params }) as unknown as Promise<MenuItem[]>
@@ -34,6 +34,12 @@ export const menuApi = {
   },
   delete(id: string) {
     return request.delete(`/menu/${id}`)
+  },
+}
+
+export const applicationApi = {
+  getMyApps() {
+    return request.get('/applications/my') as unknown as Promise<ApplicationOption[]>
   },
 }
 

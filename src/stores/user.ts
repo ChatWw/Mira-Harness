@@ -64,6 +64,7 @@ export const useUserStore = defineStore('user', () => {
 
         const permissionStore = usePermissionStore()
         permissionStore.setPermissions(result.permissions || [])
+        permissionStore.setCurrentAppCode('main')
 
         return { success: true }
       } else {

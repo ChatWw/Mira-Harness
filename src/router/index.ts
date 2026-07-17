@@ -92,7 +92,7 @@ export async function addDynamicRoutes() {
     await userStore.loadSession()
   }
   const userPermissions = permissionStore.permissions
-  const menus = await menuApi.getMyMenus()
+  const menus = await menuApi.getMyMenus({ app_code: permissionStore.currentAppCode })
   const filteredMenus = filterMenus(menus, userPermissions)
 
   flattenRouteMenus(filteredMenus)

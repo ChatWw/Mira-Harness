@@ -49,13 +49,9 @@ function removeMenu(items: any[], id: string): boolean {
   return items.some(item => item.children && removeMenu(item.children, id))
 }
 
-function availableMenus() {
-  const menus: any[] = clone(mainMenus)
-  const children = microApps
-    .filter(app => app.status === 'published')
-    .map(app => ({ id: `micro-entry-${app.code}`, title: app.name, icon: app.icon, path: `/micro/${app.code}`, permission: 'microapp:view', type: 'microapp', appCode: app.code, sort: app.sort, status: 1 }))
-  if (children.length) menus.push({ id: 'micro-apps', title: '业务应用', icon: 'Grid', permission: 'microapp:view', type: 'dir', appCode: null, sort: 3, status: 1, children })
-  return menus
+function availableMenus(appCode?: string) {
+  if (!appCode || appCode === 'main') return clone(mainMenus)
+  return clone(microMenus[appCode] || [])
 }
 
 // 生成 mock 角色数据
@@ -218,9 +214,21 @@ export default [
   {
     url: '/api/menus/my',
     method: 'get',
+    response: ({ query }: any) => ({
+      code: 200,
+      data: availableMenus(query.app_code),
+      message: '获取成功',
+    }),
+  },
+  {
+    url: '/api/applications/my',
+    method: 'get',
     response: () => ({
       code: 200,
-      data: availableMenus(),
+      data: [
+        { code: 'main', name: '公共', icon: 'HomeFilled', type: 'main' },
+        ...microApps.filter(app => app.status === 'published').map(app => ({ code: app.code, name: app.name, icon: app.icon, type: 'microapp' })),
+      ],
       message: '获取成功',
     }),
   },

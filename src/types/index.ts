@@ -63,6 +63,13 @@ export interface MicroApp {
   runtimeConfig: MicroAppRuntimeConfig
 }
 
+export interface ApplicationOption {
+  code: string
+  name: string
+  icon?: string
+  type: 'main' | 'microapp'
+}
+
 
 // 布局模式
 export type LayoutMode = 'sidebar-header' | 'header-only' | 'sidebar-only' | 'mixed' | 'top-menu'
