@@ -94,7 +94,27 @@ onMounted(loadApplications)
 .global-header { width: 100%; min-height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--cp-bg); border-bottom: 1px solid var(--cp-border); flex-shrink: 0; z-index: $z-sticky; }
 .global-brand { min-width: 220px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; color: var(--cp-text); white-space: nowrap; &.is-hidden { min-width: 0; width: 0; overflow: hidden; } }
 .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); }
-.application-switcher { display: flex; align-items: center; }.application-trigger { height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 0; border-radius: $radius-md; background: var(--cp-bg-hover); color: var(--cp-text); font-size: $font-sm; font-weight: 500; cursor: pointer; transition: background $transition-base, color $transition-base; &:hover { background: var(--cp-primary-lighter); color: var(--cp-primary); }.application-icon { color: var(--cp-primary); font-size: 16px; }.application-arrow { margin-left: 1px; font-size: 13px; color: var(--cp-text-tertiary); }.is-loading { opacity: .6; pointer-events: none; } }:global(.application-popper .el-dropdown-menu__item) { display: flex; align-items: center; gap: $spacing-sm; min-width: 150px; &:global(.is-current) { color: var(--cp-primary); background: var(--cp-primary-lighter); } }
+.application-switcher { display: flex; align-items: center; }.application-trigger { height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 0; border-radius: $radius-md; background: var(--cp-bg-hover); color: var(--cp-text); font-size: $font-sm; font-weight: 500; cursor: pointer; transition: background $transition-base, color $transition-base; &:hover { background: var(--cp-primary-lighter); color: var(--cp-primary); }.application-icon { color: var(--cp-primary); font-size: 16px; }.application-arrow { margin-left: 1px; font-size: 13px; color: var(--cp-text-tertiary); }.is-loading { opacity: .6; pointer-events: none; } }:global(.application-popper) { padding: $spacing-xs; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: $radius-md; box-shadow: $shadow-md; }:global(.application-popper .el-dropdown-menu) { background: transparent; }:global(.application-popper .el-dropdown-menu__item) { display: flex; align-items: center; gap: $spacing-sm; min-width: 150px; margin: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent !important; &:hover { background: var(--cp-bg-hover) !important; color: var(--cp-text); } &:global(.is-current) { color: var(--cp-primary); background: var(--cp-primary-lighter) !important; } }
 .global-actions { display: flex; align-items: center; gap: $spacing-md; margin-left: auto; flex-shrink: 0; }.user-avatar { display: flex; align-items: center; gap: 8px; padding: 3px 7px 3px 3px; color: var(--cp-text); font-size: 13px; border-radius: 8px; cursor: pointer; &:hover { background: var(--cp-bg-hover); } }.logout-item { color: var(--cp-danger); }
 @include media-max($breakpoint-md) { .global-header { padding: 0 $spacing-md; }.global-brand { min-width: auto; }.global-brand > span, .user-avatar > span { display: none; } }
+</style>
+
+<style lang="scss">
+// 下拉层 Teleport 到 body，使用非 scoped 规则明确覆盖组件库的默认状态色。
+.application-popper {
+  .el-dropdown-menu__item {
+    color: var(--cp-text) !important;
+    background-color: transparent !important;
+
+    &:hover {
+      color: var(--cp-text) !important;
+      background-color: var(--cp-bg-hover) !important;
+    }
+
+    &.is-current {
+      color: var(--cp-primary) !important;
+      background-color: var(--cp-primary-lighter) !important;
+    }
+  }
+}
 </style>
