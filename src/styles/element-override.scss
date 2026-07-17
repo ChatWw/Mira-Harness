@@ -53,6 +53,9 @@
   --el-font-size-small: #{$font-xs};
   --el-font-size-large: #{$font-base};
 
+  // 对话框
+  --el-dialog-padding-primary: 12px;
+
   // 过渡
   --el-transition-duration: #{$transition-base};
   --el-transition-duration-fast: #{$transition-fast};
