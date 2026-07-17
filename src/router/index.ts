@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
 import type { MenuItem } from '@/types'
-import { dynamicRoutes } from './modules'
+import { createBusinessRoute } from './pageRegistry'
 
 // 静态路由（无需权限）
 const staticRoutes: RouteRecordRaw[] = [
@@ -33,7 +33,14 @@ const layoutRoute: RouteRecordRaw = {
   redirect: '/dashboard',
   component: () => import('@/layouts/index.vue'),
   meta: { requiresAuth: true },
-  children: [],
+  children: [
+    {
+      path: '/micro/:code/:pathMatch(.*)*',
+      name: 'MicroAppHost',
+      component: () => import('@/pages/system/MicroAppHostPage.vue'),
+      meta: { title: '微应用', permission: 'microapp:view' },
+    },
+  ],
 }
 
 const router = createRouter({
@@ -43,20 +50,6 @@ const router = createRouter({
     { ...layoutRoute, name: 'Layout' },
   ],
 })
-
-/**
- * 根据权限过滤路由
- */
-function filterRoutes(routes: RouteRecordRaw[], permissions: string[]): RouteRecordRaw[] {
-  return routes.filter((route) => {
-    // 如果路由没有权限要求，默认可访问
-    if (!route.meta?.permission) {
-      return true
-    }
-    // 检查用户是否有该权限
-    return permissions.includes('*') || permissions.includes(route.meta.permission as string)
-  })
-}
 
 /**
  * 过滤菜单（根据权限）
@@ -94,13 +87,14 @@ export async function addDynamicRoutes() {
   const userPermissions = bootstrap.permissions
   const filteredMenus = filterMenus(bootstrap.menus, userPermissions)
 
-  // 过滤路由（根据权限）
-  const filteredRoutes = filterRoutes(dynamicRoutes, userPermissions)
-
-  // 添加路由到 layout 下
-  filteredRoutes.forEach((route) => {
-    router.addRoute('Layout', route)
-  })
+  bootstrap.routes
+    .filter(route => !route.permission || userPermissions.includes('*') || userPermissions.includes(route.permission))
+    .map(createBusinessRoute)
+    .filter((route): route is RouteRecordRaw => route !== null)
+    .forEach(route => {
+      router.addRoute('Layout', route)
+      dynamicRouteNames.add(String(route.name))
+    })
 
   // 添加 404 通配符（必须在最后）
   router.addRoute({
@@ -117,17 +111,14 @@ export async function addDynamicRoutes() {
  * 重置路由
  */
 export function resetRouter() {
-  // 移除所有动态路由
-  const routes = router.getRoutes()
-  routes.forEach((route) => {
-    if (route.name && route.name !== 'Login' && route.name !== 'Register' && route.name !== 'NotFound') {
-      router.removeRoute(route.name)
-    }
-  })
+  dynamicRouteNames.forEach(name => router.removeRoute(name))
+  dynamicRouteNames.clear()
+  routesAddedInSession = false
 }
 
 // 标记动态路由是否已在当前会话中添加
 let routesAddedInSession = false
+const dynamicRouteNames = new Set<string>()
 
 // 路由守卫
 router.beforeEach(async (to, from, next) => {

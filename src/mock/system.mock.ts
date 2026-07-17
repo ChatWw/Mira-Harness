@@ -1,19 +1,19 @@
 import type { MockMethod } from 'vite-plugin-mock'
 
 const mainMenus = [
-  { id: 'dashboard', title: '工作台', icon: 'Odometer', path: '/dashboard', name: 'Dashboard', permission: 'dashboard:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+  { id: 'dashboard', title: '工作台', icon: 'Odometer', path: '/dashboard', name: 'Dashboard', pageKey: 'dashboard', permission: 'dashboard:view', type: 'menu', appCode: null, sort: 0, status: 1 },
   { id: 'system', title: '系统管理', icon: 'Setting', permission: 'system:view', type: 'dir', appCode: null, sort: 1, status: 1, children: [
-    { id: 'system-users', title: '用户管理', icon: 'User', path: '/system/users', name: 'SystemUsers', permission: 'system:user:view', type: 'menu', appCode: null, sort: 0, status: 1 },
-    { id: 'system-roles', title: '角色管理', icon: 'UserFilled', path: '/system/roles', name: 'SystemRoles', permission: 'system:role:view', type: 'menu', appCode: null, sort: 1, status: 1 },
-    { id: 'system-menus', title: '菜单管理', icon: 'Menu', path: '/system/menus', name: 'SystemMenus', permission: 'system:menu:view', type: 'menu', appCode: null, sort: 2, status: 1 },
-    { id: 'system-microapps', title: '微应用管理', icon: 'Grid', path: '/system/microapps', name: 'SystemMicroApps', permission: 'system:microapp:view', type: 'menu', appCode: null, sort: 3, status: 1 },
-    { id: 'system-dept', title: '部门管理', icon: 'OfficeBuilding', path: '/system/dept', name: 'SystemDept', permission: 'system:dept:view', type: 'menu', appCode: null, sort: 4, status: 1 },
-    { id: 'system-log', title: '操作日志', icon: 'Document', path: '/system/log', name: 'SystemLog', permission: 'system:log:view', type: 'menu', appCode: null, sort: 5, status: 1 },
-    { id: 'system-settings', title: '系统设置', icon: 'Tools', path: '/system/settings', name: 'SystemSettings', permission: 'system:settings:view', type: 'menu', appCode: null, sort: 6, status: 1 },
+    { id: 'system-users', title: '用户管理', icon: 'User', path: '/system/users', name: 'SystemUsers', pageKey: 'system-users', permission: 'system:user:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+    { id: 'system-roles', title: '角色管理', icon: 'UserFilled', path: '/system/roles', name: 'SystemRoles', pageKey: 'system-roles', permission: 'system:role:view', type: 'menu', appCode: null, sort: 1, status: 1 },
+    { id: 'system-menus', title: '菜单管理', icon: 'Menu', path: '/system/menus', name: 'SystemMenus', pageKey: 'system-menus', permission: 'system:menu:view', type: 'menu', appCode: null, sort: 2, status: 1 },
+    { id: 'system-microapps', title: '微应用管理', icon: 'Grid', path: '/system/microapps', name: 'SystemMicroApps', pageKey: 'system-microapps', permission: 'system:microapp:view', type: 'menu', appCode: null, sort: 3, status: 1 },
+    { id: 'system-dept', title: '部门管理', icon: 'OfficeBuilding', path: '/system/dept', name: 'SystemDept', pageKey: 'system-dept', permission: 'system:dept:view', type: 'menu', appCode: null, sort: 4, status: 1 },
+    { id: 'system-log', title: '操作日志', icon: 'Document', path: '/system/log', name: 'SystemLog', pageKey: 'system-log', permission: 'system:log:view', type: 'menu', appCode: null, sort: 5, status: 1 },
+    { id: 'system-settings', title: '系统设置', icon: 'Tools', path: '/system/settings', name: 'SystemSettings', pageKey: 'system-settings', permission: 'system:settings:view', type: 'menu', appCode: null, sort: 6, status: 1 },
   ] },
   { id: 'profile', title: '个人中心', icon: 'UserFilled', permission: 'profile:view', type: 'dir', appCode: null, sort: 2, status: 1, children: [
-    { id: 'profile-info', title: '个人资料', icon: 'User', path: '/profile/info', name: 'ProfileInfo', permission: 'profile:info:view', type: 'menu', appCode: null, sort: 0, status: 1 },
-    { id: 'profile-security', title: '安全设置', icon: 'Lock', path: '/profile/security', name: 'ProfileSecurity', permission: 'profile:security:view', type: 'menu', appCode: null, sort: 1, status: 1 },
+    { id: 'profile-info', title: '个人资料', icon: 'User', path: '/profile/info', name: 'ProfileInfo', pageKey: 'profile-info', permission: 'profile:info:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+    { id: 'profile-security', title: '安全设置', icon: 'Lock', path: '/profile/security', name: 'ProfileSecurity', pageKey: 'profile-security', permission: 'profile:security:view', type: 'menu', appCode: null, sort: 1, status: 1 },
   ] },
 ]
 
@@ -55,6 +55,20 @@ function bootstrapMenus() {
     .map(app => ({ id: `micro-entry-${app.code}`, title: app.name, icon: app.icon, path: `/micro/${app.code}`, permission: 'microapp:view', type: 'microapp', appCode: app.code, sort: app.sort, status: 1 }))
   if (children.length) menus.push({ id: 'micro-apps', title: '业务应用', icon: 'Grid', permission: 'microapp:view', type: 'dir', appCode: null, sort: 3, status: 1, children })
   return menus
+}
+
+function bootstrapRoutes() {
+  const routes: any[] = []
+  const collect = (items: any[]) => items.forEach(item => {
+    if (item.path && item.pageKey) {
+      routes.push({ path: item.path, name: item.name || `Page_${item.pageKey}`, title: item.title, permission: item.permission, pageKey: item.pageKey })
+    }
+    if (item.children) collect(item.children)
+  })
+  collect(mainMenus)
+  // 不出现在菜单中的详情页也由接口声明，前端不会私自定义业务路径。
+  routes.push({ path: '/system/microapps/:code/config', name: 'SystemMicroAppConfig', title: '微应用配置', permission: 'system:microapp:view', pageKey: 'system-microapp-config' })
+  return routes
 }
 
 // 生成 mock 角色数据
@@ -222,6 +236,7 @@ export default [
       data: {
         permissions: ['*'],
         menus: bootstrapMenus(),
+        routes: bootstrapRoutes(),
         microApps: microApps.filter(app => app.status === 'published').map(({ id, name, code, icon, status }) => ({ id, name, code, icon, status })),
       },
       message: '获取成功',

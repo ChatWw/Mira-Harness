@@ -28,7 +28,7 @@ export interface MenuItem {
   path?: string
   children?: MenuItem[]
   permission?: string
-  component?: string
+  pageKey?: string
   name?: string
   type?: 'dir' | 'menu' | 'button' | 'microapp'
   appCode?: string | null
@@ -65,7 +65,16 @@ export interface MicroApp {
 export interface BootstrapData {
   permissions: string[]
   menus: MenuItem[]
+  routes: RouteDefinition[]
   microApps: Pick<MicroApp, 'id' | 'name' | 'code' | 'icon' | 'status'>[]
+}
+
+export interface RouteDefinition {
+  path: string
+  name: string
+  title: string
+  permission?: string
+  pageKey: string
 }
 
 // 布局模式
