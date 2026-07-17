@@ -4,6 +4,27 @@ import type { LayoutConfig } from '@/types'
 
 const DEFAULT_APP_NAME = '中台基座'
 
+const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, string>> = {
+  sharp: {
+    small: '0px',
+    base: '0px',
+    large: '0px',
+    extraLarge: '0px',
+  },
+  medium: {
+    small: '4px',
+    base: '8px',
+    large: '12px',
+    extraLarge: '16px',
+  },
+  rounded: {
+    small: '8px',
+    base: '12px',
+    large: '16px',
+    extraLarge: '20px',
+  },
+}
+
 const DEFAULT_CONFIG: LayoutConfig = {
   mode: 'sidebar-header',
   sidebarWidth: 240,
@@ -193,6 +214,19 @@ export const useLayoutStore = defineStore('layout', () => {
     config.value.componentSize = size
   }
 
+  function applyCornerRadius(radius: LayoutConfig['cornerRadius']) {
+    const values = CORNER_RADIUS_VALUES[radius]
+    const root = document.documentElement
+
+    root.dataset.cornerRadius = radius
+    root.style.setProperty('--cp-radius-sm', values.small)
+    root.style.setProperty('--cp-radius-md', values.base)
+    root.style.setProperty('--cp-radius-lg', values.large)
+    root.style.setProperty('--cp-radius-xl', values.extraLarge)
+    root.style.setProperty('--el-border-radius-small', values.small)
+    root.style.setProperty('--el-border-radius-base', values.base)
+  }
+
   // 水印设置
   function setWatermark(value: boolean) {
     config.value.watermark = value
@@ -232,6 +266,12 @@ export const useLayoutStore = defineStore('layout', () => {
     (newTitle) => {
       document.title = newTitle || DEFAULT_APP_NAME
     },
+    { immediate: true }
+  )
+
+  watch(
+    () => config.value.cornerRadius,
+    applyCornerRadius,
     { immediate: true }
   )
 

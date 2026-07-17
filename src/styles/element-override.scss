@@ -6,6 +6,11 @@
 // 注意：Element Plus 使用 CSS 变量，我们需要通过 :root 来覆盖
 
 :root {
+  --cp-radius-sm: #{$radius-sm};
+  --cp-radius-md: #{$radius-md};
+  --cp-radius-lg: #{$radius-lg};
+  --cp-radius-xl: #{$radius-xl};
+
   // 主题色
   --el-color-primary: #{$primary};
   --el-color-primary-light-3: #{$primary-light};
@@ -43,8 +48,8 @@
   --el-fill-color-light: #{$bg-elevated};
 
   // 圆角
-  --el-border-radius-base: #{$radius-sm};
-  --el-border-radius-small: #{$radius-sm};
+  --el-border-radius-base: var(--cp-radius-md);
+  --el-border-radius-small: var(--cp-radius-sm);
   --el-border-radius-round: #{$radius-full};
 
   // 字体
@@ -205,7 +210,7 @@
 .el-input {
   &__wrapper {
     transition: all $transition-fast;
-    border-radius: $radius-md;
+    border-radius: var(--cp-radius-md);
   }
 }
 
@@ -239,7 +244,7 @@
 
 // 对话框组件
 .el-dialog {
-  border-radius: $radius-lg;
+  border-radius: var(--cp-radius-lg);
   box-shadow: $shadow-xl;
 
   &__header {
@@ -250,13 +255,13 @@
 
 // 消息提示
 .el-message {
-  border-radius: $radius-md;
+  border-radius: var(--cp-radius-md);
   box-shadow: $shadow-lg;
 }
 
 // 下拉菜单
 .el-dropdown-menu {
-  border-radius: $radius-md;
+  border-radius: var(--cp-radius-md);
   box-shadow: $shadow-lg;
 
   &__item {
@@ -271,7 +276,7 @@
 // 分页组件
 .el-pagination {
   .el-pager li {
-    border-radius: $radius-sm;
+    border-radius: var(--cp-radius-sm);
     transition: all $transition-fast;
 
     &.is-active {

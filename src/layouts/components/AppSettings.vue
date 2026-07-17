@@ -1022,7 +1022,12 @@ function handleClearCache() {
   gap: 14px;
   padding: 18px 6px 0;
   overflow-y: auto;
-  @include scrollbar(6px, transparent, var(--cp-border));
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .settings-intro {
