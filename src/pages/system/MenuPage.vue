@@ -1,6 +1,13 @@
 <template>
   <PageContainer title="菜单管理">
     <el-card shadow="never">
+      <el-tabs v-model="currentAppCode" @tab-change="loadData">
+        <el-tab-pane label="公共" name="main" />
+        <el-tab-pane v-for="app in microApps" :key="app.code" :label="app.name" :name="app.code" />
+        <el-tab-pane name="add" disabled>
+          <template #label><el-button link type="primary" :icon="Plus" @click.stop="goMicroApps">新增子应用</el-button></template>
+        </el-tab-pane>
+      </el-tabs>
       <div class="toolbar">
         <el-button
           type="primary"
@@ -129,11 +136,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import ProForm from '@/components/ProForm/index.vue'
 import PageContainer from '@/components/PageContainer/index.vue'
-import { menuApi } from '@/api/system'
+import { menuApi, microAppApi } from '@/api/system'
 import type { ProFormField } from '@/components/ProForm/types'
 
 const formRef = ref()
@@ -143,6 +151,9 @@ const isEdit = ref(false)
 const formData = ref<any>({})
 const menuData = ref<any[]>([])
 const parentMenu = ref<any>(null)
+const currentAppCode = ref('main')
+const microApps = ref<any[]>([])
+const router = useRouter()
 
 const dialogTitle = computed(() => {
   if (parentMenu.value) {
@@ -225,8 +236,7 @@ const formSchema = computed<ProFormField[]>(() => {
 // 加载数据
 async function loadData() {
   try {
-    const { data } = await menuApi.getList()
-    menuData.value = data
+    menuData.value = await menuApi.getList({ app_code: currentAppCode.value })
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
   }
@@ -235,14 +245,21 @@ async function loadData() {
 // 新增
 function handleAdd(parent?: any) {
   isEdit.value = false
-  parentMenu.value = parent || null
+    parentMenu.value = parent || null
   formData.value = {
     type: 'dir',
     status: 1,
     sort: 0,
     parentId: parent?.id || null,
+    appCode: currentAppCode.value === 'main' ? null : currentAppCode.value,
   }
   dialogVisible.value = true
+}
+
+function goMicroApps() { router.push('/system/microapps') }
+
+async function loadMicroApps() {
+  microApps.value = await microAppApi.getAll()
 }
 
 // 编辑
@@ -298,7 +315,7 @@ async function handleDelete(row: any) {
 }
 
 // 初始化加载
-loadData()
+Promise.all([loadData(), loadMicroApps()])
 </script>
 
 <style scoped lang="scss">

@@ -1,5 +1,62 @@
 import type { MockMethod } from 'vite-plugin-mock'
 
+const mainMenus = [
+  { id: 'dashboard', title: '工作台', icon: 'Odometer', path: '/dashboard', name: 'Dashboard', permission: 'dashboard:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+  { id: 'system', title: '系统管理', icon: 'Setting', permission: 'system:view', type: 'dir', appCode: null, sort: 1, status: 1, children: [
+    { id: 'system-users', title: '用户管理', icon: 'User', path: '/system/users', name: 'SystemUsers', permission: 'system:user:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+    { id: 'system-roles', title: '角色管理', icon: 'UserFilled', path: '/system/roles', name: 'SystemRoles', permission: 'system:role:view', type: 'menu', appCode: null, sort: 1, status: 1 },
+    { id: 'system-menus', title: '菜单管理', icon: 'Menu', path: '/system/menus', name: 'SystemMenus', permission: 'system:menu:view', type: 'menu', appCode: null, sort: 2, status: 1 },
+    { id: 'system-microapps', title: '微应用管理', icon: 'Grid', path: '/system/microapps', name: 'SystemMicroApps', permission: 'system:microapp:view', type: 'menu', appCode: null, sort: 3, status: 1 },
+    { id: 'system-dept', title: '部门管理', icon: 'OfficeBuilding', path: '/system/dept', name: 'SystemDept', permission: 'system:dept:view', type: 'menu', appCode: null, sort: 4, status: 1 },
+    { id: 'system-log', title: '操作日志', icon: 'Document', path: '/system/log', name: 'SystemLog', permission: 'system:log:view', type: 'menu', appCode: null, sort: 5, status: 1 },
+    { id: 'system-settings', title: '系统设置', icon: 'Tools', path: '/system/settings', name: 'SystemSettings', permission: 'system:settings:view', type: 'menu', appCode: null, sort: 6, status: 1 },
+  ] },
+  { id: 'profile', title: '个人中心', icon: 'UserFilled', permission: 'profile:view', type: 'dir', appCode: null, sort: 2, status: 1, children: [
+    { id: 'profile-info', title: '个人资料', icon: 'User', path: '/profile/info', name: 'ProfileInfo', permission: 'profile:info:view', type: 'menu', appCode: null, sort: 0, status: 1 },
+    { id: 'profile-security', title: '安全设置', icon: 'Lock', path: '/profile/security', name: 'ProfileSecurity', permission: 'profile:security:view', type: 'menu', appCode: null, sort: 1, status: 1 },
+  ] },
+]
+
+const microApps = [
+  { id: 'micro-1', name: '数据看板', code: 'data-board', url: '/micro/board', icon: 'DataAnalysis', sort: 0, status: 'published', version: 'v1.2.0', description: '业务数据可视化看板', runtimeConfig: { alive: true, sync: true, fiber: false, degrade: false, prefix: {}, props: { theme: 'light' }, preload: false, exec: false } },
+  { id: 'micro-2', name: '流程审批', code: 'workflow', url: '/micro/wf', icon: 'Connection', sort: 1, status: 'published', version: 'v2.0.1', description: '流程审批子应用', runtimeConfig: { alive: false, sync: true, fiber: false, degrade: false, prefix: {}, props: {}, preload: false, exec: false } },
+  { id: 'micro-3', name: '报表中心', code: 'report-ctr', url: 'https://report.example.com', icon: 'Document', sort: 2, status: 'developing', version: 'v0.9.0', description: '报表分析子应用', runtimeConfig: { alive: true, sync: false, fiber: false, degrade: true, prefix: {}, props: {}, preload: false, exec: false } },
+]
+
+const microMenus: Record<string, any[]> = {
+  'data-board': [
+    { id: 'data-board-home', title: '数据总览', icon: 'DataAnalysis', path: '/micro/data-board', permission: 'data-board:view', type: 'microapp', appCode: 'data-board', sort: 0, status: 1 },
+    { id: 'data-board-report', title: '趋势分析', icon: 'TrendCharts', path: '/micro/data-board/trends', permission: 'data-board:trend:view', type: 'microapp', appCode: 'data-board', sort: 1, status: 1 },
+  ],
+}
+
+let menuSequence = 100
+
+function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
+
+function findMenu(items: any[], id: string): any | undefined {
+  for (const item of items) {
+    if (item.id === id) return item
+    const nested = item.children && findMenu(item.children, id)
+    if (nested) return nested
+  }
+}
+
+function removeMenu(items: any[], id: string): boolean {
+  const index = items.findIndex(item => item.id === id)
+  if (index >= 0) { items.splice(index, 1); return true }
+  return items.some(item => item.children && removeMenu(item.children, id))
+}
+
+function bootstrapMenus() {
+  const menus: any[] = clone(mainMenus)
+  const children = microApps
+    .filter(app => app.status === 'published')
+    .map(app => ({ id: `micro-entry-${app.code}`, title: app.name, icon: app.icon, path: `/micro/${app.code}`, permission: 'microapp:view', type: 'microapp', appCode: app.code, sort: app.sort, status: 1 }))
+  if (children.length) menus.push({ id: 'micro-apps', title: '业务应用', icon: 'Grid', permission: 'microapp:view', type: 'dir', appCode: null, sort: 3, status: 1, children })
+  return menus
+}
+
 // 生成 mock 角色数据
 const mockRoles = [
   { id: '1', name: '超级管理员', code: 'admin', description: '拥有所有权限', status: 1, createdAt: '2024-01-01' },
@@ -115,32 +172,116 @@ export default [
   {
     url: '/api/menu/list',
     method: 'get',
-    response: () => {
-      return { code: 200, data: [], message: '获取成功' }
+    response: ({ query }: any) => {
+      const appCode = query.app_code === 'main' ? null : query.app_code
+      if (!appCode) return { code: 200, data: clone(mainMenus), message: '获取成功' }
+      return { code: 200, data: clone(microMenus[appCode] || []), message: '获取成功' }
     },
   },
 
   {
     url: '/api/menu',
     method: 'post',
-    response: () => {
-      return { code: 200, data: null, message: '新增成功' }
+    response: ({ body }: any) => {
+      const menu = { id: `menu-${menuSequence++}`, children: [], ...body, appCode: body.appCode ?? null }
+      const root = body.appCode ? (microMenus[body.appCode] ||= []) : mainMenus
+      const target = body.parentId ? findMenu(root, body.parentId)?.children : root
+      if (!target) return { code: 400, data: null, message: '父级菜单不存在' }
+      target.push(menu)
+      return { code: 200, data: menu, message: '新增成功' }
     },
   },
 
   {
     url: '/api/menu/:id',
     method: 'put',
-    response: () => {
-      return { code: 200, data: null, message: '更新成功' }
+    response: ({ body, query }: any) => {
+      const menu = findMenu(mainMenus, query.id) || Object.values(microMenus).map(items => findMenu(items, query.id)).find(Boolean)
+      if (!menu) return { code: 404, data: null, message: '菜单不存在' }
+      Object.assign(menu, body)
+      return { code: 200, data: menu, message: '更新成功' }
     },
   },
 
   {
     url: '/api/menu/:id',
     method: 'delete',
-    response: () => {
-      return { code: 200, data: null, message: '删除成功' }
+    response: ({ query }: any) => {
+      return (removeMenu(mainMenus, query.id) || Object.values(microMenus).some(items => removeMenu(items, query.id)))
+        ? { code: 200, data: null, message: '删除成功' }
+        : { code: 404, data: null, message: '菜单不存在' }
+    },
+  },
+
+  // 登录后的启动数据：菜单与已上架微应用摘要均由接口返回
+  {
+    url: '/api/auth/bootstrap',
+    method: 'get',
+    response: () => ({
+      code: 200,
+      data: {
+        permissions: ['*'],
+        menus: bootstrapMenus(),
+        microApps: microApps.filter(app => app.status === 'published').map(({ id, name, code, icon, status }) => ({ id, name, code, icon, status })),
+      },
+      message: '获取成功',
+    }),
+  },
+
+  // 微应用管理与运行时配置
+  {
+    url: '/api/micro-apps', method: 'get',
+    response: ({ query }: any) => {
+      const { page = 1, pageSize = 10, name, code, status, mode } = query
+      let list = microApps.filter(app => (!name || app.name.includes(name)) && (!code || app.code.includes(code)) && (!status || app.status === status))
+      if (mode) list = list.filter(app => (mode === 'alive' && app.runtimeConfig.alive) || (mode === 'sync' && app.runtimeConfig.sync) || (mode === 'fiber' && app.runtimeConfig.fiber) || (mode === 'degrade' && app.runtimeConfig.degrade))
+      const start = (Number(page) - 1) * Number(pageSize)
+      return { code: 200, data: { list: clone(list.slice(start, start + Number(pageSize))), total: list.length, page: Number(page), pageSize: Number(pageSize) }, message: '获取成功' }
+    },
+  },
+  {
+    url: '/api/micro-apps/all', method: 'get',
+    response: () => ({ code: 200, data: clone(microApps), message: '获取成功' }),
+  },
+  {
+    url: '/api/micro-apps', method: 'post',
+    response: ({ body }: any) => {
+      if (microApps.some(app => app.code === body.code)) return { code: 400, data: null, message: '应用编码已存在' }
+      const app = { id: `micro-${microApps.length + 1}`, version: 'v0.1.0', status: 'developing', sort: 0, icon: 'Grid', runtimeConfig: { alive: false, sync: false, fiber: false, degrade: false, prefix: {}, props: {}, preload: false, exec: false }, ...body }
+      microApps.push(app)
+      return { code: 200, data: clone(app), message: '新增成功' }
+    },
+  },
+  {
+    url: '/api/micro-apps/:code', method: 'get',
+    response: ({ query }: any) => {
+      const app = microApps.find(item => item.code === query.code)
+      return app ? { code: 200, data: clone(app), message: '获取成功' } : { code: 404, data: null, message: '微应用不存在' }
+    },
+  },
+  {
+    url: '/api/micro-apps/:code', method: 'put',
+    response: ({ body, query }: any) => {
+      const app = microApps.find(item => item.code === query.code)
+      if (!app) return { code: 404, data: null, message: '微应用不存在' }
+      Object.assign(app, body, { code: app.code })
+      return { code: 200, data: clone(app), message: '更新成功' }
+    },
+  },
+  {
+    url: '/api/micro-apps/:code/runtime', method: 'get',
+    response: ({ query }: any) => {
+      const app = microApps.find(item => item.code === query.code)
+      return app ? { code: 200, data: clone(app.runtimeConfig), message: '获取成功' } : { code: 404, data: null, message: '微应用不存在' }
+    },
+  },
+  {
+    url: '/api/micro-apps/:code/runtime', method: 'put',
+    response: ({ body, query }: any) => {
+      const app = microApps.find(item => item.code === query.code)
+      if (!app) return { code: 404, data: null, message: '微应用不存在' }
+      app.runtimeConfig = body
+      return { code: 200, data: clone(app.runtimeConfig), message: '保存成功' }
     },
   },
 

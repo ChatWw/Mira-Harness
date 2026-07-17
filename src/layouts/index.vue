@@ -4,22 +4,31 @@
     :class="layoutClasses"
     :style="{ '--layout-sidebar-width': `${sidebarOffset}px` }"
   >
-    <!-- 侧边栏 -->
-    <AppSidebar v-if="showSidebar" />
+    <!-- 系统级导航：品牌、一级菜单与全局操作 -->
+    <GlobalHeader v-if="showGlobalHeader" :show-navigation="layoutStore.config.mode !== 'header-only'" />
 
-    <!-- 主容器 -->
-    <div class="main-container">
-      <!-- 顶栏 -->
-      <AppHeader v-if="showHeader" />
+    <div class="layout-workspace">
+      <!-- 侧边栏：仅承担工作区导航 -->
+      <AppSidebar
+        v-if="showSidebar"
+        :show-brand="!showGlobalHeader"
+        :active-module-only="layoutStore.config.mode === 'mixed'"
+      />
 
-      <!-- 多标签页 -->
-      <TabsBar v-if="layoutStore.config.enableTabs && showHeader" />
+      <!-- 主容器 -->
+      <div class="main-container">
+        <!-- 工作区工具栏 -->
+        <AppHeader v-if="showHeader" />
 
-      <!-- 主内容区 -->
-      <AppMain />
+        <!-- 多标签页 -->
+        <TabsBar v-if="layoutStore.config.enableTabs && showHeader" />
 
-      <!-- 底栏 -->
-      <AppFooter v-if="layoutStore.config.showFooter" />
+        <!-- 主内容区 -->
+        <AppMain />
+
+        <!-- 底栏 -->
+        <AppFooter v-if="layoutStore.config.showFooter" />
+      </div>
     </div>
 
     <!-- 全局配置面板 -->
@@ -32,6 +41,7 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
+import GlobalHeader from './components/GlobalHeader.vue'
 import AppHeader from './components/AppHeader.vue'
 import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
@@ -51,6 +61,8 @@ const showHeader = computed(() => {
   const mode = layoutStore.config.mode
   return mode === 'sidebar-header' || mode === 'header-only' || mode === 'mixed' || mode === 'top-menu'
 })
+
+const showGlobalHeader = computed(() => layoutStore.config.mode !== 'sidebar-only')
 
 // 固定侧边栏会脱离 flex 文档流，主容器需要使用同一个实时宽度预留空间。
 // 将这个值集中在布局根节点，避免顶栏、标签栏和内容区各自计算偏移量。
@@ -88,8 +100,16 @@ const layoutClasses = computed(() => {
   width: 100%;
   height: 100vh;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--cp-bg);
+
+  .layout-workspace {
+    min-height: 0;
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
 
   .main-container {
     flex: 1;
@@ -147,7 +167,7 @@ const layoutClasses = computed(() => {
   &--fixed-sidebar {
     :deep(.app-sidebar) {
       position: fixed;
-      top: 0;
+      top: v-bind('showGlobalHeader ? layoutStore.config.headerHeight + "px" : "0"');
       left: 0;
       bottom: 0;
       z-index: $z-sticky;

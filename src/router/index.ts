@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
-import { MENU_LIST } from '@/config/menu'
 import type { MenuItem } from '@/types'
 import { dynamicRoutes } from './modules'
 
@@ -55,7 +54,7 @@ function filterRoutes(routes: RouteRecordRaw[], permissions: string[]): RouteRec
       return true
     }
     // 检查用户是否有该权限
-    return permissions.includes(route.meta.permission as string)
+    return permissions.includes('*') || permissions.includes(route.meta.permission as string)
   })
 }
 
@@ -70,7 +69,7 @@ function filterMenus(menus: MenuItem[], permissions: string[]): MenuItem[] {
         return true
       }
       // 检查用户是否有该权限
-      return permissions.includes(item.permission)
+      return permissions.includes('*') || permissions.includes(item.permission)
     })
     .map((item) => {
       // 递归过滤子菜单
@@ -91,17 +90,9 @@ export async function addDynamicRoutes() {
   const userStore = useUserStore()
   const permissionStore = usePermissionStore()
 
-  // 获取用户权限
-  const permissions = userStore.userInfo?.roles || []
-
-  // 在实际项目中，这里应该从后端获取用户权限标识
-  // 这里为了演示，我们给所有登录用户赋予所有权限
-  const userPermissions = permissions.includes('admin')
-    ? MENU_LIST.flatMap((menu) => getAllPermissions(menu))
-    : getAllPermissions(MENU_LIST[0]) // 非管理员只给工作台权限
-
-  // 过滤菜单（用于侧边栏显示）
-  const filteredMenus = filterMenus(MENU_LIST, userPermissions)
+  const bootstrap = await userStore.loadBootstrap()
+  const userPermissions = bootstrap.permissions
+  const filteredMenus = filterMenus(bootstrap.menus, userPermissions)
 
   // 过滤路由（根据权限）
   const filteredRoutes = filterRoutes(dynamicRoutes, userPermissions)
@@ -120,25 +111,6 @@ export async function addDynamicRoutes() {
   // 保存到 permission store
   permissionStore.setMenuRoutes(filteredMenus)
   permissionStore.setRoutesAdded(true)
-}
-
-/**
- * 递归获取所有权限标识
- */
-function getAllPermissions(menu: MenuItem): string[] {
-  const permissions: string[] = []
-
-  if (menu.permission) {
-    permissions.push(menu.permission)
-  }
-
-  if (menu.children && menu.children.length > 0) {
-    menu.children.forEach((child) => {
-      permissions.push(...getAllPermissions(child))
-    })
-  }
-
-  return permissions
 }
 
 /**

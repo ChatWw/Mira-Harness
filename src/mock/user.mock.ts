@@ -147,7 +147,8 @@ export default [
               status: 1,
             },
             permissions: ['*'], // 超级管理员拥有所有权限
-            menus: mockMenus,
+            // 菜单与微应用由 /auth/bootstrap 统一下发，登录接口不再承载静态菜单。
+            menus: [],
           },
           message: '登录成功',
         }
@@ -183,7 +184,7 @@ export default [
             status: 1,
           },
           permissions: ['*'],
-          menus: mockMenus,
+          menus: [],
         },
         message: '获取成功',
       }

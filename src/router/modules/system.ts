@@ -35,6 +35,31 @@ export const systemRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/system/microapps',
+    name: 'SystemMicroApps',
+    component: () => import('@/pages/system/MicroAppPage.vue'),
+    meta: {
+      title: '微应用管理',
+      icon: 'Grid',
+      permission: 'system:microapp:view',
+    },
+  },
+  {
+    path: '/system/microapps/:code/config',
+    name: 'SystemMicroAppConfig',
+    component: () => import('@/pages/system/MicroAppConfigPage.vue'),
+    meta: {
+      title: '微应用配置',
+      permission: 'system:microapp:view',
+    },
+  },
+  {
+    path: '/micro/:code/:pathMatch(.*)*',
+    name: 'MicroAppHost',
+    component: () => import('@/pages/system/MicroAppHostPage.vue'),
+    meta: { title: '微应用', permission: 'microapp:view' },
+  },
+  {
     path: '/system/dept',
     name: 'SystemDept',
     component: () => import('@/pages/system/DeptPage.vue'),

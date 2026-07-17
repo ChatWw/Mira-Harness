@@ -7,7 +7,7 @@
       '--sidebar-width': appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
     }"
   >
-    <div v-if="layoutStore.config.showLogo" class="sidebar-header">
+    <div v-if="showBrand && layoutStore.config.showLogo" class="sidebar-header">
       <div class="brand">
         <div class="brand-icon">
           <Sparkles :size="20" />
@@ -28,7 +28,7 @@
       router
       class="sidebar-menu"
     >
-      <template v-for="item in menuList" :key="item.id">
+      <template v-for="item in displayedMenuList" :key="item.id">
         <el-sub-menu v-if="item.children" :index="item.id">
           <template #title>
             <el-icon><component :is="item.icon" /></el-icon>
@@ -58,14 +58,21 @@ import { useRoute } from 'vue-router'
 import { Sparkles } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
-import { MENU_LIST } from '@/config/menu'
+import { usePermissionStore } from '@/stores/permission'
 
 const route = useRoute()
+const props = withDefaults(defineProps<{ showBrand?: boolean; activeModuleOnly?: boolean }>(), { showBrand: true, activeModuleOnly: false })
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const permissionStore = usePermissionStore()
 
 const currentRoute = computed(() => route.path)
-const menuList = MENU_LIST
+const displayedMenuList = computed(() => {
+  const menus = permissionStore.menuRoutes
+  if (!props.activeModuleOnly) return menus
+  const activeModule = menus.find((item: any) => item.path === route.path || item.children?.some((child: any) => child.path === route.path))
+  return activeModule?.children || (activeModule ? [activeModule] : menus)
+})
 </script>
 
 <style scoped lang="scss">

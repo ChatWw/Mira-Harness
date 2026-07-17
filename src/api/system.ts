@@ -1,5 +1,6 @@
 import request from './request'
 import type { PageParams, PageResult } from './types'
+import type { BootstrapData, MenuItem, MicroApp, MicroAppRuntimeConfig } from '@/types'
 
 // 角色相关接口
 export const roleApi = {
@@ -19,8 +20,8 @@ export const roleApi = {
 
 // 菜单相关接口
 export const menuApi = {
-  getList(params?: any) {
-    return request.get('/menu/list', { params })
+  getList(params?: { app_code?: string }) {
+    return request.get('/menu/list', { params }) as unknown as Promise<MenuItem[]>
   },
   create(data: any) {
     return request.post('/menu', data)
@@ -30,6 +31,36 @@ export const menuApi = {
   },
   delete(id: string) {
     return request.delete(`/menu/${id}`)
+  },
+}
+
+export const platformApi = {
+  getBootstrap() {
+    return request.get('/auth/bootstrap') as unknown as Promise<BootstrapData>
+  },
+}
+
+export const microAppApi = {
+  getList(params: PageParams & { name?: string; code?: string; status?: string; mode?: string }) {
+    return request.get('/micro-apps', { params }) as unknown as Promise<PageResult<MicroApp>>
+  },
+  getAll() {
+    return request.get('/micro-apps/all') as unknown as Promise<MicroApp[]>
+  },
+  getByCode(code: string) {
+    return request.get(`/micro-apps/${code}`) as unknown as Promise<MicroApp>
+  },
+  getRuntime(code: string) {
+    return request.get(`/micro-apps/${code}/runtime`) as unknown as Promise<MicroAppRuntimeConfig>
+  },
+  create(data: Partial<MicroApp>) {
+    return request.post('/micro-apps', data) as unknown as Promise<MicroApp>
+  },
+  update(code: string, data: Partial<MicroApp>) {
+    return request.put(`/micro-apps/${code}`, data) as unknown as Promise<MicroApp>
+  },
+  updateRuntime(code: string, data: MicroAppRuntimeConfig) {
+    return request.put(`/micro-apps/${code}/runtime`, data) as unknown as Promise<MicroAppRuntimeConfig>
   },
 }
 

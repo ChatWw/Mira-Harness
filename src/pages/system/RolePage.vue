@@ -243,8 +243,7 @@ async function loadData(params: any) {
 // 加载菜单树
 async function loadMenuTree() {
   try {
-    const { data } = await menuApi.getList()
-    menuTreeData.value = data
+    menuTreeData.value = await menuApi.getList({ app_code: 'main' })
   } catch (error: any) {
     ElMessage.error(error.message || '加载菜单树失败')
   }

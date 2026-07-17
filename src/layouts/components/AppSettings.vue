@@ -1,15 +1,35 @@
 <template>
   <el-drawer
     v-model="layoutStore.settingsVisible"
-    title="全局配置"
     direction="rtl"
-    size="420px"
+    size="480px"
+    class="settings-drawer"
     :destroy-on-close="false"
   >
+    <template #header>
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <div class="drawer-title-icon"><el-icon><Setting /></el-icon></div>
+          <div>
+            <h2>全局配置</h2>
+            <p>个性化你的工作空间</p>
+          </div>
+        </div>
+      </div>
+    </template>
     <div class="settings-content">
+      <div class="settings-intro">
+        <div>
+          <span class="intro-eyebrow">WORKSPACE</span>
+          <strong>即时预览，自动保存</strong>
+          <p>所有更改会立即应用到当前工作台。</p>
+        </div>
+        <el-icon><MagicStick /></el-icon>
+      </div>
       <el-collapse v-model="activeNames" class="settings-collapse">
         <!-- 1. 整体风格 -->
-        <el-collapse-item title="整体风格" name="general">
+        <el-collapse-item name="general">
+          <template #title><div class="section-title"><el-icon><Brush /></el-icon><span>整体风格</span><small>主题与视觉密度</small></div></template>
           <div class="settings-section">
             <!-- 主题模式 -->
             <div class="settings-item">
@@ -73,7 +93,8 @@
         </el-collapse-item>
 
         <!-- 2. 布局设置 -->
-        <el-collapse-item title="布局设置" name="layout">
+        <el-collapse-item name="layout">
+          <template #title><div class="section-title"><el-icon><Grid /></el-icon><span>布局设置</span><small>导航与内容结构</small></div></template>
           <div class="settings-section">
             <!-- 布局模式 -->
             <div class="settings-item-block">
@@ -167,7 +188,8 @@
         </el-collapse-item>
 
         <!-- 3. 顶栏设置 -->
-        <el-collapse-item title="顶栏设置" name="header">
+        <el-collapse-item name="header">
+          <template #title><div class="section-title"><el-icon><Monitor /></el-icon><span>顶栏设置</span><small>导航与工具栏</small></div></template>
           <div class="settings-section">
             <!-- 固定顶栏 -->
             <div class="settings-item">
@@ -213,7 +235,8 @@
         </el-collapse-item>
 
         <!-- 4. 多标签页 -->
-        <el-collapse-item title="多标签页" name="tabs">
+        <el-collapse-item name="tabs">
+          <template #title><div class="section-title"><el-icon><CollectionTag /></el-icon><span>多标签页</span><small>工作上下文管理</small></div></template>
           <div class="settings-section">
             <!-- 启用多标签页 -->
             <div class="settings-item">
@@ -264,7 +287,8 @@
         </el-collapse-item>
 
         <!-- 5. 动画效果 -->
-        <el-collapse-item title="动画效果" name="animation">
+        <el-collapse-item name="animation">
+          <template #title><div class="section-title"><el-icon><MagicStick /></el-icon><span>动画效果</span><small>交互节奏与反馈</small></div></template>
           <div class="settings-section">
             <!-- 页面切换动画 -->
             <div class="settings-item-block">
@@ -323,7 +347,8 @@
         </el-collapse-item>
 
         <!-- 6. 底栏设置 -->
-        <el-collapse-item title="底栏设置" name="footer">
+        <el-collapse-item name="footer">
+          <template #title><div class="section-title"><el-icon><Bottom /></el-icon><span>底栏设置</span><small>版权与链接信息</small></div></template>
           <div class="settings-section">
             <!-- 显示底栏 -->
             <div class="settings-item">
@@ -439,7 +464,8 @@
         </el-collapse-item>
 
         <!-- 7. 其他设置 -->
-        <el-collapse-item title="其他设置" name="other">
+        <el-collapse-item name="other">
+          <template #title><div class="section-title"><el-icon><MoreFilled /></el-icon><span>其他设置</span><small>内容与水印偏好</small></div></template>
           <div class="settings-section">
             <!-- 页面标题 -->
             <div class="settings-item-block">
@@ -508,15 +534,12 @@
 
       <!-- 底部操作 -->
       <div class="settings-footer">
-        <el-button type="primary" @click="handleCopyConfig" style="width: 100%">
-          复制配置 JSON
-        </el-button>
-        <el-button @click="handleReset" style="width: 100%; margin-top: 12px">
-          恢复默认配置
-        </el-button>
-        <el-button @click="handleClearCache" style="width: 100%; margin-top: 12px">
-          清除缓存
-        </el-button>
+        <div class="footer-note"><el-icon><InfoFilled /></el-icon> 配置会自动保存</div>
+        <div class="footer-actions">
+          <el-button @click="handleCopyConfig"><el-icon><CopyDocument /></el-icon>导出</el-button>
+          <el-button @click="handleReset"><el-icon><RefreshLeft /></el-icon>恢复默认</el-button>
+          <el-button class="clear-cache" text @click="handleClearCache"><el-icon><Delete /></el-icon></el-button>
+        </div>
       </div>
     </div>
   </el-drawer>
@@ -525,7 +548,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check } from '@element-plus/icons-vue'
+import {
+  Bottom,
+  Brush,
+  Check,
+  CollectionTag,
+  CopyDocument,
+  Delete,
+  Grid,
+  InfoFilled,
+  MagicStick,
+  Monitor,
+  MoreFilled,
+  RefreshLeft,
+  Setting,
+} from '@element-plus/icons-vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import type { LayoutMode, PageTransition } from '@/types'
@@ -908,5 +945,383 @@ function handleClearCache() {
   padding-top: $spacing-lg;
   border-top: 1px solid var(--cp-border);
   margin-top: $spacing-lg;
+}
+
+// ==================== 设置中心视觉重构 ====================
+:global(.settings-drawer) {
+  --settings-surface: color-mix(in srgb, var(--cp-bg-elevated) 82%, var(--cp-primary) 18%);
+  --settings-muted: var(--cp-text-secondary);
+
+  .el-drawer__header {
+    margin: 0;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--cp-border-light);
+  }
+
+  .el-drawer__body {
+    padding: 0 18px 18px;
+    overflow: hidden;
+    background: var(--cp-bg);
+  }
+}
+
+.drawer-header,
+.drawer-title-group,
+.section-title,
+.footer-note,
+.footer-actions {
+  display: flex;
+  align-items: center;
+}
+
+.drawer-header {
+  justify-content: space-between;
+}
+
+.drawer-title-group {
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    color: var(--cp-text);
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.2px;
+  }
+
+  p {
+    margin: 3px 0 0;
+    color: var(--cp-text-secondary);
+    font-size: 12px;
+  }
+}
+
+.drawer-title-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 19px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 62%, #6750e8));
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--cp-primary) 28%, transparent);
+}
+
+.settings-content {
+  height: 100%;
+  gap: 14px;
+  padding: 18px 6px 0;
+  overflow-y: auto;
+  @include scrollbar(6px, transparent, var(--cp-border));
+}
+
+.settings-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  color: var(--cp-text);
+  border: 1px solid color-mix(in srgb, var(--cp-primary) 16%, var(--cp-border));
+  border-radius: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cp-primary) 11%, var(--cp-bg)), var(--cp-bg));
+
+  strong,
+  p,
+  .intro-eyebrow {
+    display: block;
+  }
+
+  strong {
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 2px 0 0;
+    color: var(--cp-text-secondary);
+    font-size: 12px;
+  }
+
+  .intro-eyebrow {
+    color: var(--cp-primary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  > .el-icon {
+    color: var(--cp-primary);
+    font-size: 28px;
+    opacity: 0.8;
+  }
+}
+
+.settings-collapse {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  :deep(.el-collapse-item) {
+    overflow: hidden;
+    border: 1px solid var(--cp-border-light);
+    border-radius: 12px;
+    background: var(--cp-bg);
+    transition: border-color $transition-base, box-shadow $transition-base;
+
+    &.is-active {
+      border-color: color-mix(in srgb, var(--cp-primary) 30%, var(--cp-border));
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--cp-primary) 7%, transparent);
+    }
+  }
+
+  :deep(.el-collapse-item__header) {
+    min-height: 58px;
+    padding: 0 15px;
+    font-weight: $font-semibold;
+
+    .el-collapse-item__arrow {
+      margin-left: 8px;
+      color: var(--cp-text-tertiary);
+    }
+  }
+
+  :deep(.el-collapse-item__content) {
+    padding: 0 14px 15px;
+  }
+}
+
+.section-title {
+  width: 100%;
+  gap: 9px;
+  color: var(--cp-text);
+
+  > .el-icon {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    color: var(--cp-primary);
+    border-radius: 8px;
+    background: var(--cp-primary-lighter);
+  }
+
+  span {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  small {
+    margin-left: auto;
+    padding-right: 5px;
+    color: var(--cp-text-tertiary);
+    font-size: 11px;
+    font-weight: 400;
+  }
+}
+
+.settings-section {
+  gap: 6px;
+}
+
+.settings-item {
+  min-height: 48px;
+  padding: 7px 8px 7px 10px;
+  border-radius: 9px;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: var(--cp-bg-elevated);
+  }
+
+  .item-label {
+    color: var(--cp-text-secondary);
+    font-size: 13px;
+  }
+
+  :deep(.el-select),
+  :deep(.el-input-number) {
+    width: 132px !important;
+  }
+}
+
+.settings-item-block {
+  gap: 8px;
+  padding: 11px 10px;
+  border-radius: 9px;
+  background: var(--cp-bg-elevated);
+
+  .item-label {
+    color: var(--cp-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.layout-modes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.layout-mode-card {
+  position: relative;
+  padding: 8px;
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  background: var(--cp-bg);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--cp-primary) 60%, var(--cp-border));
+    box-shadow: $shadow-sm;
+    transform: translateY(-1px);
+  }
+
+  &.active {
+    border-color: var(--cp-primary);
+    background: linear-gradient(180deg, var(--cp-primary-lighter), var(--cp-bg));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-primary) 11%, transparent);
+
+    &::after {
+      content: '✓';
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      display: grid;
+      width: 16px;
+      height: 16px;
+      place-items: center;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 50%;
+      background: var(--cp-primary);
+    }
+  }
+
+  .mode-preview {
+    margin-bottom: 7px;
+
+    .preview-container {
+      height: 70px;
+      border-color: var(--cp-border-light);
+      border-radius: 6px;
+      background: var(--cp-bg-elevated);
+
+      .preview-sidebar,
+      .preview-header {
+        background: color-mix(in srgb, var(--cp-primary) 7%, var(--cp-bg-elevated));
+      }
+
+      .preview-content {
+        background: var(--cp-bg);
+      }
+    }
+  }
+
+  .mode-name {
+    color: var(--cp-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.color-grid {
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.color-item {
+  max-width: 54px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+
+  &:hover {
+    transform: translateY(-2px) scale(1.04);
+  }
+
+  &.active {
+    border-color: var(--cp-text);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-primary) 16%, transparent);
+  }
+}
+
+.transition-cards {
+  gap: 8px;
+}
+
+.transition-card {
+  padding: 6px;
+  border-width: 1px;
+  border-radius: 9px;
+
+  &.active {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--cp-primary) 12%, transparent);
+  }
+
+  .card-preview {
+    height: 44px;
+    margin-bottom: 5px;
+  }
+}
+
+.settings-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -6px;
+  padding: 14px 6px 2px;
+  border: 0;
+  background: linear-gradient(180deg, transparent, var(--cp-bg) 24%);
+}
+
+.footer-note {
+  gap: 5px;
+  color: var(--cp-text-tertiary);
+  font-size: 11px;
+
+  .el-icon { color: var(--cp-success); }
+}
+
+.footer-actions {
+  gap: 7px;
+
+  :deep(.el-button) {
+    height: 30px;
+    margin: 0;
+    padding: 0 9px;
+    color: var(--cp-text-secondary);
+    border-color: var(--cp-border);
+    background: var(--cp-bg);
+
+    .el-icon { margin-right: 4px; }
+
+    &:hover {
+      color: var(--cp-primary);
+      border-color: var(--cp-primary);
+      background: var(--cp-primary-lighter);
+    }
+  }
+
+  :deep(.clear-cache) {
+    width: 30px;
+    padding: 0;
+    color: var(--cp-text-tertiary);
+
+    .el-icon { margin: 0; }
+  }
+}
+
+@include media-max($breakpoint-sm) {
+  :global(.settings-drawer) {
+    width: min(100vw, 480px) !important;
+  }
+
+  .section-title small,
+  .footer-note {
+    display: none;
+  }
 }
 </style>

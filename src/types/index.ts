@@ -30,6 +30,42 @@ export interface MenuItem {
   permission?: string
   component?: string
   name?: string
+  type?: 'dir' | 'menu' | 'button' | 'microapp'
+  appCode?: string | null
+  sort?: number
+  status?: number
+}
+
+export type MicroAppStatus = 'developing' | 'published' | 'offline'
+
+export interface MicroAppRuntimeConfig {
+  alive: boolean
+  sync: boolean
+  fiber: boolean
+  degrade: boolean
+  prefix: Record<string, string>
+  props: Record<string, unknown>
+  preload: boolean
+  exec: boolean
+}
+
+export interface MicroApp {
+  id: string
+  name: string
+  code: string
+  url: string
+  icon?: string
+  sort: number
+  status: MicroAppStatus
+  version?: string
+  description?: string
+  runtimeConfig: MicroAppRuntimeConfig
+}
+
+export interface BootstrapData {
+  permissions: string[]
+  menus: MenuItem[]
+  microApps: Pick<MicroApp, 'id' | 'name' | 'code' | 'icon' | 'status'>[]
 }
 
 // 布局模式

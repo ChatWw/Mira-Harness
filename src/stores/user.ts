@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { UserInfo, LoginPayload } from '@/types'
 import { usePermissionStore } from './permission'
 import { userApi } from '@/api/user'
+import { platformApi } from '@/api/system'
 
 const TOKEN_KEY = 'core-platform-token'
 const USER_INFO_KEY = 'core-platform-user'
@@ -62,11 +63,7 @@ export const useUserStore = defineStore('user', () => {
         localStorage.setItem(USER_INFO_KEY, JSON.stringify(result.userInfo))
         localStorage.setItem(TOKEN_EXPIRE_KEY, expireTime.toString())
 
-        // 加载用户权限
-        const permissionStore = usePermissionStore()
-        if (result.permissions) {
-          permissionStore.setPermissions(result.permissions)
-        }
+        await loadBootstrap()
 
         return { success: true }
       } else {
@@ -79,6 +76,14 @@ export const useUserStore = defineStore('user', () => {
         message: error.message || '网络错误，请稍后重试'
       }
     }
+  }
+
+  async function loadBootstrap() {
+    const bootstrap = await platformApi.getBootstrap()
+    const permissionStore = usePermissionStore()
+    permissionStore.setPermissions(bootstrap.permissions)
+    permissionStore.setMenuRoutes(bootstrap.menus)
+    return bootstrap
   }
 
   function logout() {
@@ -112,6 +117,7 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isTokenExpired,
     login,
+    loadBootstrap,
     logout,
     refreshTokenExpire,
   }
