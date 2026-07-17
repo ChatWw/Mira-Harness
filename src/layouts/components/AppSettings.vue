@@ -45,18 +45,18 @@
             <div class="settings-item-block">
               <div class="item-label">主题颜色</div>
               <div class="color-grid">
-                <div
+                <button
                   v-for="color in themeStore.presetColors"
                   :key="color.value"
+                  type="button"
                   class="color-item"
                   :class="{ active: themeStore.primaryColor === color.value }"
-                  :style="{ background: color.value }"
+                  :aria-label="`选择${color.name}主题色`"
+                  :aria-pressed="themeStore.primaryColor === color.value"
                   @click="themeStore.setPrimaryColor(color.value)"
                 >
-                  <el-icon v-if="themeStore.primaryColor === color.value" class="check-icon">
-                    <Check />
-                  </el-icon>
-                </div>
+                  <span class="color-dot" :style="{ backgroundColor: color.value }"></span>
+                </button>
               </div>
             </div>
 
@@ -551,7 +551,6 @@ import { ElMessage } from 'element-plus'
 import {
   Bottom,
   Brush,
-  Check,
   CollectionTag,
   CopyDocument,
   Delete,
@@ -779,32 +778,42 @@ function handleClearCache() {
 // 颜色选择器
 .color-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: $spacing-md;
+  grid-template-columns: repeat(auto-fit, 36px);
+  gap: 8px;
 }
 
 .color-item {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: $radius-md;
+  display: grid;
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
   cursor: pointer;
-  position: relative;
-  transition: all $transition-base;
-  border: 2px solid transparent;
-  @include flex-center;
+  border: 1px solid var(--cp-border);
+  border-radius: 4px;
+  background: var(--cp-bg);
+  transition: border-color $transition-base, box-shadow $transition-base, transform $transition-base;
 
   &:hover {
-    transform: scale(1.1);
+    border-color: color-mix(in srgb, var(--cp-primary) 60%, var(--cp-border));
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--cp-primary);
+    outline-offset: 2px;
   }
 
   &.active {
-    border-color: var(--cp-text);
+    border: 2px solid var(--cp-primary);
+    box-shadow: 0 0 0 2px var(--cp-primary-lighter);
   }
 
-  .check-icon {
-    color: white;
-    font-size: $font-xl;
-    font-weight: $font-bold;
+  .color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
   }
 }
 
@@ -1223,26 +1232,6 @@ function handleClearCache() {
     color: var(--cp-text-secondary);
     font-size: 12px;
     font-weight: 500;
-  }
-}
-
-.color-grid {
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-}
-
-.color-item {
-  max-width: 54px;
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
-
-  &:hover {
-    transform: translateY(-2px) scale(1.04);
-  }
-
-  &.active {
-    border-color: var(--cp-text);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-primary) 16%, transparent);
   }
 }
 
