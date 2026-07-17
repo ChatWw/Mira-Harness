@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import type { UserInfo, LoginPayload } from '@/types'
 import { usePermissionStore } from './permission'
 import { userApi } from '@/api/user'
-import { platformApi } from '@/api/system'
 
 const TOKEN_KEY = 'core-platform-token'
 const USER_INFO_KEY = 'core-platform-user'
@@ -63,7 +62,8 @@ export const useUserStore = defineStore('user', () => {
         localStorage.setItem(USER_INFO_KEY, JSON.stringify(result.userInfo))
         localStorage.setItem(TOKEN_EXPIRE_KEY, expireTime.toString())
 
-        await loadBootstrap()
+        const permissionStore = usePermissionStore()
+        permissionStore.setPermissions(result.permissions || [])
 
         return { success: true }
       } else {
@@ -78,13 +78,12 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function loadBootstrap() {
-    const bootstrap = await platformApi.getBootstrap()
+  async function loadSession() {
+    const session: any = await userApi.getInfo()
     const permissionStore = usePermissionStore()
-    permissionStore.setPermissions(bootstrap.permissions)
-    permissionStore.setMenuRoutes(bootstrap.menus)
-    permissionStore.setRouteDefinitions(bootstrap.routes)
-    return bootstrap
+    userInfo.value = session.userInfo || userInfo.value
+    permissionStore.setPermissions(session.permissions || [])
+    return session
   }
 
   function logout() {
@@ -118,7 +117,7 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isTokenExpired,
     login,
-    loadBootstrap,
+    loadSession,
     logout,
     refreshTokenExpire,
   }

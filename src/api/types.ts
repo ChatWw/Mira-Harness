@@ -21,7 +21,6 @@ export interface LoginResult {
   token: string
   userInfo: UserInfo
   permissions: string[]
-  menus: MenuItem[]
 }
 
 export interface UserInfo {

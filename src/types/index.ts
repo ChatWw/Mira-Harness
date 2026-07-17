@@ -34,6 +34,7 @@ export interface MenuItem {
   appCode?: string | null
   sort?: number
   status?: number
+  visible?: boolean
 }
 
 export type MicroAppStatus = 'developing' | 'published' | 'offline'
@@ -62,20 +63,6 @@ export interface MicroApp {
   runtimeConfig: MicroAppRuntimeConfig
 }
 
-export interface BootstrapData {
-  permissions: string[]
-  menus: MenuItem[]
-  routes: RouteDefinition[]
-  microApps: Pick<MicroApp, 'id' | 'name' | 'code' | 'icon' | 'status'>[]
-}
-
-export interface RouteDefinition {
-  path: string
-  name: string
-  title: string
-  permission?: string
-  component: string
-}
 
 // 布局模式
 export type LayoutMode = 'sidebar-header' | 'header-only' | 'sidebar-only' | 'mixed' | 'top-menu'

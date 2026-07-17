@@ -6,7 +6,7 @@
     </div>
 
     <nav v-if="showNavigation" class="global-nav" aria-label="主导航">
-      <template v-for="item in menuList" :key="item.id">
+      <template v-for="item in menuList.filter((item: any) => item.visible !== false)" :key="item.id">
         <el-button v-if="item.path" text class="nav-item" :class="{ active: isActive(item) }" @click="router.push(item.path)">
           <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>{{ item.title }}
         </el-button>
@@ -16,7 +16,7 @@
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item v-for="child in item.children" :key="child.id" :command="child.path">
+              <el-dropdown-item v-for="child in item.children.filter((child: any) => child.visible !== false)" :key="child.id" :command="child.path">
                 <el-icon v-if="child.icon"><component :is="child.icon" /></el-icon>{{ child.title }}
               </el-dropdown-item>
             </el-dropdown-menu>

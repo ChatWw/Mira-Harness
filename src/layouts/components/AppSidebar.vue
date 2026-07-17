@@ -28,14 +28,14 @@
       router
       class="sidebar-menu"
     >
-      <template v-for="item in displayedMenuList" :key="item.id">
-        <el-sub-menu v-if="item.children" :index="item.id">
+      <template v-for="item in displayedMenuList.filter((item: any) => item.visible !== false)" :key="item.id">
+        <el-sub-menu v-if="item.children?.some((child: any) => child.visible !== false)" :index="item.id">
           <template #title>
             <el-icon><component :is="item.icon" /></el-icon>
             <span>{{ item.title }}</span>
           </template>
           <el-menu-item
-            v-for="child in item.children"
+            v-for="child in item.children.filter((child: any) => child.visible !== false)"
             :key="child.id"
             :index="child.path"
           >

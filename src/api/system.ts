@@ -1,6 +1,6 @@
 import request from './request'
 import type { PageParams, PageResult } from './types'
-import type { BootstrapData, MenuItem, MicroApp, MicroAppRuntimeConfig } from '@/types'
+import type { MenuItem, MicroApp, MicroAppRuntimeConfig } from '@/types'
 
 // 角色相关接口
 export const roleApi = {
@@ -20,6 +20,9 @@ export const roleApi = {
 
 // 菜单相关接口
 export const menuApi = {
+  getMyMenus() {
+    return request.get('/menus/my') as unknown as Promise<MenuItem[]>
+  },
   getList(params?: { app_code?: string }) {
     return request.get('/menu/list', { params }) as unknown as Promise<MenuItem[]>
   },
@@ -31,12 +34,6 @@ export const menuApi = {
   },
   delete(id: string) {
     return request.delete(`/menu/${id}`)
-  },
-}
-
-export const platformApi = {
-  getBootstrap() {
-    return request.get('/auth/bootstrap') as unknown as Promise<BootstrapData>
   },
 }
 

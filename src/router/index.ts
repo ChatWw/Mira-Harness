@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
 import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
+import { menuApi } from '@/api/system'
 
 // 静态路由（无需权限）
 const staticRoutes: RouteRecordRaw[] = [
@@ -76,6 +77,10 @@ function filterMenus(menus: MenuItem[], permissions: string[]): MenuItem[] {
     })
 }
 
+function flattenRouteMenus(menus: MenuItem[]): MenuItem[] {
+  return menus.flatMap(menu => [menu, ...(menu.children ? flattenRouteMenus(menu.children) : [])])
+}
+
 /**
  * 添加动态路由
  */
@@ -83,12 +88,15 @@ export async function addDynamicRoutes() {
   const userStore = useUserStore()
   const permissionStore = usePermissionStore()
 
-  const bootstrap = await userStore.loadBootstrap()
-  const userPermissions = bootstrap.permissions
-  const filteredMenus = filterMenus(bootstrap.menus, userPermissions)
+  if (!permissionStore.permissions.length) {
+    await userStore.loadSession()
+  }
+  const userPermissions = permissionStore.permissions
+  const menus = await menuApi.getMyMenus()
+  const filteredMenus = filterMenus(menus, userPermissions)
 
-  bootstrap.routes
-    .filter(route => !route.permission || userPermissions.includes('*') || userPermissions.includes(route.permission))
+  flattenRouteMenus(filteredMenus)
+    .filter(menu => menu.path && menu.component)
     .map(createBusinessRoute)
     .filter((route): route is RouteRecordRaw => route !== null)
     .forEach(route => {

@@ -7,6 +7,7 @@ const mainMenus = [
     { id: 'system-roles', title: '角色管理', icon: 'UserFilled', path: '/system/roles', name: 'SystemRoles', component: '/src/pages/system/RolePage.vue', permission: 'system:role:view', type: 'menu', appCode: null, sort: 1, status: 1 },
     { id: 'system-menus', title: '菜单管理', icon: 'Menu', path: '/system/menus', name: 'SystemMenus', component: '/src/pages/system/MenuPage.vue', permission: 'system:menu:view', type: 'menu', appCode: null, sort: 2, status: 1 },
     { id: 'system-microapps', title: '微应用管理', icon: 'Grid', path: '/system/microapps', name: 'SystemMicroApps', component: '/src/pages/system/MicroAppPage.vue', permission: 'system:microapp:view', type: 'menu', appCode: null, sort: 3, status: 1 },
+    { id: 'system-microapp-config', title: '微应用配置', icon: 'Setting', path: '/system/microapps/:code/config', name: 'SystemMicroAppConfig', component: '/src/pages/system/MicroAppConfigPage.vue', permission: 'system:microapp:view', type: 'menu', appCode: null, sort: 4, status: 1, visible: false },
     { id: 'system-dept', title: '部门管理', icon: 'OfficeBuilding', path: '/system/dept', name: 'SystemDept', component: '/src/pages/system/DeptPage.vue', permission: 'system:dept:view', type: 'menu', appCode: null, sort: 4, status: 1 },
     { id: 'system-log', title: '操作日志', icon: 'Document', path: '/system/log', name: 'SystemLog', component: '/src/pages/system/LogPage.vue', permission: 'system:log:view', type: 'menu', appCode: null, sort: 5, status: 1 },
     { id: 'system-settings', title: '系统设置', icon: 'Tools', path: '/system/settings', name: 'SystemSettings', component: '/src/pages/system/SettingsPage.vue', permission: 'system:settings:view', type: 'menu', appCode: null, sort: 6, status: 1 },
@@ -48,27 +49,13 @@ function removeMenu(items: any[], id: string): boolean {
   return items.some(item => item.children && removeMenu(item.children, id))
 }
 
-function bootstrapMenus() {
+function availableMenus() {
   const menus: any[] = clone(mainMenus)
   const children = microApps
     .filter(app => app.status === 'published')
     .map(app => ({ id: `micro-entry-${app.code}`, title: app.name, icon: app.icon, path: `/micro/${app.code}`, permission: 'microapp:view', type: 'microapp', appCode: app.code, sort: app.sort, status: 1 }))
   if (children.length) menus.push({ id: 'micro-apps', title: '业务应用', icon: 'Grid', permission: 'microapp:view', type: 'dir', appCode: null, sort: 3, status: 1, children })
   return menus
-}
-
-function bootstrapRoutes() {
-  const routes: any[] = []
-  const collect = (items: any[]) => items.forEach(item => {
-    if (item.path && item.component) {
-      routes.push({ path: item.path, name: item.name || `Page_${item.id}`, title: item.title, permission: item.permission, component: item.component })
-    }
-    if (item.children) collect(item.children)
-  })
-  collect(mainMenus)
-  // 不出现在菜单中的详情页也由接口声明，前端不会私自定义业务路径。
-  routes.push({ path: '/system/microapps/:code/config', name: 'SystemMicroAppConfig', title: '微应用配置', permission: 'system:microapp:view', component: '/src/pages/system/MicroAppConfigPage.vue' })
-  return routes
 }
 
 // 生成 mock 角色数据
@@ -227,18 +214,13 @@ export default [
     },
   },
 
-  // 登录后的启动数据：菜单与已上架微应用摘要均由接口返回
+  // 当前用户导航菜单。菜单项自身携带 path / component / permission，前端据此注册本地主应用路由。
   {
-    url: '/api/auth/bootstrap',
+    url: '/api/menus/my',
     method: 'get',
     response: () => ({
       code: 200,
-      data: {
-        permissions: ['*'],
-        menus: bootstrapMenus(),
-        routes: bootstrapRoutes(),
-        microApps: microApps.filter(app => app.status === 'published').map(({ id, name, code, icon, status }) => ({ id, name, code, icon, status })),
-      },
+      data: availableMenus(),
       message: '获取成功',
     }),
   },

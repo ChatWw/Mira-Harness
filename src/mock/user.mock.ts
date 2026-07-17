@@ -27,99 +27,6 @@ const generateUsers = (count: number) => {
 
 const mockUsers = generateUsers(25)
 
-// 生成菜单数据
-const mockMenus = [
-  {
-    id: '1',
-    title: '工作台',
-    icon: 'Odometer',
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: 'pages/dashboard/DashboardPage',
-    permission: 'dashboard:view',
-  },
-  {
-    id: '2',
-    title: '系统管理',
-    icon: 'Setting',
-    permission: 'system:view',
-    children: [
-      {
-        id: '2-1',
-        title: '用户管理',
-        icon: 'User',
-        path: '/system/user',
-        name: 'SystemUser',
-        component: 'pages/system/user/UserPage',
-        permission: 'system:user:view',
-      },
-      {
-        id: '2-2',
-        title: '角色管理',
-        icon: 'Avatar',
-        path: '/system/role',
-        name: 'SystemRole',
-        component: 'pages/system/role/RolePage',
-        permission: 'system:role:view',
-      },
-      {
-        id: '2-3',
-        title: '菜单管理',
-        icon: 'Menu',
-        path: '/system/menu',
-        name: 'SystemMenu',
-        component: 'pages/system/menu/MenuPage',
-        permission: 'system:menu:view',
-      },
-      {
-        id: '2-4',
-        title: '部门管理',
-        icon: 'OfficeBuilding',
-        path: '/system/dept',
-        name: 'SystemDept',
-        component: 'pages/system/dept/DeptPage',
-        permission: 'system:dept:view',
-      },
-      {
-        id: '2-5',
-        title: '操作日志',
-        icon: 'Document',
-        path: '/system/log',
-        name: 'SystemLog',
-        component: 'pages/system/log/LogPage',
-        permission: 'system:log:view',
-      },
-      {
-        id: '2-6',
-        title: '系统设置',
-        icon: 'Tools',
-        path: '/system/setting',
-        name: 'SystemSetting',
-        component: 'pages/system/setting/SettingPage',
-        permission: 'system:setting:view',
-      },
-    ],
-  },
-  {
-    id: '3',
-    title: '个人中心',
-    icon: 'UserFilled',
-    path: '/profile',
-    name: 'Profile',
-    component: 'pages/profile/ProfilePage',
-    permission: 'profile:view',
-  },
-  {
-    id: '4',
-    title: '消息中心',
-    icon: 'Bell',
-    path: '/message',
-    name: 'Message',
-    component: 'pages/message/MessagePage',
-    permission: 'message:view',
-  },
-]
-
 export default [
   // 登录
   {
@@ -147,8 +54,6 @@ export default [
               status: 1,
             },
             permissions: ['*'], // 超级管理员拥有所有权限
-            // 菜单与微应用由 /auth/bootstrap 统一下发，登录接口不再承载静态菜单。
-            menus: [],
           },
           message: '登录成功',
         }
@@ -184,7 +89,6 @@ export default [
             status: 1,
           },
           permissions: ['*'],
-          menus: [],
         },
         message: '获取成功',
       }

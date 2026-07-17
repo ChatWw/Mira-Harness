@@ -71,6 +71,7 @@ const flatMenus = computed<SearchResult[]>(() => {
 
   const flatten = (items: MenuItem[], parent?: string) => {
     items.forEach(item => {
+      if (item.visible === false) return
       if (item.path) {
         results.push({
           title: item.title,
