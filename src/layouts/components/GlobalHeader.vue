@@ -67,11 +67,14 @@ async function loadApplications() {
 }
 
 async function handleAppChange(code: string) {
+  const previousCode = currentAppCode.value
+  permissionStore.setCurrentAppCode(code)
   try {
     const menus = await menuApi.getMyMenus({ app_code: code })
     permissionStore.setMenuRoutes(menus)
     await router.push(code === 'main' ? '/dashboard' : `/micro/${code}`)
   } catch (error: any) {
+    permissionStore.setCurrentAppCode(previousCode)
     ElMessage.error(error.message || '切换应用失败')
   }
 }

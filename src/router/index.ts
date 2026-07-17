@@ -92,10 +92,14 @@ export async function addDynamicRoutes() {
     await userStore.loadSession()
   }
   const userPermissions = permissionStore.permissions
-  const menus = await menuApi.getMyMenus({ app_code: permissionStore.currentAppCode })
-  const filteredMenus = filterMenus(menus, userPermissions)
+  // 本地主应用页面始终从公共菜单注册；微应用只使用统一容器路由，不能影响公共页可访问性。
+  const mainMenus = await menuApi.getMyMenus({ app_code: 'main' })
+  const mainRouteMenus = filterMenus(mainMenus, userPermissions)
+  const currentMenus = permissionStore.currentAppCode === 'main'
+    ? mainRouteMenus
+    : filterMenus(await menuApi.getMyMenus({ app_code: permissionStore.currentAppCode }), userPermissions)
 
-  flattenRouteMenus(filteredMenus)
+  flattenRouteMenus(mainRouteMenus)
     .filter(menu => menu.path && menu.component)
     .map(createBusinessRoute)
     .filter((route): route is RouteRecordRaw => route !== null)
@@ -111,7 +115,7 @@ export async function addDynamicRoutes() {
   })
 
   // 保存到 permission store
-  permissionStore.setMenuRoutes(filteredMenus)
+  permissionStore.setMenuRoutes(currentMenus)
   permissionStore.setRoutesAdded(true)
 }
 
@@ -185,8 +189,16 @@ router.beforeEach(async (to, from, next) => {
 })
 
 // 路由后置守卫
-router.afterEach(() => {
-  // 可以在这里添加页面加载完成后的逻辑
+router.afterEach((to) => {
+  const permissionStore = usePermissionStore()
+  const microAppCode = typeof to.params.code === 'string' && to.path.startsWith('/micro/') ? to.params.code : 'main'
+  if (permissionStore.currentAppCode === microAppCode) return
+
+  // 支持地址栏直达和浏览器前进/后退：路由变化同样会同步应用上下文与侧边栏菜单。
+  permissionStore.setCurrentAppCode(microAppCode)
+  menuApi.getMyMenus({ app_code: microAppCode })
+    .then(menus => permissionStore.setMenuRoutes(menus))
+    .catch(error => console.error('同步应用菜单失败:', error))
 })
 
 export default router
