@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import type { ThemeMode } from '@/types'
 import {
   DEFAULT_PRIMARY_COLOR,
@@ -67,13 +67,17 @@ export const useThemeStore = defineStore('theme', () => {
       `circle(${endRadius}px at ${x}px ${y}px)`,
     ]
 
+    root.style.setProperty('--cp-theme-transition-x', `${x}px`)
+    root.style.setProperty('--cp-theme-transition-y', `${y}px`)
+    root.style.setProperty('--cp-theme-transition-radius', `${endRadius}px`)
     root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
 
-    const transition = documentWithTransition.startViewTransition(() => {
-      setThemeMode(nextMode)
-    })
-
     try {
+      const transition = documentWithTransition.startViewTransition(async () => {
+        setThemeMode(nextMode)
+        await nextTick()
+      })
+
       await transition.ready
 
       const animation = root.animate(
@@ -92,6 +96,9 @@ export const useThemeStore = defineStore('theme', () => {
       await animation.finished.catch(() => undefined)
     } finally {
       root.removeAttribute(THEME_TRANSITION_ATTR)
+      root.style.removeProperty('--cp-theme-transition-x')
+      root.style.removeProperty('--cp-theme-transition-y')
+      root.style.removeProperty('--cp-theme-transition-radius')
     }
   }
 

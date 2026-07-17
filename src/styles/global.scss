@@ -221,10 +221,6 @@ input {
   mix-blend-mode: normal;
 }
 
-::view-transition-group(root) {
-  animation-duration: 0s;
-}
-
 [data-theme-transition='dark']::view-transition-old(root),
 [data-theme-transition='light']::view-transition-new(root) {
   z-index: 1;
@@ -233,4 +229,15 @@ input {
 [data-theme-transition='dark']::view-transition-new(root),
 [data-theme-transition='light']::view-transition-old(root) {
   z-index: 9999;
+}
+
+// 自定义动画挂载到伪元素前，先隐藏高层快照，避免首帧整屏闪现新主题。
+[data-theme-transition='dark']::view-transition-new(root) {
+  clip-path: circle(0px at var(--cp-theme-transition-x) var(--cp-theme-transition-y));
+}
+
+[data-theme-transition='light']::view-transition-old(root) {
+  clip-path: circle(
+    var(--cp-theme-transition-radius) at var(--cp-theme-transition-x) var(--cp-theme-transition-y)
+  );
 }
