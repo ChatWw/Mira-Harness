@@ -67,10 +67,11 @@ export const useThemeStore = defineStore('theme', () => {
       `circle(${endRadius}px at ${x}px ${y}px)`,
     ]
 
-    root.style.setProperty('--cp-theme-transition-x', `${x}px`)
-    root.style.setProperty('--cp-theme-transition-y', `${y}px`)
-    root.style.setProperty('--cp-theme-transition-radius', `${endRadius}px`)
-    root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
+    // 先清理旧的状态，避免上一次的值残留
+    root.removeAttribute(THEME_TRANSITION_ATTR)
+    root.style.removeProperty('--cp-theme-transition-x')
+    root.style.removeProperty('--cp-theme-transition-y')
+    root.style.removeProperty('--cp-theme-transition-radius')
 
     try {
       const transition = documentWithTransition.startViewTransition(async () => {
@@ -80,6 +81,15 @@ export const useThemeStore = defineStore('theme', () => {
 
       await transition.ready
 
+      // 设置 CSS 变量和属性
+      root.style.setProperty('--cp-theme-transition-x', `${x}px`)
+      root.style.setProperty('--cp-theme-transition-y', `${y}px`)
+      root.style.setProperty('--cp-theme-transition-radius', `${endRadius}px`)
+      root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
+
+      // 使用 requestAnimationFrame 确保动画在下一帧开始，避免第一帧闪现
+      await new Promise(resolve => requestAnimationFrame(resolve))
+
       const animation = root.animate(
         {
           clipPath: nextMode === 'dark' ? clipPath : [...clipPath].reverse(),
@@ -87,7 +97,6 @@ export const useThemeStore = defineStore('theme', () => {
         {
           duration: THEME_TRANSITION_DURATION,
           easing: 'ease-in-out',
-          fill: 'both',
           pseudoElement:
             nextMode === 'dark' ? '::view-transition-new(root)' : '::view-transition-old(root)',
         }
