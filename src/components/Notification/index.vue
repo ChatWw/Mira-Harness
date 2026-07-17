@@ -139,7 +139,12 @@ function handleViewAll() {
   }
 
   .el-icon {
-    color: var(--cp-text);
+    color: var(--cp-text-secondary);
+    transition: color $transition-fast;
+  }
+
+  &:hover .el-icon {
+    color: var(--cp-primary);
   }
 }
 
