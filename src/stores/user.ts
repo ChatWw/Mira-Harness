@@ -83,6 +83,7 @@ export const useUserStore = defineStore('user', () => {
     const permissionStore = usePermissionStore()
     permissionStore.setPermissions(bootstrap.permissions)
     permissionStore.setMenuRoutes(bootstrap.menus)
+    permissionStore.setRouteDefinitions(bootstrap.routes)
     return bootstrap
   }
 

@@ -28,7 +28,7 @@ export interface MenuItem {
   path?: string
   children?: MenuItem[]
   permission?: string
-  pageKey?: string
+  component?: string
   name?: string
   type?: 'dir' | 'menu' | 'button' | 'microapp'
   appCode?: string | null
@@ -74,7 +74,7 @@ export interface RouteDefinition {
   name: string
   title: string
   permission?: string
-  pageKey: string
+  component: string
 }
 
 // 布局模式

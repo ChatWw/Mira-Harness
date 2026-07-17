@@ -211,11 +211,11 @@ const formSchema = computed<ProFormField[]>(() => {
       placeholder: '/system/users',
     },
     {
-      label: '页面标识',
-      prop: 'pageKey',
+      label: '组件地址',
+      prop: 'component',
       type: 'input',
       show: () => type === 'menu',
-      placeholder: '如 system-users（需在本地页面注册表登记）',
+      placeholder: '/src/pages/system/UserPage.vue',
     },
     {
       label: '权限标识',
