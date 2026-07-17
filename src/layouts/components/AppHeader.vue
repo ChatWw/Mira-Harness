@@ -75,7 +75,23 @@ function toggleFullscreen() {
 
   .header-right {
     @include flex-center;
-    gap: $spacing-xs;
+    gap: 2px;
+
+    :deep(.el-button) {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      margin: 0;
+    }
+
+    :deep(.el-button + .el-button) {
+      margin-left: 0;
+    }
+
+    :deep(.notification-trigger) {
+      width: 32px;
+      height: 32px;
+    }
   }
 
   @include media-max($breakpoint-md) {
