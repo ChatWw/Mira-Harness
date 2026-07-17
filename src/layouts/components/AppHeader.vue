@@ -11,20 +11,40 @@
 
       <Breadcrumb v-if="layoutStore.config.showBreadcrumb" class="breadcrumb" />
     </div>
-    <div class="header-right"><span>当前工作区</span></div>
+    <div class="header-right">
+      <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text :icon="Search" @click="handleSearch" /></el-tooltip>
+      <Notification />
+      <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text :icon="isFullscreen ? Crop : FullScreen" @click="toggleFullscreen" /></el-tooltip>
+      <el-tooltip content="切换主题模式"><el-button text :icon="themeStore.themeMode === 'dark' ? Sunny : Moon" @click="handleThemeToggle" /></el-tooltip>
+      <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
+    </div>
+    <SearchBar ref="searchBarRef" />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Expand, Fold } from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
+import { Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
+import { useThemeStore } from '@/stores/theme'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
+import Notification from '@/components/Notification/index.vue'
+import SearchBar from '@/components/SearchBar/index.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const themeStore = useThemeStore()
 const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only', 'mixed'].includes(layoutStore.config.mode))
+const searchBarRef = ref()
+const isFullscreen = ref(false)
+
+function handleSearch() { searchBarRef.value?.open() }
+function handleThemeToggle(event: MouseEvent) { themeStore.toggleThemeModeWithTransition(event) }
+function toggleFullscreen() {
+  if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); isFullscreen.value = true }
+  else { document.exitFullscreen(); isFullscreen.value = false }
+}
 </script>
 
 <style scoped lang="scss">
@@ -54,8 +74,8 @@ const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only', 'mixed'].in
   }
 
   .header-right {
-    color: var(--cp-text-tertiary);
-    font-size: $font-xs;
+    @include flex-center;
+    gap: $spacing-xs;
   }
 
   @include media-max($breakpoint-md) {
