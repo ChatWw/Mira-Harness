@@ -72,7 +72,7 @@ export interface ApplicationOption {
 
 
 // 布局模式
-export type LayoutMode = 'sidebar-header' | 'header-only' | 'sidebar-only' | 'mixed' | 'top-menu'
+export type LayoutMode = 'sidebar-header' | 'sidebar-only'
 
 // 页面切换动画
 export type PageTransition = 'fade' | 'fade-slide' | 'slide-up' | 'slide-right' | 'zoom' | 'none'

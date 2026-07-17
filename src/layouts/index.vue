@@ -8,11 +8,14 @@
     <GlobalHeader v-if="showGlobalHeader" />
 
     <div class="layout-workspace">
+      <!-- 仅侧栏模式：窄应用栏 + 二级菜单栏 + 主工作区 -->
+      <GlobalHeader v-if="isSidebarOnly" variant="rail" />
+
       <!-- 侧边栏：仅承担工作区导航 -->
       <AppSidebar
         v-if="showSidebar"
         :show-brand="!showGlobalHeader"
-        :active-module-only="layoutStore.config.mode === 'mixed'"
+        :text-only-brand="isSidebarOnly"
       />
 
       <!-- 主容器 -->
@@ -50,19 +53,13 @@ import AppSettings from './components/AppSettings.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
 
 // 根据布局模式显示/隐藏侧边栏和顶栏
-const showSidebar = computed(() => {
-  const mode = layoutStore.config.mode
-  return mode === 'sidebar-header' || mode === 'sidebar-only' || mode === 'mixed'
-})
+const showSidebar = computed(() => true)
+const showHeader = computed(() => true)
 
-const showHeader = computed(() => {
-  const mode = layoutStore.config.mode
-  return mode === 'sidebar-header' || mode === 'header-only' || mode === 'mixed' || mode === 'top-menu'
-})
-
-const showGlobalHeader = computed(() => layoutStore.config.mode !== 'sidebar-only')
+const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
 
 // 固定侧边栏会脱离 flex 文档流，主容器需要使用同一个实时宽度预留空间。
 // 将这个值集中在布局根节点，避免顶栏、标签栏和内容区各自计算偏移量。
@@ -126,29 +123,10 @@ const layoutClasses = computed(() => {
     // 默认布局，无需额外样式
   }
 
-  // 2. 仅顶栏模式
-  &--header-only {
-    .main-container {
-      width: 100%;
-    }
-  }
-
-  // 3. 仅侧边栏模式
+  // 2. 仅侧边栏模式：应用栏、二级菜单和主工作区均在同一个三栏工作区中。
   &--sidebar-only {
-    .main-container {
-      width: 100%;
-    }
-  }
-
-  // 4. 混合模式（侧边栏 + 顶栏，顶栏包含二级菜单）
-  &--mixed {
-    // 与 sidebar-header 类似，但顶栏可能包含额外菜单
-  }
-
-  // 5. 顶部菜单模式（菜单在顶栏）
-  &--top-menu {
-    .main-container {
-      width: 100%;
+    :deep(.app-sidebar) {
+      background: var(--cp-bg);
     }
   }
 
@@ -164,7 +142,7 @@ const layoutClasses = computed(() => {
   }
 
   // ========== 固定侧边栏 ==========
-  &--fixed-sidebar {
+  &--fixed-sidebar:not(.layout--sidebar-only) {
     :deep(.app-sidebar) {
       position: fixed;
       top: v-bind('showGlobalHeader ? layoutStore.config.headerHeight + "px" : "0"');
@@ -173,9 +151,7 @@ const layoutClasses = computed(() => {
       z-index: $z-sticky;
     }
 
-    &.layout--sidebar-header,
-    &.layout--sidebar-only,
-    &.layout--mixed {
+    &.layout--sidebar-header {
       .main-container {
         margin-left: var(--layout-sidebar-width);
         transition: margin-left $transition-base;

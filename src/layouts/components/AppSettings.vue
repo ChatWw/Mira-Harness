@@ -109,6 +109,7 @@
                 >
                   <div class="mode-preview">
                     <div class="preview-container">
+                      <div v-if="mode.showRail" class="preview-rail"></div>
                       <div v-if="mode.showSidebar" class="preview-sidebar"></div>
                       <div class="preview-main">
                         <div v-if="mode.showHeader" class="preview-header"></div>
@@ -587,28 +588,11 @@ const layoutModes = [
     showHeader: true,
   },
   {
-    value: 'header-only' as LayoutMode,
-    label: '仅顶栏',
-    showSidebar: false,
-    showHeader: true,
-  },
-  {
     value: 'sidebar-only' as LayoutMode,
     label: '仅侧边栏',
     showSidebar: true,
     showHeader: false,
-  },
-  {
-    value: 'mixed' as LayoutMode,
-    label: '混合模式',
-    showSidebar: true,
-    showHeader: true,
-  },
-  {
-    value: 'top-menu' as LayoutMode,
-    label: '顶部菜单',
-    showSidebar: false,
-    showHeader: true,
+    showRail: true,
   },
 ]
 
@@ -742,6 +726,12 @@ function handleClearCache() {
       overflow: hidden;
       display: flex;
       background: var(--cp-bg);
+
+      .preview-rail {
+        width: 14%;
+        background: color-mix(in srgb, var(--cp-primary) 18%, var(--cp-bg-elevated));
+        border-right: 1px solid var(--cp-border);
+      }
 
       .preview-sidebar {
         width: 30%;
@@ -1222,6 +1212,7 @@ function handleClearCache() {
       border-radius: 6px;
       background: var(--cp-bg-elevated);
 
+      .preview-rail,
       .preview-sidebar,
       .preview-header {
         background: color-mix(in srgb, var(--cp-primary) 7%, var(--cp-bg-elevated));

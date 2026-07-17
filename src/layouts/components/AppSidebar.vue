@@ -9,7 +9,7 @@
   >
     <div v-if="showBrand && layoutStore.config.showLogo" class="sidebar-header">
       <div class="brand">
-        <div class="brand-icon">
+        <div v-if="!textOnlyBrand" class="brand-icon">
           <Sparkles :size="20" />
         </div>
         <transition name="fade">
@@ -61,18 +61,16 @@ import { useLayoutStore } from '@/stores/layout'
 import { usePermissionStore } from '@/stores/permission'
 
 const route = useRoute()
-const props = withDefaults(defineProps<{ showBrand?: boolean; activeModuleOnly?: boolean }>(), { showBrand: true, activeModuleOnly: false })
+withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
+  showBrand: true,
+  textOnlyBrand: false,
+})
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const permissionStore = usePermissionStore()
 
 const currentRoute = computed(() => route.path)
-const displayedMenuList = computed(() => {
-  const menus = permissionStore.menuRoutes
-  if (!props.activeModuleOnly) return menus
-  const activeModule = menus.find((item: any) => item.path === route.path || item.children?.some((child: any) => child.path === route.path))
-  return activeModule?.children || (activeModule ? [activeModule] : menus)
-})
+const displayedMenuList = computed(() => permissionStore.menuRoutes)
 </script>
 
 <style scoped lang="scss">

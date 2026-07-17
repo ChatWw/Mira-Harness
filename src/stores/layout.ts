@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
 
 const DEFAULT_APP_NAME = '中台基座'
+const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 
 const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, string>> = {
   sharp: {
@@ -272,6 +273,16 @@ export const useLayoutStore = defineStore('layout', () => {
   watch(
     () => config.value.cornerRadius,
     applyCornerRadius,
+    { immediate: true }
+  )
+
+  watch(
+    () => config.value.mode,
+    (mode) => {
+      if (!SUPPORTED_LAYOUT_MODES.includes(mode)) {
+        config.value.mode = DEFAULT_CONFIG.mode
+      }
+    },
     { immediate: true }
   )
 

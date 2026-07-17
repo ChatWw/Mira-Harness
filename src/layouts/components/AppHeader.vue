@@ -35,7 +35,7 @@ import SearchBar from '@/components/SearchBar/index.vue'
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
-const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only', 'mixed'].includes(layoutStore.config.mode))
+const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only'].includes(layoutStore.config.mode))
 const searchBarRef = ref()
 const isFullscreen = ref(false)
 
