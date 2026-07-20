@@ -28,7 +28,7 @@ const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, 
 
 const DEFAULT_CONFIG: LayoutConfig = {
   mode: 'sidebar-header',
-  sidebarWidth: 240,
+  sidebarWidth: 200,
   collapsedWidth: 64,
   uniqueOpened: false,
   fixedSidebar: true,

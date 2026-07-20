@@ -7,9 +7,9 @@
       '--sidebar-width': appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
     }"
   >
-    <div v-if="showBrand && layoutStore.config.showLogo" class="sidebar-header">
+    <div v-if="showBrand" class="sidebar-header">
       <div class="brand">
-        <div v-if="!textOnlyBrand" class="brand-icon">
+        <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
           <Sparkles :size="20" />
         </div>
         <transition name="fade">
@@ -25,6 +25,9 @@
       :collapse="appStore.sidebarCollapsed"
       :collapse-transition="layoutStore.config.sidebarCollapseAnimation"
       :unique-opened="layoutStore.config.uniqueOpened"
+      :style="appStore.sidebarCollapsed
+        ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24) / 2}px` }
+        : undefined"
       router
       class="sidebar-menu"
     >

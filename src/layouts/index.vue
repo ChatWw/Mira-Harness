@@ -128,6 +128,10 @@ const layoutClasses = computed(() => {
     :deep(.app-sidebar) {
       background: var(--cp-bg);
     }
+
+    :deep(.sidebar-header) {
+      border-bottom: none;
+    }
   }
 
   // ========== 固定顶栏 ==========

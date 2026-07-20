@@ -30,8 +30,8 @@
   </aside>
 
   <header v-else class="global-header" :style="{ height: `${layoutStore.config.headerHeight}px` }">
-    <div class="global-brand" :class="{ 'is-hidden': !layoutStore.config.showLogo }">
-      <div class="brand-mark"><Sparkles :size="19" /></div>
+    <div class="global-brand">
+      <div v-if="layoutStore.config.showLogo" class="brand-mark"><Sparkles :size="19" /></div>
       <span>{{ layoutStore.config.dynamicTitle }}</span>
     </div>
 
@@ -129,7 +129,7 @@ onMounted(loadApplications)
 .rail-app-list { display: flex; flex-direction: column; gap: 8px; &.is-loading { opacity: .6; pointer-events: none; } }
 .rail-app { font-size: 20px; &:hover, &.is-active { color: var(--cp-primary); background: var(--cp-primary-lighter); } }
 .rail-user { margin-top: auto; cursor: pointer; }
-.global-brand { min-width: 220px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; color: var(--cp-text); white-space: nowrap; &.is-hidden { min-width: 0; width: 0; overflow: hidden; } }
+.global-brand { min-width: 220px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; color: var(--cp-text); white-space: nowrap; }
 .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); }
 .application-switcher { display: flex; align-items: center; }.application-trigger { height: 34px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; border: 0; border-radius: $radius-md; background: var(--cp-bg-hover); color: var(--cp-text); font-size: $font-sm; font-weight: 500; cursor: pointer; transition: background $transition-base, color $transition-base; &:hover { background: var(--cp-primary-lighter); color: var(--cp-primary); }.application-icon { color: var(--cp-primary); font-size: 16px; }.application-arrow { margin-left: 1px; font-size: 13px; color: var(--cp-text-tertiary); }.is-loading { opacity: .6; pointer-events: none; } }:global(.application-popper) { padding: $spacing-xs; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: $radius-md; box-shadow: $shadow-md; }:global(.application-popper .el-dropdown-menu) { background: transparent; }:global(.application-popper .el-dropdown-menu__item) { display: flex; align-items: center; gap: $spacing-sm; min-width: 150px; margin: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent !important; &:hover { background: var(--cp-bg-hover) !important; color: var(--cp-text); } &:global(.is-current) { color: var(--cp-primary); background: var(--cp-primary-lighter) !important; } }
 .global-actions { display: flex; align-items: center; gap: $spacing-md; margin-left: auto; flex-shrink: 0; }.user-avatar { display: flex; align-items: center; gap: 8px; padding: 3px 7px 3px 3px; color: var(--cp-text); font-size: 13px; border-radius: 8px; cursor: pointer; &:hover { background: var(--cp-bg-hover); } }.logout-item { color: var(--cp-danger); }
