@@ -62,18 +62,34 @@ export const useThemeStore = defineStore('theme', () => {
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
     )
-    const clipPath = [
-      `circle(0px at ${x}px ${y}px)`,
-      `circle(${endRadius}px at ${x}px ${y}px)`,
-    ]
+    const transitionScale = window.devicePixelRatio
+    const transitionX = x * transitionScale
+    const transitionY = y * transitionScale
+    const transitionRadius = endRadius * transitionScale
+    const transitionStyle = document.createElement('style')
+    transitionStyle.textContent = `
+      @keyframes cp-theme-reveal {
+        from { clip-path: circle(0px at ${transitionX}px ${transitionY}px); }
+        to { clip-path: circle(${transitionRadius}px at ${transitionX}px ${transitionY}px); }
+      }
+      @keyframes cp-theme-conceal {
+        from { clip-path: circle(${transitionRadius}px at ${transitionX}px ${transitionY}px); }
+        to { clip-path: circle(0px at ${transitionX}px ${transitionY}px); }
+      }
+      [data-theme-transition='dark']::view-transition-new(root) {
+        animation: cp-theme-reveal ${THEME_TRANSITION_DURATION}ms ease-in-out both;
+      }
+      [data-theme-transition='light']::view-transition-old(root) {
+        animation: cp-theme-conceal ${THEME_TRANSITION_DURATION}ms ease-in-out both;
+      }
+    `
 
     // 先清理旧的状态，避免上一次的值残留
     root.removeAttribute(THEME_TRANSITION_ATTR)
-    root.style.removeProperty('--cp-theme-transition-x')
-    root.style.removeProperty('--cp-theme-transition-y')
-    root.style.removeProperty('--cp-theme-transition-radius')
 
     try {
+      document.head.append(transitionStyle)
+
       const transition = documentWithTransition.startViewTransition(async () => {
         setThemeMode(nextMode)
         await nextTick()
@@ -81,33 +97,15 @@ export const useThemeStore = defineStore('theme', () => {
 
       await transition.ready
 
-      // 设置 CSS 变量和属性
-      root.style.setProperty('--cp-theme-transition-x', `${x}px`)
-      root.style.setProperty('--cp-theme-transition-y', `${y}px`)
-      root.style.setProperty('--cp-theme-transition-radius', `${endRadius}px`)
+      // 标记当前切换方向，触发对应的 View Transition 伪元素动画
       root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
 
-      // 使用 requestAnimationFrame 确保动画在下一帧开始，避免第一帧闪现
+      // 等待 CSS 伪元素动画开始，避免第一帧闪现
       await new Promise(resolve => requestAnimationFrame(resolve))
-
-      const animation = root.animate(
-        {
-          clipPath: nextMode === 'dark' ? clipPath : [...clipPath].reverse(),
-        },
-        {
-          duration: THEME_TRANSITION_DURATION,
-          easing: 'ease-in-out',
-          pseudoElement:
-            nextMode === 'dark' ? '::view-transition-new(root)' : '::view-transition-old(root)',
-        }
-      )
-
-      await animation.finished.catch(() => undefined)
+      await new Promise(resolve => window.setTimeout(resolve, THEME_TRANSITION_DURATION))
     } finally {
       root.removeAttribute(THEME_TRANSITION_ATTR)
-      root.style.removeProperty('--cp-theme-transition-x')
-      root.style.removeProperty('--cp-theme-transition-y')
-      root.style.removeProperty('--cp-theme-transition-radius')
+      transitionStyle.remove()
     }
   }
 
@@ -131,8 +129,14 @@ export const useThemeStore = defineStore('theme', () => {
       return fallback
     }
 
-    if (event.clientX === 0 && event.clientY === 0) {
-      return fallback
+    const trigger = event.currentTarget
+    if (trigger instanceof HTMLElement) {
+      const { left, top, width, height } = trigger.getBoundingClientRect()
+
+      return {
+        x: left + width / 2,
+        y: top + height / 2,
+      }
     }
 
     return {
