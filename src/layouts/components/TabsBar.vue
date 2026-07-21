@@ -1,24 +1,36 @@
 <template>
   <div v-if="layoutStore.config.enableTabs" class="tabs-bar" :class="`tabs-style-${layoutStore.config.tabStyle}`">
     <div class="tabs-container">
-      <div class="tabs-scroll" ref="scrollContainer">
-        <div v-if="layoutStore.config.tabStyle === 'personalized'" class="personalized-tabs-edge" />
-        <div
-          v-for="(tab, index) in tabsStore.tabs"
-          :key="tab.path"
-          class="tab-item"
-          :class="{ 'is-active': tab.path === tabsStore.activeTab }"
-          @click="handleTabClick(tab)"
-          @contextmenu.prevent="handleContextMenu($event, tab)"
-        >
-          <component v-if="layoutStore.config.showTabIcon && tab.icon" :is="tab.icon" class="tab-icon" />
-          <span class="tab-title">{{ tab.title }}</span>
-          <el-icon v-if="tab.closable" class="tab-close" @click.stop="handleTabClose(tab)">
-            <Close />
-          </el-icon>
-          <span v-if="index < tabsStore.tabs.length - 1" class="tab-divider" />
-        </div>
-      </div>
+      <draggable
+        :list="tabsStore.tabs"
+        item-key="path"
+        class="tabs-scroll"
+        ghost-class="tab-drag-ghost"
+        chosen-class="tab-drag-chosen"
+        :animation="150"
+        :move="canMoveTab"
+        @end="tabsStore.reorderTabs"
+        ref="scrollContainer"
+      >
+        <template #header>
+          <div v-if="layoutStore.config.tabStyle === 'personalized'" class="personalized-tabs-edge" />
+        </template>
+        <template #item="{ element: tab, index }">
+          <div
+            class="tab-item"
+            :class="{ 'is-active': tab.path === tabsStore.activeTab }"
+            @click="handleTabClick(tab)"
+            @contextmenu.prevent="handleContextMenu($event, tab)"
+          >
+            <component v-if="layoutStore.config.showTabIcon && tab.icon" :is="tab.icon" class="tab-icon" />
+            <span class="tab-title">{{ tab.title }}</span>
+            <el-icon v-if="tab.closable" class="tab-close" @click.stop="handleTabClose(tab)">
+              <Close />
+            </el-icon>
+            <span v-if="index < tabsStore.tabs.length - 1" class="tab-divider" />
+          </div>
+        </template>
+      </draggable>
     </div>
 
     <div class="tabs-actions">
@@ -54,13 +66,32 @@
         </template>
       </el-dropdown>
     </div>
+
+    <div
+      v-if="contextMenu.visible"
+      class="tabs-context-menu"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+      @contextmenu.prevent
+    >
+      <button
+        v-for="item in tabMenuItems"
+        :key="item.command"
+        class="context-menu-item"
+        :disabled="item.disabled"
+        @click="handleContextCommand(item.command)"
+      >
+        <el-icon><component :is="item.icon" /></el-icon>
+        {{ item.label }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, ref } from 'vue'
+import { computed, watch, nextTick, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Close, ArrowDown, Refresh, CircleClose, Back, Right, Delete } from '@element-plus/icons-vue'
+import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
 
@@ -69,6 +100,7 @@ const route = useRoute()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
 const scrollContainer = ref()
+const contextMenu = ref({ visible: false, x: 0, y: 0, tabPath: '' })
 
 const currentTab = computed(() => tabsStore.tabs.find(t => t.path === tabsStore.activeTab))
 
@@ -81,6 +113,15 @@ const canCloseRight = computed(() => {
   const index = tabsStore.tabs.findIndex(t => t.path === tabsStore.activeTab)
   return index < tabsStore.tabs.length - 1 && tabsStore.tabs.slice(index + 1).some(t => t.closable)
 })
+
+const tabMenuItems = computed(() => [
+  { command: 'refresh', label: '刷新当前', icon: Refresh, disabled: false },
+  { command: 'close', label: '关闭当前', icon: Close, disabled: !currentTab.value?.closable },
+  { command: 'closeOthers', label: '关闭其他', icon: CircleClose, disabled: tabsStore.tabs.length <= 1 },
+  { command: 'closeLeft', label: '关闭左侧', icon: Back, disabled: !canCloseLeft.value },
+  { command: 'closeRight', label: '关闭右侧', icon: Right, disabled: !canCloseRight.value },
+  { command: 'closeAll', label: '关闭全部', icon: Delete, disabled: tabsStore.tabs.filter(t => t.closable).length === 0 },
+])
 
 // 监听路由变化，自动添加标签
 watch(
@@ -112,6 +153,11 @@ function handleTabClick(tab: any) {
   }
 }
 
+function canMoveTab(event: any) {
+  return event.draggedContext.element.path !== '/dashboard'
+    && event.relatedContext?.element?.path !== '/dashboard'
+}
+
 // 关闭标签
 function handleTabClose(tab: any) {
   tabsStore.closeTab(tab.path)
@@ -128,6 +174,26 @@ function handleTabClose(tab: any) {
 // 右键菜单
 function handleContextMenu(event: MouseEvent, tab: any) {
   tabsStore.activeTab = tab.path
+  contextMenu.value = {
+    visible: true,
+    x: Math.min(event.clientX, window.innerWidth - 168),
+    y: Math.min(event.clientY, window.innerHeight - 224),
+    tabPath: tab.path,
+  }
+}
+
+async function handleContextCommand(command: string) {
+  if (command === 'refresh' && contextMenu.value.tabPath !== route.path) {
+    await router.push(contextMenu.value.tabPath)
+  }
+  handleCommand(command)
+  contextMenu.value.visible = false
+}
+
+function closeContextMenu(event: MouseEvent) {
+  if (!(event.target as HTMLElement).closest('.tabs-context-menu')) {
+    contextMenu.value.visible = false
+  }
 }
 
 // 命令处理
@@ -159,7 +225,7 @@ function handleCommand(command: string) {
 
 // 滚动到激活标签
 function scrollToActiveTab() {
-  const container = scrollContainer.value
+  const container = scrollContainer.value?.$el ?? scrollContainer.value
   if (!container) return
 
   const activeEl = container.querySelector('.tab-item.is-active')
@@ -167,6 +233,9 @@ function scrollToActiveTab() {
     activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
   }
 }
+
+onMounted(() => document.addEventListener('click', closeContextMenu))
+onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
 </script>
 
 <style scoped lang="scss">
@@ -550,5 +619,47 @@ function scrollToActiveTab() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.tabs-context-menu {
+  position: fixed;
+  z-index: $z-dropdown;
+  width: 160px;
+  padding: $spacing-xs;
+  border: 1px solid var(--cp-border);
+  border-radius: $radius-md;
+  background: var(--cp-bg-overlay);
+  box-shadow: $shadow-md;
+
+  .context-menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    padding: 8px $spacing-sm;
+    border: 0;
+    border-radius: $radius-sm;
+    color: var(--cp-text);
+    background: transparent;
+    font-size: $font-sm;
+    text-align: left;
+
+    &:hover:not(:disabled) {
+      background: var(--cp-bg-hover);
+    }
+
+    &:disabled {
+      color: var(--cp-text-tertiary);
+      cursor: not-allowed;
+    }
+  }
+}
+
+.tab-drag-ghost {
+  opacity: 0.45;
+}
+
+.tab-drag-chosen {
+  cursor: grabbing;
 }
 </style>

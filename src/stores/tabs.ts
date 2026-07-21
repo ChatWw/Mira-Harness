@@ -89,6 +89,12 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTab.value = '/dashboard'
   }
 
+  function reorderTabs() {
+    const dashboard = tabs.value.find(tab => tab.path === '/dashboard')
+    const otherTabs = tabs.value.filter(tab => tab.path !== '/dashboard')
+    tabs.value = dashboard ? [dashboard, ...otherTabs] : otherTabs
+  }
+
   function persistState() {
     if (!layoutStore.config.tabPersist) return
     sessionStorage.setItem('cp-tabs', JSON.stringify({ tabs: tabs.value, activeTab: activeTab.value }))
@@ -107,5 +113,5 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  return { tabs, activeTab, addTab, closeTab, closeOthers, closeLeft, closeRight, closeAll }
+  return { tabs, activeTab, addTab, closeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs }
 })
