@@ -720,8 +720,7 @@ Layout
 |--------|------|------|
 | 页面切换动画 | 卡片选择 | fade / fade-slide / slide-up / slide-right / zoom / none |
 | 动画速度 | 单选 | fast(0.2s) / normal(0.3s) / slow(0.5s) |
-| 侧边栏折叠动画 | 开关 | 默认开启 |
-| 主题切换动画 | 开关 | 默认开启（圆形扩散） |
+| 白天/黑夜切换动画 | 开关 | 默认开启（圆形扩散） |
 
 #### 6. 底栏设置
 | 配置项 | 类型 | 选项 |
@@ -794,7 +793,6 @@ export interface LayoutConfig {
   // 动画
   pageTransition: PageTransition
   animationSpeed: AnimationSpeed
-  sidebarCollapseAnimation: boolean
   themeTransitionAnimation: boolean
   // 整体风格
   cornerRadius: CornerRadius

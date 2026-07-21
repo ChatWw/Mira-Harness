@@ -24,7 +24,6 @@
       ref="menuRef"
       :default-active="currentRoute"
       :collapse="appStore.sidebarCollapsed"
-      :collapse-transition="layoutStore.config.sidebarCollapseAnimation"
       :unique-opened="layoutStore.config.uniqueOpened"
       :style="appStore.sidebarCollapsed
         ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24) / 2}px` }
@@ -118,7 +117,7 @@ watch(
   border-right: 1px solid var(--cp-layout-border);
   display: flex;
   flex-direction: column;
-  transition: width $transition-base;
+  transition: width var(--cp-animation-duration);
   position: relative;
   flex-shrink: 0;
 
@@ -198,7 +197,7 @@ watch(
     bottom: 0;
     z-index: $z-fixed;
     transform: translateX(-100%);
-    transition: transform $transition-base;
+    transition: transform var(--cp-animation-duration);
 
     &:not(.collapsed) {
       transform: translateX(0);
@@ -224,7 +223,7 @@ watch(
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity $transition-base;
+  transition: opacity var(--cp-animation-duration);
 }
 
 .fade-enter-from,

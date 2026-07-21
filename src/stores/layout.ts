@@ -8,6 +8,11 @@ const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
   chrome: 'personalized',
   plain: 'square',
 }
+const ANIMATION_DURATION_MAP: Record<LayoutConfig['animationSpeed'], string> = {
+  fast: '0.2s',
+  normal: '0.3s',
+  slow: '0.5s',
+}
 
 const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, string>> = {
   sharp: {
@@ -49,7 +54,6 @@ const DEFAULT_CONFIG: LayoutConfig = {
   contentPadding: 'normal',
   pageTransition: 'fade-slide',
   animationSpeed: 'normal',
-  sidebarCollapseAnimation: true,
   themeTransitionAnimation: true,
   cornerRadius: 'medium',
   componentSize: 'default',
@@ -193,10 +197,6 @@ export const useLayoutStore = defineStore('layout', () => {
     config.value.animationSpeed = speed
   }
 
-  function setSidebarCollapseAnimation(value: boolean) {
-    config.value.sidebarCollapseAnimation = value
-  }
-
   function setThemeTransitionAnimation(value: boolean) {
     config.value.themeTransitionAnimation = value
   }
@@ -221,6 +221,10 @@ export const useLayoutStore = defineStore('layout', () => {
     root.style.setProperty('--cp-radius-xl', values.extraLarge)
     root.style.setProperty('--el-border-radius-small', values.small)
     root.style.setProperty('--el-border-radius-base', values.base)
+  }
+
+  function applyAnimationSpeed(speed: LayoutConfig['animationSpeed']) {
+    document.documentElement.style.setProperty('--cp-animation-duration', ANIMATION_DURATION_MAP[speed])
   }
 
   // 水印设置
@@ -268,6 +272,12 @@ export const useLayoutStore = defineStore('layout', () => {
   watch(
     () => config.value.cornerRadius,
     applyCornerRadius,
+    { immediate: true }
+  )
+
+  watch(
+    () => config.value.animationSpeed,
+    applyAnimationSpeed,
     { immediate: true }
   )
 
@@ -333,7 +343,6 @@ export const useLayoutStore = defineStore('layout', () => {
     setContentPadding,
     setPageTransition,
     setAnimationSpeed,
-    setSidebarCollapseAnimation,
     setThemeTransitionAnimation,
     setCornerRadius,
     setComponentSize,
@@ -350,5 +359,9 @@ export const useLayoutStore = defineStore('layout', () => {
     key: 'cp-layout-config',
     storage: localStorage,
     pick: ['config'],
+    afterHydrate: ({ store }) => {
+      delete (store.config as Record<string, unknown>).sidebarCollapseAnimation
+      store.$persist()
+    },
   },
 })

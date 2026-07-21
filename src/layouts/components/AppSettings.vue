@@ -37,7 +37,7 @@
               <el-segmented
                 :model-value="themeStore.themeMode"
                 :options="themeModeOptions"
-                @change="themeStore.setThemeMode"
+                @change="handleThemeModeChange"
               />
             </div>
 
@@ -320,18 +320,9 @@
               </el-select>
             </div>
 
-            <!-- 侧边栏折叠动画 -->
+            <!-- 白天/黑夜切换动画 -->
             <div class="settings-item">
-              <span class="item-label">侧边栏折叠动画</span>
-              <el-switch
-                :model-value="layoutStore.config.sidebarCollapseAnimation"
-                @change="layoutStore.setSidebarCollapseAnimation"
-              />
-            </div>
-
-            <!-- 主题切换动画 -->
-            <div class="settings-item">
-              <span class="item-label">主题切换动画</span>
+              <span class="item-label">白天/黑夜切换动画</span>
               <el-switch
                 :model-value="layoutStore.config.themeTransitionAnimation"
                 @change="layoutStore.setThemeTransitionAnimation"
@@ -558,7 +549,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
-import type { LayoutMode, PageTransition } from '@/types'
+import type { LayoutMode, PageTransition, ThemeMode } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
@@ -598,6 +589,14 @@ const pageTransitions = [
   { value: 'zoom' as PageTransition, label: '缩放' },
   { value: 'none' as PageTransition, label: '无动画' },
 ]
+
+function handleThemeModeChange(mode: ThemeMode) {
+  themeStore.setThemeModeWithTransition(
+    mode,
+    undefined,
+    layoutStore.config.themeTransitionAnimation
+  )
+}
 
 // 复制配置
 function handleCopyConfig() {

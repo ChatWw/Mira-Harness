@@ -18,8 +18,6 @@ type DocumentWithViewTransition = Document & {
 }
 
 const THEME_TRANSITION_ATTR = 'data-theme-transition'
-const THEME_TRANSITION_DURATION = 450
-
 export const useThemeStore = defineStore('theme', () => {
   const themeMode = ref<ThemeMode>(
     (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || DEFAULT_THEME_MODE
@@ -44,19 +42,33 @@ export const useThemeStore = defineStore('theme', () => {
     applyTheme()
   }
 
-  async function toggleThemeModeWithTransition(event?: MouseEvent) {
+  async function toggleThemeModeWithTransition(event?: MouseEvent, enabled = true) {
+    const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
+    await setThemeModeWithTransition(nextMode, event, enabled)
+  }
+
+  async function setThemeModeWithTransition(
+    nextMode: ThemeMode,
+    event?: MouseEvent,
+    enabled = true
+  ) {
     const documentWithTransition = document as DocumentWithViewTransition
 
     if (
+      !enabled ||
       !documentWithTransition.startViewTransition ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
-      toggleThemeMode()
+      setThemeMode(nextMode)
       return
     }
 
-    const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
+    if (themeMode.value === nextMode) {
+      return
+    }
+
     const root = document.documentElement
+    const { cssValue: transitionDuration, milliseconds: transitionDurationMs } = getTransitionDuration(root)
     const { x, y } = resolveTransitionOrigin(event)
     const endRadius = Math.hypot(
       Math.max(x, window.innerWidth - x),
@@ -77,10 +89,10 @@ export const useThemeStore = defineStore('theme', () => {
         to { clip-path: circle(0px at ${transitionX}px ${transitionY}px); }
       }
       [data-theme-transition='dark']::view-transition-new(root) {
-        animation: cp-theme-reveal ${THEME_TRANSITION_DURATION}ms ease-in-out both;
+        animation: cp-theme-reveal ${transitionDuration} ease-in-out both;
       }
       [data-theme-transition='light']::view-transition-old(root) {
-        animation: cp-theme-conceal ${THEME_TRANSITION_DURATION}ms ease-in-out both;
+        animation: cp-theme-conceal ${transitionDuration} ease-in-out both;
       }
     `
 
@@ -102,7 +114,7 @@ export const useThemeStore = defineStore('theme', () => {
 
       // 等待 CSS 伪元素动画开始，避免第一帧闪现
       await new Promise(resolve => requestAnimationFrame(resolve))
-      await new Promise(resolve => window.setTimeout(resolve, THEME_TRANSITION_DURATION))
+      await new Promise(resolve => window.setTimeout(resolve, transitionDurationMs))
     } finally {
       root.removeAttribute(THEME_TRANSITION_ATTR)
       transitionStyle.remove()
@@ -117,6 +129,15 @@ export const useThemeStore = defineStore('theme', () => {
     themeMode.value = mode
     localStorage.setItem(THEME_STORAGE_KEY, mode)
     applyTheme()
+  }
+
+  function getTransitionDuration(root: HTMLElement) {
+    const cssValue = getComputedStyle(root).getPropertyValue('--cp-animation-duration').trim() || '0.3s'
+    const milliseconds = cssValue.endsWith('ms')
+      ? Number.parseFloat(cssValue)
+      : Number.parseFloat(cssValue) * 1000
+
+    return { cssValue, milliseconds }
   }
 
   function resolveTransitionOrigin(event?: MouseEvent) {
@@ -222,6 +243,7 @@ export const useThemeStore = defineStore('theme', () => {
     presetColors,
     toggleThemeMode,
     toggleThemeModeWithTransition,
+    setThemeModeWithTransition,
     setThemeMode,
     setPrimaryColor,
   }

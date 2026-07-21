@@ -516,7 +516,6 @@ export interface LayoutConfig {
   contentPadding: ContentPadding // 'compact' | 'normal' | 'comfortable'
   pageTransition: PageTransition
   animationSpeed: AnimationSpeed // 'fast' | 'normal' | 'slow'
-  sidebarCollapseAnimation: boolean
   themeTransitionAnimation: boolean
   cornerRadius: CornerRadius   // 'sharp' | 'medium' | 'rounded'
   componentSize: ComponentSize // 'large' | 'default' | 'small'
@@ -568,7 +567,6 @@ const DEFAULT_CONFIG: LayoutConfig = {
   contentPadding: 'normal',
   pageTransition: 'fade-slide',
   animationSpeed: 'normal',
-  sidebarCollapseAnimation: true,
   themeTransitionAnimation: true,
   cornerRadius: 'medium',
   componentSize: 'default',
@@ -738,7 +736,7 @@ Props: title / description / maxWidth (从 layoutStore 读取或手动传)
 2. **布局设置**：布局模式(5种卡片选择) + 侧边栏宽度(滑块 200-280) + 折叠宽度(滑块 48-80) + 唯一展开(开关) + 固定侧边栏(开关) + 显示Logo(开关) + 显示底栏(开关)
 3. **顶栏设置**：固定顶栏(开关) + 顶栏高度(单选 56/64/72) + 显示面包屑(开关) + 面包屑图标(开关)
 4. **多标签页**：启用(开关) + 样式(单选 card/chrome/plain) + 最大数量(数字 5-15) + 持久化(开关)
-5. **动画效果**：页面切换动画(6种卡片选择) + 动画速度(单选 fast/normal/slow) + 侧边栏折叠动画(开关) + 主题切换动画(开关)
+5. **动画效果**：页面切换动画(6种卡片选择) + 动画速度(单选 fast/normal/slow) + 白天/黑夜切换动画(开关)
 6. **底栏设置**：显示底栏(与布局设置联动) + 版权文本(输入框) + 版权年份(单选 auto/custom+起止年) + 备案号(输入框) + 备案号链接(输入框) + 额外链接(动态列表 添加/删除) + 底栏样式(单选 simple/split/multi) + 底栏高度(单选 32/40/48)
 7. **其他**：页面标题(输入框) + 水印(开关+文本) + 内容最大宽度(单选) + 内容内边距(单选)
 

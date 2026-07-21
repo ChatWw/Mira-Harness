@@ -38,7 +38,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
 // ==================== 淡入淡出 ====================
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity var(--cp-animation-duration) ease;
 }
 
 .fade-enter-from,
@@ -49,7 +49,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
 // ==================== 滑动淡入（默认）====================
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.3s ease;
+  transition: all var(--cp-animation-duration) ease;
 }
 
 .fade-slide-enter-from {
@@ -65,7 +65,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
 // ==================== 上滑进入 ====================
 .slide-up-enter-active,
 .slide-up-leave-active {
-  transition: all 0.4s ease;
+  transition: all var(--cp-animation-duration) ease;
 }
 
 .slide-up-enter-from {
@@ -81,7 +81,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
 // ==================== 右侧滑入 ====================
 .slide-right-enter-active,
 .slide-right-leave-active {
-  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: all var(--cp-animation-duration) cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .slide-right-enter-from {
@@ -97,7 +97,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
 // ==================== 缩放 ====================
 .zoom-enter-active,
 .zoom-leave-active {
-  transition: all 0.3s ease;
+  transition: all var(--cp-animation-duration) ease;
 }
 
 .zoom-enter-from {

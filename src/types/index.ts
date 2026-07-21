@@ -114,7 +114,6 @@ export interface LayoutConfig {
   contentPadding: ContentPadding
   pageTransition: PageTransition
   animationSpeed: AnimationSpeed
-  sidebarCollapseAnimation: boolean
   themeTransitionAnimation: boolean
   cornerRadius: CornerRadius
   componentSize: ComponentSize

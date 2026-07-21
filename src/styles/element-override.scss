@@ -6,6 +6,7 @@
 // 注意：Element Plus 使用 CSS 变量，我们需要通过 :root 来覆盖
 
 :root {
+  --cp-animation-duration: 0.3s;
   --cp-radius-sm: #{$radius-sm};
   --cp-radius-md: #{$radius-md};
   --cp-radius-lg: #{$radius-lg};
@@ -62,8 +63,8 @@
   --el-dialog-padding-primary: 12px;
 
   // 过渡
-  --el-transition-duration: #{$transition-base};
-  --el-transition-duration-fast: #{$transition-fast};
+  --el-transition-duration: var(--cp-animation-duration);
+  --el-transition-duration-fast: var(--cp-animation-duration);
 }
 
 // 暗色模式

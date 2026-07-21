@@ -40,7 +40,9 @@ const searchBarRef = ref()
 const isFullscreen = ref(false)
 
 function handleSearch() { searchBarRef.value?.open() }
-function handleThemeToggle(event: MouseEvent) { themeStore.toggleThemeModeWithTransition(event) }
+function handleThemeToggle(event: MouseEvent) {
+  themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
+}
 function toggleFullscreen() {
   if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); isFullscreen.value = true }
   else { document.exitFullscreen(); isFullscreen.value = false }
