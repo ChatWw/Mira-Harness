@@ -1,9 +1,5 @@
 <template>
-  <div
-    class="layout"
-    :class="layoutClasses"
-    :style="{ '--layout-sidebar-width': `${sidebarOffset}px` }"
-  >
+  <div class="layout" :class="layoutClasses">
     <!-- 系统级导航：品牌、应用选择器与账户入口 -->
     <GlobalHeader v-if="showGlobalHeader" />
 
@@ -61,23 +57,11 @@ const showHeader = computed(() => true)
 
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
 
-// 固定侧边栏会脱离 flex 文档流，主容器需要使用同一个实时宽度预留空间。
-// 将这个值集中在布局根节点，避免顶栏、标签栏和内容区各自计算偏移量。
-const sidebarOffset = computed(() => (
-  appStore.sidebarCollapsed
-    ? layoutStore.config.collapsedWidth
-    : layoutStore.config.sidebarWidth
-))
-
 const layoutClasses = computed(() => {
   const classes = [`layout--${layoutStore.config.mode}`]
 
   if (layoutStore.config.fixedHeader) {
     classes.push('layout--fixed-header')
-  }
-
-  if (layoutStore.config.fixedSidebar) {
-    classes.push('layout--fixed-sidebar')
   }
 
   if (appStore.sidebarCollapsed) {
@@ -142,24 +126,6 @@ const layoutClasses = computed(() => {
     :deep(.app-header),
     :deep(.tabs-bar) {
       position: relative;
-    }
-  }
-
-  // ========== 固定侧边栏 ==========
-  &--fixed-sidebar:not(.layout--sidebar-only) {
-    :deep(.app-sidebar) {
-      position: fixed;
-      top: v-bind('showGlobalHeader ? layoutStore.config.headerHeight + "px" : "0"');
-      left: 0;
-      bottom: 0;
-      z-index: $z-sticky;
-    }
-
-    &.layout--sidebar-header {
-      .main-container {
-        margin-left: var(--layout-sidebar-width);
-        transition: margin-left $transition-base;
-      }
     }
   }
 

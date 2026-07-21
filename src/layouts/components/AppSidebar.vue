@@ -13,7 +13,7 @@
           <Sparkles :size="20" />
         </div>
         <transition name="fade">
-          <span v-show="!appStore.sidebarCollapsed" class="brand-text">
+          <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
             {{ layoutStore.config.dynamicTitle }}
           </span>
         </transition>
@@ -21,6 +21,7 @@
     </div>
 
     <el-menu
+      ref="menuRef"
       :default-active="currentRoute"
       :collapse="appStore.sidebarCollapsed"
       :collapse-transition="layoutStore.config.sidebarCollapseAnimation"
@@ -30,6 +31,8 @@
         : undefined"
       router
       class="sidebar-menu"
+      @open="handleMenuOpen"
+      @close="handleMenuClose"
     >
       <template v-for="item in displayedMenuList.filter((item: any) => item.visible !== false)" :key="item.id">
         <el-sub-menu v-if="item.children?.some((child: any) => child.visible !== false)" :index="item.id">
@@ -56,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Sparkles } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
@@ -71,9 +74,41 @@ withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const permissionStore = usePermissionStore()
+const menuRef = ref<{ close: (index: string) => void }>()
+const openedSubmenuIndexes = ref<string[]>([])
 
 const currentRoute = computed(() => route.path)
 const displayedMenuList = computed(() => permissionStore.menuRoutes)
+
+function handleMenuOpen(index: string) {
+  if (layoutStore.config.uniqueOpened) {
+    openedSubmenuIndexes.value = [index]
+    return
+  }
+
+  if (!openedSubmenuIndexes.value.includes(index)) {
+    openedSubmenuIndexes.value.push(index)
+  }
+}
+
+function handleMenuClose(index: string) {
+  openedSubmenuIndexes.value = openedSubmenuIndexes.value.filter(item => item !== index)
+}
+
+watch(
+  () => layoutStore.config.uniqueOpened,
+  enabled => {
+    if (!enabled || openedSubmenuIndexes.value.length < 2) {
+      return
+    }
+
+    const currentIndex = openedSubmenuIndexes.value[openedSubmenuIndexes.value.length - 1]
+    openedSubmenuIndexes.value
+      .filter(index => index !== currentIndex)
+      .forEach(index => menuRef.value?.close(index))
+    openedSubmenuIndexes.value = [currentIndex]
+  }
+)
 </script>
 
 <style scoped lang="scss">
@@ -115,6 +150,22 @@ const displayedMenuList = computed(() => permissionStore.menuRoutes)
         color: var(--cp-text);
         white-space: nowrap;
       }
+
+      .brand-text-shimmer {
+        display: inline-block;
+        background: linear-gradient(
+          110deg,
+          var(--cp-text) 38%,
+          color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 46%,
+          var(--cp-primary) 52%,
+          color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 58%,
+          var(--cp-text) 66%
+        );
+        background-size: 250% 100%;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: title-shimmer 5s ease-in-out infinite;
+      }
     }
   }
 
@@ -152,6 +203,22 @@ const displayedMenuList = computed(() => permissionStore.menuRoutes)
     &:not(.collapsed) {
       transform: translateX(0);
     }
+  }
+}
+
+@keyframes title-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -150% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-text-shimmer {
+    animation: none;
   }
 }
 

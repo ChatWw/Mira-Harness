@@ -31,7 +31,6 @@ const DEFAULT_CONFIG: LayoutConfig = {
   sidebarWidth: 200,
   collapsedWidth: 64,
   uniqueOpened: false,
-  fixedSidebar: true,
   showLogo: true,
   showFooter: false,
   fixedHeader: true,
@@ -87,10 +86,6 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function setUniqueOpened(value: boolean) {
     config.value.uniqueOpened = value
-  }
-
-  function setFixedSidebar(value: boolean) {
-    config.value.fixedSidebar = value
   }
 
   function toggleLogo() {
@@ -293,7 +288,6 @@ export const useLayoutStore = defineStore('layout', () => {
     setSidebarWidth,
     setCollapsedWidth,
     setUniqueOpened,
-    setFixedSidebar,
     toggleLogo,
     setShowLogo,
     setShowFooter,

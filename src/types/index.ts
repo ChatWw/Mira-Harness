@@ -99,7 +99,6 @@ export interface LayoutConfig {
   sidebarWidth: number
   collapsedWidth: number
   uniqueOpened: boolean
-  fixedSidebar: boolean
   showLogo: boolean
   showFooter: boolean
   fixedHeader: boolean

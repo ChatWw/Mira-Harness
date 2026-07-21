@@ -159,15 +159,6 @@
               />
             </div>
 
-            <!-- 固定侧边栏 -->
-            <div class="settings-item">
-              <span class="item-label">固定侧边栏</span>
-              <el-switch
-                :model-value="layoutStore.config.fixedSidebar"
-                @change="layoutStore.setFixedSidebar"
-              />
-            </div>
-
             <!-- 显示 Logo -->
             <div class="settings-item">
               <span class="item-label">显示 Logo</span>
