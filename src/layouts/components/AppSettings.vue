@@ -183,15 +183,6 @@
         <el-collapse-item name="header">
           <template #title><div class="section-title"><el-icon><Monitor /></el-icon><span>顶栏设置</span><small>导航与工具栏</small></div></template>
           <div class="settings-section">
-            <!-- 固定顶栏 -->
-            <div class="settings-item">
-              <span class="item-label">固定顶栏</span>
-              <el-switch
-                :model-value="layoutStore.config.fixedHeader"
-                @change="layoutStore.setFixedHeader"
-              />
-            </div>
-
             <!-- 顶栏高度 -->
             <div class="settings-item">
               <span class="item-label">顶栏高度</span>
@@ -222,6 +213,20 @@
                 :model-value="layoutStore.config.breadcrumbIcon"
                 @change="layoutStore.setBreadcrumbIcon"
               />
+            </div>
+
+            <!-- 面包屑样式 -->
+            <div class="settings-item">
+              <span class="item-label">面包屑样式</span>
+              <el-select
+                :model-value="layoutStore.config.breadcrumbStyle || 'normal'"
+                @change="layoutStore.setBreadcrumbStyle"
+                size="small"
+                style="width: 120px"
+              >
+                <el-option label="普通" value="normal" />
+                <el-option label="卡片" value="card" />
+              </el-select>
             </div>
           </div>
         </el-collapse-item>

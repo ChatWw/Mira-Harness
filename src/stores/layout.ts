@@ -33,10 +33,10 @@ const DEFAULT_CONFIG: LayoutConfig = {
   uniqueOpened: false,
   showLogo: true,
   showFooter: false,
-  fixedHeader: true,
   headerHeight: 64,
   showBreadcrumb: true,
-  breadcrumbIcon: true,
+  breadcrumbIcon: false,
+  breadcrumbStyle: 'normal',
   enableTabs: true,
   tabStyle: 'card',
   maxTabs: 10,
@@ -138,14 +138,6 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   // 顶栏设置
-  function toggleFixedHeader() {
-    config.value.fixedHeader = !config.value.fixedHeader
-  }
-
-  function setFixedHeader(value: boolean) {
-    config.value.fixedHeader = value
-  }
-
   function setHeaderHeight(height: number) {
     config.value.headerHeight = height
   }
@@ -156,6 +148,10 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function setBreadcrumbIcon(value: boolean) {
     config.value.breadcrumbIcon = value
+  }
+
+  function setBreadcrumbStyle(style: LayoutConfig['breadcrumbStyle']) {
+    config.value.breadcrumbStyle = style
   }
 
   // 多标签页设置
@@ -300,11 +296,10 @@ export const useLayoutStore = defineStore('layout', () => {
     setFooterIcp,
     setFooterIcpLink,
     setFooterLinks,
-    toggleFixedHeader,
-    setFixedHeader,
     setHeaderHeight,
     setShowBreadcrumb,
     setBreadcrumbIcon,
+    setBreadcrumbStyle,
     setEnableTabs,
     setTabStyle,
     setMaxTabs,

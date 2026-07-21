@@ -60,10 +60,6 @@ const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-hea
 const layoutClasses = computed(() => {
   const classes = [`layout--${layoutStore.config.mode}`]
 
-  if (layoutStore.config.fixedHeader) {
-    classes.push('layout--fixed-header')
-  }
-
   if (appStore.sidebarCollapsed) {
     classes.push('sidebar-collapsed')
   }
@@ -118,29 +114,10 @@ const layoutClasses = computed(() => {
     }
   }
 
-  // ========== 固定顶栏 ==========
-  // 页面只有 app-main 可以滚动，顶栏和标签栏处于 main-container 的普通 flex
-  // 文档流中时已经天然固定在视口顶部。不要再使用 position: fixed，否则它们
-  // 会按视口宽度计算，同时脱离主容器，导致侧边栏折叠时出现横向溢出。
-  &--fixed-header {
-    :deep(.app-header),
-    :deep(.tabs-bar) {
-      position: relative;
-    }
-  }
-
   // ========== 响应式 ==========
   @include media-max($breakpoint-md) {
     .main-container {
       margin-left: 0 !important;
-    }
-
-    // 移动端：侧边栏收起，固定头部不偏移
-    &--fixed-header {
-      :deep(.app-header),
-      :deep(.tabs-bar) {
-        left: 0 !important;
-      }
     }
 
     // 移动端：侧边栏变为抽屉式（这里简化处理）

@@ -86,6 +86,7 @@ export type AnimationSpeed = 'fast' | 'normal' | 'slow'
 export type FooterStyle = 'simple' | 'split' | 'multi'
 export type FooterYearMode = 'auto' | 'custom'
 export type TabStyle = 'card' | 'chrome' | 'plain'
+export type BreadcrumbStyle = 'normal' | 'card'
 
 export interface FooterLink {
   text: string
@@ -101,10 +102,10 @@ export interface LayoutConfig {
   uniqueOpened: boolean
   showLogo: boolean
   showFooter: boolean
-  fixedHeader: boolean
   headerHeight: number
   showBreadcrumb: boolean
   breadcrumbIcon: boolean
+  breadcrumbStyle: BreadcrumbStyle
   enableTabs: boolean
   tabStyle: TabStyle
   maxTabs: number

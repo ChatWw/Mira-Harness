@@ -1,5 +1,9 @@
 <template>
-  <el-breadcrumb separator="/" class="breadcrumb">
+  <el-breadcrumb
+    separator="/"
+    class="breadcrumb"
+    :class="`breadcrumb--${breadcrumbStyle}`"
+  >
     <el-breadcrumb-item
       v-for="(item, index) in displayItems"
       :key="item.path || index"
@@ -20,11 +24,15 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLayoutStore } from '@/stores/layout'
+import { usePermissionStore } from '@/stores/permission'
+import type { MenuItem } from '@/types'
 
 const route = useRoute()
 const layoutStore = useLayoutStore()
+const permissionStore = usePermissionStore()
 
 const showIcon = computed(() => layoutStore.config.breadcrumbIcon)
+const breadcrumbStyle = computed(() => layoutStore.config.breadcrumbStyle || 'normal')
 
 interface BreadcrumbItem {
   title: string
@@ -32,7 +40,25 @@ interface BreadcrumbItem {
   icon?: string
 }
 
+function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
+  for (const menu of menus) {
+    if (menu.path === path) return [menu]
+
+    const childPath = menu.children && findMenuPath(menu.children, path)
+    if (childPath) return [menu, ...childPath]
+  }
+}
+
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  const menuPath = findMenuPath(permissionStore.menuRoutes, route.path)
+  if (menuPath) {
+    return menuPath.map(menu => ({
+      title: menu.title,
+      path: menu.path,
+      icon: menu.icon,
+    }))
+  }
+
   const matched = route.matched.filter(r => r.meta && r.meta.title)
   return matched.map(r => ({
     title: r.meta.title as string,
@@ -68,6 +94,7 @@ const displayItems = computed<BreadcrumbItem[]>(() => {
       align-items: center;
       color: var(--cp-text-secondary);
       font-size: $font-sm;
+      font-weight: 400;
       transition: color $transition-fast;
 
       &:hover {
@@ -77,7 +104,7 @@ const displayItems = computed<BreadcrumbItem[]>(() => {
 
     &:last-child .el-breadcrumb__inner {
       color: var(--cp-text);
-      font-weight: 500;
+      font-weight: 400;
       cursor: default;
 
       &:hover {
@@ -96,5 +123,34 @@ const displayItems = computed<BreadcrumbItem[]>(() => {
   width: 14px;
   height: 14px;
   margin-right: 4px;
+}
+
+.breadcrumb--card {
+  :deep(.el-breadcrumb__separator) {
+    display: none;
+  }
+
+  :deep(.el-breadcrumb__item) {
+    margin-right: 2px;
+
+    .el-breadcrumb__inner {
+      height: 30px;
+      padding: 0 24px 0 18px;
+      background: var(--cp-bg-hover);
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%, 6px 50%);
+      font-size: $font-sm;
+      font-weight: 400;
+    }
+
+    &:first-child .el-breadcrumb__inner {
+      padding-left: 16px;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%);
+    }
+
+    &:last-child .el-breadcrumb__inner {
+      padding-right: 18px;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 6px 50%);
+    }
+  }
 }
 </style>
