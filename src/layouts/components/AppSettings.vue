@@ -253,22 +253,19 @@
                 size="small"
                 style="width: 120px"
               >
+                <el-option label="默认" value="default" />
+                <el-option label="个性" value="personalized" />
+                <el-option label="方块" value="square" />
                 <el-option label="卡片" value="card" />
-                <el-option label="Chrome" value="chrome" />
-                <el-option label="简约" value="plain" />
               </el-select>
             </div>
 
-            <!-- 最大标签数 -->
+            <!-- 显示图标 -->
             <div class="settings-item">
-              <span class="item-label">最大标签数</span>
-              <el-input-number
-                :model-value="layoutStore.config.maxTabs"
-                @change="layoutStore.setMaxTabs"
-                :min="5"
-                :max="20"
-                size="small"
-                style="width: 120px"
+              <span class="item-label">显示图标</span>
+              <el-switch
+                :model-value="layoutStore.config.showTabIcon"
+                @change="layoutStore.setShowTabIcon"
               />
             </div>
 

@@ -85,7 +85,7 @@ export type ComponentSize = 'large' | 'default' | 'small'
 export type AnimationSpeed = 'fast' | 'normal' | 'slow'
 export type FooterStyle = 'simple' | 'split' | 'multi'
 export type FooterYearMode = 'auto' | 'custom'
-export type TabStyle = 'card' | 'chrome' | 'plain'
+export type TabStyle = 'default' | 'personalized' | 'square' | 'card'
 export type BreadcrumbStyle = 'normal' | 'card'
 
 export interface FooterLink {
@@ -108,7 +108,7 @@ export interface LayoutConfig {
   breadcrumbStyle: BreadcrumbStyle
   enableTabs: boolean
   tabStyle: TabStyle
-  maxTabs: number
+  showTabIcon: boolean
   tabPersist: boolean
   contentMaxWidth: ContentWidth
   contentPadding: ContentPadding

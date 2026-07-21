@@ -115,7 +115,7 @@ watch(
 .app-sidebar {
   height: 100%;
   background: var(--cp-bg-elevated);
-  border-right: 1px solid var(--cp-border);
+  border-right: 1px solid var(--cp-layout-border);
   display: flex;
   flex-direction: column;
   transition: width $transition-base;
@@ -125,7 +125,7 @@ watch(
   .sidebar-header {
     height: 64px;
     @include flex-center;
-    border-bottom: 1px solid var(--cp-border);
+    border-bottom: 1px solid var(--cp-layout-border);
     flex-shrink: 0;
 
     .brand {

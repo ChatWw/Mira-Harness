@@ -4,6 +4,10 @@ import type { LayoutConfig } from '@/types'
 
 const DEFAULT_APP_NAME = '中台基座'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
+const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
+  chrome: 'personalized',
+  plain: 'square',
+}
 
 const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, string>> = {
   sharp: {
@@ -38,9 +42,9 @@ const DEFAULT_CONFIG: LayoutConfig = {
   breadcrumbIcon: false,
   breadcrumbStyle: 'normal',
   enableTabs: true,
-  tabStyle: 'card',
-  maxTabs: 10,
-  tabPersist: true,
+  tabStyle: 'personalized',
+  showTabIcon: true,
+  tabPersist: false,
   contentMaxWidth: 'full',
   contentPadding: 'normal',
   pageTransition: 'fade-slide',
@@ -163,8 +167,8 @@ export const useLayoutStore = defineStore('layout', () => {
     config.value.tabStyle = style
   }
 
-  function setMaxTabs(count: number) {
-    config.value.maxTabs = count
+  function setShowTabIcon(value: boolean) {
+    config.value.showTabIcon = value
   }
 
   function setTabPersist(value: boolean) {
@@ -277,6 +281,27 @@ export const useLayoutStore = defineStore('layout', () => {
     { immediate: true }
   )
 
+  watch(
+    () => config.value.showTabIcon,
+    (value) => {
+      if (typeof value !== 'boolean') {
+        config.value.showTabIcon = DEFAULT_CONFIG.showTabIcon
+      }
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => config.value.tabStyle,
+    (style) => {
+      const normalizedStyle = LEGACY_TAB_STYLE_MAP[style as string]
+      if (normalizedStyle) {
+        config.value.tabStyle = normalizedStyle
+      }
+    },
+    { immediate: true }
+  )
+
   return {
     config,
     settingsVisible,
@@ -302,7 +327,7 @@ export const useLayoutStore = defineStore('layout', () => {
     setBreadcrumbStyle,
     setEnableTabs,
     setTabStyle,
-    setMaxTabs,
+    setShowTabIcon,
     setTabPersist,
     setContentMaxWidth,
     setContentPadding,

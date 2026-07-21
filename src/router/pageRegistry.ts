@@ -16,6 +16,6 @@ export function createBusinessRoute(menu: MenuItem): RouteRecordRaw | null {
     path: menu.path,
     name: menu.name || `Menu_${menu.id}`,
     component,
-    meta: { title: menu.title, permission: menu.permission },
+    meta: { title: menu.title, icon: menu.icon, permission: menu.permission },
   }
 }

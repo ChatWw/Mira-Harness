@@ -147,6 +147,7 @@ input {
   // 边框色
   --cp-border: #{$border};
   --cp-border-light: #{$border-light};
+  --cp-layout-border: rgb(24 24 27 / 8%);
 
   // 主题色
   --cp-primary: #{$primary};
@@ -189,6 +190,7 @@ input {
   // 边框色
   --cp-border: #{$dark-border};
   --cp-border-light: #{$dark-border-light};
+  --cp-layout-border: rgb(250 250 250 / 9%);
 
   // 统计卡片图标背景色（暗色模式 - 降低饱和度和亮度）
   --cp-stat-icon-success-bg: rgba(16, 185, 129, 0.15);

@@ -23,6 +23,12 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
   padding: $spacing-lg;
   background: var(--cp-bg);
   overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   @include media-max($breakpoint-md) {
     padding: $spacing-md;

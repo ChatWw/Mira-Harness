@@ -101,7 +101,7 @@ function getYearText(): string {
 .app-footer {
   width: 100%;
   background: var(--cp-bg);
-  border-top: 1px solid var(--cp-border);
+  border-top: 1px solid var(--cp-layout-border);
   color: var(--cp-text-secondary);
   font-size: $font-xs;
   @include flex-center;

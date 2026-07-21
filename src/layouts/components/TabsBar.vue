@@ -2,25 +2,27 @@
   <div v-if="layoutStore.config.enableTabs" class="tabs-bar" :class="`tabs-style-${layoutStore.config.tabStyle}`">
     <div class="tabs-container">
       <div class="tabs-scroll" ref="scrollContainer">
+        <div v-if="layoutStore.config.tabStyle === 'personalized'" class="personalized-tabs-edge" />
         <div
-          v-for="tab in tabsStore.tabs"
+          v-for="(tab, index) in tabsStore.tabs"
           :key="tab.path"
           class="tab-item"
           :class="{ 'is-active': tab.path === tabsStore.activeTab }"
           @click="handleTabClick(tab)"
           @contextmenu.prevent="handleContextMenu($event, tab)"
         >
-          <component v-if="tab.icon" :is="tab.icon" class="tab-icon" />
+          <component v-if="layoutStore.config.showTabIcon && tab.icon" :is="tab.icon" class="tab-icon" />
           <span class="tab-title">{{ tab.title }}</span>
           <el-icon v-if="tab.closable" class="tab-close" @click.stop="handleTabClose(tab)">
             <Close />
           </el-icon>
+          <span v-if="index < tabsStore.tabs.length - 1" class="tab-divider" />
         </div>
       </div>
     </div>
 
     <div class="tabs-actions">
-      <el-dropdown trigger="click" @command="handleCommand">
+      <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
         <el-button :icon="ArrowDown" circle size="small" />
         <template #dropdown>
           <el-dropdown-menu>
@@ -174,7 +176,7 @@ function scrollToActiveTab() {
   align-items: center;
   height: 40px;
   background: var(--cp-bg);
-  border-bottom: 1px solid var(--cp-border);
+  border-bottom: 1px solid var(--cp-layout-border);
   padding: 0 $spacing-md;
   gap: $spacing-sm;
   flex-shrink: 0;
@@ -244,7 +246,7 @@ function scrollToActiveTab() {
 
       .tab-title {
         color: var(--cp-primary);
-        font-weight: 500;
+        font-weight: 400;
       }
 
       .tab-icon {
@@ -259,71 +261,294 @@ function scrollToActiveTab() {
   }
 }
 
-// Card 样式
-.tabs-style-card {
-  .tab-item {
-    border: 1px solid transparent;
+// Card 和简约样式的共用外观
+.tabs-style-default,
+.tabs-style-square {
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  background: var(--cp-bg);
 
-    &.is-active {
-      border-color: var(--cp-border);
-      border-bottom-color: var(--cp-bg);
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-  }
-}
-
-// Chrome 样式
-.tabs-style-chrome {
   .tabs-scroll {
     gap: 0;
   }
 
   .tab-item {
-    border-radius: $radius-md $radius-md 0 0;
-    margin-right: -8px;
+    justify-content: flex-start;
+    min-width: 180px;
+    height: 40px;
     padding: 0 $spacing-lg;
+    border: 0;
+    border-right: 0;
+    border-radius: 0;
+    background: var(--cp-bg);
     position: relative;
 
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      width: 8px;
-      height: 8px;
+    .tab-icon,
+    .tab-title {
+      color: var(--cp-text-secondary);
     }
 
-    &::before {
-      left: -8px;
+    .tab-title {
+      font-size: $font-sm;
     }
 
-    &::after {
-      right: -8px;
+    .tab-close {
+      margin-left: auto;
+      opacity: 1;
+      color: var(--cp-text-tertiary);
+    }
+
+    &:not(:last-child) {
+      &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 0;
+        width: 1px;
+        height: 20px;
+        background: var(--cp-bg-hover);
+        transform: translateY(-50%);
+      }
+    }
+
+    &:hover {
+      background: var(--cp-bg-elevated);
+
+      .tab-icon,
+      .tab-title,
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
     }
 
     &.is-active {
+      background: var(--cp-bg-hover);
       z-index: 1;
+
+      &::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 1px;
+        background: var(--cp-bg-hover);
+      }
+
+      .tab-icon,
+      .tab-title {
+        color: var(--cp-text);
+      }
+
+      .tab-title {
+        font-weight: $font-normal;
+      }
+
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
+    }
+  }
+
+  .tabs-actions {
+    height: 40px;
+    padding: 0 $spacing-sm;
+    background: var(--cp-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// 卡片样式
+.tabs-style-card {
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  background: var(--cp-bg);
+
+  .tabs-scroll {
+    gap: 0;
+  }
+
+  .tab-item {
+    justify-content: flex-start;
+    min-width: 180px;
+    height: 32px;
+    margin: $spacing-xs 0;
+    padding: 0 $spacing-lg;
+    border-radius: $radius-md;
+    background: transparent;
+
+    .tab-icon,
+    .tab-title {
+      color: var(--cp-text-secondary);
+    }
+
+    .tab-close {
+      margin-left: auto;
+      opacity: 1;
+      color: var(--cp-text-tertiary);
+    }
+
+    &:hover {
       background: var(--cp-bg-elevated);
-      box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+
+      .tab-icon,
+      .tab-title,
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
+    }
+
+    &.is-active {
+      background: var(--cp-bg-hover);
+
+      .tab-icon,
+      .tab-title {
+        color: var(--cp-text);
+      }
+
+      .tab-title {
+        font-weight: $font-normal;
+      }
+
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
     }
   }
 }
 
-// Plain 样式
-.tabs-style-plain {
+// 个性样式
+.tabs-style-personalized {
+  padding: 0;
+  gap: 0;
+  background: var(--cp-bg);
+
+  .tabs-scroll {
+    gap: 0;
+  }
+
+  .personalized-tabs-edge {
+    width: 12px;
+    flex-shrink: 0;
+  }
+
   .tab-item {
-    border-radius: 0;
-    border-bottom: 2px solid transparent;
+    justify-content: flex-start;
+    min-width: 180px;
+    height: 36px;
+    margin: 0 0 $spacing-xs;
+    padding: 0 $spacing-lg;
+    border-radius: 0 0 12px 12px;
+    background: var(--cp-bg);
+    position: relative;
+    --personalized-tab-bg: var(--cp-bg);
+
+    .tab-icon,
+    .tab-title {
+      color: var(--cp-text-secondary);
+    }
+
+    .tab-close {
+      margin-left: auto;
+      opacity: 1;
+      color: var(--cp-text-tertiary);
+    }
+
+    .tab-divider {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      z-index: 2;
+      width: 1px;
+      height: 20px;
+      background: var(--cp-bg-hover);
+      transform: translateY(-50%);
+    }
+
+    &:hover {
+      background: var(--cp-bg-elevated);
+      --personalized-tab-bg: var(--cp-bg-elevated);
+
+      .tab-icon,
+      .tab-title,
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
+    }
 
     &.is-active {
-      background: transparent;
-      border-bottom-color: var(--cp-primary);
+      background: var(--cp-bg-hover);
+      --personalized-tab-bg: var(--cp-bg-hover);
+      z-index: 1;
+      box-shadow: none;
+
+      .tab-icon,
+      .tab-title {
+        color: var(--cp-text);
+      }
+
+      .tab-title {
+        font-weight: $font-normal;
+      }
+
+      .tab-close {
+        color: var(--cp-text-secondary);
+      }
+    }
+
+    &:hover,
+    &.is-active {
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        width: 12px;
+        height: 12px;
+        pointer-events: none;
+      }
+
+      &::before {
+        left: -12px;
+        border-top-right-radius: 12px;
+        box-shadow: 5px -5px 0 5px var(--personalized-tab-bg);
+      }
+
+      &::after {
+        right: -12px;
+        border-top-left-radius: 12px;
+        box-shadow: -5px -5px 0 5px var(--personalized-tab-bg);
+      }
+    }
+  }
+}
+
+// 方块样式
+.tabs-style-square {
+  .tab-item {
+    &.is-active {
+      box-shadow: inset 0 -1px 0 var(--cp-bg-hover);
+
+      &::after {
+        top: 0;
+        bottom: auto;
+        height: 3px;
+        background: var(--cp-primary);
+      }
     }
   }
 }
 
 .tabs-actions {
   flex-shrink: 0;
+  height: 40px;
+  padding: 0 $spacing-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

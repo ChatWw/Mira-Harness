@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useLayoutStore } from './layout'
 
 export interface TabItem {
   path: string
@@ -10,13 +11,46 @@ export interface TabItem {
   lastAccess: number
 }
 
+const DASHBOARD_TAB: Omit<TabItem, 'lastAccess'> = {
+  path: '/dashboard',
+  title: '工作台',
+  name: 'Dashboard',
+  icon: 'Odometer',
+  closable: false,
+}
+
 export const useTabsStore = defineStore('tabs', () => {
-  const tabs = ref<TabItem[]>([])
-  const activeTab = ref<string>('')
+  const layoutStore = useLayoutStore()
+  const persistenceEnabled = layoutStore.config.tabPersist
+  const persistedState = persistenceEnabled ? loadPersistedState() : undefined
+  const tabs = ref<TabItem[]>(persistedState?.tabs ?? [])
+  const activeTab = ref<string>(persistedState?.activeTab ?? '')
+
+  if (!tabs.value.some(tab => tab.path === DASHBOARD_TAB.path)) {
+    tabs.value.unshift({ ...DASHBOARD_TAB, lastAccess: Date.now() })
+  }
+
+  if (!persistenceEnabled) {
+    sessionStorage.removeItem('cp-tabs')
+  }
+
+  watch([tabs, activeTab], persistState, { deep: true })
+
+  watch(
+    () => layoutStore.config.tabPersist,
+    (enabled) => {
+      if (enabled) {
+        persistState()
+      } else {
+        sessionStorage.removeItem('cp-tabs')
+      }
+    }
+  )
 
   function addTab(tab: TabItem) {
     const existing = tabs.value.find(t => t.path === tab.path)
     if (existing) {
+      existing.icon = tab.icon
       existing.lastAccess = Date.now()
       activeTab.value = tab.path
       return
@@ -55,10 +89,23 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTab.value = '/dashboard'
   }
 
-  return { tabs, activeTab, addTab, closeTab, closeOthers, closeLeft, closeRight, closeAll }
-}, {
-  persist: {
-    key: 'cp-tabs',
-    storage: sessionStorage,
+  function persistState() {
+    if (!layoutStore.config.tabPersist) return
+    sessionStorage.setItem('cp-tabs', JSON.stringify({ tabs: tabs.value, activeTab: activeTab.value }))
   }
+
+  function loadPersistedState(): { tabs: TabItem[]; activeTab: string } | undefined {
+    try {
+      const stored = sessionStorage.getItem('cp-tabs')
+      if (!stored) return
+
+      const state = JSON.parse(stored) as { tabs?: TabItem[]; activeTab?: string }
+      if (!Array.isArray(state.tabs) || typeof state.activeTab !== 'string') return
+      return { tabs: state.tabs, activeTab: state.activeTab }
+    } catch {
+      sessionStorage.removeItem('cp-tabs')
+    }
+  }
+
+  return { tabs, activeTab, addTab, closeTab, closeOthers, closeLeft, closeRight, closeAll }
 })

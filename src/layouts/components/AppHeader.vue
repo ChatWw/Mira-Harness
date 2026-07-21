@@ -52,7 +52,7 @@ function toggleFullscreen() {
   width: 100%;
   height: 48px;
   background: var(--cp-bg);
-  border-bottom: 1px solid var(--cp-border);
+  border-bottom: 1px solid var(--cp-layout-border);
   padding: 0 $spacing-lg;
   @include flex-between;
   gap: $spacing-md;

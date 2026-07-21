@@ -122,8 +122,8 @@ onMounted(loadApplications)
 </script>
 
 <style scoped lang="scss">
-.global-header { width: 100%; min-height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--cp-bg); border-bottom: 1px solid var(--cp-border); flex-shrink: 0; z-index: $z-sticky; }
-.global-rail { width: 72px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border); flex-shrink: 0; }
+.global-header { width: 100%; min-height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--cp-bg); border-bottom: 1px solid var(--cp-layout-border); flex-shrink: 0; z-index: $z-sticky; }
+.global-rail { width: 72px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-layout-border); flex-shrink: 0; }
 .rail-brand, .rail-app { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; transition: color $transition-fast, background $transition-fast; }
 .rail-brand { color: #fff; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); }
 .rail-app-list { display: flex; flex-direction: column; gap: 8px; &.is-loading { opacity: .6; pointer-events: none; } }
