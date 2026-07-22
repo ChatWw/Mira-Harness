@@ -1311,7 +1311,7 @@ function handleClearCache() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 -6px;
+  margin: auto -6px 0;
   padding: 14px 6px 2px;
   border: 0;
   background: var(--cp-bg);
