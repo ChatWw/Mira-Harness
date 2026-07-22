@@ -8,6 +8,14 @@
     <!-- Simple 样式 -->
     <div v-if="layoutStore.config.footerStyle === 'simple'" class="footer-simple">
       <span>{{ copyrightText }}</span>
+      <a
+        v-if="layoutStore.config.footerIcp"
+        :href="layoutStore.config.footerIcpLink"
+        target="_blank"
+        class="footer-link"
+      >
+        · {{ layoutStore.config.footerIcp }}
+      </a>
     </div>
 
     <!-- Split 样式 -->
@@ -74,7 +82,7 @@ const layoutStore = useLayoutStore()
 const copyrightText = computed(() => {
   const copyright = layoutStore.config.footerCopyright
   const yearText = getYearText()
-  return `© ${yearText} ${copyright}. All rights reserved.`
+  return `© ${yearText} ${copyright} · 版权所有`
 })
 
 function getYearText(): string {
