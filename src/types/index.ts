@@ -38,16 +38,46 @@ export interface MenuItem {
 }
 
 export type MicroAppStatus = 'developing' | 'published' | 'offline'
+export type MicroAppIntegrationMode = 'wujie' | 'iframe'
+export type MicroAppHealthStatus = 'healthy' | 'degraded' | 'unavailable'
+
+export interface MicroAppContextOverrides {
+  theme?: ThemeMode
+  language?: string
+  tenantId?: string
+}
+
+export interface PlatformContext {
+  version: 1
+  theme: ThemeMode
+  language: string
+  tenantId?: string
+  user: {
+    id: string
+    name: string
+  }
+}
+
+export type MicroAppEventName = 'platform:navigate' | 'platform:refresh'
+
+export interface MicroAppEvent {
+  name: MicroAppEventName
+  payload?: Record<string, unknown>
+}
 
 export interface MicroAppRuntimeConfig {
   alive: boolean
   sync: boolean
   fiber: boolean
-  degrade: boolean
   prefix: Record<string, string>
-  props: Record<string, unknown>
+  props: MicroAppContextOverrides
   preload: boolean
   exec: boolean
+  iframe: {
+    sandbox: string
+    referrerPolicy: ReferrerPolicy
+    timeout: number
+  }
 }
 
 export interface MicroApp {
@@ -58,6 +88,9 @@ export interface MicroApp {
   icon?: string
   sort: number
   status: MicroAppStatus
+  integrationMode: MicroAppIntegrationMode
+  healthStatus: MicroAppHealthStatus
+  embedAllowed: boolean
   version?: string
   description?: string
   runtimeConfig: MicroAppRuntimeConfig

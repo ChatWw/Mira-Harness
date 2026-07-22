@@ -19,9 +19,9 @@ const mainMenus = [
 ]
 
 const microApps = [
-  { id: 'micro-1', name: '数据看板', code: 'data-board', url: '/micro/board', icon: 'DataAnalysis', sort: 0, status: 'published', version: 'v1.2.0', description: '业务数据可视化看板', runtimeConfig: { alive: true, sync: true, fiber: false, degrade: false, prefix: {}, props: { theme: 'light' }, preload: false, exec: false } },
-  { id: 'micro-2', name: '流程审批', code: 'workflow', url: '/micro/wf', icon: 'Connection', sort: 1, status: 'published', version: 'v2.0.1', description: '流程审批子应用', runtimeConfig: { alive: false, sync: true, fiber: false, degrade: false, prefix: {}, props: {}, preload: false, exec: false } },
-  { id: 'micro-3', name: '报表中心', code: 'report-ctr', url: 'https://report.example.com', icon: 'Document', sort: 2, status: 'developing', version: 'v0.9.0', description: '报表分析子应用', runtimeConfig: { alive: true, sync: false, fiber: false, degrade: true, prefix: {}, props: {}, preload: false, exec: false } },
+  { id: 'micro-1', name: '数据看板', code: 'data-board', url: '/apps/data-board/index.html', icon: 'DataAnalysis', sort: 0, status: 'published', integrationMode: 'wujie', healthStatus: 'healthy', embedAllowed: true, version: 'v1.2.0', description: '业务数据可视化看板', runtimeConfig: { alive: true, sync: true, fiber: false, prefix: {}, props: { theme: 'light' }, preload: false, exec: false, iframe: { sandbox: 'allow-scripts allow-forms allow-popups', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15 } } },
+  { id: 'micro-2', name: '流程审批', code: 'workflow', url: '/apps/workflow/index.html', icon: 'Connection', sort: 1, status: 'published', integrationMode: 'iframe', healthStatus: 'healthy', embedAllowed: true, version: 'v2.0.1', description: '流程审批遗留系统试点', runtimeConfig: { alive: false, sync: false, fiber: false, prefix: {}, props: {}, preload: false, exec: false, iframe: { sandbox: 'allow-scripts allow-forms allow-popups', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15 } } },
+  { id: 'micro-3', name: '报表中心', code: 'report-ctr', url: '/apps/report-center/', icon: 'Document', sort: 2, status: 'developing', integrationMode: 'iframe', healthStatus: 'degraded', embedAllowed: false, version: 'v0.9.0', description: '报表分析子应用', runtimeConfig: { alive: false, sync: false, fiber: false, prefix: {}, props: {}, preload: false, exec: false, iframe: { sandbox: 'allow-scripts allow-forms allow-popups', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15 } } },
 ]
 
 const microMenus: Record<string, any[]> = {
@@ -237,9 +237,9 @@ export default [
   {
     url: '/api/micro-apps', method: 'get',
     response: ({ query }: any) => {
-      const { page = 1, pageSize = 10, name, code, status, mode } = query
+      const { page = 1, pageSize = 10, name, code, status, integrationMode } = query
       let list = microApps.filter(app => (!name || app.name.includes(name)) && (!code || app.code.includes(code)) && (!status || app.status === status))
-      if (mode) list = list.filter(app => (mode === 'alive' && app.runtimeConfig.alive) || (mode === 'sync' && app.runtimeConfig.sync) || (mode === 'fiber' && app.runtimeConfig.fiber) || (mode === 'degrade' && app.runtimeConfig.degrade))
+      if (integrationMode) list = list.filter(app => app.integrationMode === integrationMode)
       const start = (Number(page) - 1) * Number(pageSize)
       return { code: 200, data: { list: clone(list.slice(start, start + Number(pageSize))), total: list.length, page: Number(page), pageSize: Number(pageSize) }, message: '获取成功' }
     },
@@ -252,7 +252,7 @@ export default [
     url: '/api/micro-apps', method: 'post',
     response: ({ body }: any) => {
       if (microApps.some(app => app.code === body.code)) return { code: 400, data: null, message: '应用编码已存在' }
-      const app = { id: `micro-${microApps.length + 1}`, version: 'v0.1.0', status: 'developing', sort: 0, icon: 'Grid', runtimeConfig: { alive: false, sync: false, fiber: false, degrade: false, prefix: {}, props: {}, preload: false, exec: false }, ...body }
+      const app = { id: `micro-${microApps.length + 1}`, version: 'v0.1.0', status: 'developing', integrationMode: 'iframe', healthStatus: 'healthy', embedAllowed: true, sort: 0, icon: 'Grid', runtimeConfig: { alive: false, sync: false, fiber: false, prefix: {}, props: {}, preload: false, exec: false, iframe: { sandbox: 'allow-scripts allow-forms allow-popups', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15 } }, ...body }
       microApps.push(app)
       return { code: 200, data: clone(app), message: '新增成功' }
     },

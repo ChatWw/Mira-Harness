@@ -44,7 +44,7 @@ export const applicationApi = {
 }
 
 export const microAppApi = {
-  getList(params: PageParams & { name?: string; code?: string; status?: string; mode?: string }) {
+  getList(params: PageParams & { name?: string; code?: string; status?: string; integrationMode?: string }) {
     return request.get('/micro-apps', { params }) as unknown as Promise<PageResult<MicroApp>>
   },
   getAll() {
