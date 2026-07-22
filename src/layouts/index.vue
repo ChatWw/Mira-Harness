@@ -1,5 +1,6 @@
 <template>
-  <div class="layout" :class="layoutClasses">
+  <el-watermark v-bind="watermarkProps" class="layout-watermark">
+    <div class="layout" :class="layoutClasses">
     <!-- 系统级导航：品牌、应用选择器与账户入口 -->
     <GlobalHeader v-if="showGlobalHeader" />
 
@@ -32,13 +33,15 @@
 
     <!-- 全局配置面板 -->
     <AppSettings />
-  </div>
+    </div>
+  </el-watermark>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ElWatermark } from 'element-plus'
 import { useAppStore } from '@/stores/app'
-import { useLayoutStore } from '@/stores/layout'
+import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
 import GlobalHeader from './components/GlobalHeader.vue'
 import AppHeader from './components/AppHeader.vue'
@@ -57,6 +60,17 @@ const showHeader = computed(() => true)
 
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
 
+const watermarkProps = computed(() => {
+  return {
+    content: layoutStore.config.watermark
+      ? layoutStore.config.watermarkText.trim() || APP_NAME
+      : '',
+    font: { color: 'rgba(0, 0, 0, 0.12)', fontSize: 16 },
+    gap: [120, 100] as [number, number],
+    zIndex: 10,
+  }
+})
+
 const layoutClasses = computed(() => {
   const classes = [`layout--${layoutStore.config.mode}`]
 
@@ -73,6 +87,11 @@ const layoutClasses = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.layout-watermark {
+  display: block;
+  height: 100%;
+}
+
 .layout {
   width: 100%;
   height: 100vh;
