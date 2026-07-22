@@ -17,7 +17,7 @@
         </div>
       </div>
     </template>
-    <div class="settings-content">
+    <div ref="settingsContentRef" class="settings-content">
       <div class="settings-intro">
         <div>
           <span class="intro-eyebrow">WORKSPACE</span>
@@ -461,46 +461,53 @@
               />
             </div>
 
-            <!-- 布局设置 -->
-            <div class="settings-item">
-              <span class="item-label">布局设置</span>
-              <el-switch
-                :model-value="layoutStore.config.enableContentLayoutSettings"
-                @change="layoutStore.setEnableContentLayoutSettings"
-              />
-            </div>
+            <!-- 内容布局设置 -->
+            <div
+              class="content-layout-settings"
+              :class="{ 'is-disabled': !layoutStore.config.enableContentLayoutSettings }"
+            >
+              <div class="settings-item">
+                <span class="item-label">布局设置</span>
+                <el-switch
+                  :model-value="layoutStore.config.enableContentLayoutSettings"
+                  @change="layoutStore.setEnableContentLayoutSettings"
+                />
+              </div>
 
-            <!-- 内容最大宽度 -->
-            <div class="settings-item">
-              <span class="item-label">内容最大宽度</span>
-              <el-select
-                :model-value="layoutStore.config.contentMaxWidth"
-                @change="layoutStore.setContentMaxWidth"
-                :disabled="!layoutStore.config.enableContentLayoutSettings"
-                size="small"
-                style="width: 120px"
-              >
-                <el-option label="全屏" value="full" />
-                <el-option label="1200px" value="1200" />
-                <el-option label="1400px" value="1400" />
-                <el-option label="1600px" value="1600" />
-              </el-select>
-            </div>
+              <div class="content-layout-settings__controls">
+                <!-- 内容最大宽度 -->
+                <div class="settings-item">
+                  <span class="item-label">内容最大宽度</span>
+                  <el-select
+                    :model-value="layoutStore.config.contentMaxWidth"
+                    @change="layoutStore.setContentMaxWidth"
+                    :disabled="!layoutStore.config.enableContentLayoutSettings"
+                    size="small"
+                    style="width: 120px"
+                  >
+                    <el-option label="全屏" value="full" />
+                    <el-option label="1200px" value="1200" />
+                    <el-option label="1400px" value="1400" />
+                    <el-option label="1600px" value="1600" />
+                  </el-select>
+                </div>
 
-            <!-- 内容内边距 -->
-            <div class="settings-item">
-              <span class="item-label">内容内边距</span>
-              <el-select
-                :model-value="layoutStore.config.contentPadding"
-                @change="layoutStore.setContentPadding"
-                :disabled="!layoutStore.config.enableContentLayoutSettings"
-                size="small"
-                style="width: 120px"
-              >
-                <el-option label="紧凑" value="compact" />
-                <el-option label="正常" value="normal" />
-                <el-option label="宽松" value="comfortable" />
-              </el-select>
+                <!-- 内容内边距 -->
+                <div class="settings-item">
+                  <span class="item-label">内容内边距</span>
+                  <el-select
+                    :model-value="layoutStore.config.contentPadding"
+                    @change="layoutStore.setContentPadding"
+                    :disabled="!layoutStore.config.enableContentLayoutSettings"
+                    size="small"
+                    style="width: 120px"
+                  >
+                    <el-option label="紧凑" value="compact" />
+                    <el-option label="正常" value="normal" />
+                    <el-option label="宽松" value="comfortable" />
+                  </el-select>
+                </div>
+              </div>
             </div>
 
             <!-- 水印 -->
@@ -540,7 +547,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Bottom,
@@ -563,6 +570,17 @@ import type { LayoutMode, PageTransition, ThemeMode } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
+const settingsContentRef = ref<HTMLElement>()
+
+watch(
+  () => layoutStore.settingsVisible,
+  async (visible) => {
+    if (visible) {
+      await nextTick()
+      settingsContentRef.value?.scrollTo({ top: 0 })
+    }
+  }
+)
 
 // 折叠面板默认展开项
 const activeNames = ref(['general', 'layout'])
@@ -697,6 +715,33 @@ function handleClearCache() {
     font-size: $font-sm;
     color: var(--cp-text);
     font-weight: $font-medium;
+  }
+}
+
+.content-layout-settings {
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--cp-primary) 18%, var(--cp-border));
+  border-radius: 10px;
+  transition: border-color $transition-base;
+
+  &__controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 4px;
+    border-top: 1px solid color-mix(in srgb, var(--cp-primary) 12%, var(--cp-border));
+  }
+
+  &.is-disabled {
+    border-color: var(--cp-border-light);
+
+    .content-layout-settings__controls {
+      border-color: var(--cp-border-light);
+    }
+
+    .content-layout-settings__controls .item-label {
+      color: var(--cp-text-tertiary);
+    }
   }
 }
 
@@ -1037,6 +1082,7 @@ function handleClearCache() {
   border: 1px solid color-mix(in srgb, var(--cp-primary) 16%, var(--cp-border));
   border-radius: 14px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--cp-primary) 11%, var(--cp-bg)), var(--cp-bg));
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--cp-bg) 90%, #000);
 
   strong,
   p,
@@ -1260,6 +1306,7 @@ function handleClearCache() {
 
 .settings-footer {
   position: sticky;
+  z-index: 2;
   bottom: 0;
   display: flex;
   align-items: center;
@@ -1267,7 +1314,8 @@ function handleClearCache() {
   margin: 0 -6px;
   padding: 14px 6px 2px;
   border: 0;
-  background: linear-gradient(180deg, transparent, var(--cp-bg) 24%);
+  background: var(--cp-bg);
+  box-shadow: 0 -8px 16px color-mix(in srgb, var(--cp-bg) 90%, #000);
 }
 
 .footer-note {
