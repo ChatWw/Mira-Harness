@@ -40,6 +40,12 @@ interface BreadcrumbItem {
   icon?: string
 }
 
+const DASHBOARD_BREADCRUMB: BreadcrumbItem = {
+  title: '工作台',
+  path: '/dashboard',
+  icon: 'Odometer',
+}
+
 function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
   for (const menu of menus) {
     if (menu.path === path) return [menu]
@@ -52,19 +58,25 @@ function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const menuPath = findMenuPath(permissionStore.menuRoutes, route.path)
   if (menuPath) {
-    return menuPath.map(menu => ({
+    const items = menuPath.map(menu => ({
       title: menu.title,
       path: menu.path,
       icon: menu.icon,
     }))
+    return items[0]?.path === DASHBOARD_BREADCRUMB.path
+      ? items
+      : [DASHBOARD_BREADCRUMB, ...items]
   }
 
   const matched = route.matched.filter(r => r.meta && r.meta.title)
-  return matched.map(r => ({
+  const items = matched.map(r => ({
     title: r.meta.title as string,
     path: r.path,
     icon: r.meta.icon as string,
   }))
+  return items[0]?.path === DASHBOARD_BREADCRUMB.path
+    ? items
+    : [DASHBOARD_BREADCRUMB, ...items]
 })
 
 const displayItems = computed<BreadcrumbItem[]>(() => {
@@ -73,7 +85,7 @@ const displayItems = computed<BreadcrumbItem[]>(() => {
     return items
   }
 
-  // 超过 4 级：首页 + ... + 倒数第二 + 最后一个
+  // 超过 4 级：工作台 + ... + 倒数第二 + 最后一个
   return [
     items[0],
     { title: '...', icon: 'ellipsis' },
