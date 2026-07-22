@@ -461,12 +461,22 @@
               />
             </div>
 
+            <!-- 布局设置 -->
+            <div class="settings-item">
+              <span class="item-label">布局设置</span>
+              <el-switch
+                :model-value="layoutStore.config.enableContentLayoutSettings"
+                @change="layoutStore.setEnableContentLayoutSettings"
+              />
+            </div>
+
             <!-- 内容最大宽度 -->
             <div class="settings-item">
               <span class="item-label">内容最大宽度</span>
               <el-select
                 :model-value="layoutStore.config.contentMaxWidth"
                 @change="layoutStore.setContentMaxWidth"
+                :disabled="!layoutStore.config.enableContentLayoutSettings"
                 size="small"
                 style="width: 120px"
               >
@@ -483,6 +493,7 @@
               <el-select
                 :model-value="layoutStore.config.contentPadding"
                 @change="layoutStore.setContentPadding"
+                :disabled="!layoutStore.config.enableContentLayoutSettings"
                 size="small"
                 style="width: 120px"
               >

@@ -50,8 +50,9 @@ const DEFAULT_CONFIG: LayoutConfig = {
   tabStyle: 'personalized',
   showTabIcon: true,
   tabPersist: false,
+  enableContentLayoutSettings: false,
   contentMaxWidth: 'full',
-  contentPadding: 'normal',
+  contentPadding: 'compact',
   pageTransition: 'fade-slide',
   animationSpeed: 'normal',
   themeTransitionAnimation: true,
@@ -180,6 +181,10 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   // 内容区设置
+  function setEnableContentLayoutSettings(value: boolean) {
+    config.value.enableContentLayoutSettings = value
+  }
+
   function setContentMaxWidth(width: LayoutConfig['contentMaxWidth']) {
     config.value.contentMaxWidth = width
   }
@@ -330,6 +335,7 @@ export const useLayoutStore = defineStore('layout', () => {
     setTabStyle,
     setShowTabIcon,
     setTabPersist,
+    setEnableContentLayoutSettings,
     setContentMaxWidth,
     setContentPadding,
     setPageTransition,
@@ -354,6 +360,11 @@ export const useLayoutStore = defineStore('layout', () => {
       delete (store.config as Record<string, unknown>).sidebarCollapseAnimation
       if (typeof store.config.dynamicTitle !== 'boolean') {
         store.config.dynamicTitle = DEFAULT_CONFIG.dynamicTitle
+      }
+      if (typeof store.config.enableContentLayoutSettings !== 'boolean') {
+        store.config.enableContentLayoutSettings = DEFAULT_CONFIG.enableContentLayoutSettings
+        store.config.contentMaxWidth = DEFAULT_CONFIG.contentMaxWidth
+        store.config.contentPadding = DEFAULT_CONFIG.contentPadding
       }
       store.$persist()
     },

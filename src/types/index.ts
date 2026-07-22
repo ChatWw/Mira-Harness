@@ -110,6 +110,7 @@ export interface LayoutConfig {
   tabStyle: TabStyle
   showTabIcon: boolean
   tabPersist: boolean
+  enableContentLayoutSettings: boolean
   contentMaxWidth: ContentWidth
   contentPadding: ContentPadding
   pageTransition: PageTransition
