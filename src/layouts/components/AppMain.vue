@@ -20,7 +20,7 @@ const transitionName = computed(() => layoutStore.config.pageTransition)
   flex: 1;
   width: 100%;
   min-height: 0;
-  padding: $spacing-lg;
+  padding: $spacing-sm;
   background: var(--cp-bg);
   overflow-y: auto;
   -ms-overflow-style: none;
