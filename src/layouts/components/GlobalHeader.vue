@@ -1,6 +1,6 @@
 <template>
   <aside v-if="variant === 'rail'" class="global-rail">
-    <div v-if="layoutStore.config.showLogo" class="rail-brand" :title="layoutStore.config.dynamicTitle">
+    <div v-if="layoutStore.config.showLogo" class="rail-brand" :title="APP_NAME">
       <Sparkles :size="20" />
     </div>
 
@@ -32,7 +32,7 @@
   <header v-else class="global-header" :style="{ height: `${layoutStore.config.headerHeight}px` }">
     <div class="global-brand">
       <div v-if="layoutStore.config.showLogo" class="brand-mark"><Sparkles :size="19" /></div>
-      <span class="brand-title-shimmer">{{ layoutStore.config.dynamicTitle }}</span>
+      <span class="brand-title-shimmer">{{ APP_NAME }}</span>
     </div>
 
     <div class="global-actions">
@@ -73,7 +73,7 @@ import { ArrowDown, Grid, SwitchButton, User } from '@element-plus/icons-vue'
 import { Sparkles } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { applicationApi, menuApi } from '@/api/system'
-import { useLayoutStore } from '@/stores/layout'
+import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
 

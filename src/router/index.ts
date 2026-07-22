@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
+import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
 import { menuApi } from '@/api/system'
@@ -51,6 +52,13 @@ const router = createRouter({
     { ...layoutRoute, name: 'Layout' },
   ],
 })
+
+export function updateDocumentTitle(menuTitle?: unknown) {
+  const title = typeof menuTitle === 'string' ? menuTitle : ''
+  document.title = useLayoutStore().config.dynamicTitle && title
+    ? `${title} - ${APP_NAME}`
+    : APP_NAME
+}
 
 /**
  * 过滤菜单（根据权限）
@@ -138,10 +146,7 @@ router.beforeEach(async (to, from, next) => {
   const permissionStore = usePermissionStore()
   const requiresAuth = to.meta.requiresAuth !== false
 
-  // 设置页面标题
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - 中台基座`
-  }
+  updateDocumentTitle(to.meta.title)
 
   if (requiresAuth) {
     if (!userStore.isLoggedIn) {

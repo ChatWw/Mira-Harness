@@ -128,5 +128,5 @@ export interface LayoutConfig {
   footerIcp: string
   footerIcpLink: string
   footerLinks: FooterLink[]
-  dynamicTitle: string
+  dynamicTitle: boolean
 }

@@ -452,14 +452,12 @@
         <el-collapse-item name="other">
           <template #title><div class="section-title"><el-icon><MoreFilled /></el-icon><span>其他设置</span><small>内容与水印偏好</small></div></template>
           <div class="settings-section">
-            <!-- 页面标题 -->
-            <div class="settings-item-block">
-              <div class="item-label">页面标题</div>
-              <el-input
+            <!-- 动态标题 -->
+            <div class="settings-item">
+              <span class="item-label">动态标题</span>
+              <el-switch
                 :model-value="layoutStore.config.dynamicTitle"
-                @input="layoutStore.setDynamicTitle"
-                placeholder="请输入页面标题"
-                size="small"
+                @change="handleDynamicTitleChange"
               />
             </div>
 
@@ -549,6 +547,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
+import router, { updateDocumentTitle } from '@/router'
 import type { LayoutMode, PageTransition, ThemeMode } from '@/types'
 
 const layoutStore = useLayoutStore()
@@ -598,6 +597,11 @@ function handleThemeModeChange(mode: ThemeMode) {
   )
 }
 
+function handleDynamicTitleChange(value: boolean) {
+  layoutStore.setDynamicTitle(value)
+  updateDocumentTitle(router.currentRoute.value.meta.title)
+}
+
 // 复制配置
 function handleCopyConfig() {
   const json = layoutStore.copyConfig()
@@ -612,6 +616,7 @@ function handleCopyConfig() {
 // 恢复默认
 function handleReset() {
   layoutStore.resetConfig()
+  updateDocumentTitle(router.currentRoute.value.meta.title)
   ElMessage.success('已恢复默认配置')
 }
 

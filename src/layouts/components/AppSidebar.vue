@@ -14,7 +14,7 @@
         </div>
         <transition name="fade">
           <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
-            {{ layoutStore.config.dynamicTitle }}
+            {{ APP_NAME }}
           </span>
         </transition>
       </div>
@@ -62,7 +62,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Sparkles } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
-import { useLayoutStore } from '@/stores/layout'
+import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { usePermissionStore } from '@/stores/permission'
 
 const route = useRoute()

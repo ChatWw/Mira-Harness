@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
 
-const DEFAULT_APP_NAME = '中台基座'
+export const APP_NAME = '中台基座'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
   chrome: 'personalized',
@@ -68,7 +68,7 @@ const DEFAULT_CONFIG: LayoutConfig = {
   footerIcp: '',
   footerIcpLink: 'https://beian.miit.gov.cn/',
   footerLinks: [],
-  dynamicTitle: DEFAULT_APP_NAME,
+  dynamicTitle: true,
 }
 
 export const useLayoutStore = defineStore('layout', () => {
@@ -237,8 +237,8 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   // 动态标题
-  function setDynamicTitle(title: string) {
-    config.value.dynamicTitle = title || DEFAULT_APP_NAME
+  function setDynamicTitle(value: boolean) {
+    config.value.dynamicTitle = value
   }
 
   // 配置面板
@@ -259,15 +259,6 @@ export const useLayoutStore = defineStore('layout', () => {
   function copyConfig(): string {
     return JSON.stringify(config.value, null, 2)
   }
-
-  // 监听动态标题变化，更新 document.title
-  watch(
-    () => config.value.dynamicTitle,
-    (newTitle) => {
-      document.title = newTitle || DEFAULT_APP_NAME
-    },
-    { immediate: true }
-  )
 
   watch(
     () => config.value.cornerRadius,
@@ -361,6 +352,9 @@ export const useLayoutStore = defineStore('layout', () => {
     pick: ['config'],
     afterHydrate: ({ store }) => {
       delete (store.config as Record<string, unknown>).sidebarCollapseAnimation
+      if (typeof store.config.dynamicTitle !== 'boolean') {
+        store.config.dynamicTitle = DEFAULT_CONFIG.dynamicTitle
+      }
       store.$persist()
     },
   },
