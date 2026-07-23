@@ -94,11 +94,14 @@ import { Close, ArrowDown, Refresh, CircleClose, Back, Right, Delete } from '@el
 import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
+import { usePermissionStore } from '@/stores/permission'
+import type { MenuItem } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
+const permissionStore = usePermissionStore()
 const scrollContainer = ref()
 const contextMenu = ref({ visible: false, x: 0, y: 0, tabPath: '' })
 
@@ -123,16 +126,26 @@ const tabMenuItems = computed(() => [
   { command: 'closeAll', label: '关闭全部', icon: Delete, disabled: tabsStore.tabs.filter(t => t.closable).length === 0 },
 ])
 
-// 监听路由变化，自动添加标签
+function findMenuByPath(menus: MenuItem[], path: string): MenuItem | undefined {
+  for (const menu of menus) {
+    if (menu.path === path) return menu
+
+    const child = menu.children && findMenuByPath(menu.children, path)
+    if (child) return child
+  }
+}
+
+// 监听路由和当前应用菜单，自动添加或更新标签
 watch(
-  () => route.path,
+  [() => route.path, () => permissionStore.menuRoutes],
   () => {
     if (route.meta.title) {
+      const menu = findMenuByPath(permissionStore.menuRoutes, route.path)
       tabsStore.addTab({
         path: route.path,
-        title: route.meta.title as string,
+        title: menu?.title || (route.meta.title as string),
         name: route.name as string,
-        icon: route.meta.icon as string,
+        icon: menu?.icon || route.meta.icon as string,
         closable: route.path !== '/dashboard',
         lastAccess: Date.now(),
       })

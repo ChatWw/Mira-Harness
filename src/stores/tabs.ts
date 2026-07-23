@@ -50,7 +50,10 @@ export const useTabsStore = defineStore('tabs', () => {
   function addTab(tab: TabItem) {
     const existing = tabs.value.find(t => t.path === tab.path)
     if (existing) {
+      existing.title = tab.title
+      existing.name = tab.name
       existing.icon = tab.icon
+      existing.closable = tab.closable
       existing.lastAccess = Date.now()
       activeTab.value = tab.path
       return

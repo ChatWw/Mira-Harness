@@ -1,7 +1,7 @@
 <template>
   <aside v-if="variant === 'rail'" class="global-rail">
     <div v-if="layoutStore.config.showLogo" class="rail-brand" :title="APP_NAME">
-      <Sparkles :size="20" />
+      <img :src="coreLogo" class="brand-logo" alt="" />
     </div>
 
     <div class="rail-app-list" :class="{ 'is-loading': loadingApps }">
@@ -31,7 +31,7 @@
 
   <header v-else class="global-header" :style="{ height: `${layoutStore.config.headerHeight}px` }">
     <div class="global-brand">
-      <div v-if="layoutStore.config.showLogo" class="brand-mark"><Sparkles :size="19" /></div>
+      <div v-if="layoutStore.config.showLogo" class="brand-mark"><img :src="coreLogo" class="brand-logo" alt="" /></div>
       <span class="brand-title-shimmer">{{ APP_NAME }}</span>
     </div>
 
@@ -70,8 +70,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Grid, SwitchButton, User } from '@element-plus/icons-vue'
-import { Sparkles } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
+import coreLogo from '@/asset/core.svg'
 import { applicationApi, menuApi } from '@/api/system'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useUserStore } from '@/stores/user'
@@ -125,12 +125,12 @@ onMounted(loadApplications)
 .global-header { width: 100%; min-height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--cp-bg); border-bottom: 1px solid var(--cp-layout-border); flex-shrink: 0; z-index: $z-sticky; }
 .global-rail { width: 72px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-layout-border); flex-shrink: 0; }
 .rail-brand, .rail-app { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; transition: color $transition-fast, background $transition-fast; }
-.rail-brand { color: #fff; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); }
+.rail-brand { color: #fff; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); .brand-logo { width: 20px; height: 20px; } }
 .rail-app-list { display: flex; flex-direction: column; gap: 8px; &.is-loading { opacity: .6; pointer-events: none; } }
 .rail-app { font-size: 20px; &:hover, &.is-active { color: var(--cp-primary); background: var(--cp-primary-lighter); } }
 .rail-user { margin-top: auto; cursor: pointer; }
 .global-brand { min-width: 220px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; color: var(--cp-text); white-space: nowrap; }
-.brand-mark { width: 31px; height: 31px; display: grid; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); }
+.brand-mark { width: 31px; height: 31px; display: grid; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); .brand-logo { width: 19px; height: 19px; } }
 .brand-title-shimmer { display: inline-block; background: linear-gradient(110deg, var(--cp-text) 38%, color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 46%, var(--cp-primary) 52%, color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 58%, var(--cp-text) 66%); background-size: 250% 100%; background-clip: text; -webkit-text-fill-color: transparent; animation: title-shimmer 5s ease-in-out infinite; }
 @keyframes title-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @media (prefers-reduced-motion: reduce) { .brand-title-shimmer { animation: none; } }

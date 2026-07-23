@@ -7,18 +7,20 @@
       '--sidebar-width': appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
     }"
   >
-    <div v-if="showBrand" class="sidebar-header">
-      <div class="brand">
-        <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
-          <Sparkles :size="20" />
+    <Transition name="sidebar-header-slide">
+      <div v-if="showBrand" class="sidebar-header">
+        <div class="brand">
+          <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
+            <img :src="coreLogo" class="brand-logo" alt="" />
+          </div>
+          <transition name="fade">
+            <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
+              {{ APP_NAME }}
+            </span>
+          </transition>
         </div>
-        <transition name="fade">
-          <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
-            {{ APP_NAME }}
-          </span>
-        </transition>
       </div>
-    </div>
+    </Transition>
 
     <el-menu
       ref="menuRef"
@@ -26,7 +28,7 @@
       :collapse="appStore.sidebarCollapsed"
       :unique-opened="layoutStore.config.uniqueOpened"
       :style="appStore.sidebarCollapsed
-        ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24) / 2}px` }
+        ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` }
         : undefined"
       router
       class="sidebar-menu"
@@ -60,7 +62,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Sparkles } from 'lucide-vue-next'
+import coreLogo from '@/asset/core.svg'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { usePermissionStore } from '@/stores/permission'
@@ -113,7 +115,7 @@ watch(
 <style scoped lang="scss">
 .app-sidebar {
   height: 100%;
-  background: var(--cp-bg-elevated);
+  background: var(--cp-sidebar-bg);
   border-right: 1px solid var(--cp-layout-border);
   display: flex;
   flex-direction: column;
@@ -126,6 +128,7 @@ watch(
     @include flex-center;
     border-bottom: 1px solid var(--cp-layout-border);
     flex-shrink: 0;
+    overflow: hidden;
 
     .brand {
       @include flex-center;
@@ -141,6 +144,11 @@ watch(
         @include flex-center;
         color: white;
         flex-shrink: 0;
+
+        .brand-logo {
+          width: 20px;
+          height: 20px;
+        }
       }
 
       .brand-text {
@@ -178,15 +186,44 @@ watch(
     :deep(.el-sub-menu__title) {
       height: 48px;
       line-height: 48px;
+      width: calc(100% - 16px);
+      margin: 4px 8px;
+      border-radius: var(--cp-radius-sm);
+      color: var(--cp-sidebar-menu-text);
+      transition: background-color var(--cp-animation-duration), color var(--cp-animation-duration);
+
+      .el-icon {
+        color: inherit;
+      }
+
+      .el-sub-menu__icon-arrow {
+        width: auto;
+      }
+    }
+
+    :deep(.el-menu-item:not(.is-active):hover),
+    :deep(.el-sub-menu__title:hover) {
+      background: var(--cp-sidebar-menu-hover-bg);
+      color: var(--cp-sidebar-menu-text);
     }
 
     :deep(.el-menu-item.is-active) {
-      background: var(--cp-primary-lighter);
-      color: var(--cp-primary);
+      background: var(--cp-sidebar-menu-active-bg);
+      color: var(--cp-sidebar-menu-active-text);
 
       .el-icon {
-        color: var(--cp-primary);
+        color: var(--cp-sidebar-menu-active-text);
       }
+    }
+  }
+
+  &.collapsed .sidebar-menu {
+    width: 100%;
+
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      width: calc(100% - 8px);
+      margin: 4px;
     }
   }
 
@@ -205,6 +242,19 @@ watch(
   }
 }
 
+.sidebar-header-slide-enter-active,
+.sidebar-header-slide-leave-active {
+  transition: height var(--cp-animation-duration) ease, border-color var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
+}
+
+.sidebar-header-slide-enter-from,
+.sidebar-header-slide-leave-to {
+  height: 0;
+  border-bottom-color: transparent;
+  opacity: 0;
+  transform: translateX(-12px);
+}
+
 @keyframes title-shimmer {
   from {
     background-position: 100% 0;
@@ -218,6 +268,11 @@ watch(
 @media (prefers-reduced-motion: reduce) {
   .brand-text-shimmer {
     animation: none;
+  }
+
+  .sidebar-header-slide-enter-active,
+  .sidebar-header-slide-leave-active {
+    transition: none;
   }
 }
 

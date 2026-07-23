@@ -2,11 +2,23 @@
   <el-watermark v-bind="watermarkProps" class="layout-watermark">
     <div class="layout" :class="layoutClasses">
     <!-- 系统级导航：品牌、应用选择器与账户入口 -->
-    <GlobalHeader v-if="showGlobalHeader" />
+    <Transition name="header-slide">
+      <div
+        v-if="showGlobalHeader"
+        class="layout-header-transition"
+        :style="{ '--layout-header-height': `${layoutStore.config.headerHeight}px` }"
+      >
+        <GlobalHeader />
+      </div>
+    </Transition>
 
     <div class="layout-workspace">
       <!-- 仅侧栏模式：窄应用栏 + 二级菜单栏 + 主工作区 -->
-      <GlobalHeader v-if="isSidebarOnly" variant="rail" />
+      <Transition name="rail-slide">
+        <div v-if="isSidebarOnly" class="layout-rail-transition">
+          <GlobalHeader variant="rail" />
+        </div>
+      </Transition>
 
       <!-- 侧边栏：仅承担工作区导航 -->
       <AppSidebar
@@ -42,6 +54,7 @@ import { computed } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import { usePermissionStore } from '@/stores/permission'
 import AppSidebar from './components/AppSidebar.vue'
 import GlobalHeader from './components/GlobalHeader.vue'
 import AppHeader from './components/AppHeader.vue'
@@ -52,10 +65,11 @@ import AppSettings from './components/AppSettings.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const permissionStore = usePermissionStore()
 const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
 
 // 根据布局模式显示/隐藏侧边栏和顶栏
-const showSidebar = computed(() => true)
+const showSidebar = computed(() => permissionStore.menuRoutes.some(menu => menu.visible !== false))
 const showHeader = computed(() => true)
 
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
@@ -150,6 +164,54 @@ const layoutClasses = computed(() => {
         transform: translateX(0);
       }
     }
+  }
+}
+
+.layout-header-transition {
+  max-height: var(--layout-header-height);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.header-slide-enter-active,
+.header-slide-leave-active {
+  overflow: hidden;
+  transition: max-height var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
+}
+
+.header-slide-enter-from,
+.header-slide-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.layout-rail-transition {
+  width: 72px;
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.rail-slide-enter-active,
+.rail-slide-leave-active {
+  overflow: hidden;
+  transition: width var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
+}
+
+.rail-slide-enter-from,
+.rail-slide-leave-to {
+  width: 0;
+  opacity: 0;
+  transform: translateX(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-slide-enter-active,
+  .header-slide-leave-active,
+  .rail-slide-enter-active,
+  .rail-slide-leave-active {
+    transition: none;
   }
 }
 </style>

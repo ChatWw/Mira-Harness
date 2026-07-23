@@ -2,7 +2,7 @@
   <div class="page">
     <div class="left">
       <div class="brand">
-        <div class="brand-icon"><Sparkles :size="16" /></div>
+        <div class="brand-icon"><img :src="coreLogo" class="brand-logo" alt="" /></div>
         <span>{{ brandName }}</span>
       </div>
       <div class="characters-area">
@@ -24,7 +24,7 @@
     <div class="right">
       <div class="form-wrapper">
         <div class="mobile-brand">
-          <div class="brand-icon"><Sparkles :size="16" /></div>
+          <div class="brand-icon"><img :src="coreLogo" class="brand-logo" alt="" /></div>
           <span>{{ brandName }}</span>
         </div>
         <div class="header">
@@ -106,8 +106,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { Sparkles } from 'lucide-vue-next'
 import { User, Lock, View, Hide } from '@element-plus/icons-vue'
+import coreLogo from '@/asset/core.svg'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import AnimatedCharacters from '@/components/login/AnimatedCharacters.vue'
@@ -216,6 +216,11 @@ async function onSubmit() {
   border-radius: $radius-md;
   @include glass-effect(0.1);
   @include flex-center;
+
+  .brand-logo {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .characters-area {

@@ -137,6 +137,11 @@ input {
   --cp-bg-elevated: #{$bg-elevated};
   --cp-bg-overlay: #{$bg-overlay};
   --cp-bg-hover: #{$bg-hover};
+  --cp-sidebar-bg: #fff;
+  --cp-sidebar-menu-text: var(--cp-text);
+  --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 10%, transparent);
+  --cp-sidebar-menu-active-bg: var(--cp-primary);
+  --cp-sidebar-menu-active-text: #fff;
 
   // 文本色
   --cp-text: #{$text};
@@ -180,6 +185,11 @@ input {
   --cp-bg-elevated: #{$dark-bg-elevated};
   --cp-bg-overlay: #{$dark-bg-overlay};
   --cp-bg-hover: #{$dark-bg-hover};
+  --cp-sidebar-bg: #000;
+  --cp-sidebar-menu-text: var(--cp-text-secondary);
+  --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 16%, transparent);
+  --cp-sidebar-menu-active-bg: color-mix(in srgb, var(--cp-primary) 28%, transparent);
+  --cp-sidebar-menu-active-text: #fff;
 
   // 文本色
   --cp-text: #{$dark-text};

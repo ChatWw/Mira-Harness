@@ -18,6 +18,10 @@ type DocumentWithViewTransition = Document & {
 }
 
 const THEME_TRANSITION_ATTR = 'data-theme-transition'
+const FAVICON_PATHS = `
+  <path d="M508.16 940.48a22.08 22.08 0 0 1-11.84-3.2l-334.72-192a24 24 0 0 1-12.16-20.8V336.96a24 24 0 0 1 12.16-20.8l334.72-192a24.64 24.64 0 0 1 24 0l334.4 192a24 24 0 0 1 12.16 20.8V723.2a24 24 0 0 1-12.16 20.8l-334.4 192a24 24 0 0 1-12.16 4.48z m-310.72-231.04l310.72 179.2 310.72-179.2V352l-310.72-179.2L197.44 352z" fill="#fff"/>
+  <path d="M508.16 552a22.72 22.72 0 0 1-11.84-3.2l-204.8-117.12a23.68 23.68 0 0 1-8.96-32 24 24 0 0 1 32-8.96l204.8 117.12a23.68 23.68 0 0 1 8.96 32 24.32 24.32 0 0 1-20.16 12.16zM508.16 552a24.32 24.32 0 0 1-20.8-12.16 23.68 23.68 0 0 1 8.96-32L704 388.48a24 24 0 0 1 32 8.96 24.32 24.32 0 0 1-8.96 32l-207.68 118.4a22.08 22.08 0 0 1-11.2 4.16zM508.16 764.8a24.32 24.32 0 0 1-24-24V528a24.24 24.24 0 0 1 48 0v212.8a24.32 24.32 0 0 1-24 24z" fill="#fff"/>
+`
 export const useThemeStore = defineStore('theme', () => {
   const themeMode = ref<ThemeMode>(
     (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || DEFAULT_THEME_MODE
@@ -198,6 +202,16 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--el-color-primary-light-7', mixColor(primaryColor.value, '#ffffff', 0.7))
     root.style.setProperty('--el-color-primary-light-8', mixColor(primaryColor.value, '#ffffff', 0.8))
     root.style.setProperty('--el-color-primary-light-9', mixColor(primaryColor.value, '#ffffff', 0.9))
+
+    updateFavicon()
+  }
+
+  function updateFavicon() {
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    if (!favicon) return
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="192" fill="${primaryColor.value}"/>${FAVICON_PATHS}</svg>`
+    favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`
   }
 
   /**
