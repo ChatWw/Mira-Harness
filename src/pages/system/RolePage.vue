@@ -12,7 +12,6 @@
           type="primary"
           :icon="Plus"
           @click="handleAdd"
-          v-permission="'system:role:create'"
         >
           新增角色
         </el-button>
@@ -30,7 +29,6 @@
           link
           size="small"
           @click="handleEdit(row)"
-          v-permission="'system:role:update'"
         >
           编辑
         </el-button>
@@ -39,7 +37,6 @@
           link
           size="small"
           @click="handlePermission(row)"
-          v-permission="'system:role:permission'"
         >
           权限分配
         </el-button>
@@ -48,7 +45,6 @@
           link
           size="small"
           @click="handleDelete(row)"
-          v-permission="'system:role:delete'"
         >
           删除
         </el-button>

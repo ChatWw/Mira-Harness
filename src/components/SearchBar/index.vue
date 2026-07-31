@@ -48,15 +48,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { mainMenus } from '@/config/menus'
 import type { MenuItem } from '@/types'
-import { usePermissionStore } from '@/stores/permission'
 
 const router = useRouter()
 const visible = ref(false)
 const keyword = ref('')
 const activeIndex = ref(0)
 const searchInputRef = ref()
-const permissionStore = usePermissionStore()
 
 interface SearchResult {
   title: string
@@ -86,7 +85,7 @@ const flatMenus = computed<SearchResult[]>(() => {
     })
   }
 
-  flatten(permissionStore.menuRoutes)
+  flatten(mainMenus)
   return results
 })
 

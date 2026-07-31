@@ -23,13 +23,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { mainMenus, microMenus } from '@/config/menus'
 import { useLayoutStore } from '@/stores/layout'
-import { usePermissionStore } from '@/stores/permission'
 import type { MenuItem } from '@/types'
 
 const route = useRoute()
 const layoutStore = useLayoutStore()
-const permissionStore = usePermissionStore()
 
 const showIcon = computed(() => layoutStore.config.breadcrumbIcon)
 const breadcrumbStyle = computed(() => layoutStore.config.breadcrumbStyle || 'normal')
@@ -46,6 +45,11 @@ const DASHBOARD_BREADCRUMB: BreadcrumbItem = {
   icon: 'Odometer',
 }
 
+const currentMenus = computed(() => {
+  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
+  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
+})
+
 function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
   for (const menu of menus) {
     if (menu.path === path) return [menu]
@@ -56,7 +60,7 @@ function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
 }
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-  const menuPath = findMenuPath(permissionStore.menuRoutes, route.path)
+  const menuPath = findMenuPath(currentMenus.value, route.path)
   if (menuPath) {
     const items = menuPath.map(menu => ({
       title: menu.title,

@@ -94,14 +94,13 @@ import { Close, ArrowDown, Refresh, CircleClose, Back, Right, Delete } from '@el
 import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
-import { usePermissionStore } from '@/stores/permission'
+import { mainMenus, microMenus } from '@/config/menus'
 import type { MenuItem } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
-const permissionStore = usePermissionStore()
 const scrollContainer = ref()
 const contextMenu = ref({ visible: false, x: 0, y: 0, tabPath: '' })
 
@@ -136,11 +135,16 @@ function findMenuByPath(menus: MenuItem[], path: string): MenuItem | undefined {
 }
 
 // 监听路由和当前应用菜单，自动添加或更新标签
+const currentMenus = computed(() => {
+  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
+  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
+})
+
 watch(
-  [() => route.path, () => permissionStore.menuRoutes],
+  [() => route.path, currentMenus],
   () => {
     if (route.meta.title) {
-      const menu = findMenuByPath(permissionStore.menuRoutes, route.path)
+      const menu = findMenuByPath(currentMenus.value, route.path)
       tabsStore.addTab({
         path: route.path,
         title: menu?.title || (route.meta.title as string),

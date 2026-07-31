@@ -13,7 +13,6 @@
           type="primary"
           :icon="Plus"
           @click="handleAdd()"
-          v-permission="'system:menu:create'"
         >
           新增菜单
         </el-button>
@@ -84,7 +83,6 @@
               link
               size="small"
               @click="handleAdd(row)"
-              v-permission="'system:menu:create'"
             >
               新增
             </el-button>
@@ -93,7 +91,6 @@
               link
               size="small"
               @click="handleEdit(row)"
-              v-permission="'system:menu:update'"
             >
               编辑
             </el-button>
@@ -102,7 +99,6 @@
               link
               size="small"
               @click="handleDelete(row)"
-              v-permission="'system:menu:delete'"
             >
               删除
             </el-button>

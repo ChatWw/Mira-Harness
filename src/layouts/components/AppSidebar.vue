@@ -64,8 +64,8 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import coreLogo from '@/asset/core.svg'
 import { useAppStore } from '@/stores/app'
+import { mainMenus, microMenus } from '@/config/menus'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
-import { usePermissionStore } from '@/stores/permission'
 
 const route = useRoute()
 withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
@@ -74,12 +74,14 @@ withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
 })
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
-const permissionStore = usePermissionStore()
 const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
 
 const currentRoute = computed(() => route.path)
-const displayedMenuList = computed(() => permissionStore.menuRoutes)
+const displayedMenuList = computed(() => {
+  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
+  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
+})
 
 function handleMenuOpen(index: string) {
   if (layoutStore.config.uniqueOpened) {
@@ -163,9 +165,9 @@ watch(
         background: linear-gradient(
           110deg,
           var(--cp-text) 38%,
-          color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 46%,
-          var(--cp-primary) 52%,
-          color-mix(in srgb, var(--cp-text) 35%, var(--cp-primary)) 58%,
+          color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 46%,
+          var(--cp-title-shimmer) 52%,
+          color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 58%,
           var(--cp-text) 66%
         );
         background-size: 250% 100%;

@@ -141,7 +141,7 @@ input {
   --cp-sidebar-menu-text: var(--cp-text);
   --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 10%, transparent);
   --cp-sidebar-menu-active-bg: var(--cp-primary);
-  --cp-sidebar-menu-active-text: #fff;
+  --cp-sidebar-menu-active-text: var(--cp-primary-contrast, #fff);
 
   // 文本色
   --cp-text: #{$text};
@@ -159,6 +159,7 @@ input {
   --cp-primary-hover: #{$primary-hover};
   --cp-primary-light: #{$primary-light};
   --cp-primary-lighter: #{$primary-lighter};
+  --cp-title-shimmer: #fff;
 
   // 语义色
   --cp-success: #{$success};
@@ -188,8 +189,9 @@ input {
   --cp-sidebar-bg: #000;
   --cp-sidebar-menu-text: var(--cp-text-secondary);
   --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 16%, transparent);
-  --cp-sidebar-menu-active-bg: color-mix(in srgb, var(--cp-primary) 28%, transparent);
-  --cp-sidebar-menu-active-text: #fff;
+  --cp-sidebar-menu-active-bg: var(--cp-primary);
+  --cp-sidebar-menu-active-text: var(--cp-primary-contrast, #fff);
+  --cp-title-shimmer: #000;
 
   // 文本色
   --cp-text: #{$dark-text};

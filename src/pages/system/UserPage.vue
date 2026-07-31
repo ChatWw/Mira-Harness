@@ -13,7 +13,6 @@
           type="primary"
           :icon="Plus"
           @click="handleAdd"
-          v-permission="'system:user:create'"
         >
           新增用户
         </el-button>
@@ -21,7 +20,6 @@
           :icon="Delete"
           :disabled="!selectedIds.length"
           @click="handleBatchDelete"
-          v-permission="'system:user:delete'"
         >
           批量删除
         </el-button>
@@ -66,7 +64,6 @@
           link
           size="small"
           @click="handleEdit(row)"
-          v-permission="'system:user:update'"
         >
           编辑
         </el-button>
@@ -75,7 +72,6 @@
           link
           size="small"
           @click="handleResetPassword(row)"
-          v-permission="'system:user:reset'"
         >
           重置密码
         </el-button>
@@ -84,7 +80,6 @@
           link
           size="small"
           @click="handleDelete(row)"
-          v-permission="'system:user:delete'"
         >
           删除
         </el-button>

@@ -29,11 +29,11 @@
 
       <!-- 主容器 -->
       <div class="main-container">
-        <!-- 工作区工具栏 -->
-        <AppHeader v-if="showHeader" />
+        <!-- 仅侧边栏模式保留工作区工具栏；侧边栏+顶栏模式改由顶栏承载。 -->
+        <AppHeader v-if="showWorkspaceHeader" />
 
         <!-- 多标签页 -->
-        <TabsBar v-if="layoutStore.config.enableTabs && showHeader" />
+        <TabsBar v-if="layoutStore.config.enableTabs" />
 
         <!-- 主内容区 -->
         <AppMain />
@@ -54,7 +54,6 @@ import { computed } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
-import { usePermissionStore } from '@/stores/permission'
 import AppSidebar from './components/AppSidebar.vue'
 import GlobalHeader from './components/GlobalHeader.vue'
 import AppHeader from './components/AppHeader.vue'
@@ -65,14 +64,12 @@ import AppSettings from './components/AppSettings.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
-const permissionStore = usePermissionStore()
 const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
 
 // 根据布局模式显示/隐藏侧边栏和顶栏
-const showSidebar = computed(() => permissionStore.menuRoutes.some(menu => menu.visible !== false))
-const showHeader = computed(() => true)
-
+const showSidebar = computed(() => true)
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
+const showWorkspaceHeader = computed(() => !showGlobalHeader.value)
 
 const watermarkProps = computed(() => {
   return {

@@ -35,6 +35,7 @@
             <div class="settings-item">
               <span class="item-label">主题模式</span>
               <el-segmented
+                class="theme-mode-switch"
                 :model-value="themeStore.themeMode"
                 :options="themeModeOptions"
                 @change="handleThemeModeChange"
@@ -47,15 +48,15 @@
               <div class="color-grid">
                 <button
                   v-for="color in themeStore.presetColors"
-                  :key="color.value"
+                  :key="color.id"
                   type="button"
                   class="color-item"
-                  :class="{ active: themeStore.primaryColor === color.value }"
+                  :class="{ active: themeStore.primaryPresetId === color.id }"
                   :aria-label="`选择${color.name}主题色`"
-                  :aria-pressed="themeStore.primaryColor === color.value"
-                  @click="themeStore.setPrimaryColor(color.value)"
+                  :aria-pressed="themeStore.primaryPresetId === color.id"
+                  @click="themeStore.setPrimaryPreset(color.id)"
                 >
-                  <span class="color-dot" :style="{ backgroundColor: color.value }"></span>
+                  <span class="color-dot" :style="{ backgroundColor: color[themeStore.themeMode] }"></span>
                 </button>
               </div>
             </div>
@@ -706,6 +707,10 @@ function handleClearCache() {
   }
 }
 
+:deep(.theme-mode-switch) {
+  --el-segmented-item-selected-color: var(--cp-primary-contrast, #fff);
+}
+
 .settings-item-block {
   display: flex;
   flex-direction: column;
@@ -1249,7 +1254,7 @@ function handleClearCache() {
       width: 16px;
       height: 16px;
       place-items: center;
-      color: white;
+      color: var(--cp-primary-contrast, #fff);
       font-size: 10px;
       font-weight: 700;
       border-radius: 50%;

@@ -94,6 +94,8 @@
   --el-overlay-color: rgba(0, 0, 0, 0.7);
   --el-overlay-color-light: rgba(0, 0, 0, 0.5);
   --el-overlay-color-lighter: rgba(0, 0, 0, 0.3);
+  --el-dialog-bg-color: #{$dark-bg-elevated};
+  --el-drawer-bg-color: #{$dark-bg-elevated};
 
   // 禁用状态
   --el-disabled-bg-color: #{$dark-bg-elevated};
@@ -108,7 +110,12 @@
   font-weight: $font-medium;
   transition: all $transition-fast;
 
-  &--primary {
+  &--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-dashed) {
+    --el-button-text-color: var(--cp-primary-contrast, #fff);
+    --el-button-hover-text-color: var(--cp-primary-contrast, #fff);
+    --el-button-active-text-color: var(--cp-primary-contrast, #fff);
+    --el-button-disabled-text-color: var(--cp-primary-contrast, #fff);
+
     &:hover {
       background-color: var(--cp-primary-hover);
       border-color: var(--cp-primary-hover);
@@ -251,6 +258,36 @@
   &__header {
     font-weight: $font-semibold;
     border-bottom: 1px solid $border;
+  }
+
+  &__headerbtn .el-dialog__close {
+    color: var(--cp-primary);
+  }
+
+  &__headerbtn:hover .el-dialog__close,
+  &__headerbtn:focus .el-dialog__close {
+    color: var(--cp-primary-hover);
+  }
+}
+
+[data-theme='dark'] {
+  .el-switch {
+    --el-switch-on-color: color-mix(in srgb, var(--cp-primary) 34%, #000);
+  }
+
+  .el-dialog,
+  .el-drawer {
+    border: 1px solid var(--el-border-color);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25), $dark-shadow-md;
+  }
+
+  .el-drawer__close-btn {
+    color: var(--cp-primary);
+  }
+
+  .el-drawer__close-btn:hover i,
+  .el-drawer__close-btn:focus i {
+    color: var(--cp-primary-hover);
   }
 }
 

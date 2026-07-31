@@ -47,12 +47,10 @@ import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { microAppApi } from '@/api/system'
 import { useThemeStore } from '@/stores/theme'
-import { useUserStore } from '@/stores/user'
 import type { MicroApp, MicroAppRuntimeConfig, PlatformContext } from '@/types'
 
 const route = useRoute()
 const themeStore = useThemeStore()
-const userStore = useUserStore()
 const app = ref<MicroApp>()
 const runtime = ref<MicroAppRuntimeConfig>()
 const entryUrl = ref('')
@@ -62,13 +60,13 @@ const iframeRef = ref<HTMLIFrameElement>()
 let iframeTimer: number | undefined
 
 const childProps = computed(() => {
-  if (!runtime.value || !userStore.userInfo) return {}
+  if (!runtime.value) return {}
   const context: PlatformContext = Object.freeze({
     version: 1,
     theme: runtime.value.props.theme || themeStore.themeMode,
     language: runtime.value.props.language || navigator.language,
     ...(runtime.value.props.tenantId ? { tenantId: runtime.value.props.tenantId } : {}),
-    user: Object.freeze({ id: userStore.userInfo.id, name: userStore.userInfo.name }),
+    user: Object.freeze({ id: 'platform', name: '中台基座' }),
   })
   return Object.freeze({ platformContext: context })
 })

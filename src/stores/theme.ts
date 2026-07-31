@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import type { ThemeMode } from '@/types'
 import {
-  DEFAULT_PRIMARY_COLOR,
+  DEFAULT_PRIMARY_PRESET_ID,
   DEFAULT_THEME_MODE,
   THEME_STORAGE_KEY,
-  PRIMARY_COLOR_STORAGE_KEY,
+  LEGACY_PRIMARY_COLOR_STORAGE_KEY,
+  PRIMARY_PRESET_STORAGE_KEY,
   PRESET_COLORS,
 } from '@/config/theme'
 
@@ -26,11 +27,18 @@ export const useThemeStore = defineStore('theme', () => {
   const themeMode = ref<ThemeMode>(
     (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || DEFAULT_THEME_MODE
   )
-  const primaryColor = ref<string>(
-    localStorage.getItem(PRIMARY_COLOR_STORAGE_KEY) || DEFAULT_PRIMARY_COLOR
-  )
-
   const presetColors = PRESET_COLORS
+  localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
+  const storedPresetId = localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY)
+  const primaryPresetId = ref(
+    presetColors.some(preset => preset.id === storedPresetId)
+      ? storedPresetId!
+      : DEFAULT_PRIMARY_PRESET_ID
+  )
+  const activePreset = computed(
+    () => presetColors.find(preset => preset.id === primaryPresetId.value) || presetColors[0]
+  )
+  const primaryColor = computed(() => activePreset.value[themeMode.value])
 
   // 在 store 创建时初始化主题
   applyTheme()
@@ -40,9 +48,11 @@ export const useThemeStore = defineStore('theme', () => {
     setThemeMode(nextMode)
   }
 
-  function setPrimaryColor(color: string) {
-    primaryColor.value = color
-    localStorage.setItem(PRIMARY_COLOR_STORAGE_KEY, color)
+  function setPrimaryPreset(id: string) {
+    if (!presetColors.some(preset => preset.id === id)) return
+
+    primaryPresetId.value = id
+    localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, id)
     applyTheme()
   }
 
@@ -172,36 +182,44 @@ export const useThemeStore = defineStore('theme', () => {
 
   function applyTheme() {
     const root = document.documentElement
+    const preset = activePreset.value
+    const color = primaryColor.value
+    const contrastColor = themeMode.value === 'light'
+      ? preset.lightContrast || '#ffffff'
+      : preset.darkContrast || '#ffffff'
+    const lightVariantBase = themeMode.value === 'dark' ? '#000000' : '#ffffff'
 
     // 设置主题模式
     root.setAttribute('data-theme', themeMode.value)
 
     // 设置自定义主题色 CSS 变量
-    root.style.setProperty('--cp-primary', primaryColor.value)
+    root.style.setProperty('--cp-primary', color)
+    root.style.setProperty('--cp-primary-contrast', contrastColor)
 
     // 计算 hover 颜色（稍微深一点）
-    const hoverColor = adjustColor(primaryColor.value, -10)
+    const hoverColor = adjustColor(color, -10)
     root.style.setProperty('--cp-primary-hover', hoverColor)
+    root.style.setProperty('--cp-primary-active', adjustColor(color, -20))
 
     // 计算带透明度的浅色
-    root.style.setProperty('--cp-primary-light', `${primaryColor.value}1a`)
-    root.style.setProperty('--cp-primary-lighter', `${primaryColor.value}0d`)
+    root.style.setProperty('--cp-primary-light', `${color}1a`)
+    root.style.setProperty('--cp-primary-lighter', `${color}0d`)
 
     // 更新登录页渐变色
-    root.style.setProperty('--cp-login-left-bg-start', `${primaryColor.value}e6`)
-    root.style.setProperty('--cp-login-left-bg-end', `${primaryColor.value}cc`)
+    root.style.setProperty('--cp-login-left-bg-start', `${color}e6`)
+    root.style.setProperty('--cp-login-left-bg-end', `${color}cc`)
 
     // ========== 关键：设置 Element Plus 的 CSS 变量 ==========
     // Element Plus 使用 --el-color-primary 系列变量
-    root.style.setProperty('--el-color-primary', primaryColor.value)
-    root.style.setProperty('--el-color-primary-dark-2', adjustColor(primaryColor.value, -20))
+    root.style.setProperty('--el-color-primary', color)
+    root.style.setProperty('--el-color-primary-dark-2', adjustColor(color, -20))
 
     // Element Plus 的浅色变体（用于 hover、disabled 等状态）
-    root.style.setProperty('--el-color-primary-light-3', mixColor(primaryColor.value, '#ffffff', 0.3))
-    root.style.setProperty('--el-color-primary-light-5', mixColor(primaryColor.value, '#ffffff', 0.5))
-    root.style.setProperty('--el-color-primary-light-7', mixColor(primaryColor.value, '#ffffff', 0.7))
-    root.style.setProperty('--el-color-primary-light-8', mixColor(primaryColor.value, '#ffffff', 0.8))
-    root.style.setProperty('--el-color-primary-light-9', mixColor(primaryColor.value, '#ffffff', 0.9))
+    root.style.setProperty('--el-color-primary-light-3', mixColor(color, lightVariantBase, 0.3))
+    root.style.setProperty('--el-color-primary-light-5', mixColor(color, lightVariantBase, 0.5))
+    root.style.setProperty('--el-color-primary-light-7', mixColor(color, lightVariantBase, 0.7))
+    root.style.setProperty('--el-color-primary-light-8', mixColor(color, lightVariantBase, 0.8))
+    root.style.setProperty('--el-color-primary-light-9', mixColor(color, lightVariantBase, 0.9))
 
     updateFavicon()
   }
@@ -254,11 +272,12 @@ export const useThemeStore = defineStore('theme', () => {
   return {
     themeMode,
     primaryColor,
+    primaryPresetId,
     presetColors,
     toggleThemeMode,
     toggleThemeModeWithTransition,
     setThemeModeWithTransition,
     setThemeMode,
-    setPrimaryColor,
+    setPrimaryPreset,
   }
 })
