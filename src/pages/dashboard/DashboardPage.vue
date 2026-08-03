@@ -1,75 +1,38 @@
 <template>
   <main class="dashboard-page">
     <div class="dashboard-content">
-      <DashboardGreeting :greeting="greeting" @open-search="commandPaletteStore.open" />
-
-      <DashboardNavigationSection
-        v-if="recentLinks.length"
-        title="最近使用"
-        :items="displayedRecentLinks"
-        :expandable="recentLinks.length > 3"
-        :expanded="showAllRecent"
-        @select="navigate"
-        @toggle="showAllRecent = !showAllRecent"
+      <DashboardOverviewHeader
+        :time="timeLabel"
+        :date="dateLabel"
+        :application-count="applications.length"
+        @open-search="commandPaletteStore.open"
       />
-
-      <DashboardNavigationSection title="常用功能" :items="commonLinks" layout="grid" @select="navigate" />
-
-      <DashboardSystemStatus :app-count="applications.length" />
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { applications } from '@/config/menus'
-import { commonCommandIds, findCommandNavigation } from '@/config/commandPalette'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
-import DashboardGreeting from './components/DashboardGreeting.vue'
-import DashboardNavigationSection from './components/DashboardNavigationSection.vue'
-import type { DashboardNavigationItem } from './components/DashboardNavigationSection.vue'
-import DashboardSystemStatus from './components/DashboardSystemStatus.vue'
+import DashboardOverviewHeader from './components/DashboardOverviewHeader.vue'
 
-const router = useRouter()
 const commandPaletteStore = useCommandPaletteStore()
-const showAllRecent = ref(false)
+const now = ref(new Date())
+const formatter = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+const updateClock = window.setInterval(() => { now.value = new Date() }, 60_000)
 
-const greeting = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 11) return '上午好'
-  if (hour < 14) return '中午好'
-  if (hour < 19) return '下午好'
-  return '晚上好'
-})
+const timeLabel = computed(() => now.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }))
+const dateLabel = computed(() => formatter.format(now.value).replace(/\s/g, ''))
 
-const fallbackRecentIds = ['data-board-home', 'system-users', 'system-microapps']
-const recentLinks = computed(() => {
-  const ids = commandPaletteStore.recentItems.length
-    ? commandPaletteStore.recentItems.map(item => item.id)
-    : fallbackRecentIds
-  return resolveLinks(ids)
-})
-const displayedRecentLinks = computed(() => showAllRecent.value ? recentLinks.value : recentLinks.value.slice(0, 3))
-const commonLinks = computed(() => resolveLinks(commonCommandIds))
-
-function resolveLinks(ids: string[]): DashboardNavigationItem[] {
-  return ids
-    .map(id => findCommandNavigation(id))
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    .map(({ id, title, icon, path }) => ({ id, title, icon, path }))
-}
-
-function navigate(item: DashboardNavigationItem) {
-  router.push(item.path)
-}
+onBeforeUnmount(() => window.clearInterval(updateClock))
 </script>
 
 <style scoped lang="scss">
-.dashboard-page { min-height: 100%; padding: 0 $spacing-lg; background: var(--cp-bg); }
-.dashboard-content { width: min(100%, 820px); margin: 0 auto; }
+.dashboard-page { display: flex; min-height: 100%; align-items: center; padding: $spacing-lg; background: var(--cp-bg); }
+.dashboard-content { width: min(100%, 640px); margin: 0 auto; }
 
 @include media-max($breakpoint-md) {
-  .dashboard-page { padding: 0 $spacing-md; }
+  .dashboard-page { padding: $spacing-md; }
 }
 </style>
