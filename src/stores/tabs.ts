@@ -13,7 +13,7 @@ export interface TabItem {
 
 const DASHBOARD_TAB: Omit<TabItem, 'lastAccess'> = {
   path: '/dashboard',
-  title: '工作台',
+  title: '概览',
   name: 'Dashboard',
   icon: 'Odometer',
   closable: false,

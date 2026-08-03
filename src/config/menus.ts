@@ -2,7 +2,7 @@ import type { ApplicationOption, MenuItem } from '@/types'
 
 // 主应用菜单（appCode = 'main'）
 export const mainMenus: MenuItem[] = [
-  { id: 'dashboard', title: '工作台', icon: 'Odometer', type: 'menu', path: '/dashboard', component: '/src/pages/dashboard/DashboardPage.vue', permission: 'dashboard:view', appCode: null, sort: 0, status: 1 },
+  { id: 'dashboard', title: '概览', icon: 'Odometer', type: 'menu', path: '/dashboard', component: '/src/pages/dashboard/DashboardPage.vue', permission: 'dashboard:view', appCode: null, sort: 0, status: 1 },
   {
     id: 'system', title: '系统管理', icon: 'Setting', type: 'dir', permission: 'system:view', appCode: null, sort: 1, status: 1,
     children: [

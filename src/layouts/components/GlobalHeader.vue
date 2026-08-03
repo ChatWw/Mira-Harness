@@ -57,7 +57,6 @@
         <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
       </div>
     </div>
-    <SearchBar ref="searchBarRef" />
   </header>
 </template>
 
@@ -69,8 +68,8 @@ import coreLogo from '@/asset/core.svg'
 import { applications, microMenus } from '@/config/menus'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import Notification from '@/components/Notification/index.vue'
-import SearchBar from '@/components/SearchBar/index.vue'
 import { useAppStore } from '@/stores/app'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 
@@ -82,7 +81,7 @@ const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const currentAppCode = ref('main')
 const selectedApp = computed(() => applications.find(app => app.code === currentAppCode.value))
-const searchBarRef = ref()
+const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
 
 function handleAppChange(code: string) {
@@ -99,7 +98,7 @@ watch(
   { immediate: true },
 )
 
-function handleSearch() { searchBarRef.value?.open() }
+function handleSearch() { commandPaletteStore.open() }
 function handleThemeToggle(event: MouseEvent) {
   themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
 }

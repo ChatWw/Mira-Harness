@@ -40,7 +40,7 @@ interface BreadcrumbItem {
 }
 
 const DASHBOARD_BREADCRUMB: BreadcrumbItem = {
-  title: '工作台',
+  title: '概览',
   path: '/dashboard',
   icon: 'Odometer',
 }

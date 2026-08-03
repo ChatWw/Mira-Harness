@@ -51,6 +51,7 @@
 
     <!-- 全局配置面板 -->
     <AppSettings />
+    <SearchBar />
     </div>
   </el-watermark>
 </template>
@@ -67,6 +68,7 @@ import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
 import AppFooter from './components/AppFooter.vue'
 import AppSettings from './components/AppSettings.vue'
+import SearchBar from '@/components/SearchBar/index.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()

@@ -18,7 +18,6 @@
       <el-tooltip content="切换主题模式"><el-button text :icon="themeStore.themeMode === 'dark' ? Sunny : Moon" @click="handleThemeToggle" /></el-tooltip>
       <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
     </div>
-    <SearchBar ref="searchBarRef" />
   </header>
 </template>
 
@@ -30,16 +29,16 @@ import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import Notification from '@/components/Notification/index.vue'
-import SearchBar from '@/components/SearchBar/index.vue'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only'].includes(layoutStore.config.mode))
-const searchBarRef = ref()
+const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
 
-function handleSearch() { searchBarRef.value?.open() }
+function handleSearch() { commandPaletteStore.open() }
 function handleThemeToggle(event: MouseEvent) {
   themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
 }

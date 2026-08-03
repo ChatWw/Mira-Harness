@@ -6,6 +6,8 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router'
 import App from './app/App.vue'
+import { findCommandNavigationByPath } from './config/commandPalette'
+import { useCommandPaletteStore } from './stores/commandPalette'
 import './styles/index.scss'
 
 const app = createApp(App)
@@ -20,6 +22,11 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 
 app.use(pinia)
+router.afterEach((to) => {
+  if (to.path === '/dashboard') return
+  const destination = findCommandNavigationByPath(to.path)
+  if (destination) useCommandPaletteStore().recordVisit(destination.id)
+})
 app.use(router)
 app.use(ElementPlus)
 
