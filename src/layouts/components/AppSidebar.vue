@@ -188,7 +188,7 @@ watch(
       line-height: 40px;
       width: calc(100% - 12px);
       margin: 2px 6px;
-      border-radius: var(--cp-radius-sm);
+      border-radius: 999px;
       font-size: 13px;
       color: var(--cp-sidebar-menu-text);
       transition: background-color var(--cp-animation-duration), color var(--cp-animation-duration);
