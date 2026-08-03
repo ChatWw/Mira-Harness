@@ -1,299 +1,75 @@
 <template>
-  <div class="dashboard-page">
-    <div class="page-header">
-      <h1>工作台</h1>
-      <p>欢迎使用中台基座，这里是您的工作台首页</p>
+  <main class="dashboard-page">
+    <div class="dashboard-content">
+      <DashboardGreeting :greeting="greeting" @open-search="commandPaletteStore.open" />
+
+      <DashboardNavigationSection
+        v-if="recentLinks.length"
+        title="最近使用"
+        :items="displayedRecentLinks"
+        :expandable="recentLinks.length > 3"
+        :expanded="showAllRecent"
+        @select="navigate"
+        @toggle="showAllRecent = !showAllRecent"
+      />
+
+      <DashboardNavigationSection title="常用功能" :items="commonLinks" layout="grid" @select="navigate" />
+
+      <DashboardSystemStatus :app-count="applications.length" />
     </div>
-
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon-success">
-              <el-icon :size="24"><User /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">1,234</div>
-              <div class="stat-label">用户总数</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon-info">
-              <el-icon :size="24"><Document /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">856</div>
-              <div class="stat-label">任务数量</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon-warning">
-              <el-icon :size="24"><Warning /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">12</div>
-              <div class="stat-label">待处理</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon-purple">
-              <el-icon :size="24"><Setting /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">98%</div>
-              <div class="stat-label">系统健康度</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20" class="content-row">
-      <el-col :xs="24" :md="16">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>访问趋势</span>
-              <el-tag size="small">近7天</el-tag>
-            </div>
-          </template>
-          <div class="chart-placeholder">
-            <el-icon :size="48" color="var(--cp-text-tertiary)"><TrendCharts /></el-icon>
-            <p>图表数据展示区域</p>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :md="8">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>快捷入口</span>
-            </div>
-          </template>
-          <div class="quick-links">
-            <div class="quick-link-item" @click="$router.push('/system/users')">
-              <el-icon :size="20" color="var(--cp-primary)"><User /></el-icon>
-              <span>用户管理</span>
-            </div>
-            <div class="quick-link-item" @click="$router.push('/system/roles')">
-              <el-icon :size="20" color="var(--cp-primary)"><UserFilled /></el-icon>
-              <span>角色管理</span>
-            </div>
-            <div class="quick-link-item" @click="$router.push('/system/menus')">
-              <el-icon :size="20" color="var(--cp-primary)"><Menu /></el-icon>
-              <span>菜单管理</span>
-            </div>
-            <div class="quick-link-item">
-              <el-icon :size="20" color="var(--cp-primary)"><Setting /></el-icon>
-              <span>系统设置</span>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20">
-      <el-col :xs="24">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>待办事项</span>
-              <el-badge :value="todoList.length" type="primary" />
-            </div>
-          </template>
-          <el-table :data="todoList" style="width: 100%">
-            <el-table-column prop="title" label="标题" />
-            <el-table-column prop="priority" label="优先级" width="100">
-              <template #default="{ row }">
-                <el-tag :type="getPriorityType(row.priority)" size="small">
-                  {{ row.priority }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">
-                  {{ row.status }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="deadline" label="截止日期" width="150" />
-            <el-table-column label="操作" width="150">
-              <template #default>
-                <el-button type="primary" size="small" link>查看</el-button>
-                <el-button type="success" size="small" link>完成</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
-import { User, Document, Warning, Setting, TrendCharts, UserFilled, Menu } from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { applications } from '@/config/menus'
+import { commonCommandIds, findCommandNavigation } from '@/config/commandPalette'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
+import DashboardGreeting from './components/DashboardGreeting.vue'
+import DashboardNavigationSection from './components/DashboardNavigationSection.vue'
+import type { DashboardNavigationItem } from './components/DashboardNavigationSection.vue'
+import DashboardSystemStatus from './components/DashboardSystemStatus.vue'
 
-const todoList = [
-  { title: '审核用户注册申请', priority: '高', status: '进行中', deadline: '2026-07-08' },
-  { title: '更新系统配置', priority: '中', status: '待处理', deadline: '2026-07-10' },
-  { title: '处理用户反馈', priority: '低', status: '待处理', deadline: '2026-07-12' },
-]
+const router = useRouter()
+const commandPaletteStore = useCommandPaletteStore()
+const showAllRecent = ref(false)
 
-const getPriorityType = (priority: string) => {
-  const map: Record<string, any> = {
-    '高': 'danger',
-    '中': 'warning',
-    '低': 'info',
-  }
-  return map[priority] || 'info'
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 11) return '上午好'
+  if (hour < 14) return '中午好'
+  if (hour < 19) return '下午好'
+  return '晚上好'
+})
+
+const fallbackRecentIds = ['data-board-home', 'system-users', 'system-microapps']
+const recentLinks = computed(() => {
+  const ids = commandPaletteStore.recentItems.length
+    ? commandPaletteStore.recentItems.map(item => item.id)
+    : fallbackRecentIds
+  return resolveLinks(ids)
+})
+const displayedRecentLinks = computed(() => showAllRecent.value ? recentLinks.value : recentLinks.value.slice(0, 3))
+const commonLinks = computed(() => resolveLinks(commonCommandIds))
+
+function resolveLinks(ids: string[]): DashboardNavigationItem[] {
+  return ids
+    .map(id => findCommandNavigation(id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .map(({ id, title, icon, path }) => ({ id, title, icon, path }))
 }
 
-const getStatusType = (status: string) => {
-  const map: Record<string, any> = {
-    '进行中': 'primary',
-    '待处理': 'warning',
-    '已完成': 'success',
-  }
-  return map[status] || 'info'
+function navigate(item: DashboardNavigationItem) {
+  router.push(item.path)
 }
 </script>
 
 <style scoped lang="scss">
-.dashboard-page {
-  padding: $spacing-lg;
-}
+.dashboard-page { min-height: 100%; padding: 0 $spacing-lg; background: var(--cp-bg); }
+.dashboard-content { width: min(100%, 820px); margin: 0 auto; }
 
-.page-header {
-  margin-bottom: $spacing-xl;
-
-  h1 {
-    font-size: $font-2xl;
-    font-weight: 600;
-    color: var(--cp-text);
-    margin-bottom: $spacing-xs;
-  }
-
-  p {
-    color: var(--cp-text-secondary);
-    font-size: $font-sm;
-  }
-}
-
-.stats-row {
-  margin-bottom: $spacing-lg;
-}
-
-.stat-card {
-  margin-bottom: $spacing-lg;
-}
-
-.stat-content {
-  @include flex-align-center;
-  gap: $spacing-md;
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: $radius-lg;
-  @include flex-center;
-}
-
-// 统计图标主题色
-.stat-icon-success {
-  background: var(--cp-stat-icon-success-bg);
-  color: var(--cp-stat-icon-success-color);
-}
-
-.stat-icon-info {
-  background: var(--cp-stat-icon-info-bg);
-  color: var(--cp-stat-icon-info-color);
-}
-
-.stat-icon-warning {
-  background: var(--cp-stat-icon-warning-bg);
-  color: var(--cp-stat-icon-warning-color);
-}
-
-.stat-icon-purple {
-  background: var(--cp-stat-icon-purple-bg);
-  color: var(--cp-stat-icon-purple-color);
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: $font-2xl;
-  font-weight: 600;
-  color: var(--cp-text);
-  margin-bottom: $spacing-xs;
-}
-
-.stat-label {
-  font-size: $font-sm;
-  color: var(--cp-text-secondary);
-}
-
-.content-row {
-  margin-bottom: $spacing-lg;
-}
-
-.card-header {
-  @include flex-between;
-}
-
-.chart-placeholder {
-  height: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--cp-text-tertiary);
-
-  p {
-    margin-top: $spacing-sm;
-    font-size: $font-sm;
-  }
-}
-
-.quick-links {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: $spacing-sm;
-}
-
-.quick-link-item {
-  @include flex-align-center;
-  gap: $spacing-sm;
-  padding: $spacing-md;
-  border-radius: $radius-md;
-  background: var(--cp-bg-elevated);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--cp-primary-lighter);
-    transform: translateY(-2px);
-  }
-
-  span {
-    font-size: $font-sm;
-    color: var(--cp-text);
-  }
+@include media-max($breakpoint-md) {
+  .dashboard-page { padding: 0 $spacing-md; }
 }
 </style>
