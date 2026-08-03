@@ -118,7 +118,6 @@ watch(
 .app-sidebar {
   height: 100%;
   background: var(--cp-sidebar-bg);
-  border-right: 1px solid var(--cp-layout-border);
   display: flex;
   flex-direction: column;
   transition: width var(--cp-animation-duration);
@@ -126,21 +125,20 @@ watch(
   flex-shrink: 0;
 
   .sidebar-header {
-    height: 64px;
+    height: 52px;
     @include flex-center;
-    border-bottom: 1px solid var(--cp-layout-border);
     flex-shrink: 0;
     overflow: hidden;
 
     .brand {
       @include flex-center;
       justify-content: flex-start;
-      gap: $spacing-sm;
-      padding: 0 $spacing-md;
+      gap: $spacing-xs;
+      padding: 0 12px;
 
       .brand-icon {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         background: linear-gradient(135deg, var(--cp-primary), var(--cp-primary-hover));
         border-radius: $radius-md;
         @include flex-center;
@@ -148,13 +146,13 @@ watch(
         flex-shrink: 0;
 
         .brand-logo {
-          width: 20px;
-          height: 20px;
+          width: 17px;
+          height: 17px;
         }
       }
 
       .brand-text {
-        font-size: $font-lg;
+        font-size: $font-sm;
         font-weight: 600;
         color: var(--cp-text);
         white-space: nowrap;
@@ -186,16 +184,18 @@ watch(
 
     :deep(.el-menu-item),
     :deep(.el-sub-menu__title) {
-      height: 48px;
-      line-height: 48px;
-      width: calc(100% - 16px);
-      margin: 4px 8px;
+      height: 40px;
+      line-height: 40px;
+      width: calc(100% - 12px);
+      margin: 2px 6px;
       border-radius: var(--cp-radius-sm);
+      font-size: 13px;
       color: var(--cp-sidebar-menu-text);
       transition: background-color var(--cp-animation-duration), color var(--cp-animation-duration);
 
       .el-icon {
         color: inherit;
+        font-size: 16px;
       }
 
       .el-sub-menu__icon-arrow {
@@ -225,7 +225,7 @@ watch(
     :deep(.el-menu-item),
     :deep(.el-sub-menu__title) {
       width: calc(100% - 8px);
-      margin: 4px;
+      margin: 2px 4px;
     }
   }
 
@@ -246,13 +246,12 @@ watch(
 
 .sidebar-header-slide-enter-active,
 .sidebar-header-slide-leave-active {
-  transition: height var(--cp-animation-duration) ease, border-color var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
+  transition: height var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
 }
 
 .sidebar-header-slide-enter-from,
 .sidebar-header-slide-leave-to {
   height: 0;
-  border-bottom-color: transparent;
   opacity: 0;
   transform: translateX(-12px);
 }

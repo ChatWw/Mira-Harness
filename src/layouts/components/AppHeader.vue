@@ -52,22 +52,21 @@ function toggleFullscreen() {
 <style scoped lang="scss">
 .app-header {
   width: 100%;
-  height: 48px;
+  height: 44px;
   background: var(--cp-bg);
-  border-bottom: 1px solid var(--cp-layout-border);
-  padding: 0 $spacing-lg;
+  padding: 0 $spacing-md;
   @include flex-between;
-  gap: $spacing-md;
+  gap: $spacing-sm;
   flex-shrink: 0;
 
   .header-left {
     @include flex-center;
     justify-content: flex-start;
     flex: 1;
-    gap: $spacing-md;
+    gap: $spacing-sm;
 
     .collapse-btn {
-      font-size: $font-xl;
+      font-size: $font-lg;
     }
 
     .breadcrumb {
@@ -80,8 +79,8 @@ function toggleFullscreen() {
     gap: 2px;
 
     :deep(.el-button) {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       margin: 0;
     }
@@ -91,8 +90,8 @@ function toggleFullscreen() {
     }
 
     :deep(.notification-trigger) {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
     }
   }
 

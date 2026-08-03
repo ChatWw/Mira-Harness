@@ -13,19 +13,25 @@
     </Transition>
 
     <div class="layout-workspace">
-      <!-- 仅侧栏模式：窄应用栏 + 二级菜单栏 + 主工作区 -->
-      <Transition name="rail-slide">
-        <div v-if="isSidebarOnly" class="layout-rail-transition">
+      <!-- 仅侧栏模式：一级应用栏和二级菜单作为一个导航组呈现。 -->
+      <div v-if="isSidebarOnly && showSidebar" class="layout-navigation-group">
+        <Transition name="rail-slide">
+          <div class="layout-rail-transition">
+            <GlobalHeader variant="rail" />
+          </div>
+        </Transition>
+        <AppSidebar :show-brand="true" text-only-brand />
+      </div>
+
+      <!-- 微应用没有菜单时仍保留一级应用栏，避免应用切换入口消失。 -->
+      <Transition v-else-if="isSidebarOnly" name="rail-slide">
+        <div class="layout-rail-transition">
           <GlobalHeader variant="rail" />
         </div>
       </Transition>
 
-      <!-- 侧边栏：仅承担工作区导航 -->
-      <AppSidebar
-        v-if="showSidebar"
-        :show-brand="!showGlobalHeader"
-        :text-only-brand="isSidebarOnly"
-      />
+      <!-- 默认布局：侧边栏仅承担工作区导航。 -->
+      <AppSidebar v-else-if="showSidebar" :show-brand="false" />
 
       <!-- 主容器 -->
       <div class="main-container">
@@ -83,7 +89,10 @@ const watermarkProps = computed(() => {
 })
 
 const layoutClasses = computed(() => {
-  const classes = [`layout--${layoutStore.config.mode}`]
+  const classes = [
+    `layout--${layoutStore.config.mode}`,
+    `layout--sidebar-style-${layoutStore.config.sidebarStyle}`,
+  ]
 
   if (appStore.sidebarCollapsed) {
     classes.push('sidebar-collapsed')
@@ -118,6 +127,11 @@ const layoutClasses = computed(() => {
     overflow: hidden;
   }
 
+  .layout-navigation-group {
+    display: flex;
+    flex-shrink: 0;
+  }
+
   .main-container {
     flex: 1;
     display: flex;
@@ -127,6 +141,135 @@ const layoutClasses = computed(() => {
   }
 
   // ========== 布局模式 ==========
+
+  // 内嵌：顶栏和导航组成框架，内容主体以卡片方式突出。
+  &--sidebar-style-embedded {
+    background: var(--cp-bg-elevated);
+
+    .layout-header-transition,
+    .layout-workspace {
+      background: var(--cp-bg-elevated);
+    }
+
+    .main-container {
+      margin: 12px 12px 12px 0;
+      background: var(--cp-bg);
+      border: 1px solid var(--cp-layout-border);
+      border-radius: calc(1rem * 1.4);
+      box-shadow: 0 10px 30px rgb(24 24 27 / 4%);
+    }
+
+    :deep(.global-header),
+    :deep(.global-rail),
+    :deep(.app-sidebar) {
+      background: var(--cp-bg-elevated);
+    }
+
+    :deep(.global-header),
+    :deep(.app-sidebar),
+    :deep(.global-rail) {
+      border-color: var(--cp-layout-border);
+    }
+
+    &.layout--sidebar-header {
+      :deep(.el-sub-menu .el-menu) {
+        background: transparent;
+      }
+    }
+
+    &.layout--sidebar-only {
+      :deep(.el-sub-menu .el-menu) {
+        background: transparent;
+      }
+    }
+
+    &.layout--sidebar-only .main-container {
+      margin-left: 12px;
+    }
+  }
+
+  // 浮动：顶栏和内容处于同一平面，仅菜单区域作为卡片被突出。
+  &--sidebar-style-floating {
+    .layout-workspace {
+      background: var(--cp-bg);
+    }
+
+    .main-container {
+      background: var(--cp-bg);
+    }
+
+    .layout-navigation-group,
+    :deep(.app-sidebar) {
+      align-self: stretch;
+      height: auto;
+      margin: 12px 0 12px 12px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    :deep(.app-sidebar .sidebar-menu) {
+      background: var(--cp-bg-elevated);
+      border: 1px solid var(--cp-layout-border);
+      border-radius: var(--cp-radius-xl);
+    }
+
+    :deep(.el-sub-menu .el-menu) {
+      background: var(--cp-bg-elevated);
+    }
+
+    &.layout--sidebar-header {
+      :deep(.app-sidebar) {
+        margin-right: 12px;
+      }
+    }
+
+    &.layout--sidebar-only {
+      .layout-navigation-group {
+        margin-right: 12px;
+      }
+
+      :deep(.app-sidebar) {
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      :deep(.global-rail) {
+        height: 100%;
+        background: transparent;
+      }
+    }
+  }
+
+  // 侧边栏：常规贴边分区，不突出任何容器。
+  &--sidebar-style-docked {
+    :deep(.global-header),
+    :deep(.app-header),
+    :deep(.sidebar-header) {
+      border-bottom: 1px solid var(--cp-layout-border);
+    }
+
+    :deep(.app-sidebar),
+    :deep(.global-rail) {
+      border-right: 1px solid var(--cp-layout-border);
+    }
+
+    :deep(.app-sidebar),
+    :deep(.global-rail) {
+      background: transparent;
+    }
+
+    :deep(.el-sub-menu .el-menu) {
+      background: transparent;
+    }
+
+    &.layout--sidebar-only {
+      :deep(.app-sidebar) {
+        background: transparent;
+      }
+    }
+  }
 
   // 1. 侧边栏+顶栏模式（默认）
   &--sidebar-header {
@@ -148,6 +291,23 @@ const layoutClasses = computed(() => {
   @include media-max($breakpoint-md) {
     .main-container {
       margin-left: 0 !important;
+    }
+
+    &--sidebar-style-embedded .main-container,
+    &--sidebar-style-floating .main-container {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    &--sidebar-style-floating {
+      .layout-navigation-group,
+      :deep(.app-sidebar) {
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
     }
 
     // 移动端：侧边栏变为抽屉式（这里简化处理）

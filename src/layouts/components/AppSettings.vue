@@ -123,6 +123,28 @@
               </div>
             </div>
 
+            <div class="settings-item-block">
+              <div class="item-label">工作区侧边栏样式</div>
+              <div class="sidebar-styles">
+                <div
+                  v-for="style in sidebarStyles"
+                  :key="style.value"
+                  class="sidebar-style-card"
+                  :class="[{ active: layoutStore.config.sidebarStyle === style.value }, `is-${style.value}`]"
+                  @click="layoutStore.setSidebarStyle(style.value)"
+                >
+                  <div class="sidebar-style-preview">
+                    <div class="preview-style-header"></div>
+                    <div class="preview-style-body">
+                      <div class="preview-style-nav"></div>
+                      <div class="preview-style-content"></div>
+                    </div>
+                  </div>
+                  <div class="mode-name">{{ style.label }}</div>
+                </div>
+              </div>
+            </div>
+
             <!-- 侧边栏宽度 -->
             <div class="settings-item">
               <span class="item-label">侧边栏宽度</span>
@@ -567,7 +589,7 @@ import {
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import router, { updateDocumentTitle } from '@/router'
-import type { LayoutMode, PageTransition, ThemeMode } from '@/types'
+import type { LayoutMode, PageTransition, SidebarStyle, ThemeMode } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
@@ -607,6 +629,12 @@ const layoutModes = [
     showHeader: false,
     showRail: true,
   },
+]
+
+const sidebarStyles = [
+  { value: 'embedded' as SidebarStyle, label: '内嵌' },
+  { value: 'floating' as SidebarStyle, label: '浮动' },
+  { value: 'docked' as SidebarStyle, label: '侧边栏' },
 ]
 
 // 页面切换动画
@@ -820,6 +848,96 @@ function handleClearCache() {
     text-align: center;
     font-size: $font-xs;
     color: var(--cp-text-secondary);
+  }
+}
+
+.sidebar-styles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sidebar-style-card {
+  cursor: pointer;
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  padding: 7px;
+  background: var(--cp-bg);
+  transition: border-color $transition-base, box-shadow $transition-base, transform $transition-base;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--cp-primary) 60%, var(--cp-border));
+    box-shadow: $shadow-sm;
+    transform: translateY(-1px);
+  }
+
+  &.active {
+    border-color: var(--cp-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-primary) 11%, transparent);
+  }
+}
+
+.sidebar-style-preview {
+  height: 54px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--cp-bg-elevated);
+}
+
+.preview-style-header {
+  display: block;
+  height: 12px;
+  background: var(--cp-bg);
+}
+
+.preview-style-body {
+  display: flex;
+  height: 42px;
+}
+
+.preview-style-nav {
+  width: 28%;
+  background: var(--cp-sidebar-bg);
+}
+
+.preview-style-content {
+  flex: 1;
+  margin: 5px;
+  border-radius: 4px;
+  background: var(--cp-bg);
+}
+
+.sidebar-style-card.is-embedded {
+  .preview-style-header,
+  .preview-style-nav {
+    background: var(--cp-bg-elevated);
+  }
+
+  .preview-style-content {
+    border: 1px solid var(--cp-border);
+  }
+}
+
+.sidebar-style-card.is-floating {
+  .preview-style-nav {
+    margin: 4px 0 4px 4px;
+    border: 1px solid var(--cp-border);
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgb(24 24 27 / 8%);
+  }
+
+  .preview-style-content {
+    margin-left: 4px;
+  }
+}
+
+.sidebar-style-card.is-docked {
+  .preview-style-header {
+    border-bottom: 1px solid var(--cp-border);
+  }
+
+  .preview-style-nav {
+    border-right: 1px solid var(--cp-border);
   }
 }
 

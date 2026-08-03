@@ -106,6 +106,7 @@ export interface ApplicationOption {
 
 // 布局模式
 export type LayoutMode = 'sidebar-header' | 'sidebar-only'
+export type SidebarStyle = 'embedded' | 'floating' | 'docked'
 
 // 页面切换动画
 export type PageTransition = 'fade' | 'fade-slide' | 'slide-up' | 'slide-right' | 'zoom' | 'none'
@@ -130,6 +131,7 @@ export interface FooterLink {
 // 布局配置
 export interface LayoutConfig {
   mode: LayoutMode
+  sidebarStyle: SidebarStyle
   sidebarWidth: number
   collapsedWidth: number
   uniqueOpened: boolean

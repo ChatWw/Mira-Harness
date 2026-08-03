@@ -361,7 +361,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
 
   .tab-item {
     justify-content: flex-start;
-    min-width: 180px;
+    min-width: 120px;
     height: 40px;
     padding: 0 $spacing-lg;
     border: 0;
@@ -450,7 +450,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
 // 卡片样式
 .tabs-style-card {
   height: 40px;
-  padding: 0;
+  padding: 0 8px;
   gap: 0;
   background: var(--cp-bg);
 
@@ -460,7 +460,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
 
   .tab-item {
     justify-content: flex-start;
-    min-width: 180px;
+    min-width: 120px;
     height: 32px;
     margin: $spacing-xs 0;
     padding: 0 $spacing-lg;
@@ -524,7 +524,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
 
   .tab-item {
     justify-content: flex-start;
-    min-width: 180px;
+    min-width: 120px;
     height: 36px;
     margin: 0 0 $spacing-xs;
     padding: 0 $spacing-lg;

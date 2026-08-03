@@ -4,6 +4,7 @@ import type { LayoutConfig } from '@/types'
 
 export const APP_NAME = '中台基座'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
+const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
   chrome: 'personalized',
   plain: 'square',
@@ -37,17 +38,18 @@ const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, 
 
 const DEFAULT_CONFIG: LayoutConfig = {
   mode: 'sidebar-header',
+  sidebarStyle: 'embedded',
   sidebarWidth: 200,
-  collapsedWidth: 64,
+  collapsedWidth: 48,
   uniqueOpened: false,
   showLogo: true,
   showFooter: false,
-  headerHeight: 64,
+  headerHeight: 48,
   showBreadcrumb: true,
   breadcrumbIcon: false,
   breadcrumbStyle: 'normal',
   enableTabs: true,
-  tabStyle: 'personalized',
+  tabStyle: 'card',
   showTabIcon: true,
   tabPersist: false,
   enableContentLayoutSettings: false,
@@ -82,6 +84,10 @@ export const useLayoutStore = defineStore('layout', () => {
   // 布局模式
   function setLayoutMode(mode: LayoutConfig['mode']) {
     config.value.mode = mode
+  }
+
+  function setSidebarStyle(style: LayoutConfig['sidebarStyle']) {
+    config.value.sidebarStyle = style
   }
 
   // 侧边栏设置
@@ -288,6 +294,16 @@ export const useLayoutStore = defineStore('layout', () => {
   )
 
   watch(
+    () => config.value.sidebarStyle,
+    (style) => {
+      if (!SUPPORTED_SIDEBAR_STYLES.includes(style)) {
+        config.value.sidebarStyle = DEFAULT_CONFIG.sidebarStyle
+      }
+    },
+    { immediate: true }
+  )
+
+  watch(
     () => config.value.showTabIcon,
     (value) => {
       if (typeof value !== 'boolean') {
@@ -312,6 +328,7 @@ export const useLayoutStore = defineStore('layout', () => {
     config,
     settingsVisible,
     setLayoutMode,
+    setSidebarStyle,
     setSidebarWidth,
     setCollapsedWidth,
     setUniqueOpened,
@@ -358,6 +375,9 @@ export const useLayoutStore = defineStore('layout', () => {
     pick: ['config'],
     afterHydrate: ({ store }) => {
       delete (store.config as Record<string, unknown>).sidebarCollapseAnimation
+      if (!SUPPORTED_SIDEBAR_STYLES.includes(store.config.sidebarStyle)) {
+        store.config.sidebarStyle = DEFAULT_CONFIG.sidebarStyle
+      }
       if (typeof store.config.dynamicTitle !== 'boolean') {
         store.config.dynamicTitle = DEFAULT_CONFIG.dynamicTitle
       }
