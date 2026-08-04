@@ -13,22 +13,15 @@
     </Transition>
 
     <div class="layout-workspace">
-      <!-- 仅侧栏模式：一级应用栏和二级菜单作为一个导航组呈现。 -->
-      <div v-if="isSidebarOnly && showSidebar" class="layout-navigation-group">
+      <!-- 仅侧栏模式：一级应用栏常驻，二级菜单按当前应用配置显示。 -->
+      <div v-if="isSidebarOnly" class="layout-navigation-group">
         <Transition name="rail-slide">
           <div class="layout-rail-transition">
             <GlobalHeader variant="rail" />
           </div>
         </Transition>
-        <AppSidebar :show-brand="true" text-only-brand />
+        <AppSidebar v-if="showSidebar" :show-brand="true" text-only-brand />
       </div>
-
-      <!-- 微应用没有菜单时仍保留一级应用栏，避免应用切换入口消失。 -->
-      <Transition v-else-if="isSidebarOnly" name="rail-slide">
-        <div class="layout-rail-transition">
-          <GlobalHeader variant="rail" />
-        </div>
-      </Transition>
 
       <!-- 默认布局：侧边栏仅承担工作区导航。 -->
       <AppSidebar v-else-if="showSidebar" :show-brand="false" />
@@ -59,6 +52,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ElWatermark } from 'element-plus'
+import { useRoute } from 'vue-router'
+import { microMenus } from '@/config/menus'
+import { findMicroApp } from '@/config/microApps'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
@@ -72,10 +68,15 @@ import SearchBar from '@/components/SearchBar/index.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const route = useRoute()
 const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
 
-// 根据布局模式显示/隐藏侧边栏和顶栏
-const showSidebar = computed(() => true)
+const showSidebar = computed(() => {
+  if (!route.path.startsWith('/micro/')) return true
+
+  const microApp = findMicroApp(String(route.params.code))
+  return microApp?.integrationMode === 'wujie' && Boolean(microMenus[microApp.code]?.length)
+})
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
 const showWorkspaceHeader = computed(() => !showGlobalHeader.value)
 
@@ -102,6 +103,10 @@ const layoutClasses = computed(() => {
 
   if (layoutStore.config.enableTabs) {
     classes.push('layout--with-tabs')
+  }
+
+  if (!showSidebar.value) {
+    classes.push('layout--without-workspace-menu')
   }
 
   return classes
@@ -186,6 +191,10 @@ const layoutClasses = computed(() => {
     }
 
     &.layout--sidebar-only .main-container {
+      margin-left: 12px;
+    }
+
+    &.layout--sidebar-header.layout--without-workspace-menu .main-container {
       margin-left: 12px;
     }
   }

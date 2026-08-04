@@ -73,8 +73,8 @@ const childProps = computed(() => {
 
 function resolveEntryUrl(url: string) {
   const resolved = new URL(url, window.location.origin)
-  if (resolved.origin !== window.location.origin || !resolved.pathname.startsWith('/')) {
-    throw new Error('入口必须是同源路径')
+  if (!['http:', 'https:'].includes(resolved.protocol)) {
+    throw new Error('入口必须是 HTTP(S) 网页地址')
   }
   return resolved.href
 }
