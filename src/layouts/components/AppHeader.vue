@@ -13,7 +13,6 @@
     </div>
     <div class="header-right">
       <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text :icon="Search" @click="handleSearch" /></el-tooltip>
-      <Notification />
       <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text :icon="isFullscreen ? Crop : FullScreen" @click="toggleFullscreen" /></el-tooltip>
       <el-tooltip content="切换主题模式"><el-button text :icon="themeStore.themeMode === 'dark' ? Sunny : Moon" @click="handleThemeToggle" /></el-tooltip>
       <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
@@ -28,7 +27,6 @@ import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
-import Notification from '@/components/Notification/index.vue'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 
 const appStore = useAppStore()
@@ -88,10 +86,6 @@ function toggleFullscreen() {
       margin-left: 0;
     }
 
-    :deep(.notification-trigger) {
-      width: 28px;
-      height: 28px;
-    }
   }
 
   @include media-max($breakpoint-md) {

@@ -45,7 +45,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
-import { microAppApi } from '@/api/system'
+import { findMicroApp } from '@/config/microApps'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, MicroAppRuntimeConfig, PlatformContext } from '@/types'
 
@@ -66,7 +66,7 @@ const childProps = computed(() => {
     theme: runtime.value.props.theme || themeStore.themeMode,
     language: runtime.value.props.language || navigator.language,
     ...(runtime.value.props.tenantId ? { tenantId: runtime.value.props.tenantId } : {}),
-    user: Object.freeze({ id: 'platform', name: '中台基座' }),
+    user: Object.freeze({ id: 'platform', name: 'Core Platform' }),
   })
   return Object.freeze({ platformContext: context })
 })
@@ -104,16 +104,17 @@ async function load() {
   entryUrl.value = ''
   try {
     const code = String(route.params.code)
-    const [microApp, config] = await Promise.all([microAppApi.getByCode(code), microAppApi.getRuntime(code)])
+    const microApp = findMicroApp(code)
+    if (!microApp) throw new Error('未找到该微应用')
     if (microApp.status !== 'published') throw new Error('该应用未上架')
     if (!microApp.embedAllowed) throw new Error('该应用未获准嵌入平台')
     if (microApp.healthStatus === 'unavailable') throw new Error('该应用当前不可用')
     app.value = microApp
-    runtime.value = config
+    runtime.value = microApp.runtimeConfig
     entryUrl.value = resolveEntryUrl(microApp.url)
     if (microApp.integrationMode === 'iframe') startIframeTimer()
-    if (microApp.integrationMode === 'wujie' && config.preload) {
-      WujieVue.preloadApp({ name: microApp.code, url: entryUrl.value, props: childProps.value, exec: config.exec })
+    if (microApp.integrationMode === 'wujie' && microApp.runtimeConfig.preload) {
+      WujieVue.preloadApp({ name: microApp.code, url: entryUrl.value, props: childProps.value, exec: microApp.runtimeConfig.exec })
     }
   } catch (cause: any) {
     error.value = cause.message || '获取微应用配置失败'

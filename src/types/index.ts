@@ -1,24 +1,3 @@
-export interface UserInfo {
-  id: string
-  name: string
-  email: string
-  avatar?: string
-  roles?: string[]
-  username?: string
-  nickname?: string
-  phone?: string
-  deptId?: string
-  deptName?: string
-  status?: number
-  createdAt?: string
-}
-
-export interface LoginPayload {
-  account: string
-  password: string
-  remember: boolean
-}
-
 export type ThemeMode = 'light' | 'dark'
 
 export interface MenuItem {
@@ -27,7 +6,6 @@ export interface MenuItem {
   icon?: string
   path?: string
   children?: MenuItem[]
-  permission?: string
   component?: string
   name?: string
   type?: 'dir' | 'menu' | 'button' | 'microapp'
@@ -93,6 +71,7 @@ export interface MicroApp {
   embedAllowed: boolean
   version?: string
   description?: string
+  menus?: MenuItem[]
   runtimeConfig: MicroAppRuntimeConfig
 }
 

@@ -53,8 +53,7 @@ export function findCommandNavigationByPath(path: string) {
 }
 
 export const commonCommandIds = [
-  'system-users',
-  'system-roles',
-  'system-menus',
-  'system-microapps',
+  'data-board-home',
+  'application-data-board',
+  'application-workflow',
 ]

@@ -205,10 +205,6 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--cp-primary-light', `${color}1a`)
     root.style.setProperty('--cp-primary-lighter', `${color}0d`)
 
-    // 更新登录页渐变色
-    root.style.setProperty('--cp-login-left-bg-start', `${color}e6`)
-    root.style.setProperty('--cp-login-left-bg-end', `${color}cc`)
-
     // ========== 关键：设置 Element Plus 的 CSS 变量 ==========
     // Element Plus 使用 --el-color-primary 系列变量
     root.style.setProperty('--el-color-primary', color)

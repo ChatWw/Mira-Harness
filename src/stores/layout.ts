@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
 
-export const APP_NAME = '中台基座'
+export const APP_NAME = 'Core Platform'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
@@ -64,7 +64,7 @@ const DEFAULT_CONFIG: LayoutConfig = {
   watermarkText: '',
   footerStyle: 'simple',
   footerHeight: 40,
-  footerCopyright: '中台基座',
+  footerCopyright: 'Core Platform',
   footerYearMode: 'auto',
   footerYearStart: null,
   footerYearEnd: null,

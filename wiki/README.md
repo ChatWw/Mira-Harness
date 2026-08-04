@@ -1,6 +1,6 @@
 # Wiki 文档中心
 
-> 项目相关的所有文档、指南、参考资料和报告的集中存放位置
+> Core Platform 的项目文档、指南、参考资料和报告。
 
 ## 📚 文档分类
 
@@ -9,7 +9,6 @@
 
 - [SCSS_MIGRATION_GUIDE.md](./guides/SCSS_MIGRATION_GUIDE.md) - CSS 到 SCSS 完整迁移指南
 - [SCSS_MIGRATION_EXAMPLES.md](./guides/SCSS_MIGRATION_EXAMPLES.md) - SCSS 迁移实战示例
-- [30_DAYS_AUTO_LOGIN.md](./guides/30_DAYS_AUTO_LOGIN.md) - 30 天免登录功能实现说明
 
 ### 📗 参考（references/）
 快速参考卡片、API 文档、配置说明等查询类文档
