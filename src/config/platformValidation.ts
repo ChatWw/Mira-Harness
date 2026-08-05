@@ -29,7 +29,7 @@ export function validateMenus(menus: MenuItem[], appCode: string | null = null) 
       if (appCode && !menu.path.startsWith(`/micro/${appCode}`)) throw new Error('微应用菜单路径必须属于该应用')
       paths.add(menu.path)
     }
-    if (menu.type === 'dir' && (menu.path || menu.target)) throw new Error('目录菜单不能配置路径或页面目标')
+    if (menu.type === 'dir' && menu.target) throw new Error('目录菜单不能配置页面目标')
     if (menu.type !== 'dir' && (!menu.path || !menu.target)) throw new Error('页面菜单必须配置路径和页面目标')
     if (menu.target?.type === 'iframe') assertHttpUrl(menu.target.url, 'iframe 地址')
     if (menu.target?.type === 'component' && !BUILT_IN_PAGE_KEYS.has(menu.target.componentKey as typeof BUILT_IN_PAGE_OPTIONS[number]['value'])) {
@@ -46,10 +46,18 @@ export function validateMicroApps(apps: MicroApp[]) {
   for (const app of apps) {
     if (!app.id?.trim() || ids.has(app.id)) throw new Error('微应用 ID 必须填写且保持唯一')
     if (!app.name?.trim()) throw new Error('微应用名称不能为空')
-    if (!/^[a-z0-9-]+$/.test(app.code) || codes.has(app.code)) throw new Error('微应用编码只能包含小写字母、数字和连字符，并且不能重复')
+    if (!/^[a-z0-9-]+$/.test(app.code) || codes.has(app.code)) throw new Error('应用编码只能包含小写字母、数字和连字符，并且不能重复')
+    if (app.id !== `micro-${app.code}`) throw new Error('应用 ID 必须由 micro- 前缀和应用编码组成')
     ids.add(app.id)
     codes.add(app.code)
-    assertHttpUrl(app.url, '微应用入口地址')
+    if (app.integrationMode === 'wujie') {
+      if (app.entry.type !== 'local-directory' || !app.entry.directory.trim()) throw new Error('微应用必须选择本地构建目录')
+      if (app.runtimeConfig.kind !== 'wujie') throw new Error('微应用运行配置无效')
+    } else {
+      if (app.entry.type !== 'url') throw new Error('内嵌框架必须填写入口地址')
+      assertHttpUrl(app.entry.url, '内嵌框架入口地址')
+      if (app.runtimeConfig.kind !== 'iframe') throw new Error('内嵌框架运行配置无效')
+    }
     validateMenus(app.menus || [], app.code)
   }
 }

@@ -99,7 +99,7 @@ iframe 权限由 [`src/config/iframe.ts`](./src/config/iframe.ts) 集中映射�
 
 ### 微应用
 
-网页开发时编辑 [`src/config/microApps.ts`](./src/config/microApps.ts) 的默认微应用；桌面版在“系统管理 → 微应用管理”中维护，并可在“备份与偏好”中导入、导出或恢复。
+桌面版在“系统管理 → 微应用管理”中注册本地工具或内嵌网页，并可在“备份与偏好”中导入、导出或恢复。新安装不附带示例应用。
 
 ### 桌面版
 
@@ -108,7 +108,7 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
-桌面版使用 Electron 主进程和 SQLite，不启动本地 HTTP 服务。数据库位于 macOS 应用用户数据目录；前端通过受限的 `window.platform` IPC API 访问菜单、微应用和界面偏好。`desktop:build` 产出 Apple Silicon DMG；首次下载 Electron 运行时需要网络连接。
+桌面版使用 Electron 主进程和 SQLite。注册本地微应用时，请选择直接包含 `index.html` 的构建产物目录；应用会启动一个仅监听 `127.0.0.1` 的受控静态服务，供 Wujie 加载本地资源。数据库位于 macOS 应用用户数据目录；前端通过受限的 `window.platform` IPC API 访问菜单、微应用和界面偏好。`desktop:build` 产出 Apple Silicon DMG；首次下载 Electron 运行时需要网络连接。
 
 微应用菜单同时声明平台路径和子应用真实路径：
 
@@ -194,7 +194,7 @@ src/
 
 ## 开发约定
 
-- 新增通用页面或网页时，在 `src/config/menus.ts` 中定义对应 `target`；新增微应用时，修改 `src/config/microApps.ts`。
+- 新增通用页面或网页时，在 `src/config/menus.ts` 中定义对应 `target`；桌面版应用通过“微应用管理”注册，本地默认清单为空。
 - 菜单对应的页面组件路径必须可被 `src/router/pageRegistry.ts` 的 `import.meta.glob('/src/pages/**/*.vue')` 找到。
 - 保持现有 SCSS 设计令牌与 CSS 变量用法，避免无关格式化或重构。
 - 提交前至少执行：

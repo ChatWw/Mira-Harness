@@ -14,7 +14,6 @@
     <el-table
       :data="displayMenus"
       row-key="id"
-      default-expand-all
       :indent="20"
       :tree-props="{ children: 'children' }"
       empty-text="暂无菜单，可新增第一个菜单"
@@ -32,7 +31,7 @@
       <el-table-column label="类型" width="118">
         <template #default="{ row }">{{ kindLabel(row) }}</template>
       </el-table-column>
-      <el-table-column label="路径 / 目标" min-width="250" show-overflow-tooltip>
+      <el-table-column label="路由地址 / 目标" min-width="250" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="technical-value">{{ targetSummary(row) }}</span>
         </template>
@@ -69,21 +68,27 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent>
         <div class="form-grid">
-          <el-form-item label="菜单 ID" prop="id">
-            <el-input v-model.trim="form.id" placeholder="例如 reports-center" :disabled="Boolean(editingId)" />
-          </el-form-item>
           <el-form-item label="菜单名称" prop="title">
             <el-input v-model.trim="form.title" placeholder="显示在导航中的名称" maxlength="60" show-word-limit />
           </el-form-item>
           <el-form-item label="菜单类型" prop="kind">
-            <el-select v-model="form.kind" class="field-control" @change="handleKindChange">
-              <el-option v-for="option in kindOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
+            <el-radio-group v-model="form.kind" @change="handleKindChange">
+              <el-radio-button v-for="option in kindOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </el-radio-button>
+            </el-radio-group>
           </el-form-item>
           <el-form-item label="父级目录">
-            <el-select v-model="form.parentId" clearable placeholder="作为根菜单" class="field-control">
-              <el-option v-for="option in parentOptions" :key="option.id" :label="option.label" :value="option.id" />
-            </el-select>
+            <el-tree-select
+              v-model="form.parentId"
+              :data="parentTreeOptions"
+              :props="{ value: 'id', label: 'label', children: 'children' }"
+              node-key="id"
+              check-strictly
+              clearable
+              placeholder="作为根菜单"
+              class="field-control"
+            />
           </el-form-item>
           <el-form-item label="图标名称">
             <el-input v-model.trim="form.icon" placeholder="Element Plus 图标，如 Setting" />
@@ -93,11 +98,13 @@
           </el-form-item>
         </div>
 
-        <template v-if="form.kind !== 'dir'">
-          <el-form-item label="平台路径" prop="path">
-            <el-input v-model.trim="form.path" :placeholder="pathPlaceholder" />
-          </el-form-item>
+        <el-form-item label="路由地址" prop="routeSegment">
+          <el-input v-model.trim="form.routeSegment" placeholder="例如 reports">
+            <template #prepend>{{ routeInputPrefix }}</template>
+          </el-input>
+        </el-form-item>
 
+        <template v-if="form.kind !== 'dir'">
           <el-form-item v-if="form.kind === 'component'" label="内置页面" prop="componentKey">
             <el-select v-model="form.componentKey" class="field-control" placeholder="选择随应用发布的页面">
               <el-option v-for="option in componentOptions" :key="option.value" :label="option.label" :value="option.value" />
@@ -161,13 +168,12 @@ import { cloneValue } from '../management'
 type MenuKind = 'dir' | 'component' | 'iframe' | 'microapp'
 
 interface MenuDraft {
-  id: string
   title: string
   kind: MenuKind
   parentId: string
   icon: string
   sort: number
-  path: string
+  routeSegment: string
   componentKey: string
   url: string
   iframeProfile: IframeProfile
@@ -208,7 +214,7 @@ const formRef = ref<FormInstance>()
 
 function emptyForm(): MenuDraft {
   return {
-    id: '', title: '', kind: 'dir', parentId: '', icon: '', sort: 0, path: '', componentKey: '',
+    title: '', kind: 'dir', parentId: '', icon: '', sort: 0, routeSegment: '', componentKey: '',
     url: '', iframeProfile: 'compatible', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15,
     childPath: '', enabled: true, visible: true,
   }
@@ -222,12 +228,8 @@ const referrerPolicies: ReferrerPolicy[] = [
   'no-referrer', 'origin', 'same-origin', 'strict-origin', 'strict-origin-when-cross-origin', 'unsafe-url',
 ]
 const kindOptions = computed(() => props.context === 'microapp'
-  ? [{ value: 'dir', label: '目录' }, { value: 'microapp', label: '微应用页面' }]
-  : [{ value: 'dir', label: '目录' }, { value: 'component', label: '内置页面' }, { value: 'iframe', label: 'Iframe / 外链' }]
-)
-const pathPlaceholder = computed(() => props.context === 'microapp' && props.appCode
-  ? `/micro/${props.appCode}/页面路径`
-  : '/页面路径'
+  ? [{ value: 'dir', label: '目录' }, { value: 'microapp', label: '页面' }]
+  : [{ value: 'dir', label: '目录' }, { value: 'component', label: '页面' }, { value: 'iframe', label: 'Iframe' }]
 )
 
 function sortMenus(menus: MenuItem[]): MenuItem[] {
@@ -237,10 +239,12 @@ function sortMenus(menus: MenuItem[]): MenuItem[] {
 }
 
 const rules: FormRules<MenuDraft> = {
-  id: [{ required: true, message: '请输入菜单 ID', trigger: 'blur' }],
   title: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
   kind: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
-  path: [{ required: true, message: '请输入平台路径', trigger: 'blur' }],
+  routeSegment: [
+    { required: true, message: '请输入路由地址', trigger: 'blur' },
+    { pattern: /^[a-z0-9][a-z0-9-]*$/i, message: '路由地址只能包含字母、数字和连字符', trigger: 'blur' },
+  ],
   componentKey: [{ required: true, message: '请选择内置页面', trigger: 'change' }],
   url: [{ required: true, message: '请输入网页地址', trigger: 'blur' }],
 }
@@ -255,11 +259,11 @@ function menuKind(menu: MenuItem): MenuKind {
 }
 
 function kindLabel(menu: MenuItem) {
-  return ({ dir: '目录', component: '内置页面', iframe: 'Iframe / 外链', microapp: '微应用页面' } as const)[menuKind(menu)]
+  return ({ dir: '目录', component: '页面', iframe: 'Iframe', microapp: '页面' } as const)[menuKind(menu)]
 }
 
 function targetSummary(menu: MenuItem) {
-  if (menu.type === 'dir') return '—'
+  if (menu.type === 'dir') return menu.path || '—'
   if (menu.target?.type === 'iframe') return `${menu.path || ''} → ${menu.target.url}`
   if (menu.target?.type === 'component') return `${menu.path || ''} → ${menu.target.componentKey}`
   if (menu.target?.type === 'microapp') return `${menu.path || ''} → ${menu.target.childPath || '应用首页'}`
@@ -289,12 +293,24 @@ function getDescendantIds(menu?: MenuItem): Set<string> {
   return new Set(menu?.children ? flattenMenus(menu.children).map(item => item.id) : [])
 }
 
-const parentOptions = computed(() => {
+function toParentTree(menus: MenuItem[], excludedIds: Set<string>): Array<MenuItem & { label: string }> {
+  return menus.flatMap(menu => {
+    if (menu.type !== 'dir' || excludedIds.has(menu.id) || isProtected(menu.id)) return []
+    return [{ ...menu, label: menu.title, children: toParentTree(menu.children || [], excludedIds) }]
+  })
+}
+
+const parentTreeOptions = computed(() => {
   const descendants = getDescendantIds(findMenu(props.menus, editingId.value))
-  return flattenMenus(props.menus)
-    .filter(menu => menu.type === 'dir' && menu.id !== editingId.value && !descendants.has(menu.id) && !isProtected(menu.id))
-    .map(menu => ({ id: menu.id, label: menu.title }))
+  return toParentTree(props.menus, new Set([editingId.value, ...descendants]))
 })
+const selectedParent = computed(() => findMenu(props.menus, form.parentId))
+const routeInputPrefix = computed(() => {
+  const parentPath = selectedParent.value?.path || (props.context === 'microapp' && props.appCode ? `/micro/${props.appCode}` : '')
+  return parentPath ? `${parentPath.replace(/\/$/, '')}/` : '/'
+})
+const fullPath = computed(() => `${routeInputPrefix.value}${form.routeSegment.trim().replace(/^\/+/, '')}`)
+const generatedId = computed(() => fullPath.value.slice(1).replace(/\//g, '_'))
 
 function resetForm(values?: Partial<MenuDraft>) {
   Object.assign(form, emptyForm(), values || {})
@@ -308,14 +324,19 @@ function openCreate(parentId = '') {
 
 function openEdit(menu: MenuItem) {
   editingId.value = menu.id
+  const parentId = findParentId(props.menus, menu.id)
+  const parent = findMenu(props.menus, parentId)
+  const parentPath = parent?.path || (props.context === 'microapp' && props.appCode ? `/micro/${props.appCode}` : '')
+  const routeSegment = menu.path?.startsWith(`${parentPath}/`)
+    ? menu.path.slice(parentPath.length + 1)
+    : menu.path?.slice(menu.path.lastIndexOf('/') + 1) || ''
   resetForm({
-    id: menu.id,
     title: menu.title,
     kind: menuKind(menu),
-    parentId: findParentId(props.menus, menu.id),
+    parentId,
     icon: menu.icon || '',
     sort: menu.sort ?? 0,
-    path: menu.path || '',
+    routeSegment,
     componentKey: menu.target?.type === 'component' ? menu.target.componentKey : '',
     url: menu.target?.type === 'iframe' ? menu.target.url : '',
     iframeProfile: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.profile || 'compatible' : 'compatible',
@@ -329,14 +350,12 @@ function openEdit(menu: MenuItem) {
 }
 
 function handleKindChange() {
-  if (form.kind === 'dir') form.path = ''
   if (form.kind === 'component' && !form.componentKey) form.componentKey = props.componentOptions[0]?.value || ''
-  if (form.kind === 'microapp' && !form.path && props.appCode) form.path = `/micro/${props.appCode}`
 }
 
 function buildMenu(existing?: MenuItem): MenuItem {
   const base: MenuItem = {
-    id: form.id.trim(),
+    id: generatedId.value,
     title: form.title.trim(),
     icon: form.icon.trim() || undefined,
     type: form.kind === 'dir' ? 'dir' : form.kind === 'microapp' ? 'microapp' : 'menu',
@@ -345,12 +364,12 @@ function buildMenu(existing?: MenuItem): MenuItem {
     status: form.enabled ? 1 : 0,
     visible: form.visible,
   }
-  if (form.kind === 'dir') return { ...base, children: existing?.children || [] }
-  if (form.kind === 'component') return { ...base, path: form.path.trim(), target: { type: 'component', componentKey: form.componentKey } }
+  if (form.kind === 'dir') return { ...base, path: fullPath.value, children: existing?.children || [] }
+  if (form.kind === 'component') return { ...base, path: fullPath.value, target: { type: 'component', componentKey: form.componentKey } }
   if (form.kind === 'iframe') {
     return {
       ...base,
-      path: form.path.trim(),
+      path: fullPath.value,
       target: {
         type: 'iframe',
         url: form.url.trim(),
@@ -358,7 +377,7 @@ function buildMenu(existing?: MenuItem): MenuItem {
       },
     }
   }
-  return { ...base, path: form.path.trim(), target: { type: 'microapp', childPath: form.childPath.trim() } }
+  return { ...base, path: fullPath.value, target: { type: 'microapp', childPath: form.childPath.trim() } }
 }
 
 function removeNode(menus: MenuItem[], id: string): MenuItem[] {
@@ -375,6 +394,19 @@ function insertNode(menus: MenuItem[], parentId: string, node: MenuItem): MenuIt
   )
 }
 
+function updateDescendantPaths(menu: MenuItem, previousPrefix: string, nextPrefix: string): MenuItem {
+  const path = menu.path?.startsWith(`${previousPrefix}/`)
+    ? `${nextPrefix}${menu.path.slice(previousPrefix.length)}`
+    : menu.path
+  const children = menu.children?.map(child => updateDescendantPaths(child, previousPrefix, nextPrefix))
+  return {
+    ...menu,
+    id: path ? path.slice(1).replace(/\//g, '_') : menu.id,
+    path,
+    children,
+  }
+}
+
 async function submitMenu() {
   if (!formRef.value || !(await formRef.value.validate().catch(() => false))) return
   const existing = editingId.value ? findMenu(props.menus, editingId.value) : undefined
@@ -384,8 +416,11 @@ async function submitMenu() {
   }
   submitting.value = true
   try {
+    const nextMenu = buildMenu(existing)
     const withoutCurrent = editingId.value ? removeNode(cloneValue(props.menus), editingId.value) : cloneValue(props.menus)
-    const next = insertNode(withoutCurrent, form.parentId, buildMenu(existing))
+    const next = insertNode(withoutCurrent, form.parentId, existing?.path && existing.children?.length
+      ? updateDescendantPaths(nextMenu, existing.path || '', nextMenu.path || '')
+      : nextMenu)
     validateMenus(next, props.context === 'microapp' ? props.appCode : null)
     emit('change', next)
     drawerVisible.value = false

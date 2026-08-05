@@ -7,7 +7,7 @@
     <SidebarMenuItem v-for="child in visibleChildren" :key="child.id" :item="child" />
   </el-sub-menu>
 
-  <el-menu-item v-else-if="item.path" :index="item.path">
+  <el-menu-item v-else-if="item.path && item.target" :index="item.path">
     <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
     <span>{{ item.title }}</span>
   </el-menu-item>

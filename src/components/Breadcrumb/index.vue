@@ -51,7 +51,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   if (menuPath) {
     const items = menuPath.map(menu => ({
       title: menu.title,
-      path: menu.path,
+      path: menu.target ? menu.path : undefined,
       icon: menu.icon,
     }))
     return items[0]?.path === DASHBOARD_BREADCRUMB.path

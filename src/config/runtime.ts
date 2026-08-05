@@ -20,7 +20,7 @@ export const microMenus = computed<Record<string, MenuItem[]>>(() => Object.from
 export const applications = computed<ApplicationOption[]>(() => [
   { code: 'main', name: '通用', icon: 'HomeFilled', type: 'main' },
   ...runtimeNavigation.microApps
-    .filter(app => app.status === 'published' && app.embedAllowed)
+    .filter(app => app.enabled)
     .sort((a, b) => a.sort - b.sort)
     .map(app => ({ code: app.code, name: app.name, icon: app.icon, type: 'microapp' as const })),
 ])

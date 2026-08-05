@@ -28,15 +28,7 @@ export interface MenuItem {
   visible?: boolean
 }
 
-export type MicroAppStatus = 'developing' | 'published' | 'offline'
 export type MicroAppIntegrationMode = 'wujie' | 'iframe'
-export type MicroAppHealthStatus = 'healthy' | 'degraded' | 'unavailable'
-
-export interface MicroAppContextOverrides {
-  theme?: ThemeMode
-  language?: string
-  tenantId?: string
-}
 
 export interface PlatformContext {
   version: 1
@@ -61,29 +53,34 @@ export interface PlatformNavigatePayload {
   path: string
 }
 
-export interface MicroAppRuntimeConfig {
+export interface WujieRuntimeConfig {
+  kind: 'wujie'
   alive: boolean
   routeMode: 'platform' | 'none'
-  fiber: boolean
   prefix: Record<string, string>
-  props: MicroAppContextOverrides
   preload: boolean
-  exec: boolean
+}
+
+export interface IframeRuntimeConfig {
+  kind: 'iframe'
   iframe: IframePolicy
 }
+
+export type MicroAppRuntimeConfig = WujieRuntimeConfig | IframeRuntimeConfig
+
+export type MicroAppEntry =
+  | { type: 'local-directory'; directory: string }
+  | { type: 'url'; url: string }
 
 export interface MicroApp {
   id: string
   name: string
   code: string
-  url: string
+  entry: MicroAppEntry
   icon?: string
   sort: number
-  status: MicroAppStatus
+  enabled: boolean
   integrationMode: MicroAppIntegrationMode
-  healthStatus: MicroAppHealthStatus
-  embedAllowed: boolean
-  version?: string
   description?: string
   menus?: MenuItem[]
   runtimeConfig: MicroAppRuntimeConfig
@@ -107,6 +104,8 @@ export interface PlatformApi {
   savePreference(key: string, value: unknown): Promise<void>
   updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>
   updateMicroApps(apps: MicroApp[]): Promise<PlatformSnapshot>
+  selectMicroAppDirectory(): Promise<string | null>
+  resolveLocalMicroAppUrl(appId: string): Promise<string>
   exportSnapshot(): Promise<string>
   importSnapshot(snapshot: string): Promise<PlatformSnapshot>
   restoreDefaults(): Promise<PlatformSnapshot>

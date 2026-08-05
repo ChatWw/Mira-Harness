@@ -14,21 +14,59 @@
 
   // 主题色
   --el-color-primary: #{$primary};
+  --el-color-primary-rgb: 6, 182, 212;
   --el-color-primary-light-3: #{$primary-light};
   --el-color-primary-light-5: #{$primary-lighter};
   --el-color-primary-dark-2: #{$primary-hover};
 
   // 成功色
   --el-color-success: #{$success};
+  --el-color-success-rgb: 16, 185, 129;
+  --el-color-success-light-3: color-mix(in srgb, #{$success} 70%, var(--cp-bg));
+  --el-color-success-light-5: color-mix(in srgb, #{$success} 50%, var(--cp-bg));
+  --el-color-success-light-7: color-mix(in srgb, #{$success} 30%, var(--cp-bg));
+  --el-color-success-light-8: color-mix(in srgb, #{$success} 20%, var(--cp-bg));
+  --el-color-success-light-9: color-mix(in srgb, #{$success} 10%, var(--cp-bg));
+  --el-color-success-dark-2: color-mix(in srgb, #{$success} 80%, #000);
 
   // 警告色
   --el-color-warning: #{$warning};
+  --el-color-warning-rgb: 245, 158, 11;
+  --el-color-warning-light-3: color-mix(in srgb, #{$warning} 70%, var(--cp-bg));
+  --el-color-warning-light-5: color-mix(in srgb, #{$warning} 50%, var(--cp-bg));
+  --el-color-warning-light-7: color-mix(in srgb, #{$warning} 30%, var(--cp-bg));
+  --el-color-warning-light-8: color-mix(in srgb, #{$warning} 20%, var(--cp-bg));
+  --el-color-warning-light-9: color-mix(in srgb, #{$warning} 10%, var(--cp-bg));
+  --el-color-warning-dark-2: color-mix(in srgb, #{$warning} 80%, #000);
 
   // 危险色
   --el-color-danger: #{$danger};
+  --el-color-danger-rgb: 239, 68, 68;
+  --el-color-danger-light-3: color-mix(in srgb, #{$danger} 70%, var(--cp-bg));
+  --el-color-danger-light-5: color-mix(in srgb, #{$danger} 50%, var(--cp-bg));
+  --el-color-danger-light-7: color-mix(in srgb, #{$danger} 30%, var(--cp-bg));
+  --el-color-danger-light-8: color-mix(in srgb, #{$danger} 20%, var(--cp-bg));
+  --el-color-danger-light-9: color-mix(in srgb, #{$danger} 10%, var(--cp-bg));
+  --el-color-danger-dark-2: color-mix(in srgb, #{$danger} 80%, #000);
+  --el-color-error: var(--el-color-danger);
+  --el-color-error-rgb: var(--el-color-danger-rgb);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
 
   // 信息色
-  --el-color-info: #{$info};
+  // Element Plus 将输入组与字数统计归入 info；让它跟随平台主色，避免残留默认蓝色。
+  --el-color-info: var(--cp-primary);
+  --el-color-info-rgb: 6, 182, 212;
+  --el-color-info-light-3: color-mix(in srgb, var(--cp-primary) 70%, var(--cp-bg));
+  --el-color-info-light-5: color-mix(in srgb, var(--cp-primary) 50%, var(--cp-bg));
+  --el-color-info-light-7: color-mix(in srgb, var(--cp-primary) 30%, var(--cp-bg));
+  --el-color-info-light-8: color-mix(in srgb, var(--cp-primary) 20%, var(--cp-bg));
+  --el-color-info-light-9: color-mix(in srgb, var(--cp-primary) 10%, var(--cp-bg));
+  --el-color-info-dark-2: color-mix(in srgb, var(--cp-primary) 80%, #000);
 
   // 文本色
   --el-text-color-primary: #{$text};

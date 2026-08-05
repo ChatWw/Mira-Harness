@@ -208,17 +208,9 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--cp-primary-light', `${color}1a`)
     root.style.setProperty('--cp-primary-lighter', `${color}0d`)
 
-    // ========== 关键：设置 Element Plus 的 CSS 变量 ==========
-    // Element Plus 使用 --el-color-primary 系列变量
-    root.style.setProperty('--el-color-primary', color)
-    root.style.setProperty('--el-color-primary-dark-2', adjustColor(color, -20))
-
-    // Element Plus 的浅色变体（用于 hover、disabled 等状态）
-    root.style.setProperty('--el-color-primary-light-3', mixColor(color, lightVariantBase, 0.3))
-    root.style.setProperty('--el-color-primary-light-5', mixColor(color, lightVariantBase, 0.5))
-    root.style.setProperty('--el-color-primary-light-7', mixColor(color, lightVariantBase, 0.7))
-    root.style.setProperty('--el-color-primary-light-8', mixColor(color, lightVariantBase, 0.8))
-    root.style.setProperty('--el-color-primary-light-9', mixColor(color, lightVariantBase, 0.9))
+    applyElementColor(root, 'primary', color, lightVariantBase)
+    // Element Plus 将输入组、字数统计等中性组件标记为 info；这里跟随平台主题，避免残留默认蓝色。
+    applyElementColor(root, 'info', color, lightVariantBase)
 
     updateFavicon()
   }
@@ -229,6 +221,23 @@ export const useThemeStore = defineStore('theme', () => {
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="192" fill="${primaryColor.value}"/>${FAVICON_PATHS}</svg>`
     favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`
+  }
+
+  function applyElementColor(root: HTMLElement, name: 'primary' | 'info', color: string, lightVariantBase: string) {
+    const variable = `--el-color-${name}`
+    root.style.setProperty(variable, color)
+    root.style.setProperty(`${variable}-rgb`, toRgb(color))
+    root.style.setProperty(`${variable}-dark-2`, adjustColor(color, -20))
+    root.style.setProperty(`${variable}-light-3`, mixColor(color, lightVariantBase, 0.3))
+    root.style.setProperty(`${variable}-light-5`, mixColor(color, lightVariantBase, 0.5))
+    root.style.setProperty(`${variable}-light-7`, mixColor(color, lightVariantBase, 0.7))
+    root.style.setProperty(`${variable}-light-8`, mixColor(color, lightVariantBase, 0.8))
+    root.style.setProperty(`${variable}-light-9`, mixColor(color, lightVariantBase, 0.9))
+  }
+
+  function toRgb(color: string) {
+    const hex = color.replace('#', '')
+    return `${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}`
   }
 
   /**

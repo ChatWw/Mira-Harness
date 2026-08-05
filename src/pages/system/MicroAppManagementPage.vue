@@ -14,10 +14,10 @@
         <div><strong>微应用列表</strong><span>{{ sortedApps.length }} 个应用</span></div>
         <el-button type="primary" :disabled="saving || !desktopAvailable" @click="openCreate">
           <el-icon><Plus /></el-icon>
-          新增微应用
+          注册应用
         </el-button>
       </div>
-      <el-table :data="sortedApps" row-key="id" empty-text="暂无微应用，可新增第一个应用">
+      <el-table :data="sortedApps" row-key="id" empty-text="暂无应用，可注册第一个应用">
         <el-table-column label="应用" min-width="210">
           <template #default="{ row }">
             <div class="app-cell">
@@ -28,13 +28,10 @@
         </el-table-column>
         <el-table-column prop="code" label="编码" min-width="130" show-overflow-tooltip />
         <el-table-column label="集成方式" width="110">
-          <template #default="{ row }">{{ row.integrationMode === 'wujie' ? 'Wujie' : 'Iframe' }}</template>
+          <template #default="{ row }">{{ row.integrationMode === 'wujie' ? '微应用' : '内嵌框架' }}</template>
         </el-table-column>
-        <el-table-column label="发布状态" width="100">
-          <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small" effect="plain">{{ statusLabel(row.status) }}</el-tag></template>
-        </el-table-column>
-        <el-table-column label="运行状态" width="100">
-          <template #default="{ row }"><el-tag :type="healthType(row.healthStatus)" size="small" effect="plain">{{ healthLabel(row.healthStatus) }}</el-tag></template>
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" size="small" effect="plain">{{ row.enabled ? '启用' : '停用' }}</el-tag></template>
         </el-table-column>
         <el-table-column label="子菜单" width="82" align="center">
           <template #default="{ row }">{{ row.menus?.length || 0 }}</template>
@@ -66,7 +63,7 @@ import PageContainer from '@/components/PageContainer/index.vue'
 import { runtimeNavigation } from '@/config/runtime'
 import { validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
-import type { MicroApp, MicroAppHealthStatus, MicroAppStatus } from '@/types'
+import type { MicroApp } from '@/types'
 import MicroAppEditorDrawer from './components/MicroAppEditorDrawer.vue'
 import { applyManagementSnapshot, requirePlatformApi } from './management'
 
@@ -75,22 +72,6 @@ const drawerVisible = ref(false)
 const saving = ref(false)
 const editingApp = ref<MicroApp>()
 const sortedApps = computed(() => [...runtimeNavigation.microApps].sort((a, b) => a.sort - b.sort))
-
-function statusLabel(status: MicroAppStatus) {
-  return ({ developing: '开发中', published: '已发布', offline: '已下线' } as const)[status]
-}
-
-function statusType(status: MicroAppStatus) {
-  return status === 'published' ? 'success' : status === 'offline' ? 'info' : 'warning'
-}
-
-function healthLabel(status: MicroAppHealthStatus) {
-  return ({ healthy: '正常', degraded: '降级', unavailable: '不可用' } as const)[status]
-}
-
-function healthType(status: MicroAppHealthStatus) {
-  return status === 'healthy' ? 'success' : status === 'degraded' ? 'warning' : 'danger'
-}
 
 function openCreate() {
   editingApp.value = undefined
@@ -110,7 +91,7 @@ async function persistApps(apps: MicroApp[], successMessage: string) {
     drawerVisible.value = false
     ElMessage.success(successMessage)
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '微应用配置保存失败')
+    ElMessage.error(error instanceof Error ? error.message : '应用配置保存失败')
   } finally {
     saving.value = false
   }
@@ -120,14 +101,14 @@ function saveApp(app: MicroApp) {
   const apps = editingApp.value
     ? runtimeNavigation.microApps.map(item => item.id === editingApp.value?.id ? app : item)
     : [...runtimeNavigation.microApps, app]
-  void persistApps(apps, editingApp.value ? '微应用已更新' : '微应用已创建')
+  void persistApps(apps, editingApp.value ? '应用已更新' : '应用已注册')
 }
 
 async function removeApp(app: MicroApp) {
   try {
     const menuNotice = app.menus?.length ? `，其 ${app.menus.length} 个菜单也会删除` : ''
-    await ElMessageBox.confirm(`确定删除“${app.name}”${menuNotice}吗？`, '删除微应用', { type: 'warning' })
-    await persistApps(runtimeNavigation.microApps.filter(item => item.id !== app.id), '微应用已删除')
+    await ElMessageBox.confirm(`确定删除“${app.name}”${menuNotice}吗？`, '删除应用', { type: 'warning' })
+    await persistApps(runtimeNavigation.microApps.filter(item => item.id !== app.id), '应用已删除')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '删除失败')
   }

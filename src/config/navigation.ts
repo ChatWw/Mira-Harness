@@ -27,7 +27,7 @@ export function getVisibleMenus(menus: MenuItem[]): MenuItem[] {
       ? { ...menu, children: getVisibleMenus(menu.children) }
       : menu
     )
-    .filter(menu => menu.path || !menu.children || menu.children.length > 0)
+    .filter(menu => menu.target || menu.children?.length)
 }
 
 function flattenMenus(menus: MenuItem[]): MenuItem[] {
@@ -94,7 +94,7 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 
 export function getApplicationEntryPath(code: string) {
   const menus = code === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || []
-  return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path)?.path
+  return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
     || (code === 'main' ? '/dashboard' : `/micro/${code}`)
 }
 
@@ -106,8 +106,8 @@ export function getMicroAppChildPath(app: MicroApp, platformPath: string) {
   return platformPath.startsWith(prefix) ? platformPath.slice(prefix.length) : ''
 }
 
-export function resolveMicroAppEntryUrl(app: MicroApp, platformPath: string) {
-  const entryUrl = resolveHttpUrl(app.url)
+export function resolveMicroAppEntryUrl(app: MicroApp, platformPath: string, entry: string) {
+  const entryUrl = resolveHttpUrl(entry)
   const childPath = getMicroAppChildPath(app, platformPath)
   return childPath ? resolveHttpUrl(childPath, entryUrl) : entryUrl
 }
@@ -130,10 +130,10 @@ export function getExternalUrlForPath(path: string) {
     return policy.profile === 'external' ? resolveHttpUrl(navigation.menu.target.url) : undefined
   }
 
-  if (navigation.app?.integrationMode === 'iframe') {
+  if (navigation.app?.integrationMode === 'iframe' && navigation.app.entry.type === 'url' && navigation.app.runtimeConfig.kind === 'iframe') {
     const policy = resolveIframePolicy(navigation.app.runtimeConfig.iframe)
     return policy.profile === 'external'
-      ? resolveMicroAppEntryUrl(navigation.app, path)
+      ? resolveMicroAppEntryUrl(navigation.app, path, navigation.app.entry.url)
       : undefined
   }
 }

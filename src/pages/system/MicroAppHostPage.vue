@@ -8,9 +8,9 @@
         </template>
       </el-result>
 
-      <template v-else-if="app && runtime && entryUrl">
+      <template v-else-if="app && entryUrl">
         <WujieVue
-          v-if="app.integrationMode === 'wujie'"
+          v-if="app.integrationMode === 'wujie' && runtime"
           :key="app.code"
           class="micro-app-frame"
           width="100%"
@@ -19,7 +19,6 @@
           :url="entryUrl"
           :alive="runtime.alive"
           :sync="false"
-          :fiber="runtime.fiber"
           :prefix="runtime.prefix"
           :props="childProps"
           :after-mount="handleWujieMounted"
@@ -29,7 +28,7 @@
           v-else
           :url="entryUrl"
           :title="app.name"
-          :policy="runtime.iframe"
+          :policy="app.runtimeConfig.kind === 'iframe' ? app.runtimeConfig.iframe : undefined"
         />
       </template>
     </el-card>
@@ -41,31 +40,30 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
-import { resolveHttpUrl } from '@/config/iframe'
 import { findRuntimeMicroApp } from '@/config/runtime'
 import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolvePlatformPathForChild } from '@/config/navigation'
+import { getPlatformApi } from '@/platform'
 import { useThemeStore } from '@/stores/theme'
-import type { MicroApp, MicroAppRuntimeConfig, PlatformContext, PlatformNavigatePayload } from '@/types'
+import type { MicroApp, PlatformContext, PlatformNavigatePayload, WujieRuntimeConfig } from '@/types'
 import EmbeddedWebFrame from './components/EmbeddedWebFrame.vue'
 
 const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
 const app = ref<MicroApp>()
-const runtime = ref<MicroAppRuntimeConfig>()
+const runtime = ref<WujieRuntimeConfig>()
 const entryUrl = ref('')
+const entryRootUrl = ref('')
 const loading = ref(true)
 const error = ref('')
 
 const childRoute = computed(() => app.value ? getMicroAppChildPath(app.value, route.path) : '')
 
 const childProps = computed(() => {
-  if (!runtime.value) return {}
   const context: PlatformContext = Object.freeze({
     version: 1,
-    theme: runtime.value.props.theme || themeStore.themeMode,
-    language: runtime.value.props.language || navigator.language,
-    ...(runtime.value.props.tenantId ? { tenantId: runtime.value.props.tenantId } : {}),
+    theme: themeStore.themeMode,
+    language: navigator.language,
     user: Object.freeze({ id: 'platform', name: 'Core Platform' }),
   })
   return Object.freeze({
@@ -84,7 +82,7 @@ function openInNewWindow() {
 }
 
 function emitRouteToChild() {
-  if (!app.value || runtime.value?.routeMode !== 'platform') return
+  if (!app.value || app.value.integrationMode !== 'wujie' || runtime.value?.routeMode !== 'platform') return
   const payload: PlatformNavigatePayload = { appCode: app.value.code, path: childRoute.value }
   WujieVue.bus.$emit('platform:route-change', payload)
   WujieVue.bus.$emit(`platform:route-change:${app.value.code}`, payload)
@@ -95,7 +93,7 @@ function handleWujieMounted() {
 }
 
 function handleChildNavigate(payload: PlatformNavigatePayload) {
-  if (!app.value || runtime.value?.routeMode !== 'platform') return
+  if (!app.value || app.value.integrationMode !== 'wujie' || runtime.value?.routeMode !== 'platform') return
   if (!payload || typeof payload.path !== 'string') return
   if (payload.appCode && payload.appCode !== app.value.code) return
   router.push(resolvePlatformPathForChild(app.value, payload.path))
@@ -108,28 +106,31 @@ async function load() {
     const code = String(route.params.code)
     const microApp = findRuntimeMicroApp(code)
     if (!microApp) throw new Error('未找到该微应用')
-    if (microApp.status !== 'published') throw new Error('该应用未上架')
-    if (!microApp.embedAllowed) throw new Error('该应用未获准嵌入平台')
-    if (microApp.healthStatus === 'unavailable') throw new Error('该应用当前不可用')
-    const nextEntryUrl = resolveMicroAppEntryUrl(microApp, route.path)
+    if (!microApp.enabled) throw new Error('该应用已停用')
+    const entryRoot = microApp.entry.type === 'local-directory'
+      ? await getPlatformApi()?.resolveLocalMicroAppUrl(microApp.id)
+      : microApp.entry.url
+    if (!entryRoot) throw new Error('本地微应用仅能在 Electron 桌面版中加载')
+    const nextEntryUrl = resolveMicroAppEntryUrl(microApp, route.path, entryRoot)
     const reuseMountedWujie = app.value?.code === microApp.code
       && microApp.integrationMode === 'wujie'
       && Boolean(entryUrl.value)
     app.value = microApp
-    runtime.value = microApp.runtimeConfig
+    runtime.value = microApp.runtimeConfig.kind === 'wujie' ? microApp.runtimeConfig : undefined
+    entryRootUrl.value = entryRoot
     if (!reuseMountedWujie) entryUrl.value = nextEntryUrl
-    if (microApp.integrationMode === 'wujie' && microApp.runtimeConfig.preload) {
+    if (microApp.integrationMode === 'wujie' && microApp.runtimeConfig.kind === 'wujie' && microApp.runtimeConfig.preload) {
       WujieVue.preloadApp({
         name: microApp.code,
-        url: resolveHttpUrl(microApp.url),
+        url: entryRootUrl.value,
         props: childProps.value,
-        exec: microApp.runtimeConfig.exec,
       })
     }
   } catch (cause: any) {
     app.value = undefined
     runtime.value = undefined
     entryUrl.value = ''
+    entryRootUrl.value = ''
     error.value = cause.message || '获取微应用配置失败'
   } finally {
     loading.value = false

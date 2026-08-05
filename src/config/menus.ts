@@ -86,63 +86,79 @@ export const RESERVED_MENU_PATHS = new Map<string, string>(
 export const mainMenus: MenuItem[] = [
   DASHBOARD_MENU,
   {
-    id: 'external-links',
-    title: '外链',
+    id: 'links',
+    title: '示例',
     icon: 'Link',
     type: 'dir',
     appCode: null,
     sort: 1,
     status: 1,
+    visible: true,
+    path: '/links',
     children: [
       {
-        id: 'external-links-iframe',
-        title: 'Iframe',
+        id: 'links_iframe',
+        title: '内嵌',
         icon: 'Monitor',
         type: 'dir',
         appCode: null,
         sort: 0,
         status: 1,
+        visible: true,
+        path: '/links/iframe',
         children: [
           {
-            id: 'external-link-antdv',
-            title: 'AntDV',
+            id: 'links_iframe_antdv',
+            title: 'AntD',
             icon: 'Link',
             type: 'menu',
-            path: '/links/antdv',
+            path: '/links/iframe/antdv',
             target: {
               type: 'iframe',
               url: 'https://www.antdv.com/components/overview',
-              iframePolicy: { profile: 'compatible' },
+              iframePolicy: {
+                profile: 'compatible',
+                referrerPolicy: 'strict-origin-when-cross-origin',
+                timeout: 15,
+              },
             },
             appCode: null,
             sort: 0,
             status: 1,
+            visible: true,
           },
         ],
       },
       {
-        id: 'external-links-window',
-        title: '窗口',
+        id: 'links_window',
+        title: '外链',
         icon: 'TopRight',
         type: 'dir',
         appCode: null,
         sort: 1,
         status: 1,
+        visible: true,
+        path: '/links/window',
         children: [
           {
-            id: 'external-link-element-plus',
-            title: 'ElementPlus',
+            id: 'links_window_elementPlus',
+            title: 'elementPlus',
             icon: 'ElementPlus',
             type: 'menu',
-            path: '/links/element-plus',
+            path: '/links/window/elementPlus',
             target: {
               type: 'iframe',
               url: 'https://element-plus.org/zh-CN/',
-              iframePolicy: { profile: 'external' },
+              iframePolicy: {
+                profile: 'external',
+                referrerPolicy: 'strict-origin-when-cross-origin',
+                timeout: 15,
+              },
             },
             appCode: null,
             sort: 0,
             status: 1,
+            visible: true,
           },
         ],
       },
@@ -158,7 +174,7 @@ export const microMenus: Record<string, MenuItem[]> = Object.fromEntries(
 export const applications: ApplicationOption[] = [
   { code: 'main', name: '通用', icon: 'HomeFilled', type: 'main' },
   ...microApps
-    .filter(app => app.status === 'published' && app.embedAllowed)
+    .filter(app => app.enabled)
     .sort((a, b) => a.sort - b.sort)
     .map(app => ({ code: app.code, name: app.name, icon: app.icon, type: 'microapp' as const })),
 ]
