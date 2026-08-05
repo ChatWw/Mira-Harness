@@ -4,9 +4,10 @@ import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import router from './router'
+import router, { updateDocumentTitle } from './router'
 import App from './app/App.vue'
 import { findCommandNavigationByPath } from './config/commandPalette'
+import { resolveNavigation } from './config/navigation'
 import { useCommandPaletteStore } from './stores/commandPalette'
 import './styles/index.scss'
 
@@ -23,6 +24,8 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(pinia)
 router.afterEach((to) => {
+  const navigation = resolveNavigation(to.path)
+  updateDocumentTitle(navigation.menu || navigation.app ? navigation.title : to.meta.title)
   if (to.path === '/dashboard') return
   const destination = findCommandNavigationByPath(to.path)
   if (destination) useCommandPaletteStore().recordVisit(destination.id)

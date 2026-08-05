@@ -45,7 +45,7 @@ function flattenMenus(menus: MenuItem[]): MenuItem[] {
 }
 
 flattenMenus(mainMenus)
-  .filter(menu => menu.type === 'menu' && menu.path && menu.component)
+  .filter(menu => menu.type === 'menu' && menu.path && menu.target)
   .map(createBusinessRoute)
   .filter((route): route is RouteRecordRaw => route !== null)
   .forEach(route => router.addRoute('Layout', route))

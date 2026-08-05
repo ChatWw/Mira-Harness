@@ -127,6 +127,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pinyin } from 'pinyin-pro'
 import { commonCommandIds, commandNavigationItems, findCommandNavigation } from '@/config/commandPalette'
+import { navigateToPath } from '@/config/navigation'
 import type { CommandNavigationCategory, CommandNavigationItem } from '@/config/commandPalette'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { useLayoutStore } from '@/stores/layout'
@@ -276,7 +277,10 @@ function selectActive() {
 
 async function handleSelect(item: CommandPaletteItem) {
   if ('action' in item) await item.action()
-  else router.push(item.path)
+  else {
+    const mode = await navigateToPath(router, item.path)
+    if (mode === 'external') paletteStore.recordVisit(item.id)
+  }
   handleClose()
 }
 

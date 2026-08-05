@@ -18,22 +18,18 @@
           :name="app.code"
           :url="entryUrl"
           :alive="runtime.alive"
-          :sync="runtime.sync"
+          :sync="false"
           :fiber="runtime.fiber"
           :prefix="runtime.prefix"
           :props="childProps"
+          :after-mount="handleWujieMounted"
           @load-error="handleWujieError"
         />
-        <iframe
+        <EmbeddedWebFrame
           v-else
-          ref="iframeRef"
-          class="micro-app-frame"
-          :src="entryUrl"
-          :sandbox="runtime.iframe.sandbox"
-          :referrerpolicy="runtime.iframe.referrerPolicy"
-          title="微应用"
-          @load="handleIframeLoad"
-          @error="handleIframeError"
+          :url="entryUrl"
+          :title="app.name"
+          :policy="runtime.iframe"
         />
       </template>
     </el-card>
@@ -42,22 +38,26 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
+import { resolveHttpUrl } from '@/config/iframe'
 import { findMicroApp } from '@/config/microApps'
+import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolvePlatformPathForChild } from '@/config/navigation'
 import { useThemeStore } from '@/stores/theme'
-import type { MicroApp, MicroAppRuntimeConfig, PlatformContext } from '@/types'
+import type { MicroApp, MicroAppRuntimeConfig, PlatformContext, PlatformNavigatePayload } from '@/types'
+import EmbeddedWebFrame from './components/EmbeddedWebFrame.vue'
 
 const route = useRoute()
+const router = useRouter()
 const themeStore = useThemeStore()
 const app = ref<MicroApp>()
 const runtime = ref<MicroAppRuntimeConfig>()
 const entryUrl = ref('')
 const loading = ref(true)
 const error = ref('')
-const iframeRef = ref<HTMLIFrameElement>()
-let iframeTimer: number | undefined
+
+const childRoute = computed(() => app.value ? getMicroAppChildPath(app.value, route.path) : '')
 
 const childProps = computed(() => {
   if (!runtime.value) return {}
@@ -68,40 +68,42 @@ const childProps = computed(() => {
     ...(runtime.value.props.tenantId ? { tenantId: runtime.value.props.tenantId } : {}),
     user: Object.freeze({ id: 'platform', name: 'Core Platform' }),
   })
-  return Object.freeze({ platformContext: context })
+  return Object.freeze({
+    platformContext: context,
+    platformRoute: childRoute.value,
+    navigate: (path: string) => handleChildNavigate({ appCode: app.value?.code || '', path }),
+  })
 })
 
-function resolveEntryUrl(url: string) {
-  const resolved = new URL(url, window.location.origin)
-  if (!['http:', 'https:'].includes(resolved.protocol)) {
-    throw new Error('入口必须是 HTTP(S) 网页地址')
-  }
-  return resolved.href
+function handleWujieError() {
+  error.value = 'Wujie 子应用加载失败，请检查入口、静态资源基路径或应用准入配置'
 }
 
-function clearIframeTimer() {
-  if (iframeTimer !== undefined) window.clearTimeout(iframeTimer)
-  iframeTimer = undefined
+function openInNewWindow() {
+  window.open(entryUrl.value, '_blank', 'noopener,noreferrer')
 }
 
-function startIframeTimer() {
-  clearIframeTimer()
-  const timeout = runtime.value?.iframe.timeout || 15
-  iframeTimer = window.setTimeout(() => {
-    error.value = `应用加载超过 ${timeout} 秒，请检查入口或嵌入策略`
-  }, timeout * 1000)
+function emitRouteToChild() {
+  if (!app.value || runtime.value?.routeMode !== 'platform') return
+  const payload: PlatformNavigatePayload = { appCode: app.value.code, path: childRoute.value }
+  WujieVue.bus.$emit('platform:route-change', payload)
+  WujieVue.bus.$emit(`platform:route-change:${app.value.code}`, payload)
 }
 
-function handleIframeLoad() { clearIframeTimer() }
-function handleIframeError() { clearIframeTimer(); error.value = 'iframe 加载失败，请检查入口或嵌入策略' }
-function handleWujieError() { error.value = 'Wujie 子应用加载失败，请检查入口、静态资源基路径或应用准入配置' }
-function openInNewWindow() { window.open(entryUrl.value, '_blank', 'noopener,noreferrer') }
+function handleWujieMounted() {
+  emitRouteToChild()
+}
+
+function handleChildNavigate(payload: PlatformNavigatePayload) {
+  if (!app.value || runtime.value?.routeMode !== 'platform') return
+  if (!payload || typeof payload.path !== 'string') return
+  if (payload.appCode && payload.appCode !== app.value.code) return
+  router.push(resolvePlatformPathForChild(app.value, payload.path))
+}
 
 async function load() {
-  clearIframeTimer()
   loading.value = true
   error.value = ''
-  entryUrl.value = ''
   try {
     const code = String(route.params.code)
     const microApp = findMicroApp(code)
@@ -109,22 +111,35 @@ async function load() {
     if (microApp.status !== 'published') throw new Error('该应用未上架')
     if (!microApp.embedAllowed) throw new Error('该应用未获准嵌入平台')
     if (microApp.healthStatus === 'unavailable') throw new Error('该应用当前不可用')
+    const nextEntryUrl = resolveMicroAppEntryUrl(microApp, route.path)
+    const reuseMountedWujie = app.value?.code === microApp.code
+      && microApp.integrationMode === 'wujie'
+      && Boolean(entryUrl.value)
     app.value = microApp
     runtime.value = microApp.runtimeConfig
-    entryUrl.value = resolveEntryUrl(microApp.url)
-    if (microApp.integrationMode === 'iframe') startIframeTimer()
+    if (!reuseMountedWujie) entryUrl.value = nextEntryUrl
     if (microApp.integrationMode === 'wujie' && microApp.runtimeConfig.preload) {
-      WujieVue.preloadApp({ name: microApp.code, url: entryUrl.value, props: childProps.value, exec: microApp.runtimeConfig.exec })
+      WujieVue.preloadApp({
+        name: microApp.code,
+        url: resolveHttpUrl(microApp.url),
+        props: childProps.value,
+        exec: microApp.runtimeConfig.exec,
+      })
     }
   } catch (cause: any) {
+    app.value = undefined
+    runtime.value = undefined
+    entryUrl.value = ''
     error.value = cause.message || '获取微应用配置失败'
   } finally {
     loading.value = false
   }
 }
 
-watch(() => route.params.code, load, { immediate: true })
-onBeforeUnmount(clearIframeTimer)
+WujieVue.bus.$on('platform:navigate', handleChildNavigate)
+watch(() => route.fullPath, load, { immediate: true })
+watch(childRoute, emitRouteToChild)
+onBeforeUnmount(() => WujieVue.bus.$off('platform:navigate', handleChildNavigate))
 </script>
 
 <style scoped lang="scss">

@@ -94,8 +94,7 @@ import { Close, ArrowDown, Refresh, CircleClose, Back, Right, Delete } from '@el
 import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
-import { mainMenus, microMenus } from '@/config/menus'
-import type { MenuItem } from '@/types'
+import { resolveNavigation } from '@/config/navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -125,31 +124,17 @@ const tabMenuItems = computed(() => [
   { command: 'closeAll', label: '关闭全部', icon: Delete, disabled: tabsStore.tabs.filter(t => t.closable).length === 0 },
 ])
 
-function findMenuByPath(menus: MenuItem[], path: string): MenuItem | undefined {
-  for (const menu of menus) {
-    if (menu.path === path) return menu
-
-    const child = menu.children && findMenuByPath(menu.children, path)
-    if (child) return child
-  }
-}
-
-// 监听路由和当前应用菜单，自动添加或更新标签
-const currentMenus = computed(() => {
-  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
-  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
-})
+const navigation = computed(() => resolveNavigation(route.path))
 
 watch(
-  [() => route.path, currentMenus],
+  () => route.path,
   () => {
     if (route.meta.title) {
-      const menu = findMenuByPath(currentMenus.value, route.path)
       tabsStore.addTab({
         path: route.path,
-        title: menu?.title || (route.meta.title as string),
+        title: navigation.value.title || (route.meta.title as string),
         name: route.name as string,
-        icon: menu?.icon || route.meta.icon as string,
+        icon: navigation.value.icon || route.meta.icon as string,
         closable: route.path !== '/dashboard',
         lastAccess: Date.now(),
       })

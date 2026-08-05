@@ -60,11 +60,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowDown, Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import coreLogo from '@/asset/core.svg'
-import { applications, microMenus } from '@/config/menus'
+import { applications } from '@/config/menus'
+import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import { useAppStore } from '@/stores/app'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -77,24 +78,14 @@ const { variant = 'header' } = defineProps<{ variant?: 'header' | 'rail' }>()
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
-const currentAppCode = ref('main')
+const currentAppCode = computed(() => getAppCodeFromPath(route.path))
 const selectedApp = computed(() => applications.find(app => app.code === currentAppCode.value))
 const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
 
 function handleAppChange(code: string) {
-  currentAppCode.value = code
-  const menu = microMenus[code]?.[0]
-  router.push(code === 'main' ? '/dashboard' : menu?.path || `/micro/${code}`)
+  navigateToPath(router, getApplicationEntryPath(code))
 }
-
-watch(
-  () => route.path,
-  () => {
-    currentAppCode.value = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
-  },
-  { immediate: true },
-)
 
 function handleSearch() { commandPaletteStore.open() }
 function handleThemeToggle(event: MouseEvent) {

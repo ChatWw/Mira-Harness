@@ -23,9 +23,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { mainMenus, microMenus } from '@/config/menus'
+import { findMenuPath, resolveNavigation } from '@/config/navigation'
 import { useLayoutStore } from '@/stores/layout'
-import type { MenuItem } from '@/types'
 
 const route = useRoute()
 const layoutStore = useLayoutStore()
@@ -45,22 +44,10 @@ const DASHBOARD_BREADCRUMB: BreadcrumbItem = {
   icon: 'Odometer',
 }
 
-const currentMenus = computed(() => {
-  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
-  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
-})
-
-function findMenuPath(menus: MenuItem[], path: string): MenuItem[] | undefined {
-  for (const menu of menus) {
-    if (menu.path === path) return [menu]
-
-    const childPath = menu.children && findMenuPath(menu.children, path)
-    if (childPath) return [menu, ...childPath]
-  }
-}
+const navigation = computed(() => resolveNavigation(route.path))
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-  const menuPath = findMenuPath(currentMenus.value, route.path)
+  const menuPath = findMenuPath(navigation.value.menus, route.path)
   if (menuPath) {
     const items = menuPath.map(menu => ({
       title: menu.title,
@@ -70,6 +57,17 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
     return items[0]?.path === DASHBOARD_BREADCRUMB.path
       ? items
       : [DASHBOARD_BREADCRUMB, ...items]
+  }
+
+  if (navigation.value.area === 'microapp' && navigation.value.app) {
+    return [
+      DASHBOARD_BREADCRUMB,
+      {
+        title: navigation.value.title,
+        path: route.path,
+        icon: navigation.value.icon,
+      },
+    ]
   }
 
   const matched = route.matched.filter(r => r.meta && r.meta.title)

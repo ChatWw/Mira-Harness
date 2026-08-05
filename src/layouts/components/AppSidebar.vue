@@ -30,44 +30,28 @@
       :style="appStore.sidebarCollapsed
         ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` }
         : undefined"
-      router
       class="sidebar-menu"
+      @select="handleMenuSelect"
       @open="handleMenuOpen"
       @close="handleMenuClose"
     >
-      <template v-for="item in displayedMenuList.filter((item: any) => item.visible !== false)" :key="item.id">
-        <el-sub-menu v-if="item.children?.some((child: any) => child.visible !== false)" :index="item.id">
-          <template #title>
-            <el-icon><component :is="item.icon" /></el-icon>
-            <span>{{ item.title }}</span>
-          </template>
-          <el-menu-item
-            v-for="child in item.children.filter((child: any) => child.visible !== false)"
-            :key="child.id"
-            :index="child.path"
-          >
-            <el-icon><component :is="child.icon" /></el-icon>
-            <span>{{ child.title }}</span>
-          </el-menu-item>
-        </el-sub-menu>
-        <el-menu-item v-else :index="item.path">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.title }}</span>
-        </el-menu-item>
-      </template>
+      <SidebarMenuItem v-for="item in displayedMenuList" :key="item.id" :item="item" />
     </el-menu>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import coreLogo from '@/asset/core.svg'
 import { useAppStore } from '@/stores/app'
-import { mainMenus, microMenus } from '@/config/menus'
+import { getVisibleMenusForPath, navigateToPath } from '@/config/navigation'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import type { MenuItem } from '@/types'
+import SidebarMenuItem from './SidebarMenuItem.vue'
 
 const route = useRoute()
+const router = useRouter()
 withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
   showBrand: true,
   textOnlyBrand: false,
@@ -78,14 +62,15 @@ const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
 
 const currentRoute = computed(() => route.path)
-const displayedMenuList = computed(() => {
-  const appCode = route.path.startsWith('/micro/') ? String(route.params.code) : 'main'
-  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
-})
+const displayedMenuList = computed(() => getVisibleMenusForPath(route.path))
+
+function handleMenuSelect(path: string) {
+  navigateToPath(router, path)
+}
 
 function handleMenuOpen(index: string) {
   if (layoutStore.config.uniqueOpened) {
-    openedSubmenuIndexes.value = [index]
+    openedSubmenuIndexes.value = findMenuIdPath(displayedMenuList.value, index) || [index]
     return
   }
 
@@ -98,6 +83,14 @@ function handleMenuClose(index: string) {
   openedSubmenuIndexes.value = openedSubmenuIndexes.value.filter(item => item !== index)
 }
 
+function findMenuIdPath(menus: MenuItem[], id: string): string[] | undefined {
+  for (const menu of menus) {
+    if (menu.id === id) return [menu.id]
+    const childPath = menu.children && findMenuIdPath(menu.children, id)
+    if (childPath) return [menu.id, ...childPath]
+  }
+}
+
 watch(
   () => layoutStore.config.uniqueOpened,
   enabled => {
@@ -106,10 +99,11 @@ watch(
     }
 
     const currentIndex = openedSubmenuIndexes.value[openedSubmenuIndexes.value.length - 1]
+    const keepIndexes = findMenuIdPath(displayedMenuList.value, currentIndex) || [currentIndex]
     openedSubmenuIndexes.value
-      .filter(index => index !== currentIndex)
+      .filter(index => !keepIndexes.includes(index))
       .forEach(index => menuRef.value?.close(index))
-    openedSubmenuIndexes.value = [currentIndex]
+    openedSubmenuIndexes.value = keepIndexes
   }
 )
 </script>

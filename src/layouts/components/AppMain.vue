@@ -1,18 +1,25 @@
 <template>
   <main class="app-main">
     <transition :name="transitionName" mode="out-in">
-      <router-view :key="$route.fullPath" />
+      <router-view :key="viewKey" />
     </transition>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useLayoutStore } from '@/stores/layout'
 
 const layoutStore = useLayoutStore()
+const route = useRoute()
 
 const transitionName = computed(() => layoutStore.config.pageTransition)
+// 同一微应用的子路由只通知宿主切换，仅显式刷新时重建 Wujie 实例。
+const viewKey = computed(() => route.name === 'MicroAppHost'
+  ? `micro:${String(route.params.code)}:${String(route.query._t || '')}`
+  : route.fullPath
+)
 </script>
 
 <style scoped lang="scss">

@@ -53,8 +53,7 @@
 import { computed } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useRoute } from 'vue-router'
-import { microMenus } from '@/config/menus'
-import { findMicroApp } from '@/config/microApps'
+import { getVisibleMenus, resolveNavigation } from '@/config/navigation'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
@@ -70,12 +69,11 @@ const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const route = useRoute()
 const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
+const navigation = computed(() => resolveNavigation(route.path))
 
 const showSidebar = computed(() => {
-  if (!route.path.startsWith('/micro/')) return true
-
-  const microApp = findMicroApp(String(route.params.code))
-  return microApp?.integrationMode === 'wujie' && Boolean(microMenus[microApp.code]?.length)
+  if (navigation.value.area === 'main') return true
+  return getVisibleMenus(navigation.value.menus).length > 0
 })
 const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
 const showWorkspaceHeader = computed(() => !showGlobalHeader.value)

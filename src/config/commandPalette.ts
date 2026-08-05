@@ -1,4 +1,5 @@
 import { applications, mainMenus, microMenus } from '@/config/menus'
+import { getApplicationEntryPath, isMenuVisible } from '@/config/navigation'
 import type { MenuItem } from '@/types'
 
 export type CommandNavigationCategory = 'page' | 'application'
@@ -14,7 +15,7 @@ export interface CommandNavigationItem {
 
 function flattenMenus(items: MenuItem[], category: CommandNavigationCategory, parent?: string): CommandNavigationItem[] {
   return items.flatMap((item) => {
-    if (item.visible === false) return []
+    if (!isMenuVisible(item)) return []
 
     const current = item.path
       ? [{ id: item.id, title: item.title, icon: item.icon, path: item.path, category, parent }]
@@ -37,7 +38,7 @@ const applicationItems = applications
     id: `application-${app.code}`,
     title: app.name,
     icon: app.icon,
-    path: `/micro/${app.code}`,
+    path: getApplicationEntryPath(app.code),
     category: 'application',
     parent: '应用',
   }))

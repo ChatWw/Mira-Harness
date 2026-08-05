@@ -1,12 +1,25 @@
 export type ThemeMode = 'light' | 'dark'
 
+export type IframeProfile = 'strict' | 'compatible' | 'external'
+
+export interface IframePolicy {
+  profile?: IframeProfile
+  referrerPolicy?: ReferrerPolicy
+  timeout?: number
+}
+
+export type MenuTarget =
+  | { type: 'component'; component: string }
+  | { type: 'iframe'; url: string; iframePolicy?: IframePolicy }
+  | { type: 'microapp'; childPath: string }
+
 export interface MenuItem {
   id: string
   title: string
   icon?: string
   path?: string
   children?: MenuItem[]
-  component?: string
+  target?: MenuTarget
   name?: string
   type?: 'dir' | 'menu' | 'button' | 'microapp'
   appCode?: string | null
@@ -36,26 +49,27 @@ export interface PlatformContext {
   }
 }
 
-export type MicroAppEventName = 'platform:navigate' | 'platform:refresh'
+export type MicroAppEventName = 'platform:navigate' | 'platform:route-change' | 'platform:refresh'
 
 export interface MicroAppEvent {
   name: MicroAppEventName
   payload?: Record<string, unknown>
 }
 
+export interface PlatformNavigatePayload {
+  appCode: string
+  path: string
+}
+
 export interface MicroAppRuntimeConfig {
   alive: boolean
-  sync: boolean
+  routeMode: 'platform' | 'none'
   fiber: boolean
   prefix: Record<string, string>
   props: MicroAppContextOverrides
   preload: boolean
   exec: boolean
-  iframe: {
-    sandbox: string
-    referrerPolicy: ReferrerPolicy
-    timeout: number
-  }
+  iframe: IframePolicy
 }
 
 export interface MicroApp {

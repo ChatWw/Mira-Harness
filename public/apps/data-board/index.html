@@ -4,9 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>数据看板</title>
-    <style>body{margin:0;font:14px system-ui,sans-serif;color:#172033;background:#f7f9fc}.card{margin:24px;padding:24px;border-radius:12px;background:#fff;box-shadow:0 4px 16px #17203312}.metric{display:inline-block;min-width:150px;margin:16px 16px 0 0;padding:16px;border-radius:8px;background:#eef4ff;color:#2454a6}.metric b{display:block;font-size:28px;margin-top:8px}</style>
+    <style>body{margin:0;font:14px system-ui,sans-serif;color:#172033;background:#f7f9fc}.card{margin:24px;padding:24px;border-radius:12px;background:#fff;box-shadow:0 4px 16px #17203312}.nav{display:flex;gap:8px;margin-bottom:20px}.nav button{padding:7px 12px;border:0;border-radius:7px;background:#eef4ff;color:#2454a6;cursor:pointer}.nav button.active{background:#2454a6;color:#fff}.metric{display:inline-block;min-width:150px;margin:16px 16px 0 0;padding:16px;border-radius:8px;background:#eef4ff;color:#2454a6}.metric b{display:block;font-size:28px;margin-top:8px}</style>
   </head>
   <body>
-    <main class="card"><h2>数据看板（Wujie 试点）</h2><p>此页面用于验证同源入口、Wujie 加载与主应用路由集成。</p><div class="metric">今日访问<b>12,480</b></div><div class="metric">待处理事项<b>18</b></div></main>
+    <main class="card">
+      <nav class="nav"><button data-path="">数据总览</button><button data-path="#/trends">趋势分析</button></nav>
+      <h2 id="page-title"></h2><p id="page-description"></p>
+      <div class="metric"><span id="metric-one-label"></span><b id="metric-one-value"></b></div>
+      <div class="metric"><span id="metric-two-label"></span><b id="metric-two-value"></b></div>
+    </main>
+    <script>
+      const pages = {
+        home: { title: '数据看板（Wujie 试点）', description: '此页面用于验证同源入口、Wujie 加载与主应用路由集成。', metrics: [['今日访问', '12,480'], ['待处理事项', '18']] },
+        trends: { title: '趋势分析（Wujie 试点）', description: '平台路径与子应用路径由路由桥双向同步。', metrics: [['周环比', '+12.6%'], ['月同比', '+28.4%']] },
+      }
+
+      function render(path) {
+        const key = String(path || '').includes('trends') ? 'trends' : 'home'
+        const page = pages[key]
+        document.querySelector('#page-title').textContent = page.title
+        document.querySelector('#page-description').textContent = page.description
+        document.querySelector('#metric-one-label').textContent = page.metrics[0][0]
+        document.querySelector('#metric-one-value').textContent = page.metrics[0][1]
+        document.querySelector('#metric-two-label').textContent = page.metrics[1][0]
+        document.querySelector('#metric-two-value').textContent = page.metrics[1][1]
+        document.querySelectorAll('[data-path]').forEach(button => button.classList.toggle('active', button.dataset.path === (key === 'trends' ? '#/trends' : '')))
+      }
+
+      document.querySelectorAll('[data-path]').forEach(button => button.addEventListener('click', () => {
+        const path = button.dataset.path
+        render(path)
+        if (window.$wujie?.props?.navigate) window.$wujie.props.navigate(path)
+        else location.hash = path
+      }))
+      window.addEventListener('hashchange', () => render(location.hash))
+      window.$wujie?.bus?.$on('platform:route-change:data-board', payload => render(payload?.path))
+      render(window.$wujie?.props?.platformRoute || location.hash)
+    </script>
   </body>
 </html>

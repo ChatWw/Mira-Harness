@@ -1,14 +1,16 @@
 # Core Platform
 
-基于 Vue 3、TypeScript 和 Vite 的个人工具应用壳。项目不依赖登录、用户体系或后端菜单服务；打开应用会直接进入概览，内置工具与微应用均从本地 TypeScript 清单加载。
+基于 Vue 3、TypeScript 和 Vite 的个人工具应用壳。项目不依赖登录、用户体系或后端菜单服务；打开应用会直接进入“通用”区域的概览页，本地页面、网页菜单与微应用均从 TypeScript 清单加载。
 
 ## 当前能力
 
-- 本地工具清单：应用切换器、侧边栏菜单、全局搜索和微应用宿主共享 [`src/config/microApps.ts`](./src/config/microApps.ts) 与 [`src/config/menus.ts`](./src/config/menus.ts)。
+- 本地资源清单：应用切换器、侧边栏、标签页、面包屑和全局搜索共享 [`src/config/navigation.ts`](./src/config/navigation.ts) 的导航解析结果。
 - 直达概览：根路径重定向到 `/dashboard`；未注册路径会落到 404。
 - 两种布局：`侧边栏+顶栏` 与 `仅侧边栏`，可在全局配置中切换并持久化。
 - 主题与外观：亮/暗模式、主题色、圆角、动画、标签页、面包屑、底栏和水印等全局配置。
-- 微应用宿主：支持 Wujie 和受控 iframe 两种嵌入模式，保留同源校验、超时、错误回退和主题上下文传递。
+- 通用网页：`mainMenus` 同时支持本地 Vue 页面和稳定平台路径对应的 iframe 网页。
+- 微应用宿主：支持 Wujie 和 iframe；是否显示二级菜单只由应用是否配置可见 `menus` 决定。
+- iframe 策略：统一支持 `strict`、`compatible` 和 `external`，其中 `compatible` 为默认值，`external` 直接在新窗口打开。
 
 ## 技术栈
 
@@ -53,15 +55,11 @@ npm run preview
 
 ## 工具、路由与应用
 
-### 修改菜单
+### 通用菜单
 
-编辑 [`src/config/microApps.ts`](./src/config/microApps.ts) 和 [`src/config/menus.ts`](./src/config/menus.ts)：
+编辑 [`src/config/menus.ts`](./src/config/menus.ts) 中的 `mainMenus`：
 
-- `microApps`：微应用入口、运行模式、运行参数和可选子菜单的唯一来源。
-- `mainMenus`：壳自身的页面导航。
-- `microMenus` 与 `applications`：从 `microApps` 派生，供侧边栏、应用切换器和搜索使用。
-
-主应用中 `type: 'menu'` 且同时具备 `path`、`component` 的菜单项，会在应用初始化时由 [`src/router/index.ts`](./src/router/index.ts) 注册到布局路由中。`component` 必须指向 `src/pages` 下已有的 Vue 页面，例如：
+本地 Vue 页面通过页面白名单注册，`component` 必须指向 `src/pages` 下已有的 Vue 页面：
 
 ```ts
 {
@@ -70,16 +68,71 @@ npm run preview
   icon: 'Document',
   type: 'menu',
   path: '/example',
-  component: '/src/pages/example/ExamplePage.vue',
+  target: {
+    type: 'component',
+    component: '/src/pages/example/ExamplePage.vue',
+  },
 }
 ```
+
+iframe 网页使用同样稳定的平台路径：
+
+```ts
+{
+  id: 'docs',
+  title: '文档',
+  type: 'menu',
+  path: '/docs',
+  target: {
+    type: 'iframe',
+    url: 'https://example.com/docs',
+    iframePolicy: { profile: 'compatible' },
+  },
+}
+```
+
+iframe 权限由 [`src/config/iframe.ts`](./src/config/iframe.ts) 集中映射，业务配置不直接拼接 `sandbox` 字符串：
+
+- `strict`：保持严格隔离，不授予 `allow-same-origin`。
+- `compatible`：增加同源语义、下载、弹窗逃逸和全屏等站点兼容能力，为默认策略。
+- `external`：不创建平台页面，由导航入口直接新窗口打开。
+
+### 微应用
+
+编辑 [`src/config/microApps.ts`](./src/config/microApps.ts)。`microApps` 是微应用入口、集成模式、运行参数和可选子菜单的唯一来源；`microMenus` 与 `applications` 由其派生。
+
+微应用菜单同时声明平台路径和子应用真实路径：
+
+```ts
+{
+  id: 'order-users',
+  title: '用户管理',
+  type: 'microapp',
+  path: '/micro/order/users',
+  target: { type: 'microapp', childPath: '/users' },
+}
+```
+
+- 无可见菜单时，应用入口为 `/micro/:code`，二级菜单自动隐藏。
+- 有可见菜单时，应用切换器进入第一个可见菜单。
+- Wujie 关闭内置查询参数同步，由平台路径 `/micro/:code/*` 统一表示当前子页。
+- iframe 可根据 `childPath` 单向生成目标 URL；跨域 iframe 内部跳转不保证反向同步平台地址。
+
+#### Wujie 路由桥
+
+平台通过 props 向可改造的子应用提供 `platformRoute` 和 `navigate(path)`，并通过 Wujie bus 发送：
+
+- `platform:route-change`：平台路由变化，payload 为 `{ appCode, path }`。
+- `platform:route-change:<appCode>`：应用级定向事件，payload 相同。
+
+子应用可调用 `navigate(path)`，或发送 `platform:navigate` 及 `{ appCode, path }`，由平台更新 `/micro/:code/*`。该双向契约只适用于可改造的 Wujie 子应用，不对任意第三方网站承诺路由同步。
 
 ### 路由规则
 
 | 路径 | 行为 |
 | --- | --- |
 | `/` | 重定向到 `/dashboard` |
-| 主应用菜单路径 | 由 `mainMenus` 自动注册 |
+| 通用菜单路径 | 由 `mainMenus` 自动注册本地页或网页宿主页 |
 | `/micro/:code/:pathMatch(.*)*` | 微应用宿主页 |
 | `/404` | 404 页面 |
 | 其他路径 | 重定向到 `/404` |
@@ -94,8 +147,11 @@ npm run preview
 
 ### 仅侧边栏
 
-- 左侧为窄应用栏和菜单侧边栏，窄应用栏不显示头像或账户入口。
+- 最左侧窄应用栏始终存在；当前应用有可见菜单时，再在其右侧显示二级菜单。
+- 窄应用栏不显示头像或账户入口。
 - 工作区工具栏保留折叠、面包屑和常用工具按钮。
+
+`侧边栏+顶栏` 的内嵌样式在无二级菜单时会为主工作区保留对称的左右间距。
 
 布局配置由 [`src/stores/layout.ts`](./src/stores/layout.ts) 管理，并通过 Pinia 持久化插件保存在浏览器本地。
 
@@ -107,16 +163,17 @@ src/
 ├── asset/                       # 品牌与静态资源
 ├── components/                  # 通用组件（面包屑、搜索、通知等）
 ├── config/
+│   ├── iframe.ts                # iframe 策略与 URL 解析
 │   ├── microApps.ts             # 本地微应用清单与运行参数
 │   ├── menus.ts                 # 壳导航与从清单派生的应用导航
+│   ├── navigation.ts            # 统一导航、入口与路由映射
 │   └── theme.ts                 # 主题预设
 ├── layouts/
 │   ├── index.vue                # 两种布局的装配入口
 │   └── components/              # 顶栏、侧栏、标签栏、设置面板等
 ├── pages/                       # 页面组件
-│   ├── dashboard/               # 工作台
 │   ├── dashboard/               # 概览
-│   ├── system/                  # 微应用宿主页
+│   ├── system/                  # 网页与微应用宿主页
 │   └── exception/               # 异常页面
 ├── router/
 │   ├── index.ts                 # 路由创建与本地菜单注册
@@ -128,7 +185,7 @@ src/
 
 ## 开发约定
 
-- 新增壳页面时，同时在 `src/config/menus.ts` 中定义菜单项；新增微应用时，仅修改 `src/config/microApps.ts`。
+- 新增通用页面或网页时，在 `src/config/menus.ts` 中定义对应 `target`；新增微应用时，修改 `src/config/microApps.ts`。
 - 菜单对应的页面组件路径必须可被 `src/router/pageRegistry.ts` 的 `import.meta.glob('/src/pages/**/*.vue')` 找到。
 - 保持现有 SCSS 设计令牌与 CSS 变量用法，避免无关格式化或重构。
 - 提交前至少执行：
