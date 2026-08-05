@@ -46,5 +46,7 @@ coverage/
 *.tmp
 *.temp
 
-# Claude Code
-.claude/settings.local.json
+# AI AGENT
+.claude/
+.reasonix/
+.workbuddy/
