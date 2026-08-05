@@ -9,7 +9,7 @@ export interface IframePolicy {
 }
 
 export type MenuTarget =
-  | { type: 'component'; component: string }
+  | { type: 'component'; componentKey: string }
   | { type: 'iframe'; url: string; iframePolicy?: IframePolicy }
   | { type: 'microapp'; childPath: string }
 
@@ -94,6 +94,22 @@ export interface ApplicationOption {
   name: string
   icon?: string
   type: 'main' | 'microapp'
+}
+
+export interface PlatformSnapshot {
+  mainMenus: MenuItem[]
+  microApps: MicroApp[]
+  preferences: Record<string, unknown>
+}
+
+export interface PlatformApi {
+  getSnapshot(): Promise<PlatformSnapshot>
+  savePreference(key: string, value: unknown): Promise<void>
+  updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>
+  updateMicroApps(apps: MicroApp[]): Promise<PlatformSnapshot>
+  exportSnapshot(): Promise<string>
+  importSnapshot(snapshot: string): Promise<PlatformSnapshot>
+  restoreDefaults(): Promise<PlatformSnapshot>
 }
 
 

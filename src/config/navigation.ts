@@ -1,8 +1,7 @@
 import type { Router } from 'vue-router'
 import type { MenuItem, MicroApp } from '@/types'
 import { resolveHttpUrl, resolveIframePolicy } from './iframe'
-import { applications, mainMenus, microMenus } from './menus'
-import { findMicroApp } from './microApps'
+import { applications, findRuntimeMicroApp, microMenus, runtimeNavigation } from './runtime'
 
 export interface ResolvedNavigation {
   area: 'main' | 'microapp'
@@ -22,6 +21,8 @@ export function isMenuVisible(menu: MenuItem) {
 export function getVisibleMenus(menus: MenuItem[]): MenuItem[] {
   return menus
     .filter(isMenuVisible)
+    .slice()
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
     .map(menu => menu.children
       ? { ...menu, children: getVisibleMenus(menu.children) }
       : menu
@@ -54,7 +55,7 @@ export function getAppCodeFromPath(path: string) {
 }
 
 export function getMenusForApp(appCode: string) {
-  return appCode === 'main' ? mainMenus : microMenus[appCode] || []
+  return appCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || []
 }
 
 export function getVisibleMenusForPath(path: string) {
@@ -73,12 +74,12 @@ export function resolveNavigation(path: string): ResolvedNavigation {
       menu,
       menus,
       title: menu?.title || '通用',
-      icon: menu?.icon || applications.find(app => app.code === 'main')?.icon,
+      icon: menu?.icon || applications.value.find(app => app.code === 'main')?.icon,
       path,
     }
   }
 
-  const app = findMicroApp(appCode)
+  const app = findRuntimeMicroApp(appCode)
   return {
     area: 'microapp',
     appCode,
@@ -92,7 +93,7 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 }
 
 export function getApplicationEntryPath(code: string) {
-  const menus = code === 'main' ? mainMenus : microMenus[code] || []
+  const menus = code === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path)?.path
     || (code === 'main' ? '/dashboard' : `/micro/${code}`)
 }

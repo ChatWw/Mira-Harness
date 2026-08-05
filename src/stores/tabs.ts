@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useLayoutStore } from './layout'
+import { getPreference, savePreference } from '@/platform'
 
 export interface TabItem {
   path: string
@@ -101,14 +102,15 @@ export const useTabsStore = defineStore('tabs', () => {
   function persistState() {
     if (!layoutStore.config.tabPersist) return
     sessionStorage.setItem('cp-tabs', JSON.stringify({ tabs: tabs.value, activeTab: activeTab.value }))
+    savePreference('tabs', { tabs: tabs.value, activeTab: activeTab.value })
   }
 
   function loadPersistedState(): { tabs: TabItem[]; activeTab: string } | undefined {
     try {
-      const stored = sessionStorage.getItem('cp-tabs')
+      const stored = getPreference('tabs', sessionStorage.getItem('cp-tabs'))
       if (!stored) return
 
-      const state = JSON.parse(stored) as { tabs?: TabItem[]; activeTab?: string }
+      const state = (typeof stored === 'string' ? JSON.parse(stored) : stored) as { tabs?: TabItem[]; activeTab?: string }
       if (!Array.isArray(state.tabs) || typeof state.activeTab !== 'string') return
       return { tabs: state.tabs, activeTab: state.activeTab }
     } catch {

@@ -1,6 +1,6 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
-import { mainMenus } from '@/config/menus'
+import { runtimeNavigation } from '@/config/runtime'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
@@ -29,7 +29,9 @@ const layoutRoute: RouteRecordRaw = {
 }
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: window.location.protocol === 'file:'
+    ? createWebHashHistory()
+    : createWebHistory(),
   routes: [...staticRoutes, { ...layoutRoute, name: 'Layout' }],
 })
 
@@ -44,11 +46,19 @@ function flattenMenus(menus: MenuItem[]): MenuItem[] {
   return menus.flatMap(menu => [menu, ...(menu.children ? flattenMenus(menu.children) : [])])
 }
 
-flattenMenus(mainMenus)
-  .filter(menu => menu.type === 'menu' && menu.path && menu.target)
-  .map(createBusinessRoute)
-  .filter((route): route is RouteRecordRaw => route !== null)
-  .forEach(route => router.addRoute('Layout', route))
+let removeBusinessRoutes: Array<() => void> = []
+
+export function syncBusinessRoutes() {
+  removeBusinessRoutes.forEach(removeRoute => removeRoute())
+  removeBusinessRoutes = []
+  flattenMenus(runtimeNavigation.mainMenus)
+    .filter(menu => menu.type === 'menu' && menu.path && menu.target)
+    .map(createBusinessRoute)
+    .filter((route): route is RouteRecordRaw => route !== null)
+    .forEach(route => removeBusinessRoutes.push(router.addRoute('Layout', route)))
+}
+
+syncBusinessRoutes()
 
 router.addRoute({ path: '/:pathMatch(.*)*', redirect: '/404' })
 

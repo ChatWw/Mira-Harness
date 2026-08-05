@@ -1,8 +1,13 @@
 import type { RouteRecordRaw } from 'vue-router'
 import type { MenuItem } from '@/types'
 
-// Vite 在构建时枚举可加载页面；本地菜单只能引用这份白名单中的 component 路径。
-const pageModules = import.meta.glob('/src/pages/**/*.vue')
+// 本地菜单只能从随安装包发布的页面白名单中选择，配置不会加载任意文件。
+const pageModules = {
+  dashboard: () => import('@/pages/dashboard/DashboardPage.vue'),
+  'system-menu-config': () => import('@/pages/system/MenuConfigPage.vue'),
+  'system-micro-apps': () => import('@/pages/system/MicroAppManagementPage.vue'),
+  'system-backup-preferences': () => import('@/pages/system/BackupPreferencesPage.vue'),
+}
 
 export function createBusinessRoute(menu: MenuItem): RouteRecordRaw | null {
   if (!menu.path || !menu.target) return null
@@ -17,9 +22,9 @@ export function createBusinessRoute(menu: MenuItem): RouteRecordRaw | null {
   }
 
   if (menu.target.type !== 'component') return null
-  const component = pageModules[menu.target.component]
+  const component = pageModules[menu.target.componentKey as keyof typeof pageModules]
   if (!component) {
-    console.warn(`菜单组件不存在或不在允许目录内: ${menu.target.component}`)
+    console.warn(`菜单组件不在允许白名单中: ${menu.target.componentKey}`)
     return null
   }
   return {

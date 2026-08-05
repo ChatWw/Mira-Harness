@@ -42,7 +42,7 @@ import { useRoute, useRouter } from 'vue-router'
 import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { resolveHttpUrl } from '@/config/iframe'
-import { findMicroApp } from '@/config/microApps'
+import { findRuntimeMicroApp } from '@/config/runtime'
 import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolvePlatformPathForChild } from '@/config/navigation'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, MicroAppRuntimeConfig, PlatformContext, PlatformNavigatePayload } from '@/types'
@@ -106,7 +106,7 @@ async function load() {
   error.value = ''
   try {
     const code = String(route.params.code)
-    const microApp = findMicroApp(code)
+    const microApp = findRuntimeMicroApp(code)
     if (!microApp) throw new Error('未找到该微应用')
     if (microApp.status !== 'published') throw new Error('该应用未上架')
     if (!microApp.embedAllowed) throw new Error('该应用未获准嵌入平台')

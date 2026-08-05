@@ -1,4 +1,4 @@
-import { applications, mainMenus, microMenus } from '@/config/menus'
+import { applications, microMenus, runtimeNavigation } from '@/config/runtime'
 import { getApplicationEntryPath, isMenuVisible } from '@/config/navigation'
 import type { MenuItem } from '@/types'
 
@@ -25,32 +25,28 @@ function flattenMenus(items: MenuItem[], category: CommandNavigationCategory, pa
   })
 }
 
-const pageItems = [
-  ...flattenMenus(mainMenus, 'page'),
-  ...Object.entries(microMenus).flatMap(([appCode, menus]) =>
-    flattenMenus(menus, 'page', applications.find(app => app.code === appCode)?.name)
-  ),
-]
-
-const applicationItems = applications
-  .filter(app => app.type === 'microapp')
-  .map<CommandNavigationItem>(app => ({
-    id: `application-${app.code}`,
-    title: app.name,
-    icon: app.icon,
-    path: getApplicationEntryPath(app.code),
-    category: 'application',
-    parent: '应用',
-  }))
-
-export const commandNavigationItems = [...pageItems, ...applicationItems]
+export function getCommandNavigationItems(): CommandNavigationItem[] {
+  const pageItems = [
+    ...flattenMenus(runtimeNavigation.mainMenus, 'page'),
+    ...Object.entries(microMenus.value).flatMap(([appCode, menus]) =>
+      flattenMenus(menus, 'page', applications.value.find(app => app.code === appCode)?.name)
+    ),
+  ]
+  const applicationItems = applications.value
+    .filter(app => app.type === 'microapp')
+    .map<CommandNavigationItem>(app => ({
+      id: `application-${app.code}`, title: app.name, icon: app.icon,
+      path: getApplicationEntryPath(app.code), category: 'application', parent: '应用',
+    }))
+  return [...pageItems, ...applicationItems]
+}
 
 export function findCommandNavigation(id: string) {
-  return commandNavigationItems.find(item => item.id === id)
+  return getCommandNavigationItems().find(item => item.id === id)
 }
 
 export function findCommandNavigationByPath(path: string) {
-  return commandNavigationItems.find(item => item.path === path)
+  return getCommandNavigationItems().find(item => item.path === path)
 }
 
 export const commonCommandIds = [

@@ -57,9 +57,9 @@ npm run preview
 
 ### 通用菜单
 
-编辑 [`src/config/menus.ts`](./src/config/menus.ts) 中的 `mainMenus`：
+网页开发时可编辑 [`src/config/menus.ts`](./src/config/menus.ts) 中的默认 `mainMenus`；桌面版首次启动会将其写入本机 SQLite，后续在“系统管理 → 菜单配置”页面以树形表格维护。
 
-本地 Vue 页面通过页面白名单注册，`component` 必须指向 `src/pages` 下已有的 Vue 页面：
+本地 Vue 页面通过页面白名单注册，`componentKey` 必须是已发布的页面标识：
 
 ```ts
 {
@@ -70,7 +70,7 @@ npm run preview
   path: '/example',
   target: {
     type: 'component',
-    component: '/src/pages/example/ExamplePage.vue',
+    componentKey: 'dashboard',
   },
 }
 ```
@@ -99,7 +99,16 @@ iframe 权限由 [`src/config/iframe.ts`](./src/config/iframe.ts) 集中映射�
 
 ### 微应用
 
-编辑 [`src/config/microApps.ts`](./src/config/microApps.ts)。`microApps` 是微应用入口、集成模式、运行参数和可选子菜单的唯一来源；`microMenus` 与 `applications` 由其派生。
+网页开发时编辑 [`src/config/microApps.ts`](./src/config/microApps.ts) 的默认微应用；桌面版在“系统管理 → 微应用管理”中维护，并可在“备份与偏好”中导入、导出或恢复。
+
+### 桌面版
+
+```bash
+npm run desktop:dev
+npm run desktop:build
+```
+
+桌面版使用 Electron 主进程和 SQLite，不启动本地 HTTP 服务。数据库位于 macOS 应用用户数据目录；前端通过受限的 `window.platform` IPC API 访问菜单、微应用和界面偏好。`desktop:build` 产出 Apple Silicon DMG；首次下载 Electron 运行时需要网络连接。
 
 微应用菜单同时声明平台路径和子应用真实路径：
 

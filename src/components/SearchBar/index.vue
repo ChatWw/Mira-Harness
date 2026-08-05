@@ -126,7 +126,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pinyin } from 'pinyin-pro'
-import { commonCommandIds, commandNavigationItems, findCommandNavigation } from '@/config/commandPalette'
+import { commonCommandIds, findCommandNavigation, getCommandNavigationItems } from '@/config/commandPalette'
 import { navigateToPath } from '@/config/navigation'
 import type { CommandNavigationCategory, CommandNavigationItem } from '@/config/commandPalette'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -208,7 +208,7 @@ const filteredResults = computed(() => {
   const normalizedKeyword = normalizeSearchTerm(keyword.value)
   if (!normalizedKeyword) return []
 
-  return [...commandNavigationItems, ...commandActions.value]
+  return [...getCommandNavigationItems(), ...commandActions.value]
     .map((item, index) => ({ item, index, score: matchScore(item, normalizedKeyword) }))
     .filter(entry => entry.score >= 0)
     .sort((a, b) => a.score - b.score || a.index - b.index)

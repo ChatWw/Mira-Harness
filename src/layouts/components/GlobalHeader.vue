@@ -64,7 +64,7 @@ import { computed, ref } from 'vue'
 import { ArrowDown, Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import coreLogo from '@/asset/core.svg'
-import { applications } from '@/config/menus'
+import { applications } from '@/config/runtime'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import { useAppStore } from '@/stores/app'
@@ -79,7 +79,7 @@ const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))
-const selectedApp = computed(() => applications.find(app => app.code === currentAppCode.value))
+const selectedApp = computed(() => applications.value.find(app => app.code === currentAppCode.value))
 const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
 

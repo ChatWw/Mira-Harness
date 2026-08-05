@@ -6,6 +6,7 @@ node_modules/
 # 构建输出
 dist/
 dist-ssr/
+out/
 *.local
 
 # 编辑器

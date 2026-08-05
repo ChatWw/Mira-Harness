@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { applications } from '@/config/menus'
+import { applications } from '@/config/runtime'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 import DashboardOverviewHeader from './components/DashboardOverviewHeader.vue'
 

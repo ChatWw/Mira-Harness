@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
+import { getPreference, savePreference } from '@/platform'
 
 export const APP_NAME = 'Core Platform'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
@@ -76,7 +77,7 @@ const DEFAULT_CONFIG: LayoutConfig = {
 
 export const useLayoutStore = defineStore('layout', () => {
   // 布局配置
-  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG })
+  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...getPreference<Partial<LayoutConfig>>('layout', {}) })
 
   // 配置面板显示状态
   const settingsVisible = ref(false)
@@ -277,6 +278,8 @@ export const useLayoutStore = defineStore('layout', () => {
     { immediate: true }
   )
 
+  watch(config, value => savePreference('layout', value), { deep: true })
+
   watch(
     () => config.value.animationSpeed,
     applyAnimationSpeed,
@@ -369,7 +372,7 @@ export const useLayoutStore = defineStore('layout', () => {
     copyConfig,
   }
 }, {
-  persist: {
+  persist: window.platform ? false : {
     key: 'cp-layout-config',
     storage: localStorage,
     pick: ['config'],

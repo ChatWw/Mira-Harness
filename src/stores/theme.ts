@@ -9,6 +9,7 @@ import {
   PRIMARY_PRESET_STORAGE_KEY,
   PRESET_COLORS,
 } from '@/config/theme'
+import { getPreference, savePreference } from '@/platform'
 
 type ViewTransitionController = {
   ready: Promise<void>
@@ -25,11 +26,11 @@ const FAVICON_PATHS = `
 `
 export const useThemeStore = defineStore('theme', () => {
   const themeMode = ref<ThemeMode>(
-    (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || DEFAULT_THEME_MODE
+    getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode || DEFAULT_THEME_MODE)
   )
   const presetColors = PRESET_COLORS
   localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
-  const storedPresetId = localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY)
+  const storedPresetId = getPreference('primaryPreset', localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY))
   const primaryPresetId = ref(
     presetColors.some(preset => preset.id === storedPresetId)
       ? storedPresetId!
@@ -53,6 +54,7 @@ export const useThemeStore = defineStore('theme', () => {
 
     primaryPresetId.value = id
     localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, id)
+    savePreference('primaryPreset', id)
     applyTheme()
   }
 
@@ -142,6 +144,7 @@ export const useThemeStore = defineStore('theme', () => {
 
     themeMode.value = mode
     localStorage.setItem(THEME_STORAGE_KEY, mode)
+    savePreference('themeMode', mode)
     applyTheme()
   }
 
