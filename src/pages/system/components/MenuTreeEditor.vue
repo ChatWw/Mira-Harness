@@ -15,6 +15,7 @@
       :data="displayMenus"
       row-key="id"
       default-expand-all
+      :indent="20"
       :tree-props="{ children: 'children' }"
       empty-text="暂无菜单，可新增第一个菜单"
       class="menu-table"
@@ -36,8 +37,8 @@
           <span class="technical-value">{{ targetSummary(row) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="sort" label="排序" width="76" align="center" />
-      <el-table-column label="状态" width="138">
+      <el-table-column v-if="context === 'main'" prop="sort" label="排序" width="76" align="center" />
+      <el-table-column v-if="context === 'main'" label="状态" width="138">
         <template #default="{ row }">
           <div class="status-tags">
             <el-tag :type="row.status === 0 ? 'info' : 'success'" size="small" effect="plain">
@@ -47,13 +48,13 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" :width="context === 'microapp' ? 140 : 180">
         <template #default="{ row }">
-          <div v-if="!isProtected(row.id)" class="row-actions">
+          <el-space v-if="!isProtected(row.id)">
             <el-button v-if="row.type === 'dir'" link type="primary" :disabled="disabled" @click="openCreate(row.id)">新增子项</el-button>
             <el-button link type="primary" :disabled="disabled" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" :disabled="disabled" @click="removeMenu(row)">删除</el-button>
-          </div>
+          </el-space>
           <span v-else class="locked-copy">不可修改</span>
         </template>
       </el-table-column>
@@ -423,8 +424,34 @@ async function removeMenu(menu: MenuItem) {
   strong { color: var(--cp-text); font-size: $font-base; }
   span { color: var(--cp-text-secondary); font-size: $font-xs; }
 }
-.menu-table { width: 100%; border-radius: 0 0 $radius-lg $radius-lg; overflow: hidden; }
+.menu-table {
+  width: 100%;
+  border: 1px solid var(--cp-border);
+  border-top: 0;
+  border-radius: 0 0 $radius-lg $radius-lg;
+  overflow: hidden;
+
+  :deep(.el-table__header th) {
+    color: var(--cp-text-secondary);
+    background: var(--cp-bg-elevated);
+  }
+
+  :deep(.el-table__body tr:hover > td) {
+    background: color-mix(in srgb, var(--cp-primary) 4%, var(--cp-bg)) !important;
+  }
+
+  :deep(.el-table__cell:first-child .cell) {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  :deep(.el-table__indent),
+  :deep(.el-table__expand-icon) { flex: 0 0 auto; }
+}
 .menu-name-cell, .status-tags, .row-actions { display: flex; align-items: center; gap: $spacing-sm; min-width: 0; }
+.menu-name-cell { flex: 1 1 auto; overflow: hidden; }
 .menu-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .technical-value { color: var(--cp-text-secondary); font-size: $font-xs; }
 .locked-copy { color: var(--cp-text-tertiary); font-size: $font-xs; }

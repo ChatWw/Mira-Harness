@@ -40,7 +40,7 @@
           <template #default="{ row }">{{ row.menus?.length || 0 }}</template>
         </el-table-column>
         <el-table-column prop="sort" label="排序" width="72" align="center" />
-        <el-table-column label="操作" width="118" fixed="right">
+        <el-table-column label="操作" width="118">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="saving || !desktopAvailable" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" :disabled="saving || !desktopAvailable" @click="removeApp(row)">删除</el-button>
