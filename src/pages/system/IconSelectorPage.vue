@@ -14,7 +14,7 @@
         </div>
         <div class="picker-demo__control">
           <span class="control-label">当前图标</span>
-          <IconPicker v-model="selectedIcon" :items="pickerItems" />
+          <IconPicker v-model="selectedIcon" :items="pickerItems" @select="copyIconName" />
         </div>
       </div>
     </section>
@@ -27,7 +27,7 @@
         </div>
         <el-input v-model="elementKeyword" class="library-search" clearable placeholder="搜索 Element Plus 图标" :prefix-icon="Search" />
       </div>
-      <IconGrid v-model="selectedElementIcon" :items="filteredElementItems" />
+      <IconGrid v-model="selectedElementIcon" :items="filteredElementItems" @select="copyIconName" />
       <div class="style-tools">
         <el-tooltip content="复制代码"><el-button text :icon="CopyDocument" aria-label="复制 Element Plus 使用代码" @click="copyCode('element')" /></el-tooltip>
         <el-tooltip content="查看源代码"><el-button text :icon="View" aria-label="查看 Element Plus 使用代码" @click="openSource('element')" /></el-tooltip>
@@ -45,7 +45,7 @@
       <el-tabs v-model="activeIconifyLibrary" class="iconify-tabs">
         <el-tab-pane v-for="library in iconifyLibraries" :key="library.value" :label="library.label" :name="library.value" />
       </el-tabs>
-      <div v-loading="loadingIconifyLibrary"><IconGrid v-model="selectedIconifyIcon" :items="filteredIconifyItems" /></div>
+      <div v-loading="loadingIconifyLibrary"><IconGrid v-model="selectedIconifyIcon" :items="filteredIconifyItems" @select="copyIconName" /></div>
       <div class="style-tools">
         <el-tooltip content="复制代码"><el-button text :icon="CopyDocument" aria-label="复制 Iconify 使用代码" @click="copyCode('iconify')" /></el-tooltip>
         <el-tooltip content="查看源代码"><el-button text :icon="View" aria-label="查看 Iconify 使用代码" @click="openSource('iconify')" /></el-tooltip>
@@ -151,13 +151,25 @@ function openSource(library: 'element' | 'iconify') {
 
 async function copyCode(library: 'element' | 'iconify') {
   const code = library === 'element' ? elementCode(selectedElementIcon.value) : iconifyCode(selectedIconifyIcon.value)
+  const copied = await copyText(code)
+  if (copied) ElMessage.success('使用代码已复制')
+  else ElMessage.error('复制失败，请在源代码面板中手动复制')
+}
+
+async function copyIconName(name: string) {
+  const copied = await copyText(name)
+  if (copied) ElMessage.success('图标名称已复制')
+  else ElMessage.error('复制失败，请手动复制图标名称')
+}
+
+async function copyText(text: string) {
   let copied = false
   try {
-    await navigator.clipboard.writeText(code)
+    await navigator.clipboard.writeText(text)
     copied = true
   } catch {
     const input = document.createElement('textarea')
-    input.value = code
+    input.value = text
     input.style.position = 'fixed'
     input.style.opacity = '0'
     document.body.appendChild(input)
@@ -165,8 +177,7 @@ async function copyCode(library: 'element' | 'iconify') {
     copied = document.execCommand('copy')
     input.remove()
   }
-  if (copied) ElMessage.success('使用代码已复制')
-  else ElMessage.error('复制失败，请在源代码面板中手动复制')
+  return copied
 }
 </script>
 

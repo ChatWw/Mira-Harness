@@ -10,7 +10,7 @@
         :title="item.value"
         :aria-label="`选择 ${item.value}`"
         :aria-selected="item.value === modelValue"
-        @click="emit('update:modelValue', item.value)"
+        @click="select(item.value)"
       >
         <el-icon v-if="item.type === 'element' && item.component" :size="22"><component :is="item.component" /></el-icon>
         <Icon v-else :icon="item.value" :width="22" :height="22" />
@@ -41,13 +41,21 @@ const props = defineProps<{
   items: IconPickerItem[]
 }>()
 
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  select: [value: string]
+}>()
 
 const page = ref(1)
 const pageSize = 120
 const pageItems = computed(() => props.items.slice((page.value - 1) * pageSize, page.value * pageSize))
 
 watch(() => props.items, () => { page.value = 1 })
+
+function select(value: string) {
+  emit('update:modelValue', value)
+  emit('select', value)
+}
 </script>
 
 <style scoped lang="scss">

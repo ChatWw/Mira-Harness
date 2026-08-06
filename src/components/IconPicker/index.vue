@@ -58,7 +58,10 @@ const props = withDefaults(defineProps<{
   placeholder: '选择图标',
 })
 
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  select: [value: string]
+}>()
 
 const visible = ref(false)
 const keyword = ref('')
@@ -77,6 +80,7 @@ watch(keyword, () => { page.value = 1 })
 
 function select(value: string) {
   emit('update:modelValue', value)
+  emit('select', value)
   visible.value = false
 }
 </script>
