@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, nextTick, ref } from 'vue'
-import type { ThemeMode } from '@/types'
+import type { ThemeMode, ThemePreference } from '@/types'
 import {
   DEFAULT_PRIMARY_PRESET_ID,
   DEFAULT_THEME_MODE,
@@ -21,10 +21,23 @@ type DocumentWithViewTransition = Document & {
 }
 
 const THEME_TRANSITION_ATTR = 'data-theme-transition'
+
+function resolveThemeMode(preference: ThemePreference): ThemeMode {
+  return preference === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : preference
+}
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === 'light' || value === 'dark' || value === 'system'
+}
+
 export const useThemeStore = defineStore('theme', () => {
-  const themeMode = ref<ThemeMode>(
-    getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode || DEFAULT_THEME_MODE)
+  const storedThemePreference = getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY))
+  const themePreference = ref<ThemePreference>(
+    isThemePreference(storedThemePreference) ? storedThemePreference : DEFAULT_THEME_MODE
   )
+  const themeMode = ref<ThemeMode>(resolveThemeMode(themePreference.value))
   const presetColors = PRESET_COLORS
   localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
   const storedPresetId = getPreference('primaryPreset', localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY))
@@ -40,10 +53,16 @@ export const useThemeStore = defineStore('theme', () => {
 
   // 在 store 创建时初始化主题
   applyTheme()
+  const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  systemThemeQuery.addEventListener('change', () => {
+    if (themePreference.value !== 'system') return
+    themeMode.value = resolveThemeMode('system')
+    applyTheme()
+  })
 
   function toggleThemeMode() {
     const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
-    setThemeMode(nextMode)
+    setThemePreference(nextMode)
   }
 
   function setPrimaryPreset(id: string) {
@@ -61,22 +80,24 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   async function setThemeModeWithTransition(
-    nextMode: ThemeMode,
+    nextMode: ThemePreference,
     event?: MouseEvent,
     enabled = true
   ) {
     const documentWithTransition = document as DocumentWithViewTransition
+    const nextEffectiveMode = resolveThemeMode(nextMode)
 
     if (
       !enabled ||
       !documentWithTransition.startViewTransition ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
-      setThemeMode(nextMode)
+      setThemePreference(nextMode)
       return
     }
 
-    if (themeMode.value === nextMode) {
+    if (themePreference.value === nextMode || themeMode.value === nextEffectiveMode) {
+      setThemePreference(nextMode)
       return
     }
 
@@ -87,10 +108,10 @@ export const useThemeStore = defineStore('theme', () => {
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
     )
-    const transitionScale = window.devicePixelRatio
-    const transitionX = x * transitionScale
-    const transitionY = y * transitionScale
-    const transitionRadius = endRadius * transitionScale
+    // DOM geometry and View Transition clip-path both use CSS pixels. Do not apply devicePixelRatio.
+    const transitionX = x
+    const transitionY = y
+    const transitionRadius = endRadius
     const transitionStyle = document.createElement('style')
     transitionStyle.textContent = `
       @keyframes cp-theme-reveal {
@@ -116,14 +137,14 @@ export const useThemeStore = defineStore('theme', () => {
       document.head.append(transitionStyle)
 
       const transition = documentWithTransition.startViewTransition(async () => {
-        setThemeMode(nextMode)
+        setThemePreference(nextMode)
         await nextTick()
       })
 
       await transition.ready
 
       // 标记当前切换方向，触发对应的 View Transition 伪元素动画
-      root.setAttribute(THEME_TRANSITION_ATTR, nextMode)
+      root.setAttribute(THEME_TRANSITION_ATTR, nextEffectiveMode)
 
       // 等待 CSS 伪元素动画开始，避免第一帧闪现
       await new Promise(resolve => requestAnimationFrame(resolve))
@@ -135,13 +156,18 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function setThemeMode(mode: ThemeMode) {
-    if (themeMode.value === mode) {
-      return
-    }
+    setThemePreference(mode)
+  }
 
-    themeMode.value = mode
-    localStorage.setItem(THEME_STORAGE_KEY, mode)
-    savePreference('themeMode', mode)
+  function setThemePreference(preference: ThemePreference) {
+    const nextMode = resolveThemeMode(preference)
+    if (themePreference.value === preference && themeMode.value === nextMode) return
+
+    themePreference.value = preference
+    localStorage.setItem(THEME_STORAGE_KEY, preference)
+    savePreference('themeMode', preference)
+    if (themeMode.value === nextMode) return
+    themeMode.value = nextMode
     applyTheme()
   }
 
@@ -275,6 +301,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   return {
     themeMode,
+    themePreference,
     primaryColor,
     primaryPresetId,
     presetColors,
@@ -282,6 +309,7 @@ export const useThemeStore = defineStore('theme', () => {
     toggleThemeModeWithTransition,
     setThemeModeWithTransition,
     setThemeMode,
+    setThemePreference,
     setPrimaryPreset,
   }
 })

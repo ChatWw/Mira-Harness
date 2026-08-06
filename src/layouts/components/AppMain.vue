@@ -1,8 +1,12 @@
 <template>
   <main class="app-main">
-    <transition :name="transitionName" mode="out-in">
-      <router-view :key="viewKey" />
-    </transition>
+    <router-view v-slot="{ Component }">
+      <transition :name="transitionName" mode="out-in">
+        <keep-alive :include="cachedRouteNames">
+          <component :is="Component" :key="viewKey" />
+        </keep-alive>
+      </transition>
+    </router-view>
   </main>
 </template>
 
@@ -10,16 +14,18 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLayoutStore } from '@/stores/layout'
+import { cachedRouteNames } from '@/router/routeCache'
 
 const layoutStore = useLayoutStore()
 const route = useRoute()
 
 const transitionName = computed(() => layoutStore.config.pageTransition)
 // 同一微应用的子路由只通知宿主切换，仅显式刷新时重建 Wujie 实例。
-const viewKey = computed(() => route.name === 'MicroAppHost'
-  ? `micro:${String(route.params.code)}:${String(route.query._t || '')}`
-  : route.fullPath
-)
+const viewKey = computed(() => {
+  if (route.name === 'MicroAppHost') return `micro:${String(route.params.code)}:${String(route.query._t || '')}`
+  if (route.meta.keepAlive === true) return `page:${route.path}:${String(route.query._t || '')}`
+  return route.fullPath
+})
 </script>
 
 <style scoped lang="scss">
@@ -27,6 +33,8 @@ const viewKey = computed(() => route.name === 'MicroAppHost'
   flex: 1;
   width: 100%;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: $spacing-sm;
   background: var(--cp-bg);
   overflow-y: auto;

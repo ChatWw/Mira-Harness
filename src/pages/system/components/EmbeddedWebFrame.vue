@@ -1,5 +1,5 @@
 <template>
-  <div class="embedded-web-frame" v-loading="loading">
+  <div class="embedded-web-frame" :class="{ 'is-fill': fill }" v-loading="loading">
     <el-result v-if="error" icon="error" title="网页无法加载" :sub-title="error">
       <template #extra>
         <el-button v-if="resolvedUrl" type="primary" @click="openInNewWindow">在新窗口打开</el-button>
@@ -43,8 +43,10 @@ const props = withDefaults(defineProps<{
   url: string
   title?: string
   policy?: IframePolicy
+  fill?: boolean
 }>(), {
   title: '嵌入网页',
+  fill: false,
 })
 
 const loading = ref(false)
@@ -113,6 +115,18 @@ onBeforeUnmount(clearTimer)
 <style scoped lang="scss">
 .embedded-web-frame {
   min-height: 560px;
+
+  &.is-fill {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .embedded-web-frame__iframe {
+      flex: 1;
+      min-height: 0;
+    }
+  }
 }
 
 .embedded-web-frame__iframe {

@@ -1,5 +1,5 @@
 <template>
-  <PageContainer :title="app?.name || '微应用'" :description="app?.description || '正在加载微应用配置'">
+  <PageContainer :title="pageTitle" :description="pageDescription" :show-header="showPageHeader">
     <el-card shadow="never" class="micro-app-host" v-loading="loading">
       <el-result v-if="error" icon="error" title="微应用无法加载" :sub-title="error">
         <template #extra>
@@ -41,7 +41,7 @@ import { useRoute, useRouter } from 'vue-router'
 import WujieVue from 'wujie-vue3'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { findRuntimeMicroApp } from '@/config/runtime'
-import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolvePlatformPathForChild } from '@/config/navigation'
+import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolveNavigation, resolvePlatformPathForChild } from '@/config/navigation'
 import { getPlatformApi } from '@/platform'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, PlatformContext, PlatformNavigatePayload, WujieRuntimeConfig } from '@/types'
@@ -57,6 +57,10 @@ const entryRootUrl = ref('')
 const loading = ref(true)
 const error = ref('')
 
+const navigation = computed(() => resolveNavigation(route.path))
+const pageTitle = computed(() => navigation.value.menu?.title || app.value?.name || '微应用')
+const pageDescription = computed(() => navigation.value.menu?.description ?? app.value?.description ?? '正在加载微应用配置')
+const showPageHeader = computed(() => navigation.value.menu?.showPageHeader !== false)
 const childRoute = computed(() => app.value ? getMicroAppChildPath(app.value, route.path) : '')
 
 const childProps = computed(() => {

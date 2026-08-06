@@ -1,10 +1,10 @@
 <template>
   <div class="page-container" :class="containerClass">
-    <div v-if="$slots.header || title" class="page-header">
+    <div v-if="showPageHeader && ($slots.header || pageTitle)" class="page-header">
       <div class="page-header__left">
         <slot name="header">
-          <h2 class="page-title">{{ title }}</h2>
-          <p v-if="description" class="page-description">{{ description }}</p>
+          <h2 class="page-title">{{ pageTitle }}</h2>
+          <p v-if="pageDescription" class="page-description">{{ pageDescription }}</p>
         </slot>
       </div>
       <div v-if="$slots.actions" class="page-header__right">
@@ -19,28 +19,33 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { PropType } from 'vue'
+import { useRoute } from 'vue-router'
 import { useLayoutStore } from '@/stores/layout'
 import type { ContentWidth, ContentPadding } from '@/types'
 
-interface Props {
-  title?: string
-  description?: string
-  maxWidth?: ContentWidth
-  padding?: ContentPadding
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  title: '',
-  description: '',
+const props = defineProps({
+  title: { type: String, default: '' },
+  description: { type: String, default: '' },
+  showHeader: { type: Boolean, default: undefined },
+  fillContent: { type: Boolean, default: false },
+  maxWidth: String as PropType<ContentWidth>,
+  padding: String as PropType<ContentPadding>,
 })
 
 const layoutStore = useLayoutStore()
+const route = useRoute()
+
+const pageTitle = computed(() => typeof route.meta.pageTitle === 'string' ? route.meta.pageTitle : props.title)
+const pageDescription = computed(() => typeof route.meta.pageDescription === 'string' ? route.meta.pageDescription : props.description)
+const showPageHeader = computed(() => props.showHeader ?? route.meta.showPageHeader !== false)
 
 const actualMaxWidth = computed(() => props.maxWidth || layoutStore.config.contentMaxWidth)
 const actualPadding = computed(() => props.padding || layoutStore.config.contentPadding)
 
 const containerClass = computed(() => ({
   'is-full': actualMaxWidth.value === 'full',
+  'is-fill-content': props.fillContent,
   [`max-width-${actualMaxWidth.value}`]: actualMaxWidth.value !== 'full',
   [`padding-${actualPadding.value}`]: true,
 }))
@@ -73,6 +78,21 @@ const containerClass = computed(() => ({
 
   &.padding-comfortable {
     padding: $spacing-xl;
+  }
+
+  &.is-fill-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+
+    .page-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
   }
 }
 

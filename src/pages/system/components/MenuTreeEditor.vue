@@ -37,13 +37,14 @@
         </template>
       </el-table-column>
       <el-table-column v-if="context === 'main'" prop="sort" label="排序" width="76" align="center" />
-      <el-table-column v-if="context === 'main'" label="状态" width="138">
+      <el-table-column v-if="context === 'main'" label="状态" width="184">
         <template #default="{ row }">
           <div class="status-tags">
             <el-tag :type="row.status === 0 ? 'info' : 'success'" size="small" effect="plain">
               {{ row.status === 0 ? '停用' : '启用' }}
             </el-tag>
             <el-tag v-if="row.visible === false" type="info" size="small" effect="plain">隐藏</el-tag>
+            <el-tag v-if="row.keepAlive" type="warning" size="small" effect="plain">保活</el-tag>
           </div>
         </template>
       </el-table-column>
@@ -137,6 +138,18 @@
           <el-form-item v-if="form.kind === 'microapp'" label="子应用路径" prop="childPath">
             <el-input v-model.trim="form.childPath" placeholder="例如 #/reports；首页可留空" />
           </el-form-item>
+
+          <el-form-item label="页面描述">
+            <el-input v-model="form.description" type="textarea" :rows="3" maxlength="240" show-word-limit resize="vertical" />
+          </el-form-item>
+          <div class="switch-row">
+            <div><strong>显示页面标题与描述</strong><span>关闭后仅隐藏标准页面头部</span></div>
+            <el-switch v-model="form.showPageHeader" />
+          </div>
+          <div v-if="context === 'main'" class="switch-row">
+            <div><strong>页面保活</strong><span>切换页面时保留状态；关闭标签或刷新后会重新加载</span></div>
+            <el-switch v-model="form.keepAlive" />
+          </div>
         </template>
 
         <div class="switch-row">
@@ -180,6 +193,9 @@ interface MenuDraft {
   referrerPolicy: ReferrerPolicy
   timeout: number
   childPath: string
+  description: string
+  showPageHeader: boolean
+  keepAlive: boolean
   enabled: boolean
   visible: boolean
 }
@@ -216,7 +232,7 @@ function emptyForm(): MenuDraft {
   return {
     title: '', kind: 'dir', parentId: '', icon: '', sort: 0, routeSegment: '', componentKey: '',
     url: '', iframeProfile: 'compatible', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15,
-    childPath: '', enabled: true, visible: true,
+    childPath: '', description: '', showPageHeader: true, keepAlive: false, enabled: true, visible: true,
   }
 }
 
@@ -343,6 +359,9 @@ function openEdit(menu: MenuItem) {
     referrerPolicy: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.referrerPolicy || 'strict-origin-when-cross-origin' : 'strict-origin-when-cross-origin',
     timeout: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.timeout || 15 : 15,
     childPath: menu.target?.type === 'microapp' ? menu.target.childPath : '',
+    description: menu.description ?? '',
+    showPageHeader: menu.showPageHeader !== false,
+    keepAlive: menu.keepAlive === true,
     enabled: menu.status !== 0,
     visible: menu.visible !== false,
   })
@@ -365,10 +384,16 @@ function buildMenu(existing?: MenuItem): MenuItem {
     visible: form.visible,
   }
   if (form.kind === 'dir') return { ...base, path: fullPath.value, children: existing?.children || [] }
-  if (form.kind === 'component') return { ...base, path: fullPath.value, target: { type: 'component', componentKey: form.componentKey } }
+  const pageOptions = {
+    description: form.description.trim(),
+    showPageHeader: form.showPageHeader,
+    ...(props.context === 'main' ? { keepAlive: form.keepAlive } : {}),
+  }
+  if (form.kind === 'component') return { ...base, ...pageOptions, path: fullPath.value, target: { type: 'component', componentKey: form.componentKey } }
   if (form.kind === 'iframe') {
     return {
       ...base,
+      ...pageOptions,
       path: fullPath.value,
       target: {
         type: 'iframe',
@@ -377,7 +402,7 @@ function buildMenu(existing?: MenuItem): MenuItem {
       },
     }
   }
-  return { ...base, path: fullPath.value, target: { type: 'microapp', childPath: form.childPath.trim() } }
+  return { ...base, ...pageOptions, path: fullPath.value, target: { type: 'microapp', childPath: form.childPath.trim() } }
 }
 
 function removeNode(menus: MenuItem[], id: string): MenuItem[] {

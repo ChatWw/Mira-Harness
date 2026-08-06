@@ -36,7 +36,7 @@
               <span class="item-label">主题模式</span>
               <el-segmented
                 class="theme-mode-switch"
-                :model-value="themeStore.themeMode"
+                :model-value="themeStore.themePreference"
                 :options="themeModeOptions"
                 @change="handleThemeModeChange"
               />
@@ -589,7 +589,7 @@ import {
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import router, { updateDocumentTitle } from '@/router'
-import type { LayoutMode, PageTransition, SidebarStyle, ThemeMode } from '@/types'
+import type { LayoutMode, PageTransition, SidebarStyle, ThemePreference } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
@@ -612,6 +612,7 @@ const activeNames = ref(['general', 'layout'])
 const themeModeOptions = [
   { label: '浅色', value: 'light' },
   { label: '深色', value: 'dark' },
+  { label: '系统', value: 'system' },
 ]
 
 // 布局模式
@@ -647,7 +648,7 @@ const pageTransitions = [
   { value: 'none' as PageTransition, label: '无动画' },
 ]
 
-function handleThemeModeChange(mode: ThemeMode) {
+function handleThemeModeChange(mode: ThemePreference) {
   themeStore.setThemeModeWithTransition(
     mode,
     undefined,

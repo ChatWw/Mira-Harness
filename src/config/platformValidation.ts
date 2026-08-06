@@ -31,6 +31,8 @@ export function validateMenus(menus: MenuItem[], appCode: string | null = null) 
     }
     if (menu.type === 'dir' && menu.target) throw new Error('目录菜单不能配置页面目标')
     if (menu.type !== 'dir' && (!menu.path || !menu.target)) throw new Error('页面菜单必须配置路径和页面目标')
+    if (menu.keepAlive !== undefined && typeof menu.keepAlive !== 'boolean') throw new Error('页面保活配置必须为布尔值')
+    if (menu.type === 'dir' && menu.keepAlive !== undefined) throw new Error('目录菜单不能配置页面保活')
     if (menu.target?.type === 'iframe') assertHttpUrl(menu.target.url, 'iframe 地址')
     if (menu.target?.type === 'component' && !BUILT_IN_PAGE_KEYS.has(menu.target.componentKey as typeof BUILT_IN_PAGE_OPTIONS[number]['value'])) {
       throw new Error('本地页面必须来自内置页面清单')

@@ -1,4 +1,5 @@
 export type ThemeMode = 'light' | 'dark'
+export type ThemePreference = ThemeMode | 'system'
 
 export type IframeProfile = 'strict' | 'compatible' | 'external'
 
@@ -16,6 +17,9 @@ export type MenuTarget =
 export interface MenuItem {
   id: string
   title: string
+  description?: string
+  showPageHeader?: boolean
+  keepAlive?: boolean
   icon?: string
   path?: string
   children?: MenuItem[]

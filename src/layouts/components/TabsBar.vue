@@ -95,6 +95,7 @@ import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
 import { resolveNavigation } from '@/config/navigation'
+import { activateRouteCache, evictRouteCache } from '@/router/routeCache'
 
 const router = useRouter()
 const route = useRoute()
@@ -134,6 +135,7 @@ watch(
         path: route.path,
         title: navigation.value.title || (route.meta.title as string),
         name: route.name as string,
+        cacheName: route.meta.cacheName as string | undefined,
         icon: navigation.value.icon || route.meta.icon as string,
         closable: route.path !== '/dashboard',
         lastAccess: Date.now(),
@@ -188,7 +190,7 @@ async function handleContextCommand(command: string) {
   if (command === 'refresh' && contextMenu.value.tabPath !== route.path) {
     await router.push(contextMenu.value.tabPath)
   }
-  handleCommand(command)
+  await handleCommand(command)
   contextMenu.value.visible = false
 }
 
@@ -199,10 +201,21 @@ function closeContextMenu(event: MouseEvent) {
 }
 
 // 命令处理
-function handleCommand(command: string) {
+async function refreshCurrent() {
+  const cacheName = route.meta.cacheName
+  evictRouteCache(cacheName)
+  await nextTick()
+  try {
+    await router.replace({ path: route.path, query: { ...route.query, _t: Date.now() } })
+  } finally {
+    activateRouteCache(cacheName)
+  }
+}
+
+async function handleCommand(command: string) {
   switch (command) {
     case 'refresh':
-      router.replace({ path: route.path, query: { ...route.query, _t: Date.now() } })
+      await refreshCurrent()
       break
     case 'close':
       if (currentTab.value?.closable) {

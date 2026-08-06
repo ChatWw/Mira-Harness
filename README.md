@@ -68,12 +68,15 @@ npm run preview
   icon: 'Document',
   type: 'menu',
   path: '/example',
+  keepAlive: false,
   target: {
     type: 'component',
     componentKey: 'dashboard',
   },
 }
 ```
+
+普通主菜单页面可配置 `keepAlive`：新建菜单默认关闭，开启后会在页面切换期间保留状态；关闭标签页或刷新当前页会释放该缓存。概览和系统管理下的内置页面固定开启保活。
 
 iframe 网页使用同样稳定的平台路径：
 
@@ -125,6 +128,7 @@ npm run desktop:build
 - 无可见菜单时，应用入口为 `/micro/:code`，二级菜单自动隐藏。
 - 有可见菜单时，应用切换器进入第一个可见菜单。
 - Wujie 关闭内置查询参数同步，由平台路径 `/micro/:code/*` 统一表示当前子页。
+- Wujie 微应用不使用平台的 Vue 路由缓存，实例保活与子页面状态仍由微应用的 `alive` 配置和自身实现管理。
 - iframe 可根据 `childPath` 单向生成目标 URL；跨域 iframe 内部跳转不保证反向同步平台地址。
 
 #### Wujie 路由桥

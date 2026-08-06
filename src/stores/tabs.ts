@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useLayoutStore } from './layout'
 import { getPreference, savePreference } from '@/platform'
+import { activateRouteCache, evictRouteCache } from '@/router/routeCache'
 
 export interface TabItem {
   path: string
   title: string
   name: string
+  cacheName?: string
   icon?: string
   closable: boolean
   lastAccess: number
@@ -53,19 +55,23 @@ export const useTabsStore = defineStore('tabs', () => {
     if (existing) {
       existing.title = tab.title
       existing.name = tab.name
+      existing.cacheName = tab.cacheName
       existing.icon = tab.icon
       existing.closable = tab.closable
       existing.lastAccess = Date.now()
       activeTab.value = tab.path
+      activateRouteCache(tab.cacheName)
       return
     }
     tabs.value.push(tab)
     activeTab.value = tab.path
+    activateRouteCache(tab.cacheName)
   }
 
   function closeTab(path: string) {
     const index = tabs.value.findIndex(t => t.path === path)
     if (index === -1) return
+    evictRouteCache(tabs.value[index].cacheName)
     tabs.value.splice(index, 1)
     if (activeTab.value === path) {
       const next = tabs.value[index] || tabs.value[index - 1]
@@ -74,21 +80,25 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function closeOthers(path: string) {
+    tabs.value.filter(tab => tab.closable && tab.path !== path).forEach(tab => evictRouteCache(tab.cacheName))
     tabs.value = tabs.value.filter(t => !t.closable || t.path === path)
     activeTab.value = path
   }
 
   function closeLeft(path: string) {
     const index = tabs.value.findIndex(t => t.path === path)
+    tabs.value.filter((tab, i) => i < index && tab.closable).forEach(tab => evictRouteCache(tab.cacheName))
     tabs.value = tabs.value.filter((t, i) => i >= index || !t.closable)
   }
 
   function closeRight(path: string) {
     const index = tabs.value.findIndex(t => t.path === path)
+    tabs.value.filter((tab, i) => i > index && tab.closable).forEach(tab => evictRouteCache(tab.cacheName))
     tabs.value = tabs.value.filter((t, i) => i <= index || !t.closable)
   }
 
   function closeAll() {
+    tabs.value.filter(tab => tab.closable).forEach(tab => evictRouteCache(tab.cacheName))
     tabs.value = tabs.value.filter(t => !t.closable)
     activeTab.value = '/dashboard'
   }
