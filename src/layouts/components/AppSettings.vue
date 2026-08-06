@@ -210,11 +210,12 @@
             <div class="settings-item">
               <span class="item-label">顶栏高度</span>
               <el-input-number
-                :model-value="layoutStore.config.headerHeight"
+                :model-value="isMacOverlay ? 34 : layoutStore.config.headerHeight"
                 @change="layoutStore.setHeaderHeight"
                 :min="48"
                 :max="80"
                 :step="4"
+                :disabled="isMacOverlay"
                 size="small"
                 style="width: 120px"
               />
@@ -593,6 +594,7 @@ import type { LayoutMode, PageTransition, SidebarStyle, ThemePreference } from '
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
+const isMacOverlay = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
 const settingsContentRef = ref<HTMLElement>()
 
 watch(

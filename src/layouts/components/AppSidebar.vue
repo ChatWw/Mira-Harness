@@ -13,7 +13,7 @@
           <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
             <img :src="miraLogo" class="brand-logo" alt="Mira" />
           </div>
-          <transition name="fade">
+          <transition name="fade" type="transition">
             <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
               {{ APP_NAME }}
             </span>

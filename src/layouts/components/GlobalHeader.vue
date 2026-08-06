@@ -23,7 +23,7 @@
     v-else
     class="global-header"
     :class="{ 'is-macos-overlay': isMacOverlay && !isFullscreen }"
-    :style="{ height: `${layoutStore.config.headerHeight}px` }"
+    :style="{ height: `${headerHeight}px` }"
   >
     <div class="global-brand">
       <el-button
@@ -85,7 +85,8 @@ const currentAppCode = computed(() => getAppCodeFromPath(route.path))
 const selectedApp = computed(() => applications.value.find(app => app.code === currentAppCode.value))
 const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
-const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
+const isMacOverlay = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
+const headerHeight = computed(() => isMacOverlay ? 34 : layoutStore.config.headerHeight)
 
 function handleAppChange(code: string) {
   navigateToPath(router, getApplicationEntryPath(code))
@@ -115,7 +116,7 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', syncFulls
 
 <style scoped lang="scss">
 .global-header { width: 100%; min-height: 48px; display: flex; align-items: center; gap: $spacing-sm; padding: 0 10px; background: var(--cp-bg); flex-shrink: 0; z-index: $z-sticky; -webkit-app-region: drag; }
-.global-header.is-macos-overlay { padding-left: 88px; }
+.global-header.is-macos-overlay { min-height: 34px; padding-left: 88px; }
 .global-rail { width: 64px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; background: var(--cp-bg-elevated); flex-shrink: 0; }
 .rail-brand, .rail-app { display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; transition: color $transition-fast, background $transition-fast; }
 .rail-brand { color: #fff; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); overflow: hidden; .brand-logo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } }

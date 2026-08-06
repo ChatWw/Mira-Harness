@@ -4,7 +4,7 @@
     <!-- 桌面窗口顶栏：macOS 红绿灯、导航与工具条统一在同一行。 -->
     <div
       class="layout-header-transition"
-      :style="{ '--layout-header-height': `${layoutStore.config.headerHeight}px` }"
+      :style="{ '--layout-header-height': `${desktopHeaderHeight}px` }"
     >
       <GlobalHeader />
     </div>
@@ -62,6 +62,10 @@ const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const route = useRoute()
 const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
+const isMacDesktop = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
+const desktopHeaderHeight = computed(() => isMacDesktop
+  ? 34
+  : layoutStore.config.headerHeight)
 const navigation = computed(() => resolveNavigation(route.path))
 
 const showSidebar = computed(() => {
