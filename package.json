@@ -37,6 +37,10 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@iconify-json/lucide": "^1.2.121",
+    "@iconify-json/material-symbols": "^1.2.88",
+    "@iconify-json/tabler": "^1.2.38",
+    "@iconify/vue": "^5.0.1",
     "better-sqlite3": "^13.0.2",
     "element-plus": "^2.14.2",
     "ldrs": "^1.1.9",
