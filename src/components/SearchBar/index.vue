@@ -77,34 +77,15 @@
         </section>
 
         <section class="default-section">
-          <div class="section-heading"><span>常用功能</span></div>
+          <div class="section-heading"><span>系统操作</span></div>
           <button
-            v-for="(item, index) in commonResults"
+            v-for="(item, index) in commandActions"
             :key="item.id"
             class="result-item"
             :class="{ 'is-active': index + visibleRecentResults.length === activeIndex }"
             type="button"
             @click="handleSelect(item)"
             @mouseenter="activeIndex = index + visibleRecentResults.length"
-          >
-            <el-icon class="result-icon"><component :is="item.icon || 'Grid'" /></el-icon>
-            <span class="result-content">
-              <span class="result-title">{{ item.title }}</span>
-              <span v-if="item.parent || item.path" class="result-path">{{ item.parent || item.path }}</span>
-            </span>
-          </button>
-        </section>
-
-        <section class="default-section">
-          <div class="section-heading"><span>系统操作</span></div>
-          <button
-            v-for="(item, index) in commandActions"
-            :key="item.id"
-            class="result-item"
-            :class="{ 'is-active': index + visibleRecentResults.length + commonResults.length === activeIndex }"
-            type="button"
-            @click="handleSelect(item)"
-            @mouseenter="activeIndex = index + visibleRecentResults.length + commonResults.length"
           >
             <el-icon class="result-icon"><component :is="item.icon || 'Grid'" /></el-icon>
             <span class="result-content">
@@ -126,7 +107,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { pinyin } from 'pinyin-pro'
-import { commonCommandIds, findCommandNavigation, getCommandNavigationItems } from '@/config/commandPalette'
+import { findCommandNavigation, getCommandNavigationItems } from '@/config/commandPalette'
 import { navigateToPath } from '@/config/navigation'
 import type { CommandNavigationCategory, CommandNavigationItem } from '@/config/commandPalette'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -165,10 +146,6 @@ const recentResults = computed(() => paletteStore.recentItems
   .filter((item): item is CommandNavigationItem => Boolean(item))
 )
 const visibleRecentResults = computed(() => showAllRecent.value ? recentResults.value : recentResults.value.slice(0, 3))
-const commonResults = computed(() => commonCommandIds
-  .map(id => findCommandNavigation(id))
-  .filter((item): item is CommandNavigationItem => Boolean(item))
-)
 const commandActions = computed<CommandPaletteItem[]>(() => [
   {
     id: 'command-theme',
@@ -200,7 +177,6 @@ const commandActions = computed<CommandPaletteItem[]>(() => [
 ])
 const defaultResults = computed(() => [
   ...visibleRecentResults.value,
-  ...commonResults.value,
   ...commandActions.value,
 ])
 

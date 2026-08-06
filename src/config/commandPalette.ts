@@ -48,9 +48,3 @@ export function findCommandNavigation(id: string) {
 export function findCommandNavigationByPath(path: string) {
   return getCommandNavigationItems().find(item => item.path === path)
 }
-
-export const commonCommandIds = [
-  'data-board-home',
-  'application-data-board',
-  'application-workflow',
-]
