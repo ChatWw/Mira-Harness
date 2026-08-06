@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('platform', {
+  windowChrome: process.platform === 'darwin' ? 'macos-overlay' : 'standard',
   getSnapshot: () => ipcRenderer.invoke('platform:get-snapshot'),
   savePreference: (key: string, value: unknown) => ipcRenderer.invoke('platform:save-preference', key, value),
   updateMenus: (menus: unknown) => ipcRenderer.invoke('platform:update-menus', menus),

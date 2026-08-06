@@ -49,9 +49,9 @@
     </div>
 
     <!-- 表格 -->
+    <AppLoadingOverlay :active="innerLoading">
     <el-table
       ref="tableRef"
-      v-loading="innerLoading"
       :data="innerData"
       :row-key="rowKey"
       :row-class-name="getRowClassName"
@@ -102,6 +102,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </AppLoadingOverlay>
 
     <!-- 分页 -->
     <Pagination
@@ -120,6 +121,7 @@ import { ElMessageBox } from 'element-plus'
 import { Refresh, Operation } from '@element-plus/icons-vue'
 import SearchForm from './components/SearchForm.vue'
 import Pagination from './components/Pagination.vue'
+import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 import type { ProTableColumn, ProTableSearchConfig, ActionButton, SearchField } from './types'
 
 interface Props {

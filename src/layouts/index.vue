@@ -1,16 +1,13 @@
 <template>
   <el-watermark v-bind="watermarkProps" class="layout-watermark">
     <div class="layout" :class="layoutClasses">
-    <!-- 系统级导航：品牌、应用选择器与账户入口 -->
-    <Transition name="header-slide">
-      <div
-        v-if="showGlobalHeader"
-        class="layout-header-transition"
-        :style="{ '--layout-header-height': `${layoutStore.config.headerHeight}px` }"
-      >
-        <GlobalHeader />
-      </div>
-    </Transition>
+    <!-- 桌面窗口顶栏：macOS 红绿灯、导航与工具条统一在同一行。 -->
+    <div
+      class="layout-header-transition"
+      :style="{ '--layout-header-height': `${layoutStore.config.headerHeight}px` }"
+    >
+      <GlobalHeader />
+    </div>
 
     <div class="layout-workspace">
       <!-- 仅侧栏模式：一级应用栏常驻，二级菜单按当前应用配置显示。 -->
@@ -23,14 +20,11 @@
         <AppSidebar v-if="showSidebar" :show-brand="true" text-only-brand />
       </div>
 
-      <!-- 默认布局：侧边栏仅承担工作区导航。 -->
-      <AppSidebar v-else-if="showSidebar" :show-brand="false" />
+      <!-- 默认布局：品牌置于顶栏下方的工作区导航内。 -->
+      <AppSidebar v-else-if="showSidebar" :show-brand="true" />
 
       <!-- 主容器 -->
       <div class="main-container">
-        <!-- 仅侧边栏模式保留工作区工具栏；侧边栏+顶栏模式改由顶栏承载。 -->
-        <AppHeader v-if="showWorkspaceHeader" />
-
         <!-- 多标签页 -->
         <TabsBar v-if="layoutStore.config.enableTabs" />
 
@@ -58,7 +52,6 @@ import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
 import GlobalHeader from './components/GlobalHeader.vue'
-import AppHeader from './components/AppHeader.vue'
 import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
 import AppFooter from './components/AppFooter.vue'
@@ -75,9 +68,6 @@ const showSidebar = computed(() => {
   if (navigation.value.area === 'main') return true
   return getVisibleMenus(navigation.value.menus).length > 0
 })
-const showGlobalHeader = computed(() => layoutStore.config.mode === 'sidebar-header')
-const showWorkspaceHeader = computed(() => !showGlobalHeader.value)
-
 const watermarkProps = computed(() => {
   return {
     content: layoutStore.config.watermark
@@ -334,22 +324,10 @@ const layoutClasses = computed(() => {
 }
 
 .layout-header-transition {
+  height: var(--layout-header-height);
   max-height: var(--layout-header-height);
   flex-shrink: 0;
   overflow: hidden;
-}
-
-.header-slide-enter-active,
-.header-slide-leave-active {
-  overflow: hidden;
-  transition: max-height var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
-}
-
-.header-slide-enter-from,
-.header-slide-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-100%);
 }
 
 .layout-rail-transition {
@@ -373,8 +351,6 @@ const layoutClasses = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-slide-enter-active,
-  .header-slide-leave-active,
   .rail-slide-enter-active,
   .rail-slide-leave-active {
     transition: none;

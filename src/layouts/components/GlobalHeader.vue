@@ -19,10 +19,13 @@
 
   </aside>
 
-  <header v-else class="global-header" :style="{ height: `${layoutStore.config.headerHeight}px` }">
+  <header
+    v-else
+    class="global-header"
+    :class="{ 'is-macos-overlay': isMacOverlay && !isFullscreen }"
+    :style="{ height: `${layoutStore.config.headerHeight}px` }"
+  >
     <div class="global-brand">
-      <div v-if="layoutStore.config.showLogo" class="brand-mark"><img :src="miraLogo" class="brand-logo" alt="Mira" /></div>
-      <span class="brand-title-shimmer">{{ APP_NAME }}</span>
       <el-button
         text
         :icon="appStore.sidebarCollapsed ? Expand : Fold"
@@ -60,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ArrowDown, Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
@@ -82,6 +85,7 @@ const currentAppCode = computed(() => getAppCodeFromPath(route.path))
 const selectedApp = computed(() => applications.value.find(app => app.code === currentAppCode.value))
 const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
+const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
 
 function handleAppChange(code: string) {
   navigateToPath(router, getApplicationEntryPath(code))
@@ -100,23 +104,27 @@ function toggleFullscreen() {
     isFullscreen.value = false
   }
 }
+
+function syncFullscreenState() {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
+
+onMounted(() => document.addEventListener('fullscreenchange', syncFullscreenState))
+onBeforeUnmount(() => document.removeEventListener('fullscreenchange', syncFullscreenState))
 </script>
 
 <style scoped lang="scss">
-.global-header { width: 100%; min-height: 48px; display: flex; align-items: center; gap: $spacing-sm; padding: 0 10px; background: var(--cp-bg); flex-shrink: 0; z-index: $z-sticky; }
+.global-header { width: 100%; min-height: 48px; display: flex; align-items: center; gap: $spacing-sm; padding: 0 10px; background: var(--cp-bg); flex-shrink: 0; z-index: $z-sticky; -webkit-app-region: drag; }
+.global-header.is-macos-overlay { padding-left: 88px; }
 .global-rail { width: 64px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; background: var(--cp-bg-elevated); flex-shrink: 0; }
 .rail-brand, .rail-app { display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; transition: color $transition-fast, background $transition-fast; }
 .rail-brand { color: #fff; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); overflow: hidden; .brand-logo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } }
 .rail-app-list { display: flex; flex-direction: column; gap: 6px; &.is-loading { opacity: .6; pointer-events: none; } }
 .rail-app { font-size: 18px; &:hover, &.is-active { color: var(--cp-primary); background: var(--cp-primary-lighter); } }
-.global-brand { min-width: 0; display: flex; align-items: center; gap: 7px; flex: 1; font-size: 15px; font-weight: 650; color: var(--cp-text); white-space: nowrap; overflow: hidden; }
-.brand-mark { width: 28px; height: 28px; display: grid; place-items: center; color: #fff; border-radius: 8px; background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 55%, #635bff)); box-shadow: 0 5px 12px color-mix(in srgb, var(--cp-primary) 25%, transparent); overflow: hidden; .brand-logo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } }
-.brand-title-shimmer { display: inline-block; background: linear-gradient(110deg, var(--cp-text) 38%, color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 46%, var(--cp-title-shimmer) 52%, color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 58%, var(--cp-text) 66%); background-size: 250% 100%; background-clip: text; -webkit-text-fill-color: transparent; animation: title-shimmer 5s ease-in-out infinite; }
-@keyframes title-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
-@media (prefers-reduced-motion: reduce) { .brand-title-shimmer { animation: none; } }
+.global-brand { min-width: 0; display: flex; align-items: center; gap: 7px; flex: 1; overflow: hidden; }
 .application-switcher { display: flex; align-items: center; }.application-trigger { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 0; border-radius: $radius-md; background: var(--cp-bg-hover); color: var(--cp-text); font-size: 13px; font-weight: 500; cursor: pointer; transition: background $transition-base, color $transition-base; &:hover { background: var(--cp-primary-lighter); color: var(--cp-primary); }.application-icon { color: var(--cp-primary); font-size: 15px; }.application-arrow { margin-left: 1px; font-size: 12px; color: var(--cp-text-tertiary); }.is-loading { opacity: .6; pointer-events: none; } }:global(.application-popper) { padding: $spacing-xs; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: $radius-md; box-shadow: $shadow-md; }:global(.application-popper .el-dropdown-menu) { background: transparent; }:global(.application-popper .el-dropdown-menu__item) { display: flex; align-items: center; gap: $spacing-sm; min-width: 150px; margin: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent !important; &:hover { background: var(--cp-bg-hover) !important; color: var(--cp-text); } &:global(.is-current) { color: var(--cp-primary); background: var(--cp-primary-lighter) !important; } }
-.collapse-btn { font-size: $font-lg; flex-shrink: 0; }.global-breadcrumb { min-width: 0; overflow: hidden; }.global-actions { display: flex; align-items: center; gap: $spacing-sm; margin-left: auto; flex-shrink: 0; }.global-toolbar { display: flex; align-items: center; gap: 2px; :deep(.el-button) { width: 28px; height: 28px; padding: 0; margin: 0; } :deep(.el-button + .el-button) { margin-left: 0; } }
-@include media-max($breakpoint-md) { .global-header { padding: 0 $spacing-md; }.brand-title-shimmer, .global-breadcrumb { display: none; }.global-actions { gap: $spacing-xs; } }
+.collapse-btn, .global-breadcrumb, .global-actions { -webkit-app-region: no-drag; }.collapse-btn { font-size: $font-lg; flex-shrink: 0; }.global-breadcrumb { min-width: 0; overflow: hidden; }.global-actions { display: flex; align-items: center; gap: $spacing-sm; margin-left: auto; flex-shrink: 0; }.global-toolbar { display: flex; align-items: center; gap: 2px; :deep(.el-button) { width: 28px; height: 28px; padding: 0; margin: 0; } :deep(.el-button + .el-button) { margin-left: 0; } }
+@include media-max($breakpoint-md) { .global-header { padding: 0 $spacing-md; }.global-header.is-macos-overlay { padding-left: 88px; }.global-breadcrumb { display: none; }.global-actions { gap: $spacing-xs; } }
 </style>
 
 <style lang="scss">

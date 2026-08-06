@@ -1,5 +1,6 @@
 <template>
-  <div class="embedded-web-frame" :class="{ 'is-fill': fill }" v-loading="loading">
+  <AppLoadingOverlay class="embedded-web-frame-loading" :class="{ 'is-fill': fill }" :active="loading" text="正在加载网页…">
+  <div class="embedded-web-frame" :class="{ 'is-fill': fill }">
     <el-result v-if="error" icon="error" title="网页无法加载" :sub-title="error">
       <template #extra>
         <el-button v-if="resolvedUrl" type="primary" @click="openInNewWindow">在新窗口打开</el-button>
@@ -32,12 +33,14 @@
       @error="handleError"
     />
   </div>
+  </AppLoadingOverlay>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getIframeSandbox, resolveHttpUrl, resolveIframePolicy } from '@/config/iframe'
 import type { IframePolicy } from '@/types'
+import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 
 const props = withDefaults(defineProps<{
   url: string
@@ -127,6 +130,13 @@ onBeforeUnmount(clearTimer)
       min-height: 0;
     }
   }
+}
+
+.embedded-web-frame-loading.is-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .embedded-web-frame__iframe {

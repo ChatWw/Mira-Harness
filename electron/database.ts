@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import {
   DASHBOARD_MENU,
+  FUNCTIONAL_COMPONENTS_MENU,
   mainMenus as defaultsMenus,
   PROTECTED_MAIN_MENU_IDS,
   SYSTEM_MANAGEMENT_MENU,
@@ -11,7 +12,7 @@ import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 4
+const CURRENT_SCHEMA_VERSION = 6
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
@@ -29,7 +30,7 @@ function removeProtectedMenus(menus: MenuItem[]): MenuItem[] {
 }
 
 export function normalizeProtectedMainMenus(menus: MenuItem[]): MenuItem[] {
-  return [clone(DASHBOARD_MENU), ...removeProtectedMenus(clone(menus)), clone(SYSTEM_MANAGEMENT_MENU)]
+  return [clone(DASHBOARD_MENU), ...removeProtectedMenus(clone(menus)), clone(FUNCTIONAL_COMPONENTS_MENU), clone(SYSTEM_MANAGEMENT_MENU)]
 }
 
 function stableSerialize(value: unknown): string {
@@ -42,10 +43,12 @@ function stableSerialize(value: unknown): string {
 
 function assertProtectedMenus(menus: MenuItem[]) {
   const dashboard = menus.find(menu => menu.id === DASHBOARD_MENU.id)
+  const functionalComponents = menus.find(menu => menu.id === FUNCTIONAL_COMPONENTS_MENU.id)
   const systemManagement = menus.find(menu => menu.id === SYSTEM_MANAGEMENT_MENU.id)
   if (stableSerialize(dashboard) !== stableSerialize(DASHBOARD_MENU)
+    || stableSerialize(functionalComponents) !== stableSerialize(FUNCTIONAL_COMPONENTS_MENU)
     || stableSerialize(systemManagement) !== stableSerialize(SYSTEM_MANAGEMENT_MENU)) {
-    throw new Error('概览和系统管理为内置菜单，不能修改或删除')
+    throw new Error('概览、功能组件和系统管理为内置菜单，不能修改或删除')
   }
 }
 
@@ -75,7 +78,7 @@ export class PlatformDatabase {
     } else {
       const versionRow = this.database.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as { value?: string } | undefined
       const version = Number(versionRow?.value || 1)
-      if (version < 4) {
+      if (version < 6) {
         const snapshot = this.getSnapshot()
         this.backup()
         this.writeSnapshot({

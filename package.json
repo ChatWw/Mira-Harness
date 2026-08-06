@@ -22,19 +22,29 @@
     "appId": "com.wujinbo.mira",
     "productName": "Mira",
     "icon": "src/asset/mira.icns",
-    "win": { "icon": "src/asset/mira.ico" },
+    "win": {
+      "icon": "src/asset/mira.ico"
+    },
     "asar": true,
-    "mac": { "target": ["dmg"] },
-    "files": ["out/**/*"]
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "files": [
+      "out/**/*"
+    ]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "better-sqlite3": "^13.0.2",
     "element-plus": "^2.14.2",
+    "ldrs": "^1.1.9",
     "lucide-vue-next": "^0.468.0",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.28.2",
+    "spinkit": "^2.0.1",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4",
     "vuedraggable": "^4.1.0",

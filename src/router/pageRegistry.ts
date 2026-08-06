@@ -11,6 +11,8 @@ const pageModules: Record<string, PageLoader> = {
   'system-menu-config': () => import('@/pages/system/MenuConfigPage.vue'),
   'system-micro-apps': () => import('@/pages/system/MicroAppManagementPage.vue'),
   'system-backup-preferences': () => import('@/pages/system/BackupPreferencesPage.vue'),
+  'system-loading-effect': () => import('@/pages/system/LoadingEffectPage.vue'),
+  'system-icon-selector': () => import('@/pages/system/IconSelectorPage.vue'),
 }
 
 export function getMenuRouteName(menu: MenuItem) {

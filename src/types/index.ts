@@ -104,6 +104,7 @@ export interface PlatformSnapshot {
 }
 
 export interface PlatformApi {
+  windowChrome: 'macos-overlay' | 'standard'
   getSnapshot(): Promise<PlatformSnapshot>
   savePreference(key: string, value: unknown): Promise<void>
   updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>

@@ -10,6 +10,7 @@ let localMicroAppServer: LocalMicroAppServer
 function createWindow() {
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 680,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   })
   window.webContents.setWindowOpenHandler(({ url }) => {

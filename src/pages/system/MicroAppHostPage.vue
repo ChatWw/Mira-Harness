@@ -1,6 +1,7 @@
 <template>
   <PageContainer :title="pageTitle" :description="pageDescription" :show-header="showPageHeader">
-    <el-card shadow="never" class="micro-app-host" v-loading="loading">
+    <AppLoadingOverlay :active="loading" text="正在加载微应用…">
+    <el-card shadow="never" class="micro-app-host">
       <el-result v-if="error" icon="error" title="微应用无法加载" :sub-title="error">
         <template #extra>
           <el-button v-if="entryUrl" type="primary" @click="openInNewWindow">在新窗口打开</el-button>
@@ -32,6 +33,7 @@
         />
       </template>
     </el-card>
+    </AppLoadingOverlay>
   </PageContainer>
 </template>
 
@@ -46,6 +48,7 @@ import { getPlatformApi } from '@/platform'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, PlatformContext, PlatformNavigatePayload, WujieRuntimeConfig } from '@/types'
 import EmbeddedWebFrame from './components/EmbeddedWebFrame.vue'
+import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 
 const route = useRoute()
 const router = useRouter()
