@@ -55,7 +55,7 @@ export class PlatformDatabase {
 
   constructor(userDataPath: string) {
     mkdirSync(userDataPath, { recursive: true })
-    this.filePath = join(userDataPath, 'core-platform.sqlite')
+    this.filePath = join(userDataPath, 'mira.sqlite')
     this.database = new Database(this.filePath)
     this.database.pragma('journal_mode = WAL')
     this.migrate()

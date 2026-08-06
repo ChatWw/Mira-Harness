@@ -91,7 +91,7 @@ export interface LoginResult {
 **`src/api/request.ts`**:
 - axios 实例，baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 - timeout: 15000
-- 请求拦截器：从 localStorage 读取 'core-platform-token'，附加到 Authorization header
+- 请求拦截器：从 localStorage 读取 'mira-token'，附加到 Authorization header
 - 响应拦截器：
   - code === 200 返回 data
   - code === 401 清除 token，ElMessage.error 提示，跳转 /login

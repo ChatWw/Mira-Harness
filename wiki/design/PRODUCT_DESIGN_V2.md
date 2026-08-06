@@ -917,7 +917,7 @@ const request: AxiosInstance = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('core-platform-token')
+    const token = localStorage.getItem('mira-token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -933,7 +933,7 @@ request.interceptors.response.use(
     if (code === 200) return data
     if (code === 401) {
       // token 过期：清除登录状态，跳转登录页
-      localStorage.removeItem('core-platform-token')
+      localStorage.removeItem('mira-token')
       ElMessage.error('登录已过期，请重新登录')
       window.location.href = '/login'
       return Promise.reject(new Error('Unauthorized'))

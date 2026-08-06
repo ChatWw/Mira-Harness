@@ -1,4 +1,4 @@
-# Core Platform
+# Mira
 
 基于 Vue 3、TypeScript 和 Vite 的个人工具应用壳。项目不依赖登录、用户体系或后端菜单服务；打开应用会直接进入“通用”区域的概览页，本地页面、网页菜单与微应用均从 TypeScript 清单加载。
 

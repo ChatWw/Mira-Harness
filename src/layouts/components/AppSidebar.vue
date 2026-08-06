@@ -11,7 +11,7 @@
       <div v-if="showBrand" class="sidebar-header">
         <div class="brand">
           <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
-            <img :src="coreLogo" class="brand-logo" alt="" />
+            <img :src="miraLogo" class="brand-logo" alt="Mira" />
           </div>
           <transition name="fade">
             <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import coreLogo from '@/asset/core.svg'
+import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
 import { getVisibleMenusForPath, navigateToPath } from '@/config/navigation'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
@@ -140,8 +140,10 @@ watch(
         flex-shrink: 0;
 
         .brand-logo {
-          width: 17px;
-          height: 17px;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: inherit;
         }
       }
 

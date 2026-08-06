@@ -1,7 +1,7 @@
 {
-  "name": "core-platform",
+  "name": "mira",
   "version": "1.0.0",
-  "description": "Personal tool application shell",
+  "description": "Mira personal tool application shell",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -19,8 +19,10 @@
   },
   "main": "out/main/main.js",
   "build": {
-    "appId": "com.wujinbo.coreplatform",
-    "productName": "Core Platform",
+    "appId": "com.wujinbo.mira",
+    "productName": "Mira",
+    "icon": "src/asset/mira.icns",
+    "win": { "icon": "src/asset/mira.ico" },
     "asar": true,
     "mac": { "target": ["dmg"] },
     "files": ["out/**/*"]

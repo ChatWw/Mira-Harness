@@ -63,7 +63,7 @@ async function exportConfig() {
   try {
     const text = await requirePlatformApi().exportSnapshot()
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
-    const link = Object.assign(document.createElement('a'), { href: url, download: `core-platform-${Date.now()}.json` })
+    const link = Object.assign(document.createElement('a'), { href: url, download: `mira-${Date.now()}.json` })
     document.body.appendChild(link)
     link.click()
     link.remove()

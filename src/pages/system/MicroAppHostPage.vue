@@ -64,7 +64,7 @@ const childProps = computed(() => {
     version: 1,
     theme: themeStore.themeMode,
     language: navigator.language,
-    user: Object.freeze({ id: 'platform', name: 'Core Platform' }),
+    user: Object.freeze({ id: 'platform', name: 'Mira' }),
   })
   return Object.freeze({
     platformContext: context,

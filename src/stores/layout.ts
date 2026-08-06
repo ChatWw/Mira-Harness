@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
 import { getPreference, savePreference } from '@/platform'
 
-export const APP_NAME = 'Core Platform'
+export const APP_NAME = 'Mira'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
@@ -65,7 +65,7 @@ const DEFAULT_CONFIG: LayoutConfig = {
   watermarkText: '',
   footerStyle: 'simple',
   footerHeight: 40,
-  footerCopyright: 'Core Platform',
+  footerCopyright: 'Mira',
   footerYearMode: 'auto',
   footerYearStart: null,
   footerYearEnd: null,
