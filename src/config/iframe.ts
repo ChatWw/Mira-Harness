@@ -1,5 +1,7 @@
 import type { IframePolicy, IframeProfile } from '@/types'
 
+export const MAX_IFRAME_LOAD_WAIT = 5
+
 const SANDBOX_BY_PROFILE: Record<Exclude<IframeProfile, 'external'>, string> = {
   strict: 'allow-scripts allow-forms allow-popups',
   compatible: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads',
@@ -8,14 +10,15 @@ const SANDBOX_BY_PROFILE: Record<Exclude<IframeProfile, 'external'>, string> = {
 export const DEFAULT_IFRAME_POLICY: Required<IframePolicy> = {
   profile: 'compatible',
   referrerPolicy: 'strict-origin-when-cross-origin',
-  timeout: 15,
+  timeout: MAX_IFRAME_LOAD_WAIT,
 }
 
 export function resolveIframePolicy(policy?: IframePolicy): Required<IframePolicy> {
-  return {
+  const resolved = {
     ...DEFAULT_IFRAME_POLICY,
     ...policy,
   }
+  return { ...resolved, timeout: Math.min(resolved.timeout, MAX_IFRAME_LOAD_WAIT) }
 }
 
 export function getIframeSandbox(profile: IframeProfile) {

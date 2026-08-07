@@ -98,7 +98,7 @@
                 </el-select>
               </el-form-item>
               <el-form-item label="加载超时（秒）">
-                <el-input-number v-model="form.timeout" :min="1" :max="300" controls-position="right" class="field-control" />
+                <el-input-number v-model="form.timeout" :min="1" :max="5" controls-position="right" class="field-control" />
               </el-form-item>
               <el-form-item label="Referrer Policy">
                 <el-select v-model="form.referrerPolicy" class="field-control">
@@ -184,7 +184,7 @@ function emptyForm(): MicroAppDraft {
   return {
     idSuffix: '', name: '', integrationMode: 'wujie', directory: '', url: '', icon: '', sort: 0, enabled: true,
     description: '', alive: true, routeMode: 'platform', preload: false, iframeProfile: 'compatible',
-    referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15, menus: [],
+    referrerPolicy: 'strict-origin-when-cross-origin', timeout: 5, menus: [],
   }
 }
 
@@ -221,7 +221,7 @@ function initializeForm() {
     } else {
       next.iframeProfile = current.runtimeConfig.iframe.profile || 'compatible'
       next.referrerPolicy = current.runtimeConfig.iframe.referrerPolicy || 'strict-origin-when-cross-origin'
-      next.timeout = current.runtimeConfig.iframe.timeout || 15
+      next.timeout = Math.min(current.runtimeConfig.iframe.timeout || 5, 5)
     }
   }
   Object.assign(form, next)
@@ -239,7 +239,7 @@ function resetEntryForMode() {
   form.preload = false
   form.iframeProfile = 'compatible'
   form.referrerPolicy = 'strict-origin-when-cross-origin'
-  form.timeout = 15
+  form.timeout = 5
 }
 
 async function selectDirectory() {

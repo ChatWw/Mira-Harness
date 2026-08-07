@@ -165,7 +165,7 @@ export const mainMenus: MenuItem[] = [
               iframePolicy: {
                 profile: 'compatible',
                 referrerPolicy: 'strict-origin-when-cross-origin',
-                timeout: 15,
+                timeout: 5,
               },
             },
             appCode: null,
@@ -198,7 +198,7 @@ export const mainMenus: MenuItem[] = [
               iframePolicy: {
                 profile: 'external',
                 referrerPolicy: 'strict-origin-when-cross-origin',
-                timeout: 15,
+                timeout: 5,
               },
             },
             appCode: null,

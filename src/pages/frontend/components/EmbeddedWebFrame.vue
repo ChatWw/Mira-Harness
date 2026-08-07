@@ -1,7 +1,7 @@
 <template>
   <AppLoadingOverlay class="embedded-web-frame-loading" :class="{ 'is-fill': fill }" :active="loading" text="正在加载网页…">
   <div class="embedded-web-frame" :class="{ 'is-fill': fill }">
-    <el-result v-if="error" icon="error" title="网页无法加载" :sub-title="error">
+    <el-result v-if="error" icon="error" title="网页无法加载" sub-title="页面打开失败，您可以尝试以下方式重试">
       <template #extra>
         <el-button v-if="resolvedUrl" type="primary" @click="openInNewWindow">在新窗口打开</el-button>
         <el-button @click="reload">重试</el-button>
@@ -53,7 +53,7 @@ const props = withDefaults(defineProps<{
 })
 
 const loading = ref(false)
-const error = ref('')
+const error = ref(false)
 const reloadKey = ref(0)
 const resolvedUrl = ref('')
 let timer: number | undefined
@@ -73,7 +73,7 @@ function clearTimer() {
 
 function startLoading() {
   clearTimer()
-  error.value = ''
+  error.value = false
   try {
     resolvedUrl.value = resolveHttpUrl(props.url)
   } catch (cause: any) {
@@ -87,7 +87,6 @@ function startLoading() {
 
   timer = window.setTimeout(() => {
     loading.value = false
-    error.value = `页面加载超过 ${resolvedPolicy.value.timeout} 秒，请检查网络或目标站点的嵌入策略`
   }, resolvedPolicy.value.timeout * 1000)
 }
 
@@ -99,7 +98,7 @@ function handleLoad() {
 function handleError() {
   clearTimer()
   loading.value = false
-  error.value = '页面加载失败，请检查网络、CSP 或 X-Frame-Options 设置'
+  error.value = true
 }
 
 function reload() {

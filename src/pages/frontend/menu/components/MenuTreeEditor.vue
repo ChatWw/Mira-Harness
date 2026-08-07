@@ -125,7 +125,7 @@
                 </el-select>
               </el-form-item>
               <el-form-item label="加载超时（秒）">
-                <el-input-number v-model="form.timeout" :min="1" :max="300" controls-position="right" class="field-control" />
+                <el-input-number v-model="form.timeout" :min="1" :max="5" controls-position="right" class="field-control" />
               </el-form-item>
               <el-form-item label="Referrer Policy">
                 <el-select v-model="form.referrerPolicy" class="field-control">
@@ -232,7 +232,7 @@ const formRef = ref<FormInstance>()
 function emptyForm(): MenuDraft {
   return {
     title: '', kind: 'dir', parentId: '', icon: '', sort: 0, routeSegment: '', componentKey: '',
-    url: '', iframeProfile: 'compatible', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 15,
+    url: '', iframeProfile: 'compatible', referrerPolicy: 'strict-origin-when-cross-origin', timeout: 5,
     childPath: '', description: '', showPageHeader: true, keepAlive: false, enabled: true, visible: true,
   }
 }
@@ -358,7 +358,7 @@ function openEdit(menu: MenuItem) {
     url: menu.target?.type === 'iframe' ? menu.target.url : '',
     iframeProfile: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.profile || 'compatible' : 'compatible',
     referrerPolicy: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.referrerPolicy || 'strict-origin-when-cross-origin' : 'strict-origin-when-cross-origin',
-    timeout: menu.target?.type === 'iframe' ? menu.target.iframePolicy?.timeout || 15 : 15,
+    timeout: menu.target?.type === 'iframe' ? Math.min(menu.target.iframePolicy?.timeout || 5, 5) : 5,
     childPath: menu.target?.type === 'microapp' ? menu.target.childPath : '',
     description: menu.description ?? '',
     showPageHeader: menu.showPageHeader !== false,
