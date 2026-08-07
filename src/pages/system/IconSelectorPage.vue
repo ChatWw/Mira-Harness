@@ -1,5 +1,5 @@
 <template>
-  <PageContainer title="图标选择器" description="浏览图标、选择后预览，并复制可直接使用的代码。" max-width="1600">
+  <PageContainer title="图标" description="浏览图标、选择后预览，并复制可直接使用的代码。" max-width="1600">
     <section class="picker-demo panel">
       <div class="section-heading">
         <div>

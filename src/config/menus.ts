@@ -7,7 +7,7 @@ export const BUILT_IN_PAGE_OPTIONS = [
   { value: 'system-micro-apps', label: '微应用管理' },
   { value: 'system-backup-preferences', label: '备份与偏好' },
   { value: 'system-loading-effect', label: 'Loading 效果' },
-  { value: 'system-icon-selector', label: '图标选择器' },
+  { value: 'system-icon-selector', label: '图标' },
 ] as const
 
 export const DASHBOARD_MENU: MenuItem = {
@@ -94,7 +94,7 @@ export const FUNCTIONAL_COMPONENTS_MENU: MenuItem = {
     },
     {
       id: 'system-icon-selector',
-      title: '图标选择器',
+      title: '图标',
       icon: 'Pointer',
       type: 'menu',
       path: '/system/components/icon-selector',

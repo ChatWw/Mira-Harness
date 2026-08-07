@@ -12,7 +12,7 @@ import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 6
+const CURRENT_SCHEMA_VERSION = 7
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
@@ -78,7 +78,7 @@ export class PlatformDatabase {
     } else {
       const versionRow = this.database.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as { value?: string } | undefined
       const version = Number(versionRow?.value || 1)
-      if (version < 6) {
+      if (version < 7) {
         const snapshot = this.getSnapshot()
         this.backup()
         this.writeSnapshot({
