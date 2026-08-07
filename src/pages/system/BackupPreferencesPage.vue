@@ -11,11 +11,11 @@
 
     <section class="summary-list">
       <div class="summary-row">
-        <div class="summary-icon"><el-icon><Coin /></el-icon></div>
+        <div class="summary-icon"><AppIcon name="Coin" /></div>
         <div><strong>SQLite 本机存储</strong><span>菜单、微应用和界面偏好保存在应用用户数据目录中。</span></div>
       </div>
       <div class="summary-row">
-        <div class="summary-icon"><el-icon><Setting /></el-icon></div>
+        <div class="summary-icon"><AppIcon name="Setting" /></div>
         <div><strong>{{ preferenceCount }} 项界面偏好</strong><span>偏好随配置快照一起导出和恢复，本页不提供单项编辑。</span></div>
       </div>
     </section>
@@ -24,10 +24,10 @@
       <div><h3>配置快照</h3><p>导出当前全部配置，或导入此前保存的 JSON 快照。导入前会自动备份当前数据库。</p></div>
       <div class="action-buttons">
         <el-button :loading="action === 'export'" :disabled="busy || !desktopAvailable" @click="exportConfig">
-          <el-icon><Download /></el-icon>导出配置
+          <AppIcon name="Download" />导出配置
         </el-button>
         <el-button :loading="action === 'import'" :disabled="busy || !desktopAvailable" @click="importInput?.click()">
-          <el-icon><Upload /></el-icon>导入配置
+          <AppIcon name="Upload" />导入配置
         </el-button>
         <input ref="importInput" class="file-input" type="file" accept="application/json,.json" @change="importConfig" />
       </div>

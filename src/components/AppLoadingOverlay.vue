@@ -37,7 +37,7 @@
           <div v-else-if="loaderStyle === 'chasing-dots'" class="loading-overlay__spinkit sk-chase" :class="{ 'is-motion-reduced': motionReduced }" :style="spinKitStyle">
             <div v-for="index in 6" :key="index" class="sk-chase-dot" />
           </div>
-          <el-icon v-else class="loading-overlay__element-icon is-loading" :size="28"><Loading /></el-icon>
+          <AppIcon v-else class="loading-overlay__element-icon is-loading" name="Loading" :size="28" />
           <span v-if="text" class="loading-overlay__text">{{ text }}</span>
         </div>
       </div>
@@ -47,7 +47,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Loading } from '@element-plus/icons-vue'
 import { orbit } from 'ldrs'
 import 'spinkit/spinkit.css'
 import { useLoading } from '@/hooks/useLoading'

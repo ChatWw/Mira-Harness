@@ -12,8 +12,7 @@
         :aria-selected="item.value === modelValue"
         @click="select(item.value)"
       >
-        <el-icon v-if="item.type === 'element' && item.component" :size="22"><component :is="item.component" /></el-icon>
-        <Icon v-else :icon="item.value" :width="22" :height="22" />
+        <AppIcon :name="item.value" :size="22" />
         <span>{{ item.label }}</span>
       </button>
     </div>
@@ -33,7 +32,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Icon } from '@iconify/vue'
 import type { IconPickerItem } from './types'
 
 const props = defineProps<{

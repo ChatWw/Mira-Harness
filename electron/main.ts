@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
@@ -6,6 +7,124 @@ import type { MicroApp } from '../src/types'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
+let aboutWindow: BrowserWindow | null = null
+
+const releaseDate = '2026 08/07'
+
+function openAboutWindow() {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.focus()
+    return
+  }
+
+  const logoPath = app.isPackaged
+    ? join(process.resourcesPath, 'app.asar', 'src/asset/mira-logo.png')
+    : join(__dirname, '../../src/asset/mira-logo.png')
+  const logoDataUrl = `data:image/png;base64,${readFileSync(logoPath).toString('base64')}`
+  aboutWindow = new BrowserWindow({
+    width: 390,
+    height: 310,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: '关于 Mira',
+    backgroundColor: '#ffffff',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  })
+  aboutWindow.setMenuBarVisibility(false)
+  aboutWindow.center()
+  aboutWindow.on('closed', () => { aboutWindow = null })
+  void aboutWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+    <!doctype html>
+    <html lang="zh-CN">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>关于 Mira</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #1d1d1f;
+            background: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+            text-align: center;
+          }
+          .logo {
+            width: 60px;
+            height: 60px;
+            margin-top: 38px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+            object-fit: cover;
+          }
+          h1 { margin: 18px 0 24px; font-size: 22px; font-weight: 650; line-height: 1; letter-spacing: -0.03em; }
+          p { margin: 0; color: #55565a; font-size: 12px; line-height: 1.35; }
+          .release { margin-top: 8px; }
+          .copyright { margin-top: 12px; }
+        </style>
+      </head>
+      <body>
+        <img class="logo" src="${logoDataUrl}" alt="Mira 图标">
+        <h1>Mira</h1>
+        <p>Powered by Vren</p>
+        <p>版本 ${app.getVersion()}</p>
+        <p class="release">发布于 ${releaseDate}</p>
+        <p class="email">反馈：tuyn53@163.com</p>
+      </body>
+    </html>
+  `)}`)
+}
+
+function setupApplicationMenu() {
+  const viewMenu: MenuItemConstructorOptions[] = [
+    { label: '切换全屏', role: 'togglefullscreen' },
+  ]
+  if (!app.isPackaged) {
+    viewMenu.unshift(
+      { label: '重新加载', role: 'reload' },
+      { label: '开发者工具', role: 'toggleDevTools' },
+      { type: 'separator' },
+    )
+  }
+
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: 'Mira',
+      submenu: [
+        { label: '关于 Mira', click: openAboutWindow },
+        { type: 'separator' },
+        { label: '隐藏 Mira', role: 'hide' },
+        { label: '隐藏其他', role: 'hideOthers' },
+        { label: '显示全部', role: 'unhide' },
+        { type: 'separator' },
+        { label: '退出 Mira', role: 'quit' },
+      ],
+    },
+    { label: '编辑', submenu: [
+      { label: '撤销', role: 'undo' },
+      { label: '重做', role: 'redo' },
+      { type: 'separator' },
+      { label: '剪切', role: 'cut' },
+      { label: '复制', role: 'copy' },
+      { label: '粘贴', role: 'paste' },
+      { label: '全选', role: 'selectAll' },
+    ] },
+    { label: '视图', submenu: viewMenu },
+    { label: '窗口', submenu: [
+      { label: '最小化', role: 'minimize' },
+      { label: '缩放', role: 'zoom' },
+      { label: '关闭窗口', role: 'close' },
+    ] },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -56,6 +175,7 @@ app.whenReady().then(async () => {
     localMicroAppServer.setApps(next.microApps)
     return next
   })
+  setupApplicationMenu()
   createWindow()
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow() })
 })

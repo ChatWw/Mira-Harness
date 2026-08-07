@@ -6,7 +6,7 @@
         <span>{{ menuCount }} 个节点</span>
       </div>
       <el-button type="primary" :disabled="disabled" @click="openCreate()">
-        <el-icon><Plus /></el-icon>
+        <AppIcon name="Plus" />
         新增根菜单
       </el-button>
     </div>
@@ -22,7 +22,7 @@
       <el-table-column label="菜单名称" min-width="220">
         <template #default="{ row }">
           <div class="menu-name-cell">
-            <el-icon v-if="row.icon"><component :is="row.icon" /></el-icon>
+            <AppIcon v-if="row.icon" :name="row.icon" />
             <span class="menu-title">{{ row.title }}</span>
             <el-tag v-if="isProtected(row.id)" size="small" effect="plain">内置</el-tag>
           </div>
@@ -92,7 +92,7 @@
             />
           </el-form-item>
           <el-form-item label="图标名称">
-            <el-input v-model.trim="form.icon" placeholder="Element Plus 图标，如 Setting" />
+            <FormIconPicker v-model="form.icon" />
           </el-form-item>
           <el-form-item label="排序">
             <el-input-number v-model="form.sort" :min="0" :max="9999" controls-position="right" class="field-control" />
@@ -177,6 +177,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { validateMenus, flattenMenus } from '@/config/platformValidation'
 import type { IframeProfile, MenuItem } from '@/types'
 import { cloneValue } from '../management'
+import FormIconPicker from '@/components/IconPicker/FormIconPicker.vue'
 
 type MenuKind = 'dir' | 'component' | 'iframe' | 'microapp'
 

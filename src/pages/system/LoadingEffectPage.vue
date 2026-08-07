@@ -7,7 +7,8 @@
             <h3>{{ item.name }}</h3>
             <p>{{ item.description }}</p>
           </div>
-          <el-button type="primary" :icon="loading.style.value === item.id ? Check : MagicStick" :disabled="loading.style.value === item.id" @click="applyStyle(item)">
+          <el-button type="primary" :disabled="loading.style.value === item.id" @click="applyStyle(item)">
+            <AppIcon :name="loading.style.value === item.id ? 'Check' : 'MagicStick'" />
             {{ loading.style.value === item.id ? '已应用' : '应用' }}
           </el-button>
         </div>
@@ -17,8 +18,8 @@
           </AppLoadingOverlay>
         </div>
         <div class="style-tools">
-          <el-tooltip content="复制代码"><el-button text :icon="CopyDocument" aria-label="复制代码" @click="copyCode(item)" /></el-tooltip>
-          <el-tooltip content="查看源代码"><el-button text :icon="View" aria-label="查看源代码" @click="openSource(item)" /></el-tooltip>
+          <el-tooltip content="复制代码"><el-button text aria-label="复制代码" @click="copyCode(item)"><AppIcon name="CopyDocument" /></el-button></el-tooltip>
+          <el-tooltip content="查看源代码"><el-button text aria-label="查看源代码" @click="openSource(item)"><AppIcon name="View" /></el-button></el-tooltip>
         </div>
       </article>
     </section>
@@ -38,7 +39,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check, CopyDocument, MagicStick, View } from '@element-plus/icons-vue'
 import PageContainer from '@/components/PageContainer/index.vue'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 import { useLoading } from '@/hooks/useLoading'

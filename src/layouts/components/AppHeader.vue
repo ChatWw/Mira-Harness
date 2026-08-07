@@ -4,25 +4,23 @@
       <el-button
         v-if="hasSidebar"
         text
-        :icon="appStore.sidebarCollapsed ? Expand : Fold"
         @click="appStore.toggleSidebar()"
         class="collapse-btn"
-      />
+      ><AppIcon :name="appStore.sidebarCollapsed ? 'Expand' : 'Fold'" /></el-button>
 
       <Breadcrumb v-if="layoutStore.config.showBreadcrumb" class="breadcrumb" />
     </div>
     <div class="header-right">
-      <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text :icon="Search" @click="handleSearch" /></el-tooltip>
-      <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text :icon="isFullscreen ? Crop : FullScreen" @click="toggleFullscreen" /></el-tooltip>
-      <el-tooltip content="切换主题模式"><el-button text :icon="themeStore.themeMode === 'dark' ? Sunny : Moon" @click="handleThemeToggle" /></el-tooltip>
-      <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
+      <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text @click="handleSearch"><AppIcon name="Search" /></el-button></el-tooltip>
+      <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text @click="toggleFullscreen"><AppIcon :name="isFullscreen ? 'Crop' : 'FullScreen'" /></el-button></el-tooltip>
+      <el-tooltip content="切换主题模式"><el-button text @click="handleThemeToggle"><AppIcon :name="themeStore.themeMode === 'dark' ? 'Sunny' : 'Moon'" /></el-button></el-tooltip>
+      <el-tooltip content="全局配置"><el-button text @click="layoutStore.openSettings()"><AppIcon name="Setting" /></el-button></el-tooltip>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'

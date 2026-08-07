@@ -23,7 +23,7 @@
         <div class="button-group">
           <el-button type="primary">Primary Button</el-button>
           <el-button type="primary" plain>Plain Button</el-button>
-          <el-button type="primary" :icon="Check">With Icon</el-button>
+          <el-button type="primary"><AppIcon name="Check" />With Icon</el-button>
           <el-button type="primary" loading>Loading</el-button>
         </div>
       </div>
@@ -52,7 +52,7 @@
           <el-form-item label="输入框">
             <el-input v-model="testInput" placeholder="聚焦时边框应该是主题色">
               <template #prefix>
-                <el-icon><User /></el-icon>
+                <AppIcon name="User" />
               </template>
             </el-input>
           </el-form-item>
@@ -143,7 +143,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { User, Check } from '@element-plus/icons-vue'
 
 const testInput = ref('')
 const testSelect = ref('')

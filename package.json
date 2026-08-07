@@ -1,6 +1,6 @@
 {
   "name": "mira",
-  "version": "1.0.0",
+  "version": "0.0.10",
   "description": "Mira personal tool application shell",
   "type": "module",
   "license": "MIT",
@@ -32,7 +32,8 @@
       ]
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "src/asset/mira-logo.png"
     ]
   },
   "dependencies": {

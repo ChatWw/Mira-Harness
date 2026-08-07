@@ -13,7 +13,7 @@
         :title="app.name"
         @click="handleAppChange(app.code)"
       >
-        <el-icon><component :is="app.icon || 'Grid'" /></el-icon>
+        <AppIcon :name="app.icon || 'Grid'" />
       </button>
     </div>
 
@@ -28,10 +28,9 @@
     <div class="global-brand">
       <el-button
         text
-        :icon="appStore.sidebarCollapsed ? Expand : Fold"
         class="collapse-btn"
         @click="appStore.toggleSidebar()"
-      />
+      ><AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" /></el-button>
       <Breadcrumb v-if="layoutStore.config.showBreadcrumb" class="global-breadcrumb" />
     </div>
 
@@ -39,24 +38,24 @@
       <div class="application-switcher">
         <el-dropdown trigger="click" :hide-on-click="true" popper-class="application-popper" @command="handleAppChange">
           <button class="application-trigger">
-            <el-icon class="application-icon"><component :is="selectedApp?.icon || 'Grid'" /></el-icon>
+            <AppIcon class="application-icon" :name="selectedApp?.icon || 'Grid'" />
             <span>{{ selectedApp?.name || '选择应用' }}</span>
-            <el-icon class="application-arrow"><ArrowDown /></el-icon>
+            <AppIcon class="application-arrow" name="ArrowDown" />
           </button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-for="app in applications" :key="app.code" :command="app.code" :class="{ 'is-current': app.code === currentAppCode }">
-                <el-icon v-if="app.icon"><component :is="app.icon" /></el-icon><span>{{ app.name }}</span>
+                <AppIcon v-if="app.icon" :name="app.icon" /><span>{{ app.name }}</span>
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
       </div>
       <div class="global-toolbar">
-        <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text :icon="Search" @click="handleSearch" /></el-tooltip>
-        <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text :icon="isFullscreen ? Crop : FullScreen" @click="toggleFullscreen" /></el-tooltip>
-        <el-tooltip content="切换主题模式"><el-button text :icon="themeStore.themeMode === 'dark' ? Sunny : Moon" @click="handleThemeToggle" /></el-tooltip>
-        <el-tooltip content="全局配置"><el-button text :icon="Setting" @click="layoutStore.openSettings()" /></el-tooltip>
+        <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text @click="handleSearch"><AppIcon name="Search" /></el-button></el-tooltip>
+        <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text @click="toggleFullscreen"><AppIcon :name="isFullscreen ? 'Crop' : 'FullScreen'" /></el-button></el-tooltip>
+        <el-tooltip content="切换主题模式"><el-button text @click="handleThemeToggle"><AppIcon :name="themeStore.themeMode === 'dark' ? 'Sunny' : 'Moon'" /></el-button></el-tooltip>
+        <el-tooltip content="全局配置"><el-button text @click="layoutStore.openSettings()"><AppIcon name="Setting" /></el-button></el-tooltip>
       </div>
     </div>
   </header>
@@ -64,7 +63,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ArrowDown, Crop, Expand, Fold, FullScreen, Moon, Search, Setting, Sunny } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { applications } from '@/config/runtime'

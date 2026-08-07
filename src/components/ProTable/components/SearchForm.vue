@@ -66,7 +66,7 @@
               @click="expanded = !expanded"
             >
               {{ expanded ? '收起' : '展开' }}
-              <el-icon><component :is="expanded ? 'ArrowUp' : 'ArrowDown'" /></el-icon>
+              <AppIcon :name="expanded ? 'ArrowUp' : 'ArrowDown'" />
             </el-button>
           </el-form-item>
         </el-col>
@@ -77,7 +77,6 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch } from 'vue'
-import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import type { SearchField } from '../types'
 
 interface Props {

@@ -13,7 +13,7 @@
       <div class="panel-toolbar">
         <div><strong>微应用列表</strong><span>{{ sortedApps.length }} 个应用</span></div>
         <el-button type="primary" :disabled="saving || !desktopAvailable" @click="openCreate">
-          <el-icon><Plus /></el-icon>
+          <AppIcon name="Plus" />
           注册应用
         </el-button>
       </div>
@@ -21,7 +21,7 @@
         <el-table-column label="应用" min-width="210">
           <template #default="{ row }">
             <div class="app-cell">
-              <span class="app-icon"><el-icon><component :is="row.icon || 'Grid'" /></el-icon></span>
+              <span class="app-icon"><AppIcon :name="row.icon || 'Grid'" /></span>
               <div><strong>{{ row.name }}</strong><span>{{ row.description || '暂无说明' }}</span></div>
             </div>
           </template>

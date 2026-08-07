@@ -22,11 +22,9 @@
             @click="handleTabClick(tab)"
             @contextmenu.prevent="handleContextMenu($event, tab)"
           >
-            <component v-if="layoutStore.config.showTabIcon && tab.icon" :is="tab.icon" class="tab-icon" />
+            <AppIcon v-if="layoutStore.config.showTabIcon && tab.icon" :name="tab.icon" class="tab-icon" />
             <span class="tab-title">{{ tab.title }}</span>
-            <el-icon v-if="tab.closable" class="tab-close" @click.stop="handleTabClose(tab)">
-              <Close />
-            </el-icon>
+            <AppIcon v-if="tab.closable" class="tab-close" name="Close" @click.stop="handleTabClose(tab)" />
             <span v-if="index < tabsStore.tabs.length - 1" class="tab-divider" />
           </div>
         </template>
@@ -35,31 +33,31 @@
 
     <div class="tabs-actions">
       <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
-        <el-button :icon="ArrowDown" circle size="small" />
+        <el-button circle size="small"><AppIcon name="ArrowDown" /></el-button>
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="refresh">
-              <el-icon><Refresh /></el-icon>
+              <AppIcon name="Refresh" />
               刷新当前
             </el-dropdown-item>
             <el-dropdown-item command="close" :disabled="!currentTab?.closable">
-              <el-icon><Close /></el-icon>
+              <AppIcon name="Close" />
               关闭当前
             </el-dropdown-item>
             <el-dropdown-item command="closeOthers" :disabled="tabsStore.tabs.length <= 1">
-              <el-icon><CircleClose /></el-icon>
+              <AppIcon name="CircleClose" />
               关闭其他
             </el-dropdown-item>
             <el-dropdown-item command="closeLeft" :disabled="!canCloseLeft">
-              <el-icon><Back /></el-icon>
+              <AppIcon name="Back" />
               关闭左侧
             </el-dropdown-item>
             <el-dropdown-item command="closeRight" :disabled="!canCloseRight">
-              <el-icon><Right /></el-icon>
+              <AppIcon name="Right" />
               关闭右侧
             </el-dropdown-item>
             <el-dropdown-item command="closeAll" :disabled="tabsStore.tabs.filter(t => t.closable).length === 0">
-              <el-icon><Delete /></el-icon>
+              <AppIcon name="Delete" />
               关闭全部
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -80,7 +78,7 @@
         :disabled="item.disabled"
         @click="handleContextCommand(item.command)"
       >
-        <el-icon><component :is="item.icon" /></el-icon>
+        <AppIcon :name="item.icon" />
         {{ item.label }}
       </button>
     </div>
@@ -90,7 +88,6 @@
 <script setup lang="ts">
 import { computed, watch, nextTick, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Close, ArrowDown, Refresh, CircleClose, Back, Right, Delete } from '@element-plus/icons-vue'
 import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
@@ -117,12 +114,12 @@ const canCloseRight = computed(() => {
 })
 
 const tabMenuItems = computed(() => [
-  { command: 'refresh', label: '刷新当前', icon: Refresh, disabled: false },
-  { command: 'close', label: '关闭当前', icon: Close, disabled: !currentTab.value?.closable },
-  { command: 'closeOthers', label: '关闭其他', icon: CircleClose, disabled: tabsStore.tabs.length <= 1 },
-  { command: 'closeLeft', label: '关闭左侧', icon: Back, disabled: !canCloseLeft.value },
-  { command: 'closeRight', label: '关闭右侧', icon: Right, disabled: !canCloseRight.value },
-  { command: 'closeAll', label: '关闭全部', icon: Delete, disabled: tabsStore.tabs.filter(t => t.closable).length === 0 },
+  { command: 'refresh', label: '刷新当前', icon: 'Refresh', disabled: false },
+  { command: 'close', label: '关闭当前', icon: 'Close', disabled: !currentTab.value?.closable },
+  { command: 'closeOthers', label: '关闭其他', icon: 'CircleClose', disabled: tabsStore.tabs.length <= 1 },
+  { command: 'closeLeft', label: '关闭左侧', icon: 'Back', disabled: !canCloseLeft.value },
+  { command: 'closeRight', label: '关闭右侧', icon: 'Right', disabled: !canCloseRight.value },
+  { command: 'closeAll', label: '关闭全部', icon: 'Delete', disabled: tabsStore.tabs.filter(t => t.closable).length === 0 },
 ])
 
 const navigation = computed(() => resolveNavigation(route.path))

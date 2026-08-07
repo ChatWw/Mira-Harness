@@ -2,9 +2,7 @@
   <PageContainer title="DetailLayout 演示">
     <div class="placeholder-page">
       <div class="placeholder-icon">
-        <el-icon :size="64">
-          <Reading />
-        </el-icon>
+        <AppIcon name="Reading" :size="64" />
       </div>
       <h2 class="placeholder-title">DetailLayout 组件演示</h2>
       <p class="placeholder-desc">此页面正在开发中，敬请期待...</p>
@@ -13,7 +11,6 @@
 </template>
 
 <script setup lang="ts">
-import { Reading } from '@element-plus/icons-vue'
 import PageContainer from '@/components/PageContainer/index.vue'
 </script>
 

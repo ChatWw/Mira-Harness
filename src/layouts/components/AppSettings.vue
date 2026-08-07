@@ -9,7 +9,7 @@
     <template #header>
       <div class="drawer-header">
         <div class="drawer-title-group">
-          <div class="drawer-title-icon"><el-icon><Setting /></el-icon></div>
+          <div class="drawer-title-icon"><AppIcon name="Setting" /></div>
           <div>
             <h2>全局配置</h2>
             <p>个性化你的工作空间</p>
@@ -24,12 +24,12 @@
           <strong>即时预览，自动保存</strong>
           <p>所有更改会立即应用到当前工作台。</p>
         </div>
-        <el-icon><MagicStick /></el-icon>
+        <AppIcon name="MagicStick" />
       </div>
       <el-collapse v-model="activeNames" class="settings-collapse">
         <!-- 1. 整体风格 -->
         <el-collapse-item name="general">
-          <template #title><div class="section-title"><el-icon><Brush /></el-icon><span>整体风格</span><small>主题与视觉密度</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="Brush" /><span>整体风格</span><small>主题与视觉密度</small></div></template>
           <div class="settings-section">
             <!-- 主题模式 -->
             <div class="settings-item">
@@ -95,7 +95,7 @@
 
         <!-- 2. 布局设置 -->
         <el-collapse-item name="layout">
-          <template #title><div class="section-title"><el-icon><Grid /></el-icon><span>布局设置</span><small>导航与内容结构</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="Grid" /><span>布局设置</span><small>导航与内容结构</small></div></template>
           <div class="settings-section">
             <!-- 布局模式 -->
             <div class="settings-item-block">
@@ -204,7 +204,7 @@
 
         <!-- 3. 顶栏设置 -->
         <el-collapse-item name="header">
-          <template #title><div class="section-title"><el-icon><Monitor /></el-icon><span>顶栏设置</span><small>导航与工具栏</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="Monitor" /><span>顶栏设置</span><small>导航与工具栏</small></div></template>
           <div class="settings-section">
             <!-- 顶栏高度 -->
             <div class="settings-item">
@@ -257,7 +257,7 @@
 
         <!-- 4. 多标签页 -->
         <el-collapse-item name="tabs">
-          <template #title><div class="section-title"><el-icon><CollectionTag /></el-icon><span>多标签页</span><small>工作上下文管理</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="CollectionTag" /><span>多标签页</span><small>工作上下文管理</small></div></template>
           <div class="settings-section">
             <!-- 启用多标签页 -->
             <div class="settings-item">
@@ -306,7 +306,7 @@
 
         <!-- 5. 动画效果 -->
         <el-collapse-item name="animation">
-          <template #title><div class="section-title"><el-icon><MagicStick /></el-icon><span>动画效果</span><small>交互节奏与反馈</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="MagicStick" /><span>动画效果</span><small>交互节奏与反馈</small></div></template>
           <div class="settings-section">
             <!-- 页面切换动画 -->
             <div class="settings-item-block">
@@ -357,7 +357,7 @@
 
         <!-- 6. 底栏设置 -->
         <el-collapse-item name="footer">
-          <template #title><div class="section-title"><el-icon><Bottom /></el-icon><span>底栏设置</span><small>版权与链接信息</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="Bottom" /><span>底栏设置</span><small>版权与链接信息</small></div></template>
           <div class="settings-section">
             <!-- 显示底栏 -->
             <div class="settings-item">
@@ -474,7 +474,7 @@
 
         <!-- 7. 其他设置 -->
         <el-collapse-item name="other">
-          <template #title><div class="section-title"><el-icon><MoreFilled /></el-icon><span>其他设置</span><small>内容与水印偏好</small></div></template>
+          <template #title><div class="section-title"><AppIcon name="MoreFilled" /><span>其他设置</span><small>内容与水印偏好</small></div></template>
           <div class="settings-section">
             <!-- 动态标题 -->
             <div class="settings-item">
@@ -559,11 +559,11 @@
 
       <!-- 底部操作 -->
       <div class="settings-footer">
-        <div class="footer-note"><el-icon><InfoFilled /></el-icon> 配置会自动保存</div>
+        <div class="footer-note"><AppIcon name="InfoFilled" /> 配置会自动保存</div>
         <div class="footer-actions">
-          <el-button @click="handleCopyConfig"><el-icon><CopyDocument /></el-icon>导出</el-button>
-          <el-button @click="handleReset"><el-icon><RefreshLeft /></el-icon>恢复默认</el-button>
-          <el-button class="clear-cache" text @click="handleClearCache"><el-icon><Delete /></el-icon></el-button>
+          <el-button @click="handleCopyConfig"><AppIcon name="CopyDocument" />导出</el-button>
+          <el-button @click="handleReset"><AppIcon name="RefreshLeft" />恢复默认</el-button>
+          <el-button class="clear-cache" text @click="handleClearCache"><AppIcon name="Delete" /></el-button>
         </div>
       </div>
     </div>
@@ -573,20 +573,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  Bottom,
-  Brush,
-  CollectionTag,
-  CopyDocument,
-  Delete,
-  Grid,
-  InfoFilled,
-  MagicStick,
-  Monitor,
-  MoreFilled,
-  RefreshLeft,
-  Setting,
-} from '@element-plus/icons-vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import router, { updateDocumentTitle } from '@/router'

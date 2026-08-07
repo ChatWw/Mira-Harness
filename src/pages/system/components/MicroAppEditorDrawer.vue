@@ -28,7 +28,7 @@
           </el-form-item>
           <el-form-item v-if="form.integrationMode === 'wujie'" prop="directory">
             <template #label>
-              <span class="label-with-help">入口目录<el-tooltip content="请选择直接包含 index.html 的本地构建产物目录。"><el-icon><QuestionFilled /></el-icon></el-tooltip></span>
+              <span class="label-with-help">入口目录<el-tooltip content="请选择直接包含 index.html 的本地构建产物目录。"><AppIcon name="QuestionFilled" /></el-tooltip></span>
             </template>
             <el-input v-model="form.directory" readonly placeholder="请选择本地构建目录">
               <template #append><el-button :disabled="selectingDirectory" @click="selectDirectory">选择文件夹</el-button></template>
@@ -36,12 +36,12 @@
           </el-form-item>
           <el-form-item v-else label="入口地址" prop="url">
             <template #label>
-              <span class="label-with-help">入口地址<el-tooltip content="请输入可被当前设备访问的 HTTP(S) 地址或应用内相对路径。"><el-icon><QuestionFilled /></el-icon></el-tooltip></span>
+              <span class="label-with-help">入口地址<el-tooltip content="请输入可被当前设备访问的 HTTP(S) 地址或应用内相对路径。"><AppIcon name="QuestionFilled" /></el-tooltip></span>
             </template>
             <el-input v-model.trim="form.url" placeholder="https://example.com" />
           </el-form-item>
           <el-form-item label="图标名称">
-            <el-input v-model.trim="form.icon" placeholder="Element Plus 图标名称" />
+            <FormIconPicker v-model="form.icon" />
           </el-form-item>
           <el-form-item label="排序">
             <el-input-number v-model="form.sort" :min="0" :max="9999" controls-position="right" class="field-control" />
@@ -81,9 +81,9 @@
                 <div v-if="prefixRows.length" class="pair-list">
                   <div v-for="(row, index) in prefixRows" :key="index" class="pair-row">
                     <el-input v-model.trim="row.key" aria-label="原资源前缀" placeholder="原前缀" />
-                    <el-icon><Right /></el-icon>
+                    <AppIcon name="Right" />
                     <el-input v-model.trim="row.value" aria-label="目标资源前缀" placeholder="目标前缀" />
-                    <el-button circle plain aria-label="删除前缀映射" @click="prefixRows.splice(index, 1)"><el-icon><Delete /></el-icon></el-button>
+                    <el-button circle plain aria-label="删除前缀映射" @click="prefixRows.splice(index, 1)"><AppIcon name="Delete" /></el-button>
                   </div>
                 </div>
                 <el-empty v-else description="未配置资源路径前缀" :image-size="56" />
@@ -140,6 +140,7 @@ import { getPlatformApi } from '@/platform'
 import type { IframeProfile, MenuItem, MicroApp, MicroAppIntegrationMode } from '@/types'
 import { cloneValue } from '../management'
 import MenuTreeEditor from './MenuTreeEditor.vue'
+import FormIconPicker from '@/components/IconPicker/FormIconPicker.vue'
 
 interface PrefixRow { key: string; value: string }
 interface MicroAppDraft {

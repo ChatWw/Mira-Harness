@@ -9,8 +9,8 @@
       :key="item.path || index"
       :to="item.path && index < displayItems.length - 1 ? item.path : undefined"
     >
-      <component
-        :is="item.icon"
+      <AppIcon
+        :name="item.icon"
         v-if="showIcon && item.icon && item.icon !== 'ellipsis'"
         class="breadcrumb-icon"
       />

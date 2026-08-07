@@ -1,14 +1,14 @@
 <template>
   <el-sub-menu v-if="visibleChildren.length" :index="item.id">
     <template #title>
-      <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
+      <AppIcon v-if="item.icon" :name="item.icon" />
       <span>{{ item.title }}</span>
     </template>
     <SidebarMenuItem v-for="child in visibleChildren" :key="child.id" :item="child" />
   </el-sub-menu>
 
   <el-menu-item v-else-if="item.path && item.target" :index="item.path">
-    <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
+    <AppIcon v-if="item.icon" :name="item.icon" />
     <span>{{ item.title }}</span>
   </el-menu-item>
 </template>

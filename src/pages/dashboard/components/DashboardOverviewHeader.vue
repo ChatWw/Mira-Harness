@@ -20,14 +20,13 @@
     ></textarea>
     <span class="shortcut-hint"><kbd>{{ shortcutModifier }}</kbd><kbd>K</kbd></span>
     <button class="send-button" type="button" aria-label="打开全局搜索" title="打开全局搜索" @click="emit('open-search')">
-      <el-icon><Promotion /></el-icon>
+      <AppIcon name="Promotion" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Promotion } from '@element-plus/icons-vue'
 
 defineProps<{
   time: string

@@ -3,9 +3,9 @@ import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router, { syncBusinessRoutes, updateDocumentTitle } from './router'
 import App from './app/App.vue'
+import AppIcon from '@/components/AppIcon/index.vue'
 import { findCommandNavigationByPath } from './config/commandPalette'
 import { resolveNavigation } from './config/navigation'
 import { useCommandPaletteStore } from './stores/commandPalette'
@@ -21,8 +21,7 @@ async function bootstrap() {
 // 注册持久化插件
   pinia.use(piniaPluginPersistedstate)
 
-// 注册所有 Element Plus 图标
-  for (const [key, component] of Object.entries(ElementPlusIconsVue)) app.component(key, component)
+  app.component('AppIcon', AppIcon)
 
   app.use(pinia)
   router.afterEach((to) => {

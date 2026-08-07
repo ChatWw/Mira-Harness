@@ -25,17 +25,17 @@
           v-for="action in toolbar.actions"
           :key="action.text"
           :type="action.type"
-          :icon="action.icon"
           @click="action.click?.()"
         >
+          <AppIcon v-if="action.icon" :name="action.icon" />
           {{ action.text }}
         </el-button>
         <el-tooltip v-if="toolbar.showRefresh !== false" content="刷新">
-          <el-button :icon="Refresh" circle @click="refresh" />
+          <el-button circle @click="refresh"><AppIcon name="Refresh" /></el-button>
         </el-tooltip>
         <el-tooltip v-if="toolbar.showDensity !== false" content="密度">
           <el-dropdown @command="handleDensityChange">
-            <el-button :icon="Operation" circle />
+            <el-button circle><AppIcon name="Operation" /></el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="compact">紧凑</el-dropdown-item>
@@ -118,7 +118,6 @@
 <script setup lang="ts" generic="T = any">
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { Refresh, Operation } from '@element-plus/icons-vue'
 import SearchForm from './components/SearchForm.vue'
 import Pagination from './components/Pagination.vue'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'

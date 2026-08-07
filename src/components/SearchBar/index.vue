@@ -15,12 +15,11 @@
         v-model="keyword"
         size="large"
         placeholder="搜索菜单、页面、应用或命令"
-        prefix-icon="Search"
         clearable
         @keydown.up.prevent="moveActive(-1)"
         @keydown.down.prevent="moveActive(1)"
         @keydown.enter.prevent="selectActive"
-      />
+      ><template #prefix><AppIcon name="Search" /></template></el-input>
 
       <div class="search-hints" aria-label="键盘操作提示">
         <span><kbd>{{ shortcutModifier }}</kbd><kbd>K</kbd> 打开</span>
@@ -41,7 +40,7 @@
             @click="handleSelect(item)"
             @mouseenter="activeIndex = index"
           >
-            <el-icon class="result-icon"><component :is="item.icon || 'Grid'" /></el-icon>
+            <AppIcon class="result-icon" :name="item.icon || 'Grid'" />
             <span class="result-content">
               <span class="result-title">{{ item.title }}</span>
               <span v-if="item.parent || item.path" class="result-path">{{ item.parent || item.path }}</span>
@@ -68,7 +67,7 @@
             @click="handleSelect(item)"
             @mouseenter="activeIndex = index"
           >
-            <el-icon class="result-icon"><component :is="item.icon || 'Grid'" /></el-icon>
+            <AppIcon class="result-icon" :name="item.icon || 'Grid'" />
             <span class="result-content">
               <span class="result-title">{{ item.title }}</span>
               <span v-if="item.parent || item.path" class="result-path">{{ item.parent || item.path }}</span>
@@ -87,7 +86,7 @@
             @click="handleSelect(item)"
             @mouseenter="activeIndex = index + visibleRecentResults.length"
           >
-            <el-icon class="result-icon"><component :is="item.icon || 'Grid'" /></el-icon>
+            <AppIcon class="result-icon" :name="item.icon || 'Grid'" />
             <span class="result-content">
               <span class="result-title">{{ item.title }}</span>
               <span v-if="item.parent" class="result-path">{{ item.parent }}</span>
