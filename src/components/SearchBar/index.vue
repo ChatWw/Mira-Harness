@@ -167,11 +167,11 @@ const commandActions = computed<CommandPaletteItem[]>(() => [
   },
   {
     id: 'command-settings',
-    title: '打开全局配置',
+    title: '打开设置（全局配置）',
     icon: 'Setting',
     category: 'command',
     parent: '系统操作',
-    action: () => layoutStore.openSettings(),
+    action: async () => { await router.push({ path: '/settings/appearance', query: { from: router.currentRoute.value.fullPath } }) },
   },
 ])
 const defaultResults = computed(() => [

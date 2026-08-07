@@ -1,23 +1,6 @@
 <template>
-  <el-drawer
-    v-model="layoutStore.settingsVisible"
-    direction="rtl"
-    size="480px"
-    class="settings-drawer"
-    :destroy-on-close="false"
-  >
-    <template #header>
-      <div class="drawer-header">
-        <div class="drawer-title-group">
-          <div class="drawer-title-icon"><AppIcon name="Setting" /></div>
-          <div>
-            <h2>全局配置</h2>
-            <p>个性化你的工作空间</p>
-          </div>
-        </div>
-      </div>
-    </template>
-    <div ref="settingsContentRef" class="settings-content">
+  <div class="appearance-settings">
+    <div class="settings-content">
       <div class="settings-intro">
         <div>
           <span class="intro-eyebrow">WORKSPACE</span>
@@ -101,11 +84,13 @@
             <div class="settings-item-block">
               <div class="item-label">布局模式</div>
               <div class="layout-modes">
-                <div
+                <button
                   v-for="mode in layoutModes"
                   :key="mode.value"
+                  type="button"
                   class="layout-mode-card"
                   :class="{ active: layoutStore.config.mode === mode.value }"
+                  :aria-pressed="layoutStore.config.mode === mode.value"
                   @click="layoutStore.setLayoutMode(mode.value)"
                 >
                   <div class="mode-preview">
@@ -119,18 +104,20 @@
                     </div>
                   </div>
                   <div class="mode-name">{{ mode.label }}</div>
-                </div>
+                </button>
               </div>
             </div>
 
             <div class="settings-item-block">
               <div class="item-label">工作区侧边栏样式</div>
               <div class="sidebar-styles">
-                <div
+                <button
                   v-for="style in sidebarStyles"
                   :key="style.value"
+                  type="button"
                   class="sidebar-style-card"
                   :class="[{ active: layoutStore.config.sidebarStyle === style.value }, `is-${style.value}`]"
+                  :aria-pressed="layoutStore.config.sidebarStyle === style.value"
                   @click="layoutStore.setSidebarStyle(style.value)"
                 >
                   <div class="sidebar-style-preview">
@@ -141,7 +128,7 @@
                     </div>
                   </div>
                   <div class="mode-name">{{ style.label }}</div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -563,15 +550,14 @@
         <div class="footer-actions">
           <el-button @click="handleCopyConfig"><AppIcon name="CopyDocument" />导出</el-button>
           <el-button @click="handleReset"><AppIcon name="RefreshLeft" />恢复默认</el-button>
-          <el-button class="clear-cache" text @click="handleClearCache"><AppIcon name="Delete" /></el-button>
         </div>
       </div>
     </div>
-  </el-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
@@ -581,20 +567,8 @@ import type { LayoutMode, PageTransition, SidebarStyle, ThemePreference } from '
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const isMacOverlay = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
-const settingsContentRef = ref<HTMLElement>()
-
-watch(
-  () => layoutStore.settingsVisible,
-  async (visible) => {
-    if (visible) {
-      await nextTick()
-      settingsContentRef.value?.scrollTo({ top: 0 })
-    }
-  }
-)
-
-// 折叠面板默认展开项
-const activeNames = ref(['general', 'layout'])
+// 独立设置页始终展示全部外观分组，避免桌面端反复展开。
+const activeNames = ref(['general', 'layout', 'header', 'tabs', 'animation', 'footer', 'other'])
 
 // 主题模式选项
 const themeModeOptions = [
@@ -667,15 +641,6 @@ function handleReset() {
   ElMessage.success('已恢复默认配置')
 }
 
-// 清除缓存
-function handleClearCache() {
-  localStorage.clear()
-  sessionStorage.clear()
-  ElMessage.success('缓存已清除，页面将刷新')
-  setTimeout(() => {
-    window.location.reload()
-  }, 1000)
-}
 </script>
 
 <style scoped lang="scss">
@@ -686,8 +651,17 @@ function handleClearCache() {
   padding-bottom: $spacing-xl;
 }
 
+.appearance-settings {
+  --settings-surface: color-mix(in srgb, var(--cp-bg-elevated) 82%, var(--cp-primary) 18%);
+  --settings-muted: var(--cp-text-secondary);
+}
+
 .settings-collapse {
   border: none;
+
+  :deep(.el-collapse-item__arrow) {
+    display: none;
+  }
 
   :deep(.el-collapse-item__header) {
     font-weight: $font-semibold;
@@ -775,7 +749,12 @@ function handleClearCache() {
 }
 
 .layout-mode-card {
+  display: block;
+  width: 100%;
   cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
   border: 2px solid var(--cp-border);
   border-radius: $radius-md;
   padding: $spacing-sm;
@@ -847,7 +826,12 @@ function handleClearCache() {
 }
 
 .sidebar-style-card {
+  display: block;
+  width: 100%;
   cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
   border: 1px solid var(--cp-border);
   border-radius: 10px;
   padding: 7px;
@@ -1112,25 +1096,6 @@ function handleClearCache() {
 }
 
 // ==================== 设置中心视觉重构 ====================
-:global(.settings-drawer) {
-  --settings-surface: color-mix(in srgb, var(--cp-bg-elevated) 82%, var(--cp-primary) 18%);
-  --settings-muted: var(--cp-text-secondary);
-
-  .el-drawer__header {
-    margin: 0;
-    padding: 22px 24px 18px;
-    border-bottom: 1px solid var(--cp-border-light);
-  }
-
-  .el-drawer__body {
-    padding: 0 18px 18px;
-    overflow: hidden;
-    background: var(--cp-bg);
-  }
-}
-
-.drawer-header,
-.drawer-title-group,
 .section-title,
 .footer-note,
 .footer-actions {
@@ -1138,51 +1103,9 @@ function handleClearCache() {
   align-items: center;
 }
 
-.drawer-header {
-  justify-content: space-between;
-}
-
-.drawer-title-group {
-  gap: 12px;
-
-  h2 {
-    margin: 0;
-    color: var(--cp-text);
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -0.2px;
-  }
-
-  p {
-    margin: 3px 0 0;
-    color: var(--cp-text-secondary);
-    font-size: 12px;
-  }
-}
-
-.drawer-title-icon {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  color: white;
-  font-size: 19px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--cp-primary), color-mix(in srgb, var(--cp-primary) 62%, #6750e8));
-  box-shadow: 0 7px 16px color-mix(in srgb, var(--cp-primary) 28%, transparent);
-}
-
 .settings-content {
-  height: 100%;
   gap: 14px;
   padding: 18px 6px 0;
-  overflow-y: auto;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .settings-intro {
@@ -1468,10 +1391,6 @@ function handleClearCache() {
 }
 
 @include media-max($breakpoint-sm) {
-  :global(.settings-drawer) {
-    width: min(100vw, 480px) !important;
-  }
-
   .section-title small,
   .footer-note {
     display: none;

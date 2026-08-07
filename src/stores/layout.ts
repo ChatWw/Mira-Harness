@@ -79,9 +79,6 @@ export const useLayoutStore = defineStore('layout', () => {
   // 布局配置
   const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...getPreference<Partial<LayoutConfig>>('layout', {}) })
 
-  // 配置面板显示状态
-  const settingsVisible = ref(false)
-
   // 布局模式
   function setLayoutMode(mode: LayoutConfig['mode']) {
     config.value.mode = mode
@@ -253,15 +250,6 @@ export const useLayoutStore = defineStore('layout', () => {
     config.value.dynamicTitle = value
   }
 
-  // 配置面板
-  function openSettings() {
-    settingsVisible.value = true
-  }
-
-  function closeSettings() {
-    settingsVisible.value = false
-  }
-
   // 重置配置
   function resetConfig() {
     config.value = { ...DEFAULT_CONFIG }
@@ -329,7 +317,6 @@ export const useLayoutStore = defineStore('layout', () => {
 
   return {
     config,
-    settingsVisible,
     setLayoutMode,
     setSidebarStyle,
     setSidebarWidth,
@@ -366,8 +353,6 @@ export const useLayoutStore = defineStore('layout', () => {
     setWatermark,
     setWatermarkText,
     setDynamicTitle,
-    openSettings,
-    closeSettings,
     resetConfig,
     copyConfig,
   }

@@ -7,6 +7,12 @@ import { createBusinessRoute } from './pageRegistry'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
+    path: '/settings/:section?',
+    name: 'Settings',
+    component: () => import('@/pages/settings/SettingsPage.vue'),
+    meta: { title: '设置' },
+  },
+  {
     path: '/404',
     name: 'NotFound',
     component: () => import('@/pages/exception/NotFoundPage.vue'),

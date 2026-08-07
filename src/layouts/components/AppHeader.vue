@@ -14,13 +14,14 @@
       <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text @click="handleSearch"><AppIcon name="Search" /></el-button></el-tooltip>
       <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text @click="toggleFullscreen"><AppIcon :name="isFullscreen ? 'Crop' : 'FullScreen'" /></el-button></el-tooltip>
       <el-tooltip content="切换主题模式"><el-button text @click="handleThemeToggle"><AppIcon :name="themeStore.themeMode === 'dark' ? 'Sunny' : 'Moon'" /></el-button></el-tooltip>
-      <el-tooltip content="全局配置"><el-button text @click="layoutStore.openSettings()"><AppIcon name="Setting" /></el-button></el-tooltip>
+      <el-tooltip content="设置"><el-button text @click="openSettings"><AppIcon name="Setting" /></el-button></el-tooltip>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
@@ -32,9 +33,12 @@ const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only'].includes(layoutStore.config.mode))
 const commandPaletteStore = useCommandPaletteStore()
+const route = useRoute()
+const router = useRouter()
 const isFullscreen = ref(false)
 
 function handleSearch() { commandPaletteStore.open() }
+function openSettings() { void router.push({ path: '/settings/appearance', query: { from: route.fullPath } }) }
 function handleThemeToggle(event: MouseEvent) {
   themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
 }

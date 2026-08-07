@@ -199,6 +199,14 @@ watch(
       }
     }
 
+    :deep(.el-menu-item > .app-icon),
+    :deep(.el-sub-menu__title > .app-icon) {
+      flex: 0 0 var(--el-menu-icon-width);
+      width: var(--el-menu-icon-width);
+      margin-right: 5px;
+      text-align: center;
+    }
+
     :deep(.el-menu-item:not(.is-active):hover),
     :deep(.el-sub-menu__title:hover) {
       background: var(--cp-sidebar-menu-hover-bg);

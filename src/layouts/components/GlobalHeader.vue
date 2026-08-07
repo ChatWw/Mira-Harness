@@ -55,7 +55,7 @@
         <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text @click="handleSearch"><AppIcon name="Search" /></el-button></el-tooltip>
         <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text @click="toggleFullscreen"><AppIcon :name="isFullscreen ? 'Crop' : 'FullScreen'" /></el-button></el-tooltip>
         <el-tooltip content="切换主题模式"><el-button text @click="handleThemeToggle"><AppIcon :name="themeStore.themeMode === 'dark' ? 'Sunny' : 'Moon'" /></el-button></el-tooltip>
-        <el-tooltip content="全局配置"><el-button text @click="layoutStore.openSettings()"><AppIcon name="Setting" /></el-button></el-tooltip>
+        <el-tooltip content="设置"><el-button text @click="openSettings"><AppIcon name="Setting" /></el-button></el-tooltip>
       </div>
     </div>
   </header>
@@ -91,6 +91,7 @@ function handleAppChange(code: string) {
 }
 
 function handleSearch() { commandPaletteStore.open() }
+function openSettings() { void router.push({ path: '/settings/appearance', query: { from: route.fullPath } }) }
 function handleThemeToggle(event: MouseEvent) {
   themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
 }

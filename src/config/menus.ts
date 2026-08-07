@@ -47,7 +47,7 @@ export const SYSTEM_MANAGEMENT_MENU: MenuItem = {
     {
       id: 'system-micro-apps',
       title: '微应用管理',
-      icon: 'Grid',
+      icon: 'lucide:app-window-mac',
       type: 'menu',
       path: '/system/micro-apps',
       target: { type: 'component', componentKey: 'system-micro-apps' },
