@@ -21,6 +21,13 @@
     </section>
 
     <section class="action-section">
+      <div><h3>当前布局配置</h3><p>复制当前外观、布局和工作区设置的 JSON，便于留存或在需要时手动比对。</p></div>
+      <el-button :loading="action === 'copy-layout'" :disabled="busy" @click="copyLayoutConfig">
+        <AppIcon name="CopyDocument" />复制布局配置
+      </el-button>
+    </section>
+
+    <section class="action-section">
       <div><h3>配置快照</h3><p>导出当前全部配置，或导入此前保存的 JSON 快照。导入前会自动备份当前数据库。</p></div>
       <div class="action-buttons">
         <el-button :loading="action === 'export'" :disabled="busy || !desktopAvailable" @click="exportConfig">
@@ -48,15 +55,29 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi } from '@/platform'
+import { useLayoutStore } from '@/stores/layout'
 import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
 
-type Action = '' | 'export' | 'import' | 'restore'
+type Action = '' | 'copy-layout' | 'export' | 'import' | 'restore'
 
 const desktopAvailable = Boolean(getPlatformApi())
 const importInput = ref<HTMLInputElement>()
 const action = ref<Action>('')
 const busy = computed(() => Boolean(action.value))
 const preferenceCount = computed(() => Object.keys(platformPreferences).length)
+const layoutStore = useLayoutStore()
+
+async function copyLayoutConfig() {
+  action.value = 'copy-layout'
+  try {
+    await navigator.clipboard.writeText(layoutStore.copyConfig())
+    ElMessage.success('当前布局配置已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败，请检查剪贴板权限')
+  } finally {
+    action.value = ''
+  }
+}
 
 async function exportConfig() {
   action.value = 'export'
