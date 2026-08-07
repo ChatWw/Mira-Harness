@@ -47,7 +47,7 @@ import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolveNavigation, resol
 import { getPlatformApi } from '@/platform'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, PlatformContext, PlatformNavigatePayload, WujieRuntimeConfig } from '@/types'
-import EmbeddedWebFrame from './components/EmbeddedWebFrame.vue'
+import EmbeddedWebFrame from '../components/EmbeddedWebFrame.vue'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 
 const route = useRoute()

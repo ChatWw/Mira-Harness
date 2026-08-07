@@ -65,7 +65,7 @@ import { validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { MicroApp } from '@/types'
 import MicroAppEditorDrawer from './components/MicroAppEditorDrawer.vue'
-import { applyManagementSnapshot, requirePlatformApi } from './management'
+import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
 
 const desktopAvailable = Boolean(getPlatformApi())
 const drawerVisible = ref(false)

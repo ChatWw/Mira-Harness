@@ -48,7 +48,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi } from '@/platform'
-import { applyManagementSnapshot, requirePlatformApi } from './management'
+import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
 
 type Action = '' | 'export' | 'import' | 'restore'
 

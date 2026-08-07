@@ -176,7 +176,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { validateMenus, flattenMenus } from '@/config/platformValidation'
 import type { IframeProfile, MenuItem } from '@/types'
-import { cloneValue } from '../management'
+import { cloneValue } from '../../platformManagement'
 import FormIconPicker from '@/components/IconPicker/FormIconPicker.vue'
 
 type MenuKind = 'dir' | 'component' | 'iframe' | 'microapp'

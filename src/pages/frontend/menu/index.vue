@@ -29,7 +29,7 @@ import { validateMenus } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { MenuItem } from '@/types'
 import MenuTreeEditor from './components/MenuTreeEditor.vue'
-import { applyManagementSnapshot, requirePlatformApi } from './management'
+import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
 
 const saving = ref(false)
 const desktopAvailable = Boolean(getPlatformApi())

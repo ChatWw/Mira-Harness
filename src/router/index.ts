@@ -9,13 +9,13 @@ const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/:section?',
     name: 'Settings',
-    component: () => import('@/pages/settings/SettingsPage.vue'),
+    component: () => import('@/pages/backend/settings/index.vue'),
     meta: { title: '设置' },
   },
   {
     path: '/404',
     name: 'NotFound',
-    component: () => import('@/pages/exception/NotFoundPage.vue'),
+    component: () => import('@/pages/exception/index.vue'),
     meta: { title: '页面不存在' },
   },
 ]
@@ -28,7 +28,7 @@ const layoutRoute: RouteRecordRaw = {
     {
       path: '/micro/:code/:pathMatch(.*)*',
       name: 'MicroAppHost',
-      component: () => import('@/pages/system/MicroAppHostPage.vue'),
+      component: () => import('@/pages/frontend/microAppHost/index.vue'),
       meta: { title: '微应用' },
     },
   ],

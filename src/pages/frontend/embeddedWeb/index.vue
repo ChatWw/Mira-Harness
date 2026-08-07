@@ -18,7 +18,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { resolveNavigation } from '@/config/navigation'
-import EmbeddedWebFrame from './components/EmbeddedWebFrame.vue'
+import EmbeddedWebFrame from '../components/EmbeddedWebFrame.vue'
 
 const route = useRoute()
 // 离场动画期间全局路由已经切换，网页宿主仍应按自身的入口路由渲染。

@@ -138,8 +138,8 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { assertHttpUrl, validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { IframeProfile, MenuItem, MicroApp, MicroAppIntegrationMode } from '@/types'
-import { cloneValue } from '../management'
-import MenuTreeEditor from './MenuTreeEditor.vue'
+import { cloneValue } from '../../platformManagement'
+import MenuTreeEditor from '../../menu/components/MenuTreeEditor.vue'
 import FormIconPicker from '@/components/IconPicker/FormIconPicker.vue'
 
 interface PrefixRow { key: string; value: string }
