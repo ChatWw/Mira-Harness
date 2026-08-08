@@ -7,10 +7,33 @@ import { createBusinessRoute } from './pageRegistry'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
-    path: '/settings/:section?',
+    path: '/settings',
     name: 'Settings',
     component: () => import('@/pages/backend/settings/index.vue'),
     meta: { title: '设置' },
+  },
+  {
+    path: '/settings/general',
+    name: 'SettingsGeneral',
+    component: () => import('@/pages/backend/general/index.vue'),
+    meta: { title: '常规' },
+  },
+  {
+    path: '/settings/appearance',
+    name: 'SettingsAppearance',
+    component: () => import('@/pages/backend/appearance/index.vue'),
+    meta: { title: '外观' },
+  },
+  {
+    path: '/settings/keyboard-shortcuts',
+    name: 'SettingsShortcuts',
+    component: () => import('@/pages/backend/keyboardShortcuts/index.vue'),
+    meta: { title: '键盘快捷键' },
+  },
+  {
+    // 未知设置项回退到默认设置页，兼容旧链接
+    path: '/settings/:pathMatch(.*)*',
+    redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
     path: '/404',

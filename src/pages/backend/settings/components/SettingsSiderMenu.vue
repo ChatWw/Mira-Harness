@@ -8,14 +8,16 @@
     <nav class="settings-nav-group" aria-label="设置导航">
       <span class="settings-nav-label">个性化</span>
       <button
+        v-for="item in settingsNavItems"
+        :key="item.key"
         class="settings-nav-item"
-        :class="{ 'is-active': activeSection === 'appearance' }"
+        :class="{ 'is-active': activeSection === item.key }"
         type="button"
-        :aria-current="activeSection === 'appearance' ? 'page' : undefined"
-        @click="goToAppearance"
+        :aria-current="activeSection === item.key ? 'page' : undefined"
+        @click="goToSection(item.path)"
       >
-        <AppIcon name="Brush" />
-        <span>外观</span>
+        <AppIcon :name="item.icon" />
+        <span>{{ item.label }}</span>
       </button>
     </nav>
   </aside>
@@ -27,7 +29,13 @@ import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
-const activeSection = computed(() => typeof route.params.section === 'string' ? route.params.section : '')
+const settingsNavItems = [
+  { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
+  { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
+  { key: 'shortcuts', label: '键盘快捷键', icon: 'lucide:keyboard', path: '/settings/keyboard-shortcuts' },
+] as const
+// 设置项已拆分为独立路由，按当前路径判断激活项
+const activeSection = computed(() => settingsNavItems.find(item => route.path === item.path)?.key ?? '')
 
 function getReturnPath() {
   const from = route.query.from
@@ -41,9 +49,9 @@ function returnToApplication() {
   void router.replace(getReturnPath())
 }
 
-function goToAppearance() {
-  if (activeSection.value !== 'appearance') {
-    void router.replace({ path: '/settings/appearance', query: route.query })
+function goToSection(path: string) {
+  if (route.path !== path) {
+    void router.replace({ path, query: route.query })
   }
 }
 </script>
