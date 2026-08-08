@@ -1,16 +1,18 @@
 <template>
-  <PageContainer :title="navigation.title" :description="description" :fill-content="isImmersive">
+  <div class="embedded-web-root" :class="{ 'is-immersive': isImmersive }">
+  <PageContainer :title="navigation.title" :description="description">
     <el-card shadow="never" class="embedded-web-page" :class="{ 'is-immersive': isImmersive }">
       <EmbeddedWebFrame
         v-if="iframeTarget"
         :url="iframeTarget.url"
         :title="navigation.title"
         :policy="iframeTarget.iframePolicy"
-        :fill="isImmersive"
+        fill
       />
       <el-result v-else icon="error" title="网页配置无效" sub-title="当前路由未关联可嵌入的 URL 菜单。" />
     </el-card>
   </PageContainer>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -36,21 +38,53 @@ const description = computed(() => iframeTarget.value?.iframePolicy?.profile ===
 </script>
 
 <style scoped lang="scss">
-.embedded-web-page {
-  min-height: 620px;
+.embedded-web-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 
   &.is-immersive {
+    :deep(.page-container) {
+      padding: 0;
+    }
+  }
+
+  :deep(.page-container) {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .page-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+}
+
+.embedded-web-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  &.is-immersive {
     border: 0;
     border-radius: 0;
 
     :deep(.el-card__body) {
-      height: 100%;
       padding: 0;
-      display: flex;
-      flex-direction: column;
     }
+  }
+
+  :deep(.el-card__body) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 }
 </style>

@@ -1,6 +1,7 @@
 <template>
+  <div class="micro-app-root">
   <PageContainer :title="pageTitle" :description="pageDescription" :show-header="showPageHeader">
-    <AppLoadingOverlay :active="loading" text="正在加载微应用…">
+    <AppLoadingOverlay class="micro-app-loading" :active="loading" text="正在加载微应用…">
     <el-card shadow="never" class="micro-app-host">
       <el-result v-if="error" icon="error" title="微应用无法加载" :sub-title="error">
         <template #extra>
@@ -30,11 +31,13 @@
           :url="entryUrl"
           :title="app.name"
           :policy="app.runtimeConfig.kind === 'iframe' ? app.runtimeConfig.iframe : undefined"
+          fill
         />
       </template>
     </el-card>
     </AppLoadingOverlay>
   </PageContainer>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -151,6 +154,47 @@ onBeforeUnmount(() => WujieVue.bus.$off('platform:navigate', handleChildNavigate
 </script>
 
 <style scoped lang="scss">
-.micro-app-host { min-height: 620px; }
-.micro-app-frame { display: block; width: 100%; min-height: 560px; border: 0; }
+.micro-app-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  :deep(.page-container) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .page-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+}
+
+.micro-app-loading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.micro-app-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  :deep(.el-card__body) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.micro-app-frame { display: block; width: 100%; flex: 1; min-height: 0; border: 0; }
 </style>
