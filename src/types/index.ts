@@ -104,7 +104,7 @@ export interface PlatformSnapshot {
 }
 
 export interface PlatformApi {
-  windowChrome: 'macos-overlay' | 'standard'
+  windowChrome: 'macos-overlay' | 'windows-overlay' | 'standard'
   getSnapshot(): Promise<PlatformSnapshot>
   savePreference(key: string, value: unknown): Promise<void>
   updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>
@@ -114,6 +114,8 @@ export interface PlatformApi {
   exportSnapshot(): Promise<string>
   importSnapshot(snapshot: string): Promise<PlatformSnapshot>
   restoreDefaults(): Promise<PlatformSnapshot>
+  setTitleBarChrome(chrome: { color: string; symbolColor: string; height?: number }): Promise<void>
+  windowCommand(action: string): Promise<void>
 }
 
 

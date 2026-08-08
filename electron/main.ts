@@ -127,9 +127,14 @@ function setupApplicationMenu() {
 }
 
 function createWindow() {
+  const isMac = process.platform === 'darwin'
+  const isWindows = process.platform === 'win32'
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 680,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
+    ...(isWindows ? {
+      titleBarOverlay: { color: '#fafafa', symbolColor: '#18181b', height: 48 },
+    } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   })
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -174,6 +179,31 @@ app.whenReady().then(async () => {
     const next = database.restoreDefaults()
     localMicroAppServer.setApps(next.microApps)
     return next
+  })
+  ipcMain.handle('window:set-titlebar-chrome', (event, chrome: { color: string; symbolColor: string; height?: number }) => {
+    if (process.platform !== 'win32') return
+    const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
+    win?.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor, height: chrome.height })
+  })
+  ipcMain.handle('window:command', (event, action: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    switch (action) {
+      case 'about': openAboutWindow(); break
+      case 'quit': win.close(); break
+      case 'undo': win.webContents.undo(); break
+      case 'redo': win.webContents.redo(); break
+      case 'cut': win.webContents.cut(); break
+      case 'copy': win.webContents.copy(); break
+      case 'paste': win.webContents.paste(); break
+      case 'selectAll': win.webContents.selectAll(); break
+      case 'reload': win.webContents.reload(); break
+      case 'toggleDevTools': win.webContents.toggleDevTools(); break
+      case 'toggleFullscreen': win.setFullScreen(!win.isFullScreen()); break
+      case 'minimize': win.minimize(); break
+      case 'maximize': win.isMaximized() ? win.unmaximize() : win.maximize(); break
+      case 'close': win.close(); break
+    }
   })
   setupApplicationMenu()
   createWindow()
