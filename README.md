@@ -108,7 +108,8 @@ iframe 权限由 [`src/config/iframe.ts`](./src/config/iframe.ts) 集中映射�
 
 ```bash
 npm run desktop:dev
-npm run desktop:build
+npm run desktop:build      # macOS（Apple Silicon DMG）
+npm run desktop:build:win  # Windows（NSIS 安装包，需在 Windows 机器上执行）
 ```
 
 桌面版使用 Electron 主进程和 SQLite。注册本地微应用时，请选择直接包含 `index.html` 的构建产物目录；应用会启动一个仅监听 `127.0.0.1` 的受控静态服务，供 Wujie 加载本地资源。数据库位于 macOS 应用用户数据目录；前端通过受限的 `window.platform` IPC API 访问菜单、微应用和界面偏好。`desktop:build` 产出 Apple Silicon DMG；首次下载 Electron 运行时需要网络连接。

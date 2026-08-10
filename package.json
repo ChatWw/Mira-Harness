@@ -15,7 +15,8 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "desktop:dev": "electron-vite dev",
-    "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64"
+    "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64",
+    "desktop:build:win": "electron-vite build && electron-builder --win nsis"
   },
   "main": "out/main/main.js",
   "build": {
