@@ -1,5 +1,6 @@
 <template>
-  <PageContainer title="备份与偏好" description="导出完整配置快照，或在变更前恢复到已保存和默认状态。">
+  <SettingsPageShell title="备份与偏好">
+    <p class="page-description">导出完整配置快照，或在变更前恢复到已保存和默认状态。</p>
     <el-alert
       v-if="!desktopAvailable"
       type="warning"
@@ -46,17 +47,17 @@
         恢复默认配置
       </el-button>
     </section>
-  </PageContainer>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import PageContainer from '@/components/PageContainer/index.vue'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi } from '@/platform'
 import { useLayoutStore } from '@/stores/layout'
 import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
+import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 type Action = '' | 'copy-layout' | 'export' | 'import' | 'restore'
 
@@ -132,6 +133,7 @@ async function restoreDefaults() {
 </script>
 
 <style scoped lang="scss">
+.page-description { margin: 0 0 $spacing-xl; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 .platform-alert { margin-bottom: $spacing-md; }
 .summary-list { border: 1px solid var(--cp-border); border-radius: $radius-lg; overflow: hidden; }
 .summary-row {

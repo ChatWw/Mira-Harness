@@ -1,5 +1,6 @@
 <template>
-  <PageContainer title="微应用管理" description="管理可嵌入平台的应用入口、运行方式与应用内菜单。" max-width="1600">
+  <SettingsPageShell title="微应用管理" wide>
+    <p class="page-description">管理可嵌入平台的应用入口、运行方式与应用内菜单。</p>
     <el-alert
       v-if="!desktopAvailable"
       type="warning"
@@ -53,19 +54,19 @@
       :saving="saving"
       @submit="saveApp"
     />
-  </PageContainer>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import PageContainer from '@/components/PageContainer/index.vue'
 import { runtimeNavigation } from '@/config/runtime'
 import { validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { MicroApp } from '@/types'
 import MicroAppEditorDrawer from './components/MicroAppEditorDrawer.vue'
 import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
+import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const desktopAvailable = Boolean(getPlatformApi())
 const drawerVisible = ref(false)
@@ -116,6 +117,7 @@ async function removeApp(app: MicroApp) {
 </script>
 
 <style scoped lang="scss">
+.page-description { margin: 0 0 $spacing-xl; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 .platform-alert { margin-bottom: $spacing-md; }
 .management-panel { border: 1px solid var(--cp-border); border-radius: $radius-lg; overflow: hidden; }
 .panel-toolbar {

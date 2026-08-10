@@ -3,34 +3,27 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import {
   DASHBOARD_MENU,
-  FUNCTIONAL_COMPONENTS_MENU,
   mainMenus as defaultsMenus,
   PROTECTED_MAIN_MENU_IDS,
-  SYSTEM_MANAGEMENT_MENU,
 } from '../src/config/menus'
 import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 7
+const CURRENT_SCHEMA_VERSION = 11
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
+const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['functional-components', 'system-management'])
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
 function removeProtectedMenus(menus: MenuItem[]): MenuItem[] {
   return menus
-    .filter(menu => !PROTECTED_MENU_ID_SET.has(menu.id))
-    .map(menu => ({
-      ...menu,
-      target: menu.target?.type === 'component' && menu.target.componentKey === 'system-management'
-        ? { type: 'component', componentKey: 'system-menu-config' }
-        : menu.target,
-      children: menu.children ? removeProtectedMenus(menu.children) : undefined,
-    }))
+    .filter(menu => !PROTECTED_MENU_ID_SET.has(menu.id) && !REMOVED_BUILT_IN_MAIN_MENU_IDS.has(menu.id))
+    .map(menu => ({ ...menu, children: menu.children ? removeProtectedMenus(menu.children) : undefined }))
 }
 
 export function normalizeProtectedMainMenus(menus: MenuItem[]): MenuItem[] {
-  return [clone(DASHBOARD_MENU), ...removeProtectedMenus(clone(menus)), clone(FUNCTIONAL_COMPONENTS_MENU), clone(SYSTEM_MANAGEMENT_MENU)]
+  return [clone(DASHBOARD_MENU), ...removeProtectedMenus(clone(menus))]
 }
 
 function stableSerialize(value: unknown): string {
@@ -43,12 +36,8 @@ function stableSerialize(value: unknown): string {
 
 function assertProtectedMenus(menus: MenuItem[]) {
   const dashboard = menus.find(menu => menu.id === DASHBOARD_MENU.id)
-  const functionalComponents = menus.find(menu => menu.id === FUNCTIONAL_COMPONENTS_MENU.id)
-  const systemManagement = menus.find(menu => menu.id === SYSTEM_MANAGEMENT_MENU.id)
-  if (stableSerialize(dashboard) !== stableSerialize(DASHBOARD_MENU)
-    || stableSerialize(functionalComponents) !== stableSerialize(FUNCTIONAL_COMPONENTS_MENU)
-    || stableSerialize(systemManagement) !== stableSerialize(SYSTEM_MANAGEMENT_MENU)) {
-    throw new Error('概览、功能组件和系统管理为内置菜单，不能修改或删除')
+  if (stableSerialize(dashboard) !== stableSerialize(DASHBOARD_MENU)) {
+    throw new Error('概览为内置菜单，不能修改或删除')
   }
 }
 
@@ -78,14 +67,16 @@ export class PlatformDatabase {
     } else {
       const versionRow = this.database.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as { value?: string } | undefined
       const version = Number(versionRow?.value || 1)
-      if (version < 7) {
+      if (version < 11) {
         const snapshot = this.getSnapshot()
         this.backup()
         this.writeSnapshot({
           ...snapshot,
-          mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus),
+          // 开发预览阶段不兼容旧菜单结构，升级时直接使用当前默认菜单。
+          mainMenus: clone(defaultsMenus),
           microApps: version < 3 ? [] : snapshot.microApps,
         })
+        this.database.prepare("DELETE FROM preferences WHERE key IN ('tabs', 'recentCommands')").run()
       }
     }
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))

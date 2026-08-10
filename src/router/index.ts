@@ -31,6 +31,62 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '键盘快捷键' },
   },
   {
+    path: '/settings/about',
+    name: 'SettingsAbout',
+    component: () => import('@/pages/backend/about/index.vue'),
+    meta: { title: '关于' },
+  },
+  {
+    path: '/settings/loading-effects',
+    name: 'SettingsLoadingEffects',
+    component: () => import('@/pages/backend/loadingEffect/index.vue'),
+    meta: { title: '加载效果' },
+  },
+  {
+    path: '/settings/icon-library',
+    name: 'SettingsIconLibrary',
+    component: () => import('@/pages/backend/iconLibrary/index.vue'),
+    meta: { title: '图标库' },
+  },
+  {
+    path: '/settings/menu-management',
+    name: 'SettingsMenuManagement',
+    component: () => import('@/pages/backend/menuManagement/index.vue'),
+    meta: { title: '菜单管理' },
+  },
+  {
+    path: '/settings/micro-apps',
+    name: 'SettingsMicroApps',
+    component: () => import('@/pages/backend/microAppManagement/index.vue'),
+    meta: { title: '微应用管理' },
+  },
+  {
+    path: '/settings/backup-preferences',
+    name: 'SettingsBackupPreferences',
+    component: () => import('@/pages/backend/backupPreferences/index.vue'),
+    meta: { title: '备份与偏好' },
+  },
+  {
+    path: '/system/components/loading',
+    redirect: '/settings/loading-effects',
+  },
+  {
+    path: '/system/components/icon-selector',
+    redirect: '/settings/icon-library',
+  },
+  {
+    path: '/system/menus',
+    redirect: '/settings/menu-management',
+  },
+  {
+    path: '/system/micro-apps',
+    redirect: '/settings/micro-apps',
+  },
+  {
+    path: '/system/backup-preferences',
+    redirect: '/settings/backup-preferences',
+  },
+  {
     // 未知设置项回退到默认设置页，兼容旧链接
     path: '/settings/:pathMatch(.*)*',
     redirect: to => ({ path: '/settings/general', query: to.query }),

@@ -8,11 +8,6 @@ type PageLoader = () => Promise<{ default: Component }>
 // 本地菜单只能从随安装包发布的页面白名单中选择，配置不会加载任意文件。
 const pageModules: Record<string, PageLoader> = {
   dashboard: () => import('@/pages/frontend/dashboard/index.vue'),
-  'system-menu-config': () => import('@/pages/frontend/menu/index.vue'),
-  'system-micro-apps': () => import('@/pages/frontend/microApp/index.vue'),
-  'system-backup-preferences': () => import('@/pages/frontend/backupPreferences/index.vue'),
-  'system-loading-effect': () => import('@/pages/frontend/loadingEffect/index.vue'),
-  'system-icon-selector': () => import('@/pages/frontend/iconSelector/index.vue'),
 }
 
 export function getMenuRouteName(menu: MenuItem) {

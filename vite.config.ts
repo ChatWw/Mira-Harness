@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'path'
 
+const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+
 export default defineConfig({
+  define: { __MIRA_VERSION__: JSON.stringify(appVersion) },
   plugins: [vue({ template: { compilerOptions: { isCustomElement: tag => tag.startsWith('l-') } } })],
   server: {
     port: 9000,

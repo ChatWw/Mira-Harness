@@ -1,4 +1,4 @@
-import { BUILT_IN_PAGE_OPTIONS, RESERVED_MENU_PATHS } from './menus'
+import { BUILT_IN_PAGE_OPTIONS, RESERVED_MENU_PATH_PREFIXES, RESERVED_MENU_PATHS } from './menus'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '@/types'
 
 const BUILT_IN_PAGE_KEYS = new Set(BUILT_IN_PAGE_OPTIONS.map(option => option.value))
@@ -23,11 +23,13 @@ export function validateMenus(menus: MenuItem[], appCode: string | null = null) 
     ids.add(menu.id)
     if (!menu.title?.trim()) throw new Error('菜单名称不能为空')
     if (menu.path) {
-      if (!menu.path.startsWith('/') || paths.has(menu.path)) throw new Error('菜单路径必须唯一且以 / 开头')
-      const reservedOwner = RESERVED_MENU_PATHS.get(menu.path)
-      if (!appCode && reservedOwner && reservedOwner !== menu.id) throw new Error('不能使用平台保留路径')
-      if (appCode && !menu.path.startsWith(`/micro/${appCode}`)) throw new Error('微应用菜单路径必须属于该应用')
-      paths.add(menu.path)
+      const path = menu.path
+      if (!path.startsWith('/') || paths.has(path)) throw new Error('菜单路径必须唯一且以 / 开头')
+      const reservedOwner = RESERVED_MENU_PATHS.get(path)
+      const usesReservedPrefix = RESERVED_MENU_PATH_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
+      if (!appCode && ((reservedOwner && reservedOwner !== menu.id) || usesReservedPrefix)) throw new Error('不能使用平台保留路径')
+      if (appCode && !path.startsWith(`/micro/${appCode}`)) throw new Error('微应用菜单路径必须属于该应用')
+      paths.add(path)
     }
     if (menu.type === 'dir' && menu.target) throw new Error('目录菜单不能配置页面目标')
     if (menu.type !== 'dir' && (!menu.path || !menu.target)) throw new Error('页面菜单必须配置路径和页面目标')

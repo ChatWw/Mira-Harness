@@ -1,5 +1,6 @@
 <template>
-  <PageContainer title="菜单配置" description="以树形结构管理平台导航。目录负责分组，页面菜单负责打开具体内容。" max-width="1600">
+  <SettingsPageShell title="菜单管理" wide>
+    <p class="page-description">以树形结构管理平台导航。目录负责分组，页面菜单负责打开具体内容。</p>
     <el-alert
       v-if="!desktopAvailable"
       type="warning"
@@ -16,13 +17,12 @@
       :disabled="saving || !desktopAvailable"
       @change="saveMenus"
     />
-  </PageContainer>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import PageContainer from '@/components/PageContainer/index.vue'
 import { BUILT_IN_PAGE_OPTIONS, PROTECTED_MAIN_MENU_IDS } from '@/config/menus'
 import { runtimeNavigation } from '@/config/runtime'
 import { validateMenus } from '@/config/platformValidation'
@@ -30,6 +30,7 @@ import { getPlatformApi } from '@/platform'
 import type { MenuItem } from '@/types'
 import MenuTreeEditor from './components/MenuTreeEditor.vue'
 import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
+import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const saving = ref(false)
 const desktopAvailable = Boolean(getPlatformApi())
@@ -49,5 +50,6 @@ async function saveMenus(menus: MenuItem[]) {
 </script>
 
 <style scoped lang="scss">
+.page-description { margin: 0 0 $spacing-xl; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 .platform-alert { margin-bottom: $spacing-md; }
 </style>

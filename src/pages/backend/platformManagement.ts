@@ -18,6 +18,7 @@ export function applyManagementSnapshot(snapshot: PlatformSnapshot) {
   applyPlatformSnapshot(snapshot)
   syncBusinessRoutes()
   const currentPath = router.currentRoute.value.path
+  const isSettingsRoute = currentPath === '/settings' || currentPath.startsWith('/settings/')
   const navigation = resolveNavigation(currentPath)
-  if (currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace('/dashboard')
+  if (!isSettingsRoute && currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace('/dashboard')
 }

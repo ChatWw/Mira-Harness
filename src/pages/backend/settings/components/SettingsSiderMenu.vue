@@ -5,10 +5,10 @@
       <span>返回应用</span>
     </button>
 
-    <nav class="settings-nav-group" aria-label="设置导航">
-      <span class="settings-nav-label">个性化</span>
+    <nav v-for="group in settingsNavGroups" :key="group.label" class="settings-nav-group" :aria-label="`${group.label}设置`">
+      <span class="settings-nav-label">{{ group.label }}</span>
       <button
-        v-for="item in settingsNavItems"
+        v-for="item in group.items"
         :key="item.key"
         class="settings-nav-item"
         :class="{ 'is-active': activeSection === item.key }"
@@ -29,13 +29,41 @@ import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
-const settingsNavItems = [
-  { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
-  { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
-  { key: 'shortcuts', label: '键盘快捷键', icon: 'lucide:keyboard', path: '/settings/keyboard-shortcuts' },
-] as const
+type SettingsNavItem = {
+  key: string
+  label: string
+  icon: string
+  path: string
+}
+
+const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
+  {
+    label: '个性化',
+    items: [
+      { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
+      { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
+      { key: 'shortcuts', label: '键盘快捷键', icon: 'lucide:keyboard', path: '/settings/keyboard-shortcuts' },
+      { key: 'loading-effects', label: '加载效果', icon: 'Loading', path: '/settings/loading-effects' },
+    ],
+  },
+  {
+    label: '功能',
+    items: [
+      { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
+    ],
+  },
+  {
+    label: '系统',
+    items: [
+      { key: 'menu-management', label: '菜单管理', icon: 'Menu', path: '/settings/menu-management' },
+      { key: 'micro-app-management', label: '微应用管理', icon: 'lucide:app-window-mac', path: '/settings/micro-apps' },
+      { key: 'backup-preferences', label: '备份与偏好', icon: 'Files', path: '/settings/backup-preferences' },
+      { key: 'about', label: '关于', icon: 'InfoFilled', path: '/settings/about' },
+    ],
+  },
+]
 // 设置项已拆分为独立路由，按当前路径判断激活项
-const activeSection = computed(() => settingsNavItems.find(item => route.path === item.path)?.key ?? '')
+const activeSection = computed(() => settingsNavGroups.flatMap(group => group.items).find(item => route.path === item.path)?.key ?? '')
 
 function getReturnPath() {
   const from = route.query.from
@@ -54,6 +82,7 @@ function goToSection(path: string) {
     void router.replace({ path, query: route.query })
   }
 }
+
 </script>
 
 <style scoped lang="scss">
@@ -119,7 +148,7 @@ function goToSection(path: string) {
   .back-button { width: auto; padding: 8px; }
   .back-button span,
   .settings-nav-label { display: none; }
-  .settings-nav-group { flex: 1; }
-  .settings-nav-item { justify-content: center; padding: 8px; }
+  .settings-nav-group { display: contents; }
+  .settings-nav-item { width: auto; flex: 1 0 44px; justify-content: center; padding: 8px; }
 }
 </style>

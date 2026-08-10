@@ -116,6 +116,7 @@ export interface PlatformApi {
   restoreDefaults(): Promise<PlatformSnapshot>
   setTitleBarChrome(chrome: { color: string; symbolColor: string; height?: number }): Promise<void>
   windowCommand(action: string): Promise<void>
+  onWindowNavigate(listener: (path: string) => void): () => void
 }
 
 
