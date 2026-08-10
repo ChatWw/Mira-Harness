@@ -117,7 +117,7 @@ async function load() {
     const microApp = findRuntimeMicroApp(code)
     if (!microApp) throw new Error('未找到该微应用')
     if (!microApp.enabled) throw new Error('该应用已停用')
-    const entryRoot = microApp.entry.type === 'local-directory'
+    const entryRoot = microApp.entry.type === 'local-directory' || microApp.entry.type === 'builtin'
       ? await getPlatformApi()?.resolveLocalMicroAppUrl(microApp.id)
       : microApp.entry.url
     if (!entryRoot) throw new Error('本地微应用仅能在桌面端中加载')

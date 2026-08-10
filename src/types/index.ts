@@ -74,6 +74,7 @@ export type MicroAppRuntimeConfig = WujieRuntimeConfig | IframeRuntimeConfig
 
 export type MicroAppEntry =
   | { type: 'local-directory'; directory: string }
+  | { type: 'builtin'; package: string }
   | { type: 'url'; url: string }
 
 export interface MicroApp {
@@ -111,6 +112,7 @@ export interface PlatformApi {
   updateMicroApps(apps: MicroApp[]): Promise<PlatformSnapshot>
   selectMicroAppDirectory(): Promise<string | null>
   resolveLocalMicroAppUrl(appId: string): Promise<string>
+  testNovelConnection(slot: 'gen' | 'gen2', prompt?: string): Promise<{ ok: boolean; text: string }>
   exportSnapshot(): Promise<string>
   importSnapshot(snapshot: string): Promise<PlatformSnapshot>
   restoreDefaults(): Promise<PlatformSnapshot>

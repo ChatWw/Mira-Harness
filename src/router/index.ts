@@ -67,6 +67,12 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '备份与偏好' },
   },
   {
+    path: '/settings/ai-novel',
+    name: 'SettingsAiNovel',
+    component: () => import('@/pages/backend/aiNovel/index.vue'),
+    meta: { title: 'AI 小说' },
+  },
+  {
     path: '/system/components/loading',
     redirect: '/settings/loading-effects',
   },

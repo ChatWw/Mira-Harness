@@ -1,4 +1,5 @@
 import { BUILT_IN_PAGE_OPTIONS, RESERVED_MENU_PATH_PREFIXES, RESERVED_MENU_PATHS } from './menus'
+import { isBuiltInMicroAppPackage } from './microApps'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '@/types'
 
 const BUILT_IN_PAGE_KEYS = new Set(BUILT_IN_PAGE_OPTIONS.map(option => option.value))
@@ -55,11 +56,20 @@ export function validateMicroApps(apps: MicroApp[]) {
     ids.add(app.id)
     codes.add(app.code)
     if (app.integrationMode === 'wujie') {
-      if (app.entry.type !== 'local-directory' || !app.entry.directory.trim()) throw new Error('微应用必须选择本地构建目录')
+      if (app.entry.type === 'local-directory') {
+        if (!app.entry.directory.trim()) throw new Error('微应用必须选择本地构建目录')
+      } else if (app.entry.type === 'builtin') {
+        if (!isBuiltInMicroAppPackage(app.entry.package)) throw new Error('内置微应用资源包不受支持')
+      } else {
+        throw new Error('微应用必须选择本地构建目录或内置资源包')
+      }
       if (app.runtimeConfig.kind !== 'wujie') throw new Error('微应用运行配置无效')
     } else {
-      if (app.entry.type !== 'url') throw new Error('内嵌框架必须填写入口地址')
-      assertHttpUrl(app.entry.url, '内嵌框架入口地址')
+      if (app.entry.type === 'url') {
+        assertHttpUrl(app.entry.url, '内嵌框架入口地址')
+      } else if (app.entry.type !== 'builtin') {
+        throw new Error('内嵌框架必须填写入口地址或使用内置资源包')
+      }
       if (app.runtimeConfig.kind !== 'iframe') throw new Error('内嵌框架运行配置无效')
     }
     validateMenus(app.menus || [], app.code)

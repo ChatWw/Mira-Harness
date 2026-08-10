@@ -23,7 +23,10 @@
           <template #default="{ row }">
             <div class="app-cell">
               <span class="app-icon"><AppIcon :name="row.icon || 'Grid'" /></span>
-              <div><strong>{{ row.name }}</strong><span>{{ row.description || '暂无说明' }}</span></div>
+              <div>
+                <strong>{{ row.name }}<el-tag v-if="isBuiltInMicroApp(row.code)" size="small" type="info" effect="plain">内置</el-tag></strong>
+                <span>{{ row.description || '暂无说明' }}</span>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -41,7 +44,9 @@
         <el-table-column label="操作" width="118">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="saving || !desktopAvailable" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" :disabled="saving || !desktopAvailable" @click="removeApp(row)">删除</el-button>
+            <el-tooltip :disabled="!isBuiltInMicroApp(row.code)" content="内置应用不可删除" placement="top">
+              <el-button link type="danger" :disabled="saving || !desktopAvailable || isBuiltInMicroApp(row.code)" @click="removeApp(row)">删除</el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -60,6 +65,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { isBuiltInMicroApp } from '@/config/microApps'
 import { runtimeNavigation } from '@/config/runtime'
 import { validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
@@ -106,6 +112,10 @@ function saveApp(app: MicroApp) {
 }
 
 async function removeApp(app: MicroApp) {
+  if (isBuiltInMicroApp(app.code)) {
+    ElMessage.warning('内置应用不可删除')
+    return
+  }
   try {
     const menuNotice = app.menus?.length ? `，其 ${app.menus.length} 个菜单也会删除` : ''
     await ElMessageBox.confirm(`确定删除“${app.name}”${menuNotice}吗？`, '删除应用', { type: 'warning' })

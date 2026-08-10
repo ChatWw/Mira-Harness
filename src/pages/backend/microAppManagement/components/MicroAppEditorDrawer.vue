@@ -21,12 +21,15 @@
             <el-input v-model.trim="form.name" maxlength="60" show-word-limit />
           </el-form-item>
           <el-form-item label="集成模式">
-            <el-select v-model="form.integrationMode" class="field-control" @change="resetEntryForMode">
+            <el-select v-model="form.integrationMode" class="field-control" :disabled="isBuiltin" @change="resetEntryForMode">
               <el-option label="微应用（Wujie）" value="wujie" />
               <el-option label="内嵌框架（Iframe）" value="iframe" />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="form.integrationMode === 'wujie'" prop="directory">
+          <el-form-item v-if="form.builtinPackage" label="内置资源包">
+            <el-input :model-value="`${form.builtinPackage}（随安装包分发，入口不可修改）`" readonly />
+          </el-form-item>
+          <el-form-item v-else-if="form.integrationMode === 'wujie'" prop="directory">
             <template #label>
               <span class="label-with-help">入口目录<el-tooltip content="请选择直接包含 index.html 的本地构建产物目录。"><AppIcon name="QuestionFilled" /></el-tooltip></span>
             </template>
@@ -135,6 +138,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { isBuiltInMicroApp } from '@/config/microApps'
 import { assertHttpUrl, validateMicroApps } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { IframeProfile, MenuItem, MicroApp, MicroAppIntegrationMode } from '@/types'
@@ -148,6 +152,7 @@ interface MicroAppDraft {
   name: string
   integrationMode: MicroAppIntegrationMode
   directory: string
+  builtinPackage: string
   url: string
   icon: string
   sort: number
@@ -182,7 +187,7 @@ const referrerPolicies: ReferrerPolicy[] = [
 
 function emptyForm(): MicroAppDraft {
   return {
-    idSuffix: '', name: '', integrationMode: 'wujie', directory: '', url: '', icon: '', sort: 0, enabled: true,
+    idSuffix: '', name: '', integrationMode: 'wujie', directory: '', builtinPackage: '', url: '', icon: '', sort: 0, enabled: true,
     description: '', alive: true, routeMode: 'platform', preload: false, iframeProfile: 'compatible',
     referrerPolicy: 'strict-origin-when-cross-origin', timeout: 5, menus: [],
   }
@@ -190,6 +195,7 @@ function emptyForm(): MicroAppDraft {
 
 const form = reactive<MicroAppDraft>(emptyForm())
 const appCode = computed(() => form.idSuffix.trim())
+const isBuiltin = computed(() => Boolean(props.app) && isBuiltInMicroApp(props.app!.code))
 const rules: FormRules = {
   idSuffix: [
     { required: true, message: '请输入应用 ID 后缀', trigger: 'blur' },
@@ -207,6 +213,7 @@ function initializeForm() {
       name: current.name,
       integrationMode: current.integrationMode,
       directory: current.entry.type === 'local-directory' ? current.entry.directory : '',
+      builtinPackage: current.entry.type === 'builtin' ? current.entry.package : '',
       url: current.entry.type === 'url' ? current.entry.url : '',
       icon: current.icon || '',
       sort: current.sort,
@@ -232,6 +239,7 @@ function initializeForm() {
 
 function resetEntryForMode() {
   form.directory = ''
+  form.builtinPackage = ''
   form.url = ''
   prefixRows.value = []
   form.alive = true
@@ -284,9 +292,11 @@ function buildApp(): MicroApp {
     id,
     name: form.name.trim(),
     code: appCode.value,
-    entry: form.integrationMode === 'wujie'
-      ? { type: 'local-directory', directory: form.directory.trim() }
-      : { type: 'url', url: form.url.trim() },
+    entry: form.builtinPackage
+      ? { type: 'builtin', package: form.builtinPackage }
+      : form.integrationMode === 'wujie'
+        ? { type: 'local-directory', directory: form.directory.trim() }
+        : { type: 'url', url: form.url.trim() },
     icon: form.icon.trim() || undefined,
     sort: form.sort,
     enabled: form.enabled,
@@ -303,7 +313,7 @@ async function submit() {
   if (!formRef.value || !(await formRef.value.validate().catch(() => false))) return
   try {
     if (form.integrationMode === 'wujie' && !form.directory.trim()) throw new Error('请选择本地构建目录')
-    if (form.integrationMode === 'iframe') assertHttpUrl(form.url.trim(), '内嵌框架入口地址')
+    if (form.integrationMode === 'iframe' && !form.builtinPackage) assertHttpUrl(form.url.trim(), '内嵌框架入口地址')
     const nextApp = buildApp()
     const nextApps = props.app
       ? props.apps.map(item => item.id === props.app?.id ? nextApp : item)

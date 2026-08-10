@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('platform', {
   updateMicroApps: (apps: unknown) => ipcRenderer.invoke('platform:update-microapps', apps),
   selectMicroAppDirectory: () => ipcRenderer.invoke('platform:select-microapp-directory'),
   resolveLocalMicroAppUrl: (appId: string) => ipcRenderer.invoke('platform:resolve-local-microapp-url', appId),
+  testNovelConnection: (slot: 'gen' | 'gen2', prompt?: string) => ipcRenderer.invoke('platform:test-novel-connection', slot, prompt),
   exportSnapshot: () => ipcRenderer.invoke('platform:export-snapshot'),
   importSnapshot: (snapshot: string) => ipcRenderer.invoke('platform:import-snapshot', snapshot),
   restoreDefaults: () => ipcRenderer.invoke('platform:restore-defaults'),

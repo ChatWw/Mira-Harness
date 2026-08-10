@@ -259,8 +259,23 @@ const rules: FormRules<MenuDraft> = {
   title: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
   kind: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
   routeSegment: [
-    { required: true, message: '请输入路由地址', trigger: 'blur' },
-    { pattern: /^[a-z0-9][a-z0-9-]*$/i, message: '路由地址只能包含字母、数字和连字符', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        const segment = String(value ?? '').trim()
+        // 根级微应用页面菜单留空表示应用首页（路径即应用前缀）。
+        const isMicroAppHome = props.context === 'microapp' && form.kind === 'microapp' && !form.parentId && segment === ''
+        if (!isMicroAppHome && !segment) {
+          callback(new Error('请输入路由地址'))
+          return
+        }
+        if (segment && !/^[a-z0-9][a-z0-9-]*$/i.test(segment)) {
+          callback(new Error('路由地址只能包含字母、数字和连字符'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
   ],
   componentKey: [{ required: true, message: '请选择内置页面', trigger: 'change' }],
   url: [{ required: true, message: '请输入网页地址', trigger: 'blur' }],
@@ -326,7 +341,11 @@ const routeInputPrefix = computed(() => {
   const parentPath = selectedParent.value?.path || (props.context === 'microapp' && props.appCode ? `/micro/${props.appCode}` : '')
   return parentPath ? `${parentPath.replace(/\/$/, '')}/` : '/'
 })
-const fullPath = computed(() => `${routeInputPrefix.value}${form.routeSegment.trim().replace(/^\/+/, '')}`)
+const fullPath = computed(() => {
+  const segment = form.routeSegment.trim().replace(/^\/+/, '')
+  if (!segment) return routeInputPrefix.value ? routeInputPrefix.value.replace(/\/+$/, '') : ''
+  return `${routeInputPrefix.value}${segment}`
+})
 const generatedId = computed(() => fullPath.value.slice(1).replace(/\//g, '_'))
 
 function resetForm(values?: Partial<MenuDraft>) {
@@ -344,9 +363,11 @@ function openEdit(menu: MenuItem) {
   const parentId = findParentId(props.menus, menu.id)
   const parent = findMenu(props.menus, parentId)
   const parentPath = parent?.path || (props.context === 'microapp' && props.appCode ? `/micro/${props.appCode}` : '')
-  const routeSegment = menu.path?.startsWith(`${parentPath}/`)
-    ? menu.path.slice(parentPath.length + 1)
-    : menu.path?.slice(menu.path.lastIndexOf('/') + 1) || ''
+  const routeSegment = menu.path === parentPath
+    ? ''
+    : menu.path?.startsWith(`${parentPath}/`)
+      ? menu.path.slice(parentPath.length + 1)
+      : menu.path?.slice(menu.path.lastIndexOf('/') + 1) || ''
   resetForm({
     title: menu.title,
     kind: menuKind(menu),

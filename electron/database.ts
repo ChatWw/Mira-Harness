@@ -10,7 +10,7 @@ import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 11
+const CURRENT_SCHEMA_VERSION = 15
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['functional-components', 'system-management'])
 
@@ -77,6 +77,62 @@ export class PlatformDatabase {
           microApps: version < 3 ? [] : snapshot.microApps,
         })
         this.database.prepare("DELETE FROM preferences WHERE key IN ('tabs', 'recentCommands')").run()
+      }
+      if (version < 12) {
+        const hasNovelApp = this.database.prepare('SELECT 1 FROM micro_apps WHERE code = ?').get('ai-novel')
+        if (!hasNovelApp) {
+          this.backup()
+          const insertApp = this.database.prepare('INSERT INTO micro_apps(id, code, payload) VALUES (?, ?, ?)')
+          for (const app of defaultMicroApps) {
+            if (app.code === 'ai-novel') insertApp.run(app.id, app.code, JSON.stringify(app))
+          }
+        }
+      }
+      if (version < 13) {
+        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
+        const builtin = defaultMicroApps.find(app => app.code === 'ai-novel')
+        if (row?.payload && builtin) {
+          const current = JSON.parse(row.payload) as MicroApp
+          this.backup()
+          this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(JSON.stringify({
+            ...current,
+            // legacy 小说页面使用全局 CSS/DOM，必须用 iframe 做完整隔离。
+            entry: builtin.entry,
+            integrationMode: builtin.integrationMode,
+            runtimeConfig: builtin.runtimeConfig,
+          }), 'ai-novel')
+        }
+      }
+      if (version < 14) {
+        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
+        if (row?.payload) {
+          const current = JSON.parse(row.payload) as MicroApp
+          const menus = (current.menus || []).map(menu =>
+            menu.id === 'ai_novel_home' ? { ...menu, showPageHeader: false } : menu,
+          )
+          this.backup()
+          this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(JSON.stringify({ ...current, menus }), 'ai-novel')
+        }
+      }
+      if (version < 15) {
+        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
+        const builtin = defaultMicroApps.find(app => app.code === 'ai-novel')
+        if (row?.payload && builtin) {
+          const current = JSON.parse(row.payload) as MicroApp
+          // 编辑器往返曾把根级菜单路径拼成 /micro/ai-novel/ai-novel 并误改状态，
+          // 缺少首页菜单时按内置配置恢复，保证 showPageHeader 等菜单配置可命中。
+          const builtinHomePath = builtin.menus?.find(menu => menu.target?.type === 'microapp')?.path
+          const hasHomeMenu = builtinHomePath
+            ? (current.menus || []).some(menu => menu.path === builtinHomePath)
+            : false
+          if (builtinHomePath && !hasHomeMenu) {
+            this.backup()
+            this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(
+              JSON.stringify({ ...current, menus: builtin.menus }),
+              'ai-novel',
+            )
+          }
+        }
       }
     }
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))

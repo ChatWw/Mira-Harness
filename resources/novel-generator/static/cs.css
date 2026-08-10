@@ -1,0 +1,589 @@
+:root {
+    --primary-color: #4CAF50;
+    --secondary-color: #2196F3;
+    --danger-color: #ff4444;
+    --border-color: #e0e0e0;
+    --text-color: #333;
+    --bg-light: #f8f9fa;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+.container {
+    display: flex;
+    padding: 15px;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+}
+
+.settings-panel {
+    flex: 1;
+    min-width: 250px;
+}
+
+.content-panel {
+    flex: 2;
+}
+
+/* 改进的文本区域样式 */
+.text-area {
+    width: 100%;
+    min-height: 100px;
+    margin: 10px 0;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-family: inherit;
+    resize: vertical;
+    transition: var(--transition);
+}
+
+.text-area:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+/* 改进的折叠面板 */
+.collapsible {
+    cursor: pointer;
+    padding: 12px 15px;
+    background: var(--bg-light);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: var(--transition);
+    position: relative;
+}
+
+.collapsible::after {
+    content: '';
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid #666;
+    border-bottom: 2px solid #666;
+    transition: var(--transition);
+}
+
+.collapsible.active::after {
+    transform: translateY(-50%) rotate(45deg);
+}
+
+.content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    padding: 0 15px;
+}
+
+.content.show {
+    max-height: 1000px;
+    padding: 15px;
+}
+
+/* 章节容器改进 */
+.chapter-container {
+    border: 1px solid var(--border-color);
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+.chapter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--bg-light);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.chapter-header:hover {
+    background: #eee;
+}
+
+.chapter-content {
+    padding: 15px;
+    transition: var(--transition);
+}
+
+/* 按钮样式改进 */
+button {
+    padding: 8px 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.primary-button {
+    background: var(--primary-color);
+    color: white;
+}
+
+.secondary-button {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.danger-button {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* 辅助类 */
+.mt-10 { margin-top: 10px; }
+.mb-10 { margin-bottom: 10px; }
+.hidden { display: none; }
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-5 { gap: 5px; }
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+    .container {
+        padding: 10px;
+    }
+    
+    button {
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    .chapter-header {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+/* 动画类 */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 模态框改进 */
+.preview-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 10001;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* 上下文菜单改进 */
+.context-menu {
+    position: fixed;
+    z-index: 10000;
+    background: white;
+    border-radius: 8px;
+    padding: 5px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.context-menu-item {
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.context-menu-item:hover {
+    background: var(--bg-light);
+}
+
+/* 信息提示框改进 */
+.info-box {
+    padding: 12px 15px;
+    margin: 10px 0;
+    background-color: #e3f2fd;
+    border-left: 4px solid var(--secondary-color);
+    border-radius: 8px;
+}
+
+.warning-box {
+    padding: 12px 15px;
+    margin: 10px 0;
+    background-color: #fff3e0;
+    border-left: 4px solid #ff9800;
+    border-radius: 8px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* 基础样式重置 */
+.optimizer-panel *,
+.floating-panel * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 主面板样式 */
+.optimizer-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1000px;
+    height: 600px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* 面板头部 */
+.panel-header {
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h3 {
+    font-size: 18px;
+    color: #343a40;
+    font-weight: 600;
+}
+
+/* 面板主体 */
+.panel-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: #ffffff;
+}
+
+/* 配置部分 */
+.config-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.config-section h4 {
+    color: #495057;
+    font-size: 16px;
+    margin-bottom: 12px;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+/* 输入控件样式 */
+input[type="number"],
+input[type="text"],
+select {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 120px;
+    transition: border-color 0.2s;
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus,
+select:focus {
+    border-color: #4dabf7;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
+}
+
+/* 帮助文本 */
+.help-text {
+    font-size: 13px;
+    color: #6c757d;
+    margin-left: 8px;
+}
+
+/* 分段预览容器 */
+.segments-container {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+}
+
+/* 分段项样式 */
+.segment-item {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.segment-item:hover {
+    background: #e9ecef;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.segment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.segment-status {
+    font-size: 13px;
+    color: #6c757d;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #e9ecef;
+}
+
+.segment-item.optimized .segment-status {
+    color: #2b8a3e;
+    background: #d3f9d8;
+}
+
+/* 进度条样式 */
+.progress-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.progress-bar {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4dabf7 0%, #228be6 100%);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 14px;
+    color: #495057;
+    text-align: center;
+}
+
+/* 按钮样式 */
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #868e96;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: #495057;
+}
+
+.primary-btn,
+.secondary-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.primary-btn {
+    background: #228be6;
+    color: white;
+}
+
+.primary-btn:hover {
+    background: #1c7ed6;
+    transform: translateY(-1px);
+}
+
+.secondary-btn {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.secondary-btn:hover {
+    background: #dee2e6;
+    transform: translateY(-1px);
+}
+
+/* 预览面板 */
+.preview-panel {
+    position: fixed;
+    max-width: 400px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 16px;
+    z-index: 1100;
+}
+
+.preview-content {
+    font-size: 14px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 结果面板 */
+.result-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px;
+    max-height: 80vh;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-score {
+    font-size: 18px;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.score-value {
+    color: #2b8a3e;
+    margin-left: 8px;
+}
+
+.result-content,
+.result-explanation {
+    margin-bottom: 16px;
+}
+
+.content-area,
+.explanation-area {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+    .optimizer-panel {
+        width: 90%;
+        height: 90vh;
+    }
+
+    .result-panel {
+        width: 90%;
+    }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.optimizer-panel,
+.result-panel,
+.preview-panel {
+    animation: fadeIn 0.3s ease;
+}
+
+
+
+
+
+

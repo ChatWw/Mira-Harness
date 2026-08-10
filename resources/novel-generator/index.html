@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>小说创作助手</title>
+    <script src="vendor/jquery.min.js"></script>
+    <link crossorigin="anonymous" media="all" rel="stylesheet" href="static/cs.css" />
+
+
+
+<!-- jsMind CSS -->
+<link type="text/css" rel="stylesheet" href="vendor/jsmind.css" />
+
+<!-- jsMind JavaScript -->
+
+</head>
+<body>
+    <script src="vendor/jsmind.js"></script>
+    <script src="vendor/jsmind.draggable.js"></script>
+
+    <div class="container">
+        <div class="settings-panel">
+            <div class="collapsible">基础设置</div>
+            <div class="content">
+                <label>小说背景：</label>
+                <textarea id="background" class="text-area"></textarea>
+                
+                <label>人物设定：</label>
+                <textarea id="characters" class="text-area"></textarea>
+                
+                <label>角色关系：</label>
+                <textarea id="relationships" class="text-area"></textarea>
+                
+                <label>知识库：</label>
+                <textarea id="plot" class="text-area"></textarea>
+                
+                <label>写作风格：</label>
+                <textarea id="style" class="text-area"></textarea>
+            </div>
+
+            <div class="collapsible">提示词配置</div>
+            <div class="content">
+                <label>大纲提示词：</label>
+                <textarea id="outline-prompt" class="text-area">
+作为一名专业的网络小说策划，请基于以下信息创建一个富有爆点的小说大纲：
+
+背景设定：
+${background}
+
+人物设定：
+${characters}
+
+角色关系：
+${relationships}
+
+核心剧情：
+${plot}
+
+写作风格：
+${style}
+
+要求：
+1. 提炼核心冲突，设计多重矛盾，确保情节高潮迭起
+2. 设计3-5个重大转折点，每个转折都要有强烈的情感冲击
+3. 人物塑造要立体，性格鲜明，确保有显著成长弧光
+4. 构建层层递进的剧情架构，让读者欲罢不能
+5. 设置悬念和伏笔，增强可读性
+6. 情节发展要符合人物性格，避免强行推进
+7. 确保故事节奏张弛有度，高潮与平缓交错
+
+输出要求：
+1. 故事梗概（500字左右，突出爆点和冲突）
+2. 核心主题（100字，点明深层内涵）
+3. 人物塑造重点（每个主要角色200字）
+4. 主要情节脉络（分点列出，重点突出转折）
+5. 爆点设计（详述3-5个重大转折点）
+6. 高潮铺垫（说明如何层层递进）
+7. 结局构思（200字，要有冲击力）</textarea>
+
+                <label>章节提示词：</label>
+                <textarea id="chapter-prompt" class="text-area">
+作为专业网文作家，请基于如下信息将大纲展开为详细的章节细纲：
+
+当前小说大纲：
+${outline}
+
+背景设定：
+${background}
+
+人物设定：
+${characters}
+
+角色关系：
+${relationships}
+
+核心剧情：
+${plot}
+
+写作风格：
+${style}
+
+创作要求：
+1. 每章字数控制在3000-4000字
+2. 每章必须包含以下要素：
+   - 新鲜看点或冲突
+   - 人物互动与成长
+   - 情感渲染与升华
+   - 悬念设置与推进
+3. 场景转换要自然流畅
+4. 确保每章都有独立吸引力
+5. 为下章预留引子
+6. 注重细节描写和氛围营造
+7. 保持剧情节奏变化
+8. 设置巧妙的伏笔
+
+请使用 ###fenge 分隔章节，按以下格式输出：
+
+###fenge
+第X章：[富有吸引力的章节标题]
+- 核心看点：[本章最吸引人的亮点]
+- 时间地点：[具体场景设定]
+- 出场人物：[主要角色及作用]
+- 情节线索：
+  1. 开篇引子：[如何吸引读者]
+  2. 剧情发展：[详细事件推进]
+  3. 高潮转折：[冲突或爆点]
+  4. 结尾悬念：[为下章预留引子]
+- 感情线发展：[情感变化与渲染]
+- 人物刻画重点：[性格特征展现]
+- 场景氛围：[环境描写重点]
+- 伏笔设置：[后文呼应点]
+###fenge</textarea>
+
+                <label>内容提示词：</label>
+                <textarea id="content-prompt" class="text-area">
+作为一位畅销网文作家，请基于以下信息创作出令人沉浸的章节内容：
+
+总体大纲：
+${outline}
+
+当前章节细纲：
+${chapter_outline}
+
+背景设定：
+${background}
+
+人物设定：
+${characters}
+
+角色关系：
+${relationships}
+
+核心剧情：
+${plot}
+
+写作风格：
+${style}
+
+创作要求：
+1. 用多感官描写营造沉浸感：
+   - 视觉：场景细节、人物表情、动作特写
+   - 听觉：环境声音、语气语调
+   - 触觉：物理感受、温度变化
+   - 心理：情绪流转、思维变化
+
+2. 对话要求：
+   - 体现人物性格特征
+   - 包含潜台词与弦外之音
+   - 避免生硬说教
+   - 通过对话推进剧情
+
+3. 场景描写：
+   - 突出关键细节
+   - 烘托故事氛围
+   - 与情节发展呼应
+   - 适度简繁得当
+
+4. 情节节奏：
+   - 开篇要有吸引力
+   - 高潮情节详写
+   - 过渡段落简洁
+   - 结尾留有余韵
+
+5. 情感刻画：
+   - 细腻展现心理活动
+   - 避免直白表达
+   - 通过细节烘托情绪
+   - 让读者感同身受
+
+请确保：
+1. 符合网文特点，爽点明确
+2. 避免机械化语言
+3. 感情真实自然
+4. 场景细节丰富
+5. 人物个性鲜明</textarea>
+            </div>
+
+            <div class="collapsible">右键菜单配置</div>
+            <div class="content">
+                <label>大纲右键菜单：</label>
+                <textarea id="outline-menu-config" class="text-area">{
+    "menu": [
+        {
+            "name": "AI评分",
+            "prompt": "请对以下大纲进行100分制评分，评分项包括：\n1. 故事结构完整性\n2. 冲突设置的合理性\n3. 人物塑造的立体度\n4. 情节发展的吸引力\n5. 主题深度\n\n大纲内容：${selected_text}\n\n背景设定：${background}"
+        },
+        {
+            "name": "深化冲突",
+            "prompt": "基于背景：${background}\n人物：${characters}\n在保持合理性的前提下，将以下内容的冲突升级，制造更强的戏剧性：${selected_text}"
+        },
+        {
+            "name": "增加伏笔",
+            "prompt": "分析剧情：${plot}\n为以下内容设计巧妙的伏笔，为后续发展埋下种子：${selected_text}"
+        },
+        {
+            "name": "完善人物动机",
+            "prompt": "基于人物性格：${characters}\n关系：${relationships}\n补充和优化以下内容中人物的行动动机，使其更符合性格：${selected_text}"
+        },
+        {
+            "name": "强化感情线",
+            "prompt": "基于角色关系：${relationships}\n加强以下内容中的感情发展，让感情线更吸引人：${selected_text}"
+        },
+        {
+            "name": "优化节奏",
+            "prompt": "分析当前剧情走向，调整以下内容的节奏安排，确保张弛有度：${selected_text}"
+        },
+        {
+            "name": "扩充细节",
+            "prompt": "基于背景：${background}\n为以下内容补充更多细节，增强画面感和沉浸感：${selected_text}"
+        },
+        {
+            "name": "提升高潮",
+            "prompt": "在符合逻辑的前提下，将以下内容的高潮部分改写得更加震撼：${selected_text}"
+        }
+    ]
+}</textarea>
+                
+                <label>章节细纲右键菜单：</label>
+                <textarea id="chapter-menu-config" class="text-area">{
+    "menu": [
+        {
+            "name": "AI评分",
+            "prompt": "请对以下章节细纲进行100分制评分。评分项：\n1. 章节结构完整性\n2. 情节安排合理性\n3. 人物刻画深度\n4. 悬念设置效果\n5. 与整体剧情的契合度\n\n章节内容：${selected_text}\n\n大纲背景：${outline}"
+        },
+        {
+            "name": "深化情节",
+            "prompt": "基于大纲：${outline}\n角色关系：${relationships}\n将以下章节的情节发展变得更加吸引人：${selected_text}"
+        },
+        {
+            "name": "强化冲突",
+            "prompt": "基于人物性格：${characters}\n将以下章节的矛盾冲突升级，制造更强的戏剧效果：${selected_text}"
+        },
+        {
+            "name": "优化结构",
+            "prompt": "分析当前章节定位，调整以下内容的结构，使其更加完整：${selected_text}"
+        },
+        {
+            "name": "增加细节",
+            "prompt": "基于场景背景：${background}\n为以下章节添加更多细节描写，增强画面感：${selected_text}"
+        },
+        {
+            "name": "完善对话",
+            "prompt": "基于角色关系：${relationships}\n优化以下内容中的对话设计，突出人物性格：${selected_text}"
+        },
+        {
+            "name": "设置伏笔",
+            "prompt": "分析整体剧情：${plot}\n为以下章节设置巧妙的伏笔，为后续发展做铺垫：${selected_text}"
+        },
+        {
+            "name": "强化感情",
+            "prompt": "基于人物关系：${relationships}\n加强以下章节中的感情描写，增添情感冲击力：${selected_text}"
+        }
+    ]
+}</textarea>
+                
+                <label>正文右键菜单：</label>
+                <textarea id="content-menu-config" class="text-area">{
+    "menu": [
+        {
+            "name": "AI评分",
+            "prompt": "请对以下内容进行100分制评分。评分项：\n1. 文字流畅度\n2. 场景描写生动性\n3. 人物刻画真实感\n4. 情感表达深度\n5. 是否有AI痕迹\n\n内容：${selected_text}\n\n写作风格：${style}"
+        },
+        {
+            "name": "优化文笔",
+            "prompt": "基于写作风格：${style}\n将以下内容改写得更加优美流畅，去除机械痕迹：${selected_text}"
+        },
+        {
+            "name": "扩写对话",
+            "prompt": "基于人物性格：${characters}\n关系：${relationships}\n将以下对话场景扩写得更加生动，体现人物性格：${selected_text}"
+        },
+        {
+            "name": "强化情感",
+            "prompt": "结合人物关系：${relationships}\n将以下内容的情感描写变得更加细腻动人：${selected_text}"
+        },
+        {
+            "name": "添加细节",
+            "prompt": "基于场景背景：${background}\n为以下内容添加更多感官细节，增强画面感：${selected_text}"
+        },
+        {
+            "name": "改写视角",
+            "prompt": "保持原有剧情，将以下内容改写为更吸引人的视角：${selected_text}"
+        },
+        {
+            "name": "去除说教",
+            "prompt": "将以下内容中说教性的描写改写为更自然的表达：${selected_text}"
+        },
+        {
+            "name": "润色升华",
+            "prompt": "基于主题：${plot}\n将以下内容升华改写，增强文学性：${selected_text}"
+        }
+    ]
+}</textarea>
+            </div>
+        </div>
+        
+        <!-- 其余代码保持不变 -->
+        <div class="content-panel">
+            <div>
+                <h3>大纲</h3>
+                <textarea id="outline" class="text-area"></textarea>
+                <div class="chapter-buttons">
+                    <button onclick="generateOutline()">生成大纲</button>
+                    <button onclick="regenerateOutline()">重写大纲</button>
+                    <button onclick="generateChaptersFromOutline()">根据大纲生成章节</button>
+                    <button onclick="resetAll()" class="reset-button">重置所有内容</button>
+
+
+</div>
+            </div>
+
+            <div id="chapter-temp-container" class="chapter-temp-container" style="display: none;">
+                <h3>章节生成区域</h3>
+                <div class="info-box">
+                    使用 ##fenge 来分割不同章节。您可以:
+                    <ul>
+                        <li>等待AI生成完整内容</li>
+                        <li>手动编辑内容和分隔符</li>
+                        <li>点击"分割为章节"将内容转换为独立章节</li>
+                    </ul>
+                </div>
+                <textarea id="chapter-temp-content" class="temp-text-area"></textarea>
+                <div class="chapter-buttons">
+                    <button onclick="splitIntoChapters()" class="normal-button">分割为章节</button>
+                    <button onclick="clearTempContent()" class="reset-button">清空内容</button>
+                    <button onclick="hideTempContainer()">隐藏此区域</button>
+                </div>
+            </div>
+
+            <div id="chapters-container">
+                <h3>章节</h3>
+                <div class="chapter-buttons">
+                    <button onclick="addChapter()">新增章节</button>
+                    <button onclick="resetChapters()" class="reset-button">重置所有章节</button>
+                    <button onclick="showTempContainer()" class="normal-button">显示章节生成区域</button>
+                </div>
+                <div id="chapters"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="context-menu" class="context-menu"></div>
+    <div id="preview-modal" class="preview-modal">
+        <h3>预览</h3>
+        <div id="preview-content"></div>
+        <div class="chapter-buttons">
+            <button onclick="applyChanges()">应用</button>
+            <button onclick="closePreview()">取消</button>
+        </div>
+    </div>
+
+    <script>
+        // 保存当前状态到localStorage
+        function saveState() {
+            const state = {
+                // 基础设置
+                background: $('#background').val(),
+                characters: $('#characters').val(),
+                relationships: $('#relationships').val(),
+                plot: $('#plot').val(),
+                style: $('#style').val(),
+                
+                // 提示词配置
+                outlinePrompt: $('#outline-prompt').val(),
+                chapterPrompt: $('#chapter-prompt').val(),
+                contentPrompt: $('#content-prompt').val(),
+                
+                // 右键菜单配置
+                outlineMenuConfig: $('#outline-menu-config').val(),
+                chapterMenuConfig: $('#chapter-menu-config').val(),
+                contentMenuConfig: $('#content-menu-config').val(),
+                
+                // 内容数据
+                outline: $('#outline').val(),
+                tempContent: $('#chapter-temp-content').val(),
+                tempContainerVisible: $('#chapter-temp-container').is(':visible'),
+                
+                // 保存右键菜单的当前状态
+                menuStates: {
+                    outline: JSON.parse($('#outline-menu-config').val()),
+                    chapter: JSON.parse($('#chapter-menu-config').val()),
+                    content: JSON.parse($('#content-menu-config').val())
+                },
+                
+                // 章节数据
+                chapters: []
+            };
+
+            // 保存所有章节的状态
+            $('.chapter-container').each(function() {
+                state.chapters.push({
+                    outline: $(this).find('.chapter-outline').val(),
+                    content: $(this).find('.chapter-content-text').val(),
+                    isCollapsed: $(this).find('.chapter-content').hasClass('hidden')
+                });
+            });
+
+            try {
+                localStorage.setItem('novelState', JSON.stringify(state));
+            } catch (e) {
+                console.error('保存状态失败:', e);
+                alert('保存状态失败，请检查浏览器存储空间是否足够');
+            }
+        }
+
+        // 从localStorage加载状态
+        function loadState() {
+            try {
+                const state = JSON.parse(localStorage.getItem('novelState'));
+                if (state) {
+                    // 加载基础设置
+                    $('#background').val(state.background || '');
+                    $('#characters').val(state.characters || '');
+                    $('#relationships').val(state.relationships || '');
+                    $('#plot').val(state.plot || '');
+                    $('#style').val(state.style || '');
+                    
+                    // 加载提示词配置
+                    $('#outline-prompt').val(state.outlinePrompt || $('#outline-prompt').val());
+                    $('#chapter-prompt').val(state.chapterPrompt || $('#chapter-prompt').val());
+                    $('#content-prompt').val(state.contentPrompt || $('#content-prompt').val());
+                    
+                    // 加载右键菜单配置
+                    if (state.outlineMenuConfig) {
+                        $('#outline-menu-config').val(state.outlineMenuConfig);
+                    }
+                    if (state.chapterMenuConfig) {
+                        $('#chapter-menu-config').val(state.chapterMenuConfig);
+                    }
+                    if (state.contentMenuConfig) {
+                        $('#content-menu-config').val(state.contentMenuConfig);
+                    }
+                    
+                    // 加载内容数据
+                    $('#outline').val(state.outline || '');
+                    $('#chapter-temp-content').val(state.tempContent || '');
+                    
+                    // 加载临时容器状态
+                    if (state.tempContainerVisible) {
+                        $('#chapter-temp-container').show();
+                    } else {
+                        $('#chapter-temp-container').hide();
+                    }
+                    
+                    // 加载章节数据
+                    $('#chapters').empty();
+                    if (Array.isArray(state.chapters)) {
+                        state.chapters.forEach(chapter => {
+                            addChapterWithContent(
+                                chapter.outline || '', 
+                                chapter.content || '', 
+                                chapter.isCollapsed || false
+                            );
+                        });
+                    }
+
+                    // 初始化右键菜单状态
+                    try {
+                        if (state.menuStates) {
+                            // 确保菜单配置是有效的JSON
+                            if (state.menuStates.outline) {
+                                $('#outline-menu-config').val(JSON.stringify(state.menuStates.outline, null, 4));
+                            }
+                            if (state.menuStates.chapter) {
+                                $('#chapter-menu-config').val(JSON.stringify(state.menuStates.chapter, null, 4));
+                            }
+                            if (state.menuStates.content) {
+                                $('#content-menu-config').val(JSON.stringify(state.menuStates.content, null, 4));
+                            }
+                        }
+                    } catch (e) {
+                        console.error('加载菜单状态失败:', e);
+                        // 如果加载失败，保持默认菜单配置
+                    }
+                }
+            } catch (e) {
+                console.error('加载状态失败:', e);
+                alert('加载状态失败，将使用默认配置');
+            }
+        }
+        // 生成大纲
+        async function generateOutline() {
+            const prompt = $('#outline-prompt').val()
+                .replace('${background}', $('#background').val())
+                .replace('${characters}', $('#characters').val())
+                .replace('${relationships}', $('#relationships').val())
+                .replace('${plot}', $('#plot').val())
+                .replace('${style}', $('#style').val());
+
+            try {
+                const response = await fetch('gen', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt})
+                });
+
+                await handleStreamResponse(response, $('#outline')[0]);
+                saveState();
+            } catch (error) {
+                alert('生成大纲时出错：' + error.message);
+            }
+        }
+
+        // 根据大纲生成章节细纲
+        async function generateChaptersFromOutline() {
+            const outline = $('#outline').val();
+            const prompt = $('#chapter-prompt').val()
+                .replace('${outline}', outline)
+                .replace('${background}', $('#background').val())
+                .replace('${characters}', $('#characters').val())
+                .replace('${relationships}', $('#relationships').val())
+                .replace('${plot}', $('#plot').val())
+                .replace('${style}', $('#style').val());
+
+            try {
+                showTempContainer();
+                const response = await fetch('gen', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt})
+                });
+
+                // 流式处理响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                const tempContent = $('#chapter-temp-content');
+                let buffer = '';
+
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, {stream: true});
+                    tempContent.val(buffer);
+                    tempContent.scrollTop(tempContent[0].scrollHeight);
+                }
+                saveState();
+            } catch (error) {
+                alert('生成章节时出错：' + error.message);
+            }
+        }
+
+        // 分割章节的函数
+        function splitIntoChapters() {
+            const content = $('#chapter-temp-content').val();
+            if (!content.trim()) {
+                alert('没有内容可以分割！');
+                return;
+            }
+
+            // 检查是否存在分隔符
+            if (!content.includes('###fenge')) {
+                if (!confirm('未找到章节分隔符(###fenge)，是否仍要继续分割？这可能会导致不正确的章节划分。')) {
+                    return;
+                }
+            }
+
+            // 分割章节
+            const chapters = content.split('###fenge')
+                .map(chapter => chapter.trim())
+                .filter(chapter => chapter.length > 0);
+
+            if (chapters.length === 0) {
+                alert('分割后没有获得有效的章节内容！');
+                return;
+            }
+
+            // 确认是否要清空现有章节
+            const hasExistingChapters = $('#chapters').children().length > 0;
+            if (hasExistingChapters) {
+                if (confirm('是否要清空现有章节后再添加新章节？\n点击"确定"清空现有章节\n点击"取消"在现有章节后追加')) {
+                    $('#chapters').empty();
+                }
+            }
+
+            // 添加新章节
+            chapters.forEach((chapter, index) => {
+                addChapterWithContent(chapter, '', false);
+            });
+
+            saveState();
+            alert(`成功创建 ${chapters.length} 个章节！`);
+        }
+
+        // 生成章节正文
+        async function generateContent(button) {
+            const container = $(button).closest('.chapter-container');
+            const chapterOutline = container.find('.chapter-outline').val();
+            const prompt = $('#content-prompt').val()
+                .replace('${chapter_outline}', chapterOutline)
+                .replace('${outline}', $('#outline').val())
+                .replace('${background}', $('#background').val())
+                .replace('${characters}', $('#characters').val())
+                .replace('${relationships}', $('#relationships').val())
+                .replace('${plot}', $('#plot').val())
+                .replace('${style}', $('#style').val());
+
+            try {
+                const response = await fetch('gen', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt})
+                });
+
+                await handleStreamResponse(response, container.find('.chapter-content-text')[0]);
+                saveState();
+            } catch (error) {
+                alert('生成正文时出错：' + error.message);
+            }
+        }
+
+        // 处理流式响应
+        async function handleStreamResponse(response, targetElement) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, {stream: true});
+                targetElement.value = buffer;
+                targetElement.scrollTop = targetElement.scrollHeight;
+            }
+        }
+
+        // 添加新章节
+        function addChapter() {
+            addChapterWithContent('新章节细纲', '', false);
+            saveState();
+        }
+
+        // 添加章节和对应的内容
+        function addChapterWithContent(outline, content, isCollapsed = false) {
+            const chapterCount = $('.chapter-container').length + 1;
+            const chapter = $(`
+                <div class="chapter-container">
+                    <div class="chapter-header" onclick="toggleChapter(this)">
+                        <span>章节 ${chapterCount}</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="chapter-content ${isCollapsed ? 'hidden' : ''}">
+                        <div>
+                            <h4>章节细纲</h4>
+                            <textarea class="text-area chapter-outline">${outline}</textarea>
+                            <div class="chapter-buttons">
+                                <button onclick="resetChapterOutline(this)">重置细纲</button>
+                                <button onclick="copyToTemp(this)">复制到生成区域</button>
+
+                            </div>
+                        </div>
+                        <div>
+                            <h4>章节正文</h4>
+                            <textarea class="text-area chapter-content-text">${content}</textarea>
+                            <div class="chapter-buttons">
+                                <button onclick="generateContent(this)">生成正文</button>
+                                <button onclick="regenerateContent(this)">重写正文</button>
+
+			<button onclick="resetChapterContent(this)">重置正文</button>
+
+				</div>
+                        </div>
+                        <button onclick="deleteChapter(this)" class="delete-button">删除章节</button>
+                    </div>
+                </div>
+            `);
+            $('#chapters').append(chapter);
+
+            // 绑定右键菜单事件
+            chapter.find('.chapter-outline').on('contextmenu', function(e) {
+                showContextMenu(e, $('#chapter-menu-config').val(), this);
+            });
+
+            chapter.find('.chapter-content-text').on('contextmenu', function(e) {
+                showContextMenu(e, $('#content-menu-config').val(), this);
+            });
+        }
+
+        // 显示/隐藏临时章节容器
+        function showTempContainer() {
+            $('#chapter-temp-container').show();
+            saveState();
+        }
+
+        function hideTempContainer() {
+            $('#chapter-temp-container').hide();
+            saveState();
+        }
+
+        // 清空临时内容
+        function clearTempContent() {
+            if(confirm('确定要清空临时内容吗？')) {
+                $('#chapter-temp-content').val('');
+                saveState();
+            }
+        }
+
+        // 重置相关函数
+        function resetAll() {
+            if (confirm('确定要重置所有内容吗？这将清空所有已编写的内容。')) {
+                $('#background').val('');
+                $('#characters').val('');
+                $('#relationships').val('');
+                $('#plot').val('');
+                $('#style').val('');
+                $('#outline').val('');
+                $('#chapter-temp-content').val('');
+                $('#chapters').empty();
+                localStorage.removeItem('novelState');
+            }
+        }
+
+        function resetChapters() {
+            if (confirm('确定要重置所有章节吗？这将清空所有章节内容。')) {
+                $('#chapters').empty();
+                saveState();
+            }
+        }
+
+        function resetChapterOutline(button) {
+            if (confirm('确定要重置本章节细纲吗？')) {
+                $(button).closest('.chapter-container').find('.chapter-outline').val('');
+                saveState();
+            }
+        }
+
+        function resetChapterContent(button) {
+            if (confirm('确定要重置本章节正文吗？')) {
+                $(button).closest('.chapter-container').find('.chapter-content-text').val('');
+                saveState();
+            }
+        }
+
+        // 复制到临时区域
+        function copyToTemp(button) {
+            const outline = $(button).closest('.chapter-container').find('.chapter-outline').val();
+            const currentContent = $('#chapter-temp-content').val();
+            const newContent = currentContent
+                ? currentContent + '\n##【章节分隔符】\n' + outline
+                : outline;
+
+            $('#chapter-temp-content').val(newContent);
+            showTempContainer();
+            saveState();
+        }
+
+        // 章节管理函数
+        function deleteChapter(button) {
+            if (confirm('确定要删除这个章节吗？')) {
+                $(button).closest('.chapter-container').remove();
+                // 重新编号所有章节
+                $('.chapter-container').each((index, element) => {
+                    $(element).find('.chapter-header span:first').text(`章节 ${index + 1}`);
+                });
+                saveState();
+            }
+        }
+
+        function toggleChapter(header) {
+            const content = $(header).next('.chapter-content');
+            content.toggleClass('hidden');
+            const arrow = $(header).find('span').last();
+            arrow.text(content.hasClass('hidden') ? '▶' : '▼');
+            saveState();
+        }
+
+        // 右键菜单相关函数
+        let selectedText = '';
+        let currentTarget = null;
+function showContextMenu(e, config, target) {
+    e.preventDefault();
+    selectedText = window.getSelection().toString();
+    if (!selectedText) return;
+
+    currentTarget = target;
+    const menu = $('#context-menu');
+    menu.empty();
+    
+    // 解析菜单配置
+    try {
+        const menuConfig = JSON.parse(config);
+        menuConfig.menu.forEach(item => {
+            const menuItem = $('<div class="context-menu-item">').text(item.name);
+            menuItem.click(() => handleContextMenuAction(item));
+            menu.append(menuItem);
+        });
+
+        // 立即显示菜单
+        menu.css({
+            display: 'block',
+            left: e.pageX + 'px',
+            top: e.pageY + 'px'
+        });
+
+        // 添加点击其他区域关闭菜单的处理
+        const closeMenu = (e) => {
+            if (!$(e.target).closest('.context-menu').length) {
+                menu.hide();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // 延迟绑定点击事件，避免立即关闭
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    } catch (error) {
+        console.error('解析菜单配置出错:', error);
+    }
+}
+
+// 更新预览框样式
+const style = document.createElement('style');
+style.textContent = `
+    .preview-modal {
+        animation: fadeIn 0.2s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    #preview-content {
+        white-space: pre-wrap;
+        min-height: 100px;
+    }
+`;
+document.head.appendChild(style);
+
+        // 处理右键菜单动作
+async function handleContextMenuAction(item) {
+    // 立即关闭右键菜单
+    $('#context-menu').hide();
+    
+    // 立即显示预览框，并显示加载提示
+    $('#preview-content').text('正在生成内容...');
+    $('#preview-modal').css('display', 'block');
+    
+    let prompt = item.prompt
+        .replace('${selected_text}', selectedText)
+        .replace('${background}', $('#background').val())
+        .replace('${characters}', $('#characters').val())
+        .replace('${relationships}', $('#relationships').val())
+        .replace('${plot}', $('#plot').val())
+        .replace('${style}', $('#style').val())
+        .replace('${outline}', $('#outline').val());
+
+    try {
+        const response = await fetch('gen', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ prompt })
+        });
+
+        // 使用流式处理来更新预览内容
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const {value, done} = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, {stream: true});
+            $('#preview-content').text(buffer);
+        }
+    } catch (error) {
+        $('#preview-content').text('生成内容时出错：' + error.message);
+    }
+}
+
+        // 预览相关函数
+        function applyChanges() {
+            const previewContent = $('#preview-content').text();
+            const newContent = currentTarget.value.replace(selectedText, previewContent);
+            currentTarget.value = newContent;
+            closePreview();
+            saveState();
+        }
+
+        function closePreview() {
+            $('#preview-modal').css('display', 'none');
+            $('#context-menu').css('display', 'none');
+        }
+
+        // 重新生成内容
+        function regenerateContent(button) {
+            generateContent(button);
+        }
+
+        function regenerateOutline() {
+            generateOutline();
+        }
+
+        // 初始化事件绑定
+        $(document).ready(function() {
+            // 绑定右键菜单事件
+            $('#outline').on('contextmenu', function(e) {
+                showContextMenu(e, $('#outline-menu-config').val(), this);
+            });
+// 点击其他地方关闭右键菜单和预览
+            $(document).click((e) => {
+                if (!$(e.target).closest('.preview-modal').length && 
+                    !$(e.target).closest('.context-menu').length) {
+                    $('#context-menu').css('display', 'none');
+                }
+            });
+
+            // 自动保存所有更改
+            $(document).on('input', 'textarea', saveState);
+            
+            // 设置面板折叠功能
+            $('.collapsible').click(function() {
+                $(this).next('.content').toggleClass('show');
+            });
+
+            // ESC键关闭预览和菜单
+            $(document).keydown(function(e) {
+                if (e.key === 'Escape') {
+                    closePreview();
+                }
+            });
+
+            // 注册 beforeunload 事件以防止意外关闭
+            window.onbeforeunload = function() {
+                return '您有未保存的更改，确定要离开吗？';
+            };
+
+            // 初始化加载保存的状态
+            loadState();
+
+            // 监听存储变化，实现多标签页同步
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'novelState') {
+                    loadState();
+                }
+            });
+
+            // 自动展开第一个设置面板
+            $('.collapsible:first').next('.content').addClass('show');
+        });
+
+        // 错误处理函数
+        function handleError(error, message) {
+            console.error(error);
+            alert(message || '操作过程中发生错误，请重试。');
+        }
+
+        // 辅助函数：自动调整文本框高度
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // 添加自动保存提示
+        let saveTimeout;
+        function showSavedIndicator() {
+            clearTimeout(saveTimeout);
+            const indicator = $('#saved-indicator');
+            if (!indicator.length) {
+                $('body').append('<div id="saved-indicator" style="position:fixed;right:20px;bottom:20px;padding:10px;background:rgba(0,0,0,0.7);color:white;border-radius:4px;display:none;">已自动保存</div>');
+            }
+            $('#saved-indicator').fadeIn().delay(2000).fadeOut();
+        }
+
+        // 优化的保存函数
+        const debouncedSave = (function() {
+            let timeout;
+            return function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    saveState();
+                    showSavedIndicator();
+                }, 1000);
+            };
+        })();
+
+        // 监听文本框变化以自动调整高度
+        $(document).on('input', 'textarea', function() {
+            autoResizeTextarea(this);
+            debouncedSave();
+        });
+
+	    // 修复右键菜单事件绑定
+function fixContextMenuBinding() {
+    // 为大纲绑定右键菜单
+    $('#outline').off('contextmenu').on('contextmenu', function(e) {
+        e.preventDefault();
+        showContextMenu(e, $('#outline-menu-config').val(), this);
+    });
+
+    // 为所有章节细纲绑定右键菜单
+    $(document).on('contextmenu', '.chapter-outline', function(e) {
+        e.preventDefault();
+        showContextMenu(e, $('#chapter-menu-config').val(), this);
+    });
+
+    // 为所有章节正文绑定右键菜单
+    $(document).on('contextmenu', '.chapter-content-text', function(e) {
+        e.preventDefault();
+        showContextMenu(e, $('#content-menu-config').val(), this);
+    });
+}
+
+// 在文档加载完成后执行修复
+$(document).ready(function() {
+    fixContextMenuBinding();
+
+    // 监听章节添加事件，确保新添加的章节也能正确绑定右键菜单
+    const originalAddChapter = window.addChapterWithContent;
+    window.addChapterWithContent = function(outline, content, isCollapsed) {
+        originalAddChapter(outline, content, isCollapsed);
+        fixContextMenuBinding();
+    };
+});
+
+// 修复后的showContextMenu函数
+function showContextMenu(e, config, target) {
+    // 确保有选中的文本
+    selectedText = window.getSelection().toString();
+    if (!selectedText) return;
+
+    currentTarget = target;
+    const menu = $('#context-menu');
+    menu.empty();
+
+    try {
+        const menuConfig = JSON.parse(config);
+        menuConfig.menu.forEach(item => {
+            const menuItem = $('<div class="context-menu-item"></div>')
+                .text(item.name)
+                .on('click', () => handleContextMenuAction(item));
+            menu.append(menuItem);
+        });
+
+        // 确保菜单显示在鼠标位置
+        menu.css({
+            display: 'block',
+            left: Math.min(e.pageX, window.innerWidth - menu.width() - 10) + 'px',
+            top: Math.min(e.pageY, window.innerHeight - menu.height() - 10) + 'px'
+        });
+
+        // 点击其他地方关闭菜单
+        $(document).one('click', function(e) {
+            if (!$(e.target).closest('#context-menu').length) {
+                menu.hide();
+            }
+        });
+
+    } catch (error) {
+        console.error('解析菜单配置出错:', error);
+    }
+}
+    </script>
+<script src="static/outin.js"></script>
+<script src="static/bookinfo.js"></script>
+<script src="static/mode-shortcut.js"></script>
+<script src="static/chat-and-counter.js"></script>
+<script src="static/theme-switcher.js"></script>
+<script src="static/prompt-editor.js"></script>
+<script src="static/knowledge-base.js"></script>
+<script src="static/book-splitter.js"></script>
+<script src="static/mind.js"></script>
+<script src="static/fix.js"></script>
+
+
+</body>
+</html>

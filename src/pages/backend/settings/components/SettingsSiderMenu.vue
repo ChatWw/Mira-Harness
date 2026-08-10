@@ -50,6 +50,7 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     label: '功能',
     items: [
       { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
+      { key: 'ai-novel', label: 'AI 小说', icon: 'lucide:book-open', path: '/settings/ai-novel' },
     ],
   },
   {

@@ -34,6 +34,7 @@
     },
     "files": [
       "out/**/*",
+      "resources/novel-generator/**",
       "src/asset/mira-logo.png",
       "src/asset/mira.ico"
     ]

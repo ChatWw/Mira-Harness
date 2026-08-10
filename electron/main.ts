@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, ty
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
+import { createNovelApiHandler, testNovelConnection } from './novelApi'
+import { BUILT_IN_MICRO_APP_PACKAGES } from '../src/config/microApps'
 import type { MicroApp } from '../src/types'
 
 let database: PlatformDatabase
@@ -112,10 +114,26 @@ function createWindow() {
   else window.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
+function resolveBuiltinAppRoots() {
+  const roots: Record<string, string> = {}
+  for (const pkg of BUILT_IN_MICRO_APP_PACKAGES) {
+    roots[pkg] = join(__dirname, '../../resources', pkg)
+  }
+  return roots
+}
+
 app.whenReady().then(async () => {
   database = new PlatformDatabase(app.getPath('userData'))
-  localMicroAppServer = new LocalMicroAppServer()
-  await localMicroAppServer.start(database.getSnapshot().microApps)
+  localMicroAppServer = new LocalMicroAppServer({
+    builtinRoots: resolveBuiltinAppRoots(),
+    apiHandlers: new Map([['micro-ai-novel', createNovelApiHandler(database)]]),
+  })
+  const preferences = database.getSnapshot().preferences
+  const preferredPort = typeof preferences.localMicroAppPort === 'number' ? preferences.localMicroAppPort : undefined
+  await localMicroAppServer.start(database.getSnapshot().microApps, preferredPort)
+  if (localMicroAppServer.port && preferences.localMicroAppPort !== localMicroAppServer.port) {
+    database.savePreference('localMicroAppPort', localMicroAppServer.port)
+  }
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -136,6 +154,7 @@ app.whenReady().then(async () => {
     return localMicroAppServer.validateDirectory(result.filePaths[0])
   })
   ipcMain.handle('platform:resolve-local-microapp-url', (_event, appId: string) => localMicroAppServer.getEntryUrl(appId))
+  ipcMain.handle('platform:test-novel-connection', (_event, slot: 'gen' | 'gen2', prompt?: string) => testNovelConnection(database, slot, prompt))
   ipcMain.handle('platform:export-snapshot', () => database.exportSnapshot())
   ipcMain.handle('platform:import-snapshot', (_event, snapshot: string) => {
     const next = database.importSnapshot(snapshot)
