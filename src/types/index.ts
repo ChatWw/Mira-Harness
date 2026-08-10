@@ -119,6 +119,8 @@ export interface PlatformApi {
   onWindowNavigate(listener: (path: string) => void): () => void
 }
 
+// 关闭窗口时的行为
+export type CloseWindowBehavior = 'background' | 'quit'
 
 // 布局模式
 export type LayoutMode = 'sidebar-header' | 'sidebar-only'

@@ -33,7 +33,8 @@
     },
     "files": [
       "out/**/*",
-      "src/asset/mira-logo.png"
+      "src/asset/mira-logo.png",
+      "src/asset/mira.ico"
     ]
   },
   "dependencies": {

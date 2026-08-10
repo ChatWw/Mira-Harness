@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
@@ -6,10 +6,41 @@ import type { MicroApp } from '../src/types'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
+let isQuitting = false
+let tray: Tray | null = null
+
+function getCloseWindowBehavior(): 'background' | 'quit' {
+  const value = database?.getSnapshot().preferences.closeWindowBehavior
+  return value === 'quit' ? 'quit' : 'background'
+}
 
 function navigateToAbout(window?: BrowserWindow | null) {
   const target = window ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   target?.webContents.send('window:navigate', '/settings/about')
+}
+
+function showMainWindow() {
+  const window = BrowserWindow.getAllWindows()[0]
+  if (window) {
+    if (!window.isVisible()) window.show()
+    window.focus()
+  } else {
+    createWindow()
+  }
+}
+
+function setupWindowsTray() {
+  if (process.platform !== 'win32') return
+  const trayIcon = nativeImage.createFromPath(join(__dirname, '../../src/asset/mira.ico'))
+  if (trayIcon.isEmpty()) return
+  tray = new Tray(trayIcon)
+  tray.setToolTip('Mira')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示 Mira', click: () => showMainWindow() },
+    { type: 'separator' },
+    { label: '退出 Mira', click: () => app.quit() },
+  ]))
+  tray.on('click', () => showMainWindow())
 }
 
 function setupApplicationMenu() {
@@ -68,6 +99,11 @@ function createWindow() {
     } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   })
+  window.on('close', event => {
+    if (isQuitting || getCloseWindowBehavior() === 'quit') return
+    event.preventDefault()
+    window.hide()
+  })
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
@@ -121,7 +157,7 @@ app.whenReady().then(async () => {
     if (!win) return
     switch (action) {
       case 'about': navigateToAbout(win); break
-      case 'quit': win.close(); break
+      case 'quit': app.quit(); break
       case 'undo': win.webContents.undo(); break
       case 'redo': win.webContents.redo(); break
       case 'cut': win.webContents.cut(); break
@@ -138,8 +174,16 @@ app.whenReady().then(async () => {
   })
   setupApplicationMenu()
   createWindow()
-  app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow() })
+  setupWindowsTray()
+  app.on('activate', showMainWindow)
 })
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-app.on('before-quit', () => { void localMicroAppServer?.stop() })
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin' || getCloseWindowBehavior() === 'quit') app.quit()
+})
+app.on('before-quit', () => {
+  isQuitting = true
+  tray?.destroy()
+  tray = null
+  void localMicroAppServer?.stop()
+})

@@ -171,7 +171,7 @@ const commandActions = computed<CommandPaletteItem[]>(() => [
     icon: 'Setting',
     category: 'command',
     parent: '系统操作',
-    action: async () => { await router.push({ path: '/settings/appearance', query: { from: router.currentRoute.value.fullPath } }) },
+    action: async () => { await router.push({ path: '/settings/general', query: { from: router.currentRoute.value.fullPath } }) },
   },
 ])
 const defaultResults = computed(() => [

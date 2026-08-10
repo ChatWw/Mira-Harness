@@ -38,7 +38,7 @@ const router = useRouter()
 const isFullscreen = ref(false)
 
 function handleSearch() { commandPaletteStore.open() }
-function openSettings() { void router.push({ path: '/settings/appearance', query: { from: route.fullPath } }) }
+function openSettings() { void router.push({ path: '/settings/general', query: { from: route.fullPath } }) }
 function handleThemeToggle(event: MouseEvent) {
   themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
 }
