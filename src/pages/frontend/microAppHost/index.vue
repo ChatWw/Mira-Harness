@@ -120,7 +120,7 @@ async function load() {
     const entryRoot = microApp.entry.type === 'local-directory'
       ? await getPlatformApi()?.resolveLocalMicroAppUrl(microApp.id)
       : microApp.entry.url
-    if (!entryRoot) throw new Error('本地微应用仅能在 Electron 桌面版中加载')
+    if (!entryRoot) throw new Error('本地微应用仅能在桌面端中加载')
     const nextEntryUrl = resolveMicroAppEntryUrl(microApp, route.path, entryRoot)
     const reuseMountedWujie = app.value?.code === microApp.code
       && microApp.integrationMode === 'wujie'

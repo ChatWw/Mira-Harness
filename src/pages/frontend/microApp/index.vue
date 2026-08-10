@@ -5,7 +5,7 @@
       type="warning"
       :closable="false"
       show-icon
-      title="当前为浏览器模式，微应用只读；请在 Electron 桌面版中进行修改。"
+      title="浏览器中不支持编辑微应用，请在桌面端进行修改。"
       class="platform-alert"
     />
 

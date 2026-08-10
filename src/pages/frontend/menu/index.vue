@@ -5,7 +5,7 @@
       type="warning"
       :closable="false"
       show-icon
-      title="当前为浏览器模式，菜单只读；请在 Electron 桌面版中进行修改。"
+      title="浏览器中不支持编辑菜单，请在桌面端进行修改。"
       class="platform-alert"
     />
     <MenuTreeEditor

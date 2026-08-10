@@ -5,7 +5,7 @@
       type="warning"
       :closable="false"
       show-icon
-      title="备份与恢复仅在 Electron 桌面版中可用。"
+      title="备份与恢复仅在桌面端中可用。"
       class="platform-alert"
     />
 

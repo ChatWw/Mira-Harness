@@ -245,7 +245,7 @@ function resetEntryForMode() {
 async function selectDirectory() {
   const api = getPlatformApi()
   if (!api) {
-    ElMessage.error('文件夹选择仅在 Electron 桌面版中可用')
+    ElMessage.error('文件夹选择仅在桌面端中可用')
     return
   }
   selectingDirectory.value = true

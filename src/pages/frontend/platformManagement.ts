@@ -10,7 +10,7 @@ export function cloneValue<T>(value: T): T {
 
 export function requirePlatformApi(): PlatformApi {
   const api = getPlatformApi()
-  if (!api) throw new Error('配置管理仅在 Electron 桌面版中可用')
+  if (!api) throw new Error('配置管理仅在桌面端中可用')
   return api
 }
 
