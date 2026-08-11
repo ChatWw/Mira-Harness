@@ -1,25 +1,26 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { NovelModelProfile, NovelModelProfiles, NovelModelRole } from '../src/config/novel'
+import { EMPTY_NOVEL_MODEL_PROFILES, NOVEL_MODEL_PROFILES_PREFERENCE_KEY } from '../src/config/novel'
 import type { PlatformDatabase } from './database'
-import { NOVEL_API_PREFERENCE_KEY, type NovelApiConfig, type NovelApiSlotConfig } from '../src/config/novelApi'
 import { corsHeadersFor } from './localMicroAppServer'
 
-const NOVEL_API_SUBPATHS = new Set(['gen', 'gen2'])
+const NOVEL_MODEL_ROLES = new Set<NovelModelRole>(['authoring', 'automation'])
 
-function normalizeSlot(value: unknown): NovelApiSlotConfig {
-  const slot = value && typeof value === 'object' ? value as Partial<NovelApiSlotConfig> : {}
+function normalizeProfile(value: unknown): NovelModelProfile {
+  const profile = value && typeof value === 'object' ? value as Partial<NovelModelProfile> : {}
   return {
-    endpoint: typeof slot.endpoint === 'string' ? slot.endpoint : '',
-    apiKey: typeof slot.apiKey === 'string' ? slot.apiKey : '',
-    model: typeof slot.model === 'string' ? slot.model : '',
+    endpoint: typeof profile.endpoint === 'string' ? profile.endpoint : '',
+    apiKey: typeof profile.apiKey === 'string' ? profile.apiKey : '',
+    modelId: typeof profile.modelId === 'string' ? profile.modelId : '',
   }
 }
 
-export function readNovelApiConfig(database: PlatformDatabase): NovelApiConfig {
-  const stored = database.getSnapshot().preferences[NOVEL_API_PREFERENCE_KEY]
-  const raw = stored && typeof stored === 'object' ? stored as Partial<NovelApiConfig> : {}
+export function readNovelModelProfiles(database: PlatformDatabase): NovelModelProfiles {
+  const stored = database.getSnapshot().preferences[NOVEL_MODEL_PROFILES_PREFERENCE_KEY]
+  const raw = stored && typeof stored === 'object' ? stored as Partial<NovelModelProfiles> : {}
   return {
-    gen: normalizeSlot(raw.gen),
-    gen2: normalizeSlot(raw.gen2),
+    authoring: normalizeProfile(raw.authoring || EMPTY_NOVEL_MODEL_PROFILES.authoring),
+    automation: normalizeProfile(raw.automation || EMPTY_NOVEL_MODEL_PROFILES.automation),
   }
 }
 
@@ -29,9 +30,9 @@ function normalizeEndpoint(endpoint: string) {
   return /\/chat\/completions$/i.test(trimmed) ? trimmed : `${trimmed}/chat/completions`
 }
 
-function writeText(request: IncomingMessage, response: ServerResponse, text: string) {
+function writeError(request: IncomingMessage, response: ServerResponse, status: number, text: string) {
   if (response.destroyed) return
-  response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', ...corsHeadersFor(request) })
+  response.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', ...corsHeadersFor(request) })
   response.end(text)
 }
 
@@ -63,7 +64,7 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, onContent: (conten
           const content = parsed.choices?.[0]?.delta?.content
           if (typeof content === 'string' && content) onContent(content)
         } catch {
-          // 忽略无法解析的 SSE 行，保持与上游流式行为一致。
+          // 忽略上游不符合 OpenAI SSE 约定的单行数据，继续消费后续内容。
         }
       }
     }
@@ -72,70 +73,79 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, onContent: (conten
   }
 }
 
-async function pipeSseContent(stream: ReadableStream<Uint8Array>, response: ServerResponse) {
-  await consumeSse(stream, content => {
-    if (response.destroyed) return
-    try { response.write(content) } catch { /* 客户端可能已断开 */ }
-  })
-  if (!response.destroyed) {
-    try { response.end() } catch { /* 客户端可能已断开 */ }
+function getProfile(database: PlatformDatabase, role: NovelModelRole) {
+  const profile = readNovelModelProfiles(database)[role]
+  const endpoint = normalizeEndpoint(profile.endpoint)
+  if (!endpoint || !profile.apiKey.trim() || !profile.modelId.trim()) {
+    throw new Error(`“${role === 'authoring' ? '创作模型' : '自动处理模型'}”尚未配置，请先前往「设置 → AI 小说」完成配置`)
   }
+  return { ...profile, endpoint }
 }
 
-async function handleNovelRequest(
-  subpath: string,
-  request: IncomingMessage,
-  response: ServerResponse,
-  database: PlatformDatabase,
-) {
-  if (!NOVEL_API_SUBPATHS.has(subpath)) {
-    response.writeHead(404, corsHeadersFor(request)).end()
+async function requestModel(profile: NovelModelProfile & { endpoint: string }, prompt: string, signal?: AbortSignal) {
+  return fetch(profile.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${profile.apiKey.trim()}`,
+    },
+    body: JSON.stringify({
+      model: profile.modelId.trim(),
+      messages: [{ role: 'user', content: prompt }],
+      stream: true,
+    }),
+    signal,
+  })
+}
+
+async function handleNovelRequest(subpath: string, request: IncomingMessage, response: ServerResponse, database: PlatformDatabase) {
+  if (!NOVEL_MODEL_ROLES.has(subpath as NovelModelRole)) {
+    writeError(request, response, 404, '未找到小说模型职责')
     return
   }
-
-  const config = readNovelApiConfig(database)
-  const slot = subpath === 'gen' ? config.gen : config.gen2
-  const endpoint = normalizeEndpoint(slot.endpoint)
-  if (!endpoint || !slot.apiKey.trim() || !slot.model.trim()) {
-    writeText(request, response, 'API 未配置，请先在「设置 → AI 小说」中填写 API 地址、Key 和模型名')
-    return
-  }
-
-  let body: Record<string, unknown>
+  let prompt = ''
   try {
-    body = await readJsonBody(request)
+    const body = await readJsonBody(request)
+    prompt = typeof body.prompt === 'string' ? body.prompt : ''
   } catch {
-    writeText(request, response, '请求体解析失败')
+    writeError(request, response, 400, '请求体不是有效 JSON')
     return
   }
-  const prompt = typeof body.prompt === 'string' ? body.prompt : ''
   if (!prompt.trim()) {
-    writeText(request, response, '提示词为空')
+    writeError(request, response, 400, '创作提示不能为空')
     return
   }
 
+  let profile: NovelModelProfile & { endpoint: string }
   try {
-    const upstream = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${slot.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        model: slot.model.trim(),
-        messages: [{ role: 'user', content: prompt }],
-        stream: true,
-      }),
-    })
+    profile = getProfile(database, subpath as NovelModelRole)
+  } catch (error) {
+    writeError(request, response, 400, error instanceof Error ? error.message : String(error))
+    return
+  }
+
+  const controller = new AbortController()
+  const abortWhenClientLeaves = () => {
+    if (!response.writableEnded) controller.abort()
+  }
+  response.once('close', abortWhenClientLeaves)
+  try {
+    const upstream = await requestModel(profile, prompt, controller.signal)
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text().catch(() => '')
-      writeText(request, response, `API 请求失败: ${upstream.status} ${detail.slice(0, 500)}`)
+      writeError(request, response, 502, `模型请求失败: ${upstream.status} ${detail.slice(0, 500)}`)
       return
     }
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', ...corsHeadersFor(request) })
-    await pipeSseContent(upstream.body, response)
+    await consumeSse(upstream.body, content => {
+      if (!response.destroyed) response.write(content)
+    })
+    if (!response.destroyed) response.end()
   } catch (error) {
-    writeText(request, response, `API 请求异常: ${error instanceof Error ? error.message : String(error)}`)
+    if (controller.signal.aborted) return
+    writeError(request, response, 502, `模型请求异常: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    response.off('close', abortWhenClientLeaves)
   }
 }
 
@@ -145,39 +155,18 @@ export function createNovelApiHandler(database: PlatformDatabase) {
   }
 }
 
-export async function testNovelConnection(
-  database: PlatformDatabase,
-  slot: 'gen' | 'gen2',
-  prompt = '请用一句话介绍你自己。',
-): Promise<{ ok: boolean; text: string }> {
-  const config = readNovelApiConfig(database)
-  const slotConfig = slot === 'gen' ? config.gen : config.gen2
-  const endpoint = normalizeEndpoint(slotConfig.endpoint)
-  if (!endpoint || !slotConfig.apiKey.trim() || !slotConfig.model.trim()) {
-    return { ok: false, text: 'API 未配置，请先填写 API 地址、Key 和模型名' }
-  }
+export async function testNovelModelConnection(database: PlatformDatabase, role: NovelModelRole, prompt = '请用一句话介绍你自己。') {
   try {
-    const upstream = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${slotConfig.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        model: slotConfig.model.trim(),
-        messages: [{ role: 'user', content: prompt }],
-        stream: true,
-      }),
-    })
+    const upstream = await requestModel(getProfile(database, role), prompt)
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text().catch(() => '')
-      return { ok: false, text: `API 请求失败: ${upstream.status} ${detail.slice(0, 500)}` }
+      return { ok: false, text: `模型请求失败: ${upstream.status} ${detail.slice(0, 500)}` }
     }
     const parts: string[] = []
     await consumeSse(upstream.body, content => parts.push(content))
     const text = parts.join('').trim()
-    return { ok: Boolean(text), text: text || '接口已连通，但没有返回内容' }
+    return { ok: Boolean(text), text: text || '模型已连通，但没有返回内容' }
   } catch (error) {
-    return { ok: false, text: `API 请求异常: ${error instanceof Error ? error.message : String(error)}` }
+    return { ok: false, text: error instanceof Error ? error.message : String(error) }
   }
 }

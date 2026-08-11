@@ -2,15 +2,17 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import {
+  AI_NOVEL_MENU,
   DASHBOARD_MENU,
   mainMenus as defaultsMenus,
   PROTECTED_MAIN_MENU_IDS,
 } from '../src/config/menus'
 import { microApps as defaultMicroApps } from '../src/config/microApps'
+import { NovelStore } from './novelStore'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 15
+const CURRENT_SCHEMA_VERSION = 16
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid' }
@@ -24,7 +26,7 @@ function removeProtectedMenus(menus: MenuItem[]): MenuItem[] {
 }
 
 export function normalizeProtectedMainMenus(menus: MenuItem[]): MenuItem[] {
-  return [clone(DASHBOARD_MENU), ...removeProtectedMenus(clone(menus))]
+  return [clone(DASHBOARD_MENU), clone(AI_NOVEL_MENU), ...removeProtectedMenus(clone(menus))]
 }
 
 function stableSerialize(value: unknown): string {
@@ -45,11 +47,13 @@ function assertProtectedMenus(menus: MenuItem[]) {
 export class PlatformDatabase {
   private readonly database: Database.Database
   private readonly filePath: string
+  readonly novels: NovelStore
 
   constructor(userDataPath: string) {
     mkdirSync(userDataPath, { recursive: true })
     this.filePath = join(userDataPath, 'mira.sqlite')
     this.database = new Database(this.filePath)
+    this.novels = new NovelStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
   }
@@ -60,6 +64,8 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS novel_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS novel_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
@@ -134,6 +140,15 @@ export class PlatformDatabase {
             )
           }
         }
+      }
+      if (version < 16) {
+        const snapshot = this.getSnapshot()
+        this.backup()
+        this.writeSnapshot({
+          ...snapshot,
+          mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus),
+          microApps: snapshot.microApps.filter(app => app.code !== 'ai-novel'),
+        })
       }
     }
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))

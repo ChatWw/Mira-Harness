@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build.mjs",
+    "test": "vitest run",
     "preview": "vite preview",
     "desktop:dev": "electron-vite dev",
     "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64",
@@ -34,7 +35,6 @@
     },
     "files": [
       "out/**/*",
-      "resources/novel-generator/**",
       "src/asset/mira-logo.png",
       "src/asset/mira.ico"
     ]
@@ -68,6 +68,7 @@
     "sass": "^1.101.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
+    "vitest": "^3.2.7",
     "vue-tsc": "^2.2.0"
   }
 }

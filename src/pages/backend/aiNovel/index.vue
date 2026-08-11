@@ -1,189 +1,107 @@
 <template>
   <SettingsPageShell title="AI 小说">
-    <p class="page-description">
-      配置内置「AI 小说创作」微应用的模型接入。gen 用于大纲、章节和正文生成，gen2 用于批量迭代与拆书；保存后立即生效。
-    </p>
-    <el-alert
-      v-if="!desktopAvailable"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="AI 小说仅在桌面端中可用。"
-      class="platform-alert"
-    />
+    <p class="page-description">为原生小说工作台配置 OpenAI 兼容模型。创作模型负责大纲、章节和正文；自动处理模型负责批量优化与拆书。</p>
+    <el-alert v-if="!desktopAvailable" type="warning" :closable="false" show-icon title="AI 小说完整功能仅在 Mira 桌面端中可用。" class="platform-alert" />
 
-    <section class="novel-section" aria-labelledby="entry-heading">
+    <section v-for="role in roles" :key="role.key" class="model-section" :aria-labelledby="`${role.key}-heading`">
       <div class="section-heading">
-        <h2 id="entry-heading">接入信息</h2>
-        <p>微应用由 Mira 本地服务提供，入口地址仅供查看。</p>
-      </div>
-      <div class="entry-row">
-        <span class="entry-row__label">本地入口</span>
-        <code class="entry-row__url">{{ entryUrl || (desktopAvailable ? '正在解析…' : '仅桌面端可用') }}</code>
-      </div>
-    </section>
-
-    <section
-      v-for="slot in slots"
-      :key="slot.key"
-      class="novel-section"
-      :aria-labelledby="`${slot.key}-heading`"
-    >
-      <div class="section-heading">
-        <h2 :id="`${slot.key}-heading`">{{ slot.title }}</h2>
-        <p>{{ slot.hint }}</p>
+        <div><h2 :id="`${role.key}-heading`">{{ role.title }}</h2><p>{{ role.description }}</p></div>
+        <el-button text :loading="testing === role.key" :disabled="!desktopAvailable" @click="testModel(role.key)">测试连接</el-button>
       </div>
       <el-form label-position="top" :disabled="!desktopAvailable">
-        <el-form-item label="API 地址（OpenAI 兼容）">
-          <el-input
-            v-model="form[slot.key].endpoint"
-            placeholder="https://api.deepseek.com/v1 或完整 chat/completions 地址"
-          />
-        </el-form-item>
-        <el-form-item label="API Key">
-          <el-input
-            v-model="form[slot.key].apiKey"
-            type="password"
-            show-password
-            autocomplete="off"
-            placeholder="sk-…"
-          />
-        </el-form-item>
-        <el-form-item label="模型名">
-          <el-input v-model="form[slot.key].model" placeholder="deepseek-chat" />
-        </el-form-item>
+        <el-form-item label="API 地址（OpenAI 兼容）"><el-input v-model="form[role.key].endpoint" placeholder="https://api.example.com/v1 或完整 chat/completions 地址" /></el-form-item>
+        <el-form-item label="API Key"><el-input v-model="form[role.key].apiKey" type="password" show-password autocomplete="off" placeholder="sk-…" /></el-form-item>
+        <el-form-item label="模型 ID"><el-input v-model="form[role.key].modelId" placeholder="例如 deepseek-chat" /></el-form-item>
       </el-form>
+      <div v-if="testResult[role.key]" class="test-result" :class="{ 'is-error': !testResult[role.key]?.ok }">
+        <strong>{{ testResult[role.key]?.ok ? '连接成功' : '连接失败' }}</strong><span>{{ testResult[role.key]?.text }}</span>
+      </div>
     </section>
 
-    <div class="action-bar">
-      <el-button type="primary" :loading="saving" :disabled="!desktopAvailable" @click="saveConfig">
-        保存配置
-      </el-button>
-      <el-button :loading="testing" :disabled="!desktopAvailable" @click="testConnection">
-        测试连接（gen）
-      </el-button>
-    </div>
-
-    <div v-if="testResult" class="test-result" :class="{ 'is-error': testResult.ok === false }">
-      <strong>{{ testResult.ok ? '连接成功' : '连接失败' }}</strong>
-      <pre>{{ testResult.text }}</pre>
-    </div>
+    <div class="action-bar"><el-button type="primary" :loading="saving" :disabled="!desktopAvailable" @click="saveProfiles">保存模型配置</el-button></div>
   </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { EMPTY_NOVEL_API_CONFIG, NOVEL_API_PREFERENCE_KEY, type NovelApiConfig } from '@/config/novelApi'
+import { EMPTY_NOVEL_MODEL_PROFILES, NOVEL_MODEL_PROFILES_PREFERENCE_KEY, type NovelModelProfiles, type NovelModelRole } from '@/config/novel'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi, savePreference } from '@/platform'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
-const desktopAvailable = Boolean(getPlatformApi())
 const api = getPlatformApi()
+const desktopAvailable = Boolean(api)
 const saving = ref(false)
-const testing = ref(false)
-const entryUrl = ref('')
-const testResult = ref<{ ok: boolean; text: string }>()
-
-const slots = [
-  { key: 'gen' as const, title: 'gen 接口', hint: '好模型，用于大纲、章节、正文的生成。' },
-  { key: 'gen2' as const, title: 'gen2 接口', hint: '低成本模型，用于 AI 批量自我迭代与拆书。' },
+const testing = ref<NovelModelRole>()
+const testResult = reactive<Partial<Record<NovelModelRole, { ok: boolean; text: string }>>>({})
+const roles = [
+  { key: 'authoring' as const, title: '创作模型', description: '用于总纲、章节、正文、书名简介和自由创作助手。' },
+  { key: 'automation' as const, title: '自动处理模型', description: '用于批量迭代优化、内容拆分等高频处理任务。' },
 ]
-
-const form = reactive<NovelApiConfig>({
-  gen: { ...EMPTY_NOVEL_API_CONFIG.gen },
-  gen2: { ...EMPTY_NOVEL_API_CONFIG.gen2 },
+const form = reactive<NovelModelProfiles>({
+  authoring: { ...EMPTY_NOVEL_MODEL_PROFILES.authoring },
+  automation: { ...EMPTY_NOVEL_MODEL_PROFILES.automation },
 })
 
-function loadFromPreferences() {
-  const stored = platformPreferences[NOVEL_API_PREFERENCE_KEY]
+function loadProfiles() {
+  const stored = platformPreferences[NOVEL_MODEL_PROFILES_PREFERENCE_KEY]
   if (!stored || typeof stored !== 'object') return
-  const raw = stored as Partial<NovelApiConfig>
-  for (const slot of slots) {
-    const value = raw[slot.key]
-    if (value && typeof value === 'object') {
-      form[slot.key].endpoint = typeof value.endpoint === 'string' ? value.endpoint : ''
-      form[slot.key].apiKey = typeof value.apiKey === 'string' ? value.apiKey : ''
-      form[slot.key].model = typeof value.model === 'string' ? value.model : ''
-    }
-  }
+  const profiles = stored as Partial<NovelModelProfiles>
+  roles.forEach(({ key }) => {
+    const source = profiles[key]
+    if (!source || typeof source !== 'object') return
+    form[key].endpoint = typeof source.endpoint === 'string' ? source.endpoint : ''
+    form[key].apiKey = typeof source.apiKey === 'string' ? source.apiKey : ''
+    form[key].modelId = typeof source.modelId === 'string' ? source.modelId : ''
+  })
 }
 
-async function saveConfig() {
+function snapshotProfiles(): NovelModelProfiles {
+  return { authoring: { ...form.authoring }, automation: { ...form.automation } }
+}
+
+async function saveProfiles() {
   saving.value = true
   try {
-    const payload = { gen: { ...form.gen }, gen2: { ...form.gen2 } }
+    const profiles = snapshotProfiles()
     if (api) {
-      await api.savePreference(NOVEL_API_PREFERENCE_KEY, payload)
-      platformPreferences[NOVEL_API_PREFERENCE_KEY] = payload
+      await api.savePreference(NOVEL_MODEL_PROFILES_PREFERENCE_KEY, profiles)
+      platformPreferences[NOVEL_MODEL_PROFILES_PREFERENCE_KEY] = profiles
     } else {
-      savePreference(NOVEL_API_PREFERENCE_KEY, payload)
+      savePreference(NOVEL_MODEL_PROFILES_PREFERENCE_KEY, profiles)
     }
-    ElMessage.success('AI 小说配置已保存')
+    ElMessage.success('模型配置已保存')
   } finally {
     saving.value = false
   }
 }
 
-async function testConnection() {
+async function testModel(role: NovelModelRole) {
   if (!api) return
-  testing.value = true
-  testResult.value = undefined
-  await saveConfig()
+  testing.value = role
+  testResult[role] = undefined
   try {
-    const result = await api.testNovelConnection('gen')
-    testResult.value = result
+    await saveProfiles()
+    testResult[role] = await api.testNovelModelConnection(role)
   } catch (error) {
-    testResult.value = { ok: false, text: error instanceof Error ? error.message : String(error) }
+    testResult[role] = { ok: false, text: error instanceof Error ? error.message : String(error) }
   } finally {
-    testing.value = false
+    testing.value = undefined
   }
 }
 
-onMounted(async () => {
-  loadFromPreferences()
-  if (!api) return
-  try {
-    entryUrl.value = await api.resolveLocalMicroAppUrl('micro-ai-novel')
-  } catch {
-    entryUrl.value = ''
-  }
-})
+onMounted(loadProfiles)
 </script>
 
 <style scoped lang="scss">
-.page-description { margin: 0 0 18px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
-.platform-alert { margin-bottom: 18px; }
-
-.novel-section { margin-bottom: 28px; }
-.section-heading { margin-bottom: 16px; }
-.section-heading h2 { margin: 0; color: var(--cp-text); font-size: 16px; font-weight: $font-semibold; }
-.section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
-
-.entry-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--cp-border-light);
-  border-radius: 8px;
-  background: var(--cp-bg-muted, rgba(127, 127, 127, 0.06));
-}
-.entry-row__label { color: var(--cp-text-secondary); font-size: $font-sm; white-space: nowrap; }
-.entry-row__url { color: var(--cp-text); font-size: $font-xs; word-break: break-all; }
-
-.action-bar { display: flex; gap: 12px; align-items: center; }
-
-.test-result {
-  margin-top: 18px;
-  padding: 12px 16px;
-  border: 1px solid var(--cp-border-light);
-  border-radius: 8px;
-  background: var(--cp-bg-muted, rgba(127, 127, 127, 0.06));
-}
-.test-result strong { display: block; margin-bottom: 6px; color: var(--cp-success, #67c23a); font-size: $font-sm; }
-.test-result.is-error strong { color: var(--cp-danger, #f56c6c); }
-.test-result pre { margin: 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.page-description { margin: 0 0 $spacing-xl; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.platform-alert { margin-bottom: $spacing-md; }
+.model-section { padding: 0 0 $spacing-xl; margin-bottom: $spacing-xl; border-bottom: 1px solid var(--cp-border-light); }
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: $spacing-md; margin-bottom: $spacing-md; }
+.section-heading h2 { margin: 0; color: var(--cp-text); font-size: $font-base; font-weight: $font-semibold; }
+.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.test-result { display: flex; gap: $spacing-sm; padding: $spacing-sm $spacing-md; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border: 1px solid var(--cp-border-light); border-radius: $radius-md; font-size: $font-sm; line-height: 1.55; }
+.test-result strong { color: var(--cp-success); white-space: nowrap; }.test-result.is-error strong { color: var(--cp-danger); }
+.action-bar { display: flex; justify-content: flex-end; }
 </style>

@@ -112,7 +112,17 @@ export interface PlatformApi {
   updateMicroApps(apps: MicroApp[]): Promise<PlatformSnapshot>
   selectMicroAppDirectory(): Promise<string | null>
   resolveLocalMicroAppUrl(appId: string): Promise<string>
-  testNovelConnection(slot: 'gen' | 'gen2', prompt?: string): Promise<{ ok: boolean; text: string }>
+  getNovelApiBaseUrl(): Promise<string>
+  testNovelModelConnection(role: import('@/config/novel').NovelModelRole, prompt?: string): Promise<{ ok: boolean; text: string }>
+  listNovelProjects(): Promise<import('@/config/novel').NovelProjectSummary[]>
+  getNovelProject(id: string): Promise<import('@/config/novel').NovelProjectDocument>
+  createNovelProject(title?: string): Promise<import('@/config/novel').NovelProjectDocument>
+  saveNovelProject(project: import('@/config/novel').NovelProjectDocument): Promise<import('@/config/novel').NovelProjectDocument>
+  deleteNovelProject(id: string): Promise<void>
+  exportNovelProject(id: string): Promise<string>
+  importNovelProject(raw: string): Promise<import('@/config/novel').NovelProjectDocument>
+  getNovelWorkspaceSettings(): Promise<import('@/config/novel').NovelWorkspaceSettings>
+  saveNovelWorkspaceSettings(settings: import('@/config/novel').NovelWorkspaceSettings): Promise<import('@/config/novel').NovelWorkspaceSettings>
   exportSnapshot(): Promise<string>
   importSnapshot(snapshot: string): Promise<PlatformSnapshot>
   restoreDefaults(): Promise<PlatformSnapshot>

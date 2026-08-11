@@ -3,6 +3,7 @@ import { microApps } from './microApps'
 
 export const BUILT_IN_PAGE_OPTIONS = [
   { value: 'dashboard', label: '概览' },
+  { value: 'aiNovel', label: 'AI 小说创作' },
 ] as const
 
 export const DASHBOARD_MENU: MenuItem = {
@@ -18,8 +19,25 @@ export const DASHBOARD_MENU: MenuItem = {
   status: 1,
 }
 
+export const AI_NOVEL_MENU: MenuItem = {
+  id: 'ai-novel',
+  title: 'AI 小说创作',
+  icon: 'lucide:book-open',
+  type: 'menu',
+  path: '/novel',
+  target: { type: 'component', componentKey: 'aiNovel' },
+  keepAlive: true,
+  appCode: null,
+  sort: 1,
+  status: 1,
+  visible: true,
+  description: '在 Mira 中完成设定、大纲、章节与正文创作',
+  showPageHeader: false,
+}
+
 export const PROTECTED_MAIN_MENU_IDS = [
   DASHBOARD_MENU.id,
+  AI_NOVEL_MENU.id,
 ]
 
 export const RESERVED_MENU_PATHS = new Map<string, string>(
@@ -34,6 +52,9 @@ export const RESERVED_MENU_PATHS = new Map<string, string>(
     ...[DASHBOARD_MENU]
       .filter((menu): menu is MenuItem & { path: string } => Boolean(menu.path))
       .map(menu => [menu.path, menu.id] as [string, string]),
+    ...[AI_NOVEL_MENU]
+      .filter((menu): menu is MenuItem & { path: string } => Boolean(menu.path))
+      .map(menu => [menu.path, menu.id] as [string, string]),
   ],
 )
 
@@ -42,13 +63,14 @@ export const RESERVED_MENU_PATH_PREFIXES = ['/settings']
 
 export const mainMenus: MenuItem[] = [
   DASHBOARD_MENU,
+  AI_NOVEL_MENU,
   {
     id: 'links',
     title: '示例',
     icon: 'Link',
     type: 'dir',
     appCode: null,
-    sort: 1,
+    sort: 2,
     status: 1,
     visible: true,
     path: '/links',

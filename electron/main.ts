@@ -2,8 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, ty
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
-import { createNovelApiHandler, testNovelConnection } from './novelApi'
-import { BUILT_IN_MICRO_APP_PACKAGES } from '../src/config/microApps'
+import { createNovelApiHandler, testNovelModelConnection } from './novelApi'
+import type { NovelModelRole, NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
 
 let database: PlatformDatabase
@@ -114,19 +114,10 @@ function createWindow() {
   else window.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
-function resolveBuiltinAppRoots() {
-  const roots: Record<string, string> = {}
-  for (const pkg of BUILT_IN_MICRO_APP_PACKAGES) {
-    roots[pkg] = join(__dirname, '../../resources', pkg)
-  }
-  return roots
-}
-
 app.whenReady().then(async () => {
   database = new PlatformDatabase(app.getPath('userData'))
   localMicroAppServer = new LocalMicroAppServer({
-    builtinRoots: resolveBuiltinAppRoots(),
-    apiHandlers: new Map([['micro-ai-novel', createNovelApiHandler(database)]]),
+    apiHandlers: new Map([['novel', createNovelApiHandler(database)]]),
   })
   const preferences = database.getSnapshot().preferences
   const preferredPort = typeof preferences.localMicroAppPort === 'number' ? preferences.localMicroAppPort : undefined
@@ -154,7 +145,17 @@ app.whenReady().then(async () => {
     return localMicroAppServer.validateDirectory(result.filePaths[0])
   })
   ipcMain.handle('platform:resolve-local-microapp-url', (_event, appId: string) => localMicroAppServer.getEntryUrl(appId))
-  ipcMain.handle('platform:test-novel-connection', (_event, slot: 'gen' | 'gen2', prompt?: string) => testNovelConnection(database, slot, prompt))
+  ipcMain.handle('platform:get-novel-api-base-url', () => localMicroAppServer.getApiBaseUrl('novel'))
+  ipcMain.handle('platform:test-novel-model-connection', (_event, role: NovelModelRole, prompt?: string) => testNovelModelConnection(database, role, prompt))
+  ipcMain.handle('platform:list-novel-projects', () => database.novels.listProjects())
+  ipcMain.handle('platform:get-novel-project', (_event, id: string) => database.novels.getProject(id))
+  ipcMain.handle('platform:create-novel-project', (_event, title?: string) => database.novels.createProject(title))
+  ipcMain.handle('platform:save-novel-project', (_event, project: NovelProjectDocument) => database.novels.saveProject(project))
+  ipcMain.handle('platform:delete-novel-project', (_event, id: string) => database.novels.deleteProject(id))
+  ipcMain.handle('platform:export-novel-project', (_event, id: string) => database.novels.exportProject(id))
+  ipcMain.handle('platform:import-novel-project', (_event, raw: string) => database.novels.importProject(raw))
+  ipcMain.handle('platform:get-novel-workspace-settings', () => database.novels.getSettings())
+  ipcMain.handle('platform:save-novel-workspace-settings', (_event, settings: NovelWorkspaceSettings) => database.novels.saveSettings(settings))
   ipcMain.handle('platform:export-snapshot', () => database.exportSnapshot())
   ipcMain.handle('platform:import-snapshot', (_event, snapshot: string) => {
     const next = database.importSnapshot(snapshot)

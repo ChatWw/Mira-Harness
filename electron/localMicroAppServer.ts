@@ -163,6 +163,11 @@ export class LocalMicroAppServer {
     return `http://127.0.0.1:${this._port}/apps/${encodeURIComponent(appId)}/`
   }
 
+  getApiBaseUrl(appId: string) {
+    if (!this._port) throw new Error('本地服务尚未启动')
+    return `http://127.0.0.1:${this._port}/apps/${encodeURIComponent(appId)}/`
+  }
+
   private handleRequest(request: IncomingMessage, response: ServerResponse) {
     let url: URL
     try { url = new URL(request.url || '/', 'http://127.0.0.1') } catch {
