@@ -13,6 +13,7 @@ import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 const CURRENT_SCHEMA_VERSION = 15
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['functional-components', 'system-management'])
+const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid' }
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
@@ -62,7 +63,7 @@ export class PlatformDatabase {
     `)
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
-      this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: {} })
+      this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
       this.database.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
     } else {
       const versionRow = this.database.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as { value?: string } | undefined
@@ -201,6 +202,6 @@ export class PlatformDatabase {
   exportSnapshot() { return JSON.stringify(this.getSnapshot(), null, 2) }
 
   restoreDefaults() {
-    return this.importSnapshot(JSON.stringify({ mainMenus: defaultsMenus, microApps: defaultMicroApps, preferences: {} }))
+    return this.importSnapshot(JSON.stringify({ mainMenus: defaultsMenus, microApps: defaultMicroApps, preferences: DEFAULT_PREFERENCES }))
   }
 }
