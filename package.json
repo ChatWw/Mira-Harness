@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "desktop:dev": "electron-vite dev",
     "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64",
-    "desktop:build:win": "electron-vite build && electron-builder --win nsis"
+    "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3 --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
   },
   "main": "out/main/main.js",
   "build": {
@@ -26,6 +26,13 @@
     "icon": "src/asset/mira.icns",
     "win": {
       "icon": "src/asset/mira.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerHeader": "build/installerHeader.bmp"
     },
     "asar": true,
     "mac": {
