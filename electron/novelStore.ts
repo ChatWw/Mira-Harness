@@ -101,14 +101,20 @@ export class NovelStore {
     if (!row?.value) return clone(DEFAULT_NOVEL_WORKSPACE_SETTINGS)
     try {
       const parsed = JSON.parse(row.value) as Partial<NovelWorkspaceSettings>
-      return { shortcuts: Array.isArray(parsed.shortcuts) ? parsed.shortcuts.filter(item => typeof item === 'string') : [] }
+      return {
+        shortcuts: Array.isArray(parsed.shortcuts) ? parsed.shortcuts.filter(item => typeof item === 'string') : [],
+        editorMode: parsed.editorMode === 'rich' ? 'rich' : 'markdown',
+      }
     } catch {
       return clone(DEFAULT_NOVEL_WORKSPACE_SETTINGS)
     }
   }
 
   saveSettings(settings: NovelWorkspaceSettings) {
-    const value = { shortcuts: settings.shortcuts.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean) }
+    const value: NovelWorkspaceSettings = {
+      shortcuts: settings.shortcuts.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean),
+      editorMode: settings.editorMode === 'rich' ? 'rich' : 'markdown',
+    }
     this.database.prepare('INSERT OR REPLACE INTO novel_settings(key, value) VALUES (?, ?)').run('workspace', JSON.stringify(value))
     return value
   }

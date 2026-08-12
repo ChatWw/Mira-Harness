@@ -6,26 +6,36 @@
       <aside class="project-sidebar">
         <div class="sidebar-heading"><span>我的作品</span><el-tooltip content="新建作品"><el-button circle text aria-label="新建作品" @click="createProject"><AppIcon name="Plus" /></el-button></el-tooltip></div>
         <div class="project-list">
-          <button v-for="item in projects" :key="item.id" type="button" class="project-item" :class="{ active: item.id === project.id }" @click="openProject(item.id)">
-            <AppIcon name="lucide:book-marked" /><span><strong>{{ item.title }}</strong><small>{{ formatUpdatedAt(item.updatedAt) }}</small></span>
-          </button>
+          <div v-for="item in projects" :key="item.id" class="project-item" :class="{ active: item.id === project.id }">
+            <button type="button" class="project-item__open" @click="openProject(item.id)"><AppIcon name="lucide:book-marked" /><span><strong>{{ item.title }}</strong><small>{{ formatUpdatedAt(item.updatedAt) }}</small></span></button>
+            <el-button circle text type="danger" aria-label="删除作品" @click="removeProject(item.id)"><AppIcon name="Delete" /></el-button>
+          </div>
         </div>
-        <div class="sidebar-heading chapters-heading"><span>创作结构</span><el-tooltip content="新增章节"><el-button circle text aria-label="新增章节" @click="addChapter"><AppIcon name="Plus" /></el-button></el-tooltip></div>
+        <div class="sidebar-heading chapters-heading"><span>创作结构</span></div>
         <nav class="chapter-list" aria-label="创作结构">
-          <button v-for="item in stages" :key="item.key" type="button" class="chapter-item" :class="{ active: activeStage === item.key }" @click="activeStage = item.key"><AppIcon :name="item.icon" /><span>{{ item.title }}</span></button>
+          <div v-for="item in stages" :key="item.key" class="chapter-item-row"><button type="button" class="chapter-item" :class="{ active: activeStage === item.key }" @click="activeStage = item.key"><AppIcon :name="item.icon" /><span>{{ item.title }}</span></button><el-tooltip v-if="item.key === 'chapter'" content="新增章节"><el-button circle text aria-label="新增章节" @click="addChapter"><AppIcon name="Plus" /></el-button></el-tooltip></div>
           <button v-for="chapter in project.chapters" :key="chapter.id" type="button" class="chapter-item" :class="{ active: activeChapterId === chapter.id && activeStage === 'chapter' }" @click="selectChapter(chapter.id)"><AppIcon name="Document" /><span>{{ chapter.title }}</span></button>
         </nav>
       </aside>
 
       <main class="editor-workspace">
         <header class="workspace-header">
-          <div><h1>{{ currentHeading }}</h1><p>{{ project.title }} · {{ currentStageLabel }}</p></div>
+          <div><h1>{{ project.title }}</h1><p>{{ currentStageLabel }}</p></div>
           <div class="workspace-actions"><span class="save-state" :class="{ saving }"><i></i>{{ saving ? '正在保存' : '已保存' }}</span><el-button text aria-label="打开工具" @click="openTool('knowledge')"><AppIcon name="Collection" />知识库</el-button><el-dropdown @command="handleExport"><el-button text><AppIcon name="Download" />导出</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="json">完整项目 JSON</el-dropdown-item><el-dropdown-item command="markdown">Markdown 创作稿</el-dropdown-item><el-dropdown-item command="text">TXT 创作稿</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div>
         </header>
+        <div v-if="activeStage === 'setup'" class="editor-mode-toolbar">
+          <span>编辑器</span>
+          <el-tooltip content="切换编辑器可能丢失复杂样式，内容会自动转换。" placement="top">
+            <el-button-group size="small">
+              <el-button :type="workspaceSettings.editorMode === 'markdown' ? 'primary' : undefined" aria-label="Markdown 编辑器" @click="setEditorMode('markdown')"><AppIcon name="tabler:markdown" /></el-button>
+              <el-button :type="workspaceSettings.editorMode === 'rich' ? 'primary' : undefined" aria-label="富文本编辑器" @click="setEditorMode('rich')"><AppIcon name="material-symbols:edit-document-outline" /></el-button>
+            </el-button-group>
+          </el-tooltip>
+        </div>
         <div class="stage-tabs" role="tablist"><button v-for="item in stages" :key="item.key" type="button" :class="{ active: activeStage === item.key }" @click="activeStage = item.key">{{ item.title }}</button></div>
 
-        <section v-if="activeStage === 'setup'" class="stage-content setup-grid">
-          <label v-for="field in setupFields" :key="field.key"><span>{{ field.label }}</span><el-input v-model="project.story[field.key]" type="textarea" :autosize="{ minRows: 5, maxRows: 9 }" :placeholder="field.placeholder" /></label>
+        <section v-if="activeStage === 'setup'" class="stage-content setup-editors">
+          <NovelSetupEditor v-for="field in setupFields" :key="field.key" v-model="project.story[field.key]" :label="field.label" :placeholder="field.placeholder" :editor-mode="workspaceSettings.editorMode" />
         </section>
 
         <section v-else-if="activeStage === 'outline'" class="stage-content">
@@ -36,7 +46,7 @@
 
         <section v-else-if="activeStage === 'chapter'" class="stage-content">
           <template v-if="selectedChapter">
-            <div class="chapter-title-row"><el-input v-model="selectedChapter.title" aria-label="章节标题" /><div><el-tooltip content="上移章节"><el-button circle text aria-label="上移章节" :disabled="chapterIndex === 0" @click="moveChapter(-1)"><AppIcon name="ArrowUp" /></el-button></el-tooltip><el-tooltip content="下移章节"><el-button circle text aria-label="下移章节" :disabled="chapterIndex === project.chapters.length - 1" @click="moveChapter(1)"><AppIcon name="ArrowDown" /></el-button></el-tooltip><el-tooltip content="删除章节"><el-button circle text type="danger" aria-label="删除章节" @click="removeChapter"><AppIcon name="Delete" /></el-button></el-tooltip></div></div>
+            <div class="chapter-title-row"><div class="chapter-title-control" :class="{ 'is-generating': generatingChapterTitle }"><el-input v-model="selectedChapter.title" aria-label="章节标题" :disabled="generatingChapterTitle" /><el-tooltip content="使用 AI 生成章节名称"><el-button circle text type="primary" aria-label="使用 AI 生成章节名称" :disabled="generatingChapterTitle" @click="generateChapterTitle"><AppIcon name="material-symbols:wand-stars-outline" /></el-button></el-tooltip></div><div><el-tooltip content="上移章节"><el-button circle text aria-label="上移章节" :disabled="chapterIndex === 0" @click="moveChapter(-1)"><AppIcon name="ArrowUp" /></el-button></el-tooltip><el-tooltip content="下移章节"><el-button circle text aria-label="下移章节" :disabled="chapterIndex === project.chapters.length - 1" @click="moveChapter(1)"><AppIcon name="ArrowDown" /></el-button></el-tooltip><el-tooltip content="删除章节"><el-button circle text type="danger" aria-label="删除章节" @click="removeChapter"><AppIcon name="Delete" /></el-button></el-tooltip></div></div>
             <div class="editor-label"><strong>章节细纲</strong><span>{{ countWords(selectedChapter.outline) }} 字</span></div>
             <textarea v-model="selectedChapter.outline" class="writing-editor chapter-outline" placeholder="描述本章的核心事件、人物动机、冲突、伏笔与结尾钩子。" @contextmenu="openContextMenu($event, 'chapter')"></textarea>
             <div class="editor-footer"><span>章节细纲会作为正文生成上下文</span><div><el-button @click="runChapterOutline">生成细纲</el-button><el-button type="primary" @click="activeStage = 'content'">开始写正文</el-button></div></div>
@@ -94,6 +104,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer/index.vue'
+import NovelSetupEditor from './components/NovelSetupEditor.vue'
 import { DEFAULT_NOVEL_PROMPTS, DEFAULT_NOVEL_WORKSPACE_SETTINGS, type NovelChapter, type NovelModelRole, type NovelProjectDocument, type NovelProjectSummary, type NovelWorkspaceSettings } from '@/config/novel'
 import { getPlatformApi } from '@/platform'
 
@@ -119,6 +130,7 @@ const activeTool = ref<Tool>('knowledge')
 const apiBaseUrl = ref('')
 const splitterResult = ref('')
 const optimizerResult = ref('')
+const generatingChapterTitle = ref(false)
 const workspaceSettings = reactive<NovelWorkspaceSettings>({ ...DEFAULT_NOVEL_WORKSPACE_SETTINGS })
 const projectImport = ref<HTMLInputElement>()
 const promptImport = ref<HTMLInputElement>()
@@ -148,12 +160,19 @@ const quickActions = [
 const selectedChapter = computed(() => project.value?.chapters.find(item => item.id === activeChapterId.value))
 const chapterIndex = computed(() => project.value?.chapters.findIndex(item => item.id === activeChapterId.value) ?? -1)
 const currentStageLabel = computed(() => activeStage.value === 'content' ? '正文' : stages.find(item => item.key === activeStage.value)?.title || '')
-const currentHeading = computed(() => activeStage.value === 'chapter' || activeStage.value === 'content' ? selectedChapter.value?.title || '新建章节' : stages.find(item => item.key === activeStage.value)?.title || '')
 const toolTitle = computed(() => ({ knowledge: '知识库', prompts: '提示词模板', mindMap: '思维导图', ideas: '书名与简介', splitter: '拆书', optimizer: '批量优化', shortcuts: '快捷词条' })[activeTool.value])
 
 function newId() { return crypto.randomUUID() }
 function countWords(value: string) { return value.trim().length }
 function formatUpdatedAt(time: number) { const minutes = Math.max(0, Math.round((Date.now() - time) / 60_000)); return minutes < 1 ? '刚刚保存' : minutes < 60 ? `${minutes} 分钟前` : new Date(time).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) }
+function formatChapterLabel(index: number) {
+  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+  const number = Math.max(1, index)
+  if (number < 10) return `第${digits[number]}章`
+  if (number < 20) return `第十${number === 10 ? '' : digits[number % 10]}章`
+  if (number < 100) return `第${digits[Math.floor(number / 10)]}十${number % 10 ? digits[number % 10] : ''}章`
+  return `第${number}章`
+}
 
 async function bootstrap() {
   if (!api) return
@@ -161,6 +180,7 @@ async function bootstrap() {
     ;[projects.value, apiBaseUrl.value] = await Promise.all([api.listNovelProjects(), api.getNovelApiBaseUrl()])
     const settings = await api.getNovelWorkspaceSettings()
     workspaceSettings.shortcuts.splice(0, workspaceSettings.shortcuts.length, ...settings.shortcuts)
+    workspaceSettings.editorMode = settings.editorMode === 'rich' ? 'rich' : 'markdown'
     if (!projects.value.length) await createProject()
     else await openProject(projects.value[0].id)
   } catch (error) {
@@ -176,6 +196,21 @@ async function openProject(id: string) {
 async function createProject() {
   if (!api) return
   try { project.value = await api.createNovelProject(); await refreshProjects(); activeChapterId.value = ''; activeStage.value = 'setup'; ElMessage.success('已新建作品') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '新建作品失败') }
+}
+async function removeProject(id: string) {
+  if (!api) return
+  const item = projects.value.find(projectItem => projectItem.id === id)
+  try { await ElMessageBox.confirm(`确定删除“${item?.title || '此作品'}”吗？删除后无法恢复。`, '删除作品', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }) } catch { return }
+  try {
+    await api.deleteNovelProject(id)
+    await refreshProjects()
+    if (project.value?.id === id) {
+      const next = projects.value[0]
+      if (next) await openProject(next.id)
+      else { project.value = undefined; activeChapterId.value = ''; activeStage.value = 'setup' }
+    }
+    ElMessage.success('作品已删除')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '删除作品失败') }
 }
 function selectChapter(id: string) { activeChapterId.value = id; activeStage.value = 'chapter' }
 function addChapter() {
@@ -216,6 +251,24 @@ async function stream(role: NovelModelRole, prompt: string, title: string) {
   } finally { generating.value = false }
 }
 async function runOutline() { if (!project.value) return; const prompt = project.value.prompts.find(item => item.id === 'outline')?.content || DEFAULT_NOVEL_PROMPTS[0].content; const output = await stream('authoring', `${prompt}\n\n${buildContext()}\n\n只返回可直接使用的故事总纲。`, '故事总纲'); if (output) project.value.outline = output }
+async function generateChapterTitle() {
+  const chapter = selectedChapter.value
+  if (!chapter || generatingChapterTitle.value) return
+  const chapterId = chapter.id
+  const chapterLabel = formatChapterLabel(chapterIndex.value + 1)
+  const currentTitle = chapter.title.trim() || chapterLabel
+  generatingChapterTitle.value = true
+  try {
+    const output = await stream('authoring', `基于以下小说上下文，为当前章节生成一个简洁、有吸引力的中文副标题。章节序号由系统固定为“${chapterLabel}”，当前输入框标题是“${currentTitle}”。只返回副标题，例如“废柴替身？这个局我接了”；绝对不要返回章节序号、编号、“第几章”、解释、引号、Markdown 或“章节名称：”前缀。\n\n${buildContext()}\n\n当前章节细纲：${chapter.outline || '尚未编写'}`, '生成章节名称')
+    const subtitle = output.replace(/^(?:章节名称|标题)\s*[：:]\s*/, '').replace(/^#+\s*/, '').replace(/^(?:第[一二三四五六七八九十百千0-9]+章)\s*[：:：、.\-\s]*/, '').replace(/[“”"']/g, '').split('\n')[0]?.trim()
+    const target = project.value?.chapters.find(item => item.id === chapterId)
+    if (subtitle && target) target.title = `${chapterLabel} ${subtitle}`
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '章节名称生成失败')
+  } finally {
+    generatingChapterTitle.value = false
+  }
+}
 async function runChapterOutline() { const chapter = selectedChapter.value; const currentProject = project.value; if (!chapter || !currentProject) return; const prompt = currentProject.prompts.find(item => item.id === 'chapter')?.content || DEFAULT_NOVEL_PROMPTS[1].content; const output = await stream('authoring', `${prompt}\n\n${buildContext()}\n\n当前章节标题：${chapter.title}\n只返回章节细纲。`, '章节细纲'); if (output && selectedChapter.value?.id === chapter.id) selectedChapter.value.outline = output }
 async function runContent(continueWriting = false) { if (!selectedChapter.value) return; const prompt = project.value?.prompts.find(item => item.id === 'content')?.content || DEFAULT_NOVEL_PROMPTS[2].content; const output = await stream('authoring', `${prompt}\n\n${buildContext()}\n\n当前正文：${selectedChapter.value.content}\n${continueWriting ? '从正文结尾继续创作，只返回新增内容。' : '生成本章正文，只返回正文内容。'}`, continueWriting ? '继续创作' : '生成正文'); if (output) selectedChapter.value.content = continueWriting && selectedChapter.value.content ? `${selectedChapter.value.content}\n\n${output}` : output }
 async function runQuickAction(key: string) {
@@ -246,7 +299,18 @@ async function splitBook() { if (!project.value?.splitterSource.trim()) { ElMess
 function applySplitResult() { if (!project.value || !splitterResult.value) return; const sections = splitterResult.value.split(/^##\s+/m).filter(Boolean); sections.forEach((section, index) => { const [title, ...outline] = section.split('\n'); project.value?.chapters.push({ id: newId(), title: title.trim() || `第${project.value!.chapters.length + index + 1}章`, outline: outline.join('\n').trim(), content: '' }) }); const chapters = project.value.chapters; activeChapterId.value = chapters.length ? chapters[chapters.length - 1].id : ''; toolVisible.value = false; activeStage.value = 'chapter'; ElMessage.success('已导入拆分章节') }
 async function optimizeContent() { if (!selectedChapter.value) return; optimizerResult.value = await stream('automation', `按${project.value?.optimizer.mode === 'sentence' ? '句子' : '段落'}优化以下小说正文，保持事实、视角和剧情推进。只返回优化后的正文。\n\n${selectedChapter.value.content}`, '批量优化') }
 function applyOptimizedContent() { if (!selectedChapter.value || !optimizerResult.value) return; selectedChapter.value.content = optimizerResult.value; toolVisible.value = false; ElMessage.success('已应用优化结果') }
-async function saveWorkspaceSettings() { if (!api) return; const result = await api.saveNovelWorkspaceSettings({ shortcuts: [...workspaceSettings.shortcuts] }); workspaceSettings.shortcuts.splice(0, workspaceSettings.shortcuts.length, ...result.shortcuts); ElMessage.success('快捷词条已保存') }
+async function saveWorkspaceSettings(showMessage = true) {
+  if (!api) return
+  const result = await api.saveNovelWorkspaceSettings({ shortcuts: [...workspaceSettings.shortcuts], editorMode: workspaceSettings.editorMode })
+  workspaceSettings.shortcuts.splice(0, workspaceSettings.shortcuts.length, ...result.shortcuts)
+  workspaceSettings.editorMode = result.editorMode
+  if (showMessage) ElMessage.success('工作区设置已保存')
+}
+function setEditorMode(mode: 'markdown' | 'rich') {
+  if (workspaceSettings.editorMode === mode) return
+  workspaceSettings.editorMode = mode
+  void saveWorkspaceSettings(false)
+}
 function download(text: string, filename: string, type = 'text/plain;charset=utf-8') { const url = URL.createObjectURL(new Blob([text], { type })); const link = Object.assign(document.createElement('a'), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url) }
 function toManuscript() { if (!project.value) return ''; return `# ${project.value.title}\n\n${project.value.outline ? `## 故事总纲\n${project.value.outline}\n\n` : ''}${project.value.chapters.map(chapter => `## ${chapter.title}\n\n${chapter.content || chapter.outline}`).join('\n\n')}` }
 async function handleExport(command: string) { if (!project.value || !api) return; if (command === 'json') download(await api.exportNovelProject(project.value.id), `${project.value.title}.json`, 'application/json'); else download(toManuscript(), `${project.value.title}.${command === 'markdown' ? 'md' : 'txt'}`) }
@@ -267,13 +331,13 @@ onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.removeEventListen
 .project-sidebar, .ai-panel { min-width: 0; padding: $spacing-md $spacing-sm; background: var(--cp-bg-elevated); }.project-sidebar { border-right: 1px solid var(--cp-border); }.ai-panel { border-left: 1px solid var(--cp-border); }
 .sidebar-heading, .ai-panel__header, .workspace-header, .editor-footer, .editor-label, .chapter-title-row, .tool-entry__heading, .tool-toolbar { display: flex; align-items: center; justify-content: space-between; gap: $spacing-sm; }
 .sidebar-heading { padding: 0 $spacing-sm $spacing-sm; color: var(--cp-text-secondary); font-size: $font-xs; }.sidebar-heading :deep(.el-button) { margin: -4px; }.chapters-heading { margin-top: $spacing-lg; }
-.project-list, .chapter-list { display: flex; flex-direction: column; gap: 2px; }.project-item, .chapter-item { display: flex; width: 100%; align-items: center; gap: $spacing-sm; padding: 8px; color: var(--cp-text-secondary); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: $radius-sm; }.project-item:hover, .chapter-item:hover { background: var(--cp-bg-hover); }.project-item.active, .chapter-item.active { color: var(--cp-text); background: var(--cp-bg); box-shadow: $shadow-sm; }.project-item > span { min-width: 0; }.project-item strong, .project-item small, .chapter-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-item strong { font-size: $font-sm; font-weight: $font-medium; }.project-item small { margin-top: 2px; color: var(--cp-text-tertiary); font-size: 11px; }.chapter-item { font-size: $font-sm; }.chapter-item .app-icon { color: var(--cp-text-tertiary); }
+.project-list, .chapter-list { display: flex; flex-direction: column; gap: 2px; }.project-item, .chapter-item { display: flex; width: 100%; align-items: center; gap: $spacing-sm; padding: 8px; color: var(--cp-text-secondary); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: $radius-sm; }.project-item:hover, .chapter-item:hover { background: var(--cp-bg-hover); }.project-item.active, .chapter-item.active { color: var(--cp-text); background: var(--cp-bg); box-shadow: $shadow-sm; }.project-item__open { display: flex; flex: 1; min-width: 0; align-items: center; gap: $spacing-sm; padding: 0; color: inherit; text-align: left; cursor: pointer; background: transparent; border: 0; font: inherit; }.project-item__open > span { min-width: 0; }.project-item :deep(.el-button) { flex: 0 0 auto; opacity: .45; }.project-item:hover :deep(.el-button), .project-item:focus-within :deep(.el-button) { opacity: 1; }.project-item strong, .project-item small, .chapter-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-item strong { font-size: $font-sm; font-weight: $font-medium; }.project-item small { margin-top: 2px; color: var(--cp-text-tertiary); font-size: 11px; }.chapter-item-row { display: flex; align-items: center; min-width: 0; }.chapter-item-row .chapter-item { flex: 1; min-width: 0; }.chapter-item-row :deep(.el-button) { flex: 0 0 auto; margin-right: 2px; opacity: .45; }.chapter-item-row:hover :deep(.el-button), .chapter-item-row:focus-within :deep(.el-button) { opacity: 1; }.chapter-item { font-size: $font-sm; }.chapter-item .app-icon { color: var(--cp-text-tertiary); }
 .editor-workspace { min-width: 0; padding: 24px 28px 20px; overflow: auto; }.workspace-header { align-items: flex-start; }.workspace-header h1 { margin: 0; color: var(--cp-text); font-size: 20px; font-weight: $font-semibold; }.workspace-header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; }.workspace-actions { display: flex; align-items: center; gap: 2px; }.workspace-actions :deep(.el-button) { padding: 4px 6px; color: var(--cp-text-secondary); }.save-state { display: inline-flex; align-items: center; gap: 5px; margin-right: $spacing-xs; color: var(--cp-text-tertiary); font-size: $font-xs; white-space: nowrap; }.save-state i { width: 6px; height: 6px; background: var(--cp-success); border-radius: 50%; }.save-state.saving i { background: var(--cp-warning); }
 .stage-tabs { display: flex; gap: $spacing-lg; margin: 24px 0 20px; border-bottom: 1px solid var(--cp-border); }.stage-tabs button { position: relative; padding: 0 2px 10px; color: var(--cp-text-secondary); cursor: pointer; background: transparent; border: 0; font: inherit; font-size: $font-sm; }.stage-tabs button.active { color: var(--cp-text); font-weight: $font-medium; }.stage-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; content: ''; background: var(--cp-primary); }
-.stage-content { min-height: 0; }.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-lg; }.setup-grid label { display: flex; flex-direction: column; gap: $spacing-sm; color: var(--cp-text); font-size: $font-sm; font-weight: $font-medium; }.editor-label { margin-bottom: $spacing-sm; }.editor-label strong { color: var(--cp-text); font-size: $font-sm; }.editor-label span, .editor-footer > span { color: var(--cp-text-tertiary); font-size: $font-xs; }.writing-editor { display: block; width: 100%; min-height: 390px; padding: $spacing-md; color: var(--cp-text); resize: vertical; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: $radius-md; outline: 0; font: inherit; font-size: $font-sm; line-height: 1.8; }.writing-editor:focus { border-color: var(--cp-primary); box-shadow: 0 0 0 3px var(--cp-primary-lighter); }.chapter-outline { min-height: 260px; }.content-editor { min-height: 480px; }.editor-footer { margin-top: $spacing-sm; }.editor-footer > div { display: flex; gap: $spacing-sm; }.chapter-title-row { margin-bottom: $spacing-lg; }.chapter-title-row :deep(.el-input) { max-width: 360px; }.chapter-title-row > div { display: flex; }
+.stage-content { min-height: 0; }.editor-mode-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: $spacing-sm; margin-top: $spacing-md; color: var(--cp-text-secondary); font-size: $font-xs; }.setup-editors { display: flex; flex-direction: column; gap: $spacing-lg; }.editor-label { margin-bottom: $spacing-sm; }.editor-label strong { color: var(--cp-text); font-size: $font-sm; }.editor-label span, .editor-footer > span { color: var(--cp-text-tertiary); font-size: $font-xs; }.writing-editor { display: block; width: 100%; min-height: 390px; padding: $spacing-md; color: var(--cp-text); resize: vertical; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: $radius-md; outline: 0; font: inherit; font-size: $font-sm; line-height: 1.8; }.writing-editor:focus { border-color: var(--cp-primary); box-shadow: 0 0 0 3px var(--cp-primary-lighter); }.chapter-outline { min-height: 260px; }.content-editor { min-height: 480px; }.editor-footer { margin-top: $spacing-sm; }.editor-footer > div { display: flex; gap: $spacing-sm; }.chapter-title-row { margin-bottom: $spacing-lg; }.chapter-title-control { display: flex; align-items: center; gap: $spacing-xs; min-width: 0; }.chapter-title-control :deep(.el-input) { width: min(360px, 50vw); }.chapter-title-control.is-generating :deep(.el-input__wrapper) { overflow: hidden; background: var(--cp-bg) !important; }.chapter-title-control.is-generating :deep(.el-input__wrapper)::after { position: absolute; top: 0; bottom: 0; width: 42%; content: ''; pointer-events: none; background: linear-gradient(90deg, transparent, var(--cp-primary-lighter), transparent); animation: chapter-title-shimmer 1.35s ease-in-out infinite; }.chapter-title-control.is-generating :deep(.el-input__inner) { color: var(--cp-text-tertiary); }.chapter-title-row > div:last-child { display: flex; } @keyframes chapter-title-shimmer { from { transform: translateX(-160%); } to { transform: translateX(340%); } } @media (prefers-reduced-motion: reduce) { .chapter-title-control.is-generating :deep(.el-input__wrapper)::after { animation: none; opacity: .55; transform: translateX(70%); } }
 .ai-panel { display: flex; flex-direction: column; gap: $spacing-md; overflow: auto; }.ai-panel__header strong { color: var(--cp-text); font-size: $font-sm; font-weight: $font-semibold; }.ai-panel__header :deep(.el-select) { width: 112px; }.ai-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.ai-actions button, .tool-links button { display: flex; align-items: center; gap: 7px; color: var(--cp-text-secondary); cursor: pointer; background: var(--cp-bg); border: 1px solid var(--cp-border); border-radius: $radius-sm; font: inherit; font-size: $font-xs; }.ai-actions button { min-height: 36px; padding: 0 8px; text-align: left; }.ai-actions button:hover, .tool-links button:hover { color: var(--cp-text); border-color: var(--cp-text-tertiary); }.assistant-output { flex: 1; min-height: 150px; padding: $spacing-sm $spacing-md; color: var(--cp-text-secondary); background: var(--cp-bg); border: 1px solid var(--cp-border); border-radius: $radius-md; font-size: $font-sm; line-height: 1.7; white-space: pre-wrap; }.assistant-output.empty { display: flex; align-items: center; color: var(--cp-text-tertiary); }.assistant-output__title { margin-bottom: $spacing-sm; color: var(--cp-text); font-size: $font-xs; font-weight: $font-medium; }.assistant-output p { margin: 0; }.assistant-output__actions { display: flex; justify-content: flex-end; margin-top: $spacing-sm; }.assistant-composer { display: flex; align-items: flex-end; gap: $spacing-xs; padding: $spacing-xs; background: var(--cp-bg); border: 1px solid var(--cp-border); border-radius: $radius-md; }.assistant-composer textarea { flex: 1; min-height: 46px; color: var(--cp-text); resize: none; background: transparent; border: 0; outline: 0; font: inherit; font-size: $font-sm; line-height: 1.5; }.tool-links { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }.tool-links button { padding: 7px; border-color: transparent; background: transparent; }
 .context-menu { position: fixed; z-index: $z-popover; display: flex; flex-direction: column; min-width: 150px; padding: $spacing-xs; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border); border-radius: $radius-md; box-shadow: $shadow-md; }.context-menu button { padding: 7px 8px; color: var(--cp-text); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: $radius-sm; font: inherit; font-size: $font-xs; }.context-menu button:hover { background: var(--cp-bg-hover); }
 .tool-pane { display: flex; flex-direction: column; gap: $spacing-md; }.tool-description { margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.65; }.tool-entry, .idea-entry { display: flex; flex-direction: column; gap: $spacing-sm; padding: $spacing-md 0; border-bottom: 1px solid var(--cp-border-light); }.tool-entry__heading :deep(.el-input) { flex: 1; }.tool-entry :deep(.el-select) { width: 130px; }.mind-nodes { display: flex; flex-direction: column; gap: $spacing-sm; }.mind-node, .shortcut-row { display: flex; align-items: center; gap: $spacing-sm; }.mind-node :deep(.el-input), .shortcut-row :deep(.el-input) { flex: 1; }.idea-entry strong { color: var(--cp-text); font-size: $font-base; }.idea-entry p { margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.7; white-space: pre-wrap; }.file-input { display: none; }
 @include media-max($breakpoint-lg) { .novel-workspace { grid-template-columns: 190px minmax(0, 1fr); }.ai-panel { grid-column: 1 / -1; display: grid; grid-template-columns: 190px 1fr 1fr; align-items: start; border-top: 1px solid var(--cp-border); border-left: 0; }.ai-panel__header { display: flex; flex-direction: column; align-items: flex-start; gap: $spacing-sm; }.assistant-output { min-height: 110px; }.assistant-composer, .tool-links { grid-column: span 1; } }
-@include media-max($breakpoint-md) { .novel-workspace { display: block; min-height: 0; }.project-sidebar { border-right: 0; border-bottom: 1px solid var(--cp-border); }.project-list { flex-direction: row; overflow: auto; }.project-item { flex: 0 0 190px; }.chapters-heading, .chapter-list { display: none; }.editor-workspace { padding: $spacing-md; }.workspace-header, .editor-footer { align-items: flex-start; flex-direction: column; }.workspace-actions { flex-wrap: wrap; }.setup-grid { grid-template-columns: 1fr; }.ai-panel { display: flex; }.assistant-output { min-height: 150px; } }
+@include media-max($breakpoint-md) { .novel-workspace { display: block; min-height: 0; }.project-sidebar { border-right: 0; border-bottom: 1px solid var(--cp-border); }.project-list { flex-direction: row; overflow: auto; }.project-item { flex: 0 0 190px; }.chapters-heading, .chapter-list { display: none; }.editor-workspace { padding: $spacing-md; }.workspace-header, .editor-footer { align-items: flex-start; flex-direction: column; }.workspace-actions { flex-wrap: wrap; }.ai-panel { display: flex; }.assistant-output { min-height: 150px; } }
 </style>

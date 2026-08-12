@@ -91,6 +91,7 @@ export interface NovelProjectSummary {
 
 export interface NovelWorkspaceSettings {
   shortcuts: string[]
+  editorMode: 'markdown' | 'rich'
 }
 
 export const NOVEL_MODEL_PROFILES_PREFERENCE_KEY = 'novelModelProfiles'
@@ -108,6 +109,7 @@ export const EMPTY_NOVEL_MODEL_PROFILES: NovelModelProfiles = {
 
 export const DEFAULT_NOVEL_WORKSPACE_SETTINGS: NovelWorkspaceSettings = {
   shortcuts: [],
+  editorMode: 'markdown',
 }
 
 export const DEFAULT_NOVEL_PROMPTS: NovelPromptTemplate[] = [

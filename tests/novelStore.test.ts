@@ -40,10 +40,26 @@ describe('NovelStore', () => {
     database.close()
   })
 
+  it('deletes only the requested project', () => {
+    const { database, store } = createStore()
+    const retained = store.createProject('保留作品')
+    const removed = store.createProject('删除作品')
+
+    store.deleteProject(removed.id)
+
+    expect(store.listProjects().map(project => project.id)).toEqual([retained.id])
+    expect(() => store.getProject(removed.id)).toThrow('未找到该小说项目')
+    database.close()
+  })
+
   it('filters empty shortcut values before storing workspace settings', () => {
     const { database, store } = createStore()
-    expect(store.saveSettings({ shortcuts: ['  灵力 ', '', '   '] })).toEqual({ shortcuts: ['灵力'] })
-    expect(store.getSettings()).toEqual({ shortcuts: ['灵力'] })
+    expect(store.saveSettings({ shortcuts: ['  灵力 ', '', '   '], editorMode: 'rich' })).toEqual({ shortcuts: ['灵力'], editorMode: 'rich' })
+    expect(store.getSettings()).toEqual({ shortcuts: ['灵力'], editorMode: 'rich' })
+    database.prepare('INSERT OR REPLACE INTO novel_settings(key, value) VALUES (?, ?)').run('workspace', JSON.stringify({ shortcuts: [] }))
+    expect(store.getSettings()).toEqual({ shortcuts: [], editorMode: 'markdown' })
+    database.prepare('INSERT OR REPLACE INTO novel_settings(key, value) VALUES (?, ?)').run('workspace', JSON.stringify({ shortcuts: [], editorMode: 'invalid' }))
+    expect(store.getSettings()).toEqual({ shortcuts: [], editorMode: 'markdown' })
     database.close()
   })
 })
