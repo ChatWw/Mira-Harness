@@ -78,7 +78,16 @@
     <input ref="projectImport" class="file-input" type="file" accept="application/json,.json" @change="importProject" />
     </template>
   </PageContainer>
-  <PageContainer v-else class="novel-page"><el-result icon="warning" title="AI 小说仅在桌面端中可用" sub-title="作品保存在 Mira 本机项目库中，模型请求也由桌面端安全代理。" /></PageContainer>
+  <PageContainer v-else class="novel-page" fill-content :show-header="false">
+    <section class="desktop-only-state" aria-labelledby="desktop-only-title">
+      <div class="desktop-only-state__content">
+        <span class="desktop-only-state__icon" aria-hidden="true"><AppIcon name="Monitor" :size="28" /></span>
+        <h1 id="desktop-only-title">请在 Mira 桌面端继续创作</h1>
+        <p>AI 小说需要在 Mira 桌面端访问本机作品库和创作模型。</p>
+        <p class="desktop-only-state__hint">打开桌面端后，你可以继续编辑、保存和生成作品内容。</p>
+      </div>
+    </section>
+  </PageContainer>
 </template>
 
 <script setup lang="ts">
@@ -253,6 +262,7 @@ onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.removeEventListen
 <style scoped lang="scss">
 .novel-page { flex: 1; min-height: 0; :deep(.page-container), :deep(.page-content) { height: 100%; min-height: 0; padding: 0; } }
 .novel-loading { padding: $spacing-xl; }
+.desktop-only-state { display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; padding: $spacing-3xl $spacing-lg; text-align: center; }.desktop-only-state__content { max-width: 440px; }.desktop-only-state__icon { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin-bottom: $spacing-lg; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: $radius-lg; }.desktop-only-state h1 { margin: 0; color: var(--cp-text); font-size: $font-xl; font-weight: $font-semibold; line-height: $line-height-tight; }.desktop-only-state p { margin: $spacing-sm 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: $line-height-relaxed; }.desktop-only-state__hint { color: var(--cp-text-tertiary) !important; }
 .novel-workspace { position: relative; display: grid; grid-template-columns: 224px minmax(0, 1fr) 280px; height: 100%; min-height: 640px; background: var(--cp-bg); }
 .project-sidebar, .ai-panel { min-width: 0; padding: $spacing-md $spacing-sm; background: var(--cp-bg-elevated); }.project-sidebar { border-right: 1px solid var(--cp-border); }.ai-panel { border-left: 1px solid var(--cp-border); }
 .sidebar-heading, .ai-panel__header, .workspace-header, .editor-footer, .editor-label, .chapter-title-row, .tool-entry__heading, .tool-toolbar { display: flex; align-items: center; justify-content: space-between; gap: $spacing-sm; }
