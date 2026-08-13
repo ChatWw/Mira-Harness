@@ -108,7 +108,7 @@ onBeforeUnmount(() => { destroyEditor(wangEditor.value) })
 }
 .text-editor :deep(.w-e-toolbar) { border: 0 !important; border-bottom: 1px solid var(--cp-border-light) !important; background: var(--cp-bg-elevated) !important; }
 .text-editor__content { display: block; height: 260px; }
-.text-editor :deep(.w-e-text-container) { min-height: 260px; background: var(--cp-bg-elevated); border: 0 !important; }
+.text-editor :deep(.w-e-text-container) { min-height: 260px; background: var(--cp-primary-contrast); border: 0 !important; }
 .text-editor :deep(.w-e-text) { min-height: 260px; color: var(--cp-text); background: var(--cp-bg-elevated); }
 .text-editor :deep(.w-e-text-placeholder) { color: var(--cp-text-tertiary); }
 @include media-max($breakpoint-md) { .setup-editor__header { align-items: flex-start; flex-direction: column; } }
