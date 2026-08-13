@@ -71,8 +71,10 @@ function destroyEditor(editor?: IDomEditor) {
 }
 
 watch(() => props.modelValue, value => {
-  richHtml.value = markdown.render(value)
-  if (!wangEditor.value) return
+  if (!wangEditor.value) {
+    richHtml.value = markdown.render(value)
+    return
+  }
   const nextHtml = markdown.render(value)
   if (turndown.turndown(wangEditor.value.getHtml()).trim() === value.trim()) return
   syncing = true
@@ -89,6 +91,7 @@ onBeforeUnmount(() => { destroyEditor(wangEditor.value) })
 .setup-editor__header h2 { margin: 0; color: var(--cp-text); font-size: $font-sm; font-weight: $font-medium; }
 .setup-editor__header span { display: block; margin-top: 2px; color: var(--cp-text-tertiary); font-size: $font-xs; }
 .text-editor {
+  height: 420px;
   --w-e-textarea-bg-color: var(--cp-bg-elevated);
   --w-e-textarea-color: var(--cp-text);
   --w-e-textarea-border-color: var(--cp-border);
@@ -106,10 +109,11 @@ onBeforeUnmount(() => { destroyEditor(wangEditor.value) })
   --w-e-modal-button-border-color: var(--cp-border);
   background: var(--cp-bg-elevated);
 }
-.text-editor :deep(.w-e-toolbar) { border: 0 !important; border-bottom: 1px solid var(--cp-border-light) !important; background: var(--cp-bg-elevated) !important; }
-.text-editor__content { display: block; height: 260px; }
-.text-editor :deep(.w-e-text-container) { min-height: 260px; background: var(--cp-primary-contrast); border: 0 !important; }
-.text-editor :deep(.w-e-text) { min-height: 260px; color: var(--cp-text); background: var(--cp-bg-elevated); }
+.text-editor :deep(.w-e-toolbar) { height: 40px; border: 0 !important; border-bottom: 1px solid var(--cp-border-light) !important; background: var(--cp-bg-elevated) !important; }
+.text-editor__content { display: block; height: 380px; }
+.text-editor :deep(.w-e-text-container) { height: 380px; background: var(--cp-primary-contrast); border: 0 !important; }
+.text-editor :deep(.w-e-scroll) { overflow-y: auto; }
+.text-editor :deep(.w-e-text) { min-height: 380px; color: var(--cp-text); background: var(--cp-bg-elevated); }
 .text-editor :deep(.w-e-text-placeholder) { color: var(--cp-text-tertiary); }
 @include media-max($breakpoint-md) { .setup-editor__header { align-items: flex-start; flex-direction: column; } }
 </style>

@@ -163,7 +163,7 @@ function moveChapter(direction: number) {
   const chapters = project.value.chapters; [chapters[chapterIndex.value], chapters[nextIndex]] = [chapters[nextIndex], chapters[chapterIndex.value]]
 }
 function scheduleSave() { if (!api || !project.value) return; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(saveProject, 600) }
-async function saveProject() { if (!api || !project.value) return; saving.value = true; try { const payload = JSON.parse(JSON.stringify(project.value)) as NovelProjectDocument; project.value = await api.saveNovelProject(payload); await refreshProjects() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '自动保存失败') } finally { saving.value = false } }
+async function saveProject() { if (!api || !project.value) return; saving.value = true; try { const payload = JSON.parse(JSON.stringify(project.value)) as NovelProjectDocument; await api.saveNovelProject(payload); await refreshProjects() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '自动保存失败') } finally { saving.value = false } }
 watch(project, scheduleSave, { deep: true })
 
 function buildContext() {

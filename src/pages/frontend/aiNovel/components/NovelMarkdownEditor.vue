@@ -61,7 +61,7 @@ onBeforeUnmount(() => { void editor?.destroy(); editor = undefined })
 </script>
 
 <style scoped lang="scss">
-.markdown-editor { min-height: 260px; background: var(--cp-bg-elevated); }
+.markdown-editor { height: 420px; background: var(--cp-bg-elevated); }
 .markdown-editor :deep(.milkdown) {
   --crepe-color-background: var(--cp-bg-elevated);
   --crepe-color-on-background: var(--cp-text);
@@ -84,12 +84,12 @@ onBeforeUnmount(() => { void editor?.destroy(); editor = undefined })
   --crepe-font-default: inherit;
   --crepe-shadow-1: none;
   --crepe-shadow-2: none;
-  min-height: 260px;
+  height: 420px;
   color: var(--cp-text);
   background: var(--cp-primary-contrast);
 }
-.markdown-editor :deep(.milkdown .ProseMirror) { min-height: 220px; padding: $spacing-md; color: var(--cp-text); font-family: inherit; font-size: $font-sm; line-height: 1.8; }
-.markdown-editor :deep(.milkdown .milkdown-top-bar) { min-height: 36px; padding: 0 $spacing-sm; border-bottom: 1px solid var(--cp-border-light); background: var(--cp-bg-elevated); }
+.markdown-editor :deep(.milkdown .ProseMirror) { height: 384px; padding: $spacing-md; overflow-y: auto; color: var(--cp-text); font-family: inherit; font-size: $font-sm; line-height: 1.8; }
+.markdown-editor :deep(.milkdown .milkdown-top-bar) { height: 36px; min-height: 36px; padding: 0 $spacing-sm; border-bottom: 1px solid var(--cp-border-light); background: var(--cp-bg-elevated); }
 .markdown-editor :deep(.milkdown .milkdown-top-bar button) { color: var(--cp-text-secondary); }
 .markdown-editor :deep(.milkdown .top-bar-heading-selector) { padding: 3px; }
 .markdown-editor :deep(.milkdown .top-bar-heading-button) { height: 28px; padding: 3px 2px 3px $spacing-sm; }
