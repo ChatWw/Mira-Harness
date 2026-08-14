@@ -91,7 +91,7 @@ import { useRouter, useRoute } from 'vue-router'
 import Draggable from 'vuedraggable'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
-import { resolveNavigation } from '@/config/navigation'
+import { isWorkspacePath, resolveNavigation } from '@/config/navigation'
 import { activateRouteCache, evictRouteCache } from '@/router/routeCache'
 
 const router = useRouter()
@@ -127,6 +127,7 @@ const navigation = computed(() => resolveNavigation(route.path))
 watch(
   () => route.path,
   () => {
+    if (isWorkspacePath(route.path)) return
     if (route.meta.title) {
       tabsStore.addTab({
         path: route.path,
@@ -230,7 +231,7 @@ async function handleCommand(command: string) {
       break
     case 'closeAll':
       tabsStore.closeAll()
-      router.push('/dashboard')
+      router.push('/workspace/chat')
       break
   }
 }

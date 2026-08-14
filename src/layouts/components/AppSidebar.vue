@@ -22,21 +22,14 @@
       </div>
     </Transition>
 
-    <el-menu
-      ref="menuRef"
-      :default-active="currentRoute"
-      :collapse="appStore.sidebarCollapsed"
-      :unique-opened="layoutStore.config.uniqueOpened"
-      :style="appStore.sidebarCollapsed
-        ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` }
-        : undefined"
-      class="sidebar-menu"
-      @select="handleMenuSelect"
-      @open="handleMenuOpen"
-      @close="handleMenuClose"
-    >
-      <SidebarMenuItem v-for="item in displayedMenuList" :key="item.id" :item="item" />
+    <WorkspaceNavigation :collapsed="appStore.sidebarCollapsed" />
+    <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
+      <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">应用</div></template>
+      <SidebarMenuItem v-for="item in applicationMenus" :key="item.id" :item="item" />
+      <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">内置浏览器</div></template>
+      <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
     </el-menu>
+    <el-menu :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" class="sidebar-menu sidebar-menu--bottom" @select="handleMenuSelect"><el-menu-item index="/settings/general"><AppIcon name="Setting" /><span>设置</span></el-menu-item></el-menu>
   </aside>
 </template>
 
@@ -45,10 +38,12 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
-import { getVisibleMenusForPath, navigateToPath } from '@/config/navigation'
+import { navigateToPath } from '@/config/navigation'
+import { runtimeNavigation } from '@/config/runtime'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import type { MenuItem } from '@/types'
 import SidebarMenuItem from './SidebarMenuItem.vue'
+import WorkspaceNavigation from './WorkspaceNavigation.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,7 +57,10 @@ const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
 
 const currentRoute = computed(() => route.path)
-const displayedMenuList = computed(() => getVisibleMenusForPath(route.path))
+const applicationMenus = computed(() => runtimeNavigation.mainMenus.filter(item => item.target?.type === 'component'))
+function iframeTree(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? iframeTree(item.children) : undefined }]; const children = item.children ? iframeTree(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }
+const browserMenus = computed(() => iframeTree(runtimeNavigation.mainMenus))
+const displayedMenuList = computed(() => [...applicationMenus.value, ...browserMenus.value])
 
 function handleMenuSelect(path: string) {
   navigateToPath(router, path)
@@ -222,6 +220,9 @@ watch(
       }
     }
   }
+
+  .sidebar-menu--bottom { flex: 0; padding: 6px 0; border-top: 1px solid var(--cp-border-light); }
+  .menu-group-label { padding: 16px 14px 4px; color: var(--cp-text-tertiary); font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: uppercase; }
 
   &.collapsed .sidebar-menu {
     width: 100%;

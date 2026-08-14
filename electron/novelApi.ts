@@ -74,6 +74,12 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, onContent: (conten
 }
 
 function getProfile(database: PlatformDatabase, role: NovelModelRole) {
+  const binding = database.models.bindings()[role === 'authoring' ? 'novelAuthoring' : 'novelAutomation']
+  if (binding) {
+    const provider = database.models.get(binding.providerId)
+    const apiKey = database.models.getSecret(binding.providerId)
+    if (provider?.enabled && apiKey) return { endpoint: normalizeEndpoint(provider.endpoint), apiKey, modelId: binding.modelId }
+  }
   const profile = readNovelModelProfiles(database)[role]
   const endpoint = normalizeEndpoint(profile.endpoint)
   if (!endpoint || !profile.apiKey.trim() || !profile.modelId.trim()) {

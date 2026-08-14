@@ -29,4 +29,33 @@ contextBridge.exposeInMainWorld('platform', {
     ipcRenderer.on('window:navigate', handler)
     return () => ipcRenderer.removeListener('window:navigate', handler)
   },
+  listModelProviders: () => ipcRenderer.invoke('harness:list-model-providers'),
+  saveModelProvider: (provider: unknown) => ipcRenderer.invoke('harness:save-model-provider', provider),
+  deleteModelProvider: (id: string) => ipcRenderer.invoke('harness:delete-model-provider', id),
+  getModelRoleBindings: () => ipcRenderer.invoke('harness:get-model-role-bindings'),
+  saveModelRoleBindings: (bindings: unknown) => ipcRenderer.invoke('harness:save-model-role-bindings', bindings),
+  testModelProvider: (provider: unknown, modelId: string) => ipcRenderer.invoke('harness:test-model-provider', provider, modelId),
+  listHarnessProjects: () => ipcRenderer.invoke('harness:list-projects'),
+  selectHarnessProjectDirectory: () => ipcRenderer.invoke('harness:select-project-directory'),
+  createHarnessProject: (input?: unknown) => ipcRenderer.invoke('harness:create-project', input),
+  renameHarnessProject: (id: string, name: string) => ipcRenderer.invoke('harness:rename-project', id, name),
+  deleteHarnessProject: (id: string, removeMira?: boolean) => ipcRenderer.invoke('harness:delete-project', id, removeMira),
+  listHarnessSessions: (query?: string) => ipcRenderer.invoke('harness:list-sessions', query),
+  createHarnessSession: (projectId?: string) => ipcRenderer.invoke('harness:create-session', projectId),
+  getHarnessSession: (id: string) => ipcRenderer.invoke('harness:get-session', id),
+  deleteHarnessSession: (id: string) => ipcRenderer.invoke('harness:delete-session', id),
+  deleteHarnessSessions: (ids: string[]) => ipcRenderer.invoke('harness:delete-sessions', ids),
+  attachHarnessDirectory: (sessionId: string) => ipcRenderer.invoke('harness:attach-directory', sessionId),
+  runHarnessMessage: (sessionId: string, message: string) => ipcRenderer.invoke('harness:run-message', sessionId, message),
+  abortHarnessRun: (sessionId: string) => ipcRenderer.invoke('harness:abort-run', sessionId),
+  getHarnessPermissionConfig: () => ipcRenderer.invoke('harness:get-permission-config'),
+  saveHarnessPermissionConfig: (config: unknown) => ipcRenderer.invoke('harness:save-permission-config', config),
+  onHarnessEvent: (listener: (event: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown) => listener(event)
+    ipcRenderer.on('harness:event', handler)
+    return () => ipcRenderer.removeListener('harness:event', handler)
+  },
+  getPythonStatus: () => ipcRenderer.invoke('harness:python-status'),
+  pythonExec: (script: string, args: string[] = []) => ipcRenderer.invoke('harness:python-exec', script, args),
+  pythonInstallPackage: (packageName: string) => ipcRenderer.invoke('harness:python-install-package', packageName),
 })

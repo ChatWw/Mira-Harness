@@ -2,22 +2,8 @@ import type { ApplicationOption, MenuItem } from '@/types'
 import { microApps } from './microApps'
 
 export const BUILT_IN_PAGE_OPTIONS = [
-  { value: 'dashboard', label: '概览' },
   { value: 'aiNovel', label: 'AI 小说创作' },
 ] as const
-
-export const DASHBOARD_MENU: MenuItem = {
-  id: 'dashboard',
-  title: '概览',
-  icon: 'Odometer',
-  type: 'menu',
-  path: '/dashboard',
-  target: { type: 'component', componentKey: 'dashboard' },
-  keepAlive: true,
-  appCode: null,
-  sort: 0,
-  status: 1,
-}
 
 export const AI_NOVEL_MENU: MenuItem = {
   id: 'ai-novel',
@@ -35,10 +21,7 @@ export const AI_NOVEL_MENU: MenuItem = {
   showPageHeader: false,
 }
 
-export const PROTECTED_MAIN_MENU_IDS = [
-  DASHBOARD_MENU.id,
-  AI_NOVEL_MENU.id,
-]
+export const PROTECTED_MAIN_MENU_IDS = [AI_NOVEL_MENU.id]
 
 export const RESERVED_MENU_PATHS = new Map<string, string>(
   [
@@ -49,9 +32,6 @@ export const RESERVED_MENU_PATHS = new Map<string, string>(
     ['/system/menus', '__platform'],
     ['/system/micro-apps', '__platform'],
     ['/system/backup-preferences', '__platform'],
-    ...[DASHBOARD_MENU]
-      .filter((menu): menu is MenuItem & { path: string } => Boolean(menu.path))
-      .map(menu => [menu.path, menu.id] as [string, string]),
     ...[AI_NOVEL_MENU]
       .filter((menu): menu is MenuItem & { path: string } => Boolean(menu.path))
       .map(menu => [menu.path, menu.id] as [string, string]),
@@ -59,10 +39,9 @@ export const RESERVED_MENU_PATHS = new Map<string, string>(
 )
 
 // 设置页由静态路由承载，不能被可配置菜单覆盖。
-export const RESERVED_MENU_PATH_PREFIXES = ['/settings']
+export const RESERVED_MENU_PATH_PREFIXES = ['/settings', '/workspace']
 
 export const mainMenus: MenuItem[] = [
-  DASHBOARD_MENU,
   AI_NOVEL_MENU,
   {
     id: 'links',

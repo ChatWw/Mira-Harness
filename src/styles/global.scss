@@ -137,11 +137,11 @@ input {
   --cp-bg-elevated: #{$bg-elevated};
   --cp-bg-overlay: #{$bg-overlay};
   --cp-bg-hover: #{$bg-hover};
-  --cp-sidebar-bg: #fff;
-  --cp-sidebar-menu-text: var(--cp-text);
-  --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 10%, transparent);
-  --cp-sidebar-menu-active-bg: color-mix(in srgb, var(--cp-primary) 70%, transparent);
-  --cp-sidebar-menu-active-text: var(--cp-primary-contrast, #fff);
+  --cp-sidebar-bg: #f6f6f7;
+  --cp-sidebar-menu-text: #414145;
+  --cp-sidebar-menu-hover-bg: #e8e8ea;
+  --cp-sidebar-menu-active-bg: #e8e8ea;
+  --cp-sidebar-menu-active-text: #262629;
 
   // 文本色
   --cp-text: #{$text};
@@ -186,11 +186,11 @@ input {
   --cp-bg-elevated: #{$dark-bg-elevated};
   --cp-bg-overlay: #{$dark-bg-overlay};
   --cp-bg-hover: #{$dark-bg-hover};
-  --cp-sidebar-bg: #000;
-  --cp-sidebar-menu-text: var(--cp-text-secondary);
-  --cp-sidebar-menu-hover-bg: color-mix(in srgb, var(--cp-primary) 16%, transparent);
-  --cp-sidebar-menu-active-bg: color-mix(in srgb, var(--cp-primary) 70%, transparent);
-  --cp-sidebar-menu-active-text: var(--cp-primary-contrast, #fff);
+  --cp-sidebar-bg: #292a2b;
+  --cp-sidebar-menu-text: #e5e5e7;
+  --cp-sidebar-menu-hover-bg: #454648;
+  --cp-sidebar-menu-active-bg: #454648;
+  --cp-sidebar-menu-active-text: #fff;
   --cp-title-shimmer: #000;
 
   // 文本色

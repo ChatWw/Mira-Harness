@@ -3,13 +3,18 @@ import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
 import { createNovelApiHandler, testNovelModelConnection } from './novelApi'
+import { HarnessRuntime } from './harnessRuntime'
+import { PythonEnvironment } from './pythonEnv'
 import type { NovelModelRole, NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
+import type { HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
 let isQuitting = false
 let tray: Tray | null = null
+let harnessRuntime: HarnessRuntime
+let pythonEnvironment: PythonEnvironment
 
 function getCloseWindowBehavior(): 'background' | 'quit' {
   const value = database?.getSnapshot().preferences.closeWindowBehavior
@@ -116,6 +121,8 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   database = new PlatformDatabase(app.getPath('userData'))
+  harnessRuntime = new HarnessRuntime(database)
+  pythonEnvironment = new PythonEnvironment()
   localMicroAppServer = new LocalMicroAppServer({
     apiHandlers: new Map([['novel', createNovelApiHandler(database)]]),
   })
@@ -146,6 +153,55 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('platform:resolve-local-microapp-url', (_event, appId: string) => localMicroAppServer.getEntryUrl(appId))
   ipcMain.handle('platform:get-novel-api-base-url', () => localMicroAppServer.getApiBaseUrl('novel'))
+  ipcMain.handle('harness:list-model-providers', () => database.models.list())
+  ipcMain.handle('harness:save-model-provider', (_event, provider: ModelProviderInput) => database.models.save(provider))
+  ipcMain.handle('harness:delete-model-provider', (_event, id: string) => database.models.delete(id))
+  ipcMain.handle('harness:get-model-role-bindings', () => database.models.bindings())
+  ipcMain.handle('harness:save-model-role-bindings', (_event, bindings) => database.models.saveBindings(bindings))
+  ipcMain.handle('harness:test-model-provider', async (_event, provider: ModelProviderInput, modelId: string) => {
+    try {
+      const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
+      const url = /\/chat\/completions$/i.test(endpoint) ? endpoint : `${endpoint}/chat/completions`
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.apiKey || database.models.getSecret(provider.id || '')}` }, body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: '请用一个词回复“已连接”。' }], stream: false }) })
+      if (!response.ok) return { ok: false, text: `请求失败：${response.status} ${(await response.text()).slice(0, 240)}` }
+      return { ok: true, text: '连接成功' }
+    } catch (error) { return { ok: false, text: error instanceof Error ? error.message : String(error) } }
+  })
+  ipcMain.handle('harness:list-projects', () => database.harness.listProjects())
+  ipcMain.handle('harness:select-project-directory', async event => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+    const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择项目源文件夹' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择项目源文件夹' })
+    return result.canceled ? null : result.filePaths[0]
+  })
+  ipcMain.handle('harness:create-project', async (event, input: HarnessProjectCreateInput = {}) => {
+    let target = input.directory
+    if (!target) {
+      const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+      const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择 Agent 项目目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择 Agent 项目目录' })
+      if (result.canceled) return null
+      target = result.filePaths[0]
+    }
+    return database.harness.createProject(target, input.name, input.icon)
+  })
+  ipcMain.handle('harness:rename-project', (_event, id: string, name: string) => database.harness.renameProject(id, name))
+  ipcMain.handle('harness:delete-project', (_event, id: string, removeMira?: boolean) => database.harness.deleteProject(id, removeMira))
+  ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
+  ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
+  ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
+  ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
+  ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
+  ipcMain.handle('harness:attach-directory', async (event, sessionId: string) => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+    const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择工作目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择工作目录' })
+    return result.canceled ? null : database.harness.attachDirectory(sessionId, result.filePaths[0])
+  })
+  ipcMain.handle('harness:run-message', (event, sessionId: string, message: string) => harnessRuntime.runMessage(event.sender, sessionId, message))
+  ipcMain.handle('harness:abort-run', (_event, sessionId: string) => harnessRuntime.abort(sessionId))
+  ipcMain.handle('harness:get-permission-config', () => database.harness.getPermissionConfig())
+  ipcMain.handle('harness:save-permission-config', (_event, config) => database.harness.savePermissionConfig(config))
+  ipcMain.handle('harness:python-status', () => pythonEnvironment.status())
+  ipcMain.handle('harness:python-exec', (_event, script: string, args: string[]) => pythonEnvironment.run(script, args))
+  ipcMain.handle('harness:python-install-package', (_event, packageName: string) => pythonEnvironment.install(packageName))
   ipcMain.handle('platform:test-novel-model-connection', (_event, role: NovelModelRole, prompt?: string) => testNovelModelConnection(database, role, prompt))
   ipcMain.handle('platform:list-novel-projects', () => database.novels.listProjects())
   ipcMain.handle('platform:get-novel-project', (_event, id: string) => database.novels.getProject(id))

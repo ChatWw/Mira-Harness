@@ -45,8 +45,13 @@
       "src/asset/mira-logo.png",
       "src/asset/mira.ico"
     ]
+    ,"extraResources": [
+      { "from": "resources/python", "to": "python", "filter": ["**/*"] }
+    ]
   },
   "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.84.1",
+    "@earendil-works/pi-ai": "^0.84.1",
     "@element-plus/icons-vue": "^2.3.2",
     "@iconify-json/lucide": "^1.2.121",
     "@iconify-json/material-symbols": "^1.2.88",

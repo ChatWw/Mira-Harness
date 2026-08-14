@@ -50,7 +50,9 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     label: '功能',
     items: [
       { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
-      { key: 'ai-novel', label: 'AI 小说', icon: 'lucide:book-open', path: '/settings/ai-novel' },
+      { key: 'model-config', label: '模型配置', icon: 'Connection', path: '/settings/model-config' },
+      { key: 'agent-permission', label: 'Agent 权限', icon: 'Lock', path: '/settings/agent-permission' },
+      { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
     ],
   },
   {

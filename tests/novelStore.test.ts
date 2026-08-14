@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { createNovelProject, EMPTY_NOVEL_MODEL_PROFILES, toNovelProjectSummary } from '../src/config/novel'
 import { PlatformDatabase } from '../electron/database'
 import { NovelStore } from '../electron/novelStore'
-import { DASHBOARD_MENU } from '../src/config/menus'
+import { AI_NOVEL_MENU } from '../src/config/menus'
 
 function createStore() {
   const database = new Database(':memory:')
@@ -77,19 +77,19 @@ describe('novel domain defaults', () => {
 })
 
 describe('platform database migration', () => {
-  it('replaces the legacy novel micro-app with the protected native page', () => {
+  it('removes the legacy overview and replaces the novel micro-app with the protected native page', () => {
     const directory = mkdtempSync(join(tmpdir(), 'mira-novel-migration-'))
     const legacy = new Database(join(directory, 'mira.sqlite'))
     legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '15')
-    legacy.prepare('INSERT INTO menus(id, payload) VALUES (?, ?)').run('dashboard', JSON.stringify(DASHBOARD_MENU))
+    legacy.prepare('INSERT INTO menus(id, payload) VALUES (?, ?)').run('dashboard', JSON.stringify({ id: 'dashboard', title: '概览', type: 'menu', path: '/dashboard', target: { type: 'component', componentKey: 'dashboard' } }))
     legacy.prepare('INSERT INTO micro_apps(id, code, payload) VALUES (?, ?, ?)').run('micro-ai-novel', 'ai-novel', JSON.stringify({ id: 'micro-ai-novel', code: 'ai-novel' }))
     legacy.close()
 
     const database = new PlatformDatabase(directory)
     expect(database.getSnapshot().microApps).toEqual([])
-    expect(database.getSnapshot().mainMenus.map(menu => menu.id)).toEqual(['dashboard', 'ai-novel'])
+    expect(database.getSnapshot().mainMenus.map(menu => menu.id)).toEqual([AI_NOVEL_MENU.id])
     expect(database.novels.listProjects()).toEqual([])
     rmSync(directory, { recursive: true, force: true })
   })

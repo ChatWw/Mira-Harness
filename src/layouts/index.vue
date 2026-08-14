@@ -26,7 +26,7 @@
       <!-- 主容器 -->
       <div class="main-container">
         <!-- 多标签页 -->
-        <TabsBar v-if="layoutStore.config.enableTabs" />
+        <TabsBar v-if="layoutStore.config.enableTabs && !isWorkspaceRoute" />
 
         <!-- 主内容区 -->
         <AppMain />
@@ -45,7 +45,7 @@
 import { computed } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useRoute } from 'vue-router'
-import { getVisibleMenus, resolveNavigation } from '@/config/navigation'
+import { getVisibleMenus, isWorkspacePath, resolveNavigation } from '@/config/navigation'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
@@ -64,6 +64,7 @@ const desktopHeaderHeight = computed(() => isMacDesktop
   ? 34
   : layoutStore.config.headerHeight)
 const navigation = computed(() => resolveNavigation(route.path))
+const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 
 const showSidebar = computed(() => {
   if (navigation.value.area === 'main') return true
@@ -90,7 +91,7 @@ const layoutClasses = computed(() => {
     classes.push('sidebar-collapsed')
   }
 
-  if (layoutStore.config.enableTabs) {
+  if (layoutStore.config.enableTabs && !isWorkspaceRoute.value) {
     classes.push('layout--with-tabs')
   }
 

@@ -213,6 +213,7 @@ const props = withDefaults(defineProps<{
   appCode?: string
   componentOptions?: readonly ComponentOption[]
   protectedIds?: readonly string[]
+  iframeOnly?: boolean
   disabled?: boolean
 }>(), {
   title: '菜单结构',
@@ -220,6 +221,7 @@ const props = withDefaults(defineProps<{
   appCode: '',
   componentOptions: () => [],
   protectedIds: () => [],
+  iframeOnly: false,
   disabled: false,
 })
 
@@ -246,7 +248,7 @@ const referrerPolicies: ReferrerPolicy[] = [
 ]
 const kindOptions = computed(() => props.context === 'microapp'
   ? [{ value: 'dir', label: '目录' }, { value: 'microapp', label: '页面' }]
-  : [{ value: 'dir', label: '目录' }, { value: 'component', label: '页面' }, { value: 'iframe', label: 'Iframe' }]
+  : props.iframeOnly ? [{ value: 'dir', label: '目录' }, { value: 'iframe', label: '外链' }] : [{ value: 'dir', label: '目录' }, { value: 'component', label: '页面' }, { value: 'iframe', label: 'Iframe' }]
 )
 
 function sortMenus(menus: MenuItem[]): MenuItem[] {
@@ -354,7 +356,7 @@ function resetForm(values?: Partial<MenuDraft>) {
 
 function openCreate(parentId = '') {
   editingId.value = ''
-  resetForm({ parentId, kind: props.context === 'microapp' ? 'microapp' : 'dir' })
+  resetForm({ parentId, kind: props.context === 'microapp' ? 'microapp' : props.iframeOnly && parentId ? 'iframe' : 'dir' })
   drawerVisible.value = true
 }
 
@@ -456,6 +458,10 @@ function updateDescendantPaths(menu: MenuItem, previousPrefix: string, nextPrefi
 
 async function submitMenu() {
   if (!formRef.value || !(await formRef.value.validate().catch(() => false))) return
+  if (props.iframeOnly && form.kind === 'dir' && form.parentId) {
+    ElMessage.warning('内置浏览器只支持两级结构：目录下只能添加外链')
+    return
+  }
   const existing = editingId.value ? findMenu(props.menus, editingId.value) : undefined
   if (existing?.children?.length && form.kind !== 'dir') {
     ElMessage.warning('包含子菜单的目录不能改为页面，请先处理其子菜单')

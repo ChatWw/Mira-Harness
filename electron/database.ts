@@ -3,18 +3,19 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import {
   AI_NOVEL_MENU,
-  DASHBOARD_MENU,
   mainMenus as defaultsMenus,
   PROTECTED_MAIN_MENU_IDS,
 } from '../src/config/menus'
 import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { NovelStore } from './novelStore'
+import { HarnessStore } from './harnessStore'
+import { ModelConfigStore } from './modelConfigStore'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 16
+const CURRENT_SCHEMA_VERSION = 18
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
-const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['functional-components', 'system-management'])
+const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid' }
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
@@ -26,7 +27,7 @@ function removeProtectedMenus(menus: MenuItem[]): MenuItem[] {
 }
 
 export function normalizeProtectedMainMenus(menus: MenuItem[]): MenuItem[] {
-  return [clone(DASHBOARD_MENU), clone(AI_NOVEL_MENU), ...removeProtectedMenus(clone(menus))]
+  return [clone(AI_NOVEL_MENU), ...removeProtectedMenus(clone(menus))]
 }
 
 function stableSerialize(value: unknown): string {
@@ -38,9 +39,9 @@ function stableSerialize(value: unknown): string {
 }
 
 function assertProtectedMenus(menus: MenuItem[]) {
-  const dashboard = menus.find(menu => menu.id === DASHBOARD_MENU.id)
-  if (stableSerialize(dashboard) !== stableSerialize(DASHBOARD_MENU)) {
-    throw new Error('概览为内置菜单，不能修改或删除')
+  const novel = menus.find(menu => menu.id === AI_NOVEL_MENU.id)
+  if (stableSerialize(novel) !== stableSerialize(AI_NOVEL_MENU)) {
+    throw new Error('AI 小说创作为内置菜单，不能修改或删除')
   }
 }
 
@@ -48,12 +49,16 @@ export class PlatformDatabase {
   private readonly database: Database.Database
   private readonly filePath: string
   readonly novels: NovelStore
+  readonly harness: HarnessStore
+  readonly models: ModelConfigStore
 
   constructor(userDataPath: string) {
     mkdirSync(userDataPath, { recursive: true })
     this.filePath = join(userDataPath, 'mira.sqlite')
     this.database = new Database(this.filePath)
     this.novels = new NovelStore(this.database)
+    this.models = new ModelConfigStore(this.database)
+    this.harness = new HarnessStore(this.database, userDataPath)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
   }
@@ -66,7 +71,16 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
+      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
+    const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
+    if (!projectColumns.some(column => column.name === 'icon')) {
+      this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")
+    }
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
@@ -149,6 +163,20 @@ export class PlatformDatabase {
           mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus),
           microApps: snapshot.microApps.filter(app => app.code !== 'ai-novel'),
         })
+      }
+      if (version < 17) {
+        const snapshot = this.getSnapshot()
+        this.backup()
+        this.writeSnapshot({ ...snapshot, mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus) })
+        const legacy = snapshot.preferences.novelModelProfiles as { authoring?: { endpoint?: string, apiKey?: string, modelId?: string }, automation?: { endpoint?: string, apiKey?: string, modelId?: string } } | undefined
+        const bindings: Record<string, { providerId: string, modelId: string }> = {}
+        for (const [role, profile] of Object.entries(legacy || {})) {
+          if (!profile?.endpoint?.trim() || !profile.apiKey?.trim() || !profile.modelId?.trim()) continue
+          const provider = this.models.save({ name: role === 'authoring' ? 'AI 小说创作模型' : 'AI 小说自动处理模型', endpoint: profile.endpoint, apiKey: profile.apiKey, models: [profile.modelId], enabled: true })
+          bindings[role === 'authoring' ? 'novelAuthoring' : 'novelAutomation'] = { providerId: provider.id, modelId: profile.modelId }
+        }
+        if (Object.keys(bindings).length) this.models.saveBindings({ ...this.models.bindings(), ...bindings })
+        this.savePreference('novelModelProfilesMigratedAt', Date.now())
       }
     }
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))

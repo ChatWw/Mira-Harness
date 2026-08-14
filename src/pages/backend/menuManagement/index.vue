@@ -1,6 +1,6 @@
 <template>
-  <SettingsPageShell title="菜单管理" wide>
-    <p class="page-description">以树形结构管理平台导航。目录负责分组，页面菜单负责打开具体内容。</p>
+  <SettingsPageShell title="内置浏览器菜单" wide>
+    <p class="page-description">管理侧边栏“内置浏览器”分组下的外部页面链接。</p>
     <el-alert
       v-if="!desktopAvailable"
       type="warning"
@@ -10,10 +10,9 @@
       class="platform-alert"
     />
     <MenuTreeEditor
-      :menus="runtimeNavigation.mainMenus"
-      title="平台主菜单"
-      :component-options="BUILT_IN_PAGE_OPTIONS"
-      :protected-ids="PROTECTED_MAIN_MENU_IDS"
+      :menus="iframeMenus"
+      title="内置浏览器"
+      iframe-only
       :disabled="saving || !desktopAvailable"
       @change="saveMenus"
     />
@@ -21,9 +20,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { BUILT_IN_PAGE_OPTIONS, PROTECTED_MAIN_MENU_IDS } from '@/config/menus'
 import { runtimeNavigation } from '@/config/runtime'
 import { validateMenus } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
@@ -34,12 +32,15 @@ import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const saving = ref(false)
 const desktopAvailable = Boolean(getPlatformApi())
+function onlyIframe(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? onlyIframe(item.children) : undefined }]; const children = item.children ? onlyIframe(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }
+const iframeMenus = computed(() => onlyIframe(runtimeNavigation.mainMenus))
 
 async function saveMenus(menus: MenuItem[]) {
   saving.value = true
   try {
     validateMenus(menus)
-    applyManagementSnapshot(await requirePlatformApi().updateMenus(menus))
+    const components = runtimeNavigation.mainMenus.filter(menu => menu.target?.type === 'component')
+    applyManagementSnapshot(await requirePlatformApi().updateMenus([...components, ...menus]))
     ElMessage.success('菜单配置已保存')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '菜单配置保存失败')

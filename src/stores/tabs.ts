@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useLayoutStore } from './layout'
 import { getPreference, savePreference } from '@/platform'
 import { activateRouteCache, evictRouteCache } from '@/router/routeCache'
+import { isWorkspacePath } from '@/config/navigation'
 
 export interface TabItem {
   path: string
@@ -14,24 +15,12 @@ export interface TabItem {
   lastAccess: number
 }
 
-const DASHBOARD_TAB: Omit<TabItem, 'lastAccess'> = {
-  path: '/dashboard',
-  title: '概览',
-  name: 'Dashboard',
-  icon: 'Odometer',
-  closable: false,
-}
-
 export const useTabsStore = defineStore('tabs', () => {
   const layoutStore = useLayoutStore()
   const persistenceEnabled = layoutStore.config.tabPersist
   const persistedState = persistenceEnabled ? loadPersistedState() : undefined
-  const tabs = ref<TabItem[]>(persistedState?.tabs ?? [])
-  const activeTab = ref<string>(persistedState?.activeTab ?? '')
-
-  if (!tabs.value.some(tab => tab.path === DASHBOARD_TAB.path)) {
-    tabs.value.unshift({ ...DASHBOARD_TAB, lastAccess: Date.now() })
-  }
+  const tabs = ref<TabItem[]>((persistedState?.tabs ?? []).filter(tab => tab.path !== '/dashboard' && !isWorkspacePath(tab.path)))
+  const activeTab = ref<string>(isWorkspacePath(persistedState?.activeTab || '') ? '' : (persistedState?.activeTab || ''))
 
   if (!persistenceEnabled) {
     sessionStorage.removeItem('cp-tabs')
@@ -75,7 +64,7 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value.splice(index, 1)
     if (activeTab.value === path) {
       const next = tabs.value[index] || tabs.value[index - 1]
-      activeTab.value = next ? next.path : '/dashboard'
+      activeTab.value = next ? next.path : ''
     }
   }
 
@@ -100,13 +89,11 @@ export const useTabsStore = defineStore('tabs', () => {
   function closeAll() {
     tabs.value.filter(tab => tab.closable).forEach(tab => evictRouteCache(tab.cacheName))
     tabs.value = tabs.value.filter(t => !t.closable)
-    activeTab.value = '/dashboard'
+    activeTab.value = ''
   }
 
   function reorderTabs() {
-    const dashboard = tabs.value.find(tab => tab.path === '/dashboard')
-    const otherTabs = tabs.value.filter(tab => tab.path !== '/dashboard')
-    tabs.value = dashboard ? [dashboard, ...otherTabs] : otherTabs
+    tabs.value = tabs.value.filter(tab => !isWorkspacePath(tab.path) && tab.path !== '/dashboard')
   }
 
   function persistState() {

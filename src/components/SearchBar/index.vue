@@ -136,6 +136,7 @@ type CommandPaletteItem = CommandNavigationItem | (Omit<CommandNavigationItem, '
 const categoryLabels: Record<CommandNavigationCategory | 'command', string> = {
   page: '页面',
   application: '应用',
+  session: '最近对话',
   command: '系统操作',
 }
 

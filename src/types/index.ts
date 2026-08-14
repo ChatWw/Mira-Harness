@@ -129,6 +129,31 @@ export interface PlatformApi {
   setTitleBarChrome(chrome: { color: string; symbolColor: string; height?: number }): Promise<void>
   windowCommand(action: string): Promise<void>
   onWindowNavigate(listener: (path: string) => void): () => void
+  listModelProviders(): Promise<import('@/config/harness').ModelProviderSummary[]>
+  saveModelProvider(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelProviderSummary>
+  deleteModelProvider(id: string): Promise<void>
+  getModelRoleBindings(): Promise<import('@/config/harness').ModelRoleBinding>
+  saveModelRoleBindings(bindings: import('@/config/harness').ModelRoleBinding): Promise<import('@/config/harness').ModelRoleBinding>
+  testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
+  listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
+  selectHarnessProjectDirectory(): Promise<string | null>
+  createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
+  renameHarnessProject(id: string, name: string): Promise<import('@/config/harness').HarnessProject>
+  deleteHarnessProject(id: string, removeMira?: boolean): Promise<void>
+  listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
+  createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
+  getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
+  deleteHarnessSession(id: string): Promise<void>
+  deleteHarnessSessions(ids: string[]): Promise<void>
+  attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
+  runHarnessMessage(sessionId: string, message: string): Promise<void>
+  abortHarnessRun(sessionId: string): Promise<void>
+  getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
+  saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
+  onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
+  getPythonStatus(): Promise<{ ready: boolean, path: string, version: string, bundled: boolean }>
+  pythonExec(script: string, args?: string[]): Promise<{ stdout: string, stderr: string, code: number }>
+  pythonInstallPackage(packageName: string): Promise<{ stdout: string, stderr: string, code: number }>
 }
 
 // 关闭窗口时的行为

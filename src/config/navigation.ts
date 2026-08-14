@@ -54,6 +54,10 @@ export function getAppCodeFromPath(path: string) {
   return path.match(/^\/micro\/([^/]+)/)?.[1] || 'main'
 }
 
+export function isWorkspacePath(path: string) {
+  return path === '/workspace' || path.startsWith('/workspace/')
+}
+
 export function getMenusForApp(appCode: string) {
   return appCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || []
 }
@@ -95,7 +99,7 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 export function getApplicationEntryPath(code: string) {
   const menus = code === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
-    || (code === 'main' ? '/dashboard' : `/micro/${code}`)
+    || (code === 'main' ? '/workspace/chat' : `/micro/${code}`)
 }
 
 export function getMicroAppChildPath(app: MicroApp, platformPath: string) {

@@ -7,6 +7,24 @@ import { createBusinessRoute } from './pageRegistry'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
+    path: '/settings/model-config',
+    name: 'SettingsModelConfig',
+    component: () => import('@/pages/backend/modelConfig/index.vue'),
+    meta: { title: '模型配置' },
+  },
+  {
+    path: '/settings/agent-permission',
+    name: 'SettingsAgentPermission',
+    component: () => import('@/pages/backend/agentPermission/index.vue'),
+    meta: { title: 'Agent 权限' },
+  },
+  {
+    path: '/settings/python-environment',
+    name: 'SettingsPythonEnvironment',
+    component: () => import('@/pages/backend/pythonEnv/index.vue'),
+    meta: { title: 'Python 环境' },
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/pages/backend/settings/index.vue'),
@@ -69,8 +87,8 @@ const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/ai-novel',
     name: 'SettingsAiNovel',
-    component: () => import('@/pages/backend/aiNovel/index.vue'),
-    meta: { title: 'AI 小说' },
+    redirect: '/settings/model-config',
+    meta: { title: '模型配置' },
   },
   {
     path: '/system/components/loading',
@@ -107,9 +125,15 @@ const staticRoutes: RouteRecordRaw[] = [
 
 const layoutRoute: RouteRecordRaw = {
   path: '/',
-  redirect: '/dashboard',
+  redirect: '/workspace/chat',
   component: () => import('@/layouts/index.vue'),
   children: [
+    { path: '/dashboard', redirect: '/workspace/chat' },
+    { path: '/workspace/chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false } },
+    { path: '/workspace/chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false } },
+    { path: '/workspace/projects', redirect: '/workspace/chat' },
+    { path: '/workspace/history', redirect: '/workspace/chat' },
+    { path: '/workspace/automations', name: 'HarnessAutomations', component: () => import('@/pages/frontend/harness/automations/index.vue'), meta: { title: '自动化' } },
     {
       path: '/micro/:code/:pathMatch(.*)*',
       name: 'MicroAppHost',
