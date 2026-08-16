@@ -6,9 +6,18 @@
   <meta name="application-name" content="Mira" />
   <link rel="icon" type="image/png" href="/src/asset/mira-favicon.png" />
   <title>Mira</title>
+  <style>
+    html, body, #app { width: 100%; height: 100%; margin: 0; background: #f7f7f8; }
+    .app-boot { display: grid; width: 100%; height: 100%; place-items: center; color: #5f6368; font: 500 14px/1.4 system-ui, sans-serif; }
+    .app-boot__content { position: relative; width: 48px; height: 48px; overflow: hidden; border-radius: 10px; }
+    .app-boot__logo { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .app-boot__content::after { position: absolute; top: -35%; bottom: -35%; left: -75%; width: 34%; content: ''; background: linear-gradient(105deg, transparent, rgb(255 255 255 / 12%), rgb(255 255 255 / 82%), rgb(255 255 255 / 12%), transparent); filter: blur(1px); transform: skewX(-18deg); animation: app-boot-sweep 1.8s ease-in-out infinite; }
+    @keyframes app-boot-sweep { 0%, 18% { left: -75%; opacity: 0; } 35% { opacity: 1; } 78%, 100% { left: 145%; opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .app-boot__content::after { animation: none; left: 32%; opacity: .7; } }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app"><div class="app-boot" role="status" aria-label="正在启动 Mira"><div class="app-boot__content"><img class="app-boot__logo" src="/src/asset/mira-logo.png" alt=""></div></div></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

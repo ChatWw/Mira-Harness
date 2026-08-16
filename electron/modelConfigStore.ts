@@ -1,9 +1,20 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type Database from 'better-sqlite3'
-import { safeStorage } from 'electron'
 import { MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
 
-type ProviderRow = { id: string, provider_key: string | null, name: string, endpoint: string, api_key: Buffer | null, models: string, enabled: number, created_at: number, updated_at: number }
+type JsonModelRecord = {
+  id: string
+  providerKey: ModelProviderKey
+  name: string
+  endpoint: string
+  apiKey: string
+  model: string
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
 
 function inferProviderKey(name: string, endpoint: string): ModelProviderKey {
   const text = `${name} ${endpoint}`.toLocaleLowerCase()
@@ -15,85 +26,114 @@ function inferProviderKey(name: string, endpoint: string): ModelProviderKey {
   return 'custom'
 }
 
-function providerKey(value: string | null, name: string, endpoint: string): ModelProviderKey {
+function providerKey(value: string | undefined, name: string, endpoint: string): ModelProviderKey {
   return MODEL_PROVIDER_PRESETS.some(item => item.key === value) ? value as ModelProviderKey : inferProviderKey(name, endpoint)
 }
 
-function encrypt(value: string) {
-  if (!value) return null
-  return safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(value) : Buffer.from(value, 'utf8')
-}
-
-function decrypt(value: Buffer | null) {
-  if (!value) return ''
-  try { return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(value) : value.toString('utf8') } catch { return '' }
-}
-
-function asSummary(row: ProviderRow): ModelProviderSummary {
-  return {
-    id: row.id, providerKey: providerKey(row.provider_key, row.name, row.endpoint), name: row.name, endpoint: row.endpoint, models: JSON.parse(row.models), enabled: row.enabled === 1,
-    hasApiKey: Boolean(row.api_key?.length), createdAt: row.created_at, updatedAt: row.updated_at,
-  }
+function isRecord(value: unknown): value is JsonModelRecord {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<JsonModelRecord>
+  return typeof item.id === 'string' && typeof item.name === 'string' && typeof item.endpoint === 'string' && typeof item.model === 'string'
 }
 
 export class ModelConfigStore {
-  constructor(private readonly database: Database.Database) {}
+  private readonly configPath: string
 
-  list(): ModelProviderSummary[] {
-    return this.database.prepare('SELECT * FROM model_providers ORDER BY updated_at DESC').all().map((row: ProviderRow) => asSummary(row))
+  constructor(private readonly database: Database.Database, userDataPath: string) {
+    this.configPath = join(userDataPath, 'models.json')
+    mkdirSync(dirname(this.configPath), { recursive: true })
+    if (!existsSync(this.configPath)) this.writeRecords([])
   }
 
-  migrateProviderKeys() {
-    const rows = this.database.prepare('SELECT id, provider_key, name, endpoint FROM model_providers').all() as Array<Pick<ProviderRow, 'id' | 'provider_key' | 'name' | 'endpoint'>>
-    const update = this.database.prepare('UPDATE model_providers SET provider_key = ? WHERE id = ?')
-    rows.forEach(row => { if (!MODEL_PROVIDER_PRESETS.some(item => item.key === row.provider_key)) update.run(inferProviderKey(row.name, row.endpoint), row.id) })
+  path() { return this.configPath }
+
+  private readRecords(): JsonModelRecord[] {
+    try {
+      const parsed = JSON.parse(readFileSync(this.configPath, 'utf8'))
+      return Array.isArray(parsed) ? parsed.filter(isRecord).map(item => ({
+        id: item.id,
+        providerKey: providerKey(item.providerKey, item.name, item.endpoint),
+        name: item.name,
+        endpoint: item.endpoint,
+        apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
+        model: item.model,
+        enabled: item.enabled !== false,
+        createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
+      })) : []
+    } catch {
+      return []
+    }
   }
 
-  getSecret(id: string) {
-    const row = this.database.prepare('SELECT api_key FROM model_providers WHERE id = ?').get(id) as { api_key: Buffer | null } | undefined
-    return decrypt(row?.api_key || null)
+  private writeRecords(records: JsonModelRecord[]) {
+    const temporaryPath = `${this.configPath}.${randomUUID()}.tmp`
+    writeFileSync(temporaryPath, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
+    try { renameSync(temporaryPath, this.configPath) } catch (error) { try { unlinkSync(temporaryPath) } catch {} ; throw error }
   }
+
+  private asSummary(record: JsonModelRecord): ModelProviderSummary {
+    return {
+      id: record.id,
+      providerKey: record.providerKey,
+      name: record.name,
+      endpoint: record.endpoint,
+      models: [record.model],
+      enabled: record.enabled,
+      hasApiKey: Boolean(record.apiKey),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    }
+  }
+
+  list(): ModelProviderSummary[] { return this.readRecords().sort((a, b) => b.updatedAt - a.updatedAt).map(record => this.asSummary(record)) }
+
+  getSecret(id: string) { return this.readRecords().find(record => record.id === id)?.apiKey || '' }
 
   get(id: string) {
-    const row = this.database.prepare('SELECT * FROM model_providers WHERE id = ?').get(id) as ProviderRow | undefined
-    return row ? asSummary(row) : undefined
+    const record = this.readRecords().find(item => item.id === id)
+    return record ? this.asSummary(record) : undefined
   }
 
   save(input: ModelProviderInput) {
-    const id = input.id || randomUUID()
-    const current = input.id ? this.database.prepare('SELECT api_key FROM model_providers WHERE id = ?').get(id) as { api_key: Buffer | null } | undefined : undefined
+    const model = input.models.map(item => item.trim()).find(Boolean)
+    if (!input.name.trim() || !input.endpoint.trim() || !model) throw new Error('请填写供应商名称、地址和模型名称')
+    const records = this.readRecords()
+    const existing = input.id ? records.find(record => record.id === input.id) : undefined
     const now = Date.now()
-    const models = input.models.map(item => item.trim()).filter(Boolean)
-    if (!input.name.trim() || !input.endpoint.trim() || !models.length) throw new Error('请填写 Provider 名称、地址和至少一个模型')
-    // An empty key in an edit form means "keep the existing key"; an empty
-    // key for a new provider remains unset.
-    const apiKey = input.apiKey === undefined || (Boolean(input.id) && !input.apiKey.trim())
-      ? current?.api_key || null
-      : encrypt(input.apiKey.trim())
-    const key = input.providerKey || inferProviderKey(input.name, input.endpoint)
-    this.database.prepare(`INSERT INTO model_providers(id, provider_key, name, endpoint, api_key, models, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET provider_key = excluded.provider_key, name = excluded.name, endpoint = excluded.endpoint, api_key = excluded.api_key,
-      models = excluded.models, enabled = excluded.enabled, updated_at = excluded.updated_at`)
-      .run(id, key, input.name.trim(), input.endpoint.trim().replace(/\/+$/, ''), apiKey, JSON.stringify(models), input.enabled ? 1 : 0, now, now)
-    return this.get(id)!
+    const record: JsonModelRecord = {
+      id: input.id || randomUUID(),
+      providerKey: providerKey(input.providerKey, input.name, input.endpoint),
+      name: input.name.trim(),
+      endpoint: input.endpoint.trim().replace(/\/+$/, ''),
+      apiKey: input.apiKey?.trim() || existing?.apiKey || '',
+      model,
+      enabled: Boolean(input.enabled),
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    }
+    const next = existing ? records.map(item => item.id === record.id ? record : item) : [record, ...records]
+    this.writeRecords(next)
+    return this.asSummary(record)
   }
 
   delete(id: string) {
+    this.writeRecords(this.readRecords().filter(record => record.id !== id))
     this.database.prepare('DELETE FROM model_role_bindings WHERE provider_id = ?').run(id)
-    this.database.prepare('DELETE FROM model_providers WHERE id = ?').run(id)
   }
 
   bindings(): ModelRoleBinding {
+    const validIds = new Set(this.readRecords().map(record => record.id))
     const rows = this.database.prepare('SELECT role, provider_id, model_id FROM model_role_bindings').all() as Array<{ role: keyof ModelRoleBinding, provider_id: string, model_id: string }>
-    return Object.fromEntries(rows.map(row => [row.role, { providerId: row.provider_id, modelId: row.model_id }])) as ModelRoleBinding
+    return Object.fromEntries(rows.filter(row => validIds.has(row.provider_id)).map(row => [row.role, { providerId: row.provider_id, modelId: row.model_id }])) as ModelRoleBinding
   }
 
   saveBindings(bindings: ModelRoleBinding) {
+    const validIds = new Set(this.readRecords().map(record => record.id))
     const write = this.database.transaction(() => {
       this.database.prepare('DELETE FROM model_role_bindings').run()
       const insert = this.database.prepare('INSERT INTO model_role_bindings(role, provider_id, model_id) VALUES (?, ?, ?)')
-      Object.entries(bindings).forEach(([role, value]) => { if (value?.providerId && value.modelId) insert.run(role, value.providerId, value.modelId) })
+      Object.entries(bindings).forEach(([role, value]) => { if (value?.providerId && value.modelId && validIds.has(value.providerId)) insert.run(role, value.providerId, value.modelId) })
     })
     write()
     return this.bindings()

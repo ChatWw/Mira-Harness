@@ -57,7 +57,7 @@ export class PlatformDatabase {
     this.filePath = join(userDataPath, 'mira.sqlite')
     this.database = new Database(this.filePath)
     this.novels = new NovelStore(this.database)
-    this.models = new ModelConfigStore(this.database)
+    this.models = new ModelConfigStore(this.database, userDataPath)
     this.harness = new HarnessStore(this.database, userDataPath)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
@@ -86,7 +86,6 @@ export class PlatformDatabase {
     if (!providerColumns.some(column => column.name === 'provider_key')) {
       this.database.exec('ALTER TABLE model_providers ADD COLUMN provider_key TEXT')
     }
-    this.models.migrateProviderKeys()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
@@ -174,18 +173,13 @@ export class PlatformDatabase {
         const snapshot = this.getSnapshot()
         this.backup()
         this.writeSnapshot({ ...snapshot, mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus) })
-        const legacy = snapshot.preferences.novelModelProfiles as { authoring?: { endpoint?: string, apiKey?: string, modelId?: string }, automation?: { endpoint?: string, apiKey?: string, modelId?: string } } | undefined
-        const bindings: Record<string, { providerId: string, modelId: string }> = {}
-        for (const [role, profile] of Object.entries(legacy || {})) {
-          if (!profile?.endpoint?.trim() || !profile.apiKey?.trim() || !profile.modelId?.trim()) continue
-          const provider = this.models.save({ name: role === 'authoring' ? 'AI 小说创作模型' : 'AI 小说自动处理模型', endpoint: profile.endpoint, apiKey: profile.apiKey, models: [profile.modelId], enabled: true })
-          bindings[role === 'authoring' ? 'novelAuthoring' : 'novelAutomation'] = { providerId: provider.id, modelId: profile.modelId }
-        }
-        if (Object.keys(bindings).length) this.models.saveBindings({ ...this.models.bindings(), ...bindings })
         this.savePreference('novelModelProfilesMigratedAt', Date.now())
       }
     }
-    const workspaceSettings = this.novels.getSettings()
+    let workspaceSettings = this.novels.getSettings()
+    if (workspaceSettings.modelSelection && !this.models.get(workspaceSettings.modelSelection.providerId)) {
+      workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: undefined })
+    }
     if (!workspaceSettings.modelSelection) {
       const provider = this.models.list().find(item => item.enabled && item.hasApiKey && item.models.length)
       if (provider) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: provider.models[0] } })

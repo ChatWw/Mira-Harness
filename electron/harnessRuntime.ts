@@ -18,6 +18,17 @@ function messageContent(message: HarnessMessage) {
   return `${message.content}${files}`
 }
 
+function assistantText(message: unknown) {
+  if (!message || typeof message !== 'object' || (message as { role?: unknown }).role !== 'assistant') return ''
+  const content = (message as { content?: unknown }).content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((block): block is { type: 'text', text: string } => Boolean(block && typeof block === 'object' && (block as { type?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string'))
+    .map(block => block.text)
+    .join('')
+}
+
 export class HarnessRuntime {
   private readonly running = new Map<string, AbortController>()
   constructor(private readonly database: PlatformDatabase) {}
@@ -89,7 +100,29 @@ export class HarnessRuntime {
       initialState: {
         systemPrompt: 'You are Mira, a careful desktop work assistant. Answer in the user\'s language. Tools are unavailable until a project is selected.',
         model,
-        messages: session.messages.map(item => ({ role: item.role, content: messageContent(item), timestamp: item.createdAt })),
+        messages: session.messages.map(item => ({
+          role: item.role,
+          content: item.role === 'assistant'
+            ? [{ type: 'text', text: messageContent(item) }]
+            : messageContent(item),
+          ...(item.role === 'assistant'
+            ? {
+                api: model.api,
+                provider: model.provider,
+                model: model.id,
+                usage: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  totalTokens: 0,
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+                },
+                stopReason: 'stop',
+              }
+            : {}),
+          timestamp: item.createdAt,
+        })),
         tools: this.tools(sender, sessionId),
       } as any,
       streamFn: models.streamSimple.bind(models) as any,
@@ -105,7 +138,15 @@ export class HarnessRuntime {
     })
     try {
       await agent.prompt(text)
-      if (output) this.database.harness.appendAssistantText(sessionId, output)
+      if (agent.state.errorMessage) throw new Error(agent.state.errorMessage)
+      const finalText = assistantText(agent.state.messages.at(-1))
+      if (finalText && finalText !== output) {
+        const delta = finalText.startsWith(output) ? finalText.slice(output.length) : finalText
+        if (delta) emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
+        output = finalText
+      }
+      if (!output) throw new Error('模型没有返回文本')
+      this.database.harness.appendAssistantText(sessionId, output)
       this.database.harness.setStatus(sessionId, 'completed')
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
     } catch (error) {

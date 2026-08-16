@@ -119,7 +119,12 @@ async function load() {
   providers.value = configured
   if (sessionId.value) {
     if (store.activeSession?.id !== sessionId.value) await store.openSession(sessionId.value)
-    store.ensureComposerDraft(`session:${sessionId.value}`)
+    const sessionKey = `session:${sessionId.value}`
+    store.ensureComposerDraft(sessionKey)
+    const session = store.activeSession
+    if (session?.modelProviderId && session.modelId && !store.drafts[sessionKey]?.modelSelection) {
+      store.updateComposerDraft(sessionKey, { modelSelection: { providerId: session.modelProviderId, modelId: session.modelId } })
+    }
     return
   }
   store.clearActiveSession()
@@ -189,7 +194,13 @@ function removeAttachment(path: string) {
 async function send() {
   const api = getPlatformApi()
   const originKey = draftKey.value
-  const payload = { text: composerDraft.value.text.trim(), attachments: [...composerDraft.value.attachments], projectId: composerDraft.value.projectId, modelSelection: composerDraft.value.modelSelection }
+  const draft = composerDraft.value
+  const payload = {
+    text: draft.text.trim(),
+    attachments: draft.attachments.map(file => ({ path: file.path, name: file.name })),
+    projectId: draft.projectId,
+    modelSelection: draft.modelSelection ? { providerId: draft.modelSelection.providerId, modelId: draft.modelSelection.modelId } : undefined,
+  }
   if (!api || !originKey || !payload.text || !payload.modelSelection || store.running) return
 
   let activeId = sessionId.value
@@ -209,7 +220,6 @@ async function send() {
     store.activeSession?.messages.push({ id: `local-${Date.now()}`, role: 'user', content: payload.text, attachments: payload.attachments.map(file => ({ ...file, content: '' })), createdAt: Date.now() })
     store.running = true
     await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection)
-    store.removeComposerDraft(sessionKey)
   } catch (error) {
     const sessionKey = activeId ? `session:${activeId}` : originKey
     const session = activeId ? await store.openSession(activeId).catch(() => undefined) : undefined
@@ -232,9 +242,9 @@ onBeforeUnmount(() => dispose?.())
 </script>
 
 <style scoped lang="scss">
-.harness-page { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; background: var(--cp-bg); }
+.harness-page { height: 100%; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; overflow: hidden; background: var(--cp-bg); }
 .session-panel { min-width: 0; padding: 22px 18px; overflow-y: auto; background: color-mix(in srgb, var(--cp-bg-elevated) 88%, var(--cp-bg)); border-left: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }
-.conversation { display: grid; min-width: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto; }
 .conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px clamp(20px, 4vw, 56px); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); }
 .conversation__identity { min-width: 0; }
 .conversation__identity strong, .conversation__identity span { display: block; }
@@ -242,7 +252,7 @@ onBeforeUnmount(() => dispose?.())
 .conversation__eyebrow { display: inline-flex !important; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--cp-text-secondary); font-size: 11px; line-height: 1.4; }
 .conversation__directory { max-width: 44vw; margin-top: 2px; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation__actions { display: flex; align-items: center; }
-.message-stream { padding: 34px clamp(20px, 5vw, 96px) 24px; overflow-y: auto; }
+.message-stream { min-height: 0; padding: 34px clamp(20px, 5vw, 96px) 24px; overflow-y: auto; }
 .message, .empty-state { width: min(100%, 760px); margin-right: auto; margin-left: auto; }
 .message { margin-bottom: 28px; }
 .message.user { margin-left: auto; }

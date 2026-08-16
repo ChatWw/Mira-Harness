@@ -100,6 +100,8 @@ function createWindow() {
   const isWindows = process.platform === 'win32'
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 680,
+    show: false,
+    backgroundColor: '#f7f7f8',
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
     ...(isWindows ? {
       titleBarOverlay: { color: '#fafafa', symbolColor: '#18181b', height: 48 },
@@ -115,6 +117,7 @@ function createWindow() {
     if (/^https?:/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  window.once('ready-to-show', () => window.show())
   if (process.env.ELECTRON_RENDERER_URL) window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else window.loadFile(join(__dirname, '../renderer/index.html'))
 }
@@ -154,6 +157,29 @@ app.whenReady().then(async () => {
   ipcMain.handle('platform:resolve-local-microapp-url', (_event, appId: string) => localMicroAppServer.getEntryUrl(appId))
   ipcMain.handle('platform:get-novel-api-base-url', () => localMicroAppServer.getApiBaseUrl('novel'))
   ipcMain.handle('harness:list-model-providers', () => database.models.list())
+  ipcMain.handle('harness:get-model-config-path', () => database.models.path())
+  ipcMain.handle('harness:get-model-provider-api-key', (_event, id: string) => database.models.getSecret(id))
+  ipcMain.handle('harness:open-model-config-file', () => shell.openPath(database.models.path()))
+  ipcMain.handle('harness:list-model-provider-models', async (_event, provider: ModelProviderInput) => {
+    const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
+    if (!endpoint) return []
+    const url = /\/models$/i.test(endpoint) ? endpoint : `${endpoint}/models`
+    const apiKey = provider.apiKey?.trim() || database.models.getSecret(provider.id || '')
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    try {
+      const response = await fetch(url, { headers, signal: controller.signal })
+      if (!response.ok) return []
+      const payload = await response.json() as { data?: Array<{ id?: unknown }> }
+      return [...new Set((payload.data || []).map(item => typeof item.id === 'string' ? item.id.trim() : '').filter(Boolean))]
+    } catch {
+      return []
+    } finally {
+      clearTimeout(timeout)
+    }
+  })
   ipcMain.handle('harness:save-model-provider', (_event, provider: ModelProviderInput) => database.models.save(provider))
   ipcMain.handle('harness:delete-model-provider', (_event, id: string) => database.models.delete(id))
   ipcMain.handle('harness:get-model-role-bindings', () => database.models.bindings())

@@ -1,5 +1,5 @@
 <template>
-  <main class="app-main">
+  <main class="app-main" :class="{ 'app-main--harness': isHarnessRoute }">
     <router-view v-slot="{ Component }">
       <transition :name="transitionName" mode="out-in">
         <keep-alive :include="cachedRouteNames">
@@ -18,6 +18,7 @@ import { cachedRouteNames } from '@/router/routeCache'
 
 const layoutStore = useLayoutStore()
 const route = useRoute()
+const isHarnessRoute = computed(() => route.path === '/workspace/chat' || route.path.startsWith('/workspace/chat/'))
 
 const transitionName = computed(() => layoutStore.config.pageTransition)
 // 同一微应用的子路由只通知宿主切换，仅显式刷新时重建 Wujie 实例。
@@ -48,6 +49,11 @@ const viewKey = computed(() => {
   @include media-max($breakpoint-md) {
     padding: $spacing-md;
   }
+}
+
+.app-main--harness {
+  padding: 0;
+  overflow: hidden;
 }
 
 // ==================== 淡入淡出 ====================
