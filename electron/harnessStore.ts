@@ -10,6 +10,7 @@ import {
   type HarnessFileReference,
   type HarnessMessageAttachment,
   type HarnessProject,
+  type HarnessRunSummary,
   type HarnessSession,
   type HarnessSessionSummary,
   type PermissionConfig,
@@ -173,11 +174,13 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  appendAssistantText(id: string, content: string) {
+  appendAssistantText(id: string, content: string, run?: HarnessRunSummary) {
     const session = this.getSession(id)
     const last = session.messages.at(-1)
-    if (last?.role === 'assistant') last.content += content
-    else session.messages.push({ id: randomUUID(), role: 'assistant', content, createdAt: now() })
+    if (last?.role === 'assistant') {
+      last.content += content
+      if (run) last.run = run
+    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), createdAt: now() })
     return this.saveSession(session)
   }
 

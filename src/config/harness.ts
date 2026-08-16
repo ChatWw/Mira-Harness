@@ -1,11 +1,29 @@
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+
+export interface HarnessRunActivity {
+  id: string
+  label: string
+  detail?: string
+  status: 'running' | 'completed' | 'failed'
+  startedAt: number
+  completedAt?: number
+}
+
+export interface HarnessRunSummary {
+  startedAt: number
+  completedAt: number
+  durationMs: number
+  activities: HarnessRunActivity[]
+}
 
 export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   attachments?: HarnessMessageAttachment[]
+  run?: HarnessRunSummary
   createdAt: number
 }
 
@@ -73,7 +91,7 @@ export const DEFAULT_PROJECT_ICON = PROJECT_ICON_OPTIONS[0]
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'message-delta' | 'message-complete' | 'tool-call' | 'status' | 'error'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'tool-call' | 'status' | 'error'
   payload: Record<string, unknown>
 }
 
@@ -84,6 +102,7 @@ export interface ModelProviderInput {
   endpoint: string
   apiKey?: string
   models: string[]
+  reasoning?: boolean
   enabled: boolean
 }
 
@@ -93,6 +112,7 @@ export interface ModelProviderSummary {
   name: string
   endpoint: string
   models: string[]
+  reasoning: boolean
   enabled: boolean
   hasApiKey: boolean
   createdAt: number
@@ -101,9 +121,15 @@ export interface ModelProviderSummary {
 
 export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'ollama' | 'custom'
 
+export function inferModelReasoning(modelId: string) {
+  const value = modelId.toLocaleLowerCase()
+  return /(?:reasoner|(?:^|[-_/])r1(?:[-_/]|$)|qwq|thinking|(?:^|[-_/])o[134](?:[-_/]|$))/.test(value)
+}
+
 export interface ModelSelection {
   providerId: string
   modelId: string
+  thinkingLevel?: ThinkingLevel
 }
 
 export interface ModelRoleBinding {

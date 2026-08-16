@@ -7,8 +7,9 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { HarnessEvent, HarnessFileReference, HarnessMessage, ModelSelection, PermissionMode } from '../src/config/harness'
+import type { HarnessEvent, HarnessFileReference, HarnessMessage, HarnessRunActivity, HarnessRunSummary, ModelSelection, PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
+import { MIRA_SYSTEM_PROMPT } from './prompts/mira-system-prompt'
 
 function emit(sender: WebContents, event: HarnessEvent) { if (!sender.isDestroyed()) sender.send('harness:event', event) }
 
@@ -27,6 +28,19 @@ function assistantText(message: unknown) {
     .filter((block): block is { type: 'text', text: string } => Boolean(block && typeof block === 'object' && (block as { type?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string'))
     .map(block => block.text)
     .join('')
+}
+
+function activityDetail(toolName: string, args: unknown) {
+  const value = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+  const target = typeof value.path === 'string' ? value.path : typeof value.command === 'string' ? value.command : ''
+  if (!target) return '已开始执行'
+  const prefix = toolName === 'bash' ? '命令' : '目标'
+  const safeTarget = target
+    .replace(/\b(api[_-]?key|token|password|secret)\b\s*(?:=|:)\s*([^\s'"\r\n]+)/gi, '$1=***')
+    .replace(/(authorization\s*:\s*bearer\s+)[^\s'"\r\n]+/gi, '$1***')
+    .replace(/\s+/g, ' ')
+    .slice(0, 240)
+  return `${prefix}：${safeTarget}`
 }
 
 export class HarnessRuntime {
@@ -85,10 +99,23 @@ export class HarnessRuntime {
     this.running.set(sessionId, controller)
     this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
+    const startedAt = Date.now()
+    const activities: HarnessRunActivity[] = [{ id: 'thinking-0', label: '正在思考', status: 'running', startedAt }]
+    const publishActivities = () => emit(sender, { sessionId, type: 'run-activity', payload: { activities } })
+    const finishActivity = (id: string, status: HarnessRunActivity['status'] = 'completed', detail?: string) => {
+      const activity = activities.find(item => item.id === id)
+      if (activity?.status === 'running') Object.assign(activity, { status, completedAt: Date.now(), ...(detail ? { detail } : {}) })
+    }
+    const startActivity = (id: string, label: string, detail?: string) => {
+      if (!activities.some(item => item.id === id)) activities.push({ id, label, ...(detail ? { detail } : {}), status: 'running', startedAt: Date.now() })
+    }
+    const finishRunningActivities = (status: HarnessRunActivity['status']) => activities.filter(item => item.status === 'running').forEach(item => Object.assign(item, { status, completedAt: Date.now() }))
+    emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities } })
 
     const model = {
       id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
-      reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 8192,
+      reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
+      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 8192,
     } as any
     const models = createModels()
     models.setProvider(createProvider({
@@ -98,8 +125,9 @@ export class HarnessRuntime {
     }) as any)
     const agent = new Agent({
       initialState: {
-        systemPrompt: 'You are Mira, a careful desktop work assistant. Answer in the user\'s language. Tools are unavailable until a project is selected.',
+        systemPrompt: MIRA_SYSTEM_PROMPT,
         model,
+        thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
         messages: session.messages.map(item => ({
           role: item.role,
           content: item.role === 'assistant'
@@ -130,10 +158,30 @@ export class HarnessRuntime {
     })
     let output = ''
     const unsubscribe = agent.subscribe((event: any) => {
+      if (event.type === 'message_start' && !activities.some(item => item.status === 'running')) {
+        startActivity(`thinking-${activities.length}`, '正在思考')
+        publishActivities()
+      }
       if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
+        const thinking = activities.find(item => item.status === 'running' && item.label === '正在思考')
+        if (thinking) finishActivity(thinking.id)
+        startActivity('answering', '正在生成回复')
+        publishActivities()
         const delta = event.assistantMessageEvent.delta as string
         output += delta
         emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
+      }
+      if (event.type === 'tool_execution_start') {
+        activities.filter(item => item.status === 'running' && item.label === '正在思考').forEach(item => finishActivity(item.id))
+        const labels: Record<string, string> = { read_file: '读取文件', list_files: '查看文件', write_file: '写入文件', delete_file: '删除文件', bash: '执行命令' }
+        startActivity(`tool-${event.toolCallId}`, labels[event.toolName] || `执行工具：${event.toolName}`, activityDetail(event.toolName, event.args))
+        publishActivities()
+      }
+      if (event.type === 'tool_execution_end') {
+        const suffix = event.isError ? '执行失败' : '执行完成'
+        const activity = activities.find(item => item.id === `tool-${event.toolCallId}`)
+        finishActivity(`tool-${event.toolCallId}`, event.isError ? 'failed' : 'completed', `${activity?.detail || '工具调用'}\n${suffix}`)
+        publishActivities()
       }
     })
     try {
@@ -146,10 +194,15 @@ export class HarnessRuntime {
         output = finalText
       }
       if (!output) throw new Error('模型没有返回文本')
-      this.database.harness.appendAssistantText(sessionId, output)
+      finishRunningActivities('completed')
+      const completedAt = Date.now()
+      const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities }
+      this.database.harness.appendAssistantText(sessionId, output, run)
       this.database.harness.setStatus(sessionId, 'completed')
-      emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
+      emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
     } catch (error) {
+      finishRunningActivities('failed')
+      publishActivities()
       this.database.harness.setStatus(sessionId, 'failed')
       emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
       throw error

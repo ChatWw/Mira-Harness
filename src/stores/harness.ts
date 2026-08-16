@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPlatformApi } from '@/platform'
-import type { HarnessEvent, HarnessFileReference, HarnessProject, HarnessProjectCreateInput, HarnessSession, HarnessSessionSummary, ModelSelection } from '@/config/harness'
+import type { HarnessEvent, HarnessFileReference, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, ModelSelection, ThinkingLevel } from '@/config/harness'
 
 const DRAFT_STORAGE_KEY = 'mira-harness-composer-drafts'
+const MODEL_SELECTION_STORAGE_KEY = 'mira-harness-model-selection'
 
 export interface HarnessComposerDraft {
   text: string
@@ -22,7 +23,11 @@ function loadDrafts() {
         text: draft.text,
         projectId: typeof draft.projectId === 'string' ? draft.projectId : undefined,
         modelSelection: draft.modelSelection && typeof draft.modelSelection.providerId === 'string' && typeof draft.modelSelection.modelId === 'string'
-          ? { providerId: draft.modelSelection.providerId, modelId: draft.modelSelection.modelId }
+          ? {
+              providerId: draft.modelSelection.providerId,
+              modelId: draft.modelSelection.modelId,
+              thinkingLevel: isThinkingLevel(draft.modelSelection.thinkingLevel) ? draft.modelSelection.thinkingLevel : undefined,
+            }
           : undefined,
         attachments: draft.attachments.filter((file): file is HarnessFileReference => Boolean(file && typeof file.path === 'string' && typeof file.name === 'string')),
         updatedAt: typeof draft.updatedAt === 'number' ? draft.updatedAt : Date.now(),
@@ -34,12 +39,36 @@ function loadDrafts() {
   }
 }
 
+function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return value === 'off' || value === 'low' || value === 'medium' || value === 'high'
+}
+
+export interface HarnessRunProgress {
+  sessionId: string
+  startedAt: number
+  activities: HarnessRunActivity[]
+}
+
+function loadModelSelection(): ModelSelection | undefined {
+  try {
+    const value = JSON.parse(localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) || 'null') as Partial<ModelSelection> | null
+    return value && typeof value.providerId === 'string' && typeof value.modelId === 'string'
+      ? { providerId: value.providerId, modelId: value.modelId, thinkingLevel: isThinkingLevel(value.thinkingLevel) ? value.thinkingLevel : undefined }
+      : undefined
+  } catch {
+    localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY)
+    return undefined
+  }
+}
+
 export const useHarnessStore = defineStore('harness', () => {
   const sessions = ref<HarnessSessionSummary[]>([])
   const projects = ref<HarnessProject[]>([])
   const activeSession = ref<HarnessSession>()
   const running = ref(false)
+  const activeRun = ref<HarnessRunProgress>()
   const drafts = ref<Record<string, HarnessComposerDraft>>(loadDrafts())
+  const lastModelSelection = ref<ModelSelection | undefined>(loadModelSelection())
 
   function persistDrafts() {
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts.value))
@@ -76,12 +105,21 @@ export const useHarnessStore = defineStore('harness', () => {
     running.value = false
     const token = createDraftToken()
     ensureComposerDraft(`draft:${token}`, projectId)
+    if (lastModelSelection.value) {
+      updateComposerDraft(`draft:${token}`, { modelSelection: { ...lastModelSelection.value } })
+    }
     return token
+  }
+
+  function setLastModelSelection(selection: ModelSelection) {
+    lastModelSelection.value = { ...selection }
+    localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, JSON.stringify(lastModelSelection.value))
   }
 
   function clearActiveSession() {
     activeSession.value = undefined
     running.value = false
+    activeRun.value = undefined
   }
 
   async function refreshSessions(query = '') {
@@ -127,14 +165,27 @@ export const useHarnessStore = defineStore('harness', () => {
 
   function applyEvent(event: HarnessEvent) {
     if (event.sessionId !== activeSession.value?.id) return
+    if (event.type === 'run-start') {
+      activeRun.value = {
+        sessionId: event.sessionId,
+        startedAt: Number(event.payload.startedAt) || Date.now(),
+        activities: Array.isArray(event.payload.activities) ? event.payload.activities as HarnessRunActivity[] : [],
+      }
+    }
+    if (event.type === 'run-activity' && activeRun.value?.sessionId === event.sessionId && Array.isArray(event.payload.activities)) {
+      activeRun.value = { ...activeRun.value, activities: event.payload.activities as HarnessRunActivity[] }
+    }
     if (event.type === 'message-delta') {
       const delta = String(event.payload.delta || '')
       const last = activeSession.value.messages[activeSession.value.messages.length - 1]
       if (last?.role === 'assistant') last.content += delta
       else activeSession.value.messages.push({ id: `stream-${Date.now()}`, role: 'assistant', content: delta, createdAt: Date.now() })
     }
-    if (event.type === 'status') running.value = event.payload.state === 'running'
-    if (event.type === 'message-complete') void openSession(event.sessionId).then(() => Promise.all([refreshSessions(), refreshProjects()]))
+    if (event.type === 'status') {
+      running.value = event.payload.state === 'running'
+      if (!running.value) activeRun.value = undefined
+    }
+    if (event.type === 'message-complete') void openSession(event.sessionId).then(() => { activeRun.value = undefined; return Promise.all([refreshSessions(), refreshProjects()]) })
   }
 
   return {
@@ -142,7 +193,9 @@ export const useHarnessStore = defineStore('harness', () => {
     projects,
     activeSession,
     running,
+    activeRun,
     drafts,
+    lastModelSelection,
     refreshSessions,
     refreshProjects,
     createProject,
@@ -154,6 +207,7 @@ export const useHarnessStore = defineStore('harness', () => {
     updateComposerDraft,
     removeComposerDraft,
     startDraft,
+    setLastModelSelection,
     clearActiveSession,
   }
 })

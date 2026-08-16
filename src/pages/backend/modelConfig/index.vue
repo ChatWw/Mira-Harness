@@ -22,7 +22,7 @@
                 <AppIcon v-else :name="providerIcon(provider.providerKey)" />
               </span>
               <div>
-                <h3>{{ provider.models[0] }}</h3>
+                <h3>{{ provider.models[0] }} <el-tag v-if="provider.reasoning" size="small" effect="plain">支持推理</el-tag></h3>
                 <p>{{ provider.name }}</p>
               </div>
             </div>
@@ -68,9 +68,13 @@
           <el-input v-model="form.apiKey" type="password" show-password :placeholder="form.id ? '留空则保持现有密钥' : '输入 API Key'" />
         </el-form-item>
         <el-form-item label="模型名称">
-          <el-select v-model="selectedModel" filterable allow-create :loading="loadingModels" placeholder="选择或输入模型名称" @focus="loadModelNames">
+          <el-select v-model="selectedModel" filterable allow-create :loading="loadingModels" placeholder="选择或输入模型名称" @focus="loadModelNames" @change="form.reasoning = inferModelReasoning(selectedModel)">
             <el-option v-for="model in modelOptions" :key="model" :label="model" :value="model" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="推理能力">
+          <el-switch v-model="form.reasoning" active-text="支持推理" inactive-text="标准回复" />
+          <p class="form-tip">模型列表接口通常不返回此能力；已知推理模型会自动识别，其他模型请按供应商文档确认。</p>
         </el-form-item>
         <el-form-item label="Endpoint">
           <el-input v-model="form.endpoint" :disabled="endpointLocked" placeholder="https://api.example.com/v1" />
@@ -91,7 +95,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
+import { inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
 import glmIcon from '@/asset/modules_icon/glm.svg'
 import kimiIcon from '@/asset/modules_icon/Kimi.svg'
 import minimaxIcon from '@/asset/modules_icon/MiniMax.svg'
@@ -108,7 +112,7 @@ const selectedModel = ref('')
 const modelOptions = ref<string[]>([])
 const loadingModels = ref(false)
 const modelRequestId = ref(0)
-const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], enabled: true })
+const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], reasoning: false, enabled: true })
 const endpointLocked = computed(() => form.providerKey !== 'ollama' && form.providerKey !== 'custom')
 
 function providerIcon(key: ModelProviderKey | string) {
@@ -162,12 +166,13 @@ function applyPreset() {
   form.endpoint = preset.endpoint
   selectedModel.value = preset.models.find(Boolean) || ''
   form.models = selectedModel.value ? [selectedModel.value] : []
+  form.reasoning = inferModelReasoning(selectedModel.value)
   setModelOptions(preset.models)
   void loadModelNames()
 }
 
 function openCreate() {
-  Object.assign(form, { id: undefined, providerKey: 'glm', apiKey: '', enabled: true })
+  Object.assign(form, { id: undefined, providerKey: 'glm', apiKey: '', reasoning: false, enabled: true })
   selectedModel.value = ''
   applyPreset()
   visible.value = true
@@ -175,7 +180,7 @@ function openCreate() {
 
 async function edit(row: ModelProviderSummary) {
   const api = getPlatformApi()
-  Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], enabled: row.enabled })
+  Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], reasoning: row.reasoning, enabled: row.enabled })
   selectedModel.value = row.models[0] || ''
   setModelOptions([selectedModel.value])
   visible.value = true
@@ -243,7 +248,8 @@ onBeforeUnmount(() => {
 .model-empty { display: grid; min-height: 118px; place-items: center; padding: 22px; text-align: center; border: 1px dashed var(--cp-border); border-radius: $radius-sm; }
 .model-empty strong { color: var(--cp-text); font-size: $font-sm; }
 .model-empty p { margin: 8px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.dialog-note { margin: 0 0 $spacing-lg; padding: $spacing-sm $spacing-md; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: $radius-sm; font-size: $font-xs; }
+.dialog-note { margin: 4px 0; padding: $spacing-sm $spacing-md; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 16px; font-size: $font-xs; }
+.form-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-tertiary); font-size: $font-xs; line-height: 1.55; }
 .provider-option { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .provider-option__icon { width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
 @include media-max($breakpoint-md) {
