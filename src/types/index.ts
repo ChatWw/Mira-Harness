@@ -145,8 +145,9 @@ export interface PlatformApi {
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
   deleteHarnessSession(id: string): Promise<void>
   deleteHarnessSessions(ids: string[]): Promise<void>
+  listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
-  runHarnessMessage(sessionId: string, message: string): Promise<void>
+  runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<void>
   abortHarnessRun(sessionId: string): Promise<void>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>

@@ -5,7 +5,17 @@ export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  attachments?: HarnessMessageAttachment[]
   createdAt: number
+}
+
+export interface HarnessFileReference {
+  path: string
+  name: string
+}
+
+export interface HarnessMessageAttachment extends HarnessFileReference {
+  content: string
 }
 
 export interface ToolCallRecord {
@@ -69,6 +79,7 @@ export interface HarnessEvent {
 
 export interface ModelProviderInput {
   id?: string
+  providerKey?: ModelProviderKey
   name: string
   endpoint: string
   apiKey?: string
@@ -78,6 +89,7 @@ export interface ModelProviderInput {
 
 export interface ModelProviderSummary {
   id: string
+  providerKey: ModelProviderKey
   name: string
   endpoint: string
   models: string[]
@@ -85,6 +97,13 @@ export interface ModelProviderSummary {
   hasApiKey: boolean
   createdAt: number
   updatedAt: number
+}
+
+export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'ollama' | 'custom'
+
+export interface ModelSelection {
+  providerId: string
+  modelId: string
 }
 
 export interface ModelRoleBinding {
@@ -108,7 +127,10 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
 }
 
 export const MODEL_PROVIDER_PRESETS = [
-  { name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] },
-  { name: '通义千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus'] },
-  { name: '月之暗面', endpoint: 'https://api.moonshot.cn/v1', models: ['moonshot-v1-8k'] },
+  { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash'] },
+  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', models: ['moonshot-v1-8k'] },
+  { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', models: ['MiniMax-Text-01'] },
+  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] },
+  { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', models: ['llama3.2'] },
+  { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', models: [''] },
 ]

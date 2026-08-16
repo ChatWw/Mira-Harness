@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
   DEFAULT_PERMISSION_CONFIG,
   DEFAULT_PROJECT_ICON,
   PROJECT_ICON_OPTIONS,
   type HarnessMessage,
+  type HarnessFileReference,
+  type HarnessMessageAttachment,
   type HarnessProject,
   type HarnessSession,
   type HarnessSessionSummary,
@@ -17,6 +19,12 @@ import {
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
 type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], path: string, working_directory: string | null, created_at: number, updated_at: number }
+
+const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
+const MAX_FILE_REFERENCES = 12
+const MAX_ATTACHMENT_FILE_BYTES = 256 * 1024
+const MAX_ATTACHMENT_TOTAL_BYTES = 1024 * 1024
+const MAX_LISTED_PROJECT_FILES = 240
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 function now() { return Date.now() }
@@ -46,6 +54,25 @@ export class HarnessStore {
     const target = resolve(candidate)
     if (target !== rootPath && !target.startsWith(`${rootPath}${sep}`)) throw new Error('路径不在项目目录内')
     return target
+  }
+
+  private projectFilePath(project: HarnessProject, filePath: string) {
+    if (!filePath || isAbsolute(filePath)) throw new Error('引用文件路径无效')
+    const candidate = this.ensureInside(project.directory, join(project.directory, filePath))
+    if (!existsSync(candidate) || !lstatSync(candidate).isFile()) throw new Error(`引用文件不存在：${filePath}`)
+    const root = realpathSync(project.directory)
+    const resolved = realpathSync(candidate)
+    if (resolved !== root && !resolved.startsWith(`${root}${sep}`)) throw new Error('引用文件不能通过符号链接离开项目目录')
+    return resolved
+  }
+
+  private isTextProjectFile(path: string) {
+    try {
+      const stat = lstatSync(path)
+      return stat.size <= MAX_ATTACHMENT_FILE_BYTES && !readFileSync(path).includes(0)
+    } catch {
+      return false
+    }
   }
 
   private saveSession(session: HarnessSession) {
@@ -113,7 +140,7 @@ export class HarnessStore {
   }
 
   createSession(projectId?: string, permissionMode: PermissionMode = DEFAULT_PERMISSION_CONFIG.globalDefaultMode) {
-    const project = projectId ? this.getProject(projectId) : this.listProjects()[0]
+    const project = projectId ? this.getProject(projectId) : undefined
     const time = now()
     const session: HarnessSession = {
       version: 1, id: createSessionId(), title: '新对话', projectId: project?.id, workingDirectory: project?.directory,
@@ -139,9 +166,9 @@ export class HarnessStore {
 
   updateSession(session: HarnessSession) { return this.saveSession(session) }
 
-  addMessage(id: string, role: HarnessMessage['role'], content: string) {
+  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[]) {
     const session = this.getSession(id)
-    session.messages.push({ id: randomUUID(), role, content, createdAt: now() })
+    session.messages.push({ id: randomUUID(), role, content, ...(attachments?.length ? { attachments } : {}), createdAt: now() })
     if (role === 'user' && session.title === '新对话') session.title = titleFor(content)
     return this.saveSession(session)
   }
@@ -167,6 +194,68 @@ export class HarnessStore {
     const project = this.createProject(directory)
     session.projectId = project.id; session.workingDirectory = project.directory
     return this.saveSession(session)
+  }
+
+  listProjectFiles(projectId: string, query = ''): HarnessFileReference[] {
+    const project = this.getProject(projectId)
+    const term = query.trim().toLocaleLowerCase()
+    const files: HarnessFileReference[] = []
+    const visit = (directory: string) => {
+      if (files.length >= MAX_LISTED_PROJECT_FILES) return
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (files.length >= MAX_LISTED_PROJECT_FILES) return
+        if (entry.isDirectory()) {
+          if (!IGNORED_FILE_DIRECTORIES.has(entry.name)) visit(join(directory, entry.name))
+          continue
+        }
+        if (!entry.isFile()) continue
+        const target = join(directory, entry.name)
+        if (!this.isTextProjectFile(target)) continue
+        const path = relative(project.directory, target)
+        if (!term || path.toLocaleLowerCase().includes(term)) files.push({ path, name: entry.name })
+      }
+    }
+    visit(project.directory)
+    return files.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'))
+  }
+
+  resolveMessageAttachments(sessionId: string, references: HarnessFileReference[] = []): HarnessMessageAttachment[] {
+    if (!references.length) return []
+    if (references.length > MAX_FILE_REFERENCES) throw new Error(`一次最多引用 ${MAX_FILE_REFERENCES} 个文件`)
+    const session = this.getSession(sessionId)
+    if (!session.projectId) throw new Error('请先选择项目后再引用文件')
+    const project = this.getProject(session.projectId)
+    const uniquePaths = new Set<string>()
+    let totalBytes = 0
+    return references.map(reference => {
+      if (!reference || typeof reference.path !== 'string' || uniquePaths.has(reference.path)) throw new Error('引用文件重复或无效')
+      uniquePaths.add(reference.path)
+      const target = this.projectFilePath(project, reference.path)
+      const content = readFileSync(target)
+      if (content.includes(0)) throw new Error(`不支持引用二进制文件：${reference.path}`)
+      if (content.byteLength > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
+      totalBytes += content.byteLength
+      if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
+      return { path: reference.path, name: basename(target), content: content.toString('utf8') }
+    })
+  }
+
+  removeEmptySessions() {
+    const rows = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
+    const emptyIds = rows.flatMap(row => {
+      try {
+        const session = this.parseSession(readFileSync(row.path, 'utf8'))
+        return session.messages.some(message => message.role === 'user') ? [] : [row.id]
+      } catch {
+        return []
+      }
+    })
+    if (!emptyIds.length) return 0
+    this.deleteSessions(emptyIds)
+    this.database.prepare(`UPDATE harness_projects SET last_session_at = (
+      SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id
+    )`).run()
+    return emptyIds.length
   }
 
   deleteSession(id: string) {

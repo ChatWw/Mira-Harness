@@ -92,6 +92,7 @@ export interface NovelProjectSummary {
 export interface NovelWorkspaceSettings {
   shortcuts: string[]
   editorMode: 'markdown' | 'rich'
+  modelSelection?: import('./harness').ModelSelection
 }
 
 export const NOVEL_MODEL_PROFILES_PREFERENCE_KEY = 'novelModelProfiles'

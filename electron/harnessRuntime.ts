@@ -7,10 +7,16 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { HarnessEvent, PermissionMode } from '../src/config/harness'
+import type { HarnessEvent, HarnessFileReference, HarnessMessage, ModelSelection, PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 
 function emit(sender: WebContents, event: HarnessEvent) { if (!sender.isDestroyed()) sender.send('harness:event', event) }
+
+function messageContent(message: HarnessMessage) {
+  if (!message.attachments?.length) return message.content
+  const files = message.attachments.map(file => `\n\n[引用文件：${file.path}]\n\`\`\`\n${file.content}\n\`\`\``).join('')
+  return `${message.content}${files}`
+}
 
 export class HarnessRuntime {
   private readonly running = new Map<string, AbortController>()
@@ -45,7 +51,7 @@ export class HarnessRuntime {
     ] as any
   }
 
-  async runMessage(sender: WebContents, sessionId: string, message: string) {
+  async runMessage(sender: WebContents, sessionId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
     const text = message.trim()
     if (!text) throw new Error('请输入消息')
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
@@ -56,20 +62,21 @@ export class HarnessRuntime {
       emit(sender, { sessionId, type: 'status', payload: { permissionMode: mode } })
       return
     }
-    const session = this.database.harness.addMessage(sessionId, 'user', text)
-    const binding = this.database.models.bindings().agentDefault
-    if (!binding) throw new Error('请先在“模型配置”中设置 Agent 默认模型')
-    const provider = this.database.models.get(binding.providerId)
-    const apiKey = this.database.models.getSecret(binding.providerId)
+    if (!selection?.providerId || !selection.modelId) throw new Error('请先选择一个可用模型')
+    const provider = this.database.models.get(selection.providerId)
+    if (!provider?.models.includes(selection.modelId)) throw new Error('所选模型不属于当前供应商')
+    const apiKey = this.database.models.getSecret(selection.providerId)
     if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
+    const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
+    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
 
     const controller = new AbortController()
     this.running.set(sessionId, controller)
-    this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: binding.modelId, status: 'active' })
+    this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
 
     const model = {
-      id: binding.modelId, name: binding.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
+      id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
       reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 8192,
     } as any
     const models = createModels()
@@ -82,7 +89,7 @@ export class HarnessRuntime {
       initialState: {
         systemPrompt: 'You are Mira, a careful desktop work assistant. Answer in the user\'s language. Tools are unavailable until a project is selected.',
         model,
-        messages: session.messages.map(item => ({ role: item.role, content: item.content, timestamp: item.createdAt })),
+        messages: session.messages.map(item => ({ role: item.role, content: messageContent(item), timestamp: item.createdAt })),
         tools: this.tools(sender, sessionId),
       } as any,
       streamFn: models.streamSimple.bind(models) as any,

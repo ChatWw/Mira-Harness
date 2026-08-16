@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -49,6 +49,60 @@ describe('HarnessStore', () => {
 
     const database = new PlatformDatabase(root)
     expect(database.harness.getProject('legacy').icon).toBe('FolderOpened')
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('creates an unassigned session unless a project is explicitly selected', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, 'Demo 项目')
+
+    const recent = store.createSession()
+    const projectSession = store.createSession(project.id)
+
+    expect(recent.projectId).toBeUndefined()
+    expect(recent.workingDirectory).toBeUndefined()
+    expect(projectSession.projectId).toBe(project.id)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('removes legacy empty sessions and keeps sessions with user messages', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, 'Demo 项目')
+    store.createSession(project.id)
+    const retained = store.createSession(project.id)
+    store.addMessage(retained.id, 'user', '保留这条对话')
+
+    expect(store.removeEmptySessions()).toBe(1)
+    expect(store.listSessions().map(session => session.id)).toEqual([retained.id])
+    expect(store.getProject(project.id).sessionCount).toBe(1)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('lists and snapshots only safe text files inside the selected project', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'notes.txt'), '项目说明', 'utf8')
+    writeFileSync(join(directory, 'binary.dat'), Buffer.from([0, 1, 2]))
+    mkdirSync(join(directory, 'node_modules'))
+    writeFileSync(join(directory, 'node_modules', 'ignored.txt'), '忽略', 'utf8')
+    const project = store.createProject(directory, 'Demo 项目')
+    const session = store.createSession(project.id)
+
+    expect(store.listProjectFiles(project.id)).toEqual([{ path: 'notes.txt', name: 'notes.txt' }])
+    expect(store.resolveMessageAttachments(session.id, [{ path: 'notes.txt', name: 'notes.txt' }])).toEqual([{ path: 'notes.txt', name: 'notes.txt', content: '项目说明' }])
+    expect(() => store.resolveMessageAttachments(session.id, [{ path: '../outside.txt', name: 'outside.txt' }])).toThrow('路径不在项目目录内')
+    expect(() => store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])).toThrow('不支持引用二进制文件')
+
+    database.close()
     rmSync(root, { recursive: true, force: true })
   })
 })

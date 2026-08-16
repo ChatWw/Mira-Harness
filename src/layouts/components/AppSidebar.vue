@@ -29,7 +29,6 @@
       <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">内置浏览器</div></template>
       <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
     </el-menu>
-    <el-menu :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" class="sidebar-menu sidebar-menu--bottom" @select="handleMenuSelect"><el-menu-item index="/settings/general"><AppIcon name="Setting" /><span>设置</span></el-menu-item></el-menu>
   </aside>
 </template>
 
@@ -221,7 +220,6 @@ watch(
     }
   }
 
-  .sidebar-menu--bottom { flex: 0; padding: 6px 0; border-top: 1px solid var(--cp-border-light); }
   .menu-group-label { padding: 16px 14px 4px; color: var(--cp-text-tertiary); font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: uppercase; }
 
   &.collapsed .sidebar-menu {

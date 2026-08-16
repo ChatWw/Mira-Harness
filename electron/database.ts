@@ -13,7 +13,7 @@ import { ModelConfigStore } from './modelConfigStore'
 import { validateSnapshot } from '../src/config/platformValidation'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 18
+const CURRENT_SCHEMA_VERSION = 19
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid' }
@@ -61,6 +61,7 @@ export class PlatformDatabase {
     this.harness = new HarnessStore(this.database, userDataPath)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
+    this.harness.removeEmptySessions()
   }
 
   private migrate() {
@@ -71,7 +72,7 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
       CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -81,6 +82,11 @@ export class PlatformDatabase {
     if (!projectColumns.some(column => column.name === 'icon')) {
       this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")
     }
+    const providerColumns = this.database.prepare('PRAGMA table_info(model_providers)').all() as Array<{ name: string }>
+    if (!providerColumns.some(column => column.name === 'provider_key')) {
+      this.database.exec('ALTER TABLE model_providers ADD COLUMN provider_key TEXT')
+    }
+    this.models.migrateProviderKeys()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
@@ -178,6 +184,11 @@ export class PlatformDatabase {
         if (Object.keys(bindings).length) this.models.saveBindings({ ...this.models.bindings(), ...bindings })
         this.savePreference('novelModelProfilesMigratedAt', Date.now())
       }
+    }
+    const workspaceSettings = this.novels.getSettings()
+    if (!workspaceSettings.modelSelection) {
+      const provider = this.models.list().find(item => item.enabled && item.hasApiKey && item.models.length)
+      if (provider) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: provider.models[0] } })
     }
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))
   }

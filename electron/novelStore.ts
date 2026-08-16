@@ -102,8 +102,11 @@ export class NovelStore {
     try {
       const parsed = JSON.parse(row.value) as Partial<NovelWorkspaceSettings>
       return {
-        shortcuts: Array.isArray(parsed.shortcuts) ? parsed.shortcuts.filter(item => typeof item === 'string') : [],
-        editorMode: parsed.editorMode === 'rich' ? 'rich' : 'markdown',
+      shortcuts: Array.isArray(parsed.shortcuts) ? parsed.shortcuts.filter(item => typeof item === 'string') : [],
+      editorMode: parsed.editorMode === 'rich' ? 'rich' : 'markdown',
+      modelSelection: parsed.modelSelection && typeof parsed.modelSelection.providerId === 'string' && typeof parsed.modelSelection.modelId === 'string'
+        ? { providerId: parsed.modelSelection.providerId, modelId: parsed.modelSelection.modelId }
+        : undefined,
       }
     } catch {
       return clone(DEFAULT_NOVEL_WORKSPACE_SETTINGS)
@@ -114,6 +117,9 @@ export class NovelStore {
     const value: NovelWorkspaceSettings = {
       shortcuts: settings.shortcuts.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean),
       editorMode: settings.editorMode === 'rich' ? 'rich' : 'markdown',
+      modelSelection: settings.modelSelection && typeof settings.modelSelection.providerId === 'string' && typeof settings.modelSelection.modelId === 'string'
+        ? { providerId: settings.modelSelection.providerId, modelId: settings.modelSelection.modelId }
+        : undefined,
     }
     this.database.prepare('INSERT OR REPLACE INTO novel_settings(key, value) VALUES (?, ?)').run('workspace', JSON.stringify(value))
     return value

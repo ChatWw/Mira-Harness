@@ -43,8 +43,8 @@
     <el-result v-else-if="!project" icon="warning" title="无法打开小说工作台" sub-title="请稍后重试。"><template #extra><el-button type="primary" @click="bootstrap">重新加载</el-button></template></el-result>
     <div v-else class="novel-workspace">
       <ProjectSidebar :project="project" :projects="projects" :stages="stages" :active-stage="activeStage" :active-chapter-id="activeChapterId" @create-project="createProject" @open-project="openProject" @remove-project="removeProject" @stage-change="activeStage = $event" @add-chapter="addChapter" @select-chapter="selectChapter" />
-      <EditorWorkspace :project="project" :active-stage="activeStage" :stages="stages" :setup-fields="setupFields" :selected-chapter="selectedChapter" :chapter-index="chapterIndex" :saving="saving" :generating-chapter-title="generatingChapterTitle" :workspace-settings="workspaceSettings" :current-stage-label="currentStageLabel" @open-tool="openTool" @export="handleExport" @editor-mode="setEditorMode" @stage-change="activeStage = $event" @context-menu="openContextMenu" @run-outline="runOutline" @generate-chapter-title="generateChapterTitle" @move-chapter="moveChapter" @remove-chapter="removeChapter" @run-chapter-outline="runChapterOutline" @run-content="runContent" @continue-content="runContent(true)" @add-chapter="addChapter" />
-      <AiPanel :assistant-role="assistantRole" :quick-actions="quickActions" :assistant-output="assistantOutput" :assistant-output-title="assistantOutputTitle" :pending-selection="pendingSelection" :assistant-prompt="assistantPrompt" :generating="generating" @role-change="assistantRole = $event" @quick-action="runQuickAction" @copy="copyText" @apply-selection="applySelectionResult" @prompt-change="assistantPrompt = $event" @send-message="sendAssistantMessage" @open-tool="openTool" />
+      <EditorWorkspace :project="project" :active-stage="activeStage" :stages="stages" :setup-fields="setupFields" :selected-chapter="selectedChapter" :chapter-index="chapterIndex" :saving="saving" :generating-chapter-title="generatingChapterTitle" :workspace-settings="workspaceSettings" :model-options="modelOptions" :current-stage-label="currentStageLabel" @model-change="setNovelModel" @open-tool="openTool" @export="handleExport" @editor-mode="setEditorMode" @stage-change="activeStage = $event" @context-menu="openContextMenu" @run-outline="runOutline" @generate-chapter-title="generateChapterTitle" @move-chapter="moveChapter" @remove-chapter="removeChapter" @run-chapter-outline="runChapterOutline" @run-content="runContent" @continue-content="runContent(true)" @add-chapter="addChapter" />
+      <AiPanel :quick-actions="quickActions" :assistant-output="assistantOutput" :assistant-output-title="assistantOutputTitle" :pending-selection="pendingSelection" :assistant-prompt="assistantPrompt" :generating="generating" @quick-action="runQuickAction" @copy="copyText" @apply-selection="applySelectionResult" @prompt-change="assistantPrompt = $event" @send-message="sendAssistantMessage" @open-tool="openTool" />
     </div>
 
     <template v-if="project">
@@ -82,6 +82,7 @@ import AiPanel from './aiPanel/AiPanel.vue'
 import EditorWorkspace from './editorWorkspace/EditorWorkspace.vue'
 import ProjectSidebar from './projectSidebar/ProjectSidebar.vue'
 import { DEFAULT_NOVEL_PROMPTS, DEFAULT_NOVEL_WORKSPACE_SETTINGS, type NovelChapter, type NovelModelRole, type NovelProjectDocument, type NovelProjectSummary, type NovelWorkspaceSettings } from '@/config/novel'
+import type { ModelProviderSummary } from '@/config/harness'
 import { getPlatformApi } from '@/platform'
 import type { EditorTarget, QuickAction, SetupField, Stage, StageDefinition, Tool } from './types'
 
@@ -100,7 +101,6 @@ const projects = ref<NovelProjectSummary[]>([])
 const project = ref<NovelProjectDocument>()
 const activeStage = ref<Stage>('setup')
 const activeChapterId = ref('')
-const assistantRole = ref<NovelModelRole>('authoring')
 const assistantPrompt = ref('')
 const assistantOutput = ref('')
 const assistantOutputTitle = ref('')
@@ -111,6 +111,7 @@ const splitterResult = ref('')
 const optimizerResult = ref('')
 const generatingChapterTitle = ref(false)
 const workspaceSettings = reactive<NovelWorkspaceSettings>({ ...DEFAULT_NOVEL_WORKSPACE_SETTINGS })
+const providers = ref<ModelProviderSummary[]>([])
 const projectImport = ref<HTMLInputElement>()
 const promptImport = ref<HTMLInputElement>()
 const contextMenu = reactive({ visible: false, x: 0, y: 0, target: '' as EditorTarget, start: 0, end: 0, text: '' })
@@ -142,6 +143,7 @@ const selectedChapter = computed(() => project.value?.chapters.find(item => item
 const chapterIndex = computed(() => project.value?.chapters.findIndex(item => item.id === activeChapterId.value) ?? -1)
 const currentStageLabel = computed(() => activeStage.value === 'content' ? '正文' : stages.find(item => item.key === activeStage.value)?.title || '')
 const toolTitle = computed(() => ({ knowledge: '知识库', prompts: '提示词模板', mindMap: '思维导图', ideas: '书名与简介', splitter: '拆书', optimizer: '批量优化', shortcuts: '快捷词条' })[activeTool.value])
+const modelOptions = computed(() => providers.value.filter(provider => provider.enabled && provider.hasApiKey).flatMap(provider => provider.models.map(modelId => ({ value: `${provider.id}:${modelId}`, label: `${provider.name} · ${modelId}` }))))
 
 function newId() { return crypto.randomUUID() }
 function formatChapterLabel(index: number) {
@@ -157,11 +159,13 @@ async function bootstrap() {
   if (!api) return
   loading.value = true; initialWorkspace.value = false; loadingReady.value = false; loadingMessage.value = '正在加载创作空间'; loadingProgress.value = 0
   try {
-    const [loadedProjects, baseUrl, settings] = await Promise.all([api.listNovelProjects(), api.getNovelApiBaseUrl(), api.getNovelWorkspaceSettings()])
+    const [loadedProjects, baseUrl, settings, loadedProviders] = await Promise.all([api.listNovelProjects(), api.getNovelApiBaseUrl(), api.getNovelWorkspaceSettings(), api.listModelProviders()])
     projects.value = loadedProjects
     apiBaseUrl.value = baseUrl
     workspaceSettings.shortcuts.splice(0, workspaceSettings.shortcuts.length, ...settings.shortcuts)
     workspaceSettings.editorMode = settings.editorMode === 'rich' ? 'rich' : 'markdown'
+    workspaceSettings.modelSelection = settings.modelSelection
+    providers.value = loadedProviders
     if (!projects.value.length) {
       readyMessage.value = '创作环境已就绪'
       await showLoadingSteps(['正在准备创作环境', '正在初始化工作台', '马上就全部搞定了'], 4000, 100)
@@ -257,9 +261,10 @@ function buildContext() {
 }
 async function stream(role: NovelModelRole, prompt: string, title: string) {
   if (!apiBaseUrl.value) throw new Error('小说模型服务尚未启动')
+  if (!workspaceSettings.modelSelection) { ElMessage.warning('请先在模型页面配置模型'); return '' }
   generating.value = true; assistantOutput.value = ''; assistantOutputTitle.value = title
   try {
-    const response = await fetch(`${apiBaseUrl.value}${role}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) })
+    const response = await fetch(`${apiBaseUrl.value}${role}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, selection: workspaceSettings.modelSelection }) })
     if (!response.ok || !response.body) throw new Error(await response.text() || '模型没有返回内容')
     const reader = response.body.getReader(); const decoder = new TextDecoder()
     while (true) { const { done, value } = await reader.read(); if (done) break; assistantOutput.value += decoder.decode(value, { stream: true }) }
@@ -290,11 +295,11 @@ async function runContent(continueWriting = false) { if (!selectedChapter.value)
 async function runQuickAction(key: string) {
   if (!selectedChapter.value && key !== 'foreshadow') { ElMessage.warning('请先选择一个章节'); return }
   const instruction = { continue: '续写当前正文，推进事件。', scene: '扩写当前正文中的场景感官细节。', dialogue: '为当前场景补充自然、推动冲突的对白。', foreshadow: '为当前总纲补充自然且可回收的伏笔。' }[key] || ''
-  const output = await stream(assistantRole.value, `${instruction}\n\n${buildContext()}\n\n当前正文：${selectedChapter.value?.content || ''}`, quickActions.find(item => item.key === key)?.title || '创作建议')
+  const output = await stream('authoring', `${instruction}\n\n${buildContext()}\n\n当前正文：${selectedChapter.value?.content || ''}`, quickActions.find(item => item.key === key)?.title || '创作建议')
   if (output && selectedChapter.value && key !== 'foreshadow') selectedChapter.value.content = `${selectedChapter.value.content}\n\n${output}`.trim()
   if (output && key === 'foreshadow' && project.value) project.value.outline = `${project.value.outline}\n\n${output}`.trim()
 }
-async function sendAssistantMessage() { if (!assistantPrompt.value.trim() || !project.value) return; const message = assistantPrompt.value.trim(); assistantPrompt.value = ''; project.value.assistantMessages.push({ id: newId(), role: 'user', content: message, createdAt: Date.now() }); const output = await stream(assistantRole.value, `${buildContext()}\n\n用户问题：${message}`, '创作助手'); if (output) project.value.assistantMessages.push({ id: newId(), role: 'assistant', content: output, createdAt: Date.now() }) }
+async function sendAssistantMessage() { if (!assistantPrompt.value.trim() || !project.value) return; const message = assistantPrompt.value.trim(); assistantPrompt.value = ''; project.value.assistantMessages.push({ id: newId(), role: 'user', content: message, createdAt: Date.now() }); const output = await stream('authoring', `${buildContext()}\n\n用户问题：${message}`, '创作助手'); if (output) project.value.assistantMessages.push({ id: newId(), role: 'assistant', content: output, createdAt: Date.now() }) }
 
 function openContextMenu(event: MouseEvent, target: EditorTarget) {
   const element = event.target as HTMLTextAreaElement; const text = element.value.slice(element.selectionStart, element.selectionEnd)
@@ -318,9 +323,10 @@ async function optimizeContent() { if (!selectedChapter.value) return; optimizer
 function applyOptimizedContent() { if (!selectedChapter.value || !optimizerResult.value) return; selectedChapter.value.content = optimizerResult.value; toolVisible.value = false; ElMessage.success('已应用优化结果') }
 async function saveWorkspaceSettings(showMessage = true) {
   if (!api) return
-  const result = await api.saveNovelWorkspaceSettings({ shortcuts: [...workspaceSettings.shortcuts], editorMode: workspaceSettings.editorMode })
+  const result = await api.saveNovelWorkspaceSettings({ shortcuts: [...workspaceSettings.shortcuts], editorMode: workspaceSettings.editorMode, modelSelection: workspaceSettings.modelSelection })
   workspaceSettings.shortcuts.splice(0, workspaceSettings.shortcuts.length, ...result.shortcuts)
   workspaceSettings.editorMode = result.editorMode
+  workspaceSettings.modelSelection = result.modelSelection
   if (showMessage) ElMessage.success('工作区设置已保存')
 }
 function setEditorMode(mode: 'markdown' | 'rich') {
@@ -328,6 +334,7 @@ function setEditorMode(mode: 'markdown' | 'rich') {
   workspaceSettings.editorMode = mode
   void saveWorkspaceSettings(false)
 }
+function setNovelModel(value: string) { const [providerId, ...parts] = value.split(':'); const modelId = parts.join(':'); workspaceSettings.modelSelection = providerId && modelId ? { providerId, modelId } : undefined; void saveWorkspaceSettings(false) }
 function download(text: string, filename: string, type = 'text/plain;charset=utf-8') { const url = URL.createObjectURL(new Blob([text], { type })); const link = Object.assign(document.createElement('a'), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url) }
 function toManuscript() { if (!project.value) return ''; return `# ${project.value.title}\n\n${project.value.outline ? `## 故事总纲\n${project.value.outline}\n\n` : ''}${project.value.chapters.map(chapter => `## ${chapter.title}\n\n${chapter.content || chapter.outline}`).join('\n\n')}` }
 async function handleExport(command: string) { if (!project.value || !api) return; if (command === 'import') { projectImport.value?.click(); return }; if (command === 'json') download(await api.exportNovelProject(project.value.id), `${project.value.title}.json`, 'application/json'); else download(toManuscript(), `${project.value.title}.${command === 'markdown' ? 'md' : 'txt'}`) }

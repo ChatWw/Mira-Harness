@@ -81,12 +81,12 @@ const allSelected = computed(() => recentSessions.value.length > 0 && recentSess
 const canCreateProject = computed(() => Boolean(projectForm.name.trim() && projectForm.directory))
 
 async function refresh() { await Promise.all([store.refreshProjects(), store.refreshSessions()]) }
-async function newSession() { const session = await store.createSession(); if (session) await router.push(`/workspace/chat/${session.id}`) }
+async function newSession() { const draft = store.startDraft(); await router.push({ path: '/workspace/chat', query: { draft } }) }
 function isProjectExpanded(id: string) { return expandedProjectIds.value.includes(id) }
 function toggleProject(id: string) { expandedProjectIds.value = isProjectExpanded(id) ? expandedProjectIds.value.filter(projectId => projectId !== id) : [...expandedProjectIds.value, id] }
 function revealProject(id?: string) { if (id && !isProjectExpanded(id)) expandedProjectIds.value.push(id); if (id) projectsExpanded.value = true }
 function sessionsForProject(projectId: string) { return store.sessions.filter(session => session.projectId === projectId) }
-async function createProjectSession(projectId: string) { const session = await store.createSession(projectId); if (session) { revealProject(projectId); await router.push(`/workspace/chat/${session.id}`) } }
+async function createProjectSession(projectId: string) { const draft = store.startDraft(projectId); revealProject(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
 async function openSession(id: string) { const session = await store.openSession(id); revealProject(session?.projectId); await router.push(`/workspace/chat/${id}`) }
 
 function openProjectDialog() { Object.assign(projectForm, { name: '', icon: DEFAULT_PROJECT_ICON, directory: '' }); projectDialogVisible.value = true }

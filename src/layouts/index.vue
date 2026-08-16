@@ -95,6 +95,10 @@ const layoutClasses = computed(() => {
     classes.push('layout--with-tabs')
   }
 
+  if (isWorkspaceRoute.value) {
+    classes.push('layout--workspace')
+  }
+
   if (!showSidebar.value) {
     classes.push('layout--without-workspace-menu')
   }
@@ -186,6 +190,13 @@ const layoutClasses = computed(() => {
 
     &.layout--sidebar-header.layout--without-workspace-menu .main-container {
       margin-left: 12px;
+    }
+
+    &.layout--workspace .main-container {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
     }
   }
 

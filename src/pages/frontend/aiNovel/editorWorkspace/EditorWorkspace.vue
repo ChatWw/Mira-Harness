@@ -1,6 +1,6 @@
 <template>
   <main class="editor-workspace">
-    <header class="workspace-header"><div><h1>{{ project.title }}</h1><p>{{ currentStageLabel }}</p></div><div class="workspace-actions"><span class="save-state" :class="{ saving }"><i></i>{{ saving ? '正在保存' : '已保存' }}</span><el-button text aria-label="打开工具" @click="$emit('open-tool', 'knowledge')"><AppIcon name="Collection" />知识库</el-button><el-dropdown @command="$emit('export', $event)"><el-button text><AppIcon name="tabler:book-download" />导出</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="json">完整项目 JSON</el-dropdown-item><el-dropdown-item command="markdown">Markdown 创作稿</el-dropdown-item><el-dropdown-item command="text">TXT 创作稿</el-dropdown-item><el-dropdown-item divided command="import"><AppIcon name="tabler:book-upload" />导入完整项目 JSON</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></header>
+    <header class="workspace-header"><div><h1>{{ project.title }}</h1><p>{{ currentStageLabel }}</p></div><div class="workspace-actions"><el-select :model-value="workspaceSettings.modelSelection ? `${workspaceSettings.modelSelection.providerId}:${workspaceSettings.modelSelection.modelId}` : ''" size="small" style="width:190px" placeholder="选择模型" @update:model-value="$emit('model-change', $event)"><el-option v-for="option in modelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><span class="save-state" :class="{ saving }"><i></i>{{ saving ? '正在保存' : '已保存' }}</span><el-button text aria-label="打开工具" @click="$emit('open-tool', 'knowledge')"><AppIcon name="Collection" />知识库</el-button><el-dropdown @command="$emit('export', $event)"><el-button text><AppIcon name="tabler:book-download" />导出</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="json">完整项目 JSON</el-dropdown-item><el-dropdown-item command="markdown">Markdown 创作稿</el-dropdown-item><el-dropdown-item command="text">TXT 创作稿</el-dropdown-item><el-dropdown-item divided command="import"><AppIcon name="tabler:book-upload" />导入完整项目 JSON</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></header>
     <div v-if="activeStage === 'setup'" class="editor-mode-toolbar"><span>偏好 <el-tooltip content="切换编辑器可能丢失复杂样式，内容会自动转换。" placement="top"><AppIcon style="font-size: 16px;" name="tabler:question-circle" /></el-tooltip></span><el-button-group size="small"><el-button :type="workspaceSettings.editorMode === 'markdown' ? 'primary' : undefined" aria-label="Markdown 编辑器" title="Markdown 编辑器" @click="$emit('editor-mode', 'markdown')">Markdown</el-button><el-button :type="workspaceSettings.editorMode === 'rich' ? 'primary' : undefined" aria-label="富文本编辑器" title="富文本编辑器" @click="$emit('editor-mode', 'rich')">RTE</el-button></el-button-group></div>
     <div class="stage-tabs" role="tablist"><button v-for="item in stages" :key="item.key" type="button" :class="{ active: activeStage === item.key }" @click="$emit('stage-change', item.key)">{{ item.title }}</button></div>
     <div class="editor-scroll-content">
@@ -17,11 +17,12 @@ import NovelSetupEditor from '../components/NovelSetupEditor.vue'
 import type { NovelChapter, NovelProjectDocument, NovelWorkspaceSettings } from '@/config/novel'
 import type { EditorTarget, SetupField, Stage, StageDefinition, Tool } from '../types'
 
-defineProps<{ project: NovelProjectDocument; activeStage: Stage; stages: StageDefinition[]; setupFields: SetupField[]; selectedChapter?: NovelChapter; chapterIndex: number; saving: boolean; generatingChapterTitle: boolean; workspaceSettings: NovelWorkspaceSettings; currentStageLabel: string }>()
+defineProps<{ project: NovelProjectDocument; activeStage: Stage; stages: StageDefinition[]; setupFields: SetupField[]; selectedChapter?: NovelChapter; chapterIndex: number; saving: boolean; generatingChapterTitle: boolean; workspaceSettings: NovelWorkspaceSettings; modelOptions: Array<{ value: string, label: string }>; currentStageLabel: string }>()
 defineEmits<{
   'open-tool': [tool: Tool]
   export: [command: string]
   'editor-mode': [mode: 'markdown' | 'rich']
+  'model-change': [value: string]
   'stage-change': [stage: Stage]
   'context-menu': [event: MouseEvent, target: EditorTarget]
   'run-outline': []

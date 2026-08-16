@@ -1,120 +1,41 @@
 <template>
-  <SettingsPageShell title="模型配置" wide>
-    <p class="page-description">统一管理 Agent 与 AI 小说使用的 OpenAI 兼容模型。密钥仅保存在主进程加密存储中。</p>
-    <div class="config-toolbar"><el-button type="primary" @click="openCreate"><AppIcon name="Plus" />添加 Provider</el-button></div>
-    <el-table :data="providers" v-loading="loading" empty-text="还没有配置模型 Provider">
-      <el-table-column prop="name" label="名称" min-width="160" />
-      <el-table-column prop="endpoint" label="Endpoint" min-width="260" show-overflow-tooltip />
-      <el-table-column label="模型" min-width="180"><template #default="{ row }">{{ row.models.join('、') }}</template></el-table-column>
-      <el-table-column label="密钥" width="90"><template #default="{ row }"><el-tag size="small" :type="row.hasApiKey ? 'success' : 'info'">{{ row.hasApiKey ? '已配置' : '未配置' }}</el-tag></template></el-table-column>
-      <el-table-column label="状态" width="90"><template #default="{ row }"><el-tag size="small" :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag></template></el-table-column>
-      <el-table-column label="操作" width="180"><template #default="{ row }"><el-button link type="primary" @click="test(row)">测试</el-button><el-button link type="primary" @click="edit(row)">编辑</el-button><el-button link type="danger" @click="remove(row.id)">删除</el-button></template></el-table-column>
-    </el-table>
-    <section class="bindings">
-      <h2>角色绑定</h2><p>选择各功能默认使用的 Provider 和模型。</p>
-      <el-form label-position="top" class="binding-form">
-        <el-form-item label="Agent 工作台"><el-select v-model="bindings.agentDefault" placeholder="选择默认模型"><el-option v-for="option in modelOptions" :key="option.key" :label="option.label" :value="option.value" /></el-select></el-form-item>
-        <el-form-item label="AI 小说 · 创作模型"><el-select v-model="bindings.novelAuthoring" clearable placeholder="选择模型"><el-option v-for="option in modelOptions" :key="option.key" :label="option.label" :value="option.value" /></el-select></el-form-item>
-        <el-form-item label="AI 小说 · 自动处理"><el-select v-model="bindings.novelAutomation" clearable placeholder="选择模型"><el-option v-for="option in modelOptions" :key="option.key" :label="option.label" :value="option.value" /></el-select></el-form-item>
-      </el-form>
-      <el-button type="primary" @click="saveBindings">保存角色绑定</el-button>
+  <SettingsPageShell title="模型" wide>
+    <header class="model-page__header"><div><h1>模型</h1><p>仅支持 OpenAI 兼容协议 API。API Key 仅保存在主进程加密存储中。</p></div><el-button type="primary" @click="openCreate"><AppIcon name="Plus" />添加模型</el-button></header>
+    <section v-loading="loading" class="model-grid">
+      <article v-for="provider in providers" :key="provider.id" class="model-card">
+        <div class="model-card__top"><span class="provider-mark"><AppIcon :name="providerIcon(provider.providerKey)" /></span><div><h2>{{ provider.models.join('、') }}</h2><p>{{ provider.name }}</p></div><el-tag size="small" :type="provider.enabled ? 'success' : 'info'">{{ provider.enabled ? '已启用' : '已停用' }}</el-tag></div>
+        <dl><div><dt>Endpoint</dt><dd :title="provider.endpoint">{{ provider.endpoint }}</dd></div><div><dt>密钥</dt><dd><AppIcon :name="provider.hasApiKey ? 'CircleCheck' : 'Warning'" />{{ provider.hasApiKey ? '已配置' : '未配置' }}</dd></div></dl>
+        <footer><el-button text @click="test(provider)"><AppIcon name="Connection" />测试</el-button><el-button text @click="edit(provider)"><AppIcon name="EditPen" />编辑</el-button><el-button text type="danger" @click="remove(provider.id)"><AppIcon name="Delete" />删除</el-button></footer>
+      </article>
+      <button v-if="!loading" type="button" class="model-card model-card--add" @click="openCreate"><AppIcon name="Plus" /><strong>添加模型</strong><span>从供应商开始配置</span></button>
     </section>
-    <el-drawer v-model="visible" :title="form.id ? '编辑 Provider' : '添加 Provider'" size="min(560px,100%)" append-to-body>
-      <el-form label-position="top">
-        <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="OpenAI 兼容 Endpoint"><el-input v-model="form.endpoint" placeholder="https://api.example.com/v1" /></el-form-item>
-        <el-form-item label="API Key"><el-input v-model="form.apiKey" type="password" show-password :placeholder="form.id ? '留空则保持现有密钥' : 'sk-'" /></el-form-item>
-        <el-form-item label="模型 ID"><el-input v-model="modelsText" placeholder="多个模型使用英文逗号分隔" /></el-form-item>
-        <el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
-      </el-form>
+    <el-empty v-if="!loading && !providers.length" description="还没有配置模型"><el-button type="primary" @click="openCreate">添加模型</el-button></el-empty>
+    <el-dialog v-model="visible" :title="form.id ? '编辑模型' : '添加模型'" width="min(560px, calc(100vw - 32px))" destroy-on-close>
+      <p class="dialog-note">仅支持 OpenAI 兼容协议 API</p>
+      <el-form label-position="top"><el-form-item label="供应商"><el-select v-model="form.providerKey" @change="applyPreset"><el-option v-for="preset in MODEL_PROVIDER_PRESETS" :key="preset.key" :label="preset.name" :value="preset.key" /></el-select></el-form-item><el-form-item label="API Key"><el-input v-model="form.apiKey" type="password" show-password :placeholder="form.id ? '留空则保持现有密钥' : '输入 API Key'" /></el-form-item><el-form-item label="模型 ID"><el-input v-model="modelsText" placeholder="多个模型用英文逗号分隔" /></el-form-item><el-form-item label="Endpoint"><el-input v-model="form.endpoint" :disabled="endpointLocked" placeholder="https://api.example.com/v1" /></el-form-item><el-form-item label="状态"><el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" /></el-form-item></el-form>
       <template #footer><el-button @click="visible = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template>
-    </el-drawer>
+    </el-dialog>
   </SettingsPageShell>
 </template>
-
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderSummary, type ModelRoleBinding } from '@/config/harness'
+import { MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
-
-const providers = ref<ModelProviderSummary[]>([])
-const loading = ref(false)
-const saving = ref(false)
-const visible = ref(false)
-const modelsText = ref('')
-const form = reactive<ModelProviderInput>({ name: '', endpoint: '', apiKey: '', models: [], enabled: true })
-const bindings = reactive<ModelRoleBinding>({})
-const modelOptions = computed(() => providers.value.filter(provider => provider.enabled).flatMap(provider => provider.models.map(modelId => ({ key: `${provider.id}:${modelId}`, label: `${provider.name} · ${modelId}`, value: { providerId: provider.id, modelId } }))))
-
-async function load() {
-  loading.value = true
-  try {
-    const api = getPlatformApi()
-    providers.value = await api?.listModelProviders() || []
-    Object.assign(bindings, await api?.getModelRoleBindings() || {})
-  } finally {
-    loading.value = false
-  }
-}
-
-function openCreate() {
-  Object.assign(form, { id: undefined, name: MODEL_PROVIDER_PRESETS[0].name, endpoint: MODEL_PROVIDER_PRESETS[0].endpoint, apiKey: '', models: MODEL_PROVIDER_PRESETS[0].models, enabled: true })
-  modelsText.value = form.models.join(', ')
-  visible.value = true
-}
-
-function edit(row: ModelProviderSummary) {
-  Object.assign(form, { ...row, apiKey: '' })
-  modelsText.value = row.models.join(', ')
-  visible.value = true
-}
-
-async function save() {
-  const api = getPlatformApi()
-  if (!api) {
-    ElMessage.error('模型配置仅支持在 Mira 桌面端保存')
-    return
-  }
-  form.models = modelsText.value.split(',').map(value => value.trim()).filter(Boolean)
-  saving.value = true
-  try {
-    await api.saveModelProvider({ id: form.id, name: form.name, endpoint: form.endpoint, apiKey: form.apiKey?.trim() || undefined, models: [...form.models], enabled: form.enabled })
-    visible.value = false
-    ElMessage.success('Provider 已保存')
-    await load()
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Provider 保存失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-async function test(row: ModelProviderSummary) {
-  const result = await getPlatformApi()?.testModelProvider({ ...row, apiKey: '' }, row.models[0])
-  ElMessage[result?.ok ? 'success' : 'error'](result?.text || '测试失败')
-}
-
-async function remove(id: string) {
-  await ElMessageBox.confirm('删除后会移除关联角色绑定。', '删除 Provider', { type: 'warning' })
-  await getPlatformApi()?.deleteModelProvider(id)
-  await load()
-}
-
-async function saveBindings() {
-  const api = getPlatformApi()
-  if (!api) {
-    ElMessage.error('模型配置仅支持在 Mira 桌面端保存')
-    return
-  }
-  await api.saveModelRoleBindings(toRaw(bindings))
-  ElMessage.success('角色绑定已保存')
-}
-
+const providers = ref<ModelProviderSummary[]>([]); const loading = ref(false); const saving = ref(false); const visible = ref(false); const modelsText = ref('')
+const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], enabled: true })
+const endpointLocked = computed(() => form.providerKey !== 'ollama' && form.providerKey !== 'custom')
+function providerIcon(key: ModelProviderKey) { return ({ glm: 'Connection', kimi: 'ChatDotRound', minimax: 'MagicStick', deepseek: 'Search', ollama: 'Monitor', custom: 'Operation' } as Record<ModelProviderKey, string>)[key] }
+async function load() { loading.value = true; try { providers.value = await getPlatformApi()?.listModelProviders() || [] } finally { loading.value = false } }
+function applyPreset() { const preset = MODEL_PROVIDER_PRESETS.find(item => item.key === form.providerKey)!; form.name = preset.name; form.endpoint = preset.endpoint; form.models = [...preset.models]; modelsText.value = form.models.join(', ') }
+function openCreate() { Object.assign(form, { id: undefined, providerKey: 'glm', apiKey: '', enabled: true }); applyPreset(); visible.value = true }
+function edit(row: ModelProviderSummary) { Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], enabled: row.enabled }); modelsText.value = row.models.join(', '); visible.value = true }
+async function save() { const api = getPlatformApi(); if (!api) return ElMessage.error('模型仅支持在 Mira 桌面端保存'); saving.value = true; try { const input = { ...toRaw(form), models: modelsText.value.split(',').map(item => item.trim()).filter(Boolean), apiKey: form.apiKey?.trim() || undefined }; await api.saveModelProvider(input); visible.value = false; ElMessage.success('模型已保存'); await load() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '模型保存失败') } finally { saving.value = false } }
+async function test(row: ModelProviderSummary) { const api = getPlatformApi(); const modelId = row.models[0]; if (!api || !modelId) return ElMessage.error('请先配置模型 ID'); try { const result = await api.testModelProvider({ id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], enabled: row.enabled }, modelId); ElMessage[result.ok ? 'success' : 'error'](result.text) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '测试失败') } }
+async function remove(id: string) { try { await ElMessageBox.confirm('删除模型后不能恢复。', '删除模型', { type: 'warning' }); await getPlatformApi()?.deleteModelProvider(id); await load() } catch {} }
 onMounted(load)
 </script>
-
 <style scoped lang="scss">
-.page-description{margin:0 0 $spacing-lg;color:var(--cp-text-secondary);font-size:$font-sm}.config-toolbar{margin-bottom:$spacing-md}.bindings{margin-top:$spacing-xl;padding-top:$spacing-xl;border-top:1px solid var(--cp-border-light)}.bindings h2{margin:0;font-size:$font-lg}.bindings p{color:var(--cp-text-secondary);font-size:$font-sm}.binding-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:$spacing-md}@include media-max($breakpoint-md){.binding-form{grid-template-columns:1fr}}
+.model-page__header { display:flex; align-items:flex-start; justify-content:space-between; gap:$spacing-lg; margin-bottom:$spacing-xl; }.model-page__header h1 { margin:0; color:var(--cp-text); font-size:$font-2xl; }.model-page__header p { margin:$spacing-sm 0 0; color:var(--cp-text-secondary); font-size:$font-sm; }.model-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:$spacing-md; }.model-card { display:flex; min-width:0; min-height:210px; flex-direction:column; padding:20px; text-align:left; background:var(--cp-bg-elevated); border:1px solid var(--cp-border); border-radius:$radius-md; box-shadow:$shadow-sm; transition:border-color $transition-fast, box-shadow $transition-fast, transform $transition-fast; }.model-card:hover { border-color:color-mix(in srgb,var(--cp-primary) 45%,var(--cp-border)); box-shadow:$shadow; transform:translateY(-1px); }.model-card__top { display:flex; min-width:0; align-items:center; gap:12px; }.model-card__top > div { min-width:0; flex:1; }.provider-mark { display:grid; width:38px; height:38px; place-items:center; color:var(--cp-primary); background:var(--cp-primary-lighter); border-radius:$radius-md; font-size:19px; }.model-card h2 { overflow:hidden; margin:0; color:var(--cp-text); font-size:$font-base; text-overflow:ellipsis; white-space:nowrap; }.model-card__top p { margin:3px 0 0; color:var(--cp-text-secondary); font-size:$font-xs; }.model-card dl { display:grid; gap:10px; margin:20px 0 auto; }.model-card dl div { min-width:0; }.model-card dt { margin-bottom:3px; color:var(--cp-text-tertiary); font-size:11px; }.model-card dd { display:flex; align-items:center; gap:5px; margin:0; overflow:hidden; color:var(--cp-text-secondary); font-size:$font-xs; text-overflow:ellipsis; white-space:nowrap; }.model-card footer { display:flex; gap:4px; margin-top:$spacing-lg; padding-top:$spacing-sm; border-top:1px solid var(--cp-border-light); }.model-card--add { align-items:center; justify-content:center; color:var(--cp-text-secondary); cursor:pointer; background:transparent; border-style:dashed; font:inherit; }.model-card--add .app-icon { margin-bottom:$spacing-sm; color:var(--cp-primary); font-size:22px; }.model-card--add strong { color:var(--cp-text); font-size:$font-sm; }.model-card--add span { margin-top:4px; font-size:$font-xs; }.dialog-note { margin:0 0 $spacing-lg; padding:$spacing-sm $spacing-md; color:var(--cp-text-secondary); background:var(--cp-bg-hover); border-radius:$radius-sm; font-size:$font-xs; } @include media-max($breakpoint-md) { .model-page__header { align-items:stretch; flex-direction:column; }.model-grid { grid-template-columns:1fr; }.model-page__header :deep(.el-button) { align-self:flex-start; } }
 </style>

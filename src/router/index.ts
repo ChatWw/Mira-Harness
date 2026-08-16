@@ -10,7 +10,7 @@ const staticRoutes: RouteRecordRaw[] = [
     path: '/settings/model-config',
     name: 'SettingsModelConfig',
     component: () => import('@/pages/backend/modelConfig/index.vue'),
-    meta: { title: '模型配置' },
+    meta: { title: '模型' },
   },
   {
     path: '/settings/agent-permission',
@@ -88,7 +88,7 @@ const staticRoutes: RouteRecordRaw[] = [
     path: '/settings/ai-novel',
     name: 'SettingsAiNovel',
     redirect: '/settings/model-config',
-    meta: { title: '模型配置' },
+    meta: { title: '模型' },
   },
   {
     path: '/system/components/loading',

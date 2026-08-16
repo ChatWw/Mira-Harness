@@ -1,28 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { NovelModelProfile, NovelModelProfiles, NovelModelRole } from '../src/config/novel'
-import { EMPTY_NOVEL_MODEL_PROFILES, NOVEL_MODEL_PROFILES_PREFERENCE_KEY } from '../src/config/novel'
+import type { ModelSelection } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { corsHeadersFor } from './localMicroAppServer'
 
-const NOVEL_MODEL_ROLES = new Set<NovelModelRole>(['authoring', 'automation'])
-
-function normalizeProfile(value: unknown): NovelModelProfile {
-  const profile = value && typeof value === 'object' ? value as Partial<NovelModelProfile> : {}
-  return {
-    endpoint: typeof profile.endpoint === 'string' ? profile.endpoint : '',
-    apiKey: typeof profile.apiKey === 'string' ? profile.apiKey : '',
-    modelId: typeof profile.modelId === 'string' ? profile.modelId : '',
-  }
-}
-
-export function readNovelModelProfiles(database: PlatformDatabase): NovelModelProfiles {
-  const stored = database.getSnapshot().preferences[NOVEL_MODEL_PROFILES_PREFERENCE_KEY]
-  const raw = stored && typeof stored === 'object' ? stored as Partial<NovelModelProfiles> : {}
-  return {
-    authoring: normalizeProfile(raw.authoring || EMPTY_NOVEL_MODEL_PROFILES.authoring),
-    automation: normalizeProfile(raw.automation || EMPTY_NOVEL_MODEL_PROFILES.automation),
-  }
-}
+const NOVEL_MODEL_ROLES = new Set(['authoring', 'automation'])
 
 function normalizeEndpoint(endpoint: string) {
   const trimmed = endpoint.trim().replace(/\/+$/, '')
@@ -73,22 +54,19 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, onContent: (conten
   }
 }
 
-function getProfile(database: PlatformDatabase, role: NovelModelRole) {
-  const binding = database.models.bindings()[role === 'authoring' ? 'novelAuthoring' : 'novelAutomation']
-  if (binding) {
-    const provider = database.models.get(binding.providerId)
-    const apiKey = database.models.getSecret(binding.providerId)
-    if (provider?.enabled && apiKey) return { endpoint: normalizeEndpoint(provider.endpoint), apiKey, modelId: binding.modelId }
-  }
-  const profile = readNovelModelProfiles(database)[role]
-  const endpoint = normalizeEndpoint(profile.endpoint)
-  if (!endpoint || !profile.apiKey.trim() || !profile.modelId.trim()) {
-    throw new Error(`“${role === 'authoring' ? '创作模型' : '自动处理模型'}”尚未配置，请先前往「设置 → AI 小说」完成配置`)
-  }
-  return { ...profile, endpoint }
+function getProfile(database: PlatformDatabase, selection: ModelSelection) {
+  if (!selection?.providerId || !selection.modelId) throw new Error('请先在模型页面配置并选择模型')
+  const provider = database.models.get(selection.providerId)
+  if (!provider?.enabled) throw new Error('当前模型不可用，请检查模型配置')
+  if (!provider.models.includes(selection.modelId)) throw new Error('所选模型不属于当前供应商')
+  const apiKey = database.models.getSecret(selection.providerId)
+  if (!apiKey) throw new Error('当前模型未配置 API Key')
+  const endpoint = normalizeEndpoint(provider.endpoint)
+  if (!endpoint) throw new Error('当前模型未配置 Endpoint')
+  return { endpoint, apiKey, modelId: selection.modelId }
 }
 
-async function requestModel(profile: NovelModelProfile & { endpoint: string }, prompt: string, signal?: AbortSignal) {
+async function requestModel(profile: { endpoint: string, apiKey: string, modelId: string }, prompt: string, signal?: AbortSignal) {
   return fetch(profile.endpoint, {
     method: 'POST',
     headers: {
@@ -105,14 +83,17 @@ async function requestModel(profile: NovelModelProfile & { endpoint: string }, p
 }
 
 async function handleNovelRequest(subpath: string, request: IncomingMessage, response: ServerResponse, database: PlatformDatabase) {
-  if (!NOVEL_MODEL_ROLES.has(subpath as NovelModelRole)) {
+  if (!NOVEL_MODEL_ROLES.has(subpath)) {
     writeError(request, response, 404, '未找到小说模型职责')
     return
   }
   let prompt = ''
+  let selection: ModelSelection | undefined
   try {
     const body = await readJsonBody(request)
     prompt = typeof body.prompt === 'string' ? body.prompt : ''
+    const raw = body.selection
+    if (raw && typeof raw === 'object' && typeof (raw as ModelSelection).providerId === 'string' && typeof (raw as ModelSelection).modelId === 'string') selection = raw as ModelSelection
   } catch {
     writeError(request, response, 400, '请求体不是有效 JSON')
     return
@@ -122,9 +103,9 @@ async function handleNovelRequest(subpath: string, request: IncomingMessage, res
     return
   }
 
-  let profile: NovelModelProfile & { endpoint: string }
+  let profile: { endpoint: string, apiKey: string, modelId: string }
   try {
-    profile = getProfile(database, subpath as NovelModelRole)
+    profile = getProfile(database, selection as ModelSelection)
   } catch (error) {
     writeError(request, response, 400, error instanceof Error ? error.message : String(error))
     return
@@ -158,21 +139,5 @@ async function handleNovelRequest(subpath: string, request: IncomingMessage, res
 export function createNovelApiHandler(database: PlatformDatabase) {
   return (subpath: string, request: IncomingMessage, response: ServerResponse) => {
     void handleNovelRequest(subpath, request, response, database)
-  }
-}
-
-export async function testNovelModelConnection(database: PlatformDatabase, role: NovelModelRole, prompt = '请用一句话介绍你自己。') {
-  try {
-    const upstream = await requestModel(getProfile(database, role), prompt)
-    if (!upstream.ok || !upstream.body) {
-      const detail = await upstream.text().catch(() => '')
-      return { ok: false, text: `模型请求失败: ${upstream.status} ${detail.slice(0, 500)}` }
-    }
-    const parts: string[] = []
-    await consumeSse(upstream.body, content => parts.push(content))
-    const text = parts.join('').trim()
-    return { ok: Boolean(text), text: text || '模型已连通，但没有返回内容' }
-  } catch (error) {
-    return { ok: false, text: error instanceof Error ? error.message : String(error) }
   }
 }

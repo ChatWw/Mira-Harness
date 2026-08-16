@@ -1,6 +1,6 @@
 <template>
   <aside class="ai-panel">
-    <div class="ai-panel__header"><strong>AI 工作台</strong><el-select :model-value="assistantRole" size="small" aria-label="选择模型职责" @update:model-value="$emit('role-change', $event)"><el-option label="创作模型" value="authoring" /><el-option label="自动处理模型" value="automation" /></el-select></div>
+    <div class="ai-panel__header"><strong>AI 工作台</strong></div>
     <div class="ai-actions"><button v-for="action in quickActions" :key="action.key" type="button" @click="$emit('quick-action', action.key)"><AppIcon :name="action.icon" />{{ action.title }}</button></div>
     <div class="assistant-output" :class="{ empty: !assistantOutput }"><template v-if="assistantOutput"><div class="assistant-output__title">{{ assistantOutputTitle }}</div><p>{{ assistantOutput }}</p><div class="assistant-output__actions"><el-button text @click="$emit('copy', assistantOutput)">复制</el-button><el-button v-if="pendingSelection" text type="primary" @click="$emit('apply-selection')">应用到选中内容</el-button></div></template><span v-else>选择一个创作动作，或直接向助手提问。</span></div>
     <div class="assistant-composer"><textarea :value="assistantPrompt" placeholder="向助手提问…" @input="$emit('prompt-change', ($event.target as HTMLTextAreaElement).value)" @keydown.meta.enter.prevent="$emit('send-message')" @keydown.ctrl.enter.prevent="$emit('send-message')"></textarea><el-button circle type="primary" :loading="generating" aria-label="发送问题" @click="$emit('send-message')"><AppIcon name="Top" /></el-button></div>
@@ -9,12 +9,10 @@
 </template>
 
 <script setup lang="ts">
-import type { NovelModelRole } from '@/config/novel'
 import type { QuickAction, Tool } from '../types'
 
-defineProps<{ assistantRole: NovelModelRole; quickActions: QuickAction[]; assistantOutput: string; assistantOutputTitle: string; pendingSelection: boolean; assistantPrompt: string; generating: boolean }>()
+defineProps<{ quickActions: QuickAction[]; assistantOutput: string; assistantOutputTitle: string; pendingSelection: boolean; assistantPrompt: string; generating: boolean }>()
 defineEmits<{
-  'role-change': [role: NovelModelRole]
   'quick-action': [key: string]
   copy: [value: string]
   'apply-selection': []

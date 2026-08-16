@@ -2,12 +2,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, ty
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
-import { createNovelApiHandler, testNovelModelConnection } from './novelApi'
+import { createNovelApiHandler } from './novelApi'
 import { HarnessRuntime } from './harnessRuntime'
 import { PythonEnvironment } from './pythonEnv'
-import type { NovelModelRole, NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
+import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
+import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -190,19 +190,19 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
   ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
   ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
+  ipcMain.handle('harness:list-project-files', (_event, projectId: string, query?: string) => database.harness.listProjectFiles(projectId, query))
   ipcMain.handle('harness:attach-directory', async (event, sessionId: string) => {
     const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
     const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择工作目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择工作目录' })
     return result.canceled ? null : database.harness.attachDirectory(sessionId, result.filePaths[0])
   })
-  ipcMain.handle('harness:run-message', (event, sessionId: string, message: string) => harnessRuntime.runMessage(event.sender, sessionId, message))
+  ipcMain.handle('harness:run-message', (event, sessionId: string, message: string, references: HarnessFileReference[] = [], selection) => harnessRuntime.runMessage(event.sender, sessionId, message, references, selection))
   ipcMain.handle('harness:abort-run', (_event, sessionId: string) => harnessRuntime.abort(sessionId))
   ipcMain.handle('harness:get-permission-config', () => database.harness.getPermissionConfig())
   ipcMain.handle('harness:save-permission-config', (_event, config) => database.harness.savePermissionConfig(config))
   ipcMain.handle('harness:python-status', () => pythonEnvironment.status())
   ipcMain.handle('harness:python-exec', (_event, script: string, args: string[]) => pythonEnvironment.run(script, args))
   ipcMain.handle('harness:python-install-package', (_event, packageName: string) => pythonEnvironment.install(packageName))
-  ipcMain.handle('platform:test-novel-model-connection', (_event, role: NovelModelRole, prompt?: string) => testNovelModelConnection(database, role, prompt))
   ipcMain.handle('platform:list-novel-projects', () => database.novels.listProjects())
   ipcMain.handle('platform:get-novel-project', (_event, id: string) => database.novels.getProject(id))
   ipcMain.handle('platform:create-novel-project', (_event, title?: string) => database.novels.createProject(title))

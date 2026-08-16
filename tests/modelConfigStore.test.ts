@@ -14,7 +14,7 @@ import { ModelConfigStore } from '../electron/modelConfigStore'
 function createStore() {
   const database = new Database(':memory:')
   database.exec(`
-    CREATE TABLE model_providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
   `)
   return { database, store: new ModelConfigStore(database) }
