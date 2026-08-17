@@ -140,7 +140,7 @@ export class HarnessStore {
     this.database.prepare('DELETE FROM harness_projects WHERE id = ?').run(id)
   }
 
-  createSession(projectId?: string, permissionMode: PermissionMode = DEFAULT_PERMISSION_CONFIG.globalDefaultMode) {
+  createSession(projectId?: string, permissionMode: PermissionMode = this.getPermissionConfig().globalDefaultMode) {
     const project = projectId ? this.getProject(projectId) : undefined
     const time = now()
     const session: HarnessSession = {
@@ -174,13 +174,14 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  appendAssistantText(id: string, content: string, run?: HarnessRunSummary) {
+  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage']) {
     const session = this.getSession(id)
     const last = session.messages.at(-1)
     if (last?.role === 'assistant') {
       last.content += content
       if (run) last.run = run
-    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), createdAt: now() })
+      if (usage) last.usage = usage
+    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), ...(usage ? { usage } : {}), createdAt: now() })
     return this.saveSession(session)
   }
 
@@ -189,6 +190,10 @@ export class HarnessStore {
   }
 
   setPermission(id: string, permissionMode: PermissionMode) {
+    if (!['default', 'auto-approve', 'full'].includes(permissionMode)) throw new Error('无效的权限档位')
+    const config = this.getPermissionConfig()
+    if (permissionMode === 'auto-approve' && !config.autoApproveEnabled) throw new Error('自动审核权限未启用')
+    if (permissionMode === 'full' && !config.fullAccessEnabled) throw new Error('完全访问权限未启用')
     const session = this.getSession(id); session.permissionMode = permissionMode; return this.saveSession(session)
   }
 
@@ -291,11 +296,27 @@ export class HarnessStore {
 
   getPermissionConfig(): PermissionConfig {
     const row = this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get('permission') as { value?: string } | undefined
-    try { return { ...DEFAULT_PERMISSION_CONFIG, ...(row?.value ? JSON.parse(row.value) : {}) } } catch { return clone(DEFAULT_PERMISSION_CONFIG) }
+    try {
+      const stored = row?.value ? JSON.parse(row.value) as Partial<PermissionConfig> : {}
+      return {
+        ...DEFAULT_PERMISSION_CONFIG,
+        ...stored,
+        autoApproveEnabled: typeof stored.autoApproveEnabled === 'boolean' ? stored.autoApproveEnabled : DEFAULT_PERMISSION_CONFIG.autoApproveEnabled,
+        fullAccessEnabled: typeof stored.fullAccessEnabled === 'boolean' ? stored.fullAccessEnabled : DEFAULT_PERMISSION_CONFIG.fullAccessEnabled,
+        globalDefaultMode: 'default',
+      }
+    } catch { return clone(DEFAULT_PERMISSION_CONFIG) }
   }
 
   savePermissionConfig(config: PermissionConfig) {
-    this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(config))
+    const current = this.getPermissionConfig()
+    const next: PermissionConfig = {
+      ...current,
+      autoApproveEnabled: typeof config.autoApproveEnabled === 'boolean' ? config.autoApproveEnabled : current.autoApproveEnabled,
+      fullAccessEnabled: typeof config.fullAccessEnabled === 'boolean' ? config.fullAccessEnabled : current.fullAccessEnabled,
+      globalDefaultMode: 'default',
+    }
+    this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(next))
     return this.getPermissionConfig()
   }
 

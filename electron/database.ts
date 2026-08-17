@@ -16,7 +16,7 @@ import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 const CURRENT_SCHEMA_VERSION = 19
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
-const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid' }
+const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter' }
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
@@ -184,6 +184,8 @@ export class PlatformDatabase {
       const provider = this.models.list().find(item => item.enabled && item.hasApiKey && item.models.length)
       if (provider) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: provider.models[0] } })
     }
+    const insertPreference = this.database.prepare('INSERT OR IGNORE INTO preferences(key, value) VALUES (?, ?)')
+    Object.entries(DEFAULT_PREFERENCES).forEach(([key, value]) => insertPreference.run(key, JSON.stringify(value)))
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))
   }
 

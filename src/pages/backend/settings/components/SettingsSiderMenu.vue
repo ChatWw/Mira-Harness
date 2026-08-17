@@ -38,7 +38,7 @@ type SettingsNavItem = {
 
 const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
   {
-    label: '个性化',
+    label: '通用',
     items: [
       { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
       { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
@@ -51,7 +51,6 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     items: [
       { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
       { key: 'model-config', label: '模型', icon: 'Connection', path: '/settings/model-config' },
-      { key: 'agent-permission', label: 'Agent 权限', icon: 'Lock', path: '/settings/agent-permission' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
     ],
   },

@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('platform', {
   listHarnessSessions: (query?: string) => ipcRenderer.invoke('harness:list-sessions', query),
   createHarnessSession: (projectId?: string) => ipcRenderer.invoke('harness:create-session', projectId),
   getHarnessSession: (id: string) => ipcRenderer.invoke('harness:get-session', id),
+  setHarnessSessionPermission: (id: string, permissionMode: unknown) => ipcRenderer.invoke('harness:set-permission', id, permissionMode),
   deleteHarnessSession: (id: string) => ipcRenderer.invoke('harness:delete-session', id),
   deleteHarnessSessions: (ids: string[]) => ipcRenderer.invoke('harness:delete-sessions', ids),
   listHarnessProjectFiles: (projectId: string, query?: string) => ipcRenderer.invoke('harness:list-project-files', projectId, query),

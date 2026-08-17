@@ -69,6 +69,22 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('migrates legacy permission defaults and limits disabled permission modes', () => {
+    const { root, database, store } = createStore()
+    database.prepare('INSERT INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify({ globalDefaultMode: 'full' }))
+
+    expect(store.getPermissionConfig()).toMatchObject({ globalDefaultMode: 'default', autoApproveEnabled: true, fullAccessEnabled: true })
+    expect(store.createSession().permissionMode).toBe('default')
+
+    store.savePermissionConfig({ ...store.getPermissionConfig(), autoApproveEnabled: false, fullAccessEnabled: false })
+    const session = store.createSession()
+    expect(() => store.setPermission(session.id, 'auto-approve')).toThrow('自动审核权限未启用')
+    expect(() => store.setPermission(session.id, 'full')).toThrow('完全访问权限未启用')
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('removes legacy empty sessions and keeps sessions with user messages', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')
@@ -81,6 +97,29 @@ describe('HarnessStore', () => {
     expect(store.removeEmptySessions()).toBe(1)
     expect(store.listSessions().map(session => session.id)).toEqual([retained.id])
     expect(store.getProject(project.id).sessionCount).toBe(1)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists context summaries without removing visible conversation messages', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const user = store.addMessage(session.id, 'user', '保留的早期提问')
+    const assistant = store.appendAssistantText(session.id, '保留的早期回复', undefined, { input: 40, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 60 })
+    assistant.context = {
+      summary: '此前对话摘要',
+      compactedThroughMessageId: user.messages.at(-1)!.id,
+      compactedAt: Date.now(),
+      usage: { usedTokens: 128, contextWindow: 128000, source: 'reported', updatedAt: Date.now() },
+    }
+    store.updateSession(assistant)
+
+    const restored = store.getSession(session.id)
+    expect(restored.messages).toHaveLength(2)
+    expect(restored.messages[0].content).toBe('保留的早期提问')
+    expect(restored.context?.summary).toBe('此前对话摘要')
+    expect(restored.messages[1].usage?.totalTokens).toBe(60)
 
     database.close()
     rmSync(root, { recursive: true, force: true })

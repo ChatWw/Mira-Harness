@@ -141,6 +141,28 @@
   --el-disabled-border-color: #{$dark-border-light};
 }
 
+// Tooltip: appearance and default behavior are scoped to the shared mira-tooltip class.
+.mira-tooltip.el-popper.is-dark {
+  --el-popper-bg-color-dark: var(--cp-bg-overlay);
+  padding: 6px 9px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius-sm);
+  color: var(--cp-text);
+  background: var(--cp-bg-overlay);
+  font-size: $font-xs;
+  font-weight: $font-normal;
+  line-height: 1.45;
+}
+
+.mira-tooltip.el-popper.is-dark .el-popper__arrow {
+  display: none;
+}
+
+[data-theme='dark'] .mira-tooltip.el-popper.is-dark {
+  --el-popper-bg-color-dark: #000;
+  background: #000;
+}
+
 // ==================== 组件样式覆盖 ====================
 
 // 按钮组件

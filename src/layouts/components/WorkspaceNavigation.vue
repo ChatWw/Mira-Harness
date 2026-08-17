@@ -10,32 +10,34 @@
     <template v-if="!collapsed">
       <section class="workspace-group">
         <div class="workspace-group__header">
-          <button type="button" class="workspace-group__toggle" :aria-expanded="projectsExpanded" @click="projectsExpanded = !projectsExpanded"><span>项目</span><AppIcon class="workspace-group__chevron" :name="projectsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
+          <button type="button" class="workspace-group__toggle" :aria-expanded="projectsExpanded" @click="toggleProjects"><span>项目</span><AppIcon class="workspace-group__chevron" :name="projectsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
           <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleProjectGroupCommand('expand')"><AppIcon name="ArrowDown" /><span>展开全部项目</span></button><button type="button" @click="handleProjectGroupCommand('collapse')"><AppIcon name="ArrowUp" /><span>收起全部项目</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
         </div>
         <div v-if="projectsExpanded" class="workspace-group__items workspace-group__items--projects">
-          <div v-for="project in store.projects" :key="project.id" class="workspace-project">
+          <div v-for="project in visibleProjects" :key="project.id" class="workspace-project">
             <div class="workspace-project__header">
               <button type="button" class="workspace-project__toggle" :aria-expanded="isProjectExpanded(project.id)" :title="project.directory" @click="toggleProject(project.id)"><AppIcon :name="project.icon" /><span>{{ project.name }}</span></button>
               <div class="workspace-project__actions"><el-popover trigger="click" placement="right-start" :width="218" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-project__tool" :aria-label="`${project.name} 项目操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleProjectCommand('toggle', project.id)"><AppIcon :name="isProjectExpanded(project.id) ? 'ArrowUp' : 'ArrowDown'" /><span>{{ isProjectExpanded(project.id) ? '收起对话' : '展开对话' }}</span></button><button type="button" @click="createProjectSession(project.id)"><AppIcon name="EditPen" /><span>在项目中创建对话</span></button></div></el-popover><el-tooltip content="在项目中创建对话" placement="right"><button type="button" class="workspace-project__new" :aria-label="`在 ${project.name} 中创建对话`" @click="createProjectSession(project.id)"><AppIcon name="EditPen" /></button></el-tooltip></div>
             </div>
             <div v-if="isProjectExpanded(project.id)" class="workspace-project__sessions">
-              <div v-for="session in sessionsForProject(project.id)" :key="session.id" class="workspace-session-row workspace-session-row--nested" :class="{ active: session.id === store.activeSession?.id }"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span class="workspace-item__title">{{ session.title }}</span></button><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-session-row__tool" :aria-label="`${session.title} 对话操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" class="is-danger" @click="deleteSession(session.id)"><AppIcon name="Delete" /><span>删除对话</span></button></div></el-popover></div>
+              <div v-for="session in visibleProjectSessions(project.id)" :key="session.id" class="workspace-session-row workspace-session-row--nested" :class="{ active: session.id === store.activeSession?.id }"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span class="workspace-item__title">{{ session.title }}</span></button><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-session-row__tool" :aria-label="`${session.title} 对话操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" class="is-danger" @click="deleteSession(session.id)"><AppIcon name="Delete" /><span>删除对话</span></button></div></el-popover></div>
+              <button v-if="hasMoreProjectSessions(project.id)" type="button" class="workspace-show-all workspace-show-all--nested" @click="expandProjectSessions(project.id)">展开显示</button>
               <p v-if="!sessionsForProject(project.id).length" class="workspace-empty workspace-empty--nested">还没有对话</p>
             </div>
           </div>
+          <button v-if="store.projects.length > PROJECT_LIMIT && !showAllProjects" type="button" class="workspace-show-all workspace-show-all--projects" @click="showAllProjects = true">展开显示</button>
           <p v-if="!store.projects.length" class="workspace-empty">还没有项目</p>
         </div>
       </section>
 
       <section class="workspace-group workspace-group--sessions">
         <div class="workspace-group__header">
-          <button type="button" class="workspace-group__toggle" :aria-expanded="sessionsExpanded" @click="sessionsExpanded = !sessionsExpanded"><span>最近对话</span><AppIcon class="workspace-group__chevron" :name="sessionsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
+          <button type="button" class="workspace-group__toggle" :aria-expanded="sessionsExpanded" @click="toggleRecentSessions"><span>最近对话</span><AppIcon class="workspace-group__chevron" :name="sessionsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
           <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleHistoryCommand('select')"><AppIcon name="Check" /><span>{{ selecting ? '完成选择' : '选择对话' }}</span></button><button v-if="selecting" type="button" @click="handleHistoryCommand('all')"><AppIcon name="Check" /><span>{{ allSelected ? '取消全选' : '全选' }}</span></button><button v-if="selecting" type="button" class="is-danger" :disabled="!selectedIds.length" @click="handleHistoryCommand('delete')"><AppIcon name="Delete" /><span>删除选中</span></button></div></el-popover></div>
         </div>
         <div v-if="sessionsExpanded" class="workspace-group__items workspace-group__items--sessions" :class="{ 'is-selecting': selecting }">
           <div v-for="session in visibleRecentSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id, 'is-selecting': selecting }"><button type="button" class="workspace-item workspace-item--session" @click="selecting ? toggleSelection(session.id) : openSession(session.id)"><el-checkbox v-if="selecting" :model-value="selectedIds.includes(session.id)" @click.stop @change="toggleSelection(session.id)" /><span class="workspace-item__title">{{ session.title }}</span></button><el-popover v-if="!selecting" trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-session-row__tool" :aria-label="`${session.title} 对话操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" class="is-danger" @click="deleteSession(session.id)"><AppIcon name="Delete" /><span>删除对话</span></button></div></el-popover></div>
-          <button v-if="recentSessions.length > 8 && !showAllSessions" type="button" class="workspace-show-all" @click="showAllSessions = true">显示全部 {{ recentSessions.length }} 条</button>
+          <button v-if="recentSessions.length > RECENT_SESSION_LIMIT && !showAllSessions" type="button" class="workspace-show-all" @click="showAllSessions = true">展开显示</button>
           <p v-if="!recentSessions.length" class="workspace-empty">还没有临时对话</p>
         </div>
       </section>
@@ -65,10 +67,17 @@ defineProps<{ collapsed: boolean }>()
 const route = useRoute()
 const router = useRouter()
 const store = useHarnessStore()
+const PROJECT_LIMIT = 6
+const PROJECT_SESSION_INITIAL_LIMIT = 5
+const PROJECT_SESSION_EXTENDED_LIMIT = 12
+const RECENT_SESSION_LIMIT = 12
 const projectsExpanded = ref(false)
 const expandedProjectIds = ref<string[]>([])
+const projectSessionVisibleCounts = ref<Record<string, number>>({})
 const sessionsExpanded = ref(false)
+const showAllProjects = ref(false)
 const showAllSessions = ref(false)
+let groupStatesInitialized = false
 const selecting = ref(false)
 const selectedIds = ref<string[]>([])
 const projectDialogVisible = ref(false)
@@ -76,18 +85,52 @@ const selectingDirectory = ref(false)
 const creatingProject = ref(false)
 const projectForm = reactive<{ name: string, icon: string, directory: string }>({ name: '', icon: DEFAULT_PROJECT_ICON, directory: '' })
 const recentSessions = computed(() => store.sessions.filter(session => !session.projectId))
-const visibleRecentSessions = computed(() => showAllSessions.value ? recentSessions.value : recentSessions.value.slice(0, 8))
+const visibleProjects = computed(() => showAllProjects.value ? store.projects : store.projects.slice(0, PROJECT_LIMIT))
+const visibleRecentSessions = computed(() => showAllSessions.value ? recentSessions.value : recentSessions.value.slice(0, RECENT_SESSION_LIMIT))
 const allSelected = computed(() => recentSessions.value.length > 0 && recentSessions.value.every(session => selectedIds.value.includes(session.id)))
 const canCreateProject = computed(() => Boolean(projectForm.name.trim() && projectForm.directory))
 
-async function refresh() { await Promise.all([store.refreshProjects(), store.refreshSessions()]) }
+async function refresh() {
+  await Promise.all([store.refreshProjects(), store.refreshSessions()])
+  if (groupStatesInitialized) return
+  projectsExpanded.value = store.projects.length > 0
+  sessionsExpanded.value = recentSessions.value.length > 0
+  groupStatesInitialized = true
+}
 async function newSession() { const draft = store.startDraft(); await router.push({ path: '/workspace/chat', query: { draft } }) }
 function isProjectExpanded(id: string) { return expandedProjectIds.value.includes(id) }
-function toggleProject(id: string) { expandedProjectIds.value = isProjectExpanded(id) ? expandedProjectIds.value.filter(projectId => projectId !== id) : [...expandedProjectIds.value, id] }
-function revealProject(id?: string) { if (id && !isProjectExpanded(id)) expandedProjectIds.value.push(id); if (id) projectsExpanded.value = true }
+function toggleProjects() {
+  projectsExpanded.value = !projectsExpanded.value
+  if (!projectsExpanded.value) showAllProjects.value = false
+}
+function toggleRecentSessions() {
+  sessionsExpanded.value = !sessionsExpanded.value
+  if (!sessionsExpanded.value) showAllSessions.value = false
+}
+function resetProjectSessions(projectId: string) {
+  const next = { ...projectSessionVisibleCounts.value }
+  delete next[projectId]
+  projectSessionVisibleCounts.value = next
+}
+function toggleProject(id: string) {
+  if (isProjectExpanded(id)) {
+    expandedProjectIds.value = expandedProjectIds.value.filter(projectId => projectId !== id)
+    resetProjectSessions(id)
+    return
+  }
+  expandedProjectIds.value = [...expandedProjectIds.value, id]
+}
 function sessionsForProject(projectId: string) { return store.sessions.filter(session => session.projectId === projectId) }
-async function createProjectSession(projectId: string) { const draft = store.startDraft(projectId); revealProject(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
-async function openSession(id: string) { const session = await store.openSession(id); revealProject(session?.projectId); await router.push(`/workspace/chat/${id}`) }
+function projectSessionVisibleCount(projectId: string) { return projectSessionVisibleCounts.value[projectId] || PROJECT_SESSION_INITIAL_LIMIT }
+function visibleProjectSessions(projectId: string) { return sessionsForProject(projectId).slice(0, projectSessionVisibleCount(projectId)) }
+function hasMoreProjectSessions(projectId: string) { return sessionsForProject(projectId).length > projectSessionVisibleCount(projectId) }
+function expandProjectSessions(projectId: string) {
+  const current = projectSessionVisibleCount(projectId)
+  const total = sessionsForProject(projectId).length
+  projectSessionVisibleCounts.value = { ...projectSessionVisibleCounts.value, [projectId]: current < PROJECT_SESSION_EXTENDED_LIMIT ? PROJECT_SESSION_EXTENDED_LIMIT : total }
+}
+async function createProjectSession(projectId: string) { const draft = store.startDraft(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
+async function openSession(id: string) { await store.openSession(id); await router.push(`/workspace/chat/${id}`) }
 
 function openProjectDialog() { Object.assign(projectForm, { name: '', icon: DEFAULT_PROJECT_ICON, directory: '' }); projectDialogVisible.value = true }
 async function selectDirectory() {
@@ -104,13 +147,15 @@ async function createProject() {
   creatingProject.value = true
   try {
     const project = await store.createProject({ name: projectForm.name, icon: projectForm.icon, directory: projectForm.directory })
-    if (project) { projectDialogVisible.value = false; ElMessage.success('项目已创建') }
+    if (project) { if (store.projects.length === 1) projectsExpanded.value = true; projectDialogVisible.value = false; ElMessage.success('项目已创建') }
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '创建项目失败') } finally { creatingProject.value = false }
 }
 
 function toggleSelection(id: string) { selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(value => value !== id) : [...selectedIds.value, id] }
 function handleProjectGroupCommand(command: string) {
-  expandedProjectIds.value = command === 'expand' ? store.projects.map(project => project.id) : []
+  if (command === 'expand') { expandedProjectIds.value = store.projects.map(project => project.id); return }
+  expandedProjectIds.value = []
+  projectSessionVisibleCounts.value = {}
 }
 function handleProjectCommand(command: string, projectId: string) {
   if (command === 'toggle') toggleProject(projectId)
@@ -132,24 +177,34 @@ async function handleHistoryCommand(command: string) {
   ElMessage.success('会话已删除')
 }
 
-watch(() => route.params.id, id => { if (typeof id === 'string') void store.openSession(id).then(session => revealProject(session?.projectId)) })
-watch(() => store.activeSession?.projectId, revealProject)
+watch(() => store.projects.length, (count, previousCount) => {
+  if (!groupStatesInitialized) return
+  if (!count) { projectsExpanded.value = false; showAllProjects.value = false }
+  else if (!previousCount) projectsExpanded.value = true
+})
+watch(() => recentSessions.value.length, (count, previousCount) => {
+  if (!groupStatesInitialized) return
+  if (!count) { sessionsExpanded.value = false; showAllSessions.value = false }
+  else if (!previousCount) sessionsExpanded.value = true
+})
+watch(() => route.params.id, id => { if (typeof id === 'string') void store.openSession(id) })
 onMounted(() => { void refresh() })
 </script>
 
 <style scoped lang="scss">
-.workspace-navigation { padding: 10px 8px 12px; color: var(--cp-sidebar-menu-text); border-bottom: 1px solid var(--cp-border-light); }
+.workspace-navigation { padding: 10px 8px 12px; color: var(--cp-sidebar-menu-text); border-bottom: 1px solid var(--cp-border-light); margin-bottom: 6px }
 .workspace-action, .workspace-group__toggle, .workspace-group__tool, .workspace-item, .workspace-show-all, .workspace-project__toggle, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { display: flex; align-items: center; border: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
-.workspace-action { width: 100%; height: 42px; gap: 10px; padding: 0 10px; border-radius: $radius-md; font-size: 14px; font-weight: $font-medium; text-align: left; }
+.workspace-action { width: 100%; height: 32px; gap: 10px; padding: 0 10px; border-radius: $radius-md; font-size: 14px; font-weight: $font-medium; text-align: left; }
 .workspace-action:hover, .workspace-action.active { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-action--primary { margin-bottom: 2px; }
 .workspace-action .el-tag { margin-left: auto; }
 .workspace-group { margin: 18px 0 0; }
 .workspace-group--sessions { margin-top: 20px; }
 .workspace-group__header, .workspace-project__header, .workspace-session-row { display: flex; align-items: center; min-width: 0; }
-.workspace-group__toggle { flex: 0 1 auto; min-width: 0; height: 34px; gap: 6px; padding: 0 10px; color: var(--cp-text-tertiary); border-radius: $radius-md; font-size: 15px; font-weight: $font-medium; text-align: left; }
+.workspace-group__toggle { flex: 0 1 auto; min-width: 0; height: 34px; gap: 6px; padding: 0 10px; color: var(--cp-text-tertiary); border-radius: $radius-md; font-size: 14px; text-align: left; }
 .workspace-group__toggle:hover { color: var(--cp-text-secondary); }
-.workspace-group__chevron { flex: 0 0 auto; color: currentcolor; font-size: 13px; }
+.workspace-group__chevron { flex: 0 0 auto; color: currentcolor; font-size: 13px; opacity: 0; transition: opacity $transition-fast; }
+.workspace-group__header:hover .workspace-group__chevron, .workspace-group__header:focus-within .workspace-group__chevron { opacity: 1; }
 .workspace-group__actions, .workspace-project__actions { display: flex; align-items: center; margin-left: auto; opacity: 0; pointer-events: none; transition: opacity var(--cp-animation-duration); }
 .workspace-group__header:hover .workspace-group__actions, .workspace-group__header:focus-within .workspace-group__actions, .workspace-project__header:hover .workspace-project__actions, .workspace-project__header:focus-within .workspace-project__actions, .workspace-session-row:hover .workspace-session-row__tool, .workspace-session-row:focus-within .workspace-session-row__tool { opacity: 1; pointer-events: auto; }
 .workspace-group__tool, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { width: 28px; height: 28px; justify-content: center; border-radius: $radius-sm; color: var(--cp-text-tertiary); }
@@ -157,7 +212,7 @@ onMounted(() => { void refresh() })
 .workspace-group__items { display: flex; max-height: 264px; flex-direction: column; gap: 2px; padding: 8px 0 2px; overflow-y: auto; }
 .workspace-group__items--projects { max-height: 360px; }
 .workspace-group__items--sessions { max-height: 290px; }
-.workspace-project__header { min-height: 36px; border-radius: $radius-md; }
+.workspace-project__header { min-height: 36px; border-radius: $radius-md;margin-bottom: 2px; }
 .workspace-project__header:hover, .workspace-session-row:hover, .workspace-session-row.active { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-project__toggle { flex: 1; min-width: 0; height: 36px; gap: 10px; padding: 0 10px; border-radius: $radius-md; font-size: 13px; text-align: left; }
 .workspace-project__toggle > span, .workspace-item__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -172,6 +227,7 @@ onMounted(() => { void refresh() })
 .workspace-session-row.is-selecting .workspace-item { padding-right: 10px; }
 .workspace-item :deep(.el-checkbox) { margin-right: 1px; }
 .workspace-show-all { height: 32px; padding: 0 10px; color: var(--cp-text-tertiary); font-size: 13px; }
+.workspace-show-all--projects { padding-left: 10px; }.workspace-show-all--nested { padding-left: 48px; }
 .workspace-show-all:hover { color: var(--cp-text-secondary); }
 .workspace-empty { margin: 2px 10px 6px; color: var(--cp-text-tertiary); font-size: 12px; }
 .workspace-empty--nested { padding-left: 38px; }

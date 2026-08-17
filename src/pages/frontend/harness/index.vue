@@ -11,19 +11,39 @@
       </header>
 
       <div class="conversation__messages">
-        <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll">
+        <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel">
         <div v-if="!store.activeSession?.messages.length" class="empty-state">
           <div class="empty-state__icon"><AppIcon name="ChatDotRound" /></div>
           <strong>从这里开始</strong>
           <span>描述你想完成的工作</span>
         </div>
-        <article v-for="message in store.activeSession?.messages" :key="message.id" class="message" :class="message.role">
-          <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '你' : 'Mira' }}</span>
+        <article v-for="message in store.activeSession?.messages" :key="message.id" class="message" :class="[message.role, { 'is-entering': message.id === enteringMessageId }]" :data-message-id="message.id" @animationend="clearMessageEntrance(message.id)">
+          <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '我' : 'Mira' }}</span>
           <p v-if="message.role === 'user'">{{ message.content }}</p>
           <template v-else>
             <details v-if="message.run" class="message__run">
-              <summary><span>已完成 · {{ formatDuration(message.run.durationMs) }}</span><span>{{ message.run.activities.length }} 个步骤</span></summary>
-              <ol><li v-for="activity in message.run.activities" :key="activity.id" :class="activity.status"><details v-if="activity.detail" class="run-activity"><summary><span />{{ activity.label }}<time>{{ formatDuration((activity.completedAt || message.run.completedAt) - activity.startedAt) }}</time></summary><p>{{ activity.detail }}</p></details><template v-else><span />{{ activity.label }}<time>{{ formatDuration((activity.completedAt || message.run.completedAt) - activity.startedAt) }}</time></template></li></ol>
+              <summary><span class="run-summary__label">已完成 · {{ formatDuration(message.run.durationMs) }}</span><span class="run-summary__meta">{{ message.run.activities.length }} 个步骤</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
+              <ol>
+                <li v-for="activity in message.run.activities" :key="activity.id" :class="activity.status">
+                  <details v-if="activity.detail" class="run-activity">
+                    <summary><span class="run-activity__summary-label"><span class="run-activity__label">{{ activity.label }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></span><time>{{ formatDuration((activity.completedAt || message.run.completedAt) - activity.startedAt) }}</time></summary>
+                    <pre><code>{{ activity.detail }}</code></pre>
+                  </details>
+                  <template v-else><span class="run-activity__label">{{ activity.label }}</span><time>{{ formatDuration((activity.completedAt || message.run.completedAt) - activity.startedAt) }}</time></template>
+                </li>
+              </ol>
+            </details>
+            <details v-else-if="isStreamingAssistantMessage(message)" class="run-progress">
+              <summary><span class="run-progress__label">{{ activeRunLabel }} · {{ formatDuration(activeRunElapsed) }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
+              <ol>
+                <li v-for="activity in store.activeRun?.activities" :key="activity.id" :class="activity.status">
+                  <details v-if="activity.detail" class="run-activity">
+                    <summary><span class="run-activity__summary-label"><span class="run-activity__label">{{ activity.label }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></span><time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></summary>
+                    <pre><code>{{ activity.detail }}</code></pre>
+                  </details>
+                  <template v-else><span class="run-activity__label">{{ activity.label }}</span><time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></template>
+                </li>
+              </ol>
             </details>
             <div class="message__markdown" v-html="renderAssistantMessage(message.content)" />
           </template>
@@ -31,9 +51,17 @@
             <span v-for="file in message.attachments" :key="file.path" class="file-chip"><AppIcon name="Document" />{{ file.name }}</span>
           </div>
         </article>
-        <details v-if="store.activeRun" open class="run-progress">
-          <summary><span class="run-progress__spinner" />{{ activeRunLabel }} · {{ formatDuration(activeRunElapsed) }}</summary>
-          <ol><li v-for="activity in store.activeRun.activities" :key="activity.id" :class="activity.status"><details v-if="activity.detail" class="run-activity"><summary><span />{{ activity.label }}<time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></summary><p>{{ activity.detail }}</p></details><template v-else><span />{{ activity.label }}<time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></template></li></ol>
+        <details v-if="store.activeRun && !hasStreamingAssistantMessage" class="run-progress run-progress--pending">
+          <summary><span class="run-progress__label">{{ activeRunLabel }} · {{ formatDuration(activeRunElapsed) }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
+          <ol>
+            <li v-for="activity in store.activeRun.activities" :key="activity.id" :class="activity.status">
+              <details v-if="activity.detail" class="run-activity">
+                <summary><span class="run-activity__summary-label"><span class="run-activity__label">{{ activity.label }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></span><time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></summary>
+                <pre><code>{{ activity.detail }}</code></pre>
+              </details>
+              <template v-else><span class="run-activity__label">{{ activity.label }}</span><time v-if="activity.completedAt">{{ formatDuration(activity.completedAt - activity.startedAt) }}</time></template>
+            </li>
+          </ol>
         </details>
         </div>
         <span v-if="showLoadingIndicator" class="loading-dots loading-dots--floating" aria-label="Mira 正在处理"><i></i><i></i><i></i></span>
@@ -50,7 +78,7 @@
             <span v-if="selectedProject" class="composer-chip is-selected"><AppIcon :name="selectedProject.icon" /><span>{{ selectedProject.name }}</span><button v-if="!isPersistedSession" type="button" class="composer-chip__remove" :aria-label="`移除项目 ${selectedProject.name}`" @click="selectProject()"><AppIcon name="Close" /></button></span>
             <span v-for="file in composerDraft.attachments" :key="file.path" class="composer-chip is-selected"><AppIcon name="Document" /><span>{{ file.name }}</span><button type="button" class="composer-chip__remove" :aria-label="`移除 ${file.name}`" @click="removeAttachment(file.path)"><AppIcon name="Close" /></button></span>
           </div>
-          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="今天帮你做些什么?" :disabled="store.running" @update:model-value="setDraftText" @keydown.meta.enter.prevent="send" @keydown.ctrl.enter.prevent="send" />
+          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="今天帮你做些什么?" :disabled="isComposerBusy" @update:model-value="setDraftText" @keydown="handleComposerKeydown" />
           <div class="composer__actions">
             <div class="composer__status">
               <el-popover v-model:visible="addMenuVisible" trigger="click" placement="top-start" :width="350" popper-class="harness-selector-popper" @show="addMenuView = 'menu'">
@@ -79,22 +107,43 @@
                   </div>
                 </div>
               </el-popover>
-              <span class="composer-permission" :class="`is-${store.activeSession?.permissionMode || 'auto-approve'}`"><AppIcon name="Lock" />{{ permissionLabel }}</span>
+              <el-popover v-model:visible="permissionPickerVisible" trigger="click" placement="top-start" :width="292" :show-arrow="false" popper-class="harness-selector-popper">
+                <template #reference><button type="button" class="composer-permission" :class="`is-${selectedPermissionMode}`" :disabled="isComposerBusy" :aria-label="`权限：${permissionLabel}`"><AppIcon name="Lock" /><span>{{ permissionLabel }}</span><AppIcon name="ArrowDown" /></button></template>
+                <div class="permission-menu">
+                  <button v-for="option in availablePermissionOptions" :key="option.mode" type="button" class="permission-menu__item" :class="{ active: selectedPermissionMode === option.mode }" @click="setPermissionMode(option.mode)">
+                    <span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span>
+                    <AppIcon v-if="selectedPermissionMode === option.mode" name="Check" />
+                  </button>
+                </div>
+              </el-popover>
               <span v-if="store.running" class="composer-running"><i></i>正在生成</span>
-              <span v-else class="composer-shortcut">Ctrl / ⌘ + Enter 发送</span>
+              <span v-else-if="store.rendering" class="composer-rendering">正在呈现回复</span>
+              <span v-else class="composer-shortcut">{{ sendShortcut === 'enter' ? 'Enter 发送 · Shift + Enter 换行' : 'Ctrl / ⌘ + Enter 发送' }}</span>
             </div>
             <div class="composer__submit">
-              <el-popover v-model:visible="modelPickerVisible" trigger="click" placement="top-end" :width="272" popper-class="harness-selector-popper" @show="modelMenuView = 'menu'">
-                <template #reference><button type="button" class="composer-model" :class="{ 'is-empty': !composerDraft.modelSelection }" :aria-label="selectedModelOption ? `模型：${selectedModelOption.label}` : '选择模型'"><span>{{ selectedModelOption?.label || '选择模型' }}</span><small v-if="selectedModelOption?.reasoning">{{ selectedThinkingLabel }}</small><AppIcon name="ArrowDown" /></button></template>
+              <el-tooltip v-if="showContextUsage && composerDraft.modelSelection" placement="top" :show-arrow="false">
+                <template #content>
+                  <div class="context-usage-tooltip">
+                    <strong>上下文使用情况</strong>
+                    <span>{{ formatTokenCount(contextUsage.usedTokens) }} / {{ formatTokenCount(contextUsage.contextWindow) }} · {{ contextUsagePercent }}%</span>
+                    <small>剩余 {{ formatTokenCount(contextUsageRemaining) }} · {{ contextUsage.source === 'reported' ? '模型实际返回' : '本地估算' }}</small>
+                  </div>
+                </template>
+                <span class="context-usage" :class="contextUsageState" role="img" :aria-label="`上下文已使用 ${contextUsagePercent}%`">
+                  <span class="context-usage__ring" :style="{ '--context-progress': `${contextUsagePercent * 3.6}deg` }"></span>
+                </span>
+              </el-tooltip>
+              <el-popover v-model:visible="modelPickerVisible" trigger="click" placement="top-end" :width="272" :show-arrow="false" popper-class="harness-selector-popper" @show="modelMenuView = 'menu'">
+                <template #reference><button type="button" class="composer-model" :class="{ 'is-empty': !composerDraft.modelSelection }" :aria-label="selectedModelOption ? `模型：${selectedModelOption.modelName}` : '选择模型'"><span>{{ selectedModelOption?.modelName || '选择模型' }}</span><small v-if="selectedModelOption?.reasoning">{{ selectedThinkingLabel }}</small><AppIcon name="ArrowDown" /></button></template>
                 <div v-if="modelMenuView === 'menu'" class="model-menu">
-                  <button type="button" class="model-menu__item" @click="modelMenuView = 'models'"><span>模型</span><em>{{ selectedModelOption?.label || '选择模型' }}</em><AppIcon name="ArrowRight" /></button>
+                  <button type="button" class="model-menu__item" @click="modelMenuView = 'models'"><span>模型</span><em>{{ selectedModelOption?.modelName || '选择模型' }}</em><AppIcon name="ArrowRight" /></button>
                   <button v-if="selectedModelOption?.reasoning" type="button" class="model-menu__item" @click="modelMenuView = 'effort'"><span>推理强度</span><em>{{ selectedThinkingLabel }}</em><AppIcon name="ArrowRight" /></button>
                   <p v-if="!modelOptions.length" class="selector-empty">没有可用模型，请先完成模型配置</p>
                 </div>
                 <div v-else-if="modelMenuView === 'models'" class="selector-panel model-menu__panel">
                   <div class="selector-panel__header"><button type="button" class="composer-icon-button" aria-label="返回模型设置" @click="modelMenuView = 'menu'"><AppIcon name="ArrowLeft" /></button><strong>模型</strong></div>
                   <div class="selector-panel__list">
-                    <button v-for="option in modelOptions" :key="option.value" type="button" class="selector-option" :class="{ active: option.value === selectedModelOption?.value }" @click="setModelSelection(option.value)"><span>{{ option.label }}</span><AppIcon v-if="option.value === selectedModelOption?.value" name="Check" /></button>
+                    <button v-for="option in modelOptions" :key="option.value" type="button" class="selector-option" :class="{ active: option.value === selectedModelOption?.value }" @click="setModelSelection(option.value)"><span>{{ option.modelName }}</span><AppIcon v-if="option.value === selectedModelOption?.value" name="Check" /></button>
                     <p v-if="!modelOptions.length" class="selector-empty">没有可用模型，请先完成模型配置</p>
                   </div>
                 </div>
@@ -106,7 +155,7 @@
                 </div>
               </el-popover>
               <el-tooltip v-if="store.running" content="停止生成" placement="top"><button type="button" class="composer__send is-stop" aria-label="停止生成" @click="abort"><AppIcon name="VideoPause" /></button></el-tooltip>
-              <el-tooltip v-else :content="composerDraft.modelSelection ? '发送消息' : '请先选择模型'" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="!composerDraft.text.trim() || !composerDraft.modelSelection" @click="send"><AppIcon name="ArrowUp" /></button></el-tooltip>
+              <el-tooltip v-else :content="store.rendering ? '正在呈现回复' : (composerDraft.modelSelection ? '发送消息' : '请先选择模型')" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="isComposerBusy || !composerDraft.text.trim() || !composerDraft.modelSelection" @click="send"><AppIcon name="Top" /></button></el-tooltip>
             </div>
           </div>
         </div>
@@ -114,6 +163,13 @@
     </section>
 
     <aside class="session-panel"><section><h2>会话信息</h2><dl><div><dt>模型</dt><dd>{{ store.activeSession?.modelId || '使用默认模型' }}</dd></div><div><dt>权限</dt><dd>{{ permissionLabel }}</dd></div><div><dt>工作目录</dt><dd>{{ selectedProject?.directory || '尚未选择' }}</dd></div></dl></section><section><h2>工具调用</h2><el-empty v-if="!store.activeSession?.toolCalls.length" description="调用工具后显示记录" :image-size="56" /><div v-for="tool in store.activeSession?.toolCalls" :key="tool.id" class="tool-row"><span :class="tool.status" />{{ tool.tool }}<small>{{ tool.target }}</small></div></section></aside>
+
+    <el-dialog v-model="fullAccessConfirmVisible" class="full-access-dialog" width="min(460px, calc(100vw - 32px))" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" align-center>
+      <template #header><div class="full-access-dialog__header"><AppIcon name="WarningFilled" /><h2>确认允许完全访问?</h2></div></template>
+      <p class="full-access-dialog__copy">开启允许完全访问后，AI 将减少确认步骤，并可直接执行更多操作，包括敏感操作、文件修改或外部执行。<br>仅建议在您信任当前任务时使用。</p>
+      <el-checkbox v-model="fullAccessAcknowledged" class="full-access-dialog__ack">我已了解风险，并愿意继续</el-checkbox>
+      <template #footer><div class="full-access-dialog__footer"><el-button @click="fullAccessConfirmVisible = false">取消</el-button><el-button type="danger" :disabled="!fullAccessAcknowledged" @click="confirmFullAccess">允许完全访问</el-button></div></template>
+    </el-dialog>
   </main>
 </template>
 
@@ -122,18 +178,24 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
-import { getPlatformApi } from '@/platform'
-import type { HarnessFileReference, ModelProviderSummary, ThinkingLevel } from '@/config/harness'
+import { getPlatformApi, getPreference } from '@/platform'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_PERMISSION_CONFIG, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 
 const route = useRoute()
 const router = useRouter()
 const store = useHarnessStore()
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
+markdown.renderer.rules.table_open = () => '<div class="markdown-table"><table>\n'
+markdown.renderer.rules.table_close = () => '</table></div>\n'
 const streamRef = ref<HTMLElement>()
+const enteringMessageId = ref<string>()
 const addMenuVisible = ref(false)
 const addMenuView = ref<'menu' | 'project' | 'file'>('menu')
 const modelPickerVisible = ref(false)
+const permissionPickerVisible = ref(false)
+const fullAccessConfirmVisible = ref(false)
+const fullAccessAcknowledged = ref(false)
 const modelMenuView = ref<'menu' | 'models' | 'effort'>('menu')
 const projectQuery = ref('')
 const fileQuery = ref('')
@@ -141,12 +203,17 @@ const availableFiles = ref<HarnessFileReference[]>([])
 const filesLoading = ref(false)
 const creatingProject = ref(false)
 const providers = ref<ModelProviderSummary[]>([])
+const permissionConfig = ref<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const showScrollToBottom = ref(false)
 const stickToBottom = ref(true)
 const clock = ref(Date.now())
 let dispose: (() => void) | undefined
 let elapsedTimer: number | undefined
 let bottomScrollRequest = 0
+let autoScrollTimer: number | undefined
+let positioningLatestMessage = false
+let latestMessageIdToPosition: string | undefined
+let scrollFollowLocked = false
 
 const sessionId = computed(() => typeof route.params.id === 'string' ? route.params.id : undefined)
 const draftToken = computed(() => typeof route.query.draft === 'string' ? route.query.draft : undefined)
@@ -159,9 +226,28 @@ const filteredProjects = computed(() => {
   const query = projectQuery.value.trim().toLocaleLowerCase()
   return query ? store.projects.filter(project => project.name.toLocaleLowerCase().includes(query) || project.directory.toLocaleLowerCase().includes(query)) : store.projects
 })
-const permissionLabel = computed(() => ({ default: '默认权限', 'auto-approve': '自动审核', full: '完全访问' }[store.activeSession?.permissionMode || 'auto-approve']))
-const modelOptions = computed(() => providers.value.filter(provider => provider.enabled && provider.hasApiKey).flatMap(provider => provider.models.map(modelId => ({ value: `${provider.id}:${modelId}`, label: `${provider.name} · ${modelId}`, reasoning: provider.reasoning }))))
+const permissionOptions: Array<{ mode: PermissionMode, label: string, description: string }> = [
+  { mode: 'default', label: '默认权限', description: '敏感操作逐次确认' },
+  { mode: 'auto-approve', label: '自动审核', description: '项目内操作自动批准' },
+  { mode: 'full', label: '完全访问', description: '不再显示操作确认' },
+]
+const selectedPermissionMode = computed<PermissionMode>(() => store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode)
+const permissionLabel = computed(() => permissionOptions.find(option => option.mode === selectedPermissionMode.value)?.label || '默认权限')
+const availablePermissionOptions = computed(() => permissionOptions.filter(option => option.mode === 'default'
+  || (option.mode === 'auto-approve' && permissionConfig.value.autoApproveEnabled)
+  || (option.mode === 'full' && permissionConfig.value.fullAccessEnabled)))
+const modelOptions = computed(() => providers.value.filter(provider => provider.enabled && provider.hasApiKey).flatMap(provider => provider.models.map(modelId => ({ value: `${provider.id}:${modelId}`, modelName: modelId, reasoning: provider.reasoning, contextWindow: provider.contextWindow }))))
 const selectedModelOption = computed(() => modelOptions.value.find(option => option.value === `${composerDraft.value.modelSelection?.providerId}:${composerDraft.value.modelSelection?.modelId}`))
+const showContextUsage = computed(() => getPreference('showContextUsage', true))
+const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'mod-enter') === 'enter' ? 'enter' : 'mod-enter')
+const contextUsage = computed<HarnessContextUsage>(() => {
+  const stored = store.activeSession?.context?.usage
+  const contextWindow = selectedModelOption.value?.contextWindow || stored?.contextWindow || DEFAULT_CONTEXT_WINDOW
+  return stored ? { ...stored, contextWindow } : { usedTokens: 0, contextWindow, source: 'estimated', updatedAt: Date.now() }
+})
+const contextUsagePercent = computed(() => Math.min(100, Math.round(contextUsage.value.usedTokens / Math.max(1, contextUsage.value.contextWindow) * 100)))
+const contextUsageRemaining = computed(() => Math.max(0, contextUsage.value.contextWindow - contextUsage.value.usedTokens))
+const contextUsageState = computed(() => contextUsagePercent.value >= 95 ? 'is-critical' : contextUsagePercent.value >= 80 ? 'is-warning' : 'is-normal')
 const thinkingOptions: Array<{ value: ThinkingLevel, label: string }> = [
   { value: 'off', label: '关闭' },
   { value: 'low', label: '低' },
@@ -170,8 +256,14 @@ const thinkingOptions: Array<{ value: ThinkingLevel, label: string }> = [
 ]
 const selectedThinkingLevel = computed<ThinkingLevel>(() => composerDraft.value.modelSelection?.thinkingLevel || 'medium')
 const selectedThinkingLabel = computed(() => thinkingOptions.find(option => option.value === selectedThinkingLevel.value)?.label || '中')
-const activeRunLabel = computed(() => store.activeRun?.activities.find(activity => activity.status === 'running')?.label || '正在处理')
+const isComposerBusy = computed(() => store.running || store.rendering)
+const activeRunLabel = computed(() => store.rendering && !store.running ? '正在呈现回复' : (store.activeRun?.activities.find(activity => activity.status === 'running')?.label || '正在处理'))
 const activeRunElapsed = computed(() => store.activeRun ? Math.max(0, clock.value - store.activeRun.startedAt) : 0)
+const activeLastMessage = computed(() => {
+  const messages = store.activeSession?.messages
+  return messages?.[messages.length - 1]
+})
+const hasStreamingAssistantMessage = computed(() => Boolean(store.activeRun && activeLastMessage.value?.role === 'assistant'))
 
 const showLoadingIndicator = computed(() => {
   const messages = store.activeSession?.messages
@@ -180,8 +272,9 @@ const showLoadingIndicator = computed(() => {
 
 async function load() {
   const api = getPlatformApi()
-  const [,, configured] = await Promise.all([store.refreshSessions(), store.refreshProjects(), api?.listModelProviders() || []])
+  const [,, configured, permissions] = await Promise.all([store.refreshSessions(), store.refreshProjects(), api?.listModelProviders() || [], api?.getHarnessPermissionConfig()])
   providers.value = configured
+  if (permissions) permissionConfig.value = permissions
   if (sessionId.value) {
     if (store.activeSession?.id !== sessionId.value) await store.openSession(sessionId.value)
     const sessionKey = `session:${sessionId.value}`
@@ -218,7 +311,42 @@ async function load() {
 function setDraftText(value: string) {
   if (draftKey.value) store.updateComposerDraft(draftKey.value, { text: value })
 }
+function handleComposerKeydown(event: KeyboardEvent) {
+  if (!shouldSendWithShortcut(sendShortcut.value, event)) return
+  event.preventDefault()
+  void send()
+}
+function formatTokenCount(value: number) {
+  if (value < 1000) return `${value}`
+  const compact = value >= 100000 ? Math.round(value / 1000) : Math.round(value / 100) / 10
+  return `${compact}k`
+}
 function renderAssistantMessage(content: string) { return markdown.render(content) }
+function isStreamingAssistantMessage(message: HarnessMessage) { return Boolean(store.activeRun && activeLastMessage.value?.id === message.id) }
+async function setPermissionMode(permissionMode: PermissionMode, confirmed = false) {
+  if (isComposerBusy.value || selectedPermissionMode.value === permissionMode) {
+    permissionPickerVisible.value = false
+    return
+  }
+  if (permissionMode === 'full' && !confirmed) {
+    permissionPickerVisible.value = false
+    fullAccessAcknowledged.value = false
+    fullAccessConfirmVisible.value = true
+    return
+  }
+  try {
+    if (store.activeSession) await store.setSessionPermission(store.activeSession.id, permissionMode)
+    if (draftKey.value) store.updateComposerDraft(draftKey.value, { permissionMode })
+    permissionPickerVisible.value = false
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '权限切换失败')
+  }
+}
+async function confirmFullAccess() {
+  if (!fullAccessAcknowledged.value) return
+  fullAccessConfirmVisible.value = false
+  await setPermissionMode('full', true)
+}
 function setModelSelection(value: string) {
   const [providerId, ...parts] = value.split(':')
   const modelId = parts.join(':')
@@ -308,9 +436,10 @@ async function send() {
     text: draft.text.trim(),
     attachments: draft.attachments.map(file => ({ path: file.path, name: file.name })),
     projectId: draft.projectId,
+    permissionMode: selectedPermissionMode.value,
     modelSelection: draft.modelSelection ? { ...draft.modelSelection } : undefined,
   }
-  if (!api || !originKey || !payload.text || !payload.modelSelection || store.running) return
+  if (!api || !originKey || !payload.text || !payload.modelSelection || isComposerBusy.value) return
 
   let activeId = sessionId.value
   try {
@@ -320,20 +449,24 @@ async function send() {
       activeId = session.id
       const sessionKey = `session:${session.id}`
       store.ensureComposerDraft(sessionKey)
-      store.updateComposerDraft(sessionKey, { text: payload.text, attachments: payload.attachments, modelSelection: payload.modelSelection })
+      store.updateComposerDraft(sessionKey, { text: payload.text, attachments: payload.attachments, modelSelection: payload.modelSelection, permissionMode: payload.permissionMode })
       store.removeComposerDraft(originKey)
       await router.replace(`/workspace/chat/${session.id}`)
     }
+    if (store.activeSession?.permissionMode !== payload.permissionMode) await store.setSessionPermission(activeId, payload.permissionMode)
     const sessionKey = `session:${activeId}`
     store.updateComposerDraft(sessionKey, { text: '', attachments: [] })
-    store.activeSession?.messages.push({ id: `local-${Date.now()}`, role: 'user', content: payload.text, attachments: payload.attachments.map(file => ({ ...file, content: '' })), createdAt: Date.now() })
+    const messageId = `local-${Date.now()}`
+    enteringMessageId.value = messageId
+    store.activeSession?.messages.push({ id: messageId, role: 'user', content: payload.text, attachments: payload.attachments.map(file => ({ ...file, content: '' })), createdAt: Date.now() })
+    void scrollLatestMessageToTop(messageId)
     store.running = true
     await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection)
   } catch (error) {
     const sessionKey = activeId ? `session:${activeId}` : originKey
     const session = activeId ? await store.openSession(activeId).catch(() => undefined) : undefined
     const persisted = session?.messages.some(message => message.role === 'user' && message.content === payload.text)
-    if (!persisted) store.updateComposerDraft(sessionKey, { text: payload.text, attachments: payload.attachments, modelSelection: payload.modelSelection })
+    if (!persisted) store.updateComposerDraft(sessionKey, { text: payload.text, attachments: payload.attachments, modelSelection: payload.modelSelection, permissionMode: payload.permissionMode })
     ElMessage.error(error instanceof Error ? error.message : '消息发送失败')
   } finally {
     store.running = false
@@ -343,14 +476,73 @@ async function send() {
 async function abort() { if (store.activeSession) await getPlatformApi()?.abortHarnessRun(store.activeSession.id) }
 
 function handleStreamScroll() {
+  if (positioningLatestMessage) return
   const element = streamRef.value
   if (!element) return
   const distance = element.scrollHeight - element.scrollTop - element.clientHeight
-  stickToBottom.value = distance <= 72
-  showScrollToBottom.value = distance > 72
+  if (scrollFollowLocked) {
+    showScrollToBottom.value = distance > 2
+    return
+  }
+  if (distance <= 2) stickToBottom.value = true
+  else if (distance > 72) stickToBottom.value = false
+  showScrollToBottom.value = !stickToBottom.value && distance > 2
+}
+
+async function scrollLatestMessageToTop(messageId: string) {
+  cancelAutoScroll()
+  bottomScrollRequest += 1
+  positioningLatestMessage = true
+  scrollFollowLocked = true
+  stickToBottom.value = false
+  latestMessageIdToPosition = messageId
+  await nextTick()
+  if (positionLatestMessageToTop(messageId)) latestMessageIdToPosition = undefined
+  positioningLatestMessage = false
+}
+
+function positionLatestMessageToTop(messageId: string) {
+  const stream = streamRef.value
+  const message = Array.from(stream?.querySelectorAll<HTMLElement>('.message') || []).find(element => element.dataset.messageId === messageId)
+  if (!stream || !message) return false
+  const targetTop = Math.max(0, message.offsetTop - 20)
+  const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
+  stream.scrollTop = Math.min(targetTop, maxScrollTop)
+  showScrollToBottom.value = maxScrollTop - stream.scrollTop > 2
+  return targetTop <= maxScrollTop
+}
+
+function clearMessageEntrance(messageId: string) {
+  if (enteringMessageId.value === messageId) enteringMessageId.value = undefined
+}
+
+function cancelAutoScroll() {
+  if (autoScrollTimer !== undefined) window.clearTimeout(autoScrollTimer)
+  autoScrollTimer = undefined
+}
+
+function handleUserWheel(event: WheelEvent) {
+  if (event.deltaY >= 0) return
+  cancelAutoScroll()
+  scrollFollowLocked = true
+  stickToBottom.value = false
+  showScrollToBottom.value = true
+}
+
+function scheduleAutoScroll() {
+  if (store.running || store.rendering || scrollFollowLocked || !stickToBottom.value || autoScrollTimer !== undefined) return
+  autoScrollTimer = window.setTimeout(() => {
+    autoScrollTimer = undefined
+    const element = streamRef.value
+    if (!element || store.running || store.rendering || scrollFollowLocked || !stickToBottom.value) return
+    const distance = element.scrollHeight - element.scrollTop - element.clientHeight
+    if (distance > 0) element.scrollBy({ top: distance, behavior: 'smooth' })
+  }, 72)
 }
 
 async function scrollToBottom() {
+  cancelAutoScroll()
+  scrollFollowLocked = false
   stickToBottom.value = true
   await nextTick()
   streamRef.value?.scrollTo({ top: streamRef.value.scrollHeight, behavior: 'smooth' })
@@ -361,7 +553,7 @@ async function snapSessionToBottom() {
   const request = ++bottomScrollRequest
   await nextTick()
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-  if (request !== bottomScrollRequest) return
+  if (request !== bottomScrollRequest || store.running || store.rendering || scrollFollowLocked || !stickToBottom.value) return
   const element = streamRef.value
   if (!element) return
   element.scrollTop = element.scrollHeight
@@ -373,11 +565,15 @@ async function snapSessionToBottom() {
 }
 
 watch(() => [route.params.id, route.query.draft], () => {
+  cancelAutoScroll()
+  latestMessageIdToPosition = undefined
+  scrollFollowLocked = false
   stickToBottom.value = true
   showScrollToBottom.value = false
   void load()
 })
 watch(() => store.activeSession?.id, () => {
+  cancelAutoScroll()
   stickToBottom.value = true
   showScrollToBottom.value = false
   void snapSessionToBottom()
@@ -389,7 +585,11 @@ watch(() => {
   return [messages?.length, messages?.[messages.length - 1]?.content]
 }, async () => {
   await nextTick()
-  if (stickToBottom.value) streamRef.value?.scrollTo({ top: streamRef.value.scrollHeight })
+  if (latestMessageIdToPosition) {
+    if (positionLatestMessageToTop(latestMessageIdToPosition)) latestMessageIdToPosition = undefined
+    return
+  }
+  scheduleAutoScroll()
   handleStreamScroll()
 })
 onMounted(() => {
@@ -400,6 +600,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   dispose?.()
   if (elapsedTimer) window.clearInterval(elapsedTimer)
+  cancelAutoScroll()
   bottomScrollRequest += 1
 })
 </script>
@@ -416,9 +617,10 @@ onBeforeUnmount(() => {
 .conversation__eyebrow { display: inline-flex !important; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--cp-text-secondary); font-size: 11px; line-height: 1.4; }
 .conversation__directory { max-width: 44vw; margin-top: 2px; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation__actions { display: flex; align-items: center; }
-.message-stream { height: 100%; min-height: 0; padding: 34px clamp(20px, 5vw, 96px) 24px; overflow-y: auto; }
+.message-stream { height: 100%; min-height: 0; padding: 34px clamp(20px, 5vw, 96px) 24px; overflow-y: auto; overscroll-behavior-y: contain; }
 .message, .empty-state { width: min(100%, 760px); margin-right: auto; margin-left: auto; }
 .message { margin-bottom: 28px; }
+.message.user.is-entering { animation: user-message-enter 240ms cubic-bezier(.16, 1, .3, 1) both; }
 .message.user { margin-left: auto; }
 .message__role { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; color: var(--cp-text-tertiary); font-size: 12px; }
 .message.user .message__role { text-align: right; }
@@ -426,20 +628,27 @@ onBeforeUnmount(() => {
 .message p { max-width: 72ch; margin: 0; color: var(--cp-text); font-size: 14px; white-space: pre-wrap; line-height: 1.82; }
 .message__markdown { max-width: min(100%, 760px); overflow-wrap: anywhere; color: var(--cp-text); font-size: 14px; line-height: 1.82; }
 .message__run, .run-progress { width: min(100%, 760px); margin: 0 0 12px; color: var(--cp-text-secondary); font-size: 12px; }
-.message__run summary, .run-progress summary { display: flex; align-items: center; gap: 8px; width: fit-content; color: var(--cp-text-secondary); cursor: pointer; list-style: none; }
+.message__run summary, .run-progress summary { display: flex; align-items: center; min-width: 0; gap: 8px; width: fit-content; color: var(--cp-text-secondary); cursor: pointer; list-style: none; }
 .message__run summary::-webkit-details-marker, .run-progress summary::-webkit-details-marker { display: none; }
-.message__run summary::before, .run-progress summary::before { width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid currentColor; content: ''; transition: transform $transition-fast; }
-.message__run[open] summary::before, .run-progress[open] summary::before { transform: rotate(90deg); }
-.message__run summary > span:last-child { color: var(--cp-text-tertiary); }
+.run-summary__label, .run-progress__label, .run-activity__label { min-width: 0; }
+.run-summary__meta, .message__run time, .run-progress time { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 11px; }
+.run-summary__chevron { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 12px; opacity: 0; transform: rotate(0); transition: opacity $transition-fast, transform $transition-fast; }
+.message__run summary:hover .run-summary__chevron, .run-progress summary:hover .run-summary__chevron, .message__run summary:focus-visible .run-summary__chevron, .run-progress summary:focus-visible .run-summary__chevron { opacity: 1; }
+.message__run details[open] > summary .run-summary__chevron, .run-progress details[open] > summary .run-summary__chevron, .message__run[open] > summary .run-summary__chevron, .run-progress[open] > summary .run-summary__chevron { transform: rotate(180deg); }
 .message__run ol, .run-progress ol { display: grid; gap: 6px; margin: 9px 0 0; padding: 9px 0 0 12px; border-left: 1px solid var(--cp-border-light); list-style: none; }
-.message__run li, .run-progress li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 18px; color: var(--cp-text-secondary); }
-.message__run li > span, .run-progress li > span { width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }
-.message__run li.running > span, .run-progress li.running > span { background: var(--cp-primary); animation: run-activity-pulse 1s ease-in-out infinite; }
-.message__run li.completed > span, .run-progress li.completed > span { background: var(--cp-success); }.message__run li.failed > span, .run-progress li.failed > span { background: var(--cp-danger); }
-.message__run time, .run-progress time { color: var(--cp-text-tertiary); font-size: 11px; }
-.run-activity { width: 100%; }.run-activity summary { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; }.run-activity summary::before { display: none; }.run-activity summary > span { width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.message__run li.running .run-activity summary > span, .run-progress li.running .run-activity summary > span { background: var(--cp-primary); animation: run-activity-pulse 1s ease-in-out infinite; }.message__run li.completed .run-activity summary > span, .run-progress li.completed .run-activity summary > span { background: var(--cp-success); }.message__run li.failed .run-activity summary > span, .run-progress li.failed .run-activity summary > span { background: var(--cp-danger); }.run-activity p { margin: 5px 0 0 15px; color: var(--cp-text-tertiary); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.run-progress { margin: 0 auto 18px; }.run-progress summary { color: var(--cp-primary); }.run-progress__spinner { width: 11px; height: 11px; border: 1.5px solid color-mix(in srgb, var(--cp-primary) 28%, transparent); border-top-color: var(--cp-primary); border-radius: 50%; animation: composer-spin .8s linear infinite; }
-.message__markdown :deep(> :first-child) { margin-top: 0; }.message__markdown :deep(> :last-child) { margin-bottom: 0; }.message__markdown :deep(h1), .message__markdown :deep(h2), .message__markdown :deep(h3), .message__markdown :deep(h4) { margin: 1.3em 0 .55em; color: var(--cp-text); font-weight: 600; line-height: 1.4; }.message__markdown :deep(h1) { font-size: 1.35em; }.message__markdown :deep(h2) { font-size: 1.2em; }.message__markdown :deep(h3), .message__markdown :deep(h4) { font-size: 1.05em; }.message__markdown :deep(p) { max-width: none; margin: 0 0 1em; white-space: normal; }.message__markdown :deep(ul), .message__markdown :deep(ol) { margin: 0 0 1em; padding-left: 1.55em; }.message__markdown :deep(li + li) { margin-top: .25em; }.message__markdown :deep(blockquote) { margin: 1em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--cp-border); color: var(--cp-text-secondary); }.message__markdown :deep(a) { color: var(--cp-primary); text-decoration: underline; text-underline-offset: 2px; }.message__markdown :deep(code) { padding: .12em .35em; border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }.message__markdown :deep(pre) { max-width: 100%; margin: 1em 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-hover); }.message__markdown :deep(pre code) { padding: 0; background: transparent; font-size: 12px; line-height: 1.65; }.message__markdown :deep(table) { display: block; max-width: 100%; margin: 1em 0; overflow-x: auto; border-spacing: 0; border-collapse: separate; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }.message__markdown :deep(th), .message__markdown :deep(td) { min-width: 90px; padding: 7px 10px; border-right: 1px solid var(--cp-border-light); border-bottom: 1px solid var(--cp-border-light); text-align: left; }.message__markdown :deep(th) { color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-weight: 600; }.message__markdown :deep(tr > :last-child) { border-right: 0; }.message__markdown :deep(tbody tr:last-child td) { border-bottom: 0; }.message__markdown :deep(hr) { margin: 1.25em 0; border: 0; border-top: 1px solid var(--cp-border-light); }
+.message__run li, .run-progress li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 18px; color: var(--cp-text-secondary); }
+.message__run li > .run-activity, .run-progress li > .run-activity { grid-column: 1 / -1; min-width: 0; }
+.run-activity { width: 100%; }
+.run-activity summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; }
+.run-activity__summary-label { display: inline-flex; min-width: 0; align-items: center; gap: 5px; width: fit-content; }
+.run-activity pre { max-width: 100%; margin: 7px 0 0; padding: 8px 10px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-hover); font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.run-activity code { font: inherit; }
+.message__run li.failed .run-activity__label, .run-progress li.failed .run-activity__label, .message__run li.failed .run-activity pre, .run-progress li.failed .run-activity pre { color: var(--cp-danger); }
+.run-progress { margin: 0 auto 18px; }
+.run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label { --run-sweep-base: var(--cp-text-tertiary); --run-sweep-edge: color-mix(in srgb, var(--cp-text-tertiary) 34%, white); --run-sweep-highlight: var(--cp-bg); color: var(--run-sweep-base); }
+:global([data-theme='dark']) .run-progress__label, :global([data-theme='dark']) .message__run li.running .run-activity__label, :global([data-theme='dark']) .run-progress li.running .run-activity__label { --run-sweep-base: var(--cp-text-secondary); --run-sweep-edge: color-mix(in srgb, var(--cp-text) 58%, var(--cp-text-secondary)); --run-sweep-highlight: var(--cp-text); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) { .run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label { background: linear-gradient(100deg, var(--run-sweep-base) 0 24%, var(--run-sweep-edge) 38%, var(--run-sweep-highlight) 50%, var(--run-sweep-edge) 62%, var(--run-sweep-base) 76% 100%); background-size: 260% 100%; color: transparent; background-clip: text; -webkit-background-clip: text; animation: run-text-sweep 1.8s ease-in-out infinite; } }
+.message__markdown :deep(> :first-child) { margin-top: 0; }.message__markdown :deep(> :last-child) { margin-bottom: 0; }.message__markdown :deep(h1), .message__markdown :deep(h2), .message__markdown :deep(h3), .message__markdown :deep(h4) { margin: 1.3em 0 .55em; color: var(--cp-text); font-weight: 600; line-height: 1.4; }.message__markdown :deep(h1) { font-size: 1.35em; }.message__markdown :deep(h2) { font-size: 1.2em; }.message__markdown :deep(h3), .message__markdown :deep(h4) { font-size: 1.05em; }.message__markdown :deep(p) { max-width: none; margin: 0 0 1em; white-space: normal; }.message__markdown :deep(ul), .message__markdown :deep(ol) { margin: 0 0 1em; padding-left: 1.55em; }.message__markdown :deep(li + li) { margin-top: .25em; }.message__markdown :deep(blockquote) { margin: 1em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--cp-border); color: var(--cp-text-secondary); }.message__markdown :deep(a) { color: var(--cp-primary); text-decoration: underline; text-underline-offset: 2px; }.message__markdown :deep(code) { padding: .12em .35em; border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }.message__markdown :deep(pre) { max-width: 100%; margin: 1em 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-hover); }.message__markdown :deep(pre code) { padding: 0; background: transparent; font-size: 12px; line-height: 1.65; }.message__markdown :deep(.markdown-table) { width: fit-content; max-width: 100%; margin: 1em 0; overflow-x: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }.message__markdown :deep(table) { width: max-content; border-spacing: 0; border-collapse: separate; }.message__markdown :deep(th), .message__markdown :deep(td) { min-width: 90px; padding: 7px 10px; border-right: 1px solid var(--cp-border-light); border-bottom: 1px solid var(--cp-border-light); text-align: left; }.message__markdown :deep(th) { color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-weight: 600; }.message__markdown :deep(tr > :last-child) { border-right: 0; }.message__markdown :deep(tbody tr:last-child td) { border-bottom: 0; }.message__markdown :deep(hr) { margin: 1.25em 0; border: 0; border-top: 1px solid var(--cp-border-light); }
 .message.user p { width: fit-content; max-width: min(78%, 72ch); margin-left: auto; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); border-radius: $radius-md; background: var(--cp-bg-hover); line-height: 1.7; }
 .message__attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .message.user .message__attachments { justify-content: flex-end; }
@@ -456,7 +665,7 @@ onBeforeUnmount(() => {
 .empty-state strong { color: var(--cp-text); font-size: 14px; font-weight: 600; }
 .empty-state span { margin-top: 4px; font-size: 12px; }
 .composer-shell { padding: 0 clamp(14px, 4vw, 48px) 20px; background: var(--cp-bg); }
-.composer { width: min(100%, 800px); min-height: 122px; margin: 0 auto; padding: 12px 14px 10px; border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent); border-radius: $radius-lg; background: var(--cp-bg-elevated); box-shadow: 0 8px 22px rgb(24 24 27 / 7%); transition: border-color $transition-fast, box-shadow $transition-fast; }
+.composer { width: min(100%, 800px); min-height: 122px; margin: 0 auto; padding: 12px 14px 10px; border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent); border-radius: $radius-lg; box-shadow: 0 8px 22px rgb(24 24 27 / 7%); transition: border-color $transition-fast, box-shadow $transition-fast; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); box-shadow: 0 10px 25px rgb(24 24 27 / 10%); }
 .composer__context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 0; margin-bottom: 8px; }
 .composer-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 220px; gap: 5px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 84%, transparent); border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-size: 12px; line-height: 20px; }
@@ -472,11 +681,16 @@ onBeforeUnmount(() => {
 .composer__submit { margin-left: auto; }
 .composer-icon-button, .composer__send { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--cp-text-secondary); background: transparent; cursor: pointer; transition: color $transition-fast, background $transition-fast, transform $transition-fast; }
 .composer-icon-button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
-.composer-permission, .composer-running, .composer-shortcut { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--cp-text-tertiary); font-size: 11px; white-space: nowrap; }
-.composer-permission { color: var(--cp-text-secondary); }.composer-permission.is-auto-approve { color: var(--cp-primary); }.composer-permission.is-full { color: var(--cp-danger); }
+.composer-permission, .composer-running, .composer-rendering, .composer-shortcut { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--cp-text-tertiary); font-size: 11px; white-space: nowrap; }
+.composer-permission { padding: 3px 5px; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }.composer-permission:hover:not(:disabled) { color: var(--cp-text); background: var(--cp-bg-hover); }.composer-permission:disabled { cursor: default; }.composer-permission > .app-icon:last-child { font-size: 10px; }.composer-permission.is-auto-approve { color: var(--cp-primary); }.composer-permission.is-full { color: var(--cp-danger); }
 .composer-running { color: var(--cp-primary); }.composer-running i { width: 10px; height: 10px; border: 1.5px solid color-mix(in srgb, var(--cp-primary) 30%, transparent); border-top-color: var(--cp-primary); border-radius: 50%; animation: composer-spin .8s linear infinite; }
+.composer-rendering { color: var(--cp-primary); }
 .composer-model { display: inline-flex; align-items: center; min-width: 0; max-width: min(290px, 38vw); gap: 5px; padding: 4px 6px 4px 9px; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
 .composer-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.composer-model small { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 11px; }.composer-model .app-icon { flex: 0 0 auto; font-size: 12px; }.composer-model:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.composer-model.is-empty { color: var(--cp-danger); }
+.context-usage { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--cp-primary); }
+.context-usage__ring { position: relative; display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: conic-gradient(currentColor var(--context-progress), var(--cp-border-light) 0); }
+.context-usage__ring::before { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--cp-bg); content: ''; }
+.context-usage.is-warning { color: var(--cp-warning); }.context-usage.is-critical { color: var(--cp-danger); }
 .composer__send { color: var(--cp-bg-elevated); background: var(--cp-text); }.composer__send:hover:not(:disabled) { transform: translateY(-1px); }.composer__send:disabled { color: var(--cp-text-tertiary); background: var(--cp-bg-hover); cursor: not-allowed; }.composer__send.is-stop { color: var(--cp-danger); border: 1px solid color-mix(in srgb, var(--cp-danger) 48%, var(--cp-border)); background: transparent; }
 .session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
 
@@ -484,8 +698,9 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { padding-bottom: 28px; } }
 @keyframes harness-loading-dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes composer-spin { to { transform: rotate(360deg); } }
-@keyframes run-activity-pulse { 50% { opacity: .35; transform: scale(.72); } }
-@media (prefers-reduced-motion: reduce) { .loading-dots i, .message__run li.running > span, .run-progress li.running > span, .run-progress__spinner { animation: none; opacity: .7; } }
+@keyframes run-text-sweep { to { background-position: -220% 0; } }
+@keyframes user-message-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .loading-dots i, .run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label, .message.user.is-entering { animation: none; } }
 </style>
 
 <style lang="scss">
@@ -493,4 +708,7 @@ onBeforeUnmount(() => {
 .add-menu, .model-menu, .selector-panel { display: flex; flex-direction: column; gap: 4px; }.add-menu__title { margin: 3px 8px 5px; color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.4; }.add-menu__item { display: grid; grid-template-columns: 18px minmax(0, 1fr) 16px; align-items: center; min-height: 48px; gap: 8px; padding: 5px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.add-menu__item > span { display: grid; min-width: 0; gap: 1px; }.add-menu__item strong { font-size: 12px; font-weight: 500; }.add-menu__item small { overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.add-menu__item > .app-icon:last-child { color: var(--cp-text-tertiary); font-size: 12px; }.add-menu__item:hover:not(:disabled) { background: var(--cp-bg-hover); }.add-menu__item:disabled { color: var(--cp-text-tertiary); cursor: not-allowed; opacity: .64; }
 .selector-panel { gap: 8px; }.selector-panel__header { display: flex; align-items: center; min-height: 30px; gap: 6px; }.selector-panel__header strong { color: var(--cp-text); font-size: 13px; font-weight: 600; }.selector-panel__list { display: flex; max-height: 220px; flex-direction: column; gap: 2px; overflow-y: auto; }.selector-panel__list--files { min-height: 76px; }.selector-option { display: flex; align-items: center; min-height: 32px; gap: 8px; padding: 0 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.selector-option > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.selector-option:hover, .selector-option.active { background: var(--cp-bg-hover); }.selector-option > .app-icon:last-child { flex: 0 0 auto; color: var(--cp-primary); }.selector-option--new { margin-top: 2px; border-top: 1px solid var(--cp-border-light); color: var(--cp-text-secondary); }.selector-option--new:hover { color: var(--cp-text); }.selector-empty { margin: 10px 8px; color: var(--cp-text-tertiary); font-size: 12px; }
 .model-menu__item { display: grid; grid-template-columns: minmax(48px, auto) minmax(0, 1fr) 14px; align-items: center; min-height: 36px; gap: 8px; padding: 0 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.model-menu__item:hover { background: var(--cp-bg-hover); }.model-menu__item > em { min-width: 0; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; font-style: normal; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.model-menu__item > .app-icon { color: var(--cp-text-tertiary); font-size: 12px; }.model-menu__panel { min-height: 112px; }
+.permission-menu { display: flex; flex-direction: column; gap: 2px; }.permission-menu__item { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 48px; padding: 6px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.permission-menu__item > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.permission-menu__item strong { font-size: 12px; font-weight: 500; }.permission-menu__item small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }.permission-menu__item:hover, .permission-menu__item.active { background: var(--cp-bg-hover); }.permission-menu__item > .app-icon { color: var(--cp-primary); font-size: 13px; }
+.context-usage-tooltip { display: grid; min-width: 180px; gap: 4px; color: var(--cp-text); font-size: 12px; line-height: 1.45; }.context-usage-tooltip strong { font-size: 12px; font-weight: 600; }.context-usage-tooltip span, .context-usage-tooltip small { color: var(--cp-text-secondary); }.context-usage-tooltip small { font-size: 11px; }
+.el-dialog.full-access-dialog { max-width: calc(100vw - 32px); border-radius: 18px; }.full-access-dialog .el-dialog__header { margin: 0; padding: 8px 0 0; border-bottom: 0 !important; }.full-access-dialog .el-dialog__body { padding: 12px 0 0; }.full-access-dialog .el-dialog__footer { padding: 12px 0 0; }.full-access-dialog__header { display: flex; align-items: center; gap: 9px; color: var(--cp-text); }.full-access-dialog__header .app-icon { color: var(--cp-danger); font-size: 22px; }.full-access-dialog__header h2 { margin: 0; font-size: 16px; font-weight: 600; }.full-access-dialog__copy { margin: 0; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.65; }.full-access-dialog__ack { margin-top: 18px; color: var(--cp-text); font-size: 14px; }.full-access-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; }.full-access-dialog__footer .el-button { min-width: 92px; margin: 0; font-weight: 600; }
 </style>

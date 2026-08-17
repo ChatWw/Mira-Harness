@@ -17,11 +17,15 @@
           :aria-checked="themeStore.themePreference === mode.value"
           @click="handleThemeModeChange(mode.value)"
         >
-          <span class="theme-preview" aria-hidden="true">
-            <span class="theme-preview__bar"></span>
-            <span class="theme-preview__content">
-              <i></i><i></i><i></i>
-            </span>
+          <span class="theme-preview" :class="{ 'theme-preview--system': mode.value === 'system' }" aria-hidden="true">
+            <template v-if="mode.value === 'system'">
+              <span class="theme-preview__system-pane is-light"><span class="theme-preview__bar"></span><span class="theme-preview__content"><i></i><i></i><i></i></span></span>
+              <span class="theme-preview__system-pane is-dark"><span class="theme-preview__bar"></span><span class="theme-preview__content"><i></i><i></i><i></i></span></span>
+            </template>
+            <template v-else>
+              <span class="theme-preview__bar"></span>
+              <span class="theme-preview__content"><i></i><i></i><i></i></span>
+            </template>
           </span>
           <span class="choice-card__label">{{ mode.label }}</span>
         </button>
@@ -329,11 +333,18 @@ function handleDynamicTitleChange(value: boolean) {
 .theme-card.is-dark .theme-preview { border-color: rgb(255 255 255 / 10%); background: #292929; }
 .theme-card.is-dark .theme-preview__bar { background: #202020; }
 .theme-card.is-dark .theme-preview__content i { background: #575757; }
-.theme-card.is-system .theme-preview { background: linear-gradient(90deg, #f7f7f7 0 50%, #292929 50%); }
-.theme-card.is-system .theme-preview__bar { background: linear-gradient(90deg, #efefef 0 50%, #202020 50%); }
-.theme-card.is-system .theme-preview__content i { background: linear-gradient(90deg, #d9d9d9 0 50%, #575757 50%); }
+.theme-preview--system { background: transparent; }
+.theme-preview__system-pane { display: flex; flex: 1 1 50%; min-width: 0; }
+.theme-preview__system-pane .theme-preview__bar { width: 16%; }
+.theme-preview__system-pane .theme-preview__content { padding: 12px; }
+.theme-preview__system-pane.is-light { background: #f7f7f7; }
+.theme-preview__system-pane.is-light .theme-preview__bar { background: #efefef; }
+.theme-preview__system-pane.is-light .theme-preview__content i { background: #d9d9d9; }
+.theme-preview__system-pane.is-dark { background: #292929; }
+.theme-preview__system-pane.is-dark .theme-preview__bar { background: #202020; }
+.theme-preview__system-pane.is-dark .theme-preview__content i { background: #575757; }
 
-.settings-list { overflow: hidden; margin-top: 20px; border-top: 1px solid var(--cp-border-light); }
+.settings-list { overflow: hidden; margin-top: 20px;  }
 .settings-row {
   display: flex;
   align-items: center;
@@ -342,6 +353,7 @@ function handleDynamicTitleChange(value: boolean) {
   min-height: 54px;
   padding: 10px 0;
   border-bottom: 1px solid var(--cp-border-light);
+  &:last-child { border-bottom: none; }
 
   :deep(.el-select) { width: 144px; }
   :deep(.el-input-number) { width: 144px; }

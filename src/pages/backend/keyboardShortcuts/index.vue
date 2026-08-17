@@ -41,8 +41,8 @@ const globalShortcuts = computed(() => [
 .page-description { margin: -24px 0 38px; color: var(--cp-text-secondary); }
 .section-heading { margin-bottom: 14px; }
 .section-heading h2 { margin: 0; font-size: $font-lg; line-height: 1.5; }
-.shortcut-list { border-top: 1px solid var(--cp-border-light); }
-.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg; min-height: 76px; border-bottom: 1px solid var(--cp-border-light); }
+.shortcut-list { }
+.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg; min-height: 76px; border-bottom: 1px solid var(--cp-border-light); &:last-child { border-bottom: none; } }
 .shortcut-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .shortcut-row__label { color: var(--cp-text); font-weight: 500; }
 .shortcut-row__hint { color: var(--cp-text-secondary); font-size: 12px; }

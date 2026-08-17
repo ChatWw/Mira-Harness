@@ -1,15 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPlatformApi } from '@/platform'
-import type { HarnessEvent, HarnessFileReference, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, ModelSelection, ThinkingLevel } from '@/config/harness'
+import type { HarnessContextUsage, HarnessEvent, HarnessFileReference, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, ModelSelection, PermissionMode, ThinkingLevel } from '@/config/harness'
 
 const DRAFT_STORAGE_KEY = 'mira-harness-composer-drafts'
 const MODEL_SELECTION_STORAGE_KEY = 'mira-harness-model-selection'
+const STREAM_FRAME_MS = 16
+const STREAM_BASE_CHARACTERS_PER_SECOND = 90
+const STREAM_DRAIN_WINDOW_MS = 500
+const STREAM_MAX_CHARACTERS_PER_FRAME = 48
 
 export interface HarnessComposerDraft {
   text: string
   projectId?: string
   modelSelection?: ModelSelection
+  permissionMode?: PermissionMode
   attachments: HarnessFileReference[]
   updatedAt: number
 }
@@ -29,6 +34,7 @@ function loadDrafts() {
               thinkingLevel: isThinkingLevel(draft.modelSelection.thinkingLevel) ? draft.modelSelection.thinkingLevel : undefined,
             }
           : undefined,
+        permissionMode: isPermissionMode(draft.permissionMode) ? draft.permissionMode : undefined,
         attachments: draft.attachments.filter((file): file is HarnessFileReference => Boolean(file && typeof file.path === 'string' && typeof file.name === 'string')),
         updatedAt: typeof draft.updatedAt === 'number' ? draft.updatedAt : Date.now(),
       }]]
@@ -41,6 +47,10 @@ function loadDrafts() {
 
 function isThinkingLevel(value: unknown): value is ThinkingLevel {
   return value === 'off' || value === 'low' || value === 'medium' || value === 'high'
+}
+
+function isPermissionMode(value: unknown): value is PermissionMode {
+  return value === 'default' || value === 'auto-approve' || value === 'full'
 }
 
 export interface HarnessRunProgress {
@@ -66,9 +76,16 @@ export const useHarnessStore = defineStore('harness', () => {
   const projects = ref<HarnessProject[]>([])
   const activeSession = ref<HarnessSession>()
   const running = ref(false)
+  const rendering = ref(false)
   const activeRun = ref<HarnessRunProgress>()
   const drafts = ref<Record<string, HarnessComposerDraft>>(loadDrafts())
   const lastModelSelection = ref<ModelSelection | undefined>(loadModelSelection())
+  let queuedMessageSessionId: string | undefined
+  let queuedMessageCharacters: string[] = []
+  let queuedMessageTimer: number | undefined
+  let completedMessageSessionId: string | undefined
+  let messageCompletionDeadline: number | undefined
+  let streamCharacterCarry = 0
 
   function persistDrafts() {
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts.value))
@@ -86,7 +103,7 @@ export const useHarnessStore = defineStore('harness', () => {
     return drafts.value[key]
   }
 
-  function updateComposerDraft(key: string, patch: Partial<Pick<HarnessComposerDraft, 'text' | 'projectId' | 'attachments' | 'modelSelection'>>) {
+  function updateComposerDraft(key: string, patch: Partial<Pick<HarnessComposerDraft, 'text' | 'projectId' | 'attachments' | 'modelSelection' | 'permissionMode'>>) {
     const current = ensureComposerDraft(key)
     drafts.value = { ...drafts.value, [key]: { ...current, ...patch, updatedAt: Date.now() } }
     persistDrafts()
@@ -101,6 +118,7 @@ export const useHarnessStore = defineStore('harness', () => {
   }
 
   function startDraft(projectId?: string) {
+    resetMessageQueue()
     activeSession.value = undefined
     running.value = false
     const token = createDraftToken()
@@ -116,7 +134,19 @@ export const useHarnessStore = defineStore('harness', () => {
     localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, JSON.stringify(lastModelSelection.value))
   }
 
+  function resetMessageQueue() {
+    if (queuedMessageTimer !== undefined) window.clearTimeout(queuedMessageTimer)
+    queuedMessageSessionId = undefined
+    queuedMessageCharacters = []
+    queuedMessageTimer = undefined
+    completedMessageSessionId = undefined
+    messageCompletionDeadline = undefined
+    streamCharacterCarry = 0
+    rendering.value = false
+  }
+
   function clearActiveSession() {
+    resetMessageQueue()
     activeSession.value = undefined
     running.value = false
     activeRun.value = undefined
@@ -141,6 +171,11 @@ export const useHarnessStore = defineStore('harness', () => {
   }
 
   async function openSession(id: string) {
+    if (activeSession.value?.id !== id) {
+      resetMessageQueue()
+      activeRun.value = undefined
+      running.value = false
+    }
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
     return activeSession.value
@@ -154,13 +189,96 @@ export const useHarnessStore = defineStore('harness', () => {
     return activeSession.value
   }
 
+  async function setSessionPermission(id: string, permissionMode: PermissionMode) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = typeof api.setHarnessSessionPermission === 'function'
+      ? await api.setHarnessSessionPermission(id, permissionMode)
+      : await api.runHarnessMessage(id, `/perm ${permissionMode}`).then(() => api.getHarnessSession(id))
+    if (activeSession.value?.id === id) activeSession.value = session
+    await refreshSessions()
+    return session
+  }
+
   async function deleteSessions(ids: string[]) {
     const api = getPlatformApi()
     if (!api || !ids.length) return
     await api.deleteHarnessSessions(ids)
-    if (activeSession.value && ids.includes(activeSession.value.id)) activeSession.value = undefined
+    if (activeSession.value && ids.includes(activeSession.value.id)) clearActiveSession()
     ids.forEach(id => removeComposerDraft(`session:${id}`))
     await Promise.all([refreshSessions(), refreshProjects()])
+  }
+
+  function appendMessageDelta(delta: string) {
+    if (!delta) return
+    const last = activeSession.value?.messages[activeSession.value.messages.length - 1]
+    if (last?.role === 'assistant') last.content += delta
+    else activeSession.value?.messages.push({ id: `stream-${Date.now()}`, role: 'assistant', content: delta, createdAt: Date.now() })
+  }
+
+  function finishMessageStream() {
+    const sessionId = completedMessageSessionId
+    queuedMessageSessionId = undefined
+    completedMessageSessionId = undefined
+    messageCompletionDeadline = undefined
+    rendering.value = false
+    if (!sessionId || sessionId !== activeSession.value?.id) return
+    const api = getPlatformApi()
+    if (!api) return
+    void api.getHarnessSession(sessionId).then(session => {
+      if (activeSession.value?.id !== sessionId) return
+      activeSession.value = session
+      activeRun.value = undefined
+      return Promise.all([refreshSessions(), refreshProjects()])
+    })
+  }
+
+  function scheduleMessageQueueFlush() {
+    if (queuedMessageTimer === undefined) queuedMessageTimer = window.setTimeout(flushMessageQueue, STREAM_FRAME_MS)
+  }
+
+  function getFrameCharacterCount(now: number) {
+    const queuedCount = queuedMessageCharacters.length
+    if (!queuedCount) return 0
+    if (messageCompletionDeadline !== undefined) {
+      const remainingMs = Math.max(STREAM_FRAME_MS, messageCompletionDeadline - now)
+      return Math.min(STREAM_MAX_CHARACTERS_PER_FRAME, Math.max(1, Math.ceil(queuedCount * STREAM_FRAME_MS / remainingMs)))
+    }
+    streamCharacterCarry += STREAM_BASE_CHARACTERS_PER_SECOND * STREAM_FRAME_MS / 1000
+    const baseCount = Math.floor(streamCharacterCarry)
+    streamCharacterCarry -= baseCount
+    const adaptiveCount = Math.ceil(queuedCount * STREAM_FRAME_MS / STREAM_DRAIN_WINDOW_MS)
+    return Math.min(STREAM_MAX_CHARACTERS_PER_FRAME, Math.max(baseCount, adaptiveCount))
+  }
+
+  function flushMessageQueue() {
+    if (!queuedMessageSessionId || queuedMessageSessionId !== activeSession.value?.id) {
+      resetMessageQueue()
+      return
+    }
+    queuedMessageTimer = undefined
+    if (!queuedMessageCharacters.length) {
+      rendering.value = false
+      queuedMessageTimer = undefined
+      finishMessageStream()
+      return
+    }
+    const characterCount = getFrameCharacterCount(Date.now())
+    appendMessageDelta(queuedMessageCharacters.splice(0, characterCount).join(''))
+    if (queuedMessageCharacters.length) scheduleMessageQueueFlush()
+    else {
+      rendering.value = false
+      finishMessageStream()
+    }
+  }
+
+  function queueMessageDelta(sessionId: string, delta: string) {
+    if (!delta) return
+    if (queuedMessageSessionId && queuedMessageSessionId !== sessionId) resetMessageQueue()
+    queuedMessageSessionId = sessionId
+    queuedMessageCharacters.push(...Array.from(delta))
+    rendering.value = true
+    scheduleMessageQueueFlush()
   }
 
   function applyEvent(event: HarnessEvent) {
@@ -177,15 +295,23 @@ export const useHarnessStore = defineStore('harness', () => {
     }
     if (event.type === 'message-delta') {
       const delta = String(event.payload.delta || '')
-      const last = activeSession.value.messages[activeSession.value.messages.length - 1]
-      if (last?.role === 'assistant') last.content += delta
-      else activeSession.value.messages.push({ id: `stream-${Date.now()}`, role: 'assistant', content: delta, createdAt: Date.now() })
+      queueMessageDelta(event.sessionId, delta)
+    }
+    if (event.type === 'context-usage' && event.payload.usage && typeof event.payload.usage === 'object') {
+      activeSession.value = {
+        ...activeSession.value,
+        context: { ...activeSession.value.context, usage: event.payload.usage as HarnessContextUsage },
+      }
     }
     if (event.type === 'status') {
       running.value = event.payload.state === 'running'
-      if (!running.value) activeRun.value = undefined
+      if (!running.value && !rendering.value) activeRun.value = undefined
     }
-    if (event.type === 'message-complete') void openSession(event.sessionId).then(() => { activeRun.value = undefined; return Promise.all([refreshSessions(), refreshProjects()]) })
+    if (event.type === 'message-complete') {
+      completedMessageSessionId = event.sessionId
+      messageCompletionDeadline = Date.now() + STREAM_DRAIN_WINDOW_MS
+      if (queuedMessageTimer === undefined && !queuedMessageCharacters.length) finishMessageStream()
+    }
   }
 
   return {
@@ -193,6 +319,7 @@ export const useHarnessStore = defineStore('harness', () => {
     projects,
     activeSession,
     running,
+    rendering,
     activeRun,
     drafts,
     lastModelSelection,
@@ -201,6 +328,7 @@ export const useHarnessStore = defineStore('harness', () => {
     createProject,
     openSession,
     createSession,
+    setSessionPermission,
     deleteSessions,
     applyEvent,
     ensureComposerDraft,

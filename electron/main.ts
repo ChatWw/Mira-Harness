@@ -214,6 +214,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
   ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
+  ipcMain.handle('harness:set-permission', (_event, id: string, permissionMode) => database.harness.setPermission(id, permissionMode))
   ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
   ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
   ipcMain.handle('harness:list-project-files', (_event, projectId: string, query?: string) => database.harness.listProjectFiles(projectId, query))

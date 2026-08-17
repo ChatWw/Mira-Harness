@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElTooltip } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
 import router, { syncBusinessRoutes, updateDocumentTitle } from './router'
@@ -12,6 +12,11 @@ import { resolveNavigation } from './config/navigation'
 import { useCommandPaletteStore } from './stores/commandPalette'
 import { initializePlatform } from './platform'
 import './styles/index.scss'
+
+const tooltipDefaults = ElTooltip.props as Record<string, { default?: unknown }>
+tooltipDefaults.showAfter.default = 550
+tooltipDefaults.showArrow.default = false
+tooltipDefaults.popperClass.default = 'mira-tooltip'
 
 async function bootstrap() {
   await initializePlatform()

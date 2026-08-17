@@ -23,7 +23,7 @@
               </span>
               <div>
                 <h3>{{ provider.models[0] }} <el-tag v-if="provider.reasoning" size="small" effect="plain">支持推理</el-tag></h3>
-                <p>{{ provider.name }}</p>
+                <p>{{ provider.name }} · {{ formatContextWindow(provider.contextWindow) }} 上下文</p>
               </div>
             </div>
             <div class="model-row__actions">
@@ -76,6 +76,10 @@
           <el-switch v-model="form.reasoning" active-text="支持推理" inactive-text="标准回复" />
           <p class="form-tip">模型列表接口通常不返回此能力；已知推理模型会自动识别，其他模型请按供应商文档确认。</p>
         </el-form-item>
+        <el-form-item label="上下文长度">
+          <el-input-number v-model="form.contextWindow" :min="16384" :step="16384" :precision="0" controls-position="right" />
+          <p class="form-tip">单位为 token。请按模型供应商的上下文窗口填写，Mira 会据此显示使用情况并提前压缩历史。</p>
+        </el-form-item>
         <el-form-item label="Endpoint">
           <el-input v-model="form.endpoint" :disabled="endpointLocked" placeholder="https://api.example.com/v1" />
         </el-form-item>
@@ -95,7 +99,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
 import glmIcon from '@/asset/modules_icon/glm.svg'
 import kimiIcon from '@/asset/modules_icon/Kimi.svg'
 import minimaxIcon from '@/asset/modules_icon/MiniMax.svg'
@@ -112,7 +116,7 @@ const selectedModel = ref('')
 const modelOptions = ref<string[]>([])
 const loadingModels = ref(false)
 const modelRequestId = ref(0)
-const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], reasoning: false, enabled: true })
+const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, enabled: true })
 const endpointLocked = computed(() => form.providerKey !== 'ollama' && form.providerKey !== 'custom')
 
 function providerIcon(key: ModelProviderKey | string) {
@@ -121,6 +125,10 @@ function providerIcon(key: ModelProviderKey | string) {
 
 function providerIconUrl(key: ModelProviderKey | string) {
   return ({ glm: glmIcon, kimi: kimiIcon, minimax: minimaxIcon, deepseek: deepseekIcon, ollama: ollamaIcon } as Partial<Record<ModelProviderKey, string>>)[key as ModelProviderKey]
+}
+
+function formatContextWindow(value: number) {
+  return value >= 1000 ? `${Math.round(value / 1000)}k` : `${value}`
 }
 
 async function load() {
@@ -172,7 +180,7 @@ function applyPreset() {
 }
 
 function openCreate() {
-  Object.assign(form, { id: undefined, providerKey: 'glm', apiKey: '', reasoning: false, enabled: true })
+  Object.assign(form, { id: undefined, providerKey: 'glm', apiKey: '', reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, enabled: true })
   selectedModel.value = ''
   applyPreset()
   visible.value = true
@@ -180,7 +188,7 @@ function openCreate() {
 
 async function edit(row: ModelProviderSummary) {
   const api = getPlatformApi()
-  Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], reasoning: row.reasoning, enabled: row.enabled })
+  Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], reasoning: row.reasoning, contextWindow: row.contextWindow, enabled: row.enabled })
   selectedModel.value = row.models[0] || ''
   setModelOptions([selectedModel.value])
   visible.value = true

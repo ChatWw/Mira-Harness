@@ -25,12 +25,14 @@ describe('ModelConfigStore', () => {
     expect(store.list()).toEqual([])
     expect(readFileSync(join(directory, 'models.json'), 'utf8')).toBe('[]\n')
 
-    const first = store.save({ name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', apiKey: 'first-key', models: ['deepseek-chat'], enabled: true })
+    const first = store.save({ name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', apiKey: 'first-key', models: ['deepseek-chat'], contextWindow: 64000, enabled: true })
     const second = store.save({ name: 'Ollama', endpoint: 'http://127.0.0.1:11434/v1', apiKey: 'local-key', models: ['qwen3'], enabled: true })
 
     expect(store.list().map(item => item.models[0])).toEqual(['qwen3', 'deepseek-chat'])
     expect(store.getSecret(first.id)).toBe('first-key')
     expect(store.getSecret(second.id)).toBe('local-key')
+    expect(store.get(first.id)?.contextWindow).toBe(64000)
+    expect(store.get(second.id)?.contextWindow).toBe(128000)
     database.close()
   })
 

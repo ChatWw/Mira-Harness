@@ -1,6 +1,41 @@
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+export type SendShortcut = 'enter' | 'mod-enter'
+
+export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<KeyboardEvent, 'key' | 'keyCode' | 'isComposing' | 'metaKey' | 'ctrlKey' | 'shiftKey'>) {
+  if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return false
+  return shortcut === 'enter' ? !event.shiftKey : event.metaKey || event.ctrlKey
+}
+
+export const DEFAULT_CONTEXT_WINDOW = 128000
+export const CONTEXT_COMPACTION_THRESHOLD = 0.8
+
+export function shouldAutoCompactContext(usedTokens: number, contextWindow: number) {
+  return usedTokens >= contextWindow * CONTEXT_COMPACTION_THRESHOLD
+}
+
+export interface HarnessTokenUsage {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  totalTokens: number
+}
+
+export interface HarnessContextUsage {
+  usedTokens: number
+  contextWindow: number
+  source: 'reported' | 'estimated'
+  updatedAt: number
+}
+
+export interface HarnessContextState {
+  usage?: HarnessContextUsage
+  summary?: string
+  compactedThroughMessageId?: string
+  compactedAt?: number
+}
 
 export interface HarnessRunActivity {
   id: string
@@ -16,6 +51,7 @@ export interface HarnessRunSummary {
   completedAt: number
   durationMs: number
   activities: HarnessRunActivity[]
+  contextUsage?: HarnessContextUsage
 }
 
 export interface HarnessMessage {
@@ -24,6 +60,7 @@ export interface HarnessMessage {
   content: string
   attachments?: HarnessMessageAttachment[]
   run?: HarnessRunSummary
+  usage?: HarnessTokenUsage
   createdAt: number
 }
 
@@ -61,6 +98,7 @@ export interface HarnessSession {
   createdAt: number
   updatedAt: number
   status: HarnessSessionStatus
+  context?: HarnessContextState
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status'> {
@@ -91,7 +129,7 @@ export const DEFAULT_PROJECT_ICON = PROJECT_ICON_OPTIONS[0]
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'tool-call' | 'status' | 'error'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error'
   payload: Record<string, unknown>
 }
 
@@ -103,6 +141,7 @@ export interface ModelProviderInput {
   apiKey?: string
   models: string[]
   reasoning?: boolean
+  contextWindow?: number
   enabled: boolean
 }
 
@@ -113,6 +152,7 @@ export interface ModelProviderSummary {
   endpoint: string
   models: string[]
   reasoning: boolean
+  contextWindow: number
   enabled: boolean
   hasApiKey: boolean
   createdAt: number
@@ -140,13 +180,17 @@ export interface ModelRoleBinding {
 
 export interface PermissionConfig {
   globalDefaultMode: PermissionMode
+  autoApproveEnabled: boolean
+  fullAccessEnabled: boolean
   dangerousCommands: string[]
   trashRetentionDays: number
   trashDirName: string
 }
 
 export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
-  globalDefaultMode: 'auto-approve',
+  globalDefaultMode: 'default',
+  autoApproveEnabled: true,
+  fullAccessEnabled: true,
   dangerousCommands: ['rm -rf /', 'rm -rf ~', 'sudo', 'mkfs', ' dd ', 'shutdown', 'reboot'],
   trashRetentionDays: 7,
   trashDirName: '.mira/trash',

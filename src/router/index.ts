@@ -14,9 +14,7 @@ const staticRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/settings/agent-permission',
-    name: 'SettingsAgentPermission',
-    component: () => import('@/pages/backend/agentPermission/index.vue'),
-    meta: { title: 'Agent 权限' },
+    redirect: '/settings/general',
   },
   {
     path: '/settings/python-environment',

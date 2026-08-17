@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type Database from 'better-sqlite3'
-import { inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
 
 type JsonModelRecord = {
   id: string
@@ -12,6 +12,7 @@ type JsonModelRecord = {
   apiKey: string
   model: string
   reasoning: boolean
+  contextWindow: number
   enabled: boolean
   createdAt: number
   updatedAt: number
@@ -37,6 +38,11 @@ function isRecord(value: unknown): value is JsonModelRecord {
   return typeof item.id === 'string' && typeof item.name === 'string' && typeof item.endpoint === 'string' && typeof item.model === 'string'
 }
 
+function contextWindow(value: unknown) {
+  const tokens = Number(value)
+  return Number.isInteger(tokens) && tokens >= 16384 ? tokens : DEFAULT_CONTEXT_WINDOW
+}
+
 export class ModelConfigStore {
   private readonly configPath: string
 
@@ -59,6 +65,7 @@ export class ModelConfigStore {
         apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
         model: item.model,
         reasoning: typeof item.reasoning === 'boolean' ? item.reasoning : inferModelReasoning(item.model),
+        contextWindow: contextWindow(item.contextWindow),
         enabled: item.enabled !== false,
         createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
@@ -82,6 +89,7 @@ export class ModelConfigStore {
       endpoint: record.endpoint,
       models: [record.model],
       reasoning: record.reasoning,
+      contextWindow: record.contextWindow,
       enabled: record.enabled,
       hasApiKey: Boolean(record.apiKey),
       createdAt: record.createdAt,
@@ -112,6 +120,7 @@ export class ModelConfigStore {
       apiKey: input.apiKey?.trim() || existing?.apiKey || '',
       model,
       reasoning: typeof input.reasoning === 'boolean' ? input.reasoning : existing?.reasoning || inferModelReasoning(model),
+      contextWindow: contextWindow(input.contextWindow ?? existing?.contextWindow),
       enabled: Boolean(input.enabled),
       createdAt: existing?.createdAt || now,
       updatedAt: now,

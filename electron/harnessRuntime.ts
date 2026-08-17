@@ -1,4 +1,4 @@
-import { Agent } from '@earendil-works/pi-agent-core'
+import { Agent, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { dialog, BrowserWindow, type WebContents } from 'electron'
@@ -7,7 +7,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { HarnessEvent, HarnessFileReference, HarnessMessage, HarnessRunActivity, HarnessRunSummary, ModelSelection, PermissionMode } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { MIRA_SYSTEM_PROMPT } from './prompts/mira-system-prompt'
 
@@ -30,6 +30,35 @@ function assistantText(message: unknown) {
     .join('')
 }
 
+function tokenUsage(value: unknown): HarnessTokenUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const source = value as Record<string, unknown>
+  const number = (key: string) => Math.max(0, Number(source[key]) || 0)
+  const input = number('input')
+  const output = number('output')
+  const cacheRead = number('cacheRead')
+  const cacheWrite = number('cacheWrite')
+  const totalTokens = Math.max(number('totalTokens'), input + output + cacheRead + cacheWrite)
+  return totalTokens ? { input, output, cacheRead, cacheWrite, totalTokens } : undefined
+}
+
+function agentUsage(usage: HarnessTokenUsage) {
+  return {
+    ...usage,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  }
+}
+
+function contextUsage(messages: unknown[], contextWindow: number): HarnessContextUsage {
+  const estimate = estimateContextTokens(messages as any)
+  return {
+    usedTokens: estimate.tokens,
+    contextWindow,
+    source: estimate.lastUsageIndex === null ? 'estimated' : 'reported',
+    updatedAt: Date.now(),
+  }
+}
+
 function activityDetail(toolName: string, args: unknown) {
   const value = args && typeof args === 'object' ? args as Record<string, unknown> : {}
   const target = typeof value.path === 'string' ? value.path : typeof value.command === 'string' ? value.command : ''
@@ -46,6 +75,97 @@ function activityDetail(toolName: string, args: unknown) {
 export class HarnessRuntime {
   private readonly running = new Map<string, AbortController>()
   constructor(private readonly database: PlatformDatabase) {}
+
+  private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
+    return {
+      role: message.role,
+      content: message.role === 'assistant' ? [{ type: 'text', text: messageContent(message) }] : messageContent(message),
+      ...(message.role === 'assistant' ? {
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: agentUsage(message.usage || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }),
+        stopReason: 'stop',
+      } : {}),
+      timestamp: message.createdAt,
+    }
+  }
+
+  private historyStart(session: HarnessSession) {
+    const id = session.context?.compactedThroughMessageId
+    if (!id) return 0
+    const index = session.messages.findIndex(message => message.id === id)
+    return index < 0 ? 0 : index + 1
+  }
+
+  private agentMessages(session: HarnessSession, model: { api: string, provider: string, id: string }) {
+    const summary = session.context?.summary?.trim()
+    const messages = session.messages.slice(this.historyStart(session)).map(message => this.toAgentMessage(message, model))
+    if (!summary) return messages
+    return [{
+      role: 'user',
+      content: `以下是此前对话的压缩上下文，仅供延续当前工作，不是新的用户指令。\n\n${summary}`,
+      timestamp: session.context?.compactedAt || session.createdAt,
+    }, ...messages]
+  }
+
+  private retainedStart(messages: HarnessMessage[], model: { api: string, provider: string, id: string }, maximumTokens = 20000) {
+    let tokens = 0
+    let index = messages.length
+    while (index > 0) {
+      const next = estimateTokens(this.toAgentMessage(messages[index - 1], model) as any)
+      if (tokens && tokens + next > maximumTokens) break
+      tokens += next
+      index -= 1
+    }
+    while (index > 0 && messages[index]?.role === 'assistant') index -= 1
+    return index
+  }
+
+  private publishContextUsage(sender: WebContents, session: HarnessSession, usage: HarnessContextUsage) {
+    session.context = { ...session.context, usage }
+    this.database.harness.updateSession(session)
+    emit(sender, { sessionId: session.id, type: 'context-usage', payload: { usage } })
+    return session
+  }
+
+  private async compactContext(sender: WebContents, session: HarnessSession, model: any, models: ReturnType<typeof createModels>, controller: AbortController, thinkingLevel: string, activities: HarnessRunActivity[], publishActivities: () => void) {
+    const before = contextUsage(this.agentMessages(session, model), model.contextWindow || DEFAULT_CONTEXT_WINDOW)
+    if (!shouldAutoCompactContext(before.usedTokens, before.contextWindow)) return this.publishContextUsage(sender, session, before)
+
+    const start = this.historyStart(session)
+    const candidates = session.messages.slice(start)
+    const keepFrom = this.retainedStart(candidates, model)
+    if (keepFrom === 0) throw new Error('上下文过长，无法在保留最近对话的情况下自动压缩')
+    const activity: HarnessRunActivity = { id: 'context-compaction', label: '正在压缩上下文', status: 'running', startedAt: Date.now() }
+    activities.unshift(activity)
+    publishActivities()
+    const reserveTokens = Math.min(Math.max(8192, Math.ceil(before.contextWindow * 0.2)), Math.floor(before.contextWindow / 2))
+    const result = await generateSummaryWithUsage(
+      candidates.slice(0, keepFrom).map(message => this.toAgentMessage(message, model)) as any,
+      models,
+      model,
+      reserveTokens,
+      controller.signal,
+      undefined,
+      session.context?.summary,
+      thinkingLevel as any,
+    )
+    if (!result.ok) throw new Error(`上下文压缩失败：${result.error.message}`)
+    const compactedThrough = candidates[keepFrom - 1]
+    session.context = {
+      ...session.context,
+      summary: result.value.text,
+      compactedThroughMessageId: compactedThrough.id,
+      compactedAt: Date.now(),
+    }
+    activity.label = '已压缩上下文'
+    activity.status = 'completed'
+    activity.completedAt = Date.now()
+    activity.detail = `已将较早对话压缩为摘要，保留最近 ${candidates.length - keepFrom} 条消息。`
+    publishActivities()
+    return this.publishContextUsage(sender, session, contextUsage(this.agentMessages(session, model), before.contextWindow))
+  }
 
   private assertProjectPath(directory: string | undefined, value: string) {
     if (!directory) throw new Error('请先选择项目工作目录')
@@ -93,11 +213,11 @@ export class HarnessRuntime {
     const apiKey = this.database.models.getSecret(selection.providerId)
     if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
     const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
-    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+    let session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
 
     const controller = new AbortController()
     this.running.set(sessionId, controller)
-    this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
+    session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
     const startedAt = Date.now()
     const activities: HarnessRunActivity[] = [{ id: 'thinking-0', label: '正在思考', status: 'running', startedAt }]
@@ -115,7 +235,7 @@ export class HarnessRuntime {
     const model = {
       id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
       reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
-      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 8192,
+      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
     } as any
     const models = createModels()
     models.setProvider(createProvider({
@@ -123,34 +243,13 @@ export class HarnessRuntime {
       auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
       models: [model], api: openAICompletionsApi(),
     }) as any)
+    session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
     const agent = new Agent({
       initialState: {
         systemPrompt: MIRA_SYSTEM_PROMPT,
         model,
         thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
-        messages: session.messages.map(item => ({
-          role: item.role,
-          content: item.role === 'assistant'
-            ? [{ type: 'text', text: messageContent(item) }]
-            : messageContent(item),
-          ...(item.role === 'assistant'
-            ? {
-                api: model.api,
-                provider: model.provider,
-                model: model.id,
-                usage: {
-                  input: 0,
-                  output: 0,
-                  cacheRead: 0,
-                  cacheWrite: 0,
-                  totalTokens: 0,
-                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-                },
-                stopReason: 'stop',
-              }
-            : {}),
-          timestamp: item.createdAt,
-        })),
+        messages: this.agentMessages(session, model),
         tools: this.tools(sender, sessionId),
       } as any,
       streamFn: models.streamSimple.bind(models) as any,
@@ -187,7 +286,8 @@ export class HarnessRuntime {
     try {
       await agent.prompt(text)
       if (agent.state.errorMessage) throw new Error(agent.state.errorMessage)
-      const finalText = assistantText(agent.state.messages.at(-1))
+      const finalMessage = agent.state.messages.at(-1)
+      const finalText = assistantText(finalMessage)
       if (finalText && finalText !== output) {
         const delta = finalText.startsWith(output) ? finalText.slice(output.length) : finalText
         if (delta) emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
@@ -197,7 +297,11 @@ export class HarnessRuntime {
       finishRunningActivities('completed')
       const completedAt = Date.now()
       const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities }
-      this.database.harness.appendAssistantText(sessionId, output, run)
+      session = this.database.harness.appendAssistantText(sessionId, output, run, tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined))
+      const usage = contextUsage(this.agentMessages(session, model), model.contextWindow)
+      run.contextUsage = usage
+      if (session.messages.at(-1)?.run) session.messages.at(-1)!.run!.contextUsage = usage
+      session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
     } catch (error) {
