@@ -4,8 +4,8 @@
       <div class="error-code">404</div>
       <h1>页面不存在</h1>
       <p>抱歉，您访问的页面不存在或已被移除</p>
-      <el-button type="primary" size="large" @click="$router.push('/dashboard')">
-        返回首页
+      <el-button type="primary" size="large" @click="$router.push('/workspace/chat')">
+        返回新对话
       </el-button>
     </div>
   </div>

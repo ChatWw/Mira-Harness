@@ -140,6 +140,7 @@ export interface PlatformApi {
   saveModelRoleBindings(bindings: import('@/config/harness').ModelRoleBinding): Promise<import('@/config/harness').ModelRoleBinding>
   testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
   listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
+  openHarnessProjectDirectory(id: string): Promise<string>
   selectHarnessProjectDirectory(): Promise<string | null>
   createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
   renameHarnessProject(id: string, name: string): Promise<import('@/config/harness').HarnessProject>

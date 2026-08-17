@@ -1,11 +1,11 @@
 # Mira
 
-基于 Vue 3、TypeScript 和 Vite 的个人工具应用壳。项目不依赖登录、用户体系或后端菜单服务；打开应用会直接进入“通用”区域的概览页，本地页面、网页菜单与微应用均从 TypeScript 清单加载。
+基于 Vue 3、TypeScript 和 Vite 的个人工具应用壳。项目不依赖登录、用户体系或后端菜单服务；打开应用会直接进入新对话，本地页面、网页菜单与微应用均从 TypeScript 清单加载。
 
 ## 当前能力
 
 - 本地资源清单：应用切换器、侧边栏、标签页、面包屑和全局搜索共享 [`src/config/navigation.ts`](./src/config/navigation.ts) 的导航解析结果。
-- 直达概览：根路径重定向到 `/dashboard`；未注册路径会落到 404。
+- 直达新对话：根路径重定向到 `/workspace/chat`；未注册路径会落到 404。
 - 两种布局：`侧边栏+顶栏` 与 `仅侧边栏`，可在全局配置中切换并持久化。
 - 主题与外观：亮/暗模式、主题色、圆角、动画、标签页、面包屑、底栏和水印等全局配置。
 - 通用网页：`mainMenus` 同时支持本地 Vue 页面和稳定平台路径对应的 iframe 网页。
@@ -37,7 +37,7 @@ npm install
 npm run dev
 ```
 
-默认地址为 [http://localhost:9000](http://localhost:9000)，会直接跳转到概览。
+默认地址为 [http://localhost:9000](http://localhost:9000)，会直接跳转到新对话。
 
 ### 生产构建
 
@@ -76,7 +76,7 @@ npm run preview
 }
 ```
 
-普通主菜单页面可配置 `keepAlive`：新建菜单默认关闭，开启后会在页面切换期间保留状态；关闭标签页或刷新当前页会释放该缓存。概览和系统管理下的内置页面固定开启保活。
+普通主菜单页面可配置 `keepAlive`：新建菜单默认关闭，开启后会在页面切换期间保留状态；关闭标签页或刷新当前页会释放该缓存。内置页面固定开启保活。
 
 iframe 网页使用同样稳定的平台路径：
 
@@ -145,7 +145,7 @@ npm run desktop:build:win  # Windows（NSIS 安装包，需在 Windows 机器上
 
 | 路径 | 行为 |
 | --- | --- |
-| `/` | 重定向到 `/dashboard` |
+| `/` | 重定向到 `/workspace/chat` |
 | 通用菜单路径 | 由 `mainMenus` 自动注册本地页或网页宿主页 |
 | `/micro/:code/:pathMatch(.*)*` | 微应用宿主页 |
 | `/404` | 404 页面 |
@@ -186,7 +186,6 @@ src/
 │   ├── index.vue                # 两种布局的装配入口
 │   └── components/              # 顶栏、侧栏、标签栏、设置面板等
 ├── pages/                       # 页面组件
-│   ├── dashboard/               # 概览
 │   ├── system/                  # 网页与微应用宿主页
 │   └── exception/               # 异常页面
 ├── router/

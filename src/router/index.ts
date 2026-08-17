@@ -126,7 +126,6 @@ const layoutRoute: RouteRecordRaw = {
   redirect: '/workspace/chat',
   component: () => import('@/layouts/index.vue'),
   children: [
-    { path: '/dashboard', redirect: '/workspace/chat' },
     { path: '/workspace/chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false } },
     { path: '/workspace/chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false } },
     { path: '/workspace/projects', redirect: '/workspace/chat' },

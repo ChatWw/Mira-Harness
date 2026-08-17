@@ -22,13 +22,21 @@
       </div>
     </Transition>
 
-    <WorkspaceNavigation :collapsed="appStore.sidebarCollapsed" />
-    <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
-      <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">应用</div></template>
-      <SidebarMenuItem v-for="item in applicationMenus" :key="item.id" :item="item" />
-      <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">菜单</div></template>
-      <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
-    </el-menu>
+    <div class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
+      <el-tooltip :disabled="!appStore.sidebarCollapsed" content="新对话" placement="right">
+        <button type="button" class="sidebar-new-session" @click="newSession"><AppIcon name="tabler:edit" /><span v-if="!appStore.sidebarCollapsed">新对话</span></button>
+      </el-tooltip>
+    </div>
+
+    <div class="sidebar-content" @scroll="handleSidebarScroll">
+      <WorkspaceNavigation :collapsed="appStore.sidebarCollapsed" />
+      <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
+        <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">应用</div></template>
+        <SidebarMenuItem v-for="item in applicationMenus" :key="item.id" :item="item" />
+        <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">菜单</div></template>
+        <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
+      </el-menu>
+    </div>
   </aside>
 </template>
 
@@ -40,6 +48,7 @@ import { useAppStore } from '@/stores/app'
 import { navigateToPath } from '@/config/navigation'
 import { runtimeNavigation } from '@/config/runtime'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import { useHarnessStore } from '@/stores/harness'
 import type { MenuItem } from '@/types'
 import SidebarMenuItem from './SidebarMenuItem.vue'
 import WorkspaceNavigation from './WorkspaceNavigation.vue'
@@ -52,8 +61,10 @@ withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
 })
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const harnessStore = useHarnessStore()
 const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
+const sidebarScrolled = ref(false)
 
 const currentRoute = computed(() => route.path)
 const applicationMenus = computed(() => runtimeNavigation.mainMenus.filter(item => item.target?.type === 'component'))
@@ -63,6 +74,15 @@ const displayedMenuList = computed(() => [...applicationMenus.value, ...browserM
 
 function handleMenuSelect(path: string) {
   navigateToPath(router, path)
+}
+
+async function newSession() {
+  const draft = harnessStore.startDraft()
+  await router.push({ path: '/workspace/chat', query: { draft } })
+}
+
+function handleSidebarScroll(event: Event) {
+  sidebarScrolled.value = (event.currentTarget as HTMLElement).scrollTop > 0
 }
 
 function handleMenuOpen(index: string) {
@@ -169,10 +189,48 @@ watch(
     }
   }
 
-  .sidebar-menu {
+  .sidebar-content {
+    min-height: 0;
     flex: 1;
-    border: none;
     overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .sidebar-fixed-action {
+    flex-shrink: 0;
+    padding: 10px 8px 2px;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--cp-animation-duration);
+
+    &.is-scrolled {
+      border-bottom-color: var(--cp-border-light);
+    }
+  }
+
+  .sidebar-new-session {
+    display: flex;
+    width: 100%;
+    height: 32px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    color: var(--cp-sidebar-menu-text);
+    background: transparent;
+    border: 0;
+    border-radius: $radius-md;
+    font: inherit;
+    font-size: 14px;
+    font-weight: $font-medium;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--cp-sidebar-menu-hover-bg);
+    }
+  }
+
+  .sidebar-menu {
+    border: none;
     background: transparent;
 
     :deep(.el-menu-item),
@@ -230,6 +288,18 @@ watch(
       width: calc(100% - 8px);
       margin: 2px 4px;
     }
+  }
+
+  &.collapsed .sidebar-fixed-action {
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  &.collapsed .sidebar-new-session {
+    width: 38px;
+    justify-content: center;
+    padding: 0;
+    margin: 0 auto;
   }
 
   @include media-max($breakpoint-md) {

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -64,6 +64,25 @@ describe('HarnessStore', () => {
     expect(recent.projectId).toBeUndefined()
     expect(recent.workingDirectory).toBeUndefined()
     expect(projectSession.projectId).toBe(project.id)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('removes project history without deleting its source folder or files', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'chapter.md'), '保留的源文件', 'utf8')
+    const project = store.createProject(directory, 'Demo 项目')
+    store.createSession(project.id)
+
+    store.deleteProject(project.id, true)
+
+    expect(store.listProjects()).toEqual([])
+    expect(existsSync(directory)).toBe(true)
+    expect(existsSync(join(directory, 'chapter.md'))).toBe(true)
+    expect(existsSync(join(directory, '.mira'))).toBe(false)
 
     database.close()
     rmSync(root, { recursive: true, force: true })

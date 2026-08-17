@@ -77,7 +77,10 @@
           <p class="form-tip">模型列表接口通常不返回此能力；已知推理模型会自动识别，其他模型请按供应商文档确认。</p>
         </el-form-item>
         <el-form-item label="上下文长度">
-          <el-input-number v-model="form.contextWindow" :min="16384" :step="16384" :precision="0" controls-position="right" />
+          <el-input-number v-model="form.contextWindow" class="context-window-input" :min="16384" :step="16000" :precision="0" controls-position="right" :formatter="formatContextWindow" :parser="parseContextWindow" />
+          <div class="context-window-presets" aria-label="常用上下文长度">
+            <button v-for="value in CONTEXT_WINDOW_PRESETS" :key="value" type="button" :class="{ active: form.contextWindow === value }" @click="form.contextWindow = value">{{ formatContextWindow(String(value)) }}</button>
+          </div>
           <p class="form-tip">单位为 token。请按模型供应商的上下文窗口填写，Mira 会据此显示使用情况并提前压缩历史。</p>
         </el-form-item>
         <el-form-item label="Endpoint">
@@ -118,6 +121,7 @@ const loadingModels = ref(false)
 const modelRequestId = ref(0)
 const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', apiKey: '', models: [], reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, enabled: true })
 const endpointLocked = computed(() => form.providerKey !== 'ollama' && form.providerKey !== 'custom')
+const CONTEXT_WINDOW_PRESETS = [32000, 64000, 128000, 256000, 512000, 1000000]
 
 function providerIcon(key: ModelProviderKey | string) {
   return ({ glm: 'Connection', kimi: 'ChatDotRound', minimax: 'MagicStick', deepseek: 'Search', ollama: 'Monitor', custom: 'Operation' } as Record<ModelProviderKey, string>)[key as ModelProviderKey] || 'Operation'
@@ -127,8 +131,19 @@ function providerIconUrl(key: ModelProviderKey | string) {
   return ({ glm: glmIcon, kimi: kimiIcon, minimax: minimaxIcon, deepseek: deepseekIcon, ollama: ollamaIcon } as Partial<Record<ModelProviderKey, string>>)[key as ModelProviderKey]
 }
 
-function formatContextWindow(value: number) {
-  return value >= 1000 ? `${Math.round(value / 1000)}k` : `${value}`
+function formatContextWindow(value: string | number) {
+  const tokens = Number(value)
+  if (!Number.isFinite(tokens)) return ''
+  if (tokens >= 1000000 && tokens % 1000000 === 0) return `${tokens / 1000000}M`
+  if (tokens >= 1000 && tokens % 1000 === 0) return `${tokens / 1000}K`
+  return `${tokens}`
+}
+
+function parseContextWindow(value: string) {
+  const match = value.trim().replace(/,/g, '').match(/^(\d+(?:\.\d+)?)\s*([kKmM])?$/)
+  if (!match) return ''
+  const multiplier = match[2]?.toLowerCase() === 'm' ? 1000000 : match[2] ? 1000 : 1
+  return `${Math.round(Number(match[1]) * multiplier)}`
 }
 
 async function load() {
@@ -258,6 +273,11 @@ onBeforeUnmount(() => {
 .model-empty p { margin: 8px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
 .dialog-note { margin: 4px 0; padding: $spacing-sm $spacing-md; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 16px; font-size: $font-xs; }
 .form-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-tertiary); font-size: $font-xs; line-height: 1.55; }
+.context-window-input { width: 208px; }
+.context-window-presets { display: flex; width: 100%; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.context-window-presets button { height: 28px; padding: 0 12px; color: var(--cp-text-secondary); background: transparent; border: 0; border-radius: 14px; font: inherit; font-size: $font-sm; cursor: pointer; }
+.context-window-presets button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
+.context-window-presets button.active { color: var(--cp-text); background: var(--cp-border); }
 .provider-option { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .provider-option__icon { width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
 @include media-max($breakpoint-md) {

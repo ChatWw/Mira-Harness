@@ -170,6 +170,15 @@ export const useHarnessStore = defineStore('harness', () => {
     return project || undefined
   }
 
+  async function removeProject(id: string) {
+    const api = getPlatformApi()
+    if (!api) return
+    const isActiveProject = activeSession.value?.projectId === id
+    await api.deleteHarnessProject(id, true)
+    if (isActiveProject) clearActiveSession()
+    await Promise.all([refreshProjects(), refreshSessions()])
+  }
+
   async function openSession(id: string) {
     if (activeSession.value?.id !== id) {
       resetMessageQueue()
@@ -326,6 +335,7 @@ export const useHarnessStore = defineStore('harness', () => {
     refreshSessions,
     refreshProjects,
     createProject,
+    removeProject,
     openSession,
     createSession,
     setSessionPermission,

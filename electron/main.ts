@@ -194,6 +194,7 @@ app.whenReady().then(async () => {
     } catch (error) { return { ok: false, text: error instanceof Error ? error.message : String(error) } }
   })
   ipcMain.handle('harness:list-projects', () => database.harness.listProjects())
+  ipcMain.handle('harness:open-project-directory', (_event, id: string) => shell.openPath(database.harness.getProject(id).directory))
   ipcMain.handle('harness:select-project-directory', async event => {
     const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
     const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择项目源文件夹' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择项目源文件夹' })

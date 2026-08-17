@@ -1,8 +1,5 @@
 <template>
   <section class="workspace-navigation" :class="{ collapsed }" aria-label="Mira 工作台">
-    <el-tooltip :disabled="!collapsed" content="新对话" placement="right">
-      <button type="button" class="workspace-action workspace-action--primary" @click="newSession"><AppIcon name="EditPen" /><span v-if="!collapsed">新对话</span></button>
-    </el-tooltip>
     <el-tooltip :disabled="!collapsed" content="自动化（待上线）" placement="right">
       <button type="button" class="workspace-action" :class="{ active: route.path === '/workspace/automations' }" @click="router.push('/workspace/automations')"><AppIcon name="Clock" /><span v-if="!collapsed">自动化</span><el-tag v-if="!collapsed" size="small" type="warning" effect="plain">待上线</el-tag></button>
     </el-tooltip>
@@ -17,7 +14,7 @@
           <div v-for="project in visibleProjects" :key="project.id" class="workspace-project">
             <div class="workspace-project__header">
               <button type="button" class="workspace-project__toggle" :aria-expanded="isProjectExpanded(project.id)" :title="project.directory" @click="toggleProject(project.id)"><AppIcon :name="project.icon" /><span>{{ project.name }}</span></button>
-              <div class="workspace-project__actions"><el-popover trigger="click" placement="right-start" :width="218" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-project__tool" :aria-label="`${project.name} 项目操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleProjectCommand('toggle', project.id)"><AppIcon :name="isProjectExpanded(project.id) ? 'ArrowUp' : 'ArrowDown'" /><span>{{ isProjectExpanded(project.id) ? '收起对话' : '展开对话' }}</span></button><button type="button" @click="createProjectSession(project.id)"><AppIcon name="EditPen" /><span>在项目中创建对话</span></button></div></el-popover><el-tooltip content="在项目中创建对话" placement="right"><button type="button" class="workspace-project__new" :aria-label="`在 ${project.name} 中创建对话`" @click="createProjectSession(project.id)"><AppIcon name="EditPen" /></button></el-tooltip></div>
+              <div class="workspace-project__actions"><el-popover trigger="click" placement="right-start" :width="218" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-project__tool" :aria-label="`${project.name} 项目操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleProjectCommand('open-directory', project.id)"><AppIcon name="FolderOpened" /><span>打开文件夹</span></button><button type="button" class="is-danger" @click="handleProjectCommand('remove', project.id)"><AppIcon name="Delete" /><span>从列表中移除</span></button></div></el-popover><el-tooltip content="在项目中创建对话" placement="right"><button type="button" class="workspace-project__new" :aria-label="`在 ${project.name} 中创建对话`" @click="createProjectSession(project.id)"><AppIcon name="tabler:edit" /></button></el-tooltip></div>
             </div>
             <div v-if="isProjectExpanded(project.id)" class="workspace-project__sessions">
               <div v-for="session in visibleProjectSessions(project.id)" :key="session.id" class="workspace-session-row workspace-session-row--nested" :class="{ active: session.id === store.activeSession?.id }"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span class="workspace-item__title">{{ session.title }}</span></button><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-session-row__tool" :aria-label="`${session.title} 对话操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" class="is-danger" @click="deleteSession(session.id)"><AppIcon name="Delete" /><span>删除对话</span></button></div></el-popover></div>
@@ -43,11 +40,11 @@
       </section>
     </template>
 
-    <el-dialog v-model="projectDialogVisible" width="560px" :show-close="false" destroy-on-close class="project-dialog">
+    <el-dialog v-model="projectDialogVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog">
       <template #header><div class="project-dialog__header"><h2>创建项目</h2><button type="button" class="project-dialog__close" aria-label="关闭创建项目" @click="projectDialogVisible = false"><AppIcon name="Close" /></button></div></template>
       <form class="project-form" @submit.prevent="createProject">
-        <div class="project-name-row"><el-popover trigger="click" placement="bottom-start" width="232"><template #reference><button type="button" class="project-icon-trigger" :aria-label="`选择项目图标，当前为 ${projectForm.icon}`"><AppIcon :name="projectForm.icon" /><AppIcon name="ArrowDown" /></button></template><div class="project-icons"><button v-for="icon in PROJECT_ICON_OPTIONS" :key="icon" type="button" class="project-icon-option" :class="{ active: projectForm.icon === icon }" :aria-label="`选择 ${icon} 图标`" @click="projectForm.icon = icon"><AppIcon :name="icon" /></button></div></el-popover><el-input v-model="projectForm.name" class="project-name-input" maxlength="60" placeholder="输入项目名称" /></div>
-        <div class="project-folder-field"><span class="project-field-label">源文件夹</span><button type="button" class="project-folder-picker" :class="{ 'has-directory': projectForm.directory }" :disabled="selectingDirectory" @click="selectDirectory"><AppIcon name="FolderOpened" /><span>{{ projectForm.directory || '添加 Mira 可读取和编辑的文件夹' }}</span><AppIcon v-if="selectingDirectory" class="is-loading" name="Loading" /></button></div>
+        <div class="project-name-row"><el-popover trigger="click" placement="bottom-start" width="232"><template #reference><button type="button" class="project-icon-trigger" :aria-label="`选择项目图标，当前为 ${projectForm.icon}`"><AppIcon :name="projectForm.icon" /></button></template><div class="project-icons"><button v-for="icon in PROJECT_ICON_OPTIONS" :key="icon" type="button" class="project-icon-option" :class="{ active: projectForm.icon === icon }" :aria-label="`选择 ${icon} 图标`" @click="projectForm.icon = icon"><AppIcon :name="icon" /></button></div></el-popover><el-input v-model="projectForm.name" class="project-name-input" maxlength="60" placeholder="输入项目名称" /></div>
+        <div class="project-folder-field"><span class="project-field-label">源文件夹</span><button type="button" class="project-folder-picker" :class="{ 'has-directory': projectForm.directory }" :disabled="selectingDirectory" @click="selectDirectory"><AppIcon name="lucide:folder-plus" /><span>{{ projectForm.directory || '添加 Mira 可读取和编辑的文件夹' }}</span></button></div>
       </form>
       <template #footer><div class="project-dialog__footer"><button type="button" class="project-dialog__cancel" @click="projectDialogVisible = false">取消</button><button type="button" class="project-dialog__submit" :disabled="!canCreateProject || creatingProject" @click="createProject"><AppIcon v-if="creatingProject" name="Loading" />创建项目</button></div></template>
     </el-dialog>
@@ -97,7 +94,6 @@ async function refresh() {
   sessionsExpanded.value = recentSessions.value.length > 0
   groupStatesInitialized = true
 }
-async function newSession() { const draft = store.startDraft(); await router.push({ path: '/workspace/chat', query: { draft } }) }
 function isProjectExpanded(id: string) { return expandedProjectIds.value.includes(id) }
 function toggleProjects() {
   projectsExpanded.value = !projectsExpanded.value
@@ -157,8 +153,26 @@ function handleProjectGroupCommand(command: string) {
   expandedProjectIds.value = []
   projectSessionVisibleCounts.value = {}
 }
-function handleProjectCommand(command: string, projectId: string) {
-  if (command === 'toggle') toggleProject(projectId)
+async function handleProjectCommand(command: string, projectId: string) {
+  if (command === 'open-directory') {
+    const error = await getPlatformApi()?.openHarnessProjectDirectory(projectId)
+    if (error) ElMessage.error(error)
+    return
+  }
+  if (command !== 'remove') return
+  const project = store.projects.find(item => item.id === projectId)
+  if (!project) return
+  try {
+    await ElMessageBox.confirm(`确认后将从列表中移除“${project.name}”，其对话历史将被删除，源文件夹和文件不会被删除。请确认是否移除？`, '从列表中移除', {
+      confirmButtonText: '确认移除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger', showClose: false, closeOnClickModal: false,
+    })
+  } catch { return }
+  const wasActiveProject = store.activeSession?.projectId === projectId
+  await store.removeProject(projectId)
+  expandedProjectIds.value = expandedProjectIds.value.filter(id => id !== projectId)
+  resetProjectSessions(projectId)
+  if (wasActiveProject) await router.replace('/workspace/chat')
+  ElMessage.success('项目已从列表中移除')
 }
 async function deleteSession(sessionId: string) {
   await ElMessageBox.confirm('将永久删除此对话，无法恢复。', '删除对话', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
@@ -192,7 +206,7 @@ onMounted(() => { void refresh() })
 </script>
 
 <style scoped lang="scss">
-.workspace-navigation { padding: 10px 8px 12px; color: var(--cp-sidebar-menu-text); border-bottom: 1px solid var(--cp-border-light); margin-bottom: 6px }
+.workspace-navigation { padding: 0 8px 12px; color: var(--cp-sidebar-menu-text); border-bottom: 1px solid var(--cp-border-light); margin-bottom: 6px }
 .workspace-action, .workspace-group__toggle, .workspace-group__tool, .workspace-item, .workspace-show-all, .workspace-project__toggle, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { display: flex; align-items: center; border: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
 .workspace-action { width: 100%; height: 32px; gap: 10px; padding: 0 10px; border-radius: $radius-md; font-size: 14px; font-weight: $font-medium; text-align: left; }
 .workspace-action:hover, .workspace-action.active { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-hover-bg); }
@@ -209,9 +223,7 @@ onMounted(() => { void refresh() })
 .workspace-group__header:hover .workspace-group__actions, .workspace-group__header:focus-within .workspace-group__actions, .workspace-project__header:hover .workspace-project__actions, .workspace-project__header:focus-within .workspace-project__actions, .workspace-session-row:hover .workspace-session-row__tool, .workspace-session-row:focus-within .workspace-session-row__tool { opacity: 1; pointer-events: auto; }
 .workspace-group__tool, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { width: 28px; height: 28px; justify-content: center; border-radius: $radius-sm; color: var(--cp-text-tertiary); }
 .workspace-group__tool:hover, .workspace-project__tool:hover, .workspace-project__new:hover, .workspace-session-row__tool:hover { color: var(--cp-text); background: var(--cp-sidebar-menu-hover-bg); }
-.workspace-group__items { display: flex; max-height: 264px; flex-direction: column; gap: 2px; padding: 8px 0 2px; overflow-y: auto; }
-.workspace-group__items--projects { max-height: 360px; }
-.workspace-group__items--sessions { max-height: 290px; }
+.workspace-group__items { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 2px; }
 .workspace-project__header { min-height: 36px; border-radius: $radius-md;margin-bottom: 2px; }
 .workspace-project__header:hover, .workspace-session-row:hover, .workspace-session-row.active { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-project__toggle { flex: 1; min-width: 0; height: 36px; gap: 10px; padding: 0 10px; border-radius: $radius-md; font-size: 13px; text-align: left; }
@@ -231,33 +243,32 @@ onMounted(() => { void refresh() })
 .workspace-show-all:hover { color: var(--cp-text-secondary); }
 .workspace-empty { margin: 2px 10px 6px; color: var(--cp-text-tertiary); font-size: 12px; }
 .workspace-empty--nested { padding-left: 38px; }
-.project-form { display: flex; flex-direction: column; gap: 22px; }
-.project-name-row { display: flex; width: 100%; height: 48px; gap: 0; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg); transition: border-color var(--cp-animation-duration), box-shadow var(--cp-animation-duration); }
+.project-form { display: flex; flex-direction: column; gap: 14px; }
+.project-name-row { display: flex; width: 100%; height: 40px; gap: 0; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-bg); transition: border-color var(--cp-animation-duration), box-shadow var(--cp-animation-duration); }
 .project-name-row:focus-within { border-color: var(--cp-text-secondary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-text) 7%, transparent); }
-.project-icon-trigger { display: flex; flex: 0 0 48px; align-items: center; justify-content: center; gap: 2px; color: var(--cp-text-secondary); background: transparent; border: 0; border-right: 1px solid var(--cp-border-light); border-radius: 11px 0 0 11px; cursor: pointer; }
+.project-icon-trigger { display: flex; flex: 0 0 40px; align-items: center; justify-content: center; gap: 2px; color: var(--cp-text-secondary); background: transparent; border: 0; border-right: 1px solid var(--cp-border-light); border-radius: 9px 0 0 9px; cursor: pointer; }
 .project-icon-trigger:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
 .project-icon-trigger .app-icon:last-child { font-size: 12px; }
 .project-name-input { flex: 1; }
-.project-name-input :deep(.el-input__wrapper) { padding: 0 14px; background: transparent; box-shadow: none !important; }
-.project-name-input :deep(.el-input__inner) { color: var(--cp-text); font-size: 15px; }
+.project-name-input :deep(.el-input__wrapper) { padding: 0 12px; background: transparent; box-shadow: none !important; }
+.project-name-input :deep(.el-input__inner) { color: var(--cp-text); font-size: 14px; }
 .project-icons { display: flex; gap: 8px; flex-wrap: wrap; }
 .project-icon-option { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--cp-border); border-radius: 9px; color: var(--cp-text-secondary); background: var(--cp-bg); cursor: pointer; }
 .project-icon-option:hover, .project-icon-option.active { border-color: var(--cp-text-secondary); color: var(--cp-text); background: var(--cp-bg-hover); }
-.project-folder-field { display: flex; flex-direction: column; gap: 9px; }
-.project-field-label { color: var(--cp-text); font-size: 14px; font-weight: $font-medium; }
-.project-folder-picker { display: flex; min-height: 112px; align-items: center; justify-content: center; gap: 10px; padding: 18px 26px; color: var(--cp-text-secondary); text-align: center; cursor: pointer; background: var(--cp-bg-hover); border: 1px solid transparent; border-radius: 12px; font: inherit; font-size: 14px; transition: border-color var(--cp-animation-duration), background var(--cp-animation-duration), color var(--cp-animation-duration); }
+.project-folder-field { display: flex; flex-direction: column; gap: 7px; }
+.project-field-label { color: var(--cp-text); font-size: 13px; font-weight: $font-medium; }
+.project-folder-picker { display: flex; min-height: 76px; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; color: var(--cp-text-secondary); text-align: center; cursor: pointer; background: var(--cp-bg-hover); border: 1px solid transparent; border-radius: 10px; font: inherit; font-size: 13px; transition: border-color var(--cp-animation-duration), background var(--cp-animation-duration), color var(--cp-animation-duration); }
 .project-folder-picker:hover { color: var(--cp-text); border-color: var(--cp-border); background: color-mix(in srgb, var(--cp-bg-hover) 72%, var(--cp-bg)); }
 .project-folder-picker.has-directory { justify-content: flex-start; color: var(--cp-text); text-align: left; }
 .project-folder-picker span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-folder-picker .app-icon { flex: 0 0 auto; font-size: 19px; }
-.project-folder-picker .is-loading { margin-left: auto; animation: project-icon-spin 1s linear infinite; }
+.project-folder-picker .app-icon { flex: 0 0 auto; font-size: 17px; }
 .project-folder-picker:disabled { cursor: wait; opacity: .68; }
 .project-dialog__header { display: flex; align-items: center; justify-content: space-between; }
-.project-dialog__header h2 { margin: 0; color: var(--cp-text); font-size: 20px; font-weight: $font-semibold; }
-.project-dialog__close { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-text-secondary); cursor: pointer; background: transparent; border: 0; border-radius: 8px; }
+.project-dialog__header h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; }
+.project-dialog__close { display: grid; width: 28px; height: 28px; place-items: center; color: var(--cp-text-secondary); cursor: pointer; background: transparent; border: 0; border-radius: 7px; }
 .project-dialog__close:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
-.project-dialog__footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.project-dialog__cancel, .project-dialog__submit { min-width: 82px; height: 40px; padding: 0 15px; border-radius: 10px; font: inherit; font-size: 14px; font-weight: $font-medium; cursor: pointer; }
+.project-dialog__footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.project-dialog__cancel, .project-dialog__submit { min-width: 76px; height: 34px; padding: 0 13px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: $font-medium; cursor: pointer; }
 .project-dialog__cancel { color: var(--cp-text-secondary); background: transparent; border: 0; }
 .project-dialog__cancel:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
 .project-dialog__submit { display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: var(--cp-bg); background: var(--cp-text); border: 0; }
@@ -265,11 +276,10 @@ onMounted(() => { void refresh() })
 .project-dialog__submit:disabled { cursor: not-allowed; opacity: .42; }
 .project-dialog__submit .app-icon { animation: project-icon-spin 1s linear infinite; }
 :global(.project-dialog.el-dialog) { max-width: calc(100vw - 32px); overflow: hidden; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border-light); border-radius: 18px; box-shadow: 0 18px 40px rgb(0 0 0 / 16%); }
-:global(.project-dialog .el-dialog__header) { margin: 0; padding: 22px 24px 16px; border-bottom: 1px solid var(--cp-border-light); }
-:global(.project-dialog .el-dialog__body) { padding: 20px 24px 12px; }
-:global(.project-dialog .el-dialog__footer) { padding: 12px 24px 22px; }
+:global(.project-dialog .el-dialog__header) { margin: 0; padding: 12px 0 0; border-bottom: 0 !important; }
+:global(.project-dialog .el-dialog__body) { padding: 12px 0 0 ; }
+:global(.project-dialog .el-dialog__footer) { padding: 12px 0 0; }
 :global([data-theme='dark'] .project-dialog.el-dialog) { background: #2d2e32; border-color: #505158; box-shadow: 0 20px 46px rgb(0 0 0 / 42%); }
-:global([data-theme='dark'] .project-dialog .el-dialog__header) { border-color: #484950; }
 :global([data-theme='dark']) .project-name-row { background: #1b1c20; border-color: #505158; }
 :global([data-theme='dark']) .project-name-row:focus-within { border-color: #81828a; box-shadow: 0 0 0 3px rgb(129 130 138 / 20%); }
 :global([data-theme='dark']) .project-icon-trigger { border-color: #45464c; }

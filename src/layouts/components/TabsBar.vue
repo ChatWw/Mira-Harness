@@ -135,7 +135,7 @@ watch(
         name: route.name as string,
         cacheName: route.meta.cacheName as string | undefined,
         icon: navigation.value.icon || route.meta.icon as string,
-        closable: route.path !== '/dashboard',
+        closable: true,
         lastAccess: Date.now(),
       })
 
@@ -155,10 +155,7 @@ function handleTabClick(tab: any) {
   }
 }
 
-function canMoveTab(event: any) {
-  return event.draggedContext.element.path !== '/dashboard'
-    && event.relatedContext?.element?.path !== '/dashboard'
-}
+function canMoveTab() { return true }
 
 // 关闭标签
 function handleTabClose(tab: any) {

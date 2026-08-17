@@ -19,7 +19,7 @@ export const useTabsStore = defineStore('tabs', () => {
   const layoutStore = useLayoutStore()
   const persistenceEnabled = layoutStore.config.tabPersist
   const persistedState = persistenceEnabled ? loadPersistedState() : undefined
-  const tabs = ref<TabItem[]>((persistedState?.tabs ?? []).filter(tab => tab.path !== '/dashboard' && !isWorkspacePath(tab.path)))
+  const tabs = ref<TabItem[]>((persistedState?.tabs ?? []).filter(tab => !isWorkspacePath(tab.path)))
   const activeTab = ref<string>(isWorkspacePath(persistedState?.activeTab || '') ? '' : (persistedState?.activeTab || ''))
 
   if (!persistenceEnabled) {
@@ -93,7 +93,7 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   function reorderTabs() {
-    tabs.value = tabs.value.filter(tab => !isWorkspacePath(tab.path) && tab.path !== '/dashboard')
+    tabs.value = tabs.value.filter(tab => !isWorkspacePath(tab.path))
   }
 
   function persistState() {

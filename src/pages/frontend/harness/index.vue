@@ -1,7 +1,7 @@
 <template>
-  <main class="harness-page">
+  <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }">
     <section class="conversation">
-      <header class="conversation__header">
+      <header v-if="store.activeSession?.messages.length" class="conversation__header">
         <div class="conversation__identity">
           <span class="conversation__eyebrow"><AppIcon name="FolderOpened" />{{ selectedProject?.name || '最近对话' }}</span>
           <strong>{{ store.activeSession?.title || '新对话' }}</strong>
@@ -12,11 +12,6 @@
 
       <div class="conversation__messages">
         <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel">
-        <div v-if="!store.activeSession?.messages.length" class="empty-state">
-          <div class="empty-state__icon"><AppIcon name="ChatDotRound" /></div>
-          <strong>从这里开始</strong>
-          <span>描述你想完成的工作</span>
-        </div>
         <article v-for="message in store.activeSession?.messages" :key="message.id" class="message" :class="[message.role, { 'is-entering': message.id === enteringMessageId }]" :data-message-id="message.id" @animationend="clearMessageEntrance(message.id)">
           <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '我' : 'Mira' }}</span>
           <p v-if="message.role === 'user'">{{ message.content }}</p>
@@ -63,6 +58,38 @@
             </li>
           </ol>
         </details>
+        </div>
+        <div
+          v-if="showQuickNavigation"
+          ref="quickNavigationRef"
+          class="quick-navigation"
+          role="slider"
+          tabindex="0"
+          aria-label="对话快速导航"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="quickNavigationPercent"
+          :aria-valuetext="`阅读位置 ${quickNavigationPercent}%`"
+          @keydown="handleQuickNavigationKeydown"
+          @pointerenter="updateQuickNavigationHover"
+          @pointerdown="beginQuickNavigation"
+          @pointermove="moveQuickNavigation"
+          @pointerup="endQuickNavigation"
+          @pointercancel="endQuickNavigation"
+          @pointerleave="clearQuickNavigationHover"
+        >
+          <span
+            v-for="segment in quickNavigationSegments"
+            :key="segment.id"
+            class="quick-navigation__segment"
+            :class="{ 'is-active': segment.active, 'is-hovered': segment.id === hoveredQuickNavigationId }"
+            :style="{ top: `${segment.top}%`, width: `${segment.width}px`, left: `${segment.left}px`, '--quick-navigation-scale-x': segment.scaleX, '--quick-navigation-scale-y': segment.scaleY }"
+            aria-hidden="true"
+          />
+          <div v-if="hoveredQuickNavigationSegment" class="quick-navigation__preview" :style="quickNavigationPreviewStyle" aria-hidden="true">
+            <strong>{{ hoveredQuickNavigationSegment.title }}</strong>
+            <p>{{ hoveredQuickNavigationSegment.reply }}</p>
+          </div>
         </div>
         <span v-if="showLoadingIndicator" class="loading-dots loading-dots--floating" aria-label="Mira 正在处理"><i></i><i></i><i></i></span>
         <el-tooltip v-if="showScrollToBottom" content="回到底部" placement="top">
@@ -133,7 +160,7 @@
                   <span class="context-usage__ring" :style="{ '--context-progress': `${contextUsagePercent * 3.6}deg` }"></span>
                 </span>
               </el-tooltip>
-              <el-popover v-model:visible="modelPickerVisible" trigger="click" placement="top-end" :width="272" :show-arrow="false" popper-class="harness-selector-popper" @show="modelMenuView = 'menu'">
+              <el-popover v-model:visible="modelPickerVisible" trigger="click" placement="top-end" :width="272" :show-arrow="false" popper-class="harness-selector-popper">
                 <template #reference><button type="button" class="composer-model" :class="{ 'is-empty': !composerDraft.modelSelection }" :aria-label="selectedModelOption ? `模型：${selectedModelOption.modelName}` : '选择模型'"><span>{{ selectedModelOption?.modelName || '选择模型' }}</span><small v-if="selectedModelOption?.reasoning">{{ selectedThinkingLabel }}</small><AppIcon name="ArrowDown" /></button></template>
                 <div v-if="modelMenuView === 'menu'" class="model-menu">
                   <button type="button" class="model-menu__item" @click="modelMenuView = 'models'"><span>模型</span><em>{{ selectedModelOption?.modelName || '选择模型' }}</em><AppIcon name="ArrowRight" /></button>
@@ -162,7 +189,23 @@
       </footer>
     </section>
 
-    <aside class="session-panel"><section><h2>会话信息</h2><dl><div><dt>模型</dt><dd>{{ store.activeSession?.modelId || '使用默认模型' }}</dd></div><div><dt>权限</dt><dd>{{ permissionLabel }}</dd></div><div><dt>工作目录</dt><dd>{{ selectedProject?.directory || '尚未选择' }}</dd></div></dl></section><section><h2>工具调用</h2><el-empty v-if="!store.activeSession?.toolCalls.length" description="调用工具后显示记录" :image-size="56" /><div v-for="tool in store.activeSession?.toolCalls" :key="tool.id" class="tool-row"><span :class="tool.status" />{{ tool.tool }}<small>{{ tool.target }}</small></div></section></aside>
+    <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
+      <div class="empty-state__hero">
+        <h1 class="empty-state__title">Mira</h1>
+        <p class="empty-state__subtitle">今天想做什么？从一个想法开始，我陪你把它落地。</p>
+      </div>
+      <div class="empty-state__cards">
+        <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" class="starter-card" :disabled="isComposerBusy" @click="setDraftText(prompt.text)">
+          <span class="starter-card__icon"><AppIcon :name="prompt.icon" /></span>
+          <span class="starter-card__body">
+            <strong>{{ prompt.title }}</strong>
+            <small>{{ prompt.hint }}</small>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <aside v-if="store.activeSession?.messages.length" class="session-panel"><section><h2>会话信息</h2><dl><div><dt>模型</dt><dd>{{ store.activeSession?.modelId || '使用默认模型' }}</dd></div><div><dt>权限</dt><dd>{{ permissionLabel }}</dd></div><div><dt>工作目录</dt><dd>{{ selectedProject?.directory || '尚未选择' }}</dd></div></dl></section><section><h2>工具调用</h2><el-empty v-if="!store.activeSession?.toolCalls.length" description="调用工具后显示记录" :image-size="56" /><div v-for="tool in store.activeSession?.toolCalls" :key="tool.id" class="tool-row"><span :class="tool.status" />{{ tool.tool }}<small>{{ tool.target }}</small></div></section></aside>
 
     <el-dialog v-model="fullAccessConfirmVisible" class="full-access-dialog" width="min(460px, calc(100vw - 32px))" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" align-center>
       <template #header><div class="full-access-dialog__header"><AppIcon name="WarningFilled" /><h2>确认允许完全访问?</h2></div></template>
@@ -189,6 +232,7 @@ const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
 markdown.renderer.rules.table_open = () => '<div class="markdown-table"><table>\n'
 markdown.renderer.rules.table_close = () => '</table></div>\n'
 const streamRef = ref<HTMLElement>()
+const quickNavigationRef = ref<HTMLElement>()
 const enteringMessageId = ref<string>()
 const addMenuVisible = ref(false)
 const addMenuView = ref<'menu' | 'project' | 'file'>('menu')
@@ -197,6 +241,9 @@ const permissionPickerVisible = ref(false)
 const fullAccessConfirmVisible = ref(false)
 const fullAccessAcknowledged = ref(false)
 const modelMenuView = ref<'menu' | 'models' | 'effort'>('menu')
+watch(modelPickerVisible, visible => {
+  if (!visible) modelMenuView.value = 'menu'
+})
 const projectQuery = ref('')
 const fileQuery = ref('')
 const availableFiles = ref<HarnessFileReference[]>([])
@@ -207,10 +254,29 @@ const permissionConfig = ref<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const showScrollToBottom = ref(false)
 const stickToBottom = ref(true)
 const clock = ref(Date.now())
+interface QuickNavigationSegment {
+  id: string
+  top: number
+  scrollTop: number
+  width: number
+  left: number
+  scaleX: number
+  scaleY: number
+  active: boolean
+  title: string
+  reply: string
+}
+const quickNavigationSegments = ref<QuickNavigationSegment[]>([])
+const quickNavigationScrollTop = ref(0)
+const quickNavigationMaxScrollTop = ref(0)
+const hoveredQuickNavigationId = ref<string>()
 let dispose: (() => void) | undefined
 let elapsedTimer: number | undefined
 let bottomScrollRequest = 0
 let autoScrollTimer: number | undefined
+let quickNavigationFrame: number | undefined
+let quickNavigationResizeObserver: ResizeObserver | undefined
+let quickNavigationPointerId: number | undefined
 let positioningLatestMessage = false
 let latestMessageIdToPosition: string | undefined
 let scrollFollowLocked = false
@@ -230,6 +296,11 @@ const permissionOptions: Array<{ mode: PermissionMode, label: string, descriptio
   { mode: 'default', label: '默认权限', description: '敏感操作逐次确认' },
   { mode: 'auto-approve', label: '自动审核', description: '项目内操作自动批准' },
   { mode: 'full', label: '完全访问', description: '不再显示操作确认' },
+]
+const starterPrompts: Array<{ icon: string, title: string, hint: string, text: string }> = [
+  { icon: 'EditPen', title: '写一段文案', hint: '产品介绍、朋友圈、公告……', text: '帮我写一段产品介绍' },
+  { icon: 'Document', title: '总结一篇文章', hint: '粘贴链接或长文本，我来提炼要点', text: '帮我总结这篇文章的要点：' },
+  { icon: 'Cpu', title: '写一段代码', hint: 'SQL、脚本、组件，描述需求即可', text: '帮我写一段代码：' },
 ]
 const selectedPermissionMode = computed<PermissionMode>(() => store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode)
 const permissionLabel = computed(() => permissionOptions.find(option => option.mode === selectedPermissionMode.value)?.label || '默认权限')
@@ -264,6 +335,11 @@ const activeLastMessage = computed(() => {
   return messages?.[messages.length - 1]
 })
 const hasStreamingAssistantMessage = computed(() => Boolean(store.activeRun && activeLastMessage.value?.role === 'assistant'))
+const showQuickNavigation = computed(() => quickNavigationMaxScrollTop.value > 2 && quickNavigationSegments.value.length > 0)
+const quickNavigationProgress = computed(() => quickNavigationMaxScrollTop.value > 0 ? quickNavigationScrollTop.value / quickNavigationMaxScrollTop.value : 0)
+const quickNavigationPercent = computed(() => Math.round(quickNavigationProgress.value * 100))
+const hoveredQuickNavigationSegment = computed(() => quickNavigationSegments.value.find(segment => segment.id === hoveredQuickNavigationId.value))
+const quickNavigationPreviewStyle = computed(() => ({ top: `${Math.min(90, Math.max(7, hoveredQuickNavigationSegment.value?.top || 0))}%` }))
 
 const showLoadingIndicator = computed(() => {
   const messages = store.activeSession?.messages
@@ -318,8 +394,9 @@ function handleComposerKeydown(event: KeyboardEvent) {
 }
 function formatTokenCount(value: number) {
   if (value < 1000) return `${value}`
+  if (value >= 1000000 && value % 1000000 === 0) return `${value / 1000000}M`
   const compact = value >= 100000 ? Math.round(value / 1000) : Math.round(value / 100) / 10
-  return `${compact}k`
+  return `${compact}K`
 }
 function renderAssistantMessage(content: string) { return markdown.render(content) }
 function isStreamingAssistantMessage(message: HarnessMessage) { return Boolean(store.activeRun && activeLastMessage.value?.id === message.id) }
@@ -476,6 +553,7 @@ async function send() {
 async function abort() { if (store.activeSession) await getPlatformApi()?.abortHarnessRun(store.activeSession.id) }
 
 function handleStreamScroll() {
+  scheduleQuickNavigationUpdate()
   if (positioningLatestMessage) return
   const element = streamRef.value
   if (!element) return
@@ -509,11 +587,163 @@ function positionLatestMessageToTop(messageId: string) {
   const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
   stream.scrollTop = Math.min(targetTop, maxScrollTop)
   showScrollToBottom.value = maxScrollTop - stream.scrollTop > 2
+  scheduleQuickNavigationUpdate()
   return targetTop <= maxScrollTop
 }
 
 function clearMessageEntrance(messageId: string) {
   if (enteringMessageId.value === messageId) enteringMessageId.value = undefined
+}
+
+function scheduleQuickNavigationUpdate() {
+  if (quickNavigationFrame !== undefined) return
+  quickNavigationFrame = window.requestAnimationFrame(() => {
+    quickNavigationFrame = undefined
+    updateQuickNavigation()
+  })
+}
+
+function updateQuickNavigation() {
+  const stream = streamRef.value
+  if (!stream) return
+
+  const scrollHeight = Math.max(1, stream.scrollHeight)
+  const maxScrollTop = Math.max(0, scrollHeight - stream.clientHeight)
+  quickNavigationScrollTop.value = stream.scrollTop
+  quickNavigationMaxScrollTop.value = maxScrollTop
+
+  const viewportBottom = stream.scrollTop + stream.clientHeight
+  const messages = new Map((store.activeSession?.messages || []).map(message => [message.id, message]))
+  const elements = Array.from(stream.querySelectorAll<HTMLElement>('.message'))
+  const turns = elements.flatMap((element, index) => {
+    const message = messages.get(element.dataset.messageId || '')
+    if (message?.role !== 'user') return []
+    const replyElement = elements.slice(index + 1).find(candidate => messages.get(candidate.dataset.messageId || '')?.role === 'assistant')
+    const reply = replyElement ? messages.get(replyElement.dataset.messageId || '') : undefined
+    return [{ element, replyElement, message, reply }]
+  })
+  const railHeight = Math.max(1, stream.clientHeight - 48)
+  const markerPitch = Math.min(10, railHeight / Math.max(1, turns.length))
+  const markerStackOffset = Math.max(0, (railHeight - turns.length * markerPitch) / 2)
+  const hoveredIndex = turns.findIndex(turn => turn.message.id === hoveredQuickNavigationId.value)
+  quickNavigationSegments.value = maxScrollTop > 2
+    ? turns.map((turn, index) => {
+      const top = turn.element.offsetTop
+      const end = turn.replyElement ? turn.replyElement.offsetTop + turn.replyElement.offsetHeight : turn.element.offsetTop + turn.element.offsetHeight
+      const topPercent = (markerStackOffset + (index + .5) * markerPitch) / railHeight * 100
+      const proximity = hoveredIndex < 0 ? 0 : Math.max(0, 4 - Math.abs(index - hoveredIndex))
+      return {
+        id: turn.message.id,
+        top: topPercent,
+        scrollTop: top,
+        width: 8,
+        left: 0,
+        scaleX: 1 + proximity * .375,
+        scaleY: 1 + proximity * .1,
+        active: top < viewportBottom && end > stream.scrollTop,
+        title: formatQuickNavigationPreview(turn.message.content, 88, '这条提问'),
+        reply: formatQuickNavigationPreview(turn.reply?.content || '', 280, '正在生成回复…'),
+      }
+    })
+    : []
+
+  quickNavigationResizeObserver?.observe(stream)
+  stream.querySelectorAll<HTMLElement>('.message, .run-progress').forEach(element => quickNavigationResizeObserver?.observe(element))
+}
+
+function formatQuickNavigationPreview(content: string, limit: number, fallback: string) {
+  const preview = content.replace(/\s+/g, ' ').trim()
+  return preview.length > limit ? `${preview.slice(0, limit)}…` : preview || fallback
+}
+
+function useQuickNavigationPosition(progress: number) {
+  const stream = streamRef.value
+  if (!stream) return
+  cancelAutoScroll()
+  bottomScrollRequest += 1
+  latestMessageIdToPosition = undefined
+  scrollFollowLocked = true
+  stickToBottom.value = false
+  const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
+  const target = Math.round(Math.min(1, Math.max(0, progress)) * maxScrollTop)
+  stream.scrollTop = target
+  showScrollToBottom.value = target < maxScrollTop - 2
+  scheduleQuickNavigationUpdate()
+}
+
+function quickNavigationProgressFromPointer(event: PointerEvent, element: HTMLElement) {
+  const bounds = element.getBoundingClientRect()
+  if (!bounds.height) return
+  useQuickNavigationPosition((event.clientY - bounds.top) / bounds.height)
+}
+
+function quickNavigationSegmentFromPointer(event: PointerEvent): QuickNavigationSegment | undefined {
+  const element = event.currentTarget as HTMLElement
+  const bounds = element.getBoundingClientRect()
+  if (!bounds.height || !quickNavigationSegments.value.length) return
+  const progress = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height))
+  const nearest = quickNavigationSegments.value.reduce((candidate, segment) => Math.abs(segment.top / 100 - progress) < Math.abs(candidate.top / 100 - progress) ? segment : candidate)
+  return Math.abs(nearest.top / 100 - progress) <= 6 / bounds.height ? nearest : undefined
+}
+
+function updateQuickNavigationHover(event: PointerEvent) {
+  const target = quickNavigationSegmentFromPointer(event)
+  if (!target) {
+    if (hoveredQuickNavigationId.value) {
+      hoveredQuickNavigationId.value = undefined
+      scheduleQuickNavigationUpdate()
+    }
+    return
+  }
+  if (hoveredQuickNavigationId.value !== target.id) {
+    hoveredQuickNavigationId.value = target.id
+    scheduleQuickNavigationUpdate()
+  }
+  return target
+}
+
+function clearQuickNavigationHover() {
+  if (quickNavigationPointerId !== undefined) return
+  hoveredQuickNavigationId.value = undefined
+  scheduleQuickNavigationUpdate()
+}
+
+function beginQuickNavigation(event: PointerEvent) {
+  if (event.button !== 0) return
+  const element = event.currentTarget as HTMLElement
+  event.preventDefault()
+  const target = updateQuickNavigationHover(event)
+  quickNavigationPointerId = event.pointerId
+  element.setPointerCapture(event.pointerId)
+  if (target) useQuickNavigationPosition(target.scrollTop / Math.max(1, quickNavigationMaxScrollTop.value))
+  else quickNavigationProgressFromPointer(event, element)
+}
+
+function moveQuickNavigation(event: PointerEvent) {
+  updateQuickNavigationHover(event)
+  if (quickNavigationPointerId === event.pointerId) quickNavigationProgressFromPointer(event, event.currentTarget as HTMLElement)
+}
+
+function endQuickNavigation(event: PointerEvent) {
+  if (quickNavigationPointerId !== event.pointerId) return
+  const element = event.currentTarget as HTMLElement
+  if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId)
+  quickNavigationPointerId = undefined
+}
+
+function handleQuickNavigationKeydown(event: KeyboardEvent) {
+  const stream = streamRef.value
+  if (!stream) return
+  const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
+  const step = Math.max(48, stream.clientHeight * .15)
+  if (event.key === 'Home') useQuickNavigationPosition(0)
+  else if (event.key === 'End') useQuickNavigationPosition(1)
+  else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') useQuickNavigationPosition((stream.scrollTop - step) / Math.max(1, maxScrollTop))
+  else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') useQuickNavigationPosition((stream.scrollTop + step) / Math.max(1, maxScrollTop))
+  else if (event.key === 'PageUp') useQuickNavigationPosition((stream.scrollTop - stream.clientHeight) / Math.max(1, maxScrollTop))
+  else if (event.key === 'PageDown') useQuickNavigationPosition((stream.scrollTop + stream.clientHeight) / Math.max(1, maxScrollTop))
+  else return
+  event.preventDefault()
 }
 
 function cancelAutoScroll() {
@@ -547,6 +777,7 @@ async function scrollToBottom() {
   await nextTick()
   streamRef.value?.scrollTo({ top: streamRef.value.scrollHeight, behavior: 'smooth' })
   showScrollToBottom.value = false
+  scheduleQuickNavigationUpdate()
 }
 
 async function snapSessionToBottom() {
@@ -566,6 +797,8 @@ async function snapSessionToBottom() {
 
 watch(() => [route.params.id, route.query.draft], () => {
   cancelAutoScroll()
+  quickNavigationResizeObserver?.disconnect()
+  hoveredQuickNavigationId.value = undefined
   latestMessageIdToPosition = undefined
   scrollFollowLocked = false
   stickToBottom.value = true
@@ -585,6 +818,7 @@ watch(() => {
   return [messages?.length, messages?.[messages.length - 1]?.content]
 }, async () => {
   await nextTick()
+  scheduleQuickNavigationUpdate()
   if (latestMessageIdToPosition) {
     if (positionLatestMessageToTop(latestMessageIdToPosition)) latestMessageIdToPosition = undefined
     return
@@ -595,20 +829,28 @@ watch(() => {
 onMounted(() => {
   dispose = getPlatformApi()?.onHarnessEvent(store.applyEvent)
   elapsedTimer = window.setInterval(() => { if (store.activeRun) clock.value = Date.now() }, 250)
+  quickNavigationResizeObserver = new ResizeObserver(scheduleQuickNavigationUpdate)
+  void nextTick().then(scheduleQuickNavigationUpdate)
   void load()
 })
 onBeforeUnmount(() => {
   dispose?.()
   if (elapsedTimer) window.clearInterval(elapsedTimer)
   cancelAutoScroll()
+  if (quickNavigationFrame !== undefined) window.cancelAnimationFrame(quickNavigationFrame)
+  quickNavigationResizeObserver?.disconnect()
   bottomScrollRequest += 1
 })
 </script>
 
 <style scoped lang="scss">
-.harness-page { height: 100%; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; overflow: hidden; background: var(--cp-bg); }
+.harness-page { height: 100%; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; overflow: hidden; background: var(--cp-bg); position: relative; }
+.harness-page.is-empty-session { display: flex; flex-direction: column; }
+.harness-page.is-empty-session .conversation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; height: 100%; }
+.harness-page.is-empty-session .conversation__messages { flex: 1 1 auto; min-height: 0; }
+.harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
 .session-panel { min-width: 0; padding: 22px 18px; overflow-y: auto; background: color-mix(in srgb, var(--cp-bg-elevated) 88%, var(--cp-bg)); border-left: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }
-.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto; }
+.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
 .conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px clamp(20px, 4vw, 56px); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); }
 .conversation__identity { min-width: 0; }
@@ -658,12 +900,28 @@ onBeforeUnmount(() => {
 .loading-dots--floating { position: absolute; z-index: 1; bottom: 16px; left: 50%; width: 34px; height: 34px; justify-content: center; padding: 0; border-radius: 50%; box-shadow: 0 4px 12px rgb(24 24 27 / 12%); transform: translateX(-50%); }
 .scroll-bottom { position: absolute; z-index: 1; bottom: 16px; left: 50%; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid var(--cp-border-light); border-radius: 50%; color: var(--cp-text-secondary); background: var(--cp-bg-elevated); box-shadow: 0 4px 12px rgb(24 24 27 / 12%); cursor: pointer; transform: translateX(-50%); }
 .scroll-bottom:hover { color: var(--cp-text); border-color: var(--cp-border); background: var(--cp-bg-hover); }
+.quick-navigation { position: absolute; z-index: 2; top: 24px; bottom: 24px; left: clamp(12px, 1vw, 30px); width: 42px; min-height: 64px; padding: 0; border: 0; outline: 0; background: transparent; cursor: pointer; touch-action: none; }
+.quick-navigation:focus-visible::after { position: absolute; inset: -3px; border: 2px solid color-mix(in srgb, var(--cp-primary) 70%, transparent); border-radius: $radius-sm; content: ''; }
+.quick-navigation__segment { position: absolute; display: block; height: 2px; min-width: 2px; border-radius: 2px; color: transparent; background: color-mix(in srgb, var(--cp-text-tertiary) 45%, transparent); pointer-events: none; transform: translateY(-50%) scaleX(var(--quick-navigation-scale-x)) scaleY(var(--quick-navigation-scale-y)); transform-origin: left center; transition: transform 140ms ease, background-color 140ms ease; }
+.quick-navigation__segment.is-active { background: var(--cp-text); }
+.quick-navigation__segment.is-hovered { background: var(--cp-text); }
+.quick-navigation__preview { position: absolute; z-index: 1; left: 32px; width: min(360px, calc(100vw - 320px)); height: 124px; padding: 12px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--cp-border) 84%, transparent); border-radius: $radius-md; color: var(--cp-text); background: var(--cp-bg-overlay); box-shadow: 0 10px 22px rgb(24 24 27 / 11%); pointer-events: none; transform: translateY(-50%); }
+.quick-navigation__preview strong { display: block; overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.quick-navigation__preview p { display: -webkit-box; height: 56px; margin: 8px 0 0; overflow: hidden; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .file-chip, .composer-chip { display: inline-flex; align-items: center; min-width: 0; gap: 5px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 88%, transparent); border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-elevated); font-size: 12px; line-height: 26px; }
 .file-chip { padding: 0 8px; }
-.empty-state { display: flex; align-items: center; justify-content: center; min-height: 100%; flex-direction: column; padding-bottom: 56px; color: var(--cp-text-tertiary); text-align: center; }
-.empty-state__icon { display: grid; width: 36px; height: 36px; margin-bottom: 12px; place-items: center; border: 1px solid var(--cp-border-light); border-radius: 50%; color: var(--cp-text-secondary); background: var(--cp-bg-elevated); }
-.empty-state strong { color: var(--cp-text); font-size: 14px; font-weight: 600; }
-.empty-state span { margin-top: 4px; font-size: 12px; }
+.empty-state { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
+.empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
+.empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
+.empty-state__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 680px; pointer-events: auto; }
+.starter-card { display: flex; align-items: flex-start; gap: 10px; width: 208px; padding: 14px 14px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 80%, transparent); border-radius: $radius-md; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast; }
+.starter-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-primary) 40%, var(--cp-border)); transform: translateY(-2px); box-shadow: 0 8px 20px rgb(24 24 27 / 6%); }
+.starter-card:disabled { cursor: default; opacity: .6; }
+.starter-card__icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: var(--cp-primary); background: color-mix(in srgb, var(--cp-primary) 12%, transparent); font-size: 16px; }
+.starter-card__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.starter-card__body strong { color: var(--cp-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.starter-card__body small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }
 .composer-shell { padding: 0 clamp(14px, 4vw, 48px) 20px; background: var(--cp-bg); }
 .composer { width: min(100%, 800px); min-height: 122px; margin: 0 auto; padding: 12px 14px 10px; border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent); border-radius: $radius-lg; box-shadow: 0 8px 22px rgb(24 24 27 / 7%); transition: border-color $transition-fast, box-shadow $transition-fast; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); box-shadow: 0 10px 25px rgb(24 24 27 / 10%); }
@@ -695,7 +953,7 @@ onBeforeUnmount(() => {
 .session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; }.session-panel { display: none; } }
-@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { padding-bottom: 28px; } }
+@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; }.quick-navigation { display: none; } }
 @keyframes harness-loading-dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes composer-spin { to { transform: rotate(360deg); } }
 @keyframes run-text-sweep { to { background-position: -220% 0; } }

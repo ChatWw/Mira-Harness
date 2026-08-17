@@ -32,7 +32,7 @@ describe('ModelConfigStore', () => {
     expect(store.getSecret(first.id)).toBe('first-key')
     expect(store.getSecret(second.id)).toBe('local-key')
     expect(store.get(first.id)?.contextWindow).toBe(64000)
-    expect(store.get(second.id)?.contextWindow).toBe(128000)
+    expect(store.get(second.id)?.contextWindow).toBe(256000)
     database.close()
   })
 

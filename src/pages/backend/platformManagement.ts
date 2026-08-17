@@ -20,5 +20,5 @@ export function applyManagementSnapshot(snapshot: PlatformSnapshot) {
   const currentPath = router.currentRoute.value.path
   const isSettingsRoute = currentPath === '/settings' || currentPath.startsWith('/settings/')
   const navigation = resolveNavigation(currentPath)
-  if (!isSettingsRoute && currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace('/dashboard')
+  if (!isSettingsRoute && currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace('/workspace/chat')
 }

@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('platform', {
   saveModelRoleBindings: (bindings: unknown) => ipcRenderer.invoke('harness:save-model-role-bindings', bindings),
   testModelProvider: (provider: unknown, modelId: string) => ipcRenderer.invoke('harness:test-model-provider', provider, modelId),
   listHarnessProjects: () => ipcRenderer.invoke('harness:list-projects'),
+  openHarnessProjectDirectory: (id: string) => ipcRenderer.invoke('harness:open-project-directory', id),
   selectHarnessProjectDirectory: () => ipcRenderer.invoke('harness:select-project-directory'),
   createHarnessProject: (input?: unknown) => ipcRenderer.invoke('harness:create-project', input),
   renameHarnessProject: (id: string, name: string) => ipcRenderer.invoke('harness:rename-project', id, name),

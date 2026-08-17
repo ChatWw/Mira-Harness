@@ -38,12 +38,6 @@ interface BreadcrumbItem {
   icon?: string
 }
 
-const DASHBOARD_BREADCRUMB: BreadcrumbItem = {
-  title: '概览',
-  path: '/dashboard',
-  icon: 'Odometer',
-}
-
 const navigation = computed(() => resolveNavigation(route.path))
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
@@ -54,20 +48,15 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
       path: menu.target ? menu.path : undefined,
       icon: menu.icon,
     }))
-    return items[0]?.path === DASHBOARD_BREADCRUMB.path
-      ? items
-      : [DASHBOARD_BREADCRUMB, ...items]
+    return items
   }
 
   if (navigation.value.area === 'microapp' && navigation.value.app) {
-    return [
-      DASHBOARD_BREADCRUMB,
-      {
-        title: navigation.value.title,
-        path: route.path,
-        icon: navigation.value.icon,
-      },
-    ]
+    return [{
+      title: navigation.value.title,
+      path: route.path,
+      icon: navigation.value.icon,
+    }]
   }
 
   const matched = route.matched.filter(r => r.meta && r.meta.title)
@@ -76,9 +65,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
     path: r.path,
     icon: r.meta.icon as string,
   }))
-  return items[0]?.path === DASHBOARD_BREADCRUMB.path
-    ? items
-    : [DASHBOARD_BREADCRUMB, ...items]
+  return items
 })
 
 const displayItems = computed<BreadcrumbItem[]>(() => {
@@ -87,7 +74,7 @@ const displayItems = computed<BreadcrumbItem[]>(() => {
     return items
   }
 
-  // 超过 4 级：工作台 + ... + 倒数第二 + 最后一个
+  // 超过 4 级：首级 + ... + 倒数第二 + 最后一个
   return [
     items[0],
     { title: '...', icon: 'ellipsis' },

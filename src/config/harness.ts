@@ -8,7 +8,7 @@ export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<Keybo
   return shortcut === 'enter' ? !event.shiftKey : event.metaKey || event.ctrlKey
 }
 
-export const DEFAULT_CONTEXT_WINDOW = 128000
+export const DEFAULT_CONTEXT_WINDOW = 256000
 export const CONTEXT_COMPACTION_THRESHOLD = 0.8
 
 export function shouldAutoCompactContext(usedTokens: number, contextWindow: number) {

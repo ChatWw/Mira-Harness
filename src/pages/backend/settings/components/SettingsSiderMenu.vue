@@ -70,7 +70,7 @@ const activeSection = computed(() => settingsNavGroups.flatMap(group => group.it
 function getReturnPath() {
   const from = route.query.from
   if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//') || from.startsWith('/settings')) {
-    return '/dashboard'
+    return '/workspace/chat'
   }
   return from
 }

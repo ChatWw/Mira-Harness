@@ -33,7 +33,6 @@ async function bootstrap() {
   router.afterEach((to) => {
     const navigation = resolveNavigation(to.path)
     updateDocumentTitle(navigation.menu || navigation.app ? navigation.title : to.meta.title)
-    if (to.path === '/dashboard') return
     const destination = findCommandNavigationByPath(to.path)
     if (destination) useCommandPaletteStore().recordVisit(destination.id)
   })
