@@ -1,6 +1,6 @@
 # Wiki 文档中心
 
-> Mira 的项目文档、指南、参考资料和报告。
+> Mira Harness 的项目文档、指南、参考资料和报告。
 
 ## 📚 文档分类
 
@@ -9,7 +9,7 @@
 
 - [HARNESS_ROADMAP.md](./design/HARNESS_ROADMAP.md) - Agent 工作台（Harness）路线图：从"勉强可用"到"可靠的个人本地 Agent 工作台"的分阶段计划
 
-> 注：`design/` 下的 `PRODUCT_DESIGN_V2.md`、`CLAUDE_PROMPTS.md` 是早期"中台基座"时代的文档，与当前 Mira（AI 小说 + Agent 工作台）架构已脱节，仅作历史参考。
+> 注：`design/` 下的 `PRODUCT_DESIGN_V2.md`、`CLAUDE_PROMPTS.md` 是早期"中台基座"时代的文档，与当前 Mira Harness（AI 小说 + Agent 工作台）架构已脱节，仅作历史参考。
 
 ### 📘 指南（guides/）
 开发指南、迁移指南、最佳实践等教程类文档

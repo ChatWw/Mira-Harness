@@ -1,10 +1,16 @@
 <template>
-  <SettingsPageShell title="关于" :show-title="false">
+  <SettingsPageShell title="关于" :show-title="false" wide>
     <section class="about-page" aria-labelledby="about-product-name">
       <div class="about-identity">
-        <img class="about-logo" :src="miraLogo" alt="Mira 图标">
-        <h2 id="about-product-name">Mira</h2>
-        <p>Mira是一款聚合工作台类型的个人应用产品</p>
+        <img class="about-logo" :src="miraLogo" alt="Mira Harness 图标">
+        <h2 id="about-product-name">Mira Harness</h2>
+        <p class="about-description">Mira Harness 是一款本地优先的个人工具工作台：与 AI 助手 Mira（米拉）对话，即可完成小说创作、项目整理与自动化任务。</p>
+        <ul class="about-features">
+          <li><AppIcon name="lucide:book-open" size="16" color="var(--cp-primary)" /><span>小说创作 · 设定、大纲、章节与正文</span></li>
+          <li><AppIcon name="lucide:bot" size="16" color="var(--cp-primary)" /><span>Agent 工作台 · 对话、MCP、Git 与模型管理</span></li>
+          <li><AppIcon name="lucide:database" size="16" color="var(--cp-primary)" /><span>本地优先 · SQLite 项目库，数据与密钥不出本机</span></li>
+          <li><AppIcon name="lucide:layout-grid" size="16" color="var(--cp-primary)" /><span>微应用宿主 · 支持 Wujie 与 iframe 工具</span></li>
+        </ul>
       </div>
 
       <dl class="about-details">
@@ -34,13 +40,13 @@
 
       <section class="support-section" aria-labelledby="support-heading">
         <h3 id="support-heading">支持与鼓励</h3>
-        <p>如果您觉得 Mira 还不错，支持一下，Mira 会持续优化更新。</p>
+        <p>如果您喜欢 Mira Harness，欢迎支持我们——您的鼓励会推动它持续优化与成长。</p>
         <el-popover placement="top" :width="300" trigger="click" title="支持 支付宝/微信 扫一扫">
           <template #reference>
             <el-button type="primary"><AppIcon name="lucide:wallet" />&nbsp;打赏支持 </el-button>
           </template>
           <div class="payment-code">
-            <img :src="paymentCode" alt="Mira 打赏收款码">
+            <img :src="paymentCode" alt="Mira Harness 打赏收款码">
           </div>
         </el-popover>
       </section>
@@ -79,11 +85,14 @@ async function copyFeedbackEmail() {
 </script>
 
 <style scoped lang="scss">
-.about-page { width: min(100%, 520px); margin: 12px auto 0; text-align: center; }
+.about-page { width: min(100%, 760px); margin: 12px auto 0; text-align: center; }
 .about-identity { display: flex; align-items: center; flex-direction: column; }
 .about-logo { width: 76px; height: 76px; border-radius: 19px; box-shadow: $shadow-md; object-fit: cover; }
 .about-identity h2 { margin: $spacing-lg 0 $spacing-sm; color: var(--cp-text); font-size: $font-2xl; line-height: 1.25; }
-.about-identity p { max-width: 30em; margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.7; }
+.about-identity p.about-description { max-width: 34em; margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.8; }
+.about-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-sm; width: min(100%, 640px); margin: $spacing-lg 0 0; padding: 0; list-style: none; }
+.about-features li { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); color: var(--cp-text); font-size: $font-sm; line-height: 1.5; text-align: left; }
+.about-features .app-icon { flex-shrink: 0; }
 .about-details { margin: $spacing-xl 0 $spacing-lg; border-top: 1px solid var(--cp-border-light); border-bottom: 1px solid var(--cp-border-light); }
 .about-details div { display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg; padding: $spacing-md 0; }
 .about-details div + div { border-top: 1px solid var(--cp-border-light); }
@@ -111,6 +120,7 @@ async function copyFeedbackEmail() {
 
 @media (max-width: 768px) {
   .about-page { margin-top: 0; }
+  .about-features { grid-template-columns: 1fr; }
   .about-details div { align-items: flex-start; flex-direction: column; gap: 6px; }
   .about-details dd { justify-content: flex-start; }
 }

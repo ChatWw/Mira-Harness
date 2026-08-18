@@ -1,7 +1,8 @@
 {
-  "name": "mira",
+  "name": "mira-harness",
   "version": "0.0.10",
-  "description": "Mira personal tool application shell",
+  "description": "Mira Harness personal tool application shell",
+  "productName": "Mira",
   "type": "module",
   "license": "MIT",
   "keywords": [

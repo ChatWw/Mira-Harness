@@ -31,6 +31,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+wiki/
 
 # 操作系统
 .DS_Store
