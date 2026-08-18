@@ -1,12 +1,14 @@
-import { Agent, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
+import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
+import { createSandboxedEnv, wrapHarnessTool } from './agentTools'
+import { createWebFetchTool, createWebSearchTool } from './webTools'
+import type { McpManager } from './mcpManager'
 import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
-import { dialog, BrowserWindow, type WebContents } from 'electron'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { type WebContents } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { DEFAULT_CONTEXT_WINDOW, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { MIRA_SYSTEM_PROMPT } from './prompts/mira-system-prompt'
@@ -73,8 +75,8 @@ function activityDetail(toolName: string, args: unknown) {
 }
 
 export class HarnessRuntime {
-  private readonly running = new Map<string, AbortController>()
-  constructor(private readonly database: PlatformDatabase) {}
+  private readonly running = new Map<string, { controller: AbortController, agent?: Agent }>()
+  constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager) {}
 
   private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
     return {
@@ -176,23 +178,75 @@ export class HarnessRuntime {
     return target
   }
 
-  private async approve(sender: WebContents, mode: PermissionMode, title: string, detail: string) {
-    if (mode === 'full' || mode === 'auto-approve') return true
-    const owner = BrowserWindow.fromWebContents(sender)
-    const result = owner ? await dialog.showMessageBox(owner, { type: 'warning', message: title, detail, buttons: ['取消', '允许'], defaultId: 0, cancelId: 0 }) : await dialog.showMessageBox({ type: 'warning', message: title, detail, buttons: ['取消', '允许'], defaultId: 0, cancelId: 0 })
-    return result.response === 1
+  private readonly pendingPermissions = new Map<string, { resolve: (allowed: boolean) => void, timer: ReturnType<typeof setTimeout> }>()
+
+  private approve(sender: WebContents, sessionId: string, mode: PermissionMode, title: string, detail: string): Promise<boolean> {
+    if (mode === 'full' || mode === 'auto-approve') return Promise.resolve(true)
+    const requestId = randomUUID()
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => { this.pendingPermissions.delete(requestId); resolve(false) }, 5 * 60 * 1000)
+      this.pendingPermissions.set(requestId, { resolve, timer })
+      emit(sender, { sessionId, type: 'permission-request', payload: { requestId, title, detail } })
+    })
+  }
+
+  resolvePermission(requestId: string, allowed: boolean) {
+    const entry = this.pendingPermissions.get(requestId)
+    if (!entry) return
+    clearTimeout(entry.timer)
+    this.pendingPermissions.delete(requestId)
+    entry.resolve(allowed)
   }
 
   private tools(sender: WebContents, sessionId: string) {
     const session = () => this.database.harness.getSession(sessionId)
     const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt: Date.now() }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
     const finish = (id: string, status: 'ok' | 'failed', diff?: string) => this.database.harness.updateTool(sessionId, id, { status, diff, completedAt: Date.now() })
+    const workingDirectory = session().workingDirectory
+    const env = workingDirectory ? createSandboxedEnv(realpathSync(workingDirectory)) : undefined
+    const fallbackTool = (name: string, label: string, description: string, parameters: any) => ({
+      name, label, description, parameters, executionMode: 'sequential',
+      execute: async (_id: string) => { const id = record(name, ''); try { throw new Error('请先选择项目工作目录') } catch (error) { finish(id, 'failed'); throw error } },
+    })
+    const readTool = env
+      ? wrapHarnessTool(createReadTool(), { env }, { record, finish, target: params => params.path ?? '' }, '读取项目内的文本文件（支持图片，可用 offset/limit 分页读取大文件）')
+      : fallbackTool('read', '读取文件', '读取项目内的文本文件', Type.Object({ path: Type.String() }))
+    const editTool = env
+      ? wrapHarnessTool(createEditTool(), { env }, { record, finish, target: params => params.path ?? '' }, '精确编辑项目内文件：用 oldText 片段替换为 newText（oldText 必须是文件中的唯一片段），改动会返回 diff')
+      : fallbackTool('edit', '编辑文件', '精确编辑项目内文本文件', Type.Object({ path: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })) }))
+    const writeTool = env
+      ? wrapHarnessTool(createWriteTool(), { env }, { record, finish, target: params => params.path ?? '' }, '写入项目内文本文件（不存在则创建，存在则覆盖，自动创建父目录）')
+      : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() }))
+    const bashTool = env
+      ? wrapHarnessTool(createBashTool(), { env }, { record, finish, target: params => params.command ?? '' }, '在项目目录中执行命令（返回 stdout/stderr，输出过长会截断）')
+      : fallbackTool('bash', '执行命令', '在项目目录中执行非危险命令', Type.Object({ command: Type.String() }))
+    const wrapRecordTool = (tool: any, target: (params: any) => string) => ({
+      ...tool,
+      execute: async (id: string, params: any, signal?: AbortSignal, onUpdate?: any) => {
+        const recordId = record(tool.name, target(params))
+        try {
+          const result = await tool.execute(id, params, signal, onUpdate)
+          finish(recordId, 'ok')
+          return result
+        } catch (error) {
+          finish(recordId, 'failed')
+          throw error
+        }
+      },
+    })
+    const webFetchTool = wrapRecordTool(createWebFetchTool(), params => params.url ?? '')
+    const webSearchTool = wrapRecordTool(createWebSearchTool(), params => params.query ?? '')
+    const mcpTools = this.mcpManager.getTools().map(tool => wrapRecordTool(tool, () => tool.name))
     return [
-      { name: 'read_file', label: '读取文件', description: '读取项目内的文本文件', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('read_file', params.path); try { const file = this.assertProjectPath(session().workingDirectory, params.path); const content = await readFile(file, 'utf8'); finish(id, 'ok'); return { content: [{ type: 'text', text: content }], details: { path: params.path } } } catch (error) { finish(id, 'failed'); throw error } } },
+      readTool,
+      editTool,
       { name: 'list_files', label: '列出文件', description: '列出项目目录内文件', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { const dir = this.assertProjectPath(session().workingDirectory, target); const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } },
-      { name: 'write_file', label: '写入文件', description: '写入项目内文本文件', parameters: Type.Object({ path: Type.String(), content: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string, content: string }) => { const id = record('write_file', params.path); try { const allowed = await this.approve(sender, session().permissionMode, '允许 Agent 写入文件？', params.path); if (!allowed) throw new Error('用户拒绝写入文件'); const file = this.assertProjectPath(session().workingDirectory, params.path); await writeFile(file, params.content, 'utf8'); finish(id, 'ok', `~ 修改 ${params.path}`); return { content: [{ type: 'text', text: '文件已写入' }], details: { path: params.path } } } catch (error) { finish(id, 'failed'); throw error } } },
-      { name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('delete', params.path); try { const allowed = await this.approve(sender, session().permissionMode, '允许 Agent 删除文件？', `${params.path}\n文件会移入 Mira 回收站。`); if (!allowed) throw new Error('用户拒绝删除文件'); const result = this.database.harness.moveToTrash(sessionId, params.path); finish(id, 'ok', `- 删除 ${result.path}（可还原）`); return { content: [{ type: 'text', text: `已删除 ${result.path}，可在回收站还原。` }], details: result } } catch (error) { finish(id, 'failed'); throw error } } },
-      { name: 'bash', label: '执行命令', description: '在项目目录中执行非危险命令', parameters: Type.Object({ command: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { command: string }) => { const id = record('bash', params.command); try { const normalized = ` ${params.command.toLowerCase().replace(/\s+/g, ' ')} `; const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized); if (blocked) throw new Error('危险命令已被永久拦截'); const allowed = await this.approve(sender, session().permissionMode, '允许 Agent 执行命令？', params.command); if (!allowed) throw new Error('用户拒绝执行命令'); const cwd = this.assertProjectPath(session().workingDirectory, '.'); const result = await promisify(execFile)(process.platform === 'win32' ? 'cmd.exe' : '/bin/sh', process.platform === 'win32' ? ['/d', '/s', '/c', params.command] : ['-lc', params.command], { cwd, timeout: 120000, maxBuffer: 1024 * 1024 }); finish(id, 'ok'); return { content: [{ type: 'text', text: `${result.stdout}${result.stderr}`.slice(0, 100000) || '命令执行完成' }], details: { command: params.command } } } catch (error) { finish(id, 'failed'); throw error } } },
+      writeTool,
+      { name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('delete', params.path); try { const result = this.database.harness.moveToTrash(sessionId, params.path); finish(id, 'ok', `- 删除 ${result.path}（可还原）`); return { content: [{ type: 'text', text: `已删除 ${result.path}，可在回收站还原。` }], details: result } } catch (error) { finish(id, 'failed'); throw error } } },
+      bashTool,
+      webFetchTool,
+      webSearchTool,
+      ...mcpTools,
     ] as any
   }
 
@@ -207,16 +261,33 @@ export class HarnessRuntime {
       emit(sender, { sessionId, type: 'status', payload: { permissionMode: mode } })
       return
     }
+    const { provider, apiKey } = this.requireProvider(selection)
+    const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
+    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+  }
+
+  private requireProvider(selection?: ModelSelection) {
     if (!selection?.providerId || !selection.modelId) throw new Error('请先选择一个可用模型')
     const provider = this.database.models.get(selection.providerId)
     if (!provider?.models.includes(selection.modelId)) throw new Error('所选模型不属于当前供应商')
     const apiKey = this.database.models.getSecret(selection.providerId)
     if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
-    const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
-    let session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+    return { provider, apiKey }
+  }
 
+  async rerun(sender: WebContents, sessionId: string, selection?: ModelSelection) {
+    if (this.running.has(sessionId)) throw new Error('该会话正在运行')
+    const { provider, apiKey } = this.requireProvider(selection)
+    const session = this.database.harness.regenerate(sessionId)
+    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+  }
+
+  private async runAgent(sender: WebContents, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string) {
+    const text = [...session.messages].reverse().find(message => message.role === 'user')?.content
+    if (!text) throw new Error('没有可运行的对话')
     const controller = new AbortController()
-    this.running.set(sessionId, controller)
+    this.running.set(sessionId, { controller })
     session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
     const startedAt = Date.now()
@@ -254,8 +325,26 @@ export class HarnessRuntime {
       } as any,
       streamFn: models.streamSimple.bind(models) as any,
       sessionId,
+      beforeToolCall: async ({ toolCall }) => {
+        const name = toolCall.name
+        if (name !== 'write' && name !== 'edit' && name !== 'delete_file' && name !== 'bash') return undefined
+        const args = toolCall.arguments
+        if (name === 'bash') {
+          const command = String(args.command ?? '')
+          const normalized = ` ${command.toLowerCase().replace(/\s+/g, ' ')} `
+          const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized)
+          if (blocked) return { block: true, reason: '危险命令已被永久拦截' }
+        }
+        const mode = this.database.harness.getSession(sessionId).permissionMode
+        const title = name === 'bash' ? '允许 Agent 执行命令？' : name === 'delete_file' ? '允许 Agent 删除文件？' : name === 'edit' ? '允许 Agent 编辑文件？' : '允许 Agent 写入文件？'
+        const detail = name === 'bash' ? String(args.command ?? '') : name === 'delete_file' ? `${String(args.path ?? '')}\n文件会移入 Mira 回收站。` : String(args.path ?? '')
+        const allowed = await this.approve(sender, sessionId, mode, title, detail)
+        return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }
+      },
     })
+    this.running.get(sessionId)!.agent = agent
     let output = ''
+    let assistantPersisted = false
     const unsubscribe = agent.subscribe((event: any) => {
       if (event.type === 'message_start' && !activities.some(item => item.status === 'running')) {
         startActivity(`thinking-${activities.length}`, '正在思考')
@@ -272,7 +361,7 @@ export class HarnessRuntime {
       }
       if (event.type === 'tool_execution_start') {
         activities.filter(item => item.status === 'running' && item.label === '正在思考').forEach(item => finishActivity(item.id))
-        const labels: Record<string, string> = { read_file: '读取文件', list_files: '查看文件', write_file: '写入文件', delete_file: '删除文件', bash: '执行命令' }
+        const labels: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索' }
         startActivity(`tool-${event.toolCallId}`, labels[event.toolName] || `执行工具：${event.toolName}`, activityDetail(event.toolName, event.args))
         publishActivities()
       }
@@ -298,6 +387,7 @@ export class HarnessRuntime {
       const completedAt = Date.now()
       const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities }
       session = this.database.harness.appendAssistantText(sessionId, output, run, tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined))
+      assistantPersisted = true
       const usage = contextUsage(this.agentMessages(session, model), model.contextWindow)
       run.contextUsage = usage
       if (session.messages.at(-1)?.run) session.messages.at(-1)!.run!.contextUsage = usage
@@ -307,9 +397,15 @@ export class HarnessRuntime {
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()
-      this.database.harness.setStatus(sessionId, 'failed')
-      emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
-      throw error
+      if (output && !assistantPersisted) {
+        this.database.harness.appendAssistantText(sessionId, output, undefined, undefined, true)
+      }
+      const aborted = controller.signal.aborted
+      this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
+      if (!aborted) {
+        emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
+        throw error
+      }
     } finally {
       unsubscribe()
       this.running.delete(sessionId)
@@ -317,5 +413,10 @@ export class HarnessRuntime {
     }
   }
 
-  abort(sessionId: string) { this.running.get(sessionId)?.abort() }
+  abort(sessionId: string) {
+    const entry = this.running.get(sessionId)
+    if (!entry) return
+    entry.controller.abort()
+    entry.agent?.abort()
+  }
 }

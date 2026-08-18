@@ -44,9 +44,15 @@
       "out/**/*",
       "src/asset/mira-logo.png",
       "src/asset/mira.ico"
-    ]
-    ,"extraResources": [
-      { "from": "resources/python", "to": "python", "filter": ["**/*"] }
+    ],
+    "extraResources": [
+      {
+        "from": "resources/python",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      }
     ]
   },
   "dependencies": {
@@ -59,6 +65,7 @@
     "@iconify/vue": "^5.0.1",
     "@milkdown/crepe": "^7.22.1",
     "@milkdown/kit": "^7.22.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@wangeditor-next/editor": "^6.2.0",
     "@wangeditor-next/editor-for-vue": "^6.2.0",
     "better-sqlite3": "^13.0.2",

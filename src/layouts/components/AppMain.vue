@@ -19,10 +19,17 @@ import { cachedRouteNames } from '@/router/routeCache'
 const layoutStore = useLayoutStore()
 const route = useRoute()
 const isHarnessRoute = computed(() => route.path === '/workspace/chat' || route.path.startsWith('/workspace/chat/'))
+// 标记了 noPageTransition 的路由(如 Mira 工作台)不应用页面切换动画。
+const isNoTransitionRoute = computed(() => route.meta.noPageTransition === true)
 
-const transitionName = computed(() => layoutStore.config.pageTransition)
+const transitionName = computed(() => {
+  if (isNoTransitionRoute.value) return 'none'
+  return layoutStore.config.pageTransition
+})
 // 同一微应用的子路由只通知宿主切换，仅显式刷新时重建 Wujie 实例。
+// 无动画路由固定 key：工作台内部自行 watch 路由参数加载内容，切对话等场景不重建组件。
 const viewKey = computed(() => {
+  if (isNoTransitionRoute.value) return 'no-transition'
   if (route.name === 'MicroAppHost') return `micro:${String(route.params.code)}:${String(route.query._t || '')}`
   if (route.meta.keepAlive === true) return `page:${route.path}:${String(route.query._t || '')}`
   return route.fullPath

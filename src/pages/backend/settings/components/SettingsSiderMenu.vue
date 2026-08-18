@@ -51,7 +51,9 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     items: [
       { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
       { key: 'model-config', label: '模型', icon: 'Connection', path: '/settings/model-config' },
+      { key: 'mcp', label: 'MCP 服务', icon: 'lucide:plug', path: '/settings/mcp' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
+      { key: 'git', label: 'Git', icon: 'tabler:git-branch', path: '/settings/git' },
     ],
   },
   {

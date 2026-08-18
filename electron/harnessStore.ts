@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
   DEFAULT_PERMISSION_CONFIG,
+  DEFAULT_HARNESS_GIT_CONFIG,
   DEFAULT_PROJECT_ICON,
-  PROJECT_ICON_OPTIONS,
+  isProjectIcon,
   type HarnessMessage,
   type HarnessFileReference,
+  type HarnessGitBranch,
+  type HarnessGitConfig,
   type HarnessMessageAttachment,
   type HarnessProject,
   type HarnessRunSummary,
@@ -31,10 +35,40 @@ function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 function now() { return Date.now() }
 function createSessionId() { return randomUUID() }
 function titleFor(content: string) { return content.trim().replace(/\s+/g, ' ').slice(0, 42) || '新对话' }
-function projectIcon(value?: string) { return PROJECT_ICON_OPTIONS.includes(value as typeof PROJECT_ICON_OPTIONS[number]) ? value! : DEFAULT_PROJECT_ICON }
+function projectIcon(value?: string) { return isProjectIcon(value) ? value : DEFAULT_PROJECT_ICON }
 function validateProjectIcon(value?: string) {
-  if (value !== undefined && !PROJECT_ICON_OPTIONS.includes(value as typeof PROJECT_ICON_OPTIONS[number])) throw new Error('项目图标无效')
+  if (value !== undefined && !isProjectIcon(value)) throw new Error('项目图标无效')
   return value || DEFAULT_PROJECT_ICON
+}
+function runGit(directory: string, args: string[]) {
+  try {
+    return execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 })
+  } catch (error) {
+    const stderr = error && typeof error === 'object' && 'stderr' in error ? String(error.stderr || '').trim() : ''
+    throw new Error(stderr || (error instanceof Error ? error.message : 'Git 命令执行失败'))
+  }
+}
+function isGitRepository(directory: string) {
+  try {
+    return runGit(directory, ['rev-parse', '--is-inside-work-tree']).trim() === 'true'
+  } catch {
+    return false
+  }
+}
+function gitBranch(directory: string) {
+  try { return runGit(directory, ['branch', '--show-current']).trim() || undefined } catch { return undefined }
+}
+function gitMetadata(directory: string) {
+  const isRepository = isGitRepository(directory)
+  return { isGitRepository: isRepository || undefined, gitBranch: isRepository ? gitBranch(directory) : undefined }
+}
+function isValidGitPrefix(value: string) {
+  return !value || (value.endsWith('/') && !/[\s~^:?*[\\]/.test(value) && !value.includes('//') && !value.includes('..') && !value.includes('@{') && !/(?:^|\/)\.|\.lock(?:\/|$)/.test(value))
+}
+function gitPrefix(value: unknown, fallback = DEFAULT_HARNESS_GIT_CONFIG.branchPrefix) {
+  const prefix = typeof value === 'string' ? value.trim() : fallback
+  if (!isValidGitPrefix(prefix)) throw new Error('分支前缀无效')
+  return prefix
 }
 
 export class HarnessStore {
@@ -103,7 +137,7 @@ export class HarnessStore {
     const countMap = new Map(counts.map(row => [row.project_id, row.count]))
     return (this.database.prepare('SELECT * FROM harness_projects ORDER BY COALESCE(last_session_at, updated_at) DESC').all() as ProjectRow[]).map(row => ({
       id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, createdAt: row.created_at, updatedAt: row.updated_at,
-      lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
+      ...gitMetadata(row.directory), lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
     }))
   }
 
@@ -111,7 +145,49 @@ export class HarnessStore {
     const row = this.database.prepare('SELECT * FROM harness_projects WHERE id = ?').get(id) as ProjectRow | undefined
     if (!row) throw new Error('未找到项目')
     const sessionCount = (this.database.prepare('SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ?').get(id) as { count: number }).count
-    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
+    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, ...gitMetadata(row.directory), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
+  }
+
+  listGitBranches(projectId: string): HarnessGitBranch[] {
+    const project = this.getProject(projectId)
+    if (!project.isGitRepository) throw new Error('项目不是 Git 仓库')
+    const current = gitBranch(project.directory)
+    const names = runGit(project.directory, ['for-each-ref', '--format=%(refname:short)', '--sort=refname', 'refs/heads']).trim().split('\n').filter(Boolean)
+    const status = runGit(project.directory, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+    let uncommittedFileCount = 0
+    const records = status.split('\0')
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index]
+      if (!record || record[2] !== ' ') continue
+      uncommittedFileCount += 1
+      if (record.slice(0, 2).includes('R') || record.slice(0, 2).includes('C')) index += 1
+    }
+    return names.map(name => ({ name, current: name === current, ...(name === current && uncommittedFileCount ? { uncommittedFileCount } : {}) }))
+  }
+
+  private validateGitBranchName(project: HarnessProject, value: string) {
+    const name = value.trim()
+    if (!name) throw new Error('分支名称不能为空')
+    if (name.endsWith('/')) throw new Error('分支名不能以“/”结尾')
+    try { runGit(project.directory, ['check-ref-format', '--branch', name]) } catch { throw new Error('分支名称无效') }
+    if (this.listGitBranches(project.id).some(branch => branch.name === name)) throw new Error('分支已存在')
+    return name
+  }
+
+  checkoutGitBranch(projectId: string, branchName: string) {
+    const project = this.getProject(projectId)
+    if (!project.isGitRepository) throw new Error('项目不是 Git 仓库')
+    if (!this.listGitBranches(projectId).some(branch => branch.name === branchName)) throw new Error('未找到本地分支')
+    runGit(project.directory, ['switch', branchName])
+    return this.listGitBranches(projectId)
+  }
+
+  createAndCheckoutGitBranch(projectId: string, branchName: string) {
+    const project = this.getProject(projectId)
+    if (!project.isGitRepository) throw new Error('项目不是 Git 仓库')
+    const name = this.validateGitBranchName(project, branchName)
+    runGit(project.directory, ['switch', '-c', name])
+    return this.listGitBranches(projectId)
   }
 
   createProject(directory: string, name?: string, icon?: string) {
@@ -127,9 +203,10 @@ export class HarnessStore {
     return this.getProject(id)
   }
 
-  renameProject(id: string, name: string) {
+  renameProject(id: string, name: string, icon?: string) {
     if (!name.trim()) throw new Error('项目名称不能为空')
-    this.database.prepare('UPDATE harness_projects SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now(), id)
+    if (icon === undefined) this.database.prepare('UPDATE harness_projects SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now(), id)
+    else this.database.prepare('UPDATE harness_projects SET name = ?, icon = ?, updated_at = ? WHERE id = ?').run(name.trim(), validateProjectIcon(icon), now(), id)
     return this.getProject(id)
   }
 
@@ -174,14 +251,22 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage']) {
+  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean) {
     const session = this.getSession(id)
     const last = session.messages.at(-1)
     if (last?.role === 'assistant') {
       last.content += content
       if (run) last.run = run
       if (usage) last.usage = usage
-    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), ...(usage ? { usage } : {}), createdAt: now() })
+      if (interrupted) last.interrupted = true
+    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), ...(usage ? { usage } : {}), ...(interrupted ? { interrupted: true } : {}), createdAt: now() })
+    return this.saveSession(session)
+  }
+
+  regenerate(id: string) {
+    const session = this.getSession(id)
+    const last = session.messages.at(-1)
+    if (last?.role === 'assistant') session.messages.pop()
     return this.saveSession(session)
   }
 
@@ -318,6 +403,37 @@ export class HarnessStore {
     }
     this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(next))
     return this.getPermissionConfig()
+  }
+
+  getGitConfig(): HarnessGitConfig {
+    const row = this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get('git') as { value?: string } | undefined
+    try {
+      const stored = row?.value ? JSON.parse(row.value) as Partial<HarnessGitConfig> : {}
+      return {
+        branchPrefix: gitPrefix(stored.branchPrefix),
+        pullRequestMergeMethod: stored.pullRequestMergeMethod === 'squash' ? 'squash' : 'merge',
+        alwaysForcePush: typeof stored.alwaysForcePush === 'boolean' ? stored.alwaysForcePush : DEFAULT_HARNESS_GIT_CONFIG.alwaysForcePush,
+        createDraftPullRequest: typeof stored.createDraftPullRequest === 'boolean' ? stored.createDraftPullRequest : DEFAULT_HARNESS_GIT_CONFIG.createDraftPullRequest,
+        reviewDelivery: stored.reviewDelivery === 'separate' ? 'separate' : 'inline',
+        commitInstructions: typeof stored.commitInstructions === 'string' ? stored.commitInstructions : '',
+        pullRequestInstructions: typeof stored.pullRequestInstructions === 'string' ? stored.pullRequestInstructions : '',
+      }
+    } catch { return clone(DEFAULT_HARNESS_GIT_CONFIG) }
+  }
+
+  saveGitConfig(config: HarnessGitConfig) {
+    const current = this.getGitConfig()
+    const next: HarnessGitConfig = {
+      branchPrefix: gitPrefix(config.branchPrefix),
+      pullRequestMergeMethod: config.pullRequestMergeMethod === 'squash' ? 'squash' : 'merge',
+      alwaysForcePush: typeof config.alwaysForcePush === 'boolean' ? config.alwaysForcePush : current.alwaysForcePush,
+      createDraftPullRequest: typeof config.createDraftPullRequest === 'boolean' ? config.createDraftPullRequest : current.createDraftPullRequest,
+      reviewDelivery: config.reviewDelivery === 'separate' ? 'separate' : 'inline',
+      commitInstructions: typeof config.commitInstructions === 'string' ? config.commitInstructions : current.commitInstructions,
+      pullRequestInstructions: typeof config.pullRequestInstructions === 'string' ? config.pullRequestInstructions : current.pullRequestInstructions,
+    }
+    this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('git', JSON.stringify(next))
+    return this.getGitConfig()
   }
 
   moveToTrash(sessionId: string, relativePath: string) {

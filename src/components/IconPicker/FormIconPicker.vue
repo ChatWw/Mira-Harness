@@ -3,6 +3,7 @@
     v-model="selectedIcon"
     :items="items"
     :libraries="libraries"
+    :compact="compact"
     placeholder="选择图标"
     @library-change="loadLibraryItems"
   />
@@ -15,7 +16,7 @@ import IconPicker from './index.vue'
 import { iconifyLibraries, loadIconifyLibrary } from '@/components/AppIcon/iconify'
 import type { IconPickerItem } from './types'
 
-const props = defineProps<{ modelValue: string }>()
+const props = withDefaults(defineProps<{ modelValue: string, compact?: boolean }>(), { compact: false })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const elementItems: IconPickerItem[] = Object.keys(ElementPlusIcons)
@@ -51,5 +52,5 @@ async function loadLibraryItems(libraryName: string) {
 </script>
 
 <style scoped lang="scss">
-:deep(.icon-picker-trigger) { width: 100%; }
+:deep(.icon-picker-trigger:not(.is-compact)) { width: 100%; }
 </style>

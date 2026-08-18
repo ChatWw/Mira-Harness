@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,8 +28,13 @@ describe('HarnessStore', () => {
     const second = store.createSession(project.id)
 
     expect(store.getProject(project.id).icon).toBe('Collection')
+    store.renameProject(project.id, '已重命名项目', 'Files')
+    expect(store.getProject(project.id).name).toBe('已重命名项目')
+    expect(store.getProject(project.id).icon).toBe('Files')
+    store.renameProject(project.id, '再次重命名项目')
+    expect(store.getProject(project.id).icon).toBe('Files')
     expect(store.listSessions()).toHaveLength(2)
-    expect(() => store.createProject(join(root, 'invalid-icon'), 'Invalid', 'NotAnIcon')).toThrow('项目图标无效')
+    expect(() => store.createProject(join(root, 'invalid-icon'), 'Invalid', 'invalid icon')).toThrow('项目图标无效')
     store.deleteSessions([first.id, second.id])
     expect(store.listSessions()).toEqual([])
 
@@ -64,6 +70,75 @@ describe('HarnessStore', () => {
     expect(recent.projectId).toBeUndefined()
     expect(recent.workingDirectory).toBeUndefined()
     expect(projectSession.projectId).toBe(project.id)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('includes the current Git branch only for projects on a branch', () => {
+    const { root, database, store } = createStore()
+    const gitDirectory = join(root, 'git-project')
+    const plainDirectory = join(root, 'plain-project')
+    mkdirSync(gitDirectory)
+    mkdirSync(plainDirectory)
+    execFileSync('git', ['init'], { cwd: gitDirectory })
+    writeFileSync(join(gitDirectory, 'README.md'), '项目说明', 'utf8')
+    execFileSync('git', ['add', 'README.md'], { cwd: gitDirectory })
+    execFileSync('git', ['-c', 'user.name=Mira', '-c', 'user.email=mira@example.test', 'commit', '-m', '初始化'], { cwd: gitDirectory })
+    const gitProject = store.createProject(gitDirectory, 'Git 项目')
+    const plainProject = store.createProject(plainDirectory, '普通项目')
+
+    const listed = store.listProjects()
+    expect(listed.find(project => project.id === gitProject.id)?.gitBranch).toBeTruthy()
+    expect(listed.find(project => project.id === plainProject.id)?.gitBranch).toBeUndefined()
+
+    const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitDirectory, encoding: 'utf8' }).trim()
+    execFileSync('git', ['checkout', '--detach', revision], { cwd: gitDirectory })
+    expect(store.listProjects().find(project => project.id === gitProject.id)?.gitBranch).toBeUndefined()
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('lists, switches, and creates local Git branches with the current working tree status', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'git-project')
+    mkdirSync(directory)
+    execFileSync('git', ['init'], { cwd: directory })
+    writeFileSync(join(directory, 'README.md'), '初始化', 'utf8')
+    execFileSync('git', ['add', 'README.md'], { cwd: directory })
+    execFileSync('git', ['-c', 'user.name=Mira', '-c', 'user.email=mira@example.test', 'commit', '-m', '初始化'], { cwd: directory })
+    execFileSync('git', ['branch', 'topic'], { cwd: directory })
+    writeFileSync(join(directory, 'README.md'), '已修改', 'utf8')
+    writeFileSync(join(directory, 'new-file.md'), '未追踪', 'utf8')
+    const project = store.createProject(directory, 'Git 项目')
+
+    const initial = store.listGitBranches(project.id)
+    expect(initial.map(branch => branch.name)).toContain('topic')
+    expect(initial.find(branch => branch.current)?.uncommittedFileCount).toBe(2)
+
+    const switched = store.checkoutGitBranch(project.id, 'topic')
+    expect(switched.find(branch => branch.current)?.name).toBe('topic')
+    const created = store.createAndCheckoutGitBranch(project.id, 'mira/new-branch')
+    expect(created.find(branch => branch.current)?.name).toBe('mira/new-branch')
+    expect(() => store.createAndCheckoutGitBranch(project.id, 'mira/new-branch')).toThrow('分支已存在')
+    expect(() => store.createAndCheckoutGitBranch(project.id, 'mira/')).toThrow('分支名不能以“/”结尾')
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists validated Git settings with safe defaults for legacy values', () => {
+    const { root, database, store } = createStore()
+    expect(store.getGitConfig()).toMatchObject({ branchPrefix: 'mira/', pullRequestMergeMethod: 'merge', alwaysForcePush: false, createDraftPullRequest: true, reviewDelivery: 'inline' })
+
+    const saved = store.saveGitConfig({
+      branchPrefix: 'feature/', pullRequestMergeMethod: 'squash', alwaysForcePush: true, createDraftPullRequest: false,
+      reviewDelivery: 'separate', commitInstructions: '使用中文提交信息', pullRequestInstructions: '描述影响范围',
+    })
+    expect(saved).toMatchObject({ branchPrefix: 'feature/', pullRequestMergeMethod: 'squash', alwaysForcePush: true, createDraftPullRequest: false, reviewDelivery: 'separate' })
+    expect(store.getGitConfig().commitInstructions).toBe('使用中文提交信息')
+    expect(() => store.saveGitConfig({ ...saved, branchPrefix: 'invalid' })).toThrow('分支前缀无效')
 
     database.close()
     rmSync(root, { recursive: true, force: true })

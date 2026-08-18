@@ -7,7 +7,7 @@
           <strong>{{ store.activeSession?.title || '新对话' }}</strong>
           <span class="conversation__directory">{{ selectedProject?.directory || '未关联项目' }}</span>
         </div>
-        <div class="conversation__actions"><el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag></div>
+        <div class="conversation__actions"><el-button link @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" />项目</el-button><el-button link @click="router.push('/workspace/history')"><AppIcon name="Clock" />最近对话</el-button><el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag></div>
       </header>
 
       <div class="conversation__messages">
@@ -44,6 +44,11 @@
           </template>
           <div v-if="message.attachments?.length" class="message__attachments">
             <span v-for="file in message.attachments" :key="file.path" class="file-chip"><AppIcon name="Document" />{{ file.name }}</span>
+          </div>
+          <div class="message__toolbar">
+            <time class="message__time">{{ formatMessageTime(message.createdAt) }}</time>
+            <button v-if="message.content" type="button" class="message__tool-btn" aria-label="复制" @click="copyMessage(message)"><AppIcon name="CopyDocument" /><span class="message__tool-label">复制</span></button>
+            <button v-if="canRerun(message)" type="button" class="message__tool-btn" aria-label="重新生成" @click="rerun"><AppIcon name="Refresh" /><span class="message__tool-label">{{ message.interrupted ? '继续' : '重新生成' }}</span></button>
           </div>
         </article>
         <details v-if="store.activeRun && !hasStreamingAssistantMessage" class="run-progress run-progress--pending">
@@ -99,31 +104,59 @@
         </el-tooltip>
       </div>
 
+      <section v-if="permissionRequest" class="permission-request-card" aria-live="polite">
+        <div class="permission-request-card__icon"><AppIcon name="WarningFilled" /></div>
+        <div class="permission-request-card__content"><strong>{{ permissionRequest.title }}</strong><p>{{ permissionRequest.detail }}</p></div>
+        <div class="permission-request-card__actions"><el-button :disabled="permissionResponding" @click="respondPermission(false)">拒绝</el-button><el-button type="primary" :loading="permissionResponding" @click="respondPermission(true)">允许</el-button></div>
+      </section>
+
       <footer class="composer-shell">
+        <div v-if="showProjectPicker" class="composer-toolbar" aria-label="对话项目工具">
+          <div class="composer-toolbar__project-control" :class="{ 'has-project': selectedProject }">
+            <el-popover v-model:visible="projectPickerVisible" trigger="click" placement="top" :width="250" popper-class="harness-selector-popper" :show-arrow="false" @show="refreshProjectPicker">
+              <template #reference>
+                <button type="button" class="composer-toolbar__item composer-toolbar__project" :aria-label="selectedProject ? `当前项目：${selectedProject.name}` : '选择项目'">
+                  <AppIcon class="composer-toolbar__project-icon" name="FolderOpened" />
+                  <span class="composer-toolbar__label">{{ selectedProject?.name || '选择项目' }}</span>
+                </button>
+              </template>
+              <div class="selector-panel selector-panel--projects">
+                <el-input v-model="projectQuery" size="small" clearable placeholder="搜索项目"><template #prefix><AppIcon name="Search" /></template></el-input>
+                <div class="selector-panel__list">
+                  <button v-for="project in filteredProjects" :key="project.id" type="button" class="selector-option" :class="{ active: project.id === selectedProject?.id }" @click="selectProject(project.id)"><AppIcon :name="project.icon" /><span>{{ project.name }}</span><AppIcon v-if="project.id === selectedProject?.id" name="Check" /></button>
+                  <p v-if="!filteredProjects.length" class="selector-empty">没有匹配的项目</p>
+                </div>
+                <button type="button" class="selector-option selector-option--new" @click="createProjectFromPicker"><AppIcon name="Plus" /><span>新建项目</span></button>
+              </div>
+            </el-popover>
+            <button v-if="selectedProject" type="button" class="composer-toolbar__clear" :aria-label="`移除项目 ${selectedProject.name}`" @click.stop="selectProject()"><AppIcon name="CircleCloseFilled" /></button>
+          </div>
+          <span v-if="showGitPicker" class="composer-toolbar__divider" aria-hidden="true" />
+          <el-popover v-if="showGitPicker" v-model:visible="gitPickerVisible" trigger="click" placement="top" :width="300" popper-class="harness-selector-popper" :show-arrow="false" @show="refreshGitBranches">
+            <template #reference><button type="button" class="composer-toolbar__item composer-toolbar__git" :title="selectedProject?.gitBranch || 'Git 分支'" :aria-label="selectedProject?.gitBranch ? `当前 Git 分支：${selectedProject.gitBranch}` : 'Git 分支'"><AppIcon name="tabler:git-branch" /><span class="composer-toolbar__label">{{ selectedProject?.gitBranch || 'Git' }}</span></button></template>
+            <div class="git-branch-panel">
+              <el-input v-model="gitBranchQuery" size="small" clearable placeholder="搜索分支"><template #prefix><AppIcon name="Search" /></template></el-input>
+              <p class="git-branch-panel__title">分支</p>
+              <div class="selector-panel__list git-branch-panel__list" v-loading="gitBranchesLoading">
+                <button v-for="branch in filteredGitBranches" :key="branch.name" type="button" class="git-branch-option" :class="{ active: branch.current }" :disabled="gitBranchWorking" @click="checkoutGitBranch(branch.name)"><AppIcon name="tabler:git-branch" /><span><strong>{{ branch.name }}</strong><small v-if="branch.uncommittedFileCount">未提交：{{ branch.uncommittedFileCount }}个文件</small></span><AppIcon v-if="branch.current" name="Check" /></button>
+                <p v-if="!gitBranchesLoading && !filteredGitBranches.length" class="selector-empty">没有匹配的本地分支</p>
+              </div>
+              <button type="button" class="git-branch-panel__create" :disabled="gitBranchWorking" @click="openCreateGitBranchDialog"><AppIcon name="Plus" /><span>创建并检出新分支...</span></button>
+            </div>
+          </el-popover>
+        </div>
         <div class="composer">
-          <div v-if="selectedProject || composerDraft.attachments.length" class="composer__context">
-            <span v-if="selectedProject" class="composer-chip is-selected"><AppIcon :name="selectedProject.icon" /><span>{{ selectedProject.name }}</span><button v-if="!isPersistedSession" type="button" class="composer-chip__remove" :aria-label="`移除项目 ${selectedProject.name}`" @click="selectProject()"><AppIcon name="Close" /></button></span>
+          <div v-if="composerDraft.attachments.length" class="composer__context">
             <span v-for="file in composerDraft.attachments" :key="file.path" class="composer-chip is-selected"><AppIcon name="Document" /><span>{{ file.name }}</span><button type="button" class="composer-chip__remove" :aria-label="`移除 ${file.name}`" @click="removeAttachment(file.path)"><AppIcon name="Close" /></button></span>
           </div>
-          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="今天帮你做些什么?" :disabled="isComposerBusy" @update:model-value="setDraftText" @keydown="handleComposerKeydown" />
+          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="随便问" :disabled="isComposerBusy" @update:model-value="setDraftText" @keydown="handleComposerKeydown" />
           <div class="composer__actions">
             <div class="composer__status">
               <el-popover v-model:visible="addMenuVisible" trigger="click" placement="top-start" :width="350" popper-class="harness-selector-popper" @show="addMenuView = 'menu'">
                 <template #reference><el-tooltip content="添加项目或文件" placement="top"><button type="button" class="composer-icon-button" aria-label="添加项目或文件"><AppIcon name="Plus" /></button></el-tooltip></template>
                 <div v-if="addMenuView === 'menu'" class="add-menu">
                   <p class="add-menu__title">添加内容</p>
-                  <button v-if="!isPersistedSession" type="button" class="add-menu__item" @click="addMenuView = 'project'"><AppIcon name="FolderOpened" /><span><strong>项目目录</strong><small>{{ selectedProject ? selectedProject.name : '选择本次对话的工作目录' }}</small></span><AppIcon name="ArrowRight" /></button>
-                  <button v-else-if="!selectedProject" type="button" class="add-menu__item" disabled><AppIcon name="FolderOpened" /><span><strong>项目目录</strong><small>已有对话未关联项目，不能再更换</small></span></button>
                   <button type="button" class="add-menu__item" :disabled="!selectedProject" @click="openFilePicker"><AppIcon name="Paperclip" /><span><strong>引用文件</strong><small>{{ selectedProject ? '从项目中添加文本文件' : '请先选择项目目录' }}</small></span><AppIcon name="ArrowRight" /></button>
-                </div>
-                <div v-else-if="addMenuView === 'project'" class="selector-panel">
-                  <div class="selector-panel__header"><button type="button" class="composer-icon-button" aria-label="返回添加菜单" @click="addMenuView = 'menu'"><AppIcon name="ArrowLeft" /></button><strong>选择项目目录</strong></div>
-                  <el-input v-model="projectQuery" size="small" clearable placeholder="搜索项目"><template #prefix><AppIcon name="Search" /></template></el-input>
-                  <div class="selector-panel__list">
-                    <button v-for="project in filteredProjects" :key="project.id" type="button" class="selector-option" :class="{ active: project.id === selectedProject?.id }" @click="selectProject(project.id)"><AppIcon :name="project.icon" /><span>{{ project.name }}</span><AppIcon v-if="project.id === selectedProject?.id" name="Check" /></button>
-                    <p v-if="!filteredProjects.length" class="selector-empty">没有匹配的项目</p>
-                  </div>
-                  <button type="button" class="selector-option selector-option--new" :disabled="creatingProject" @click="createProjectFromPicker"><AppIcon :name="creatingProject ? 'Loading' : 'Plus'" :class="{ 'is-loading': creatingProject }" /><span>新建项目</span></button>
                 </div>
                 <div v-else class="selector-panel">
                   <div class="selector-panel__header"><button type="button" class="composer-icon-button" aria-label="返回添加菜单" @click="addMenuView = 'menu'"><AppIcon name="ArrowLeft" /></button><strong>引用文件</strong></div>
@@ -193,6 +226,7 @@
       <div class="empty-state__hero">
         <h1 class="empty-state__title">Mira</h1>
         <p class="empty-state__subtitle">今天想做什么？从一个想法开始，我陪你把它落地。</p>
+        <div class="empty-state__nav"><el-button link @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" />项目</el-button><el-button link @click="router.push('/workspace/history')"><AppIcon name="Clock" />最近对话</el-button></div>
       </div>
       <div class="empty-state__cards">
         <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" class="starter-card" :disabled="isComposerBusy" @click="setDraftText(prompt.text)">
@@ -205,13 +239,21 @@
       </div>
     </div>
 
-    <aside v-if="store.activeSession?.messages.length" class="session-panel"><section><h2>会话信息</h2><dl><div><dt>模型</dt><dd>{{ store.activeSession?.modelId || '使用默认模型' }}</dd></div><div><dt>权限</dt><dd>{{ permissionLabel }}</dd></div><div><dt>工作目录</dt><dd>{{ selectedProject?.directory || '尚未选择' }}</dd></div></dl></section><section><h2>工具调用</h2><el-empty v-if="!store.activeSession?.toolCalls.length" description="调用工具后显示记录" :image-size="56" /><div v-for="tool in store.activeSession?.toolCalls" :key="tool.id" class="tool-row"><span :class="tool.status" />{{ tool.tool }}<small>{{ tool.target }}</small></div></section></aside>
+    <aside v-if="store.activeSession?.messages.length" class="session-panel"><section><h2>会话信息</h2><dl><div><dt>模型</dt><dd>{{ store.activeSession?.modelId || '使用默认模型' }}</dd></div><div><dt>权限</dt><dd>{{ permissionLabel }}</dd></div><div><dt>工作目录</dt><dd>{{ selectedProject?.directory || '尚未选择' }}</dd></div></dl></section><section><h2>工具调用</h2><el-empty v-if="!store.activeSession?.toolCalls.length" description="调用工具后显示记录" :image-size="56" /><div v-for="tool in store.activeSession?.toolCalls" :key="tool.id" class="tool-row"><span :class="tool.status" />{{ tool.tool }}<small>{{ tool.target }}</small><pre v-if="tool.diff" class="tool-diff">{{ tool.diff }}</pre></div></section></aside>
 
     <el-dialog v-model="fullAccessConfirmVisible" class="full-access-dialog" width="min(460px, calc(100vw - 32px))" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" align-center>
       <template #header><div class="full-access-dialog__header"><AppIcon name="WarningFilled" /><h2>确认允许完全访问?</h2></div></template>
       <p class="full-access-dialog__copy">开启允许完全访问后，AI 将减少确认步骤，并可直接执行更多操作，包括敏感操作、文件修改或外部执行。<br>仅建议在您信任当前任务时使用。</p>
       <el-checkbox v-model="fullAccessAcknowledged" class="full-access-dialog__ack">我已了解风险，并愿意继续</el-checkbox>
       <template #footer><div class="full-access-dialog__footer"><el-button @click="fullAccessConfirmVisible = false">取消</el-button><el-button type="danger" :disabled="!fullAccessAcknowledged" @click="confirmFullAccess">允许完全访问</el-button></div></template>
+    </el-dialog>
+
+    <el-dialog v-model="createGitBranchVisible" class="git-branch-dialog" width="min(460px, calc(100vw - 32px))" :show-close="false" align-center>
+      <template #header><div class="git-branch-dialog__header"><h2>创建并检出分支</h2><button type="button" aria-label="关闭创建分支" @click="createGitBranchVisible = false"><AppIcon name="Close" /></button></div></template>
+      <label class="git-branch-dialog__label" for="git-branch-name"><span>分支名称</span><button type="button" @click="openGitSettings">设置前缀</button></label>
+      <el-input id="git-branch-name" v-model="newGitBranchName" autofocus placeholder="输入分支名称" @keyup.enter="createGitBranch" />
+      <p v-if="newGitBranchError" class="git-branch-dialog__error">{{ newGitBranchError }}</p>
+      <template #footer><div class="git-branch-dialog__footer"><el-button @click="createGitBranchVisible = false">关闭</el-button><el-button type="primary" :loading="gitBranchWorking" :disabled="Boolean(newGitBranchError)" @click="createGitBranch">创建并检出</el-button></div></template>
     </el-dialog>
   </main>
 </template>
@@ -222,7 +264,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_PERMISSION_CONFIG, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 
 const route = useRoute()
@@ -235,20 +277,29 @@ const streamRef = ref<HTMLElement>()
 const quickNavigationRef = ref<HTMLElement>()
 const enteringMessageId = ref<string>()
 const addMenuVisible = ref(false)
-const addMenuView = ref<'menu' | 'project' | 'file'>('menu')
+const addMenuView = ref<'menu' | 'file'>('menu')
+const projectPickerVisible = ref(false)
+const gitPickerVisible = ref(false)
+const createGitBranchVisible = ref(false)
 const modelPickerVisible = ref(false)
 const permissionPickerVisible = ref(false)
 const fullAccessConfirmVisible = ref(false)
 const fullAccessAcknowledged = ref(false)
+const permissionResponding = ref(false)
 const modelMenuView = ref<'menu' | 'models' | 'effort'>('menu')
 watch(modelPickerVisible, visible => {
   if (!visible) modelMenuView.value = 'menu'
 })
 const projectQuery = ref('')
+const gitBranchQuery = ref('')
+const gitBranches = ref<HarnessGitBranch[]>([])
+const gitBranchesLoading = ref(false)
+const gitBranchWorking = ref(false)
+const newGitBranchName = ref('')
+const gitConfig = ref({ ...DEFAULT_HARNESS_GIT_CONFIG })
 const fileQuery = ref('')
 const availableFiles = ref<HarnessFileReference[]>([])
 const filesLoading = ref(false)
-const creatingProject = ref(false)
 const providers = ref<ModelProviderSummary[]>([])
 const permissionConfig = ref<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const showScrollToBottom = ref(false)
@@ -270,7 +321,6 @@ const quickNavigationSegments = ref<QuickNavigationSegment[]>([])
 const quickNavigationScrollTop = ref(0)
 const quickNavigationMaxScrollTop = ref(0)
 const hoveredQuickNavigationId = ref<string>()
-let dispose: (() => void) | undefined
 let elapsedTimer: number | undefined
 let bottomScrollRequest = 0
 let autoScrollTimer: number | undefined
@@ -285,9 +335,24 @@ const sessionId = computed(() => typeof route.params.id === 'string' ? route.par
 const draftToken = computed(() => typeof route.query.draft === 'string' ? route.query.draft : undefined)
 const draftKey = computed(() => sessionId.value ? `session:${sessionId.value}` : (draftToken.value ? `draft:${draftToken.value}` : ''))
 const isPersistedSession = computed(() => Boolean(sessionId.value))
+const permissionRequest = computed(() => store.activeSession ? store.pendingPermissionRequests[store.activeSession.id] : undefined)
+const showProjectPicker = computed(() => !isPersistedSession.value)
 const composerDraft = computed(() => draftKey.value ? store.drafts[draftKey.value] || { text: '', attachments: [], updatedAt: 0 } : { text: '', attachments: [], updatedAt: 0 })
 const projectId = computed(() => store.activeSession?.projectId || composerDraft.value.projectId)
 const selectedProject = computed(() => store.projects.find(project => project.id === projectId.value))
+const showGitPicker = computed(() => showProjectPicker.value && Boolean(selectedProject.value?.isGitRepository))
+const filteredGitBranches = computed(() => {
+  const query = gitBranchQuery.value.trim().toLocaleLowerCase()
+  return query ? gitBranches.value.filter(branch => branch.name.toLocaleLowerCase().includes(query)) : gitBranches.value
+})
+const newGitBranchError = computed(() => {
+  const name = newGitBranchName.value.trim()
+  if (!name) return '请输入分支名称。'
+  if (name.endsWith('/')) return '分支名不能以“/”结尾。'
+  if (/[\s~^:?*[\\]/.test(name) || name.includes('//') || name.includes('..') || name.includes('@{') || /(?:^|\/)\.|\.lock(?:\/|$)/.test(name)) return '分支名称无效。'
+  if (gitBranches.value.some(branch => branch.name === name)) return '分支已存在。'
+  return ''
+})
 const filteredProjects = computed(() => {
   const query = projectQuery.value.trim().toLocaleLowerCase()
   return query ? store.projects.filter(project => project.name.toLocaleLowerCase().includes(query) || project.directory.toLocaleLowerCase().includes(query)) : store.projects
@@ -424,6 +489,56 @@ async function confirmFullAccess() {
   fullAccessConfirmVisible.value = false
   await setPermissionMode('full', true)
 }
+
+async function respondPermission(allowed: boolean) {
+  const sessionId = store.activeSession?.id
+  if (!sessionId || permissionResponding.value) return
+  permissionResponding.value = true
+  try {
+    await store.respondPermission(sessionId, allowed)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '提交审批结果失败')
+  } finally { permissionResponding.value = false }
+}
+
+async function rerun() {
+  const api = getPlatformApi()
+  const session = store.activeSession
+  if (!api || !session || store.running || store.rendering) return
+  const last = session.messages[session.messages.length - 1]
+  if (last?.role === 'assistant') session.messages.pop()
+  const selection = composerDraft.value.modelSelection
+  try {
+    await api.rerunHarness(session.id, selection ? { providerId: selection.providerId, modelId: selection.modelId, thinkingLevel: selection.thinkingLevel } : undefined)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '重新生成失败')
+  }
+}
+
+async function copyMessage(message: HarnessMessage) {
+  try {
+    await navigator.clipboard.writeText(message.content)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+function canRerun(message: HarnessMessage) {
+  if (message.role !== 'assistant') return false
+  const messages = store.activeSession?.messages
+  if (message.id !== messages?.[messages.length - 1]?.id) return false
+  if (store.running || store.rendering) return false
+  return true
+}
+
+function formatMessageTime(timestamp: number) {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  return sameDay ? time : `${date.getMonth() + 1}月${date.getDate()}日 ${time}`
+}
 function setModelSelection(value: string) {
   const [providerId, ...parts] = value.split(':')
   const modelId = parts.join(':')
@@ -454,7 +569,71 @@ function selectProject(id?: string) {
   store.updateComposerDraft(draftKey.value, { projectId: id, attachments: [] })
   addMenuVisible.value = false
   addMenuView.value = 'menu'
+  projectPickerVisible.value = false
   availableFiles.value = []
+}
+
+async function refreshProjectPicker() {
+  projectQuery.value = ''
+  await store.refreshProjects()
+}
+
+async function refreshGitBranches() {
+  const api = getPlatformApi()
+  const project = selectedProject.value
+  if (!api || !project?.isGitRepository) { gitBranches.value = []; return }
+  gitBranchQuery.value = ''
+  gitBranchesLoading.value = true
+  try {
+    gitBranches.value = await api.listHarnessGitBranches(project.id)
+  } catch (error) {
+    gitBranches.value = []
+    ElMessage.error(error instanceof Error ? error.message : '加载 Git 分支失败')
+  } finally { gitBranchesLoading.value = false }
+}
+
+async function checkoutGitBranch(branchName: string) {
+  const api = getPlatformApi()
+  const project = selectedProject.value
+  if (!api || !project || gitBranchWorking.value) return
+  gitBranchWorking.value = true
+  try {
+    gitBranches.value = await api.checkoutHarnessGitBranch(project.id, branchName)
+    await store.refreshProjects()
+    ElMessage.success(`已切换到 ${branchName}`)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '切换 Git 分支失败')
+  } finally { gitBranchWorking.value = false }
+}
+
+async function openCreateGitBranchDialog() {
+  const api = getPlatformApi()
+  gitPickerVisible.value = false
+  if (api) {
+    try { gitConfig.value = await api.getHarnessGitConfig() } catch { gitConfig.value = { ...DEFAULT_HARNESS_GIT_CONFIG } }
+  }
+  newGitBranchName.value = gitConfig.value.branchPrefix
+  createGitBranchVisible.value = true
+}
+
+async function createGitBranch() {
+  const api = getPlatformApi()
+  const project = selectedProject.value
+  if (!api || !project || gitBranchWorking.value || newGitBranchError.value) return
+  gitBranchWorking.value = true
+  try {
+    gitBranches.value = await api.createAndCheckoutHarnessGitBranch(project.id, newGitBranchName.value.trim())
+    await store.refreshProjects()
+    createGitBranchVisible.value = false
+    ElMessage.success(`已创建并检出 ${newGitBranchName.value.trim()}`)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '创建 Git 分支失败')
+  } finally { gitBranchWorking.value = false }
+}
+
+function openGitSettings() {
+  createGitBranchVisible.value = false
+  void router.push({ path: '/settings/git', query: { from: route.fullPath } })
 }
 
 function openFilePicker() {
@@ -463,20 +642,11 @@ function openFilePicker() {
   void loadFiles()
 }
 
-async function createProjectFromPicker() {
-  const api = getPlatformApi()
-  if (!api) return
-  creatingProject.value = true
-  try {
-    const project = await api.createHarnessProject()
-    if (!project) return
-    await store.refreshProjects()
-    selectProject(project.id)
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '创建项目失败')
-  } finally {
-    creatingProject.value = false
-  }
+function createProjectFromPicker() {
+  projectPickerVisible.value = false
+  window.dispatchEvent(new CustomEvent<{ onCreated: (projectId: string) => void }>(OPEN_HARNESS_PROJECT_DIALOG_EVENT, {
+    detail: { onCreated: projectId => selectProject(projectId) },
+  }))
 }
 
 async function loadFiles() {
@@ -827,14 +997,12 @@ watch(() => {
   handleStreamScroll()
 })
 onMounted(() => {
-  dispose = getPlatformApi()?.onHarnessEvent(store.applyEvent)
   elapsedTimer = window.setInterval(() => { if (store.activeRun) clock.value = Date.now() }, 250)
   quickNavigationResizeObserver = new ResizeObserver(scheduleQuickNavigationUpdate)
   void nextTick().then(scheduleQuickNavigationUpdate)
   void load()
 })
 onBeforeUnmount(() => {
-  dispose?.()
   if (elapsedTimer) window.clearInterval(elapsedTimer)
   cancelAutoScroll()
   if (quickNavigationFrame !== undefined) window.cancelAnimationFrame(quickNavigationFrame)
@@ -850,9 +1018,11 @@ onBeforeUnmount(() => {
 .harness-page.is-empty-session .conversation__messages { flex: 1 1 auto; min-height: 0; }
 .harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
 .session-panel { min-width: 0; padding: 22px 18px; overflow-y: auto; background: color-mix(in srgb, var(--cp-bg-elevated) 88%, var(--cp-bg)); border-left: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }
-.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto; position: relative; }
+.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
 .conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px clamp(20px, 4vw, 56px); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); }
+.permission-request-card { display: grid; width: min(calc(100% - 28px), 760px); box-sizing: border-box; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--cp-warning) 34%, var(--cp-border)); border-radius: $radius-md; background: color-mix(in srgb, var(--cp-warning) 8%, var(--cp-bg-elevated)); box-shadow: 0 8px 20px rgb(24 24 27 / 8%); }
+.permission-request-card__icon { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 14%, transparent); font-size: 15px; }.permission-request-card__content { min-width: 0; }.permission-request-card__content strong { display: block; color: var(--cp-text); font-size: 13px; font-weight: 600; }.permission-request-card__content p { max-height: 54px; margin: 3px 0 0; overflow: auto; color: var(--cp-text-secondary); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }.permission-request-card__actions { display: flex; flex: 0 0 auto; gap: 8px; }.permission-request-card__actions .el-button { min-width: 68px; margin: 0; }
 .conversation__identity { min-width: 0; }
 .conversation__identity strong, .conversation__identity span { display: block; }
 .conversation__identity strong { overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
@@ -892,8 +1062,8 @@ onBeforeUnmount(() => {
 @supports ((-webkit-background-clip: text) or (background-clip: text)) { .run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label { background: linear-gradient(100deg, var(--run-sweep-base) 0 24%, var(--run-sweep-edge) 38%, var(--run-sweep-highlight) 50%, var(--run-sweep-edge) 62%, var(--run-sweep-base) 76% 100%); background-size: 260% 100%; color: transparent; background-clip: text; -webkit-background-clip: text; animation: run-text-sweep 1.8s ease-in-out infinite; } }
 .message__markdown :deep(> :first-child) { margin-top: 0; }.message__markdown :deep(> :last-child) { margin-bottom: 0; }.message__markdown :deep(h1), .message__markdown :deep(h2), .message__markdown :deep(h3), .message__markdown :deep(h4) { margin: 1.3em 0 .55em; color: var(--cp-text); font-weight: 600; line-height: 1.4; }.message__markdown :deep(h1) { font-size: 1.35em; }.message__markdown :deep(h2) { font-size: 1.2em; }.message__markdown :deep(h3), .message__markdown :deep(h4) { font-size: 1.05em; }.message__markdown :deep(p) { max-width: none; margin: 0 0 1em; white-space: normal; }.message__markdown :deep(ul), .message__markdown :deep(ol) { margin: 0 0 1em; padding-left: 1.55em; }.message__markdown :deep(li + li) { margin-top: .25em; }.message__markdown :deep(blockquote) { margin: 1em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--cp-border); color: var(--cp-text-secondary); }.message__markdown :deep(a) { color: var(--cp-primary); text-decoration: underline; text-underline-offset: 2px; }.message__markdown :deep(code) { padding: .12em .35em; border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }.message__markdown :deep(pre) { max-width: 100%; margin: 1em 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-hover); }.message__markdown :deep(pre code) { padding: 0; background: transparent; font-size: 12px; line-height: 1.65; }.message__markdown :deep(.markdown-table) { width: fit-content; max-width: 100%; margin: 1em 0; overflow-x: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }.message__markdown :deep(table) { width: max-content; border-spacing: 0; border-collapse: separate; }.message__markdown :deep(th), .message__markdown :deep(td) { min-width: 90px; padding: 7px 10px; border-right: 1px solid var(--cp-border-light); border-bottom: 1px solid var(--cp-border-light); text-align: left; }.message__markdown :deep(th) { color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-weight: 600; }.message__markdown :deep(tr > :last-child) { border-right: 0; }.message__markdown :deep(tbody tr:last-child td) { border-bottom: 0; }.message__markdown :deep(hr) { margin: 1.25em 0; border: 0; border-top: 1px solid var(--cp-border-light); }
 .message.user p { width: fit-content; max-width: min(78%, 72ch); margin-left: auto; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); border-radius: $radius-md; background: var(--cp-bg-hover); line-height: 1.7; }
-.message__attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-.message.user .message__attachments { justify-content: flex-end; }
+.message__attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }.message__actions { margin-top: 8px; }.message__toolbar { display: flex; align-items: center; gap: 4px; margin-top: 8px; opacity: 0; transition: opacity $transition-fast; }.message:hover .message__toolbar { opacity: 1; }.message__time { color: var(--cp-text-tertiary); font-size: 11px; }.message__tool-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 0; border-radius: var(--cp-radius-sm, 4px); color: var(--cp-text-secondary); background: transparent; cursor: pointer; font-size: 12px; }.message__tool-btn:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.message__tool-label { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; transition: max-width $transition-fast, opacity $transition-fast; }.message__tool-btn:hover .message__tool-label { max-width: 80px; opacity: 1; }
+.message.user .message__attachments { justify-content: flex-end; }.message.user .message__toolbar { justify-content: flex-end; }
 .loading-dots { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 10px 13px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-elevated); }
 .loading-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-tertiary); animation: harness-loading-dot 1.1s ease-in-out infinite; }
 .loading-dots i:nth-child(2) { animation-delay: .14s; }.loading-dots i:nth-child(3) { animation-delay: .28s; }
@@ -913,7 +1083,7 @@ onBeforeUnmount(() => {
 .empty-state { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
-.empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
+.empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }.empty-state__nav { display: flex; gap: 16px; margin-top: 4px; }
 .empty-state__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 680px; pointer-events: auto; }
 .starter-card { display: flex; align-items: flex-start; gap: 10px; width: 208px; padding: 14px 14px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 80%, transparent); border-radius: $radius-md; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast; }
 .starter-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-primary) 40%, var(--cp-border)); transform: translateY(-2px); box-shadow: 0 8px 20px rgb(24 24 27 / 6%); }
@@ -923,6 +1093,23 @@ onBeforeUnmount(() => {
 .starter-card__body strong { color: var(--cp-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .starter-card__body small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }
 .composer-shell { padding: 0 clamp(14px, 4vw, 48px) 20px; background: var(--cp-bg); }
+.composer-toolbar { display: flex; width: min(100%, 760px); min-height: 42px; align-items: center; gap: 4px; margin: 0 auto -1px; padding: 0 8px 0 12px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 84%, transparent); border-bottom: 0; border-radius: 14px 14px 0 0; color: var(--cp-text-secondary); background: color-mix(in srgb, var(--cp-bg-hover) 68%, var(--cp-bg)); }
+.composer-toolbar__item { display: inline-flex; min-width: 0; align-items: center; gap: 7px; color: inherit; font-size: 13px; }
+.composer-toolbar__project-control { position: relative; display: inline-flex; min-width: 0; max-width: min(100%, 360px); height: 34px; align-items: center; border-radius: 18px; transition: background $transition-fast; }
+.composer-toolbar__project-control:hover { background: var(--cp-sidebar-menu-active-bg); }
+.composer-toolbar__project { width: 100%; min-width: 0; padding: 0 10px; border: 0; border-radius: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.composer-toolbar__project:hover { color: var(--cp-text); }
+.composer-toolbar__project-icon { flex: 0 0 auto; transition: opacity $transition-fast; }
+.composer-toolbar__project-control.has-project:hover .composer-toolbar__project-icon { opacity: 0; }
+.composer-toolbar__label { overflow: hidden; color: var(--cp-text); text-overflow: ellipsis; white-space: nowrap; font-size:12px; }
+.composer-toolbar__chevron { color: var(--cp-text-tertiary); font-size: 13px; }
+.composer-toolbar__clear { position: absolute; z-index: 1; top: 50%; left: 6px; display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--cp-text-secondary); background: transparent; cursor: pointer; opacity: 0; pointer-events: none; transform: translateY(-50%); transition: color $transition-fast, background $transition-fast, opacity $transition-fast; }
+.composer-toolbar__project-control.has-project:hover .composer-toolbar__clear { opacity: 1; pointer-events: auto; }
+.composer-toolbar__clear:hover { color: var(--cp-text); background: color-mix(in srgb, var(--cp-text) 10%, transparent); }
+.composer-toolbar__divider { width: 1px; height: 16px; flex: 0 0 auto; margin: 0 4px; background: var(--cp-border-light); }
+.composer-toolbar__git { max-width: min(100%, 260px); height: 34px; padding: 0 10px; border: 0; border-radius: 18px; color: var(--cp-text-secondary); background: transparent; font: inherit; text-align: left; cursor: pointer; transition: background $transition-fast; }
+.composer-toolbar__git:hover { background: var(--cp-sidebar-menu-active-bg); }
+.composer-toolbar__git .composer-toolbar__label { color: var(--cp-text-secondary); font-size: 12px; font-weight: 400; }
 .composer { width: min(100%, 800px); min-height: 122px; margin: 0 auto; padding: 12px 14px 10px; border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent); border-radius: $radius-lg; box-shadow: 0 8px 22px rgb(24 24 27 / 7%); transition: border-color $transition-fast, box-shadow $transition-fast; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); box-shadow: 0 10px 25px rgb(24 24 27 / 10%); }
 .composer__context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 0; margin-bottom: 8px; }
@@ -950,10 +1137,10 @@ onBeforeUnmount(() => {
 .context-usage__ring::before { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--cp-bg); content: ''; }
 .context-usage.is-warning { color: var(--cp-warning); }.context-usage.is-critical { color: var(--cp-danger); }
 .composer__send { color: var(--cp-bg-elevated); background: var(--cp-text); }.composer__send:hover:not(:disabled) { transform: translateY(-1px); }.composer__send:disabled { color: var(--cp-text-tertiary); background: var(--cp-bg-hover); cursor: not-allowed; }.composer__send.is-stop { color: var(--cp-danger); border: 1px solid color-mix(in srgb, var(--cp-danger) 48%, var(--cp-border)); background: transparent; }
-.session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
+.session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }.tool-diff { grid-column: 1 / -1; max-height: 160px; margin: 4px 0 0; padding: 6px 8px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-sm, 4px); color: var(--cp-text-secondary); background: var(--cp-bg-hover); font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; }.session-panel { display: none; } }
-@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; }.quick-navigation { display: none; } }
+@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.permission-request-card { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }.permission-request-card__actions { grid-column: 2; justify-content: flex-end; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-toolbar__project { max-width: 180px; }.composer-toolbar__git { max-width: 108px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; }.quick-navigation { display: none; } }
 @keyframes harness-loading-dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes composer-spin { to { transform: rotate(360deg); } }
 @keyframes run-text-sweep { to { background-position: -220% 0; } }
@@ -967,6 +1154,8 @@ onBeforeUnmount(() => {
 .selector-panel { gap: 8px; }.selector-panel__header { display: flex; align-items: center; min-height: 30px; gap: 6px; }.selector-panel__header strong { color: var(--cp-text); font-size: 13px; font-weight: 600; }.selector-panel__list { display: flex; max-height: 220px; flex-direction: column; gap: 2px; overflow-y: auto; }.selector-panel__list--files { min-height: 76px; }.selector-option { display: flex; align-items: center; min-height: 32px; gap: 8px; padding: 0 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.selector-option > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.selector-option:hover, .selector-option.active { background: var(--cp-bg-hover); }.selector-option > .app-icon:last-child { flex: 0 0 auto; color: var(--cp-primary); }.selector-option--new { margin-top: 2px; border-top: 1px solid var(--cp-border-light); color: var(--cp-text-secondary); }.selector-option--new:hover { color: var(--cp-text); }.selector-empty { margin: 10px 8px; color: var(--cp-text-tertiary); font-size: 12px; }
 .model-menu__item { display: grid; grid-template-columns: minmax(48px, auto) minmax(0, 1fr) 14px; align-items: center; min-height: 36px; gap: 8px; padding: 0 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.model-menu__item:hover { background: var(--cp-bg-hover); }.model-menu__item > em { min-width: 0; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; font-style: normal; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.model-menu__item > .app-icon { color: var(--cp-text-tertiary); font-size: 12px; }.model-menu__panel { min-height: 112px; }
 .permission-menu { display: flex; flex-direction: column; gap: 2px; }.permission-menu__item { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 48px; padding: 6px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.permission-menu__item > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.permission-menu__item strong { font-size: 12px; font-weight: 500; }.permission-menu__item small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }.permission-menu__item:hover, .permission-menu__item.active { background: var(--cp-bg-hover); }.permission-menu__item > .app-icon { color: var(--cp-primary); font-size: 13px; }
+.git-branch-panel { display: flex; flex-direction: column; gap: 8px; }.git-branch-panel__title { margin: 2px 8px -2px; color: var(--cp-text-tertiary); font-size: 11px; }.git-branch-panel__list { min-height: 72px; }.git-branch-option { display: grid; width: 100%; grid-template-columns: 16px minmax(0, 1fr) 16px; align-items: center; min-height: 38px; gap: 8px; padding: 5px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.git-branch-option > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.git-branch-option strong { overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }.git-branch-option small { color: var(--cp-text-tertiary); font-size: 11px; }.git-branch-option:hover:not(:disabled), .git-branch-option.active { background: var(--cp-bg-hover); }.git-branch-option:disabled { cursor: wait; opacity: .65; }.git-branch-option > .app-icon:last-child { color: var(--cp-primary); font-size: 13px; }.git-branch-panel__create { display: inline-flex; align-items: center; min-height: 34px; gap: 8px; margin-top: 1px; padding: 0 8px; border: 0; border-top: 1px solid var(--cp-border-light); color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }.git-branch-panel__create:hover:not(:disabled) { color: var(--cp-text); }.git-branch-panel__create:disabled { cursor: wait; opacity: .65; }
 .context-usage-tooltip { display: grid; min-width: 180px; gap: 4px; color: var(--cp-text); font-size: 12px; line-height: 1.45; }.context-usage-tooltip strong { font-size: 12px; font-weight: 600; }.context-usage-tooltip span, .context-usage-tooltip small { color: var(--cp-text-secondary); }.context-usage-tooltip small { font-size: 11px; }
 .el-dialog.full-access-dialog { max-width: calc(100vw - 32px); border-radius: 18px; }.full-access-dialog .el-dialog__header { margin: 0; padding: 8px 0 0; border-bottom: 0 !important; }.full-access-dialog .el-dialog__body { padding: 12px 0 0; }.full-access-dialog .el-dialog__footer { padding: 12px 0 0; }.full-access-dialog__header { display: flex; align-items: center; gap: 9px; color: var(--cp-text); }.full-access-dialog__header .app-icon { color: var(--cp-danger); font-size: 22px; }.full-access-dialog__header h2 { margin: 0; font-size: 16px; font-weight: 600; }.full-access-dialog__copy { margin: 0; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.65; }.full-access-dialog__ack { margin-top: 18px; color: var(--cp-text); font-size: 14px; }.full-access-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; }.full-access-dialog__footer .el-button { min-width: 92px; margin: 0; font-weight: 600; }
+.el-dialog.git-branch-dialog { max-width: calc(100vw - 32px); border-radius: 16px; }.git-branch-dialog .el-dialog__header { margin: 0; padding: 8px 0 0; border-bottom: 0 !important; }.git-branch-dialog .el-dialog__body { padding: 14px 0 0; }.git-branch-dialog .el-dialog__footer { padding: 16px 0 0; }.git-branch-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.git-branch-dialog__header h2 { margin: 0; color: var(--cp-text); font-size: 17px; font-weight: 600; }.git-branch-dialog__header button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.git-branch-dialog__header button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.git-branch-dialog__label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--cp-text); font-size: 13px; font-weight: 500; }.git-branch-dialog__label button { padding: 0; border: 0; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }.git-branch-dialog__label button:hover { color: var(--cp-text); }.git-branch-dialog__error { margin: 7px 0 0; color: var(--cp-danger); font-size: 12px; }.git-branch-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; }.git-branch-dialog__footer .el-button { min-width: 92px; margin: 0; font-weight: 600; }
 </style>

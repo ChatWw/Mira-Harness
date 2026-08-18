@@ -113,4 +113,16 @@ describe('harness message streaming', () => {
     expect(store.rendering).toBe(false)
     expect(store.activeSession.messages).toEqual([])
   })
+
+  it('keeps permission requests by session until the run becomes idle', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+
+    store.applyEvent({ sessionId: 'session-2', type: 'permission-request', payload: { requestId: 'approval-1', title: '允许执行命令？', detail: 'npm test' } })
+    expect(store.pendingPermissionRequests['session-2']).toEqual({ requestId: 'approval-1', title: '允许执行命令？', detail: 'npm test' })
+
+    store.applyEvent({ sessionId: 'session-2', type: 'status', payload: { state: 'idle' } })
+    expect(store.pendingPermissionRequests['session-2']).toBeUndefined()
+  })
 })

@@ -143,8 +143,11 @@ export interface PlatformApi {
   openHarnessProjectDirectory(id: string): Promise<string>
   selectHarnessProjectDirectory(): Promise<string | null>
   createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
-  renameHarnessProject(id: string, name: string): Promise<import('@/config/harness').HarnessProject>
+  renameHarnessProject(id: string, name: string, icon?: string): Promise<import('@/config/harness').HarnessProject>
   deleteHarnessProject(id: string, removeMira?: boolean): Promise<void>
+  listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
+  checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
+  createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
@@ -154,10 +157,19 @@ export interface PlatformApi {
   listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
   runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<void>
+  rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
+  listMcpServers(): Promise<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>
+  saveMcpServer(config: { id?: string, name: string, command: string, args?: string[], enabled?: boolean }): Promise<{ id: string, name: string, command: string, args: string[], enabled: boolean }>
+  deleteMcpServer(id: string): Promise<void>
   abortHarnessRun(sessionId: string): Promise<void>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
+  getHarnessGitConfig(): Promise<import('@/config/harness').HarnessGitConfig>
+  saveHarnessGitConfig(config: import('@/config/harness').HarnessGitConfig): Promise<import('@/config/harness').HarnessGitConfig>
+  listHarnessTrash(projectId: string): Promise<string[]>
+  restoreHarnessTrash(projectId: string, token: string): Promise<void>
   onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
+  respondHarnessPermission(requestId: string, allowed: boolean): Promise<void>
   getPythonStatus(): Promise<{ ready: boolean, path: string, version: string, bundled: boolean }>
   pythonExec(script: string, args?: string[]): Promise<{ stdout: string, stderr: string, code: number }>
   pythonInstallPackage(packageName: string): Promise<{ stdout: string, stderr: string, code: number }>

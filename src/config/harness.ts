@@ -10,6 +10,7 @@ export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<Keybo
 
 export const DEFAULT_CONTEXT_WINDOW = 256000
 export const CONTEXT_COMPACTION_THRESHOLD = 0.8
+export const OPEN_HARNESS_PROJECT_DIALOG_EVENT = 'mira:open-harness-project-dialog'
 
 export function shouldAutoCompactContext(usedTokens: number, contextWindow: number) {
   return usedTokens >= contextWindow * CONTEXT_COMPACTION_THRESHOLD
@@ -62,6 +63,7 @@ export interface HarnessMessage {
   run?: HarnessRunSummary
   usage?: HarnessTokenUsage
   createdAt: number
+  interrupted?: boolean
 }
 
 export interface HarnessFileReference {
@@ -111,11 +113,39 @@ export interface HarnessProject {
   name: string
   icon: string
   directory: string
+  isGitRepository?: boolean
+  gitBranch?: string
   createdAt: number
   updatedAt: number
   lastSessionAt?: number
   defaultModelProviderId?: string
   sessionCount: number
+}
+
+export interface HarnessGitBranch {
+  name: string
+  current: boolean
+  uncommittedFileCount?: number
+}
+
+export interface HarnessGitConfig {
+  branchPrefix: string
+  pullRequestMergeMethod: 'merge' | 'squash'
+  alwaysForcePush: boolean
+  createDraftPullRequest: boolean
+  reviewDelivery: 'inline' | 'separate'
+  commitInstructions: string
+  pullRequestInstructions: string
+}
+
+export const DEFAULT_HARNESS_GIT_CONFIG: HarnessGitConfig = {
+  branchPrefix: 'mira/',
+  pullRequestMergeMethod: 'merge',
+  alwaysForcePush: false,
+  createDraftPullRequest: true,
+  reviewDelivery: 'inline',
+  commitInstructions: '',
+  pullRequestInstructions: '',
 }
 
 export interface HarnessProjectCreateInput {
@@ -124,12 +154,15 @@ export interface HarnessProjectCreateInput {
   icon?: string
 }
 
-export const PROJECT_ICON_OPTIONS = ['FolderOpened', 'Collection', 'Files', 'Monitor', 'Document', 'Box'] as const
-export const DEFAULT_PROJECT_ICON = PROJECT_ICON_OPTIONS[0]
+export const DEFAULT_PROJECT_ICON = 'FolderOpened'
+
+export function isProjectIcon(value?: string) {
+  return typeof value === 'string' && (/^[A-Z][A-Za-z0-9]*$/.test(value) || /^(lucide|material-symbols|tabler):[a-z0-9-]+$/.test(value))
+}
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request'
   payload: Record<string, unknown>
 }
 

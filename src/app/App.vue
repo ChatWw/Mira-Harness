@@ -10,11 +10,14 @@ import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useLayoutStore } from '@/stores/layout'
+import { useHarnessStore } from '@/stores/harness'
+import { getPlatformApi } from '@/platform'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 import { useLoading } from '@/hooks/useLoading'
 
 const themeStore = useThemeStore()
 const layoutStore = useLayoutStore()
+const harnessStore = useHarnessStore()
 const globalLoading = useLoading()
 const router = useRouter()
 
@@ -40,14 +43,17 @@ function openSettingsPage(path: string) {
 }
 
 let removeWindowNavigateListener: (() => void) | undefined
+let removeHarnessEventListener: (() => void) | undefined
 
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener = window.platform?.onWindowNavigate(path => { void openSettingsPage(path) })
+  removeHarnessEventListener = getPlatformApi()?.onHarnessEvent(harnessStore.applyEvent)
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener?.()
+  removeHarnessEventListener?.()
 })
 // 主题已在 store 初始化时应用
 </script>

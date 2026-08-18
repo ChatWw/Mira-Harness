@@ -4,6 +4,8 @@ import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
 import { createNovelApiHandler } from './novelApi'
 import { HarnessRuntime } from './harnessRuntime'
+import { McpConfigStore } from './mcpConfigStore'
+import { McpManager } from './mcpManager'
 import { PythonEnvironment } from './pythonEnv'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
@@ -15,6 +17,8 @@ let isQuitting = false
 let tray: Tray | null = null
 let harnessRuntime: HarnessRuntime
 let pythonEnvironment: PythonEnvironment
+let mcpConfigStore: McpConfigStore
+let mcpManager: McpManager
 
 function getCloseWindowBehavior(): 'background' | 'quit' {
   const value = database?.getSnapshot().preferences.closeWindowBehavior
@@ -124,7 +128,10 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   database = new PlatformDatabase(app.getPath('userData'))
-  harnessRuntime = new HarnessRuntime(database)
+  mcpConfigStore = new McpConfigStore(app.getPath('userData'))
+  mcpManager = new McpManager()
+  harnessRuntime = new HarnessRuntime(database, mcpManager)
+  await mcpManager.refresh(mcpConfigStore.list())
   pythonEnvironment = new PythonEnvironment()
   localMicroAppServer = new LocalMicroAppServer({
     apiHandlers: new Map([['novel', createNovelApiHandler(database)]]),
@@ -210,8 +217,11 @@ app.whenReady().then(async () => {
     }
     return database.harness.createProject(target, input.name, input.icon)
   })
-  ipcMain.handle('harness:rename-project', (_event, id: string, name: string) => database.harness.renameProject(id, name))
+  ipcMain.handle('harness:rename-project', (_event, id: string, name: string, icon?: string) => database.harness.renameProject(id, name, icon))
   ipcMain.handle('harness:delete-project', (_event, id: string, removeMira?: boolean) => database.harness.deleteProject(id, removeMira))
+  ipcMain.handle('harness:list-git-branches', (_event, projectId: string) => database.harness.listGitBranches(projectId))
+  ipcMain.handle('harness:checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.checkoutGitBranch(projectId, branchName))
+  ipcMain.handle('harness:create-and-checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.createAndCheckoutGitBranch(projectId, branchName))
   ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
   ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
@@ -225,9 +235,25 @@ app.whenReady().then(async () => {
     return result.canceled ? null : database.harness.attachDirectory(sessionId, result.filePaths[0])
   })
   ipcMain.handle('harness:run-message', (event, sessionId: string, message: string, references: HarnessFileReference[] = [], selection) => harnessRuntime.runMessage(event.sender, sessionId, message, references, selection))
+  ipcMain.handle('harness:rerun', (event, sessionId: string, selection) => harnessRuntime.rerun(event.sender, sessionId, selection))
   ipcMain.handle('harness:abort-run', (_event, sessionId: string) => harnessRuntime.abort(sessionId))
+  ipcMain.handle('harness:respond-permission', (_event, requestId: string, allowed: boolean) => harnessRuntime.resolvePermission(requestId, Boolean(allowed)))
+  ipcMain.handle('mcp:list-servers', () => mcpConfigStore.list())
+  ipcMain.handle('mcp:save-server', (_event, config) => {
+    const saved = mcpConfigStore.save(config)
+    void mcpManager.refresh(mcpConfigStore.list())
+    return saved
+  })
+  ipcMain.handle('mcp:delete-server', (_event, id: string) => {
+    mcpConfigStore.delete(id)
+    void mcpManager.refresh(mcpConfigStore.list())
+  })
   ipcMain.handle('harness:get-permission-config', () => database.harness.getPermissionConfig())
   ipcMain.handle('harness:save-permission-config', (_event, config) => database.harness.savePermissionConfig(config))
+  ipcMain.handle('harness:get-git-config', () => database.harness.getGitConfig())
+  ipcMain.handle('harness:save-git-config', (_event, config) => database.harness.saveGitConfig(config))
+  ipcMain.handle('harness:list-trash', (_event, projectId: string) => database.harness.listTrash(projectId))
+  ipcMain.handle('harness:restore-trash', (_event, projectId: string, token: string) => database.harness.restoreTrash(projectId, token))
   ipcMain.handle('harness:python-status', () => pythonEnvironment.status())
   ipcMain.handle('harness:python-exec', (_event, script: string, args: string[]) => pythonEnvironment.run(script, args))
   ipcMain.handle('harness:python-install-package', (_event, packageName: string) => pythonEnvironment.install(packageName))

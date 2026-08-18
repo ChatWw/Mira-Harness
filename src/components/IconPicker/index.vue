@@ -1,10 +1,10 @@
 <template>
   <el-popover v-model:visible="visible" placement="bottom-start" :width="420" trigger="click" popper-class="icon-picker-popper">
     <template #reference>
-      <el-button class="icon-picker-trigger" aria-label="选择图标">
+      <el-button class="icon-picker-trigger" :class="{ 'is-compact': compact }" :aria-label="compact ? `选择图标，当前为 ${selectedItem?.value || placeholder}` : '选择图标'" :title="compact ? selectedItem?.value : undefined">
         <AppIcon v-if="selectedItem" :name="selectedItem.value" />
-        <span class="icon-picker-trigger__label">{{ selectedItem?.value || placeholder }}</span>
-        <AppIcon class="icon-picker-trigger__arrow" name="ArrowDown" />
+        <span v-if="!compact" class="icon-picker-trigger__label">{{ selectedItem?.value || placeholder }}</span>
+        <AppIcon v-if="!compact" class="icon-picker-trigger__arrow" name="ArrowDown" />
       </el-button>
     </template>
 
@@ -53,9 +53,11 @@ const props = withDefaults(defineProps<{
   items: IconPickerItem[]
   libraries?: Array<{ value: string, label: string }>
   placeholder?: string
+  compact?: boolean
 }>(), {
   modelValue: '',
   placeholder: '选择图标',
+  compact: false,
 })
 
 const emit = defineEmits<{
@@ -108,7 +110,7 @@ function select(value: string) {
 </script>
 
 <style scoped lang="scss">
-.icon-picker-trigger { position: relative; width: min(100%, 360px); justify-content: flex-start; gap: $spacing-sm; padding-right: 40px; color: var(--cp-text); }.icon-picker-trigger__label { min-width: 0; flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }.icon-picker-trigger__arrow { position: absolute; right: $spacing-md; color: var(--cp-text-tertiary); pointer-events: none; }
+.icon-picker-trigger { position: relative; width: min(100%, 360px); justify-content: flex-start; gap: $spacing-sm; padding-right: 40px; color: var(--cp-text); }.icon-picker-trigger.is-compact { width: 40px; height: 40px; justify-content: center; padding: 0; }.icon-picker-trigger__label { min-width: 0; flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }.icon-picker-trigger__arrow { position: absolute; right: $spacing-md; color: var(--cp-text-tertiary); pointer-events: none; }
 .icon-picker-panel { display: flex; flex-direction: column; gap: $spacing-md; }.icon-picker-tabs { margin-bottom: -$spacing-xs; }.icon-picker-tabs :deep(.el-tabs__header) { margin-bottom: 0; }.icon-picker-tabs :deep(.el-tabs__item) { padding: 0 $spacing-sm; font-size: $font-xs; }.icon-picker-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-height: 300px; overflow-y: auto; border: 1px solid var(--cp-border); border-radius: $radius-md; }.icon-picker-option { display: flex; min-width: 0; min-height: 72px; align-items: center; justify-content: center; flex-direction: column; gap: $spacing-xs; padding: $spacing-sm; border: 0; border-right: 1px solid var(--cp-border); border-bottom: 1px solid var(--cp-border); color: var(--cp-text-secondary); background: transparent; cursor: pointer; transition: background $transition-fast, color $transition-fast; }.icon-picker-option:hover, .icon-picker-option:focus-visible, .icon-picker-option.is-selected { outline: 0; color: var(--cp-primary); background: var(--cp-primary-lighter); }.icon-picker-option :deep(.el-icon), .icon-picker-option :deep(svg) { font-size: 20px; }.icon-picker-option span { width: 100%; overflow: hidden; font-size: $font-xs; text-align: center; text-overflow: ellipsis; white-space: nowrap; }.icon-picker-pagination { justify-content: center; }
 @include media-max($breakpoint-sm) { .icon-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 </style>

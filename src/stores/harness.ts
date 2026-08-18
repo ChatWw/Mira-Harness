@@ -59,6 +59,12 @@ export interface HarnessRunProgress {
   activities: HarnessRunActivity[]
 }
 
+export interface HarnessPendingPermissionRequest {
+  requestId: string
+  title: string
+  detail: string
+}
+
 function loadModelSelection(): ModelSelection | undefined {
   try {
     const value = JSON.parse(localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) || 'null') as Partial<ModelSelection> | null
@@ -86,6 +92,9 @@ export const useHarnessStore = defineStore('harness', () => {
   let completedMessageSessionId: string | undefined
   let messageCompletionDeadline: number | undefined
   let streamCharacterCarry = 0
+  const runningSessionIds = ref<string[]>([])
+  const unreadSessionIds = ref<string[]>([])
+  const pendingPermissionRequests = ref<Record<string, HarnessPendingPermissionRequest>>({})
 
   function persistDrafts() {
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts.value))
@@ -180,10 +189,11 @@ export const useHarnessStore = defineStore('harness', () => {
   }
 
   async function openSession(id: string) {
+    unreadSessionIds.value = unreadSessionIds.value.filter(sessionId => sessionId !== id)
     if (activeSession.value?.id !== id) {
       resetMessageQueue()
       activeRun.value = undefined
-      running.value = false
+      running.value = runningSessionIds.value.includes(id)
     }
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
@@ -215,6 +225,8 @@ export const useHarnessStore = defineStore('harness', () => {
     await api.deleteHarnessSessions(ids)
     if (activeSession.value && ids.includes(activeSession.value.id)) clearActiveSession()
     ids.forEach(id => removeComposerDraft(`session:${id}`))
+    const removed = new Set(ids)
+    pendingPermissionRequests.value = Object.fromEntries(Object.entries(pendingPermissionRequests.value).filter(([id]) => !removed.has(id)))
     await Promise.all([refreshSessions(), refreshProjects()])
   }
 
@@ -290,7 +302,37 @@ export const useHarnessStore = defineStore('harness', () => {
     scheduleMessageQueueFlush()
   }
 
+  async function respondPermission(sessionId: string, allowed: boolean) {
+    const request = pendingPermissionRequests.value[sessionId]
+    const api = getPlatformApi()
+    if (!request || !api) return
+    await api.respondHarnessPermission(request.requestId, allowed)
+    const { [sessionId]: _removed, ...remaining } = pendingPermissionRequests.value
+    pendingPermissionRequests.value = remaining
+  }
+
   function applyEvent(event: HarnessEvent) {
+    if (event.type === 'permission-request') {
+      const requestId = typeof event.payload.requestId === 'string' ? event.payload.requestId : ''
+      if (requestId) {
+        pendingPermissionRequests.value = {
+          ...pendingPermissionRequests.value,
+          [event.sessionId]: { requestId, title: typeof event.payload.title === 'string' ? event.payload.title : '请求权限', detail: typeof event.payload.detail === 'string' ? event.payload.detail : '' },
+        }
+      }
+    }
+    if (event.type === 'status') {
+      if (event.payload.state === 'running') {
+        if (!runningSessionIds.value.includes(event.sessionId)) runningSessionIds.value = [...runningSessionIds.value, event.sessionId]
+      } else {
+        runningSessionIds.value = runningSessionIds.value.filter(id => id !== event.sessionId)
+        const { [event.sessionId]: _removed, ...remaining } = pendingPermissionRequests.value
+        pendingPermissionRequests.value = remaining
+        if (event.sessionId !== activeSession.value?.id && !unreadSessionIds.value.includes(event.sessionId)) {
+          unreadSessionIds.value = [...unreadSessionIds.value, event.sessionId]
+        }
+      }
+    }
     if (event.sessionId !== activeSession.value?.id) return
     if (event.type === 'run-start') {
       activeRun.value = {
@@ -332,6 +374,9 @@ export const useHarnessStore = defineStore('harness', () => {
     activeRun,
     drafts,
     lastModelSelection,
+    runningSessionIds,
+    unreadSessionIds,
+    pendingPermissionRequests,
     refreshSessions,
     refreshProjects,
     createProject,
@@ -339,6 +384,7 @@ export const useHarnessStore = defineStore('harness', () => {
     openSession,
     createSession,
     setSessionPermission,
+    respondPermission,
     deleteSessions,
     applyEvent,
     ensureComposerDraft,
