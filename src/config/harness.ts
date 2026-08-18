@@ -2,6 +2,13 @@ export type PermissionMode = 'default' | 'auto-approve' | 'full'
 export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type SendShortcut = 'enter' | 'mod-enter'
+export type AssistantTone = 'casual' | 'professional'
+
+export const DEFAULT_ASSISTANT_TONE: AssistantTone = 'casual'
+
+export function normalizeAssistantTone(value: unknown): AssistantTone {
+  return value === 'professional' ? 'professional' : DEFAULT_ASSISTANT_TONE
+}
 
 export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<KeyboardEvent, 'key' | 'keyCode' | 'isComposing' | 'metaKey' | 'ctrlKey' | 'shiftKey'>) {
   if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return false

@@ -9,9 +9,9 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
-import { MIRA_SYSTEM_PROMPT } from './prompts/mira-system-prompt'
+import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 
 function emit(sender: WebContents, event: HarnessEvent) { if (!sender.isDestroyed()) sender.send('harness:event', event) }
 
@@ -72,6 +72,18 @@ function activityDetail(toolName: string, args: unknown) {
     .replace(/\s+/g, ' ')
     .slice(0, 240)
   return `${prefix}：${safeTarget}`
+}
+
+function permissionTitle(name: string, args: Record<string, unknown>) {
+  if (name === 'delete_file') return '允许 Mira 删除这个文件？'
+  if (name === 'edit') return '允许 Mira 编辑这个文件？'
+  if (name === 'write') return '允许 Mira 写入这个文件？'
+  const command = String(args.command ?? '').trim().toLocaleLowerCase()
+  if (/^git\s+log\b/.test(command)) return '允许 Mira 查看 Git 提交记录？'
+  if (/^git\s+status\b/.test(command)) return '允许 Mira 查看 Git 工作区状态？'
+  if (/^git\s+diff\b/.test(command)) return '允许 Mira 查看 Git 变更内容？'
+  if (/^git\s+(fetch|pull)\b/.test(command)) return '允许 Mira 从远程更新 Git 信息？'
+  return '允许 Mira 执行这条命令？'
 }
 
 export class HarnessRuntime {
@@ -317,7 +329,10 @@ export class HarnessRuntime {
     session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
     const agent = new Agent({
       initialState: {
-        systemPrompt: MIRA_SYSTEM_PROMPT,
+        systemPrompt: buildMiraSystemPrompt({
+          tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
+          context: { model: { providerName: provider.name, modelName: selection.modelId } },
+        }),
         model,
         thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
         messages: this.agentMessages(session, model),
@@ -336,7 +351,7 @@ export class HarnessRuntime {
           if (blocked) return { block: true, reason: '危险命令已被永久拦截' }
         }
         const mode = this.database.harness.getSession(sessionId).permissionMode
-        const title = name === 'bash' ? '允许 Agent 执行命令？' : name === 'delete_file' ? '允许 Agent 删除文件？' : name === 'edit' ? '允许 Agent 编辑文件？' : '允许 Agent 写入文件？'
+        const title = permissionTitle(name, args)
         const detail = name === 'bash' ? String(args.command ?? '') : name === 'delete_file' ? `${String(args.path ?? '')}\n文件会移入 Mira 回收站。` : String(args.path ?? '')
         const allowed = await this.approve(sender, sessionId, mode, title, detail)
         return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }

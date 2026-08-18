@@ -11,12 +11,13 @@ import { NovelStore } from './novelStore'
 import { HarnessStore } from './harnessStore'
 import { ModelConfigStore } from './modelConfigStore'
 import { validateSnapshot } from '../src/config/platformValidation'
+import { DEFAULT_ASSISTANT_TONE } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
 const CURRENT_SCHEMA_VERSION = 19
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
-const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter' }
+const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 

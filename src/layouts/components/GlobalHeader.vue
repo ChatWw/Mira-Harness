@@ -53,7 +53,7 @@
         class="collapse-btn"
         @click="appStore.toggleSidebar()"
       ><AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" /></el-button>
-      <Breadcrumb v-if="layoutStore.config.showBreadcrumb" class="global-breadcrumb" />
+      <Breadcrumb v-if="layoutStore.config.showBreadcrumb && !isWorkspaceRoute" class="global-breadcrumb" />
     </div>
 
     <div class="global-actions">
@@ -88,7 +88,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { applications } from '@/config/runtime'
-import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
+import { getAppCodeFromPath, getApplicationEntryPath, isWorkspacePath, navigateToPath } from '@/config/navigation'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import { useAppStore } from '@/stores/app'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -102,6 +102,7 @@ const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))
+const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 const selectedApp = computed(() => applications.value.find(app => app.code === currentAppCode.value))
 const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)

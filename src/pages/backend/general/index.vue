@@ -58,6 +58,26 @@
       </div>
     </section>
 
+    <section class="general-settings" aria-labelledby="assistant-heading">
+      <div class="section-heading">
+        <h2 id="assistant-heading">Mira</h2>
+        <p>控制 Mira 在对话中默认使用的表达方式。</p>
+      </div>
+
+      <div class="settings-list">
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">Mira 回复语气</span>
+            <span class="settings-row__hint">轻松模式更自然亲切；专业模式更清晰、克制、结构化。</span>
+          </div>
+          <el-radio-group class="assistant-tone-picker" :model-value="assistantTone" aria-label="Mira 回复语气" @change="setAssistantTone">
+            <el-radio-button value="casual">轻松</el-radio-button>
+            <el-radio-button value="professional">专业</el-radio-button>
+          </el-radio-group>
+        </div>
+      </div>
+    </section>
+
     <section class="general-settings" aria-labelledby="window-heading">
       <div class="section-heading">
         <h2 id="window-heading">窗口</h2>
@@ -83,7 +103,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type SendShortcut } from '@/config/harness'
+import { DEFAULT_ASSISTANT_TONE, DEFAULT_PERMISSION_CONFIG, normalizeAssistantTone, type AssistantTone, type PermissionConfig, type SendShortcut } from '@/config/harness'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import type { CloseWindowBehavior } from '@/types'
@@ -94,6 +114,7 @@ const permissionSaving = ref(false)
 const closeWindowBehavior = computed<CloseWindowBehavior>(() => platformPreferences.closeWindowBehavior === 'quit' ? 'quit' : 'background')
 const showContextUsage = computed(() => getPreference('showContextUsage', true))
 const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'mod-enter') === 'enter' ? 'enter' : 'mod-enter')
+const assistantTone = computed<AssistantTone>(() => normalizeAssistantTone(getPreference<unknown>('assistantTone', DEFAULT_ASSISTANT_TONE)))
 
 async function loadPermissionConfig() {
   const value = await getPlatformApi()?.getHarnessPermissionConfig()
@@ -132,6 +153,7 @@ function setCloseWindowBehavior(value: CloseWindowBehavior) {
 
 function setShowContextUsage(value: boolean) { savePreference('showContextUsage', value) }
 function setSendShortcut(value: string) { savePreference('sendShortcut', value === 'enter' ? 'enter' : 'mod-enter') }
+function setAssistantTone(value: string) { savePreference('assistantTone', normalizeAssistantTone(value)) }
 
 onMounted(() => { void loadPermissionConfig() })
 </script>
@@ -148,6 +170,7 @@ onMounted(() => { void loadPermissionConfig() })
 .settings-list--permission { border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-list--permission .settings-row { padding-right: 16px; padding-left: 16px; }
 .window-behavior-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
+.assistant-tone-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
 .send-shortcut-picker { width: min(260px, 44vw); }
 .settings-row {
   display: flex;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldAutoCompactContext, shouldSendWithShortcut } from '../src/config/harness'
+import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, shouldAutoCompactContext, shouldSendWithShortcut } from '../src/config/harness'
 
 function key(overrides: Partial<KeyboardEvent> = {}) {
   return { key: 'Enter', keyCode: 13, isComposing: false, metaKey: false, ctrlKey: false, shiftKey: false, ...overrides } as KeyboardEvent
@@ -27,5 +27,13 @@ describe('harness context compaction threshold', () => {
   it('starts compaction only after 80% of the configured window is used', () => {
     expect(shouldAutoCompactContext(102399, 128000)).toBe(false)
     expect(shouldAutoCompactContext(102400, 128000)).toBe(true)
+  })
+})
+
+describe('assistant tone preference', () => {
+  it('defaults invalid or missing values to casual', () => {
+    expect(normalizeAssistantTone(undefined)).toBe(DEFAULT_ASSISTANT_TONE)
+    expect(normalizeAssistantTone('invalid')).toBe(DEFAULT_ASSISTANT_TONE)
+    expect(normalizeAssistantTone('professional')).toBe('professional')
   })
 })
