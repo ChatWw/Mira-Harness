@@ -166,9 +166,8 @@ onMounted(() => { void loadPermissionConfig() })
 .section-heading h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; letter-spacing: -0.01em; }
 .section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 
-.settings-list { overflow: hidden; }
-.settings-list--permission { border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
-.settings-list--permission .settings-row { padding-right: 16px; padding-left: 16px; }
+.settings-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
+.settings-list .settings-row { padding-right: 16px; padding-left: 16px; }
 .window-behavior-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
 .assistant-tone-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
 .send-shortcut-picker { width: min(260px, 44vw); }
