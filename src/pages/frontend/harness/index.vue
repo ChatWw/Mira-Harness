@@ -243,7 +243,7 @@
 
     <el-dialog v-model="fullAccessConfirmVisible" class="full-access-dialog" width="min(460px, calc(100vw - 32px))" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" align-center>
       <template #header><div class="full-access-dialog__header"><AppIcon name="WarningFilled" /><h2>确认允许完全访问?</h2></div></template>
-      <p class="full-access-dialog__copy">开启允许完全访问后，AI 将减少确认步骤，并可直接执行更多操作，包括敏感操作、文件修改或外部执行。<br>仅建议在您信任当前任务时使用。</p>
+      <p class="full-access-dialog__copy">开启允许完全访问后，Mira 将减少确认步骤，并可直接执行更多操作，包括敏感操作、文件修改或外部执行。<br>仅建议在您信任当前任务时使用。</p>
       <el-checkbox v-model="fullAccessAcknowledged" class="full-access-dialog__ack">我已了解风险，并愿意继续</el-checkbox>
       <template #footer><div class="full-access-dialog__footer"><el-button @click="fullAccessConfirmVisible = false">取消</el-button><el-button type="danger" :disabled="!fullAccessAcknowledged" @click="confirmFullAccess">允许完全访问</el-button></div></template>
     </el-dialog>
