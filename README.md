@@ -163,8 +163,7 @@ scripts/                  # 构建与工具脚本
 ## 📖 文档
 
 - [Wiki 首页](./wiki/README.md)
-- [Harness 路线图](./wiki/design/HARNESS_ROADMAP.md) — 从"勉强可用"到"可靠的个人本地 Agent 工作台"的分阶段计划
-- [SCSS 迁移指南](./wiki/guides/SCSS_MIGRATION_GUIDE.md)
+- [Harness 开发计划](./wiki/design/HARNESS_ROADMAP.md) — 当前 Harness 的开发优先级、验收标准与技术决策
 
 ## 🤝 贡献
 
