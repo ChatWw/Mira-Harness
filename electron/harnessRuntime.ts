@@ -13,6 +13,15 @@ import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, shouldAutoCompactContex
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 
+const ASSISTANT_PERSIST_INTERVAL_MS = 250
+
+type ToolRisk = 'read' | 'write' | 'command' | 'mcp'
+type ToolDescriptor = {
+  risk: ToolRisk
+  title: (args: Record<string, unknown>) => string
+  detail: (args: Record<string, unknown>) => string
+}
+
 function emit(sender: WebContents, event: HarnessEvent) { if (!sender.isDestroyed()) sender.send('harness:event', event) }
 
 function messageContent(message: HarnessMessage) {
@@ -72,6 +81,17 @@ function activityDetail(toolName: string, args: unknown) {
     .replace(/\s+/g, ' ')
     .slice(0, 240)
   return `${prefix}：${safeTarget}`
+}
+
+function argumentSummary(args: unknown) {
+  const value = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+  return Object.entries(value)
+    .map(([key, item]) => `${key}=${typeof item === 'string' ? item : JSON.stringify(item)}`)
+    .join(', ')
+    .replace(/\b(api[_-]?key|token|password|secret)\b\s*(?:=|:)\s*([^\s,'"\r\n]+)/gi, '$1=***')
+    .replace(/(authorization\s*:\s*bearer\s+)[^\s,'"\r\n]+/gi, '$1***')
+    .replace(/\s+/g, ' ')
+    .slice(0, 240)
 }
 
 function permissionTitle(name: string, args: Record<string, unknown>) {
@@ -210,7 +230,27 @@ export class HarnessRuntime {
     entry.resolve(allowed)
   }
 
+  private async preflightToolCall(sender: WebContents, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown) {
+    const descriptor = descriptors.get(name)
+    if (!descriptor || descriptor.risk === 'read') return undefined
+    const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+    if (name === 'bash') {
+      const command = String(values.command ?? '')
+      const normalized = ` ${command.toLowerCase().replace(/\s+/g, ' ')} `
+      const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized)
+      if (blocked) return { block: true, reason: '危险命令已被永久拦截' }
+    }
+    const mode = this.database.harness.getSession(sessionId).permissionMode
+    const allowed = await this.approve(sender, sessionId, mode, descriptor.title(values), descriptor.detail(values))
+    return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }
+  }
+
   private tools(sender: WebContents, sessionId: string) {
+    const descriptors = new Map<string, ToolDescriptor>()
+    const register = <T extends { name: string }>(tool: T, descriptor: ToolDescriptor) => {
+      descriptors.set(tool.name, descriptor)
+      return tool
+    }
     const session = () => this.database.harness.getSession(sessionId)
     const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt: Date.now() }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
     const finish = (id: string, status: 'ok' | 'failed', diff?: string) => this.database.harness.updateTool(sessionId, id, { status, diff, completedAt: Date.now() })
@@ -220,18 +260,18 @@ export class HarnessRuntime {
       name, label, description, parameters, executionMode: 'sequential',
       execute: async (_id: string) => { const id = record(name, ''); try { throw new Error('请先选择项目工作目录') } catch (error) { finish(id, 'failed'); throw error } },
     })
-    const readTool = env
+    const readTool = register(env
       ? wrapHarnessTool(createReadTool(), { env }, { record, finish, target: params => params.path ?? '' }, '读取项目内的文本文件（支持图片，可用 offset/limit 分页读取大文件）')
-      : fallbackTool('read', '读取文件', '读取项目内的文本文件', Type.Object({ path: Type.String() }))
-    const editTool = env
+      : fallbackTool('read', '读取文件', '读取项目内的文本文件', Type.Object({ path: Type.String() })), { risk: 'read', title: () => '', detail: () => '' })
+    const editTool = register(env
       ? wrapHarnessTool(createEditTool(), { env }, { record, finish, target: params => params.path ?? '' }, '精确编辑项目内文件：用 oldText 片段替换为 newText（oldText 必须是文件中的唯一片段），改动会返回 diff')
-      : fallbackTool('edit', '编辑文件', '精确编辑项目内文本文件', Type.Object({ path: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })) }))
-    const writeTool = env
+      : fallbackTool('edit', '编辑文件', '精确编辑项目内文本文件', Type.Object({ path: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })) })), { risk: 'write', title: () => '允许 Mira 编辑这个文件？', detail: args => String(args.path ?? '') })
+    const writeTool = register(env
       ? wrapHarnessTool(createWriteTool(), { env }, { record, finish, target: params => params.path ?? '' }, '写入项目内文本文件（不存在则创建，存在则覆盖，自动创建父目录）')
-      : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() }))
-    const bashTool = env
+      : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() })), { risk: 'write', title: () => '允许 Mira 写入这个文件？', detail: args => String(args.path ?? '') })
+    const bashTool = register(env
       ? wrapHarnessTool(createBashTool(), { env }, { record, finish, target: params => params.command ?? '' }, '在项目目录中执行命令（返回 stdout/stderr，输出过长会截断）')
-      : fallbackTool('bash', '执行命令', '在项目目录中执行非危险命令', Type.Object({ command: Type.String() }))
+      : fallbackTool('bash', '执行命令', '在项目目录中执行非危险命令', Type.Object({ command: Type.String() })), { risk: 'command', title: args => permissionTitle('bash', args), detail: args => String(args.command ?? '') })
     const wrapRecordTool = (tool: any, target: (params: any) => string) => ({
       ...tool,
       execute: async (id: string, params: any, signal?: AbortSignal, onUpdate?: any) => {
@@ -246,20 +286,29 @@ export class HarnessRuntime {
         }
       },
     })
-    const webFetchTool = wrapRecordTool(createWebFetchTool(), params => params.url ?? '')
-    const webSearchTool = wrapRecordTool(createWebSearchTool(), params => params.query ?? '')
-    const mcpTools = this.mcpManager.getTools().map(tool => wrapRecordTool(tool, () => tool.name))
-    return [
+    const webFetchTool = register(wrapRecordTool(createWebFetchTool(), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const webSearchTool = register(wrapRecordTool(createWebSearchTool(), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const mcpTools = this.mcpManager.getTools().map(tool => {
+      const serverName = typeof tool.miraMcpServerName === 'string' ? tool.miraMcpServerName : 'MCP 服务'
+      return register(wrapRecordTool(tool, params => `${serverName} / ${tool.name}${argumentSummary(params) ? `: ${argumentSummary(params)}` : ''}`), {
+        risk: 'mcp',
+        title: () => `允许 Mira 调用 MCP 工具“${tool.name}”？`,
+        detail: args => `${serverName} / ${tool.name}${argumentSummary(args) ? `\n${argumentSummary(args)}` : ''}`,
+      })
+    })
+    const listFilesTool = register({ name: 'list_files', label: '列出文件', description: '列出项目目录内文件', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { const dir = this.assertProjectPath(session().workingDirectory, target); const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } }, { risk: 'read', title: () => '', detail: () => '' })
+    const deleteTool = register({ name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('delete', params.path); try { const result = this.database.harness.moveToTrash(sessionId, params.path); finish(id, 'ok', `- 删除 ${result.path}（可还原）`); return { content: [{ type: 'text', text: `已删除 ${result.path}，可在回收站还原。` }], details: result } } catch (error) { finish(id, 'failed'); throw error } } }, { risk: 'write', title: () => '允许 Mira 删除这个文件？', detail: args => `${String(args.path ?? '')}\n文件会移入 Mira 回收站。` })
+    return { tools: [
       readTool,
       editTool,
-      { name: 'list_files', label: '列出文件', description: '列出项目目录内文件', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { const dir = this.assertProjectPath(session().workingDirectory, target); const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } },
+      listFilesTool,
       writeTool,
-      { name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('delete', params.path); try { const result = this.database.harness.moveToTrash(sessionId, params.path); finish(id, 'ok', `- 删除 ${result.path}（可还原）`); return { content: [{ type: 'text', text: `已删除 ${result.path}，可在回收站还原。` }], details: result } } catch (error) { finish(id, 'failed'); throw error } } },
+      deleteTool,
       bashTool,
       webFetchTool,
       webSearchTool,
       ...mcpTools,
-    ] as any
+    ] as any, descriptors }
   }
 
   async runMessage(sender: WebContents, sessionId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
@@ -295,6 +344,13 @@ export class HarnessRuntime {
     return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
   }
 
+  async editAndRerun(sender: WebContents, sessionId: string, messageId: string, content: string, selection?: ModelSelection) {
+    if (this.running.has(sessionId)) throw new Error('该会话正在运行')
+    const { provider, apiKey } = this.requireProvider(selection)
+    const session = this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content)
+    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+  }
+
   private async runAgent(sender: WebContents, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string) {
     const text = [...session.messages].reverse().find(message => message.role === 'user')?.content
     if (!text) throw new Error('没有可运行的对话')
@@ -315,51 +371,62 @@ export class HarnessRuntime {
     const finishRunningActivities = (status: HarnessRunActivity['status']) => activities.filter(item => item.status === 'running').forEach(item => Object.assign(item, { status, completedAt: Date.now() }))
     emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities } })
 
-    const model = {
-      id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
-      reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
-      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
-    } as any
-    const models = createModels()
-    models.setProvider(createProvider({
-      id: 'mira-openai', name: provider.name, baseUrl: provider.endpoint,
-      auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
-      models: [model], api: openAICompletionsApi(),
-    }) as any)
-    session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
-    const agent = new Agent({
-      initialState: {
-        systemPrompt: buildMiraSystemPrompt({
-          tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
-          context: { model: { providerName: provider.name, modelName: selection.modelId } },
-        }),
-        model,
-        thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
-        messages: this.agentMessages(session, model),
-        tools: this.tools(sender, sessionId),
-      } as any,
-      streamFn: models.streamSimple.bind(models) as any,
-      sessionId,
-      beforeToolCall: async ({ toolCall }) => {
-        const name = toolCall.name
-        if (name !== 'write' && name !== 'edit' && name !== 'delete_file' && name !== 'bash') return undefined
-        const args = toolCall.arguments
-        if (name === 'bash') {
-          const command = String(args.command ?? '')
-          const normalized = ` ${command.toLowerCase().replace(/\s+/g, ' ')} `
-          const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized)
-          if (blocked) return { block: true, reason: '危险命令已被永久拦截' }
-        }
-        const mode = this.database.harness.getSession(sessionId).permissionMode
-        const title = permissionTitle(name, args)
-        const detail = name === 'bash' ? String(args.command ?? '') : name === 'delete_file' ? `${String(args.path ?? '')}\n文件会移入 Mira 回收站。` : String(args.path ?? '')
-        const allowed = await this.approve(sender, sessionId, mode, title, detail)
-        return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }
-      },
-    })
-    this.running.get(sessionId)!.agent = agent
+    let model: any
+    let agent!: Agent
+    try {
+      model = {
+        id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
+        reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
+        input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
+      } as any
+      const models = createModels()
+      models.setProvider(createProvider({
+        id: 'mira-openai', name: provider.name, baseUrl: provider.endpoint,
+        auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
+        models: [model], api: openAICompletionsApi(),
+      }) as any)
+      session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
+      const registeredTools = this.tools(sender, sessionId)
+      agent = new Agent({
+        initialState: {
+          systemPrompt: buildMiraSystemPrompt({
+            tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
+            context: { model: { providerName: provider.name, modelName: selection.modelId } },
+          }),
+          model,
+          thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
+          messages: this.agentMessages(session, model),
+          tools: registeredTools.tools,
+        } as any,
+        streamFn: models.streamSimple.bind(models) as any,
+        sessionId,
+        beforeToolCall: ({ toolCall, args }) => this.preflightToolCall(sender, sessionId, registeredTools.descriptors, toolCall.name, args),
+      })
+      this.running.get(sessionId)!.agent = agent
+    } catch (error) {
+      finishRunningActivities('failed')
+      publishActivities()
+      this.database.harness.setStatus(sessionId, 'failed')
+      this.running.delete(sessionId)
+      emit(sender, { sessionId, type: 'message-complete', payload: {} })
+      emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
+      emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })
+      throw error
+    }
     let output = ''
-    let assistantPersisted = false
+    let pendingAssistantDelta = ''
+    let assistantPersistTimer: ReturnType<typeof setTimeout> | undefined
+    let assistantFinalized = false
+    const flushAssistantDelta = () => {
+      if (assistantPersistTimer) clearTimeout(assistantPersistTimer)
+      assistantPersistTimer = undefined
+      if (!pendingAssistantDelta) return
+      this.database.harness.appendAssistantDelta(sessionId, pendingAssistantDelta)
+      pendingAssistantDelta = ''
+    }
+    const scheduleAssistantPersist = () => {
+      if (!assistantPersistTimer) assistantPersistTimer = setTimeout(flushAssistantDelta, ASSISTANT_PERSIST_INTERVAL_MS)
+    }
     const unsubscribe = agent.subscribe((event: any) => {
       if (event.type === 'message_start' && !activities.some(item => item.status === 'running')) {
         startActivity(`thinking-${activities.length}`, '正在思考')
@@ -372,6 +439,8 @@ export class HarnessRuntime {
         publishActivities()
         const delta = event.assistantMessageEvent.delta as string
         output += delta
+        pendingAssistantDelta += delta
+        scheduleAssistantPersist()
         emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
       }
       if (event.type === 'tool_execution_start') {
@@ -392,36 +461,46 @@ export class HarnessRuntime {
       if (agent.state.errorMessage) throw new Error(agent.state.errorMessage)
       const finalMessage = agent.state.messages.at(-1)
       const finalText = assistantText(finalMessage)
-      if (finalText && finalText !== output) {
-        const delta = finalText.startsWith(output) ? finalText.slice(output.length) : finalText
-        if (delta) emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
+      if (finalText && finalText.startsWith(output) && finalText !== output) {
+        const delta = finalText.slice(output.length)
+        if (delta) {
+          pendingAssistantDelta += delta
+          emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
+        }
         output = finalText
       }
       if (!output) throw new Error('模型没有返回文本')
       finishRunningActivities('completed')
       const completedAt = Date.now()
       const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities }
-      session = this.database.harness.appendAssistantText(sessionId, output, run, tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined))
-      assistantPersisted = true
-      const usage = contextUsage(this.agentMessages(session, model), model.contextWindow)
+      flushAssistantDelta()
+      const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
       run.contextUsage = usage
-      if (session.messages.at(-1)?.run) session.messages.at(-1)!.run!.contextUsage = usage
+      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined) })
+      assistantFinalized = true
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()
-      if (output && !assistantPersisted) {
-        this.database.harness.appendAssistantText(sessionId, output, undefined, undefined, true)
-      }
       const aborted = controller.signal.aborted
+      flushAssistantDelta()
+      if (output && !assistantFinalized) {
+        const completedAt = Date.now()
+        this.database.harness.finalizeAssistantMessage(sessionId, { run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities }, interrupted: aborted })
+        assistantFinalized = true
+        emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
+      } else if (!output) {
+        emit(sender, { sessionId, type: 'message-complete', payload: {} })
+      }
       this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
       if (!aborted) {
         emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
         throw error
       }
     } finally {
+      flushAssistantDelta()
       unsubscribe()
       this.running.delete(sessionId)
       emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })

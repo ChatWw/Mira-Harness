@@ -1,5 +1,5 @@
 <template>
-  <PageContainer title="项目" description="管理 Agent 可以访问的本地工作目录。">
+  <PageContainer title="项目" description="管理 Mira 可以访问的本地工作目录。">
     <template #extra>
       <el-button type="primary" @click="create"><AppIcon name="Plus" />新建项目</el-button>
     </template>

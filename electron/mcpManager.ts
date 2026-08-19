@@ -21,7 +21,7 @@ export class McpManager {
         const result = await client.listTools()
         const tools = Array.isArray(result.tools) ? result.tools : []
         this.clients.set(config.id, client)
-        this.toolsByServer.set(config.id, tools.map(tool => this.toAgentTool(tool, client)))
+        this.toolsByServer.set(config.id, tools.map(tool => this.toAgentTool(tool, client, config.name)))
       } catch (error) {
         console.error(`[mcp] 连接 ${config.name} 失败:`, error instanceof Error ? error.message : String(error))
       }
@@ -32,10 +32,11 @@ export class McpManager {
     return [...this.toolsByServer.values()].flat()
   }
 
-  private toAgentTool(tool: any, client: Client): any {
+  private toAgentTool(tool: any, client: Client, serverName: string): any {
     return {
       name: tool.name,
       label: tool.name,
+      miraMcpServerName: serverName,
       description: tool.description || `MCP 工具 ${tool.name}`,
       // MCP 工具的 inputSchema 是 JSON Schema，转 typebox 成本高；这里用宽松 schema，
       // 参数校验交给 MCP server 自己做，模型仍能自由传参调用。

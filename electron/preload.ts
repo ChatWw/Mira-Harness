@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('platform', {
   attachHarnessDirectory: (sessionId: string) => ipcRenderer.invoke('harness:attach-directory', sessionId),
   runHarnessMessage: (sessionId: string, message: string, references?: unknown[], selection?: unknown) => ipcRenderer.invoke('harness:run-message', sessionId, message, references, selection),
   rerunHarness: (sessionId: string, selection?: unknown) => ipcRenderer.invoke('harness:rerun', sessionId, selection),
+  editAndRerunHarnessMessage: (sessionId: string, messageId: string, content: string, selection?: unknown) => ipcRenderer.invoke('harness:edit-and-rerun', sessionId, messageId, content, selection),
   abortHarnessRun: (sessionId: string) => ipcRenderer.invoke('harness:abort-run', sessionId),
   getHarnessPermissionConfig: () => ipcRenderer.invoke('harness:get-permission-config'),
   saveHarnessPermissionConfig: (config: unknown) => ipcRenderer.invoke('harness:save-permission-config', config),

@@ -19,10 +19,6 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: 'MCP 服务' },
   },
   {
-    path: '/settings/agent-permission',
-    redirect: '/settings/general',
-  },
-  {
     path: '/settings/python-environment',
     name: 'SettingsPythonEnvironment',
     component: () => import('@/pages/backend/pythonEnv/index.vue'),
@@ -141,7 +137,7 @@ const layoutRoute: RouteRecordRaw = {
     { path: '/workspace/chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false, noPageTransition: true } },
     { path: '/workspace/chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false, noPageTransition: true } },
     { path: '/workspace/projects', name: 'HarnessProjects', component: () => import('@/pages/frontend/harness/projects/index.vue'), meta: { title: '项目', noPageTransition: true } },
-    { path: '/workspace/history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '最近对话', noPageTransition: true } },
+    { path: '/workspace/history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '查看全部对话', noPageTransition: true } },
     { path: '/workspace/automations', name: 'HarnessAutomations', component: () => import('@/pages/frontend/harness/automations/index.vue'), meta: { title: '自动化', noPageTransition: true } },
     {
       path: '/micro/:code/:pathMatch(.*)*',

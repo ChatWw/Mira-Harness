@@ -10,23 +10,40 @@
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">默认权限</span>
-            <span class="settings-row__hint">读取和搜索自动批准；写入、删除和执行命令时逐次确认。</span>
+            <span class="settings-row__hint">读取、列目录和网页工具自动批准；写入、编辑、删除、命令和每次 MCP 调用逐次确认。</span>
           </div>
           <el-switch :model-value="true" aria-label="默认权限已启用" disabled />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">自动审核</span>
-            <span class="settings-row__hint">项目目录内的读写和命令自动批准；危险命令仍会被拦截。</span>
+            <span class="settings-row__hint">项目目录内的读写、删除、命令和 MCP 调用自动批准；危险命令仍会被拦截。</span>
           </div>
           <el-switch :model-value="config.autoApproveEnabled" :loading="permissionSaving" aria-label="启用自动审核" @update:model-value="setPermissionAvailability('autoApproveEnabled', $event)" />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">完全访问权限</span>
-            <span class="settings-row__hint">不再显示操作确认；危险命令、路径限制和回收站保护仍然有效。</span>
+            <span class="settings-row__hint">不再显示操作确认；危险命令、路径逃逸和回收站删除限制仍然有效。</span>
           </div>
           <el-switch :model-value="config.fullAccessEnabled" :loading="permissionSaving" aria-label="启用完全访问权限" @update:model-value="setPermissionAvailability('fullAccessEnabled', $event)" />
+        </div>
+      </div>
+    </section>
+
+    <section class="general-settings" aria-labelledby="trash-heading">
+      <div class="section-heading">
+        <h2 id="trash-heading">回收站</h2>
+        <p>控制项目文件移入 Mira 回收站后的保留时间。</p>
+      </div>
+
+      <div class="settings-list">
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">保留天数</span>
+            <span class="settings-row__hint">到期文件会在清理回收站时移除。</span>
+          </div>
+          <el-input-number :model-value="config.trashRetentionDays" :min="1" :max="30" :disabled="permissionSaving" controls-position="right" aria-label="回收站保留天数" @update:model-value="setTrashRetentionDays" />
         </div>
       </div>
     </section>
@@ -141,6 +158,31 @@ async function setPermissionAvailability(key: 'autoApproveEnabled' | 'fullAccess
   } catch (error) {
     config[key] = previous
     ElMessage.error(error instanceof Error ? error.message : '权限设置保存失败')
+  } finally {
+    permissionSaving.value = false
+  }
+}
+
+async function setTrashRetentionDays(value: number | undefined) {
+  if (permissionSaving.value || typeof value !== 'number' || config.trashRetentionDays === value) return
+  const previous = config.trashRetentionDays
+  config.trashRetentionDays = value
+  permissionSaving.value = true
+  try {
+    const api = getPlatformApi()
+    if (!api) throw new Error('回收站设置仅在桌面端中可用')
+    const saved = await api.saveHarnessPermissionConfig({
+      globalDefaultMode: 'default',
+      autoApproveEnabled: config.autoApproveEnabled,
+      fullAccessEnabled: config.fullAccessEnabled,
+      dangerousCommands: [...config.dangerousCommands],
+      trashRetentionDays: config.trashRetentionDays,
+      trashDirName: config.trashDirName,
+    })
+    Object.assign(config, saved)
+  } catch (error) {
+    config.trashRetentionDays = previous
+    ElMessage.error(error instanceof Error ? error.message : '回收站设置保存失败')
   } finally {
     permissionSaving.value = false
   }

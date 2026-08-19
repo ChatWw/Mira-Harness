@@ -7,14 +7,17 @@
           <strong>{{ store.activeSession?.title || '新对话' }}</strong>
           <span class="conversation__directory">{{ selectedProject?.directory || '未关联项目' }}</span>
         </div>
-        <div class="conversation__actions"><el-button link @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" />项目</el-button><el-button link @click="router.push('/workspace/history')"><AppIcon name="Clock" />最近对话</el-button><el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag></div>
+        <div class="conversation__actions"><el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag></div>
       </header>
 
       <div class="conversation__messages">
         <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel">
         <article v-for="message in store.activeSession?.messages" :key="message.id" class="message" :class="[message.role, { 'is-entering': message.id === enteringMessageId }]" :data-message-id="message.id" @animationend="clearMessageEntrance(message.id)">
           <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '我' : 'Mira' }}</span>
-          <p v-if="message.role === 'user'">{{ message.content }}</p>
+          <template v-if="message.role === 'user'">
+            <el-input v-if="editingMessageId === message.id" v-model="editingMessageText" class="message__edit-input" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="编辑消息" />
+            <p v-else>{{ message.content }}</p>
+          </template>
           <template v-else>
             <details v-if="message.run" class="message__run">
               <summary><span class="run-summary__label">已完成 · {{ formatDuration(message.run.durationMs) }}</span><span class="run-summary__meta">{{ message.run.activities.length }} 个步骤</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
@@ -47,6 +50,11 @@
           </div>
           <div class="message__toolbar">
             <time class="message__time">{{ formatMessageTime(message.createdAt) }}</time>
+            <template v-if="editingMessageId === message.id">
+              <button type="button" class="message__tool-btn" aria-label="取消编辑" @click="cancelMessageEdit"><AppIcon name="Close" /><span class="message__tool-label">取消</span></button>
+              <button type="button" class="message__tool-btn" aria-label="保存并重新生成" :disabled="!editingMessageText.trim()" @click="saveMessageEdit(message)"><AppIcon name="Check" /><span class="message__tool-label">重跑</span></button>
+            </template>
+            <button v-else-if="canEditMessage(message)" type="button" class="message__tool-btn" aria-label="编辑并重新生成" @click="beginMessageEdit(message)"><AppIcon name="EditPen" /><span class="message__tool-label">编辑</span></button>
             <button v-if="message.content" type="button" class="message__tool-btn" aria-label="复制" @click="copyMessage(message)"><AppIcon name="CopyDocument" /><span class="message__tool-label">复制</span></button>
             <button v-if="canRerun(message)" type="button" class="message__tool-btn" aria-label="重新生成" @click="rerun"><AppIcon name="Refresh" /><span class="message__tool-label">{{ message.interrupted ? '继续' : '重新生成' }}</span></button>
           </div>
@@ -176,9 +184,6 @@
                   </button>
                 </div>
               </el-popover>
-              <span v-if="store.running" class="composer-running"><i></i>正在生成</span>
-              <span v-else-if="store.rendering" class="composer-rendering">正在呈现回复</span>
-              <span v-else class="composer-shortcut">{{ sendShortcut === 'enter' ? 'Enter 发送 · Shift + Enter 换行' : 'Ctrl / ⌘ + Enter 发送' }}</span>
             </div>
             <div class="composer__submit">
               <el-tooltip v-if="showContextUsage && composerDraft.modelSelection" placement="top" :show-arrow="false">
@@ -215,7 +220,7 @@
                 </div>
               </el-popover>
               <el-tooltip v-if="store.running" content="停止生成" placement="top"><button type="button" class="composer__send is-stop" aria-label="停止生成" @click="abort"><AppIcon name="VideoPause" /></button></el-tooltip>
-              <el-tooltip v-else :content="store.rendering ? '正在呈现回复' : (composerDraft.modelSelection ? '发送消息' : '请先选择模型')" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="isComposerBusy || !composerDraft.text.trim() || !composerDraft.modelSelection" @click="send"><AppIcon name="Top" /></button></el-tooltip>
+              <el-tooltip v-else :content="composerDraft.modelSelection ? '发送消息' : '请先选择模型'" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="isComposerBusy || !composerDraft.text.trim() || !composerDraft.modelSelection" @click="send"><AppIcon name="Top" /></button></el-tooltip>
             </div>
           </div>
         </div>
@@ -226,7 +231,6 @@
       <div class="empty-state__hero">
         <h1 class="empty-state__title">Mira</h1>
         <p class="empty-state__subtitle">今天想做什么？从一个想法开始，我陪你把它落地。</p>
-        <div class="empty-state__nav"><el-button link @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" />项目</el-button><el-button link @click="router.push('/workspace/history')"><AppIcon name="Clock" />最近对话</el-button></div>
       </div>
       <div class="empty-state__cards">
         <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" class="starter-card" :disabled="isComposerBusy" @click="setDraftText(prompt.text)">
@@ -261,7 +265,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
 import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
@@ -282,6 +286,8 @@ markdown.renderer.rules.fence = (tokens, index) => {
 const streamRef = ref<HTMLElement>()
 const quickNavigationRef = ref<HTMLElement>()
 const enteringMessageId = ref<string>()
+const editingMessageId = ref<string>()
+const editingMessageText = ref('')
 const addMenuVisible = ref(false)
 const addMenuView = ref<'menu' | 'file'>('menu')
 const projectPickerVisible = ref(false)
@@ -539,6 +545,44 @@ async function rerun() {
   }
 }
 
+function beginMessageEdit(message: HarnessMessage) {
+  editingMessageId.value = message.id
+  editingMessageText.value = message.content
+}
+
+function cancelMessageEdit() {
+  editingMessageId.value = undefined
+  editingMessageText.value = ''
+}
+
+async function saveMessageEdit(message: HarnessMessage) {
+  const api = getPlatformApi()
+  const session = store.activeSession
+  const content = editingMessageText.value.trim()
+  if (!api || !session || !content || store.running || store.rendering) return
+  try {
+    await ElMessageBox.confirm('保存后将删除这条消息后的对话，并基于修改后的内容重新生成。', '重新生成对话', { type: 'warning', confirmButtonText: '保存并重新生成', cancelButtonText: '取消' })
+  } catch {
+    return
+  }
+  const messageIndex = session.messages.findIndex(item => item.id === message.id)
+  if (messageIndex < 0) return
+  session.messages[messageIndex].content = content
+  session.messages = session.messages.slice(0, messageIndex + 1)
+  session.context = undefined
+  cancelMessageEdit()
+  const selection = composerDraft.value.modelSelection
+  store.running = true
+  try {
+    await api.editAndRerunHarnessMessage(session.id, message.id, content, selection ? { providerId: selection.providerId, modelId: selection.modelId, thinkingLevel: selection.thinkingLevel } : undefined)
+  } catch (error) {
+    await store.openSession(session.id).catch(() => undefined)
+    ElMessage.error(error instanceof Error ? error.message : '重新生成失败')
+  } finally {
+    store.running = false
+  }
+}
+
 async function copyMessage(message: HarnessMessage) {
   try {
     await navigator.clipboard.writeText(message.content)
@@ -554,6 +598,10 @@ function canRerun(message: HarnessMessage) {
   if (message.id !== messages?.[messages.length - 1]?.id) return false
   if (store.running || store.rendering) return false
   return true
+}
+
+function canEditMessage(message: HarnessMessage) {
+  return message.role === 'user' && !editingMessageId.value && !store.running && !store.rendering
 }
 
 function formatMessageTime(timestamp: number) {
@@ -1085,7 +1133,7 @@ onBeforeUnmount(() => {
 :global([data-theme='dark']) .run-progress__label, :global([data-theme='dark']) .message__run li.running .run-activity__label, :global([data-theme='dark']) .run-progress li.running .run-activity__label { --run-sweep-base: var(--cp-text-secondary); --run-sweep-edge: color-mix(in srgb, var(--cp-text) 58%, var(--cp-text-secondary)); --run-sweep-highlight: var(--cp-text); }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) { .run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label { background: linear-gradient(100deg, var(--run-sweep-base) 0 24%, var(--run-sweep-edge) 38%, var(--run-sweep-highlight) 50%, var(--run-sweep-edge) 62%, var(--run-sweep-base) 76% 100%); background-size: 260% 100%; color: transparent; background-clip: text; -webkit-background-clip: text; animation: run-text-sweep 1.8s ease-in-out infinite; } }
 .message__markdown :deep(> :first-child) { margin-top: 0; }.message__markdown :deep(> :last-child) { margin-bottom: 0; }.message__markdown :deep(h1), .message__markdown :deep(h2), .message__markdown :deep(h3), .message__markdown :deep(h4) { margin: 1.3em 0 .55em; color: var(--cp-text); font-weight: 600; line-height: 1.4; }.message__markdown :deep(h1) { font-size: 1.35em; }.message__markdown :deep(h2) { font-size: 1.2em; }.message__markdown :deep(h3), .message__markdown :deep(h4) { font-size: 1.05em; }.message__markdown :deep(p) { max-width: none; margin: 0 0 1em; white-space: normal; }.message__markdown :deep(ul), .message__markdown :deep(ol) { margin: 0 0 1em; padding-left: 1.55em; }.message__markdown :deep(li + li) { margin-top: .25em; }.message__markdown :deep(blockquote) { margin: 1em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--cp-border); color: var(--cp-text-secondary); }.message__markdown :deep(a) { color: var(--cp-primary); text-decoration: underline; text-underline-offset: 2px; }.message__markdown :deep(code) { padding: .12em .35em; border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }.message__markdown :deep(.markdown-code-block) { position: relative; max-width: 100%; }.message__markdown :deep(.markdown-code-block pre) { padding-right: 48px; }.message__markdown :deep(.markdown-code-copy) { position: absolute; z-index: 1; top: 8px; right: 8px; display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid var(--cp-border-light); border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-elevated); cursor: pointer; font-size: 17px; line-height: 1; opacity: 0; transition: color $transition-fast, border-color $transition-fast, background $transition-fast, opacity $transition-fast; }.message__markdown :deep(.markdown-code-copy svg) { width: 15px; height: 15px; }.message__markdown :deep(.markdown-code-block:hover .markdown-code-copy), .message__markdown :deep(.markdown-code-copy:focus-visible), .message__markdown :deep(.markdown-code-copy[data-copied='true']) { opacity: 1; }.message__markdown :deep(.markdown-code-copy:hover), .message__markdown :deep(.markdown-code-copy:focus-visible) { border-color: var(--cp-primary); color: var(--cp-primary); outline: none; }.message__markdown :deep(.markdown-code-copy[data-copied='true']) { border-color: var(--cp-success); color: var(--cp-success); }.message__markdown :deep(pre) { max-width: 100%; margin: 1em 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-hover); }.message__markdown :deep(pre code) { padding: 0; background: transparent; font-size: 12px; line-height: 1.65; }.message__markdown :deep(.markdown-table) { width: fit-content; max-width: 100%; margin: 1em 0; overflow-x: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }.message__markdown :deep(table) { width: max-content; border-spacing: 0; border-collapse: separate; }.message__markdown :deep(th), .message__markdown :deep(td) { min-width: 90px; padding: 7px 10px; border-right: 1px solid var(--cp-border-light); border-bottom: 1px solid var(--cp-border-light); text-align: left; }.message__markdown :deep(th) { color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-weight: 600; }.message__markdown :deep(tr > :last-child) { border-right: 0; }.message__markdown :deep(tbody tr:last-child td) { border-bottom: 0; }.message__markdown :deep(hr) { margin: 1.25em 0; border: 0; border-top: 1px solid var(--cp-border-light); }
-.message.user p { width: fit-content; max-width: min(78%, 72ch); margin-left: auto; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); border-radius: $radius-md; background: var(--cp-bg-hover); line-height: 1.7; }
+.message.user p, .message__edit-input { width: fit-content; max-width: min(78%, 72ch); margin-left: auto; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); border-radius: $radius-md; background: var(--cp-bg-hover); line-height: 1.7; }.message__edit-input { display: block; width: min(78%, 560px); padding: 5px; }.message__edit-input :deep(.el-textarea__inner) { min-height: 54px !important; padding: 5px 7px; border: 0; box-shadow: none; color: var(--cp-text); background: transparent; }
 .message__attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }.message__actions { margin-top: 8px; }.message__toolbar { display: flex; align-items: center; gap: 4px; margin-top: 8px; opacity: 0; transition: opacity $transition-fast; }.message:hover .message__toolbar { opacity: 1; }.message__time { color: var(--cp-text-tertiary); font-size: 11px; }.message__tool-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 0; border-radius: var(--cp-radius-sm, 4px); color: var(--cp-text-secondary); background: transparent; cursor: pointer; font-size: 12px; }.message__tool-btn:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.message__tool-label { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; transition: max-width $transition-fast, opacity $transition-fast; }.message__tool-btn:hover .message__tool-label { max-width: 80px; opacity: 1; }
 .message.user .message__attachments { justify-content: flex-end; }.message.user .message__toolbar { justify-content: flex-end; }
 .loading-dots { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 10px 13px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-elevated); }
@@ -1107,7 +1155,7 @@ onBeforeUnmount(() => {
 .empty-state { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
-.empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }.empty-state__nav { display: flex; gap: 16px; margin-top: 4px; }
+.empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
 .empty-state__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 680px; pointer-events: auto; }
 .starter-card { display: flex; align-items: flex-start; gap: 10px; width: 208px; padding: 14px 14px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 80%, transparent); border-radius: $radius-md; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast; }
 .starter-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-primary) 40%, var(--cp-border)); transform: translateY(-2px); box-shadow: 0 8px 20px rgb(24 24 27 / 6%); }
@@ -1150,10 +1198,8 @@ onBeforeUnmount(() => {
 .composer__submit { margin-left: auto; }
 .composer-icon-button, .composer__send { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--cp-text-secondary); background: transparent; cursor: pointer; transition: color $transition-fast, background $transition-fast, transform $transition-fast; }
 .composer-icon-button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
-.composer-permission, .composer-running, .composer-rendering, .composer-shortcut { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--cp-text-tertiary); font-size: 11px; white-space: nowrap; }
+.composer-permission { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--cp-text-tertiary); font-size: 11px; white-space: nowrap; }
 .composer-permission { padding: 3px 5px; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }.composer-permission:hover:not(:disabled) { color: var(--cp-text); background: var(--cp-bg-hover); }.composer-permission:disabled { cursor: default; }.composer-permission > .app-icon:last-child { font-size: 10px; }.composer-permission.is-auto-approve { color: var(--cp-primary); }.composer-permission.is-full { color: var(--cp-danger); }
-.composer-running { color: var(--cp-primary); }.composer-running i { width: 10px; height: 10px; border: 1.5px solid color-mix(in srgb, var(--cp-primary) 30%, transparent); border-top-color: var(--cp-primary); border-radius: 50%; animation: composer-spin .8s linear infinite; }
-.composer-rendering { color: var(--cp-primary); }
 .composer-model { display: inline-flex; align-items: center; min-width: 0; max-width: min(290px, 38vw); gap: 5px; padding: 4px 6px 4px 9px; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
 .composer-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.composer-model small { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 11px; }.composer-model .app-icon { flex: 0 0 auto; font-size: 12px; }.composer-model:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.composer-model.is-empty { color: var(--cp-danger); }
 .context-usage { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--cp-primary); }
@@ -1164,9 +1210,8 @@ onBeforeUnmount(() => {
 .session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }.tool-diff { grid-column: 1 / -1; max-height: 160px; margin: 4px 0 0; padding: 6px 8px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-sm, 4px); color: var(--cp-text-secondary); background: var(--cp-bg-hover); font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; }.session-panel { display: none; } }
-@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.message__markdown :deep(.markdown-code-copy) { opacity: 1; }.permission-request-card { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }.permission-request-card__actions { grid-column: 2; justify-content: flex-end; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-toolbar__project { max-width: 180px; }.composer-toolbar__git { max-width: 108px; }.composer-chip { max-width: 150px; }.composer-shortcut { display: none; }.composer-model { max-width: 150px; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; }.quick-navigation { display: none; } }
+@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.message-stream { padding: 24px 16px 16px; }.message { margin-bottom: 23px; }.message p { font-size: 14px; }.message.user p { max-width: 88%; }.message__markdown :deep(.markdown-code-copy) { opacity: 1; }.permission-request-card { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }.permission-request-card__actions { grid-column: 2; justify-content: flex-end; }.composer-shell { padding: 0 10px 12px; }.composer { min-height: 114px; padding: 9px 10px; }.composer-toolbar__project { max-width: 180px; }.composer-toolbar__git { max-width: 108px; }.composer-chip { max-width: 150px; }.composer-model { max-width: 150px; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; }.quick-navigation { display: none; } }
 @keyframes harness-loading-dot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
-@keyframes composer-spin { to { transform: rotate(360deg); } }
 @keyframes run-text-sweep { to { background-position: -220% 0; } }
 @keyframes user-message-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .loading-dots i, .run-progress__label, .message__run li.running .run-activity__label, .run-progress li.running .run-activity__label, .message.user.is-entering { animation: none; } }

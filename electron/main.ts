@@ -236,6 +236,7 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('harness:run-message', (event, sessionId: string, message: string, references: HarnessFileReference[] = [], selection) => harnessRuntime.runMessage(event.sender, sessionId, message, references, selection))
   ipcMain.handle('harness:rerun', (event, sessionId: string, selection) => harnessRuntime.rerun(event.sender, sessionId, selection))
+  ipcMain.handle('harness:edit-and-rerun', (event, sessionId: string, messageId: string, content: string, selection) => harnessRuntime.editAndRerun(event.sender, sessionId, messageId, content, selection))
   ipcMain.handle('harness:abort-run', (_event, sessionId: string) => harnessRuntime.abort(sessionId))
   ipcMain.handle('harness:respond-permission', (_event, requestId: string, allowed: boolean) => harnessRuntime.resolvePermission(requestId, Boolean(allowed)))
   ipcMain.handle('mcp:list-servers', () => mcpConfigStore.list())

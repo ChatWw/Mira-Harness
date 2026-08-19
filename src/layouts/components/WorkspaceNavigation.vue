@@ -8,7 +8,7 @@
       <section class="workspace-group">
         <div class="workspace-group__header">
           <button type="button" class="workspace-group__toggle" :aria-expanded="projectsExpanded" @click="toggleProjects"><span>项目</span><AppIcon class="workspace-group__chevron" :name="projectsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
-          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleProjectGroupCommand('expand')"><AppIcon name="ArrowDown" /><span>展开全部项目</span></button><button type="button" @click="handleProjectGroupCommand('collapse')"><AppIcon name="ArrowUp" /><span>收起全部项目</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
+          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" /><span>项目管理</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
         </div>
         <div v-if="projectsExpanded" class="workspace-group__items workspace-group__items--projects">
           <div v-for="project in visibleProjects" :key="project.id" class="workspace-project">
@@ -30,7 +30,7 @@
       <section class="workspace-group workspace-group--sessions">
         <div class="workspace-group__header">
           <button type="button" class="workspace-group__toggle" :aria-expanded="sessionsExpanded" @click="toggleRecentSessions"><span>最近对话</span><AppIcon class="workspace-group__chevron" :name="sessionsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
-          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleHistoryCommand('select')"><AppIcon name="Check" /><span>{{ selecting ? '完成选择' : '选择对话' }}</span></button><button v-if="selecting" type="button" @click="handleHistoryCommand('all')"><AppIcon name="Check" /><span>{{ allSelected ? '取消全选' : '全选' }}</span></button><button v-if="selecting" type="button" class="is-danger" :disabled="!selectedIds.length" @click="handleHistoryCommand('delete')"><AppIcon name="Delete" /><span>删除选中</span></button></div></el-popover></div>
+          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleHistoryCommand('select')"><AppIcon name="Check" /><span>{{ selecting ? '完成选择' : '选择对话' }}</span></button><button type="button" @click="router.push('/workspace/history')"><AppIcon name="Clock" /><span>查看全部对话</span></button><button v-if="selecting" type="button" @click="handleHistoryCommand('all')"><AppIcon name="Check" /><span>{{ allSelected ? '取消全选' : '全选' }}</span></button><button v-if="selecting" type="button" class="is-danger" :disabled="!selectedIds.length" @click="handleHistoryCommand('delete')"><AppIcon name="Delete" /><span>删除选中</span></button></div></el-popover></div>
         </div>
         <div v-if="sessionsExpanded" class="workspace-group__items workspace-group__items--sessions" :class="{ 'is-selecting': selecting }">
           <div v-for="session in visibleRecentSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id, 'is-selecting': selecting }" @contextmenu.prevent="!selecting && openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="selecting ? toggleSelection(session.id) : openSession(session.id)"><el-checkbox v-if="selecting" :model-value="selectedIds.includes(session.id)" @click.stop @change="toggleSelection(session.id)" /><span class="workspace-item__title">{{ session.title }}</span></button><span v-if="!selecting && store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="!selecting && store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppIcon name="Loading" /></span><span v-else-if="!selecting && store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /></div>
@@ -211,11 +211,6 @@ async function createProject() {
 }
 
 function toggleSelection(id: string) { selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(value => value !== id) : [...selectedIds.value, id] }
-function handleProjectGroupCommand(command: string) {
-  if (command === 'expand') { expandedProjectIds.value = store.projects.map(project => project.id); return }
-  expandedProjectIds.value = []
-  projectSessionVisibleCounts.value = {}
-}
 async function handleProjectCommand(command: string, projectId: string) {
   if (command === 'open-directory') {
     const error = await getPlatformApi()?.openHarnessProjectDirectory(projectId)
@@ -285,7 +280,7 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-group__chevron { flex: 0 0 auto; color: currentcolor; font-size: 13px; opacity: 0; transition: opacity $transition-fast; }
 .workspace-group__header:hover .workspace-group__chevron, .workspace-group__header:focus-within .workspace-group__chevron { opacity: 1; }
 .workspace-group__actions, .workspace-project__actions { display: flex; align-items: center; margin-left: auto; opacity: 0; pointer-events: none; transition: opacity var(--cp-animation-duration); }
-.workspace-group__header:hover .workspace-group__actions, .workspace-group__header:focus-within .workspace-group__actions, .workspace-project__header:hover .workspace-project__actions, .workspace-project__header:focus-within .workspace-project__actions, .workspace-session-row:hover .workspace-session-row__tool, .workspace-session-row:focus-within .workspace-session-row__tool { opacity: 1; pointer-events: auto; }
+.workspace-group__header:hover .workspace-group__actions, .workspace-group__actions:focus-within, .workspace-project__header:hover .workspace-project__actions, .workspace-project__actions:focus-within, .workspace-session-row:hover .workspace-session-row__tool, .workspace-session-row:focus-within .workspace-session-row__tool { opacity: 1; pointer-events: auto; }
 .workspace-group__tool, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { width: 28px; height: 28px; justify-content: center; border-radius: $radius-sm; color: var(--cp-text-tertiary); }
 .workspace-group__tool:hover, .workspace-project__tool:hover, .workspace-project__new:hover, .workspace-session-row__tool:hover { color: var(--cp-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-group__items { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 2px; }
@@ -370,8 +365,8 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-session-row__status.is-running .app-icon { animation: session-status-spin 1s linear infinite; }
 .workspace-session-row__status.is-waiting { gap: 4px; margin-right: 6px; padding: 2px 6px; border-radius: $radius-sm; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 11%, transparent); font-size: 11px; white-space: nowrap; }.workspace-session-row__status.is-waiting .app-icon { font-size: 13px; }
 .workspace-session-row__status.is-unread { width: 6px; height: 6px; margin-right: 10px; border-radius: 50%; background: var(--cp-primary); }
-.session-context-menu { position: fixed; z-index: 3000; min-width: 160px; padding: 6px; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border); border-radius: 12px; box-shadow: 0 14px 30px rgb(0 0 0 / 14%); }
-.session-context-menu button { display: flex; width: 100%; min-height: 36px; align-items: center; gap: 10px; padding: 0 10px; color: var(--cp-text); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: 8px; font: inherit; font-size: 13px; }
+.session-context-menu { position: fixed; z-index: 3000; min-width: 190px; padding: 4px; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border); border-radius: 12px; box-shadow: 0 14px 30px rgb(0 0 0 / 14%); }
+.session-context-menu button { display: flex; width: 100%; min-height: 32px; align-items: center; gap: 8px; padding: 0 8px; color: var(--cp-text); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: $radius-sm; font: inherit; font-size: 12px; }
 .session-context-menu button:hover { background: var(--cp-bg-hover); }
 .session-context-menu button.is-danger:hover { color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 8%, var(--cp-bg-hover)); }
 .session-context-menu .app-icon { color: var(--cp-text-secondary); font-size: 15px; }

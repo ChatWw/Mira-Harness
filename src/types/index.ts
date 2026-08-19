@@ -158,6 +158,7 @@ export interface PlatformApi {
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
   runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<void>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
+  editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   listMcpServers(): Promise<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>
   saveMcpServer(config: { id?: string, name: string, command: string, args?: string[], enabled?: boolean }): Promise<{ id: string, name: string, command: string, args: string[], enabled: boolean }>
   deleteMcpServer(id: string): Promise<void>

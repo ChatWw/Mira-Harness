@@ -114,7 +114,9 @@ export class HarnessStore {
     const path = this.sessionPath(session)
     mkdirSync(dirname(path), { recursive: true })
     session.updatedAt = now()
-    writeFileSync(path, JSON.stringify(session, null, 2), 'utf8')
+    const temporaryPath = `${path}.${process.pid}.tmp`
+    writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
+    renameSync(temporaryPath, path)
     this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, path, working_directory, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
@@ -251,22 +253,47 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean) {
+  appendAssistantDelta(id: string, content: string) {
+    if (!content) return this.getSession(id)
     const session = this.getSession(id)
     const last = session.messages.at(-1)
-    if (last?.role === 'assistant') {
-      last.content += content
-      if (run) last.run = run
-      if (usage) last.usage = usage
-      if (interrupted) last.interrupted = true
-    } else session.messages.push({ id: randomUUID(), role: 'assistant', content, ...(run ? { run } : {}), ...(usage ? { usage } : {}), ...(interrupted ? { interrupted: true } : {}), createdAt: now() })
+    if (last?.role === 'assistant') last.content += content
+    else session.messages.push({ id: randomUUID(), role: 'assistant', content, createdAt: now() })
     return this.saveSession(session)
+  }
+
+  finalizeAssistantMessage(id: string, options: { run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean } = {}) {
+    const session = this.getSession(id)
+    const last = session.messages.at(-1)
+    if (!last || last.role !== 'assistant') throw new Error('没有可完成的助手回复')
+    if (options.run) last.run = options.run
+    if (options.usage) last.usage = options.usage
+    if (options.interrupted) last.interrupted = true
+    else delete last.interrupted
+    return this.saveSession(session)
+  }
+
+  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean) {
+    if (content) this.appendAssistantDelta(id, content)
+    return this.finalizeAssistantMessage(id, { run, usage, interrupted })
   }
 
   regenerate(id: string) {
     const session = this.getSession(id)
     const last = session.messages.at(-1)
     if (last?.role === 'assistant') session.messages.pop()
+    return this.saveSession(session)
+  }
+
+  editUserMessageAndTruncate(id: string, messageId: string, content: string) {
+    const value = content.trim()
+    if (!value) throw new Error('消息不能为空')
+    const session = this.getSession(id)
+    const index = session.messages.findIndex(message => message.id === messageId)
+    if (index < 0 || session.messages[index].role !== 'user') throw new Error('只能编辑用户消息')
+    session.messages[index].content = value
+    session.messages = session.messages.slice(0, index + 1)
+    session.context = undefined
     return this.saveSession(session)
   }
 

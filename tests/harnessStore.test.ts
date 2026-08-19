@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -214,6 +214,51 @@ describe('HarnessStore', () => {
     expect(restored.messages[0].content).toBe('保留的早期提问')
     expect(restored.context?.summary).toBe('此前对话摘要')
     expect(restored.messages[1].usage?.totalTokens).toBe(60)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists assistant deltas atomically and finalizes the same message', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    store.addMessage(session.id, 'user', '请回答')
+    store.appendAssistantDelta(session.id, '第一段')
+    store.appendAssistantDelta(session.id, '，第二段')
+    store.finalizeAssistantMessage(session.id, {
+      interrupted: true,
+      run: { startedAt: 1, completedAt: 2, durationMs: 1, activities: [] },
+    })
+
+    const restored = store.getSession(session.id)
+    const assistant = restored.messages.at(-1)!
+    const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
+    expect(assistant.content).toBe('第一段，第二段')
+    expect(assistant.interrupted).toBe(true)
+    expect(assistant.run?.durationMs).toBe(1)
+    expect(() => JSON.parse(readFileSync(row.path, 'utf8'))).not.toThrow()
+    expect(existsSync(`${row.path}.${process.pid}.tmp`)).toBe(false)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('edits a user message, truncates later history, and clears compacted context', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const first = store.addMessage(session.id, 'user', '旧问题', [{ path: 'notes.txt', content: '保留附件内容', size: 18 }])
+    const firstId = first.messages.at(-1)!.id
+    store.appendAssistantText(session.id, '旧回答')
+    store.addMessage(session.id, 'user', '后续问题')
+    const withContext = store.getSession(session.id)
+    withContext.context = { summary: '旧摘要', compactedThroughMessageId: firstId, compactedAt: Date.now() }
+    store.updateSession(withContext)
+
+    const edited = store.editUserMessageAndTruncate(session.id, firstId, '新问题')
+    expect(edited.messages).toEqual([expect.objectContaining({ id: firstId, role: 'user', content: '新问题' })])
+    expect(edited.messages[0].attachments).toEqual([{ path: 'notes.txt', content: '保留附件内容', size: 18 }])
+    expect(edited.context).toBeUndefined()
+    expect(() => store.editUserMessageAndTruncate(session.id, firstId, '   ')).toThrow('消息不能为空')
 
     database.close()
     rmSync(root, { recursive: true, force: true })
