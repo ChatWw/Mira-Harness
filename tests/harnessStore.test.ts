@@ -12,7 +12,7 @@ function createStore() {
   const database = new Database(':memory:')
   database.exec(`
     CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
   return { root, database, store: new HarnessStore(database, root) }
@@ -70,6 +70,34 @@ describe('HarnessStore', () => {
     expect(recent.projectId).toBeUndefined()
     expect(recent.workingDirectory).toBeUndefined()
     expect(projectSession.projectId).toBe(project.id)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists pinned sessions in the session index and file', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+
+    store.setPinned(session.id, true)
+    expect(store.getSession(session.id).pinned).toBe(true)
+    expect(store.listSessions()).toEqual([expect.objectContaining({ id: session.id, pinned: true })])
+
+    store.setPinned(session.id, false)
+    expect(store.getSession(session.id).pinned).toBe(false)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('renames a session in the session file and index', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+
+    store.renameSession(session.id, '  已重命名的聊天  ')
+    expect(store.getSession(session.id).title).toBe('已重命名的聊天')
+    expect(store.listSessions()).toEqual([expect.objectContaining({ id: session.id, title: '已重命名的聊天' })])
+    expect(() => store.renameSession(session.id, '  ')).toThrow('聊天名称不能为空')
 
     database.close()
     rmSync(root, { recursive: true, force: true })

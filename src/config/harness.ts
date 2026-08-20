@@ -107,10 +107,11 @@ export interface HarnessSession {
   createdAt: number
   updatedAt: number
   status: HarnessSessionStatus
+  pinned: boolean
   context?: HarnessContextState
 }
 
-export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status'> {
+export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned'> {
   projectName?: string
   workingDirectory?: string
 }

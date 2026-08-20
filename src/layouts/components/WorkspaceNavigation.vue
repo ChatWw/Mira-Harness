@@ -5,10 +5,17 @@
     </el-tooltip>
 
     <template v-if="!collapsed">
+      <section v-if="pinnedSessions.length" class="workspace-group workspace-group--pinned">
+        <div class="workspace-group__label">置顶</div>
+        <div class="workspace-group__items workspace-group__items--pinned">
+          <div v-for="session in pinnedSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span class="workspace-item__title">{{ session.title }}</span></button><span v-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppIcon name="Loading" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /></div>
+        </div>
+      </section>
+
       <section class="workspace-group">
         <div class="workspace-group__header">
           <button type="button" class="workspace-group__toggle" :aria-expanded="projectsExpanded" @click="toggleProjects"><span>项目</span><AppIcon class="workspace-group__chevron" :name="projectsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
-          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="router.push('/workspace/projects')"><AppIcon name="FolderOpened" /><span>项目管理</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
+          <div class="workspace-group__actions"><el-popover v-model:visible="projectActionsVisible" trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="openProjectManagement"><AppIcon name="FolderOpened" /><span>项目管理</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
         </div>
         <div v-if="projectsExpanded" class="workspace-group__items workspace-group__items--projects">
           <div v-for="project in visibleProjects" :key="project.id" class="workspace-project">
@@ -30,19 +37,25 @@
       <section class="workspace-group workspace-group--sessions">
         <div class="workspace-group__header">
           <button type="button" class="workspace-group__toggle" :aria-expanded="sessionsExpanded" @click="toggleRecentSessions"><span>最近对话</span><AppIcon class="workspace-group__chevron" :name="sessionsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
-          <div class="workspace-group__actions"><el-popover trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="handleHistoryCommand('select')"><AppIcon name="Check" /><span>{{ selecting ? '完成选择' : '选择对话' }}</span></button><button type="button" @click="router.push('/workspace/history')"><AppIcon name="Clock" /><span>查看全部对话</span></button><button v-if="selecting" type="button" @click="handleHistoryCommand('all')"><AppIcon name="Check" /><span>{{ allSelected ? '取消全选' : '全选' }}</span></button><button v-if="selecting" type="button" class="is-danger" :disabled="!selectedIds.length" @click="handleHistoryCommand('delete')"><AppIcon name="Delete" /><span>删除选中</span></button></div></el-popover></div>
+          <div class="workspace-group__actions"><el-popover v-model:visible="historyActionsVisible" trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="openHistory"><AppIcon name="Clock" /><span>查看全部对话</span></button></div></el-popover></div>
         </div>
-        <div v-if="sessionsExpanded" class="workspace-group__items workspace-group__items--sessions" :class="{ 'is-selecting': selecting }">
-          <div v-for="session in visibleRecentSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id, 'is-selecting': selecting }" @contextmenu.prevent="!selecting && openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="selecting ? toggleSelection(session.id) : openSession(session.id)"><el-checkbox v-if="selecting" :model-value="selectedIds.includes(session.id)" @click.stop @change="toggleSelection(session.id)" /><span class="workspace-item__title">{{ session.title }}</span></button><span v-if="!selecting && store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="!selecting && store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppIcon name="Loading" /></span><span v-else-if="!selecting && store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /></div>
+        <div v-if="sessionsExpanded" class="workspace-group__items workspace-group__items--sessions">
+          <div v-for="session in visibleRecentSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span class="workspace-item__title">{{ session.title }}</span></button><span v-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppIcon name="Loading" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /></div>
           <button v-if="recentSessions.length > RECENT_SESSION_LIMIT && !showAllSessions" type="button" class="workspace-show-all" @click="showAllSessions = true">展开显示</button>
           <p v-if="!recentSessions.length" class="workspace-empty">还没有临时对话</p>
         </div>
       </section>
     </template>
 
-    <div v-if="contextMenu.visible" class="session-context-menu" :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }" @click.stop>
-      <button type="button" class="is-danger" @click="deleteSessionFromMenu"><AppIcon name="Delete" /><span>删除对话</span></button>
+    <div v-if="contextMenu.visible && contextSession" class="session-context-menu" :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }" @click.stop @contextmenu.prevent>
+      <button type="button" @click="toggleSessionPinned"><AppIcon :name="contextSession.pinned ? 'lucide:pin-off' : 'lucide:pin'" /><span>{{ contextSession.pinned ? '取消置顶聊天' : '置顶聊天' }}</span></button>
+      <button type="button" @click="openSessionRenameDialog"><AppIcon name="tabler:edit" /><span>重命名聊天</span></button>
     </div>
+    <el-dialog v-model="sessionRenameVisible" width="420px" :show-close="false" destroy-on-close class="project-dialog session-rename-dialog">
+      <template #header><div class="project-dialog__header"><h2>重命名聊天</h2><button type="button" class="project-dialog__close" aria-label="关闭重命名聊天" @click="closeSessionRenameDialog"><AppIcon name="Close" /></button></div></template>
+      <form @submit.prevent="saveSessionRename"><el-input v-model="sessionRenameTitle" class="session-rename-input" maxlength="42" show-word-limit aria-label="聊天名称" /></form>
+      <template #footer><div class="project-dialog__footer"><button type="button" class="project-dialog__cancel" @click="closeSessionRenameDialog">取消</button><button type="button" class="project-dialog__submit" :disabled="!canRenameSession || savingSessionRename" @click="saveSessionRename"><AppIcon v-if="savingSessionRename" name="Loading" />保存</button></div></template>
+    </el-dialog>
     <el-dialog v-model="projectDialogVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog">
       <template #header><div class="project-dialog__header"><h2>创建项目</h2><button type="button" class="project-dialog__close" aria-label="关闭创建项目" @click="closeProjectDialog"><AppIcon name="Close" /></button></div></template>
       <form class="project-form" @submit.prevent="createProject">
@@ -86,9 +99,13 @@ const projectSessionVisibleCounts = ref<Record<string, number>>({})
 const sessionsExpanded = ref(false)
 const showAllProjects = ref(false)
 const showAllSessions = ref(false)
+const projectActionsVisible = ref(false)
+const historyActionsVisible = ref(false)
 let groupStatesInitialized = false
-const selecting = ref(false)
-const selectedIds = ref<string[]>([])
+const sessionRenameVisible = ref(false)
+const sessionRenameId = ref('')
+const sessionRenameTitle = ref('')
+const savingSessionRename = ref(false)
 const projectDialogVisible = ref(false)
 let projectCreatedCallback: ((projectId: string) => void) | undefined
 const projectEditorVisible = ref(false)
@@ -99,31 +116,58 @@ const savingProjectEditor = ref(false)
 const selectingDirectory = ref(false)
 const creatingProject = ref(false)
 const projectForm = reactive<{ name: string, icon: string, directory: string }>({ name: '', icon: DEFAULT_PROJECT_ICON, directory: '' })
-const recentSessions = computed(() => store.sessions.filter(session => !session.projectId))
+const pinnedSessions = computed(() => store.sessions.filter(session => session.pinned))
+const recentSessions = computed(() => store.sessions.filter(session => !session.projectId && !session.pinned))
 const visibleProjects = computed(() => showAllProjects.value ? store.projects : store.projects.slice(0, PROJECT_LIMIT))
 const visibleRecentSessions = computed(() => showAllSessions.value ? recentSessions.value : recentSessions.value.slice(0, RECENT_SESSION_LIMIT))
-const allSelected = computed(() => recentSessions.value.length > 0 && recentSessions.value.every(session => selectedIds.value.includes(session.id)))
+const canRenameSession = computed(() => Boolean(sessionRenameTitle.value.trim()))
 const canCreateProject = computed(() => Boolean(projectForm.name.trim() && projectForm.directory))
 const canSaveProjectEditor = computed(() => Boolean(editingProject.value && projectEditorName.value.trim()))
 const projectDirectoryActionLabel = computed(() => getPlatformApi()?.windowChrome === 'macos-overlay' ? '在 Finder 中显示' : (getPlatformApi()?.windowChrome === 'windows-overlay' ? '在资源管理器中查看' : '打开文件夹'))
-const contextMenu = reactive<{ visible: boolean, x: number, y: number, sessionId: string }>({ visible: false, x: 0, y: 0, sessionId: '' })
+const contextMenu = reactive({ visible: false, x: 0, y: 0, sessionId: '' })
+const contextSession = computed(() => store.sessions.find(session => session.id === contextMenu.sessionId))
 
 function openSessionContextMenu(event: MouseEvent, sessionId: string) {
-  contextMenu.visible = true
-  contextMenu.x = event.clientX
-  contextMenu.y = event.clientY
-  contextMenu.sessionId = sessionId
+  Object.assign(contextMenu, { visible: true, x: event.clientX, y: event.clientY, sessionId })
 }
-function closeSessionContextMenu() {
-  contextMenu.visible = false
-}
-async function deleteSessionFromMenu() {
-  const sessionId = contextMenu.sessionId
+function closeSessionContextMenu() { contextMenu.visible = false }
+async function toggleSessionPinned() {
+  const session = contextSession.value
   closeSessionContextMenu()
-  if (!sessionId) return
-  await deleteSession(sessionId)
+  if (!session) return
+  try {
+    await store.setSessionPinned(session.id, !session.pinned)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '更新置顶状态失败')
+  }
 }
-
+function openSessionRenameDialog() {
+  const session = contextSession.value
+  closeSessionContextMenu()
+  if (!session) return
+  sessionRenameId.value = session.id
+  sessionRenameTitle.value = session.title
+  sessionRenameVisible.value = true
+}
+function closeSessionRenameDialog() {
+  sessionRenameVisible.value = false
+  sessionRenameId.value = ''
+  sessionRenameTitle.value = ''
+}
+async function saveSessionRename() {
+  const title = sessionRenameTitle.value.trim()
+  if (!sessionRenameId.value || !title) return
+  savingSessionRename.value = true
+  try {
+    await store.renameSession(sessionRenameId.value, title)
+    closeSessionRenameDialog()
+    ElMessage.success('聊天已重命名')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '重命名聊天失败')
+  } finally {
+    savingSessionRename.value = false
+  }
+}
 async function refresh() {
   await Promise.all([store.refreshProjects(), store.refreshSessions()])
   if (groupStatesInitialized) return
@@ -140,6 +184,14 @@ function toggleRecentSessions() {
   sessionsExpanded.value = !sessionsExpanded.value
   if (!sessionsExpanded.value) showAllSessions.value = false
 }
+async function openProjectManagement() {
+  projectActionsVisible.value = false
+  await router.push('/workspace/projects')
+}
+async function openHistory() {
+  historyActionsVisible.value = false
+  await router.push('/workspace/history')
+}
 function resetProjectSessions(projectId: string) {
   const next = { ...projectSessionVisibleCounts.value }
   delete next[projectId]
@@ -153,7 +205,7 @@ function toggleProject(id: string) {
   }
   expandedProjectIds.value = [...expandedProjectIds.value, id]
 }
-function sessionsForProject(projectId: string) { return store.sessions.filter(session => session.projectId === projectId) }
+function sessionsForProject(projectId: string) { return store.sessions.filter(session => session.projectId === projectId && !session.pinned) }
 function projectSessionVisibleCount(projectId: string) { return projectSessionVisibleCounts.value[projectId] || PROJECT_SESSION_INITIAL_LIMIT }
 function visibleProjectSessions(projectId: string) { return sessionsForProject(projectId).slice(0, projectSessionVisibleCount(projectId)) }
 function hasMoreProjectSessions(projectId: string) { return sessionsForProject(projectId).length > projectSessionVisibleCount(projectId) }
@@ -210,7 +262,6 @@ async function createProject() {
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '创建项目失败') } finally { creatingProject.value = false }
 }
 
-function toggleSelection(id: string) { selectedIds.value = selectedIds.value.includes(id) ? selectedIds.value.filter(value => value !== id) : [...selectedIds.value, id] }
 async function handleProjectCommand(command: string, projectId: string) {
   if (command === 'open-directory') {
     const error = await getPlatformApi()?.openHarnessProjectDirectory(projectId)
@@ -232,23 +283,6 @@ async function handleProjectCommand(command: string, projectId: string) {
   if (wasActiveProject) await router.replace('/workspace/chat')
   ElMessage.success('项目已从列表中移除')
 }
-async function deleteSession(sessionId: string) {
-  await ElMessageBox.confirm('将永久删除此对话，无法恢复。', '删除对话', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
-  await store.deleteSessions([sessionId])
-  if (route.params.id === sessionId) await router.replace('/workspace/chat')
-  ElMessage.success('对话已删除')
-}
-async function handleHistoryCommand(command: string) {
-  if (command === 'select') { selecting.value = !selecting.value; if (selecting.value) showAllSessions.value = true; else selectedIds.value = []; return }
-  if (command === 'all') { selectedIds.value = allSelected.value ? [] : recentSessions.value.map(session => session.id); return }
-  if (command !== 'delete' || !selectedIds.value.length) return
-  await ElMessageBox.confirm(`将永久删除 ${selectedIds.value.length} 个会话，无法恢复。`, '删除对话', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
-  await store.deleteSessions(selectedIds.value)
-  selectedIds.value = []
-  selecting.value = false
-  ElMessage.success('会话已删除')
-}
-
 watch(() => store.projects.length, (count, previousCount) => {
   if (!groupStatesInitialized) return
   if (!count) { projectsExpanded.value = false; showAllProjects.value = false }
@@ -274,6 +308,7 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-action .el-tag { margin-left: auto; }
 .workspace-group { margin: 18px 0 0; }
 .workspace-group--sessions { margin-top: 20px; }
+.workspace-group__label { height: 34px; display: flex; align-items: center; padding: 0 10px; color: var(--cp-text-tertiary); font-size: 14px; }
 .workspace-group__header, .workspace-project__header, .workspace-session-row { display: flex; align-items: center; min-width: 0; }
 .workspace-group__toggle { flex: 0 1 auto; min-width: 0; height: 34px; gap: 6px; padding: 0 10px; color: var(--cp-text-tertiary); border-radius: $radius-md; font-size: 14px; text-align: left; }
 .workspace-group__toggle:hover { color: var(--cp-text-secondary); }
@@ -296,8 +331,6 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-item__title { min-width: 0; }
 .workspace-session-row--nested .workspace-item { padding-left: 48px; }
 .workspace-session-row__tool { flex: 0 0 auto; margin-right: 2px; opacity: 0; pointer-events: none; }
-.workspace-session-row.is-selecting .workspace-item { padding-right: 10px; }
-.workspace-item :deep(.el-checkbox) { margin-right: 1px; }
 .workspace-show-all { height: 32px; padding: 0 10px; color: var(--cp-text-tertiary); font-size: 13px; }
 .workspace-show-all--projects { padding-left: 10px; }.workspace-show-all--nested { padding-left: 48px; }
 .workspace-show-all:hover { color: var(--cp-text-secondary); }
@@ -311,6 +344,9 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .project-name-input { flex: 1; }
 .project-name-input :deep(.el-input__wrapper) { padding: 0 12px; background: transparent; box-shadow: none !important; }
 .project-name-input :deep(.el-input__inner) { color: var(--cp-text); font-size: 14px; }
+.session-rename-input :deep(.el-input__wrapper) { min-height: 40px; padding: 0 12px; background: var(--cp-bg); box-shadow: 0 0 0 1px var(--cp-border) inset !important; }
+.session-rename-input :deep(.el-input__wrapper.is-focus) { box-shadow: 0 0 0 1px var(--cp-text-secondary) inset !important; }
+.session-rename-input :deep(.el-input__inner) { color: var(--cp-text); font-size: 14px; }
 .project-folder-field { display: flex; flex-direction: column; gap: 7px; }
 .project-field-label { color: var(--cp-text); font-size: 13px; font-weight: $font-medium; }
 .project-folder-picker { display: flex; min-height: 76px; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; color: var(--cp-text-secondary); text-align: center; cursor: pointer; background: var(--cp-bg-hover); border: 1px solid transparent; border-radius: 10px; font: inherit; font-size: 13px; transition: border-color var(--cp-animation-duration), background var(--cp-animation-duration), color var(--cp-animation-duration); }
@@ -342,6 +378,7 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 :global([data-theme='dark'] .project-dialog.el-dialog) { background: #2d2e32; border-color: #505158; box-shadow: 0 20px 46px rgb(0 0 0 / 42%); }
 :global([data-theme='dark']) .project-name-row { background: #1b1c20; border-color: #505158; }
 :global([data-theme='dark']) .project-name-row:focus-within { border-color: #81828a; box-shadow: 0 0 0 3px rgb(129 130 138 / 20%); }
+:global([data-theme='dark']) .session-rename-input .el-input__wrapper { background: #1b1c20; box-shadow: 0 0 0 1px #505158 inset !important; }
 :global([data-theme='dark']) .project-icon-trigger { border-color: #45464c; }
 :global([data-theme='dark']) .project-folder-picker { background: #292a2e; border-color: #4b4c53; }
 :global([data-theme='dark']) .project-folder-picker:hover { border-color: #66676f; background: #303136; }
@@ -365,10 +402,9 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-session-row__status.is-running .app-icon { animation: session-status-spin 1s linear infinite; }
 .workspace-session-row__status.is-waiting { gap: 4px; margin-right: 6px; padding: 2px 6px; border-radius: $radius-sm; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 11%, transparent); font-size: 11px; white-space: nowrap; }.workspace-session-row__status.is-waiting .app-icon { font-size: 13px; }
 .workspace-session-row__status.is-unread { width: 6px; height: 6px; margin-right: 10px; border-radius: 50%; background: var(--cp-primary); }
-.session-context-menu { position: fixed; z-index: 3000; min-width: 190px; padding: 4px; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border); border-radius: 12px; box-shadow: 0 14px 30px rgb(0 0 0 / 14%); }
+.session-context-menu { position: fixed; z-index: 3000; min-width: 154px; padding: 4px; background: var(--cp-bg-overlay); border: 1px solid var(--cp-border); border-radius: 12px; box-shadow: 0 14px 30px rgb(0 0 0 / 14%); }
 .session-context-menu button { display: flex; width: 100%; min-height: 32px; align-items: center; gap: 8px; padding: 0 8px; color: var(--cp-text); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: $radius-sm; font: inherit; font-size: 12px; }
 .session-context-menu button:hover { background: var(--cp-bg-hover); }
-.session-context-menu button.is-danger:hover { color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 8%, var(--cp-bg-hover)); }
 .session-context-menu .app-icon { color: var(--cp-text-secondary); font-size: 15px; }
 @keyframes session-status-spin { to { transform: rotate(360deg); } }
 </style>

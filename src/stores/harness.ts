@@ -219,6 +219,24 @@ export const useHarnessStore = defineStore('harness', () => {
     return session
   }
 
+  async function setSessionPinned(id: string, pinned: boolean) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.setHarnessSessionPinned(id, pinned)
+    if (activeSession.value?.id === id) activeSession.value = session
+    await refreshSessions()
+    return session
+  }
+
+  async function renameSession(id: string, title: string) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.renameHarnessSession(id, title)
+    if (activeSession.value?.id === id) activeSession.value = session
+    await refreshSessions()
+    return session
+  }
+
   async function deleteSessions(ids: string[]) {
     const api = getPlatformApi()
     if (!api || !ids.length) return
@@ -384,6 +402,8 @@ export const useHarnessStore = defineStore('harness', () => {
     openSession,
     createSession,
     setSessionPermission,
+    setSessionPinned,
+    renameSession,
     respondPermission,
     deleteSessions,
     applyEvent,

@@ -14,7 +14,7 @@ import { validateSnapshot } from '../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 19
+const CURRENT_SCHEMA_VERSION = 20
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
@@ -76,12 +76,16 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
     const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
     if (!projectColumns.some(column => column.name === 'icon')) {
       this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")
+    }
+    const sessionColumns = this.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
+    if (!sessionColumns.some(column => column.name === 'pinned')) {
+      this.database.exec('ALTER TABLE harness_sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
     }
     const providerColumns = this.database.prepare('PRAGMA table_info(model_providers)').all() as Array<{ name: string }>
     if (!providerColumns.some(column => column.name === 'provider_key')) {

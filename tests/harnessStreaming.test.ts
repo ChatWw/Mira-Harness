@@ -15,6 +15,7 @@ function createSession(id = 'session-1'): HarnessSession {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     status: 'active',
+    pinned: false,
   }
 }
 

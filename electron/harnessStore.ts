@@ -23,7 +23,7 @@ import {
 } from '../src/config/harness'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
-type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], path: string, working_directory: string | null, created_at: number, updated_at: number }
+type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
 const MAX_FILE_REFERENCES = 12
@@ -117,13 +117,13 @@ export class HarnessStore {
     const temporaryPath = `${path}.${process.pid}.tmp`
     writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
     renameSync(temporaryPath, path)
-    this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, path, working_directory, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, path, working_directory, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
-      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, path = excluded.path,
+      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, path = excluded.path,
       working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
-        session.status, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
+        session.status, Number(session.pinned), path, session.workingDirectory || null, session.createdAt, session.updatedAt)
     if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     return clone(session)
   }
@@ -131,7 +131,7 @@ export class HarnessStore {
   private parseSession(raw: string): HarnessSession {
     const value = JSON.parse(raw) as Partial<HarnessSession>
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
-    return value as HarnessSession
+    return { ...value, pinned: Boolean(value.pinned) } as HarnessSession
   }
 
   listProjects(): HarnessProject[] {
@@ -224,7 +224,7 @@ export class HarnessStore {
     const time = now()
     const session: HarnessSession = {
       version: 1, id: createSessionId(), title: '新对话', projectId: project?.id, workingDirectory: project?.directory,
-      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active',
+      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false,
     }
     return this.saveSession(session)
   }
@@ -232,10 +232,10 @@ export class HarnessStore {
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
-      WHERE s.title LIKE ? ORDER BY s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
+      WHERE s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
-      status: row.status, workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at }))
+      status: row.status, pinned: Boolean(row.pinned), workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at }))
   }
 
   getSession(id: string) {
@@ -245,6 +245,20 @@ export class HarnessStore {
   }
 
   updateSession(session: HarnessSession) { return this.saveSession(session) }
+
+  setPinned(id: string, pinned: boolean) {
+    const session = this.getSession(id)
+    session.pinned = Boolean(pinned)
+    return this.saveSession(session)
+  }
+
+  renameSession(id: string, title: string) {
+    const nextTitle = title.trim().slice(0, 42)
+    if (!nextTitle) throw new Error('聊天名称不能为空')
+    const session = this.getSession(id)
+    session.title = nextTitle
+    return this.saveSession(session)
+  }
 
   addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[]) {
     const session = this.getSession(id)
