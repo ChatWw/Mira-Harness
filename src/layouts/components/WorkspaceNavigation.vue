@@ -51,12 +51,12 @@
       <button type="button" @click="toggleSessionPinned"><AppIcon :name="contextSession.pinned ? 'lucide:pin-off' : 'lucide:pin'" /><span>{{ contextSession.pinned ? '取消置顶聊天' : '置顶聊天' }}</span></button>
       <button type="button" @click="openSessionRenameDialog"><AppIcon name="tabler:edit" /><span>重命名聊天</span></button>
     </div>
-    <el-dialog v-model="sessionRenameVisible" width="420px" :show-close="false" destroy-on-close class="project-dialog session-rename-dialog">
+    <el-dialog v-model="sessionRenameVisible" width="420px" :show-close="false" destroy-on-close class="project-dialog session-rename-dialog" align-center>
       <template #header><div class="project-dialog__header"><h2>重命名聊天</h2><button type="button" class="project-dialog__close" aria-label="关闭重命名聊天" @click="closeSessionRenameDialog"><AppIcon name="Close" /></button></div></template>
       <form @submit.prevent="saveSessionRename"><el-input v-model="sessionRenameTitle" class="session-rename-input" maxlength="42" show-word-limit aria-label="聊天名称" /></form>
       <template #footer><div class="project-dialog__footer"><button type="button" class="project-dialog__cancel" @click="closeSessionRenameDialog">取消</button><button type="button" class="project-dialog__submit" :disabled="!canRenameSession || savingSessionRename" @click="saveSessionRename"><AppIcon v-if="savingSessionRename" name="Loading" />保存</button></div></template>
     </el-dialog>
-    <el-dialog v-model="projectDialogVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog">
+    <el-dialog v-model="projectDialogVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog" align-center>
       <template #header><div class="project-dialog__header"><h2>创建项目</h2><button type="button" class="project-dialog__close" aria-label="关闭创建项目" @click="closeProjectDialog"><AppIcon name="Close" /></button></div></template>
       <form class="project-form" @submit.prevent="createProject">
         <div class="project-name-row"><FormIconPicker v-model="projectForm.icon" compact /><el-input v-model="projectForm.name" class="project-name-input" maxlength="60" placeholder="输入项目名称" /></div>
@@ -64,7 +64,7 @@
       </form>
       <template #footer><div class="project-dialog__footer"><button type="button" class="project-dialog__cancel" @click="closeProjectDialog">取消</button><button type="button" class="project-dialog__submit" :disabled="!canCreateProject || creatingProject" @click="createProject"><AppIcon v-if="creatingProject" name="Loading" />创建项目</button></div></template>
     </el-dialog>
-    <el-dialog v-model="projectEditorVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog project-edit-dialog">
+    <el-dialog v-model="projectEditorVisible" width="460px" :show-close="false" destroy-on-close class="project-dialog project-edit-dialog" align-center>
       <template #header><div class="project-dialog__header"><h2>编辑项目</h2><button type="button" class="project-dialog__close" aria-label="关闭编辑项目" @click="closeProjectEditor"><AppIcon name="Close" /></button></div></template>
       <form class="project-form" @submit.prevent="saveProjectEditor">
         <div class="project-name-row"><FormIconPicker v-model="projectEditorIcon" compact /><el-input v-model="projectEditorName" class="project-name-input" maxlength="60" placeholder="输入项目名称" /></div>
@@ -272,9 +272,7 @@ async function handleProjectCommand(command: string, projectId: string) {
   const project = store.projects.find(item => item.id === projectId)
   if (!project) return
   try {
-    await ElMessageBox.confirm(`确认后将从列表中移除“${project.name}”，其对话历史将被删除，源文件夹和文件不会被删除。请确认是否移除？`, '从列表中移除', {
-      confirmButtonText: '确认移除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger', showClose: false, closeOnClickModal: false,
-    })
+    await ElMessageBox.confirm(`确认后将从列表中移除“${project.name}”，其对话历史将被删除，源文件夹和文件不会被删除。请确认是否移除？`, '从列表中移除', { type: 'warning' })
   } catch { return }
   const wasActiveProject = store.activeSession?.projectId === projectId
   await store.removeProject(projectId)

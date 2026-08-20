@@ -32,7 +32,7 @@
     </div>
     <el-empty v-if="!loading && !projects.length" description="选择一个本地目录，开始第一个 Agent 项目" />
 
-    <el-dialog v-model="trashVisible" :title="`回收站 · ${trashProject?.name || ''}`" width="min(520px, calc(100vw - 32px))">
+    <el-dialog v-model="trashVisible" :title="`回收站 · ${trashProject?.name || ''}`" width="min(520px, calc(100vw - 32px))" align-center>
       <div v-loading="trashLoading" class="trash-list">
         <el-empty v-if="!trashLoading && !trashTokens.length" description="回收站为空" />
         <div v-for="token in trashTokens" :key="token" class="trash-item">

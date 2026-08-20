@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="visible" :title="form.id ? '编辑服务器' : '添加服务器'" width="min(560px, calc(100vw - 32px))" destroy-on-close>
+    <el-dialog v-model="visible" :title="form.id ? '编辑服务器' : '添加服务器'" width="min(560px, calc(100vw - 32px))" destroy-on-close align-center>
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="例如 filesystem" />

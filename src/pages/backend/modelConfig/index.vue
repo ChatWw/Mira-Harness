@@ -43,7 +43,7 @@
       </section>
     </div>
 
-    <el-dialog v-model="visible" :title="form.id ? '编辑模型' : '添加模型'" width="min(560px, calc(100vw - 32px))" destroy-on-close>
+    <el-dialog v-model="visible" :title="form.id ? '编辑模型' : '添加模型'" width="min(560px, calc(100vw - 32px))" destroy-on-close align-center>
       <p class="dialog-note">仅支持 OpenAI 兼容协议 API</p>
       <el-form label-position="top">
         <el-form-item label="供应商">

@@ -95,10 +95,6 @@ const layoutClasses = computed(() => {
     classes.push('layout--with-tabs')
   }
 
-  if (isWorkspaceRoute.value) {
-    classes.push('layout--workspace')
-  }
-
   if (!showSidebar.value) {
     classes.push('layout--without-workspace-menu')
   }
@@ -192,12 +188,6 @@ const layoutClasses = computed(() => {
       margin-left: 12px;
     }
 
-    &.layout--workspace .main-container {
-      margin: 0;
-      border: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
   }
 
   // 浮动：顶栏和内容处于同一平面，仅菜单区域作为卡片被突出。
