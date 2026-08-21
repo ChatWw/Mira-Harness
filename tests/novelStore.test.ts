@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createNovelProject, EMPTY_NOVEL_MODEL_PROFILES, toNovelProjectSummary } from '../src/config/novel'
 import { PlatformDatabase } from '../electron/database'
+import { MiraPaths } from '../electron/miraPaths'
 import { NovelStore } from '../electron/novelStore'
 import { AI_NOVEL_MENU } from '../src/config/menus'
 
@@ -79,7 +80,8 @@ describe('novel domain defaults', () => {
 describe('platform database migration', () => {
   it('removes the legacy overview and replaces the novel micro-app with the protected native page', () => {
     const directory = mkdtempSync(join(tmpdir(), 'mira-novel-migration-'))
-    const legacy = new Database(join(directory, 'mira.sqlite'))
+    const paths = new MiraPaths(directory).ensure()
+    const legacy = new Database(paths.stateDatabase())
     legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '15')

@@ -1,0 +1,34 @@
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+export class MiraPaths {
+  readonly root: string
+  readonly config: string
+  readonly sessions: string
+  readonly attachments: string
+  readonly trash: string
+  readonly memories: string
+  readonly logs: string
+
+  constructor(home: string) {
+    this.root = join(home, '.mira')
+    this.config = join(this.root, 'config')
+    this.sessions = join(this.root, 'sessions')
+    this.attachments = join(this.root, 'attachments')
+    this.trash = join(this.root, 'trash')
+    this.memories = join(this.root, 'memories')
+    this.logs = join(this.root, 'logs')
+  }
+
+  stateDatabase() { return join(this.root, 'state.sqlite') }
+  modelsConfig() { return join(this.config, 'models.json') }
+  mcpConfig() { return join(this.config, 'mcp-servers.json') }
+  session(id: string) { return join(this.sessions, `${id}.json`) }
+  projectTrash(projectId: string) { return join(this.trash, projectId) }
+
+  ensure() {
+    [this.root, this.config, this.sessions, this.attachments, this.trash, this.memories, this.logs]
+      .forEach(path => mkdirSync(path, { recursive: true }))
+    return this
+  }
+}

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { MiraPaths } from './miraPaths'
 
 export interface McpServerConfig {
   id: string
@@ -15,9 +15,10 @@ export interface McpServerConfig {
 export class McpConfigStore {
   private readonly configPath: string
 
-  constructor(userDataPath: string) {
-    this.configPath = join(userDataPath, 'mcp-servers.json')
-    mkdirSync(dirname(this.configPath), { recursive: true })
+  constructor(input: MiraPaths | string) {
+    const paths = typeof input === 'string' ? new MiraPaths(input) : input
+    this.configPath = paths.mcpConfig()
+    mkdirSync(paths.config, { recursive: true })
     if (!existsSync(this.configPath)) this.write([])
   }
 
@@ -28,8 +29,9 @@ export class McpConfigStore {
   private read(): McpServerConfig[] {
     try {
       const parsed = JSON.parse(readFileSync(this.configPath, 'utf8'))
-      return Array.isArray(parsed)
-        ? parsed.filter((item: unknown) => item && typeof (item as McpServerConfig).command === 'string')
+      const values = Array.isArray(parsed) ? parsed : parsed?.servers
+      return Array.isArray(values)
+        ? values.filter((item: unknown) => item && typeof (item as McpServerConfig).command === 'string')
         : []
     } catch {
       return []
@@ -37,7 +39,7 @@ export class McpConfigStore {
   }
 
   private write(records: McpServerConfig[]) {
-    writeFileSync(this.configPath, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
+    writeFileSync(this.configPath, `${JSON.stringify({ version: 1, servers: records }, null, 2)}\n`, 'utf8')
   }
 
   list(): McpServerConfig[] {

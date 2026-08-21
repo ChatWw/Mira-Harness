@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { HarnessStore } from '../electron/harnessStore'
 import { PlatformDatabase } from '../electron/database'
+import { MiraPaths } from '../electron/miraPaths'
 
 function createStore() {
   const root = mkdtempSync(join(tmpdir(), 'mira-harness-store-'))
@@ -15,7 +16,7 @@ function createStore() {
     CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
-  return { root, database, store: new HarnessStore(database, root) }
+  return { root, database, store: new HarnessStore(database, new MiraPaths(root)) }
 }
 
 describe('HarnessStore', () => {
@@ -46,7 +47,8 @@ describe('HarnessStore', () => {
     const root = mkdtempSync(join(tmpdir(), 'mira-harness-migration-'))
     const directory = join(root, 'legacy-project')
     mkdirSync(directory)
-    const legacy = new Database(join(root, 'mira.sqlite'))
+    const paths = new MiraPaths(root).ensure()
+    const legacy = new Database(paths.stateDatabase())
     legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
     legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '17')
@@ -55,6 +57,19 @@ describe('HarnessStore', () => {
 
     const database = new PlatformDatabase(root)
     expect(database.harness.getProject('legacy').icon).toBe('FolderOpened')
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('reports missing project directories without failing the project list', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'missing-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, '已移除目录')
+    rmSync(directory, { recursive: true, force: true })
+
+    expect(store.listProjects()).toEqual([expect.objectContaining({ id: project.id, directoryExists: false })])
+
+    database.close()
     rmSync(root, { recursive: true, force: true })
   })
 
@@ -71,6 +86,22 @@ describe('HarnessStore', () => {
     expect(recent.workingDirectory).toBeUndefined()
     expect(projectSession.projectId).toBe(project.id)
 
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('stores project sessions and trash outside the project directory', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'remove-me.txt'), '待删除', 'utf8')
+    const project = store.createProject(directory, 'Demo 项目')
+    const session = store.createSession(project.id)
+    store.addMessage(session.id, 'user', '记录在外部')
+    expect(existsSync(join(directory, '.mira'))).toBe(false)
+    store.moveToTrash(session.id, 'remove-me.txt')
+    expect(existsSync(join(directory, '.mira'))).toBe(false)
+    expect(store.listTrash(project.id)).toHaveLength(1)
     database.close()
     rmSync(root, { recursive: true, force: true })
   })

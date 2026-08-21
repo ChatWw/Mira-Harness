@@ -21,6 +21,8 @@ import {
   type PermissionMode,
   type ToolCallRecord,
 } from '../src/config/harness'
+import { atomicMove } from './miraDataMigration'
+import { MiraPaths } from './miraPaths'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
 type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
@@ -72,17 +74,14 @@ function gitPrefix(value: unknown, fallback = DEFAULT_HARNESS_GIT_CONFIG.branchP
 }
 
 export class HarnessStore {
-  constructor(private readonly database: Database.Database, private readonly userDataPath: string) {
-    mkdirSync(this.tempSessionsDir(), { recursive: true })
+  private readonly paths: MiraPaths
+
+  constructor(private readonly database: Database.Database, paths: MiraPaths | string) {
+    this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
+    mkdirSync(this.paths.sessions, { recursive: true })
   }
 
-  private tempSessionsDir() { return join(this.userDataPath, '.mira', 'sessions') }
-  private projectMira(project: HarnessProject) { return join(project.directory, '.mira') }
-  private sessionPath(session: HarnessSession) {
-    if (!session.projectId) return join(this.tempSessionsDir(), `${session.id}.json`)
-    const project = this.getProject(session.projectId)
-    return join(this.projectMira(project), 'sessions', `${session.id}.json`)
-  }
+  private sessionPath(session: HarnessSession) { return this.paths.session(session.id) }
 
   private ensureInside(root: string, candidate: string) {
     const rootPath = resolve(root)
@@ -137,17 +136,22 @@ export class HarnessStore {
   listProjects(): HarnessProject[] {
     const counts = this.database.prepare('SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL GROUP BY project_id').all() as Array<{ project_id: string, count: number }>
     const countMap = new Map(counts.map(row => [row.project_id, row.count]))
-    return (this.database.prepare('SELECT * FROM harness_projects ORDER BY COALESCE(last_session_at, updated_at) DESC').all() as ProjectRow[]).map(row => ({
-      id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, createdAt: row.created_at, updatedAt: row.updated_at,
-      ...gitMetadata(row.directory), lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
-    }))
+    return (this.database.prepare('SELECT * FROM harness_projects ORDER BY COALESCE(last_session_at, updated_at) DESC').all() as ProjectRow[]).map(row => {
+      const directoryExists = existsSync(row.directory)
+      return {
+        id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, createdAt: row.created_at, updatedAt: row.updated_at,
+        ...(directoryExists ? gitMetadata(row.directory) : {}), lastSessionAt: row.last_session_at || undefined,
+        defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
+      }
+    })
   }
 
   getProject(id: string): HarnessProject {
     const row = this.database.prepare('SELECT * FROM harness_projects WHERE id = ?').get(id) as ProjectRow | undefined
     if (!row) throw new Error('未找到项目')
     const sessionCount = (this.database.prepare('SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ?').get(id) as { count: number }).count
-    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, ...gitMetadata(row.directory), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
+    const directoryExists = existsSync(row.directory)
+    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, ...(directoryExists ? gitMetadata(row.directory) : {}), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
   }
 
   listGitBranches(projectId: string): HarnessGitBranch[] {
@@ -200,7 +204,6 @@ export class HarnessStore {
     if (existing) return this.getProject(existing.id)
     const id = randomUUID(); const createdAt = now()
     const displayName = name?.trim() || canonical.split(sep).filter(Boolean).pop() || '未命名项目'
-    mkdirSync(join(canonical, '.mira', 'sessions'), { recursive: true })
     this.database.prepare('INSERT INTO harness_projects(id, name, icon, directory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, displayName, selectedIcon, canonical, createdAt, createdAt)
     return this.getProject(id)
   }
@@ -212,9 +215,11 @@ export class HarnessStore {
     return this.getProject(id)
   }
 
-  deleteProject(id: string, removeMira = false) {
+  deleteProject(id: string) {
     const project = this.getProject(id)
-    if (removeMira) rmSync(this.projectMira(project), { recursive: true, force: true })
+    this.deleteSessions((this.database.prepare('SELECT id FROM harness_sessions WHERE project_id = ?').all(id) as Array<{ id: string }>).map(row => row.id))
+    rmSync(this.paths.projectTrash(project.id), { recursive: true, force: true })
+    try { this.database.prepare('DELETE FROM memories WHERE scope = ? AND project_id = ?').run('project', id) } catch {}
     this.database.prepare('DELETE FROM harness_sessions WHERE project_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_projects WHERE id = ?').run(id)
   }
@@ -484,22 +489,44 @@ export class HarnessStore {
     const source = this.ensureInside(project.directory, join(project.directory, relativePath))
     if (!existsSync(source)) throw new Error('文件不存在')
     const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
-    const destination = join(project.directory, this.getPermissionConfig().trashDirName, stamp, relativePath)
+    const destination = join(this.paths.projectTrash(project.id), stamp, relativePath)
     mkdirSync(dirname(destination), { recursive: true }); renameSync(source, destination)
     return { token: stamp, path: relativePath }
   }
 
   listTrash(projectId: string) {
-    const project = this.getProject(projectId); const root = join(project.directory, this.getPermissionConfig().trashDirName)
+    const root = this.paths.projectTrash(projectId)
     if (!existsSync(root)) return [] as string[]
     return readdirSync(root)
   }
 
   restoreTrash(projectId: string, token: string) {
     if (!/^[a-zA-Z0-9-]+$/.test(token)) throw new Error('回收站记录无效')
-    const project = this.getProject(projectId); const root = join(project.directory, this.getPermissionConfig().trashDirName, token)
+    const project = this.getProject(projectId); const root = join(this.paths.projectTrash(projectId), token)
     if (!existsSync(root)) throw new Error('未找到回收站记录')
     for (const entry of readdirSync(root)) cpSync(join(root, entry), join(project.directory, entry), { recursive: true, force: false })
     rmSync(root, { recursive: true, force: true })
+  }
+
+  migrateLegacyStorage() {
+    const sessions = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
+    for (const session of sessions) {
+      const target = this.paths.session(session.id)
+      if (session.path !== target && existsSync(session.path)) {
+        atomicMove(session.path, target)
+        if (!existsSync(target)) throw new Error(`迁移会话失败：${session.id}`)
+        this.database.prepare('UPDATE harness_sessions SET path = ? WHERE id = ?').run(target, session.id)
+      }
+    }
+    for (const project of this.listProjects()) {
+      const legacyTrash = join(project.directory, '.mira', 'trash')
+      const target = this.paths.projectTrash(project.id)
+      if (existsSync(legacyTrash)) {
+        if (!existsSync(target)) atomicMove(legacyTrash, target)
+        else for (const entry of readdirSync(legacyTrash)) atomicMove(join(legacyTrash, entry), join(target, entry))
+      }
+      const legacyRoot = join(project.directory, '.mira')
+      if (existsSync(legacyRoot)) rmSync(legacyRoot, { recursive: true, force: true })
+    }
   }
 }

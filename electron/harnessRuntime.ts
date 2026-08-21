@@ -143,6 +143,29 @@ export class HarnessRuntime {
     }, ...messages]
   }
 
+  private async saveLongTermMemory(sessionId: string, models: ReturnType<typeof createModels>, model: any, thinkingLevel: string) {
+    if (!this.database.memories.autoEnabled()) return
+    const session = this.database.harness.getSession(sessionId)
+    if (!session.messages.some(message => message.role === 'assistant') || !session.messages.some(message => message.role === 'user')) return
+    const result = await generateSummaryWithUsage(
+      session.messages.map(message => this.toAgentMessage(message, model)) as any,
+      models,
+      model,
+      2048,
+      undefined,
+      'Generate a concise completed-task memory. Include only durable project facts, user preferences, reusable implementation knowledge, and important decisions. Exclude private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section.',
+      undefined,
+      thinkingLevel as any,
+    )
+    if (!result.ok || this.database.memories.isSensitive(result.value.text)) return
+    const content = result.value.text.trim()
+    if (!content) return
+    this.database.memories.save({
+      scope: session.projectId ? 'project' : 'global', projectId: session.projectId, kind: 'task-summary', content,
+      sourceSessionId: session.id, keywords: [session.title], enabled: true,
+    })
+  }
+
   private retainedStart(messages: HarnessMessage[], model: { api: string, provider: string, id: string }, maximumTokens = 20000) {
     let tokens = 0
     let index = messages.length
@@ -386,12 +409,13 @@ export class HarnessRuntime {
         models: [model], api: openAICompletionsApi(),
       }) as any)
       session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
+      const memory = this.database.memories.context(session.projectId, text)
       const registeredTools = this.tools(sender, sessionId)
       agent = new Agent({
         initialState: {
           systemPrompt: buildMiraSystemPrompt({
             tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
-            context: { model: { providerName: provider.name, modelName: selection.modelId } },
+            context: { model: { providerName: provider.name, modelName: selection.modelId }, globalMemory: memory.global, projectMemory: memory.project },
           }),
           model,
           thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
@@ -481,6 +505,7 @@ export class HarnessRuntime {
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
+      void this.saveLongTermMemory(sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off').catch(() => undefined)
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()

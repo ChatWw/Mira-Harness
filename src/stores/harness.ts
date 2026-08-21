@@ -183,7 +183,7 @@ export const useHarnessStore = defineStore('harness', () => {
     const api = getPlatformApi()
     if (!api) return
     const isActiveProject = activeSession.value?.projectId === id
-    await api.deleteHarnessProject(id, true)
+    await api.deleteHarnessProject(id)
     if (isActiveProject) clearActiveSession()
     await Promise.all([refreshProjects(), refreshSessions()])
   }

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ModelConfigStore } from '../electron/modelConfigStore'
+import { MiraPaths } from '../electron/miraPaths'
 
 const tempDirectories: string[] = []
 
@@ -12,7 +13,7 @@ function createStore() {
   database.exec('CREATE TABLE model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL)')
   const directory = mkdtempSync(join(tmpdir(), 'mira-models-'))
   tempDirectories.push(directory)
-  return { database, store: new ModelConfigStore(database, directory), directory }
+  return { database, store: new ModelConfigStore(database, new MiraPaths(directory)), directory }
 }
 
 afterEach(() => {
@@ -23,7 +24,7 @@ describe('ModelConfigStore', () => {
   it('initializes models.json and stores one model per record', () => {
     const { database, store, directory } = createStore()
     expect(store.list()).toEqual([])
-    expect(readFileSync(join(directory, 'models.json'), 'utf8')).toBe('[]\n')
+    expect(JSON.parse(readFileSync(join(directory, '.mira', 'config', 'models.json'), 'utf8'))).toEqual({ version: 1, providers: [], bindings: {} })
 
     const first = store.save({ name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', apiKey: 'first-key', models: ['deepseek-chat'], contextWindow: 64000, enabled: true })
     const second = store.save({ name: 'Ollama', endpoint: 'http://127.0.0.1:11434/v1', apiKey: 'local-key', models: ['qwen3'], enabled: true })

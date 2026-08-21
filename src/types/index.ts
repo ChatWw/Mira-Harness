@@ -144,7 +144,13 @@ export interface PlatformApi {
   selectHarnessProjectDirectory(): Promise<string | null>
   createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
   renameHarnessProject(id: string, name: string, icon?: string): Promise<import('@/config/harness').HarnessProject>
-  deleteHarnessProject(id: string, removeMira?: boolean): Promise<void>
+  deleteHarnessProject(id: string): Promise<void>
+  listHarnessMemories(projectId?: string): Promise<import('@/config/harness').MiraMemory[]>
+  saveHarnessMemory(memory: Partial<import('@/config/harness').MiraMemory> & Pick<import('@/config/harness').MiraMemory, 'scope' | 'kind' | 'content'>): Promise<import('@/config/harness').MiraMemory>
+  deleteHarnessMemory(id: string): Promise<void>
+  clearHarnessProjectMemories(projectId: string): Promise<number>
+  getHarnessMemoryAutoEnabled(): Promise<boolean>
+  setHarnessMemoryAutoEnabled(enabled: boolean): Promise<boolean>
   listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>

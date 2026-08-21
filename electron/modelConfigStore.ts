@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import type Database from 'better-sqlite3'
 import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
+import { MiraPaths } from './miraPaths'
 
 type JsonModelRecord = {
   id: string
@@ -17,6 +17,8 @@ type JsonModelRecord = {
   createdAt: number
   updatedAt: number
 }
+
+type ModelConfigDocument = { version: 1, providers: JsonModelRecord[], bindings: ModelRoleBinding }
 
 function inferProviderKey(name: string, endpoint: string): ModelProviderKey {
   const text = `${name} ${endpoint}`.toLocaleLowerCase()
@@ -46,18 +48,20 @@ function contextWindow(value: unknown) {
 export class ModelConfigStore {
   private readonly configPath: string
 
-  constructor(private readonly database: Database.Database, userDataPath: string) {
-    this.configPath = join(userDataPath, 'models.json')
-    mkdirSync(dirname(this.configPath), { recursive: true })
-    if (!existsSync(this.configPath)) this.writeRecords([])
+  constructor(private readonly database: Database.Database, input: MiraPaths | string) {
+    const paths = typeof input === 'string' ? new MiraPaths(input) : input
+    this.configPath = paths.modelsConfig()
+    mkdirSync(paths.config, { recursive: true })
+    if (!existsSync(this.configPath)) this.writeDocument({ version: 1, providers: [], bindings: {} })
   }
 
   path() { return this.configPath }
 
-  private readRecords(): JsonModelRecord[] {
+  private readDocument(): ModelConfigDocument {
     try {
       const parsed = JSON.parse(readFileSync(this.configPath, 'utf8'))
-      return Array.isArray(parsed) ? parsed.filter(isRecord).map(item => ({
+      const source = Array.isArray(parsed) ? { providers: parsed, bindings: {} } : parsed as Partial<ModelConfigDocument>
+      const providers = Array.isArray(source.providers) ? source.providers.filter(isRecord).map(item => ({
         id: item.id,
         providerKey: providerKey(item.providerKey, item.name, item.endpoint),
         name: item.name,
@@ -70,16 +74,21 @@ export class ModelConfigStore {
         createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
       })) : []
+      return { version: 1, providers, bindings: source.bindings && typeof source.bindings === 'object' ? source.bindings : {} }
     } catch {
-      return []
+      return { version: 1, providers: [], bindings: {} }
     }
   }
 
-  private writeRecords(records: JsonModelRecord[]) {
+  private readRecords() { return this.readDocument().providers }
+
+  private writeDocument(document: ModelConfigDocument) {
     const temporaryPath = `${this.configPath}.${randomUUID()}.tmp`
-    writeFileSync(temporaryPath, `${JSON.stringify(records, null, 2)}\n`, 'utf8')
+    writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8')
     try { renameSync(temporaryPath, this.configPath) } catch (error) { try { unlinkSync(temporaryPath) } catch {} ; throw error }
   }
+
+  private writeRecords(records: JsonModelRecord[]) { this.writeDocument({ ...this.readDocument(), providers: records }) }
 
   private asSummary(record: JsonModelRecord): ModelProviderSummary {
     return {
@@ -137,18 +146,23 @@ export class ModelConfigStore {
 
   bindings(): ModelRoleBinding {
     const validIds = new Set(this.readRecords().map(record => record.id))
-    const rows = this.database.prepare('SELECT role, provider_id, model_id FROM model_role_bindings').all() as Array<{ role: keyof ModelRoleBinding, provider_id: string, model_id: string }>
-    return Object.fromEntries(rows.filter(row => validIds.has(row.provider_id)).map(row => [row.role, { providerId: row.provider_id, modelId: row.model_id }])) as ModelRoleBinding
+    return Object.fromEntries(Object.entries(this.readDocument().bindings).filter(([, value]) => Boolean(value?.providerId && validIds.has(value.providerId)))) as ModelRoleBinding
   }
 
   saveBindings(bindings: ModelRoleBinding) {
     const validIds = new Set(this.readRecords().map(record => record.id))
-    const write = this.database.transaction(() => {
-      this.database.prepare('DELETE FROM model_role_bindings').run()
-      const insert = this.database.prepare('INSERT INTO model_role_bindings(role, provider_id, model_id) VALUES (?, ?, ?)')
-      Object.entries(bindings).forEach(([role, value]) => { if (value?.providerId && value.modelId && validIds.has(value.providerId)) insert.run(role, value.providerId, value.modelId) })
-    })
-    write()
+    const document = this.readDocument()
+    document.bindings = Object.fromEntries(Object.entries(bindings).filter(([, value]) => Boolean(value?.providerId && value.modelId && validIds.has(value.providerId)))) as ModelRoleBinding
+    this.writeDocument(document)
     return this.bindings()
+  }
+
+  migrateLegacyBindings() {
+    const document = this.readDocument()
+    if (Object.keys(document.bindings).length) return
+    const validIds = new Set(document.providers.map(record => record.id))
+    const rows = this.database.prepare('SELECT role, provider_id, model_id FROM model_role_bindings').all() as Array<{ role: keyof ModelRoleBinding, provider_id: string, model_id: string }>
+    const bindings = Object.fromEntries(rows.filter(row => validIds.has(row.provider_id)).map(row => [row.role, { providerId: row.provider_id, modelId: row.model_id }])) as ModelRoleBinding
+    if (Object.keys(bindings).length) this.writeDocument({ ...document, bindings })
   }
 }

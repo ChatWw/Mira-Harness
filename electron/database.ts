@@ -10,6 +10,8 @@ import { microApps as defaultMicroApps } from '../src/config/microApps'
 import { NovelStore } from './novelStore'
 import { HarnessStore } from './harnessStore'
 import { ModelConfigStore } from './modelConfigStore'
+import { MemoryStore } from './memoryStore'
+import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
@@ -49,17 +51,21 @@ function assertProtectedMenus(menus: MenuItem[]) {
 export class PlatformDatabase {
   private readonly database: Database.Database
   private readonly filePath: string
+  private readonly paths: MiraPaths
   readonly novels: NovelStore
   readonly harness: HarnessStore
   readonly models: ModelConfigStore
+  readonly memories: MemoryStore
 
-  constructor(userDataPath: string) {
-    mkdirSync(userDataPath, { recursive: true })
-    this.filePath = join(userDataPath, 'mira.sqlite')
+  constructor(paths: MiraPaths | string) {
+    this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
+    this.paths.ensure()
+    this.filePath = this.paths.stateDatabase()
     this.database = new Database(this.filePath)
     this.novels = new NovelStore(this.database)
-    this.models = new ModelConfigStore(this.database, userDataPath)
-    this.harness = new HarnessStore(this.database, userDataPath)
+    this.models = new ModelConfigStore(this.database, this.paths)
+    this.harness = new HarnessStore(this.database, this.paths)
+    this.memories = new MemoryStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
     this.harness.removeEmptySessions()
@@ -78,6 +84,8 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
       CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, scope TEXT NOT NULL, project_id TEXT, kind TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL, source_session_id TEXT, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_used_at INTEGER);
+      CREATE TABLE IF NOT EXISTS memory_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
     const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
     if (!projectColumns.some(column => column.name === 'icon')) {
@@ -91,6 +99,7 @@ export class PlatformDatabase {
     if (!providerColumns.some(column => column.name === 'provider_key')) {
       this.database.exec('ALTER TABLE model_providers ADD COLUMN provider_key TEXT')
     }
+    this.models.migrateLegacyBindings()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })

@@ -19,6 +19,14 @@ export const DEFAULT_CONTEXT_WINDOW = 256000
 export const CONTEXT_COMPACTION_THRESHOLD = 0.8
 export const OPEN_HARNESS_PROJECT_DIALOG_EVENT = 'mira:open-harness-project-dialog'
 
+export interface HarnessProjectDialogRequest {
+  project?: HarnessProject
+  removeProjectId?: string
+  onCreated?: (projectId: string) => void
+  onUpdated?: () => void
+  onRemoved?: () => void
+}
+
 export function shouldAutoCompactContext(usedTokens: number, contextWindow: number) {
   return usedTokens >= contextWindow * CONTEXT_COMPACTION_THRESHOLD
 }
@@ -121,6 +129,7 @@ export interface HarnessProject {
   name: string
   icon: string
   directory: string
+  directoryExists: boolean
   isGitRepository?: boolean
   gitBranch?: string
   createdAt: number
@@ -160,6 +169,23 @@ export interface HarnessProjectCreateInput {
   directory?: string
   name?: string
   icon?: string
+}
+
+export type MemoryScope = 'global' | 'project'
+export type MemoryKind = 'task-summary' | 'project-fact' | 'user-preference' | 'reusable-knowledge'
+
+export interface MiraMemory {
+  id: string
+  scope: MemoryScope
+  projectId?: string
+  kind: MemoryKind
+  content: string
+  keywords: string[]
+  sourceSessionId?: string
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+  lastUsedAt?: number
 }
 
 export const DEFAULT_PROJECT_ICON = 'FolderOpened'
@@ -234,7 +260,7 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
   fullAccessEnabled: true,
   dangerousCommands: ['rm -rf /', 'rm -rf ~', 'sudo', 'mkfs', ' dd ', 'shutdown', 'reboot'],
   trashRetentionDays: 7,
-  trashDirName: '.mira/trash',
+  trashDirName: 'trash',
 }
 
 export const MODEL_PROVIDER_PRESETS = [

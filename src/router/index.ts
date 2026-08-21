@@ -6,6 +6,7 @@ import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
 
 const staticRoutes: RouteRecordRaw[] = [
+  { path: '/settings/memory', name: 'SettingsMemory', component: () => import('@/pages/backend/memory/index.vue'), meta: { title: '记忆' } },
   {
     path: '/settings/model-config',
     name: 'SettingsModelConfig',

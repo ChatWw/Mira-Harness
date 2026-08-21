@@ -7,9 +7,11 @@ import { HarnessRuntime } from './harnessRuntime'
 import { McpConfigStore } from './mcpConfigStore'
 import { McpManager } from './mcpManager'
 import { PythonEnvironment } from './pythonEnv'
+import { MiraPaths } from './miraPaths'
+import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
+import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput, MiraMemory } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -19,6 +21,11 @@ let harnessRuntime: HarnessRuntime
 let pythonEnvironment: PythonEnvironment
 let mcpConfigStore: McpConfigStore
 let mcpManager: McpManager
+const legacyUserDataPath = app.getPath('userData')
+const miraPaths = new MiraPaths(app.getPath('home')).ensure()
+
+// Keep Mira's data portable and inspectable under the user's home directory on every desktop OS.
+app.setPath('userData', miraPaths.root)
 
 function getCloseWindowBehavior(): 'background' | 'quit' {
   const value = database?.getSnapshot().preferences.closeWindowBehavior
@@ -127,8 +134,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  database = new PlatformDatabase(app.getPath('userData'))
-  mcpConfigStore = new McpConfigStore(app.getPath('userData'))
+  prepareMiraDataMigration(miraPaths, legacyUserDataPath)
+  database = new PlatformDatabase(miraPaths)
+  database.harness.migrateLegacyStorage()
+  completeMiraDataMigration(miraPaths, legacyUserDataPath)
+  if (legacyUserDataPath !== miraPaths.root) removeLegacyUserDataFiles(legacyUserDataPath)
+  mcpConfigStore = new McpConfigStore(miraPaths)
   mcpManager = new McpManager()
   harnessRuntime = new HarnessRuntime(database, mcpManager)
   await mcpManager.refresh(mcpConfigStore.list())
@@ -218,7 +229,13 @@ app.whenReady().then(async () => {
     return database.harness.createProject(target, input.name, input.icon)
   })
   ipcMain.handle('harness:rename-project', (_event, id: string, name: string, icon?: string) => database.harness.renameProject(id, name, icon))
-  ipcMain.handle('harness:delete-project', (_event, id: string, removeMira?: boolean) => database.harness.deleteProject(id, removeMira))
+  ipcMain.handle('harness:delete-project', (_event, id: string) => database.harness.deleteProject(id))
+  ipcMain.handle('harness:list-memories', (_event, projectId?: string) => database.memories.list(projectId))
+  ipcMain.handle('harness:save-memory', (_event, memory: Partial<MiraMemory> & Pick<MiraMemory, 'scope' | 'kind' | 'content'>) => database.memories.save(memory))
+  ipcMain.handle('harness:delete-memory', (_event, id: string) => database.memories.delete(id))
+  ipcMain.handle('harness:clear-project-memories', (_event, projectId: string) => database.memories.clearProject(projectId))
+  ipcMain.handle('harness:get-memory-auto-enabled', () => database.memories.autoEnabled())
+  ipcMain.handle('harness:set-memory-auto-enabled', (_event, enabled: boolean) => database.memories.setAutoEnabled(enabled))
   ipcMain.handle('harness:list-git-branches', (_event, projectId: string) => database.harness.listGitBranches(projectId))
   ipcMain.handle('harness:checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.checkoutGitBranch(projectId, branchName))
   ipcMain.handle('harness:create-and-checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.createAndCheckoutGitBranch(projectId, branchName))

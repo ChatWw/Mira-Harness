@@ -108,6 +108,7 @@ const sessionRenameTitle = ref('')
 const savingSessionRename = ref(false)
 const projectDialogVisible = ref(false)
 let projectCreatedCallback: ((projectId: string) => void) | undefined
+let projectUpdatedCallback: (() => void) | undefined
 const projectEditorVisible = ref(false)
 const editingProject = ref<HarnessProject>()
 const projectEditorName = ref('')
@@ -221,7 +222,7 @@ function showProjectDialog(onCreated?: (projectId: string) => void) { Object.ass
 function openProjectDialog() { showProjectDialog() }
 function closeProjectDialog() { projectDialogVisible.value = false; projectCreatedCallback = undefined }
 function openProjectEditor(project: HarnessProject) { editingProject.value = project; projectEditorName.value = project.name; projectEditorIcon.value = project.icon; projectEditorVisible.value = true }
-function closeProjectEditor() { projectEditorVisible.value = false; editingProject.value = undefined; projectEditorName.value = ''; projectEditorIcon.value = DEFAULT_PROJECT_ICON }
+function closeProjectEditor() { projectEditorVisible.value = false; editingProject.value = undefined; projectEditorName.value = ''; projectEditorIcon.value = DEFAULT_PROJECT_ICON; projectUpdatedCallback = undefined }
 async function saveProjectEditor() {
   const project = editingProject.value
   const name = projectEditorName.value.trim()
@@ -231,7 +232,9 @@ async function saveProjectEditor() {
   try {
     await api.renameHarnessProject(project.id, name, projectEditorIcon.value)
     await store.refreshProjects()
+    const onUpdated = projectUpdatedCallback
     closeProjectEditor()
+    onUpdated?.()
     ElMessage.success('项目已保存')
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存项目失败') } finally { savingProjectEditor.value = false }
 }
@@ -241,7 +244,16 @@ async function removeEditingProject() {
   if (projectId) await handleProjectCommand('remove', projectId)
 }
 function handleProjectDialogRequest(event: Event) {
-  const detail = (event as CustomEvent<{ onCreated?: (projectId: string) => void }>).detail
+  const detail = (event as CustomEvent<import('@/config/harness').HarnessProjectDialogRequest>).detail
+  if (detail?.project) {
+    projectUpdatedCallback = detail.onUpdated
+    openProjectEditor(detail.project)
+    return
+  }
+  if (detail?.removeProjectId) {
+    void handleProjectCommand('remove', detail.removeProjectId).then(removed => { if (removed) detail.onRemoved?.() })
+    return
+  }
   showProjectDialog(detail?.onCreated)
 }
 async function selectDirectory() {
@@ -266,20 +278,21 @@ async function handleProjectCommand(command: string, projectId: string) {
   if (command === 'open-directory') {
     const error = await getPlatformApi()?.openHarnessProjectDirectory(projectId)
     if (error) ElMessage.error(error)
-    return
+    return false
   }
-  if (command !== 'remove') return
+  if (command !== 'remove') return false
   const project = store.projects.find(item => item.id === projectId)
-  if (!project) return
+  if (!project) return false
   try {
-    await ElMessageBox.confirm(`确认后将从列表中移除“${project.name}”，其对话历史将被删除，源文件夹和文件不会被删除。请确认是否移除？`, '从列表中移除', { type: 'warning' })
-  } catch { return }
+    await ElMessageBox.confirm(`将从 Mira 移除“${project.name}”的项目注册，磁盘文件不受影响。`, '移除项目注册', { confirmButtonText: '移除注册', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger', type: 'warning' })
+  } catch { return false }
   const wasActiveProject = store.activeSession?.projectId === projectId
   await store.removeProject(projectId)
   expandedProjectIds.value = expandedProjectIds.value.filter(id => id !== projectId)
   resetProjectSessions(projectId)
   if (wasActiveProject) await router.replace('/workspace/chat')
   ElMessage.success('项目已从列表中移除')
+  return true
 }
 watch(() => store.projects.length, (count, previousCount) => {
   if (!groupStatesInitialized) return
