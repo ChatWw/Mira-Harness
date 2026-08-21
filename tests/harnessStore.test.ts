@@ -106,6 +106,111 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('attaches this run\'s file changes to its completed assistant reply', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const startedAt = Date.now()
+    store.addMessage(session.id, 'user', '修改文件')
+    store.recordTool(session.id, { id: 'previous-read', tool: 'read', target: 'README.md', status: 'ok', createdAt: startedAt - 1 })
+    store.recordTool(session.id, { id: 'edit-file', tool: 'edit', target: 'src/main.ts', status: 'ok', diff: '-1 old\n+1 new', createdAt: startedAt + 1 })
+    store.recordTool(session.id, { id: 'write-file', tool: 'write', target: 'src/new.ts', status: 'ok', diff: '+1 export {}', createdAt: startedAt + 2 })
+    store.recordTool(session.id, { id: 'delete-file', tool: 'delete', target: 'src/old.ts', status: 'ok', diff: '- 删除 src/old.ts（可还原）', createdAt: startedAt + 3 })
+    store.appendAssistantDelta(session.id, '已完成')
+    store.finalizeAssistantMessage(session.id, { run: { startedAt, completedAt: startedAt + 10, durationMs: 10, activities: [] } })
+
+    expect(store.getSession(session.id).messages.at(-1)?.fileChanges).toEqual([
+      { toolCallId: 'edit-file', tool: 'edit', path: 'src/main.ts', diff: '-1 old\n+1 new' },
+      { toolCallId: 'write-file', tool: 'write', path: 'src/new.ts', diff: '+1 export {}' },
+      { toolCallId: 'delete-file', tool: 'delete', path: 'src/old.ts', diff: '- 删除 src/old.ts（可还原）' },
+    ])
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('lists trash across projects and restores only when original paths are free', () => {
+    const { root, database, store } = createStore()
+    const firstDirectory = join(root, 'first-project')
+    const secondDirectory = join(root, 'second-project')
+    mkdirSync(firstDirectory); mkdirSync(secondDirectory)
+    writeFileSync(join(firstDirectory, 'first.txt'), 'first', 'utf8')
+    writeFileSync(join(secondDirectory, 'second.txt'), 'second', 'utf8')
+    const first = store.createProject(firstDirectory, '第一项目')
+    const second = store.createProject(secondDirectory, '第二项目')
+    const firstSession = store.createSession(first.id)
+    const secondSession = store.createSession(second.id)
+    store.moveToTrash(firstSession.id, 'first.txt')
+    store.moveToTrash(secondSession.id, 'second.txt')
+
+    expect(store.listTrash()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ projectId: first.id, projectName: '第一项目', paths: ['first.txt'] }),
+      expect.objectContaining({ projectId: second.id, projectName: '第二项目', paths: ['second.txt'] }),
+    ]))
+    expect(store.listTrash(first.id)).toEqual([expect.objectContaining({ projectId: first.id, paths: ['first.txt'] })])
+
+    const entry = store.listTrash(first.id)[0]
+    writeFileSync(join(firstDirectory, 'first.txt'), 'replacement', 'utf8')
+    expect(() => store.restoreTrash(first.id, entry.token)).toThrow('目标路径已存在')
+    expect(store.listTrash(first.id)).toHaveLength(1)
+    rmSync(join(firstDirectory, 'first.txt'))
+    store.restoreTrash(first.id, entry.token)
+    expect(readFileSync(join(firstDirectory, 'first.txt'), 'utf8')).toBe('first')
+    expect(store.listTrash(first.id)).toHaveLength(0)
+
+    const secondEntry = store.listTrash(second.id)[0]
+    rmSync(secondDirectory, { recursive: true, force: true })
+    expect(() => store.restoreTrash(second.id, secondEntry.token)).toThrow('项目目录不存在')
+    expect(store.listTrash(second.id)).toHaveLength(1)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('saves retention days and removes only expired trash entries', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'expired.txt'), 'expired', 'utf8')
+    writeFileSync(join(directory, 'recent.txt'), 'recent', 'utf8')
+    const project = store.createProject(directory, 'Demo 项目')
+    const session = store.createSession(project.id)
+    const expired = store.moveToTrash(session.id, 'expired.txt')
+    const recent = store.moveToTrash(session.id, 'recent.txt')
+    const current = store.getPermissionConfig()
+    expect(store.savePermissionConfig({ ...current, trashRetentionDays: 1 }).trashRetentionDays).toBe(1)
+    expect(store.savePermissionConfig({ ...current, trashRetentionDays: 31 }).trashRetentionDays).toBe(1)
+    const orphan = join(root, '.mira', 'trash', 'removed-project', '1-legacy')
+    mkdirSync(orphan, { recursive: true })
+    expect(store.cleanupExpiredTrash(Date.now())).toBe(1)
+    expect(store.listTrash(project.id)).toHaveLength(2)
+    const future = Date.now() + 2 * 24 * 60 * 60 * 1000
+    expect(store.cleanupExpiredTrash(future)).toBe(2)
+    expect(store.listTrash(project.id)).toEqual([])
+    expect(existsSync(join(directory, 'expired.txt'))).toBe(false)
+    expect(existsSync(join(directory, 'recent.txt'))).toBe(false)
+    expect(expired.token).not.toBe(recent.token)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('uses directory modification time for legacy trash tokens without a timestamp', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, 'Demo 项目')
+    const legacy = join(root, '.mira', 'trash', project.id, 'legacy-token')
+    mkdirSync(legacy, { recursive: true })
+    writeFileSync(join(legacy, 'note.txt'), 'legacy', 'utf8')
+
+    const entry = store.listTrash(project.id)[0]
+    expect(entry).toMatchObject({ token: 'legacy-token', paths: ['note.txt'] })
+    expect(entry.deletedAt).toBeGreaterThan(0)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('persists pinned sessions in the session index and file', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()

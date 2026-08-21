@@ -145,12 +145,14 @@ export interface PlatformApi {
   createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
   renameHarnessProject(id: string, name: string, icon?: string): Promise<import('@/config/harness').HarnessProject>
   deleteHarnessProject(id: string): Promise<void>
-  listHarnessMemories(projectId?: string): Promise<import('@/config/harness').MiraMemory[]>
-  saveHarnessMemory(memory: Partial<import('@/config/harness').MiraMemory> & Pick<import('@/config/harness').MiraMemory, 'scope' | 'kind' | 'content'>): Promise<import('@/config/harness').MiraMemory>
-  deleteHarnessMemory(id: string): Promise<void>
-  clearHarnessProjectMemories(projectId: string): Promise<number>
-  getHarnessMemoryAutoEnabled(): Promise<boolean>
-  setHarnessMemoryAutoEnabled(enabled: boolean): Promise<boolean>
+  getGlobalInstructions(): Promise<string>
+  saveGlobalInstructions(content: string): Promise<string>
+  getGlobalInstructionsPath(): Promise<string>
+  getHarnessMemoryEnabled(): Promise<boolean>
+  setHarnessMemoryEnabled(enabled: boolean): Promise<boolean>
+  getHarnessToolAssistedMemoryEnabled(): Promise<boolean>
+  setHarnessToolAssistedMemoryEnabled(enabled: boolean): Promise<boolean>
+  resetHarnessMemory(): Promise<number>
   listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
@@ -175,7 +177,7 @@ export interface PlatformApi {
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
   getHarnessGitConfig(): Promise<import('@/config/harness').HarnessGitConfig>
   saveHarnessGitConfig(config: import('@/config/harness').HarnessGitConfig): Promise<import('@/config/harness').HarnessGitConfig>
-  listHarnessTrash(projectId: string): Promise<string[]>
+  listHarnessTrash(projectId?: string): Promise<import('@/config/harness').HarnessTrashEntry[]>
   restoreHarnessTrash(projectId: string, token: string): Promise<void>
   onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
   respondHarnessPermission(requestId: string, allowed: boolean): Promise<void>

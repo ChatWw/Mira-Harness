@@ -70,6 +70,13 @@ export interface HarnessRunSummary {
   contextUsage?: HarnessContextUsage
 }
 
+export interface HarnessFileChange {
+  toolCallId: string
+  tool: 'edit' | 'write' | 'delete'
+  path: string
+  diff?: string
+}
+
 export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
@@ -77,6 +84,7 @@ export interface HarnessMessage {
   attachments?: HarnessMessageAttachment[]
   run?: HarnessRunSummary
   usage?: HarnessTokenUsage
+  fileChanges?: HarnessFileChange[]
   createdAt: number
   interrupted?: boolean
 }
@@ -139,6 +147,14 @@ export interface HarnessProject {
   sessionCount: number
 }
 
+export interface HarnessTrashEntry {
+  token: string
+  projectId: string
+  projectName: string
+  deletedAt: number
+  paths: string[]
+}
+
 export interface HarnessGitBranch {
   name: string
   current: boolean
@@ -169,23 +185,6 @@ export interface HarnessProjectCreateInput {
   directory?: string
   name?: string
   icon?: string
-}
-
-export type MemoryScope = 'global' | 'project'
-export type MemoryKind = 'task-summary' | 'project-fact' | 'user-preference' | 'reusable-knowledge'
-
-export interface MiraMemory {
-  id: string
-  scope: MemoryScope
-  projectId?: string
-  kind: MemoryKind
-  content: string
-  keywords: string[]
-  sourceSessionId?: string
-  enabled: boolean
-  createdAt: number
-  updatedAt: number
-  lastUsedAt?: number
 }
 
 export const DEFAULT_PROJECT_ICON = 'FolderOpened'

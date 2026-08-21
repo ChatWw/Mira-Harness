@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export class MiraPaths {
@@ -21,6 +21,9 @@ export class MiraPaths {
   }
 
   stateDatabase() { return join(this.root, 'state.sqlite') }
+  globalAgents() { return join(this.root, 'AGENTS.md') }
+  agentsFile(directory: string) { return join(directory, 'AGENTS.md') }
+  agentsOverrideFile(directory: string) { return join(directory, 'AGENTS.override.md') }
   modelsConfig() { return join(this.config, 'models.json') }
   mcpConfig() { return join(this.config, 'mcp-servers.json') }
   session(id: string) { return join(this.sessions, `${id}.json`) }
@@ -29,6 +32,7 @@ export class MiraPaths {
   ensure() {
     [this.root, this.config, this.sessions, this.attachments, this.trash, this.memories, this.logs]
       .forEach(path => mkdirSync(path, { recursive: true }))
+    if (!existsSync(this.globalAgents())) writeFileSync(this.globalAgents(), '', 'utf8')
     return this
   }
 }

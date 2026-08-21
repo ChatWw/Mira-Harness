@@ -41,7 +41,6 @@ async function saveMenus(menus: MenuItem[]) {
     validateMenus(menus)
     const components = runtimeNavigation.mainMenus.filter(menu => menu.target?.type === 'component')
     applyManagementSnapshot(await requirePlatformApi().updateMenus([...components, ...menus]))
-    ElMessage.success('菜单配置已保存')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '菜单配置保存失败')
   } finally {

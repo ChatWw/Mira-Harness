@@ -70,6 +70,7 @@
     "@wangeditor-next/editor": "^6.2.0",
     "@wangeditor-next/editor-for-vue": "^6.2.0",
     "better-sqlite3": "^13.0.2",
+    "diff": "^8.0.4",
     "element-plus": "^2.14.2",
     "ldrs": "^1.1.9",
     "lucide-vue-next": "^0.468.0",

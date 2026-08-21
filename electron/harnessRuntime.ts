@@ -144,26 +144,24 @@ export class HarnessRuntime {
   }
 
   private async saveLongTermMemory(sessionId: string, models: ReturnType<typeof createModels>, model: any, thinkingLevel: string) {
-    if (!this.database.memories.autoEnabled()) return
+    if (!this.database.memories.enabled()) return
     const session = this.database.harness.getSession(sessionId)
     if (!session.messages.some(message => message.role === 'assistant') || !session.messages.some(message => message.role === 'user')) return
+    if (session.toolCalls.length && !this.database.memories.toolAssistedEnabled()) return
     const result = await generateSummaryWithUsage(
       session.messages.map(message => this.toAgentMessage(message, model)) as any,
       models,
       model,
       2048,
       undefined,
-      'Generate a concise completed-task memory. Include only durable project facts, user preferences, reusable implementation knowledge, and important decisions. Exclude private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section.',
+      'Generate a concise global memory for future conversations. Include only durable user preferences, long-term personal context, and reusable work habits that remain useful across projects. Exclude project-specific rules, directory details, one-off task details, private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section.',
       undefined,
       thinkingLevel as any,
     )
     if (!result.ok || this.database.memories.isSensitive(result.value.text)) return
     const content = result.value.text.trim()
     if (!content) return
-    this.database.memories.save({
-      scope: session.projectId ? 'project' : 'global', projectId: session.projectId, kind: 'task-summary', content,
-      sourceSessionId: session.id, keywords: [session.title], enabled: true,
-    })
+    this.database.memories.saveGenerated(content, session.id)
   }
 
   private retainedStart(messages: HarnessMessage[], model: { api: string, provider: string, id: string }, maximumTokens = 20000) {
@@ -395,6 +393,7 @@ export class HarnessRuntime {
     emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities } })
 
     let model: any
+    let models!: ReturnType<typeof createModels>
     let agent!: Agent
     try {
       model = {
@@ -402,20 +401,24 @@ export class HarnessRuntime {
         reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
         input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
       } as any
-      const models = createModels()
+      models = createModels()
       models.setProvider(createProvider({
         id: 'mira-openai', name: provider.name, baseUrl: provider.endpoint,
         auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
         models: [model], api: openAICompletionsApi(),
       }) as any)
       session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
-      const memory = this.database.memories.context(session.projectId, text)
+      const memory = this.database.memories.enabled() ? this.database.memories.context(text) : ''
       const registeredTools = this.tools(sender, sessionId)
       agent = new Agent({
         initialState: {
           systemPrompt: buildMiraSystemPrompt({
             tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
-            context: { model: { providerName: provider.name, modelName: selection.modelId }, globalMemory: memory.global, projectMemory: memory.project },
+            context: {
+              model: { providerName: provider.name, modelName: selection.modelId },
+              instructions: this.database.instructions.resolve(session.workingDirectory),
+              globalMemory: memory,
+            },
           }),
           model,
           thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',

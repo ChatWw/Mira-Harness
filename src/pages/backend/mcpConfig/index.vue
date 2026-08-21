@@ -91,7 +91,6 @@ function edit(server: McpServer) {
 async function save() {
   const args = argsText.value.split('\n').map(item => item.trim()).filter(Boolean)
   await getPlatformApi()?.saveMcpServer({ ...form.value, args })
-  ElMessage.success('已保存，正在重新连接 MCP 服务器')
   visible.value = false
   await load()
 }

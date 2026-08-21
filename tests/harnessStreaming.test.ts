@@ -29,6 +29,7 @@ function installWindow(getHarnessSession = vi.fn(async (id: string) => createSes
       getHarnessSession,
       listHarnessSessions: vi.fn(async () => []),
       listHarnessProjects: vi.fn(async () => []),
+      deleteHarnessSessions: vi.fn(async () => undefined),
     },
   })
   return getHarnessSession
@@ -125,5 +126,17 @@ describe('harness message streaming', () => {
 
     store.applyEvent({ sessionId: 'session-2', type: 'status', payload: { state: 'idle' } })
     expect(store.pendingPermissionRequests['session-2']).toBeUndefined()
+  })
+
+  it('removes a deleted session from shared navigation state immediately', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+    store.sessions = [{ ...createSession('session-1'), projectName: '项目' }, { ...createSession('session-2'), projectName: '项目' }]
+
+    await store.deleteSessions(['session-1'])
+
+    expect(store.sessions).toEqual([])
+    expect(store.activeSession).toBeUndefined()
   })
 })

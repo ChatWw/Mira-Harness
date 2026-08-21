@@ -11,12 +11,13 @@ import { NovelStore } from './novelStore'
 import { HarnessStore } from './harnessStore'
 import { ModelConfigStore } from './modelConfigStore'
 import { MemoryStore } from './memoryStore'
+import { InstructionStore } from './instructionStore'
 import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 20
+const CURRENT_SCHEMA_VERSION = 21
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
@@ -56,6 +57,7 @@ export class PlatformDatabase {
   readonly harness: HarnessStore
   readonly models: ModelConfigStore
   readonly memories: MemoryStore
+  readonly instructions: InstructionStore
 
   constructor(paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
@@ -66,6 +68,7 @@ export class PlatformDatabase {
     this.models = new ModelConfigStore(this.database, this.paths)
     this.harness = new HarnessStore(this.database, this.paths)
     this.memories = new MemoryStore(this.database)
+    this.instructions = new InstructionStore(this.paths)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
     this.harness.removeEmptySessions()
@@ -87,6 +90,9 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, scope TEXT NOT NULL, project_id TEXT, kind TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL, source_session_id TEXT, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_used_at INTEGER);
       CREATE TABLE IF NOT EXISTS memory_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
+    // Project memories are intentionally unsupported; this application is not yet released.
+    this.database.prepare("DELETE FROM memories WHERE scope = 'project'").run()
+    this.database.prepare("DELETE FROM memory_settings WHERE key = 'auto_enabled'").run()
     const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
     if (!projectColumns.some(column => column.name === 'icon')) {
       this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")

@@ -44,6 +44,14 @@
               </ol>
             </details>
             <div class="message__markdown" v-html="renderAssistantMessage(message.content)" @click="copyCodeBlock" />
+            <section v-if="message.fileChanges?.length" class="message-changes" aria-label="本次文件修改">
+              <p class="message-changes__title">本次修改</p>
+              <button v-for="change in message.fileChanges" :key="change.toolCallId" type="button" class="file-change" @click="openFileChange(change)">
+                <span class="file-change__icon"><AppIcon :name="change.tool === 'delete' ? 'Delete' : 'Document'" /></span>
+                <span class="file-change__content"><strong>{{ change.path }}</strong><small>{{ fileChangeSummary(change) }}</small></span>
+                <span class="file-change__action">{{ change.diff ? '查看对比' : '查看详情' }}<AppIcon name="ArrowRight" /></span>
+              </button>
+            </section>
           </template>
           <div v-if="message.attachments?.length" class="message__attachments">
             <span v-for="file in message.attachments" :key="file.path" class="file-chip"><AppIcon name="Document" />{{ file.name }}</span>
@@ -259,6 +267,13 @@
       <p v-if="newGitBranchError" class="git-branch-dialog__error">{{ newGitBranchError }}</p>
       <template #footer><div class="git-branch-dialog__footer"><el-button @click="createGitBranchVisible = false">关闭</el-button><el-button type="primary" :loading="gitBranchWorking" :disabled="Boolean(newGitBranchError)" @click="createGitBranch">创建并检出</el-button></div></template>
     </el-dialog>
+
+    <el-drawer v-model="fileChangeVisible" :title="activeFileChange?.path || '文件变更'" direction="rtl" size="min(720px, 58vw)">
+      <div v-if="activeFileChange" class="file-change-diff">
+        <p>{{ activeFileChange.tool === 'delete' ? '文件已移入 Mira 回收站。' : fileChangeSummary(activeFileChange) }}</p>
+        <pre v-if="activeFileChange.diff" class="file-change-diff__content"><code><span v-for="(line, index) in activeFileChange.diff.split('\n')" :key="index" :class="fileDiffLineClass(line)">{{ line || ' ' }}</span></code></pre>
+      </div>
+    </el-drawer>
   </main>
 </template>
 
@@ -268,7 +283,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 
 const route = useRoute()
@@ -288,6 +303,8 @@ const quickNavigationRef = ref<HTMLElement>()
 const enteringMessageId = ref<string>()
 const editingMessageId = ref<string>()
 const editingMessageText = ref('')
+const fileChangeVisible = ref(false)
+const activeFileChange = ref<HarnessFileChange>()
 const addMenuVisible = ref(false)
 const addMenuView = ref<'menu' | 'file'>('menu')
 const projectPickerVisible = ref(false)
@@ -461,6 +478,12 @@ async function load() {
   }
 }
 
+let routeLoadPromise: Promise<void> = Promise.resolve()
+function reload() {
+  routeLoadPromise = load()
+  return routeLoadPromise
+}
+
 function setDraftText(value: string) {
   if (draftKey.value) store.updateComposerDraft(draftKey.value, { text: value })
 }
@@ -476,6 +499,15 @@ function formatTokenCount(value: number) {
   return `${compact}K`
 }
 function renderAssistantMessage(content: string) { return markdown.render(content) }
+function fileChangeSummary(change: HarnessFileChange) {
+  if (change.tool === 'delete') return '已移入回收站'
+  const lines = change.diff?.split('\n') || []
+  const added = lines.filter(line => /^\+\d/.test(line)).length
+  const removed = lines.filter(line => /^-\d/.test(line)).length
+  return `${change.tool === 'write' ? '已写入' : '已编辑'}${added || removed ? ` · +${added} -${removed}` : ''}`
+}
+function fileDiffLineClass(line: string) { return line.startsWith('+') ? 'is-added' : line.startsWith('-') ? 'is-removed' : '' }
+function openFileChange(change: HarnessFileChange) { activeFileChange.value = change; fileChangeVisible.value = true }
 async function copyCodeBlock(event: MouseEvent) {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.markdown-code-copy')
   const encoded = button?.dataset.code
@@ -771,6 +803,8 @@ async function send() {
       store.updateComposerDraft(sessionKey, { text: payload.text, attachments: payload.attachments, modelSelection: payload.modelSelection, permissionMode: payload.permissionMode })
       store.removeComposerDraft(originKey)
       await router.replace(`/workspace/chat/${session.id}`)
+      await nextTick()
+      await routeLoadPromise
     }
     if (store.activeSession?.permissionMode !== payload.permissionMode) await store.setSessionPermission(activeId, payload.permissionMode)
     const sessionKey = `session:${activeId}`
@@ -780,6 +814,7 @@ async function send() {
     store.activeSession?.messages.push({ id: messageId, role: 'user', content: payload.text, attachments: payload.attachments.map(file => ({ ...file, content: '' })), createdAt: Date.now() })
     void scrollLatestMessageToTop(messageId)
     store.running = true
+    await nextTick()
     await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection)
   } catch (error) {
     const sessionKey = activeId ? `session:${activeId}` : originKey
@@ -1045,7 +1080,7 @@ watch(() => [route.params.id, route.query.draft], () => {
   scrollFollowLocked = false
   stickToBottom.value = true
   showScrollToBottom.value = false
-  void load()
+  void reload()
 })
 watch(() => store.activeSession?.id, () => {
   cancelAutoScroll()
@@ -1072,7 +1107,7 @@ onMounted(() => {
   elapsedTimer = window.setInterval(() => { if (store.activeRun) clock.value = Date.now() }, 250)
   quickNavigationResizeObserver = new ResizeObserver(scheduleQuickNavigationUpdate)
   void nextTick().then(scheduleQuickNavigationUpdate)
-  void load()
+  void reload()
 })
 onBeforeUnmount(() => {
   if (elapsedTimer) window.clearInterval(elapsedTimer)
@@ -1207,6 +1242,7 @@ onBeforeUnmount(() => {
 .context-usage__ring::before { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--cp-bg); content: ''; }
 .context-usage.is-warning { color: var(--cp-warning); }.context-usage.is-critical { color: var(--cp-danger); }
 .composer__send { color: var(--cp-bg-elevated); background: var(--cp-text); }.composer__send:hover:not(:disabled) { transform: translateY(-1px); }.composer__send:disabled { color: var(--cp-text-tertiary); background: var(--cp-bg-hover); cursor: not-allowed; }.composer__send.is-stop { color: var(--cp-danger); border: 1px solid color-mix(in srgb, var(--cp-danger) 48%, var(--cp-border)); background: transparent; }
+.message-changes { margin-top: 18px; }.message-changes__title { margin: 0 0 7px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.file-change { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; color: var(--cp-text); background: var(--cp-bg-elevated); font: inherit; text-align: left; cursor: pointer; transition: border-color $transition-fast, background $transition-fast; }.file-change + .file-change { margin-top: 6px; }.file-change:hover { border-color: var(--cp-border); background: var(--cp-bg-hover); }.file-change:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }.file-change__icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-size: 16px; }.file-change__content { display: grid; min-width: 0; gap: 2px; }.file-change__content strong { overflow: hidden; font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }.file-change__content small { color: var(--cp-text-tertiary); font-size: 11px; }.file-change__action { display: inline-flex; align-items: center; gap: 3px; color: var(--cp-text-secondary); font-size: 11px; white-space: nowrap; }.file-change__action .app-icon { font-size: 12px; }.file-change-diff { display: grid; min-height: 0; gap: 14px; }.file-change-diff > p { margin: 0; color: var(--cp-text-secondary); font-size: 13px; line-height: 1.55; }.file-change-diff__content { max-height: calc(100vh - 160px); margin: 0; padding: 10px 0; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: $radius-sm; background: var(--cp-bg-hover); color: var(--cp-text-secondary); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }.file-change-diff__content code { display: block; min-width: max-content; }.file-change-diff__content span { display: block; min-height: 18px; padding: 0 12px; }.file-change-diff__content span.is-added { color: color-mix(in srgb, var(--cp-success) 84%, var(--cp-text)); background: color-mix(in srgb, var(--cp-success) 10%, transparent); }.file-change-diff__content span.is-removed { color: color-mix(in srgb, var(--cp-danger) 84%, var(--cp-text)); background: color-mix(in srgb, var(--cp-danger) 10%, transparent); }
 .session-panel h2 { margin: 0 0 13px; color: var(--cp-text-secondary); font-size: 12px; font-weight: 600; }.session-panel section + section { margin-top: 32px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 70%, transparent); }.session-panel dl { margin: 0; }.session-panel dl div { margin-bottom: 14px; }.session-panel dt { color: var(--cp-text-tertiary); font-size: 11px; }.session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; }.tool-row { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 6px; align-items: start; margin: 11px 0; color: var(--cp-text-secondary); font-size: 12px; }.tool-row > span { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }.tool-row > span.running { background: var(--cp-primary); }.tool-row > span.ok { background: var(--cp-success); }.tool-row > span.failed { background: var(--cp-danger); }.tool-row small { grid-column: 2; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }.tool-diff { grid-column: 1 / -1; max-height: 160px; margin: 4px 0 0; padding: 6px 8px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-sm, 4px); color: var(--cp-text-secondary); background: var(--cp-bg-hover); font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; }.session-panel { display: none; } }

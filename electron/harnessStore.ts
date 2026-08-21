@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
@@ -10,6 +10,7 @@ import {
   isProjectIcon,
   type HarnessMessage,
   type HarnessFileReference,
+  type HarnessFileChange,
   type HarnessGitBranch,
   type HarnessGitConfig,
   type HarnessMessageAttachment,
@@ -17,6 +18,7 @@ import {
   type HarnessRunSummary,
   type HarnessSession,
   type HarnessSessionSummary,
+  type HarnessTrashEntry,
   type PermissionConfig,
   type PermissionMode,
   type ToolCallRecord,
@@ -35,6 +37,18 @@ const MAX_LISTED_PROJECT_FILES = 240
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 function now() { return Date.now() }
+function trashTime(token: string, directory: string) {
+  const value = Number(token.match(/^(\d+)-/)?.[1])
+  return Number.isFinite(value) && value > 0 ? value : statSync(directory).mtimeMs
+}
+function trashPaths(root: string, relativePath = ''): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap(entry => {
+    const next = relativePath ? join(relativePath, entry.name) : entry.name
+    if (!entry.isDirectory()) return [next]
+    const children = trashPaths(join(root, entry.name), next)
+    return children.length ? children : [next]
+  })
+}
 function createSessionId() { return randomUUID() }
 function titleFor(content: string) { return content.trim().replace(/\s+/g, ' ').slice(0, 42) || '新对话' }
 function projectIcon(value?: string) { return isProjectIcon(value) ? value : DEFAULT_PROJECT_ICON }
@@ -219,7 +233,6 @@ export class HarnessStore {
     const project = this.getProject(id)
     this.deleteSessions((this.database.prepare('SELECT id FROM harness_sessions WHERE project_id = ?').all(id) as Array<{ id: string }>).map(row => row.id))
     rmSync(this.paths.projectTrash(project.id), { recursive: true, force: true })
-    try { this.database.prepare('DELETE FROM memories WHERE scope = ? AND project_id = ?').run('project', id) } catch {}
     this.database.prepare('DELETE FROM harness_sessions WHERE project_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_projects WHERE id = ?').run(id)
   }
@@ -287,6 +300,13 @@ export class HarnessStore {
     if (!last || last.role !== 'assistant') throw new Error('没有可完成的助手回复')
     if (options.run) last.run = options.run
     if (options.usage) last.usage = options.usage
+    if (options.run) {
+      const changes = session.toolCalls
+        .filter(tool => tool.status === 'ok' && tool.createdAt >= options.run!.startedAt && tool.createdAt <= options.run!.completedAt && (tool.tool === 'edit' || tool.tool === 'write' || tool.tool === 'delete') && tool.target)
+        .map(tool => ({ toolCallId: tool.id, tool: tool.tool as HarnessFileChange['tool'], path: tool.target!, ...(tool.diff ? { diff: tool.diff } : {}) } satisfies HarnessFileChange))
+      if (changes.length) last.fileChanges = changes
+      else delete last.fileChanges
+    }
     if (options.interrupted) last.interrupted = true
     else delete last.interrupted
     return this.saveSession(session)
@@ -445,6 +465,9 @@ export class HarnessStore {
       ...current,
       autoApproveEnabled: typeof config.autoApproveEnabled === 'boolean' ? config.autoApproveEnabled : current.autoApproveEnabled,
       fullAccessEnabled: typeof config.fullAccessEnabled === 'boolean' ? config.fullAccessEnabled : current.fullAccessEnabled,
+      trashRetentionDays: Number.isInteger(config.trashRetentionDays) && config.trashRetentionDays >= 1 && config.trashRetentionDays <= 30
+        ? config.trashRetentionDays
+        : current.trashRetentionDays,
       globalDefaultMode: 'default',
     }
     this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(next))
@@ -494,18 +517,55 @@ export class HarnessStore {
     return { token: stamp, path: relativePath }
   }
 
-  listTrash(projectId: string) {
-    const root = this.paths.projectTrash(projectId)
-    if (!existsSync(root)) return [] as string[]
-    return readdirSync(root)
+  listTrash(projectId?: string): HarnessTrashEntry[] {
+    const projects = projectId ? [this.getProject(projectId)] : this.listProjects()
+    return projects.flatMap(project => {
+      const root = this.paths.projectTrash(project.id)
+      if (!existsSync(root)) return []
+      return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).flatMap(entry => {
+        const directory = join(root, entry.name)
+        try {
+          return [{ token: entry.name, projectId: project.id, projectName: project.name, deletedAt: trashTime(entry.name, directory), paths: trashPaths(directory) }]
+        } catch (error) {
+          console.warn(`[Mira] 无法读取回收站记录：${directory}`, error)
+          return []
+        }
+      })
+    }).sort((a, b) => b.deletedAt - a.deletedAt)
   }
 
   restoreTrash(projectId: string, token: string) {
     if (!/^[a-zA-Z0-9-]+$/.test(token)) throw new Error('回收站记录无效')
-    const project = this.getProject(projectId); const root = join(this.paths.projectTrash(projectId), token)
+    const project = this.getProject(projectId)
+    if (!existsSync(project.directory)) throw new Error('项目目录不存在，无法还原')
+    const root = join(this.paths.projectTrash(projectId), token)
     if (!existsSync(root)) throw new Error('未找到回收站记录')
+    const paths = trashPaths(root)
+    const conflict = paths.find(path => existsSync(this.ensureInside(project.directory, join(project.directory, path))))
+    if (conflict) throw new Error(`目标路径已存在，无法还原：${conflict}`)
     for (const entry of readdirSync(root)) cpSync(join(root, entry), join(project.directory, entry), { recursive: true, force: false })
     rmSync(root, { recursive: true, force: true })
+  }
+
+  cleanupExpiredTrash(referenceTime = now()) {
+    const cutoff = referenceTime - this.getPermissionConfig().trashRetentionDays * 24 * 60 * 60 * 1000
+    if (!existsSync(this.paths.trash)) return 0
+    let removed = 0
+    for (const project of readdirSync(this.paths.trash, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+      const root = join(this.paths.trash, project.name)
+      for (const entry of readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+        const directory = join(root, entry.name)
+        try {
+          if (trashTime(entry.name, directory) < cutoff) {
+            rmSync(directory, { recursive: true, force: true })
+            removed += 1
+          }
+        } catch (error) {
+          console.warn(`[Mira] 无法清理回收站记录：${directory}`, error)
+        }
+      }
+    }
+    return removed
   }
 
   migrateLegacyStorage() {

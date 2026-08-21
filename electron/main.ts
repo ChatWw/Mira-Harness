@@ -11,7 +11,7 @@ import { MiraPaths } from './miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput, MiraMemory } from '../src/config/harness'
+import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -23,6 +23,7 @@ let mcpConfigStore: McpConfigStore
 let mcpManager: McpManager
 const legacyUserDataPath = app.getPath('userData')
 const miraPaths = new MiraPaths(app.getPath('home')).ensure()
+const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 
 // Keep Mira's data portable and inspectable under the user's home directory on every desktop OS.
 app.setPath('userData', miraPaths.root)
@@ -30,6 +31,14 @@ app.setPath('userData', miraPaths.root)
 function getCloseWindowBehavior(): 'background' | 'quit' {
   const value = database?.getSnapshot().preferences.closeWindowBehavior
   return value === 'quit' ? 'quit' : 'background'
+}
+
+function cleanupExpiredTrash() {
+  try {
+    database.harness.cleanupExpiredTrash()
+  } catch (error) {
+    console.warn('[Mira] 回收站过期清理失败', error)
+  }
 }
 
 function navigateToAbout(window?: BrowserWindow | null) {
@@ -139,6 +148,8 @@ app.whenReady().then(async () => {
   database.harness.migrateLegacyStorage()
   completeMiraDataMigration(miraPaths, legacyUserDataPath)
   if (legacyUserDataPath !== miraPaths.root) removeLegacyUserDataFiles(legacyUserDataPath)
+  cleanupExpiredTrash()
+  setInterval(cleanupExpiredTrash, TRASH_CLEANUP_INTERVAL_MS)
   mcpConfigStore = new McpConfigStore(miraPaths)
   mcpManager = new McpManager()
   harnessRuntime = new HarnessRuntime(database, mcpManager)
@@ -230,12 +241,14 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('harness:rename-project', (_event, id: string, name: string, icon?: string) => database.harness.renameProject(id, name, icon))
   ipcMain.handle('harness:delete-project', (_event, id: string) => database.harness.deleteProject(id))
-  ipcMain.handle('harness:list-memories', (_event, projectId?: string) => database.memories.list(projectId))
-  ipcMain.handle('harness:save-memory', (_event, memory: Partial<MiraMemory> & Pick<MiraMemory, 'scope' | 'kind' | 'content'>) => database.memories.save(memory))
-  ipcMain.handle('harness:delete-memory', (_event, id: string) => database.memories.delete(id))
-  ipcMain.handle('harness:clear-project-memories', (_event, projectId: string) => database.memories.clearProject(projectId))
-  ipcMain.handle('harness:get-memory-auto-enabled', () => database.memories.autoEnabled())
-  ipcMain.handle('harness:set-memory-auto-enabled', (_event, enabled: boolean) => database.memories.setAutoEnabled(enabled))
+  ipcMain.handle('harness:get-global-instructions', () => database.instructions.readGlobal())
+  ipcMain.handle('harness:save-global-instructions', (_event, content: string) => database.instructions.saveGlobal(content))
+  ipcMain.handle('harness:get-global-instructions-path', () => miraPaths.globalAgents())
+  ipcMain.handle('harness:get-memory-enabled', () => database.memories.enabled())
+  ipcMain.handle('harness:set-memory-enabled', (_event, enabled: boolean) => database.memories.setEnabled(enabled))
+  ipcMain.handle('harness:get-tool-assisted-memory-enabled', () => database.memories.toolAssistedEnabled())
+  ipcMain.handle('harness:set-tool-assisted-memory-enabled', (_event, enabled: boolean) => database.memories.setToolAssistedEnabled(enabled))
+  ipcMain.handle('harness:reset-memory', () => database.memories.reset())
   ipcMain.handle('harness:list-git-branches', (_event, projectId: string) => database.harness.listGitBranches(projectId))
   ipcMain.handle('harness:checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.checkoutGitBranch(projectId, branchName))
   ipcMain.handle('harness:create-and-checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.createAndCheckoutGitBranch(projectId, branchName))
@@ -269,10 +282,14 @@ app.whenReady().then(async () => {
     void mcpManager.refresh(mcpConfigStore.list())
   })
   ipcMain.handle('harness:get-permission-config', () => database.harness.getPermissionConfig())
-  ipcMain.handle('harness:save-permission-config', (_event, config) => database.harness.savePermissionConfig(config))
+  ipcMain.handle('harness:save-permission-config', (_event, config) => {
+    const saved = database.harness.savePermissionConfig(config)
+    cleanupExpiredTrash()
+    return saved
+  })
   ipcMain.handle('harness:get-git-config', () => database.harness.getGitConfig())
   ipcMain.handle('harness:save-git-config', (_event, config) => database.harness.saveGitConfig(config))
-  ipcMain.handle('harness:list-trash', (_event, projectId: string) => database.harness.listTrash(projectId))
+  ipcMain.handle('harness:list-trash', (_event, projectId?: string) => database.harness.listTrash(projectId))
   ipcMain.handle('harness:restore-trash', (_event, projectId: string, token: string) => database.harness.restoreTrash(projectId, token))
   ipcMain.handle('harness:python-status', () => pythonEnvironment.status())
   ipcMain.handle('harness:python-exec', (_event, script: string, args: string[]) => pythonEnvironment.run(script, args))

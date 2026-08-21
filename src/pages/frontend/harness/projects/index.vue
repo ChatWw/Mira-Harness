@@ -22,6 +22,7 @@
         <el-tooltip content="网格视图"><el-radio-button value="grid" aria-label="网格视图"><AppIcon name="Grid" /></el-radio-button></el-tooltip>
         <el-tooltip content="列表视图"><el-radio-button value="list" aria-label="列表视图"><AppIcon name="List" /></el-radio-button></el-tooltip>
       </el-radio-group>
+      <el-button aria-label="打开回收站" @click="openTrash()"><AppIcon name="Delete" />回收站</el-button>
     </section>
 
     <section class="project-stats" aria-label="项目统计">
@@ -81,7 +82,25 @@
 
     <el-empty v-else-if="!loading" class="project-empty" description="注册第一个项目目录，开始与 Mira 对话"><template #image><AppIcon name="FolderOpened" /></template></el-empty>
 
-    <el-dialog v-model="trashVisible" :title="`Mira 文件回收站 · ${trashProject?.name || ''}`" width="min(520px, calc(100vw - 32px))" align-center><div v-loading="trashLoading" class="trash-list"><el-empty v-if="!trashLoading && !trashTokens.length" description="回收站为空" /><div v-for="token in trashTokens" :key="token" class="trash-item"><div><AppIcon name="Delete" /><span>{{ formatToken(token) }}</span></div><el-button size="small" @click="restore(token)">还原</el-button></div></div></el-dialog>
+    <el-drawer v-model="trashVisible" title="Mira 文件回收站" direction="rtl" size="min(520px, 46vw)">
+      <div class="trash-drawer">
+        <el-select v-model="trashProjectId" clearable placeholder="全部项目" aria-label="筛选回收站项目" @change="loadTrash">
+          <el-option label="全部项目" :value="undefined" />
+          <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+        </el-select>
+        <div v-loading="trashLoading" class="trash-list">
+          <el-empty v-if="!trashLoading && !trashEntries.length" description="回收站为空" />
+          <article v-for="entry in trashEntries" :key="`${entry.projectId}-${entry.token}`" class="trash-item">
+            <div class="trash-item__body">
+              <div class="trash-item__meta"><span>{{ entry.projectName }}</span><span>{{ formatTrashTime(entry.deletedAt) }}</span></div>
+              <ul><li v-for="path in entry.paths.slice(0, 3)" :key="path">{{ path }}</li></ul>
+              <span v-if="entry.paths.length > 3" class="trash-item__more">还有 {{ entry.paths.length - 3 }} 个文件</span>
+            </div>
+            <el-button size="small" @click="restore(entry)">还原</el-button>
+          </article>
+        </div>
+      </div>
+    </el-drawer>
   </PageContainer>
 </template>
 
@@ -91,7 +110,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/PageContainer/index.vue'
 import { getPreference, getPlatformApi, savePreference } from '@/platform'
-import { OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessProject, type HarnessProjectDialogRequest } from '@/config/harness'
+import { OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessProject, type HarnessProjectDialogRequest, type HarnessTrashEntry } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 import { filterProjects, projectStatus, type ProjectSort, type ProjectStatus } from './projectUtils'
 
@@ -109,8 +128,8 @@ const sort = ref<ProjectSort>(preference.sort === 'createdAt' || preference.sort
 const view = ref<ProjectView>(preference.view === 'list' ? 'list' : 'grid')
 const searchInputRef = ref()
 const trashVisible = ref(false)
-const trashProject = ref<HarnessProject>()
-const trashTokens = ref<string[]>([])
+const trashProjectId = ref<string>()
+const trashEntries = ref<HarnessTrashEntry[]>([])
 const trashLoading = ref(false)
 
 const activeCount = computed(() => projects.value.filter(project => projectStatus(project) === 'active').length)
@@ -120,7 +139,7 @@ const filteredProjects = computed(() => filterProjects(projects.value, query.val
 
 function projectStatusLabel(project: HarnessProject) { return projectStatus(project) === 'active' ? '活跃' : '闲置' }
 function formatTime(value: number) { return new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' }).format(Math.round((value - Date.now()) / 3600000), 'hour') }
-function formatToken(token: string) { const timestamp = Number(token.split('-')[0]); return timestamp ? new Date(timestamp).toLocaleString('zh-CN') : token }
+function formatTrashTime(value: number) { return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(value) }
 function clearFilters() { query.value = ''; statusFilter.value = 'all' }
 
 async function load() { loading.value = true; try { projects.value = await getPlatformApi()?.listHarnessProjects() || [] } finally { loading.value = false } }
@@ -130,9 +149,9 @@ function dispatchProjectDialog(detail: HarnessProjectDialogRequest = {}) { windo
 function openCreateDialog() { dispatchProjectDialog({ onCreated: () => void load() }) }
 function openRenameDialog(project: HarnessProject) { dispatchProjectDialog({ project, onUpdated: () => void load() }) }
 function confirmDelete(project: HarnessProject) { dispatchProjectDialog({ removeProjectId: project.id, onRemoved: () => void load() }) }
-async function loadTrash(projectId: string) { trashLoading.value = true; try { trashTokens.value = await getPlatformApi()?.listHarnessTrash(projectId) || [] } finally { trashLoading.value = false } }
-async function openTrash(project: HarnessProject) { trashProject.value = project; trashVisible.value = true; await loadTrash(project.id) }
-async function restore(token: string) { const project = trashProject.value; if (!project) return; try { await getPlatformApi()?.restoreHarnessTrash(project.id, token); await loadTrash(project.id); ElMessage.success('已还原到项目目录') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '还原失败') } }
+async function loadTrash() { trashLoading.value = true; try { trashEntries.value = await getPlatformApi()?.listHarnessTrash(trashProjectId.value) || [] } finally { trashLoading.value = false } }
+async function openTrash(project?: HarnessProject) { trashProjectId.value = project?.id; trashVisible.value = true; await loadTrash() }
+async function restore(entry: HarnessTrashEntry) { try { await getPlatformApi()?.restoreHarnessTrash(entry.projectId, entry.token); await loadTrash() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '还原失败') } }
 function handleKeydown(event: KeyboardEvent) { const target = event.target; if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || Boolean(document.querySelector('.el-overlay'))) return; event.preventDefault(); searchInputRef.value?.focus() }
 
 watch([view, sort], () => savePreference('harnessProjectsPage', { view: view.value, sort: sort.value }))
@@ -145,7 +164,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 .project-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: $spacing-md; margin-bottom: $spacing-lg; }.stat-card { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 14px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; background: var(--cp-bg-elevated); color: var(--cp-text); text-align: left; }.stat-card small, .stat-card strong { display: block; }.stat-card small { color: var(--cp-text-secondary); font-size: 12px; }.stat-card strong { margin-top: 2px; font-size: 22px; line-height: 1.1; }.stat-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: $radius-md; font-size: 19px; }.stat-icon--info { color: var(--cp-stat-icon-info-color); background: var(--cp-stat-icon-info-bg); }.stat-icon--success { color: var(--cp-stat-icon-success-color); background: var(--cp-stat-icon-success-bg); }.stat-icon--warning { color: var(--cp-stat-icon-warning-color); background: var(--cp-stat-icon-warning-bg); }.stat-icon--purple { color: var(--cp-stat-icon-purple-color); background: var(--cp-stat-icon-purple-bg); }
 .project-section-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }.project-section-head strong { font-size: 16px; }.project-section-head span { color: var(--cp-text-tertiary); font-size: 12px; }.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: $spacing-md; }.project-card { display: flex; min-width: 0; min-height: 225px; flex-direction: column; padding: 18px; border: 1px solid var(--cp-border); border-radius: $radius-md; background: var(--cp-bg); cursor: pointer; outline: none; transition: border-color $transition-base, box-shadow $transition-base, background $transition-base; }.project-card:hover, .project-card:focus-visible { border-color: var(--cp-primary); box-shadow: $shadow-sm; }.project-card.is-new { animation: new-project 1.8s ease-out; }.project-card__head { display: flex; align-items: center; justify-content: space-between; min-height: 24px; }.project-card h3 { margin: 8px 0 10px; overflow: hidden; font-size: 16px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }.project-state { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-text-secondary); font-size: 12px; }.project-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--cp-text-placeholder); }.project-state.active { color: var(--cp-stat-icon-success-color); }.project-state.active i { background: var(--cp-success); }.project-path { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--cp-text-tertiary); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }.project-path > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-path .el-button { margin-left: auto; }.project-path.is-missing, .project-warning { color: var(--cp-danger); }.project-warning { margin: 8px 0 0; font-size: 12px; }.project-meta { display: flex; gap: 26px; margin: auto 0 14px; padding-top: 14px; border-top: 1px solid var(--cp-border-light); }.project-meta dt { color: var(--cp-text-tertiary); font-size: 11px; }.project-meta dd { margin: 2px 0 0; font-size: 13px; font-weight: 500; }.project-actions { display: flex; align-items: center; gap: 6px; }.project-actions .el-button:first-child { margin-right: auto; }.project-card--new { align-items: center; justify-content: center; gap: 8px; border-style: dashed; color: var(--cp-text-secondary); text-align: center; }.project-card--new > span { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: var(--cp-bg-hover); font-size: 18px; }.project-card--new strong { color: var(--cp-text); }.project-card--new small { color: var(--cp-text-tertiary); font-size: 12px; }.project-card--new:hover { background: var(--cp-primary-lighter); }.project-card--skeleton { min-height: 225px; cursor: default; }.project-grid--loading { pointer-events: none; }
 .project-list-wrap { overflow-x: auto; border: 1px solid var(--cp-border); border-radius: $radius-md; }.project-list { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(210px, 1.6fr) 70px 80px 105px 196px; gap: 12px; min-width: 850px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--cp-border-light); background: var(--cp-bg); cursor: pointer; }.project-list:last-child { border-bottom: 0; }.project-list:not(.project-list--head):hover { background: var(--cp-bg-elevated); }.project-list--head { background: var(--cp-bg-elevated); color: var(--cp-text-tertiary); cursor: default; font-size: 12px; }.project-list > strong, .project-list__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-list__path { color: var(--cp-text-tertiary); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }.project-list__actions { display: flex; justify-content: flex-end; gap: 2px; }.project-list.is-missing .project-list__path { color: var(--cp-danger); }
-.project-empty :deep(.el-empty__image) { display: grid; width: 84px; height: 84px; place-items: center; border-radius: 50%; background: var(--cp-bg-hover); color: var(--cp-text-secondary); font-size: 38px; }.project-empty :deep(.el-empty__image .app-icon), .project-empty :deep(.el-empty__description p) { color: var(--cp-text-secondary) !important; }.trash-list { min-height: 120px; }.trash-item { display: flex; align-items: center; justify-content: space-between; gap: $spacing-md; padding: $spacing-sm 0; border-bottom: 1px solid var(--cp-border-light); }.trash-item > div { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--cp-text-secondary); }.trash-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-empty :deep(.el-empty__image) { display: grid; width: 84px; height: 84px; place-items: center; border-radius: 50%; background: var(--cp-bg-hover); color: var(--cp-text-secondary); font-size: 38px; }.project-empty :deep(.el-empty__image .app-icon), .project-empty :deep(.el-empty__description p) { color: var(--cp-text-secondary) !important; }.trash-drawer { display: flex; min-height: 0; flex-direction: column; gap: 16px; }.trash-list { min-height: 120px; }.trash-item { display: flex; align-items: flex-start; justify-content: space-between; gap: $spacing-md; padding: 14px 0; border-bottom: 1px solid var(--cp-border-light); }.trash-item__body { min-width: 0; flex: 1; }.trash-item__meta { display: flex; gap: 10px; color: var(--cp-text-secondary); font-size: 12px; }.trash-item__body ul { margin: 8px 0 0; padding-left: 18px; color: var(--cp-text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.65; }.trash-item__body li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.trash-item__more { display: block; margin-top: 5px; color: var(--cp-text-tertiary); font-size: 12px; }
 @keyframes new-project { 0%, 100% { box-shadow: none; } 18%, 60% { border-color: var(--cp-primary); box-shadow: 0 0 0 3px var(--cp-primary-light); } }
 @media (max-width: 820px) { .project-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .project-search { width: 100%; } }
 @media (max-width: 520px) { .project-stats { gap: $spacing-sm; }.stat-card { min-height: 68px; padding: 10px; }.stat-icon { width: 32px; height: 32px; font-size: 16px; }.stat-card strong { font-size: 18px; }.toolbar-select { flex: 1; width: 0; }.project-card { min-height: 215px; } }

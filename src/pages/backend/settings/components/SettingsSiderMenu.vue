@@ -42,6 +42,7 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     items: [
       { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
       { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
+      { key: 'personalization', label: '个性化', icon: 'lucide:donut', path: '/settings/personalization' },
       { key: 'shortcuts', label: '键盘快捷键', icon: 'lucide:keyboard', path: '/settings/keyboard-shortcuts' },
       { key: 'loading-effects', label: '加载效果', icon: 'Loading', path: '/settings/loading-effects' },
     ],
@@ -52,7 +53,6 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
       { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
       { key: 'model-config', label: '模型', icon: 'Connection', path: '/settings/model-config' },
       { key: 'mcp', label: 'MCP 服务', icon: 'lucide:plug', path: '/settings/mcp' },
-      { key: 'memory', label: '记忆', icon: 'Brain', path: '/settings/memory' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
       { key: 'git', label: 'Git', icon: 'tabler:git-branch', path: '/settings/git' },
     ],

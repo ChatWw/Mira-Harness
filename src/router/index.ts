@@ -6,7 +6,6 @@ import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
 
 const staticRoutes: RouteRecordRaw[] = [
-  { path: '/settings/memory', name: 'SettingsMemory', component: () => import('@/pages/backend/memory/index.vue'), meta: { title: '记忆' } },
   {
     path: '/settings/model-config',
     name: 'SettingsModelConfig',
@@ -48,6 +47,12 @@ const staticRoutes: RouteRecordRaw[] = [
     name: 'SettingsAppearance',
     component: () => import('@/pages/backend/appearance/index.vue'),
     meta: { title: '外观' },
+  },
+  {
+    path: '/settings/personalization',
+    name: 'SettingsPersonalization',
+    component: () => import('@/pages/backend/personalization/index.vue'),
+    meta: { title: '个性化' },
   },
   {
     path: '/settings/keyboard-shortcuts',

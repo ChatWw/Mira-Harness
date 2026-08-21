@@ -2,6 +2,19 @@ import { FileError, err, ok, type ExecutionEnv, type Result } from '@earendil-wo
 import { NodeExecutionEnv } from '@earendil-works/pi-agent-core/node'
 import { existsSync, realpathSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
+import { diffLines } from 'diff'
+
+function displayDiff(previous: string, next: string) {
+  let previousLine = 1
+  let nextLine = 1
+  return diffLines(previous, next).flatMap(part => part.value.split('\n').filter((line, index, lines) => line || index < lines.length - 1).map(line => {
+    if (part.added) return `+${nextLine++} ${line}`
+    if (part.removed) return `-${previousLine++} ${line}`
+    previousLine += 1
+    nextLine += 1
+    return ` ${nextLine - 1} ${line}`
+  })).join('\n')
+}
 
 /**
  * 沙箱 FileSystem：包装 NodeExecutionEnv，把路径访问限制在项目目录内。
@@ -84,8 +97,14 @@ export function wrapHarnessTool(
     execute: async (toolCallId: string, params: any, signal?: AbortSignal, onUpdate?: any) => {
       const id = hooks.record(tool.name, hooks.target(params))
       try {
+        const previous = tool.name === 'write'
+          ? await context.env.readTextFile(params.path, signal).then(result => result.ok ? result.value : '')
+          : undefined
         const result = await tool.execute(toolCallId, params, signal, onUpdate, context)
-        hooks.finish(id, 'ok', result?.details?.diff)
+        const diff = result?.details?.diff || (tool.name === 'write'
+          ? await context.env.readTextFile(params.path, signal).then(next => next.ok ? displayDiff(previous || '', next.value) : undefined)
+          : undefined)
+        hooks.finish(id, 'ok', diff)
         return result
       } catch (error) {
         hooks.finish(id, 'failed')

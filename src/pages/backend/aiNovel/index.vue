@@ -24,7 +24,6 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { EMPTY_NOVEL_MODEL_PROFILES, NOVEL_MODEL_PROFILES_PREFERENCE_KEY, type NovelModelProfiles, type NovelModelRole } from '@/config/novel'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi, savePreference } from '@/platform'
@@ -71,7 +70,6 @@ async function saveProfiles() {
     } else {
       savePreference(NOVEL_MODEL_PROFILES_PREFERENCE_KEY, profiles)
     }
-    ElMessage.success('模型配置已保存')
   } finally {
     saving.value = false
   }

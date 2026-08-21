@@ -69,7 +69,6 @@ async function save() {
   saving.value = true
   try {
     Object.assign(config, await api.saveHarnessGitConfig({ ...config, branchPrefix: config.branchPrefix.trim() }))
-    ElMessage.success('Git 设置已保存')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存 Git 设置失败')
   } finally { saving.value = false }

@@ -243,6 +243,7 @@ export const useHarnessStore = defineStore('harness', () => {
     await api.deleteHarnessSessions(ids)
     if (activeSession.value && ids.includes(activeSession.value.id)) clearActiveSession()
     ids.forEach(id => removeComposerDraft(`session:${id}`))
+    sessions.value = sessions.value.filter(session => !ids.includes(session.id))
     const removed = new Set(ids)
     pendingPermissionRequests.value = Object.fromEntries(Object.entries(pendingPermissionRequests.value).filter(([id]) => !removed.has(id)))
     await Promise.all([refreshSessions(), refreshProjects()])

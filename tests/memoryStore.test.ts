@@ -9,24 +9,33 @@ function createStore() {
 }
 
 describe('MemoryStore', () => {
-  it('keeps global and project memories isolated while retrieving relevant context', () => {
+  it('defaults to disabled and retrieves only global generated memories', () => {
     const { database, store } = createStore()
-    store.save({ scope: 'global', kind: 'user-preference', content: '用户偏好使用中文回复', keywords: ['中文'] })
-    store.save({ scope: 'project', projectId: 'project-a', kind: 'project-fact', content: '项目使用 TypeScript', keywords: ['typescript'] })
-    store.save({ scope: 'project', projectId: 'project-b', kind: 'project-fact', content: '另一个项目使用 Python', keywords: ['python'] })
-    const context = store.context('project-a', '请检查 TypeScript 代码')
-    expect(context.global).toContain('中文')
-    expect(context.project).toContain('TypeScript')
-    expect(context.project).not.toContain('Python')
+    expect(store.enabled()).toBe(false)
+    expect(store.toolAssistedEnabled()).toBe(false)
+    store.setEnabled(true)
+    store.saveGenerated('用户偏好使用中文回复')
+    database.prepare("INSERT INTO memories(id, scope, project_id, kind, content, keywords, enabled, created_at, updated_at) VALUES ('project', 'project', 'p', 'task-summary', '项目内容', '[\"项目\"]', 1, 1, 1)").run()
+    expect(store.context('回复')).toContain('中文')
+    expect(store.context('项目')).not.toContain('项目内容')
     database.close()
   })
 
-  it('rejects sensitive content and immediately respects disabled memories', () => {
+  it('rejects sensitive generated content and resets global memories', () => {
     const { database, store } = createStore()
-    expect(() => store.save({ scope: 'global', kind: 'user-preference', content: 'apiKey=secret-value' })).toThrow('敏感信息')
-    const memory = store.save({ scope: 'global', kind: 'user-preference', content: '使用简洁回复' })
-    store.save({ ...memory, enabled: false })
-    expect(store.context(undefined, '回复').global).toBe('')
+    store.setEnabled(true)
+    expect(store.saveGenerated('apiKey=secret-value')).toBeUndefined()
+    store.saveGenerated('使用简洁回复')
+    expect(store.context('回复')).toContain('简洁')
+    expect(store.reset()).toBe(1)
+    expect(store.context('回复')).toBe('')
+    database.close()
+  })
+
+  it('persists the tool-assisted generation setting independently', () => {
+    const { database, store } = createStore()
+    expect(store.setToolAssistedEnabled(true)).toBe(true)
+    expect(store.toolAssistedEnabled()).toBe(true)
     database.close()
   })
 })

@@ -90,13 +90,12 @@ function openEdit(app: MicroApp) {
   drawerVisible.value = true
 }
 
-async function persistApps(apps: MicroApp[], successMessage: string) {
+async function persistApps(apps: MicroApp[]) {
   saving.value = true
   try {
     validateMicroApps(apps)
     applyManagementSnapshot(await requirePlatformApi().updateMicroApps(apps))
     drawerVisible.value = false
-    ElMessage.success(successMessage)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '应用配置保存失败')
   } finally {
@@ -108,7 +107,7 @@ function saveApp(app: MicroApp) {
   const apps = editingApp.value
     ? runtimeNavigation.microApps.map(item => item.id === editingApp.value?.id ? app : item)
     : [...runtimeNavigation.microApps, app]
-  void persistApps(apps, editingApp.value ? '应用已更新' : '应用已注册')
+  void persistApps(apps)
 }
 
 async function removeApp(app: MicroApp) {
@@ -119,7 +118,7 @@ async function removeApp(app: MicroApp) {
   try {
     const menuNotice = app.menus?.length ? `，其 ${app.menus.length} 个菜单也会删除` : ''
     await ElMessageBox.confirm(`确定删除“${app.name}”${menuNotice}吗？`, '删除应用', { type: 'warning' })
-    await persistApps(runtimeNavigation.microApps.filter(item => item.id !== app.id), '应用已删除')
+    await persistApps(runtimeNavigation.microApps.filter(item => item.id !== app.id))
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '删除失败')
   }

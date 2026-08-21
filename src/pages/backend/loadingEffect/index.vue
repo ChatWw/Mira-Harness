@@ -110,7 +110,6 @@ await withLoading(fetchData(), { text: '正在加载…' })`
 function applyStyle(item: StyleItem) {
   if (loading.style.value === item.id) return
   loading.setStyle(item.id)
-  ElMessage.success(`已应用 ${item.name} Loading 效果`)
 }
 
 function openSource(item: StyleItem) {

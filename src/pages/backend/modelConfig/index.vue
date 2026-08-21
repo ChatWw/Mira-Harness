@@ -220,7 +220,6 @@ async function save() {
   try {
     await api.saveModelProvider({ ...toRaw(form), models: [model], apiKey: form.apiKey?.trim() || undefined })
     visible.value = false
-    ElMessage.success('模型已保存')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '模型保存失败')
