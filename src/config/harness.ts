@@ -4,10 +4,28 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type SendShortcut = 'enter' | 'mod-enter'
 export type AssistantTone = 'casual' | 'professional'
 
+export interface MiraIdentity {
+  userName: string
+  assistantName: string
+}
+
 export const DEFAULT_ASSISTANT_TONE: AssistantTone = 'casual'
+export const DEFAULT_MIRA_USER_NAME = '你'
+export const DEFAULT_MIRA_NAME = 'Mira'
 
 export function normalizeAssistantTone(value: unknown): AssistantTone {
   return value === 'professional' ? 'professional' : DEFAULT_ASSISTANT_TONE
+}
+
+export function normalizeMiraIdentityName(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export function resolveMiraIdentity(identity?: Partial<MiraIdentity>): MiraIdentity {
+  return {
+    userName: normalizeMiraIdentityName(identity?.userName) || DEFAULT_MIRA_USER_NAME,
+    assistantName: normalizeMiraIdentityName(identity?.assistantName) || DEFAULT_MIRA_NAME,
+  }
 }
 
 export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<KeyboardEvent, 'key' | 'keyCode' | 'isComposing' | 'metaKey' | 'ctrlKey' | 'shiftKey'>) {
@@ -124,12 +142,59 @@ export interface HarnessSession {
   updatedAt: number
   status: HarnessSessionStatus
   pinned: boolean
+  archivedAt?: number
   context?: HarnessContextState
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned'> {
   projectName?: string
   workingDirectory?: string
+}
+
+export type HarnessHistoryRange = 'all' | 'today' | 'week' | 'month'
+export type HarnessHistorySort = 'updated-desc' | 'created-desc' | 'title-asc'
+export type HarnessHistoryArchiveView = 'visible' | 'archived'
+
+export interface HarnessHistoryQuery {
+  q?: string
+  projectIds?: string[]
+  modelIds?: string[]
+  statuses?: HarnessSessionStatus[]
+  range?: HarnessHistoryRange
+  sort?: HarnessHistorySort
+  archiveView?: HarnessHistoryArchiveView
+  page?: number
+  pageSize?: number
+}
+
+export interface HarnessHistoryRow extends HarnessSessionSummary {
+  archivedAt?: number
+  projectIcon?: string
+  providerKey?: ModelProviderKey
+  preview?: string
+}
+
+export interface HarnessHistoryStats {
+  total: number
+  todayNew: number
+  todayNewDelta: number
+  activeCount: number
+  activeStaleCount: number
+  topModel?: { id: string, providerKey?: ModelProviderKey, count: number, ratio: number }
+}
+
+export interface HarnessHistoryFacets {
+  projects: Array<{ id: string, name: string, icon: string }>
+  models: Array<{ id: string, providerKey?: ModelProviderKey }>
+}
+
+export interface HarnessHistoryPage {
+  rows: HarnessHistoryRow[]
+  total: number
+  page: number
+  pageSize: number
+  stats: HarnessHistoryStats
+  facets: HarnessHistoryFacets
 }
 
 export interface HarnessProject {
@@ -266,7 +331,7 @@ export const MODEL_PROVIDER_PRESETS = [
   { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4.5', 'glm-4.5-air', 'glm-4.5-flash', 'glm-4-32b-0414-128k'] },
   { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', models: ['kimi-k3', 'kimi-k2.7', 'kimi-k2.7-code', 'kimi-k2.6', 'kimi-k2.5'] },
   { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
-  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-reasoner', 'deepseek-chat'] },
+  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash'] },
   { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
   { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', models: [''] },
 ]

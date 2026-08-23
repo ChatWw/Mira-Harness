@@ -22,7 +22,7 @@
         <el-tooltip content="网格视图"><el-radio-button value="grid" aria-label="网格视图"><AppIcon name="Grid" /></el-radio-button></el-tooltip>
         <el-tooltip content="列表视图"><el-radio-button value="list" aria-label="列表视图"><AppIcon name="List" /></el-radio-button></el-tooltip>
       </el-radio-group>
-      <el-button aria-label="打开回收站" @click="openTrash()"><AppIcon name="Delete" />回收站</el-button>
+      <el-button aria-label="打开回收站" @click="openTrash()"><AppIcon name="material-symbols:delete-history" />&nbsp;回收站</el-button>
     </section>
 
     <section class="project-stats" aria-label="项目统计">
@@ -50,7 +50,7 @@
         <article v-for="project in filteredProjects" :key="project.id" class="project-card" :class="{ 'is-missing': !project.directoryExists }" tabindex="0" @click="openProject(project)" @keydown.enter="openProject(project)">
           <div class="project-card__head">
             <span class="project-state" :class="projectStatus(project)"><i></i>{{ projectStatusLabel(project) }}</span>
-            <el-tooltip content="Mira 文件回收站"><el-button circle text aria-label="Mira 文件回收站" @click.stop="openTrash(project)"><AppIcon name="Delete" /></el-button></el-tooltip>
+            <el-tooltip content="Mira 文件回收站"><el-button circle text aria-label="Mira 文件回收站" @click.stop="openTrash(project)"><AppIcon name="material-symbols:delete-history" /></el-button></el-tooltip>
           </div>
           <h3 :title="project.name">{{ project.name }}</h3>
           <div class="project-path" :class="{ 'is-missing': !project.directoryExists }" :title="project.directory">

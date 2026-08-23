@@ -1,6 +1,7 @@
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { createSandboxedEnv, wrapHarnessTool } from './agentTools'
 import { createWebFetchTool, createWebSearchTool } from './webTools'
+import type { MemoryScope } from './fileMemoryStore'
 import type { McpManager } from './mcpManager'
 import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
@@ -9,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 
@@ -108,6 +109,7 @@ function permissionTitle(name: string, args: Record<string, unknown>) {
 
 export class HarnessRuntime {
   private readonly running = new Map<string, { controller: AbortController, agent?: Agent }>()
+  private readonly memoryWrites = new Map<string, Promise<void>>()
   constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager) {}
 
   private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
@@ -143,25 +145,41 @@ export class HarnessRuntime {
     }, ...messages]
   }
 
-  private async saveLongTermMemory(sessionId: string, models: ReturnType<typeof createModels>, model: any, thinkingLevel: string) {
+  private async saveLongTermMemory(sender: WebContents, sessionId: string, models: ReturnType<typeof createModels>, model: any, thinkingLevel: string) {
     if (!this.database.memories.enabled()) return
     const session = this.database.harness.getSession(sessionId)
     if (!session.messages.some(message => message.role === 'assistant') || !session.messages.some(message => message.role === 'user')) return
-    if (session.toolCalls.length && !this.database.memories.toolAssistedEnabled()) return
+    const scope: MemoryScope = session.projectId ? 'project' : 'global'
+    const target = this.database.memories.path(scope, session.projectId)
+    const recordId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_auto_save', target, status: 'running', createdAt: Date.now() })
+    emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'running' } })
     const result = await generateSummaryWithUsage(
       session.messages.map(message => this.toAgentMessage(message, model)) as any,
       models,
       model,
       2048,
       undefined,
-      'Generate a concise global memory for future conversations. Include only durable user preferences, long-term personal context, and reusable work habits that remain useful across projects. Exclude project-specific rules, directory details, one-off task details, private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section.',
+      scope === 'project'
+        ? 'Generate one concise project memory for future conversations in this project. Include only durable project-specific facts, conventions, decisions, and reusable work habits. Exclude private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section. If no durable fact should be saved, return exactly NO_MEMORY.'
+        : 'Generate one concise global memory for future conversations. Include only durable user preferences, long-term personal context, and reusable work habits that remain useful across projects. Exclude project-specific rules, directory details, one-off task details, private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section. If no durable fact should be saved, return exactly NO_MEMORY.',
       undefined,
       thinkingLevel as any,
     )
-    if (!result.ok || this.database.memories.isSensitive(result.value.text)) return
+    if (!result.ok) throw new Error('自动提炼记忆失败')
     const content = result.value.text.trim()
-    if (!content) return
-    this.database.memories.saveGenerated(content, session.id)
+    if (!content || content === 'NO_MEMORY') {
+      const diff = `- ${scope === 'project' ? '项目' : '全局'}记忆：没有可保存的长期事实\n- ${target}`
+      this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt: Date.now() })
+      emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
+      return
+    }
+    const saved = this.database.memories.remember(scope, content, session.projectId)
+    const diff = saved.created
+      ? `- ${scope === 'project' ? '项目' : '全局'}记忆：新增 1 条\n- [${saved.entry.id}] ${saved.entry.content}`
+      : `- ${scope === 'project' ? '项目' : '全局'}记忆：已有相同条目\n- [${saved.entry.id}] ${saved.entry.content}`
+    this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt: Date.now() })
+    emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
   }
 
   private retainedStart(messages: HarnessMessage[], model: { api: string, provider: string, id: string }, maximumTokens = 20000) {
@@ -274,7 +292,10 @@ export class HarnessRuntime {
     }
     const session = () => this.database.harness.getSession(sessionId)
     const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt: Date.now() }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
-    const finish = (id: string, status: 'ok' | 'failed', diff?: string) => this.database.harness.updateTool(sessionId, id, { status, diff, completedAt: Date.now() })
+    const finish = (id: string, status: 'ok' | 'failed', diff?: string) => {
+      this.database.harness.updateTool(sessionId, id, { status, diff, completedAt: Date.now() })
+      emit(sender, { sessionId, type: 'tool-call', payload: { id, status, diff } })
+    }
     const workingDirectory = session().workingDirectory
     const env = workingDirectory ? createSandboxedEnv(realpathSync(workingDirectory)) : undefined
     const fallbackTool = (name: string, label: string, description: string, parameters: any) => ({
@@ -319,6 +340,52 @@ export class HarnessRuntime {
     })
     const listFilesTool = register({ name: 'list_files', label: '列出文件', description: '列出项目目录内文件', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { const dir = this.assertProjectPath(session().workingDirectory, target); const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } }, { risk: 'read', title: () => '', detail: () => '' })
     const deleteTool = register({ name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => { const id = record('delete', params.path); try { const result = this.database.harness.moveToTrash(sessionId, params.path); finish(id, 'ok', `- 删除 ${result.path}（可还原）`); return { content: [{ type: 'text', text: `已删除 ${result.path}，可在回收站还原。` }], details: result } } catch (error) { finish(id, 'failed'); throw error } } }, { risk: 'write', title: () => '允许 Mira 删除这个文件？', detail: args => `${String(args.path ?? '')}\n文件会移入 Mira 回收站。` })
+    const memoryScope = (value: string): MemoryScope => {
+      if (value !== 'global' && value !== 'project') throw new Error('记忆范围必须是 global 或 project')
+      if (value === 'project' && !session().projectId) throw new Error('当前是临时会话，不能写入项目记忆；请先关联项目或改为全局记忆')
+      return value
+    }
+    const memoryScopeLabel = (scope: MemoryScope) => scope === 'global' ? '全局记忆' : '项目记忆'
+    const memoryTools = this.database.memories.enabled() ? [
+      register({
+        name: 'search_memory', label: '查询记忆', description: '从全局或当前项目的长期记忆中查询事实。用户询问此前偏好、背景或已保存记忆时使用。',
+        parameters: Type.Object({ query: Type.String(), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
+        execute: async (_id: string, params: { query: string, scope: string }) => {
+          const scope = memoryScope(params.scope); const target = this.database.memories.path(scope, session().projectId); const id = record('search_memory', target)
+          try {
+            const entries = this.database.memories.search(scope, params.query, session().projectId)
+            const text = entries.length ? entries.map(entry => `- [${entry.id}] ${entry.content}`).join('\n') : '没有找到相关记忆。'
+            finish(id, 'ok', `- ${memoryScopeLabel(scope)}：加载 ${entries.length} 条\n- ${target}`)
+            return { content: [{ type: 'text', text }], details: { scope, count: entries.length, path: target } }
+          } catch (error) { finish(id, 'failed'); throw error }
+        },
+      }, { risk: 'read', title: () => '', detail: () => '' }),
+      register({
+        name: 'remember_memory', label: '保存记忆', description: '仅在用户明确要求记住某项长期事实时保存到指定范围。内容必须是稳定、可复用的事实或偏好。',
+        parameters: Type.Object({ content: Type.String(), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
+        execute: async (_id: string, params: { content: string, scope: string }) => {
+          const scope = memoryScope(params.scope); const target = this.database.memories.path(scope, session().projectId); const id = record('remember_memory', target)
+          try {
+            const result = this.database.memories.remember(scope, params.content, session().projectId)
+            const diff = result.created ? `- ${memoryScopeLabel(scope)}：新增 1 条\n- [${result.entry.id}] ${result.entry.content}` : `- ${memoryScopeLabel(scope)}：新增 0 条，已有相同记忆\n- [${result.entry.id}] ${result.entry.content}`
+            finish(id, 'ok', diff)
+            return { content: [{ type: 'text', text: result.created ? `已保存记忆 [${result.entry.id}]。` : `该记忆已存在 [${result.entry.id}]。` }], details: { scope, id: result.entry.id, path: target, created: result.created } }
+          } catch (error) { finish(id, 'failed'); throw error }
+        },
+      }, { risk: 'read', title: () => '', detail: () => '' }),
+      register({
+        name: 'forget_memory', label: '删除记忆', description: '仅在用户明确要求删除长期记忆时，按查询到的记忆 ID 删除指定范围中的一条记忆。',
+        parameters: Type.Object({ id: Type.String(), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
+        execute: async (_id: string, params: { id: string, scope: string }) => {
+          const scope = memoryScope(params.scope); const target = this.database.memories.path(scope, session().projectId); const recordId = record('forget_memory', target)
+          try {
+            this.database.memories.forget(scope, params.id, session().projectId)
+            finish(recordId, 'ok', `- ${memoryScopeLabel(scope)}：删除 1 条\n- 删除记忆 [${params.id}]`)
+            return { content: [{ type: 'text', text: `已删除记忆 [${params.id}]。` }], details: { scope, id: params.id, path: target } }
+          } catch (error) { finish(recordId, 'failed'); throw error }
+        },
+      }, { risk: 'read', title: () => '', detail: () => '' }),
+    ] : []
     return { tools: [
       readTool,
       editTool,
@@ -328,6 +395,7 @@ export class HarnessRuntime {
       bashTool,
       webFetchTool,
       webSearchTool,
+      ...memoryTools,
       ...mcpTools,
     ] as any, descriptors }
   }
@@ -373,6 +441,7 @@ export class HarnessRuntime {
   }
 
   private async runAgent(sender: WebContents, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string) {
+    await this.memoryWrites.get(sessionId)
     const text = [...session.messages].reverse().find(message => message.role === 'user')?.content
     if (!text) throw new Error('没有可运行的对话')
     const controller = new AbortController()
@@ -408,16 +477,37 @@ export class HarnessRuntime {
         models: [model], api: openAICompletionsApi(),
       }) as any)
       session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
-      const memory = this.database.memories.enabled() ? this.database.memories.context(text) : ''
+      const memoryEnabled = this.database.memories.enabled()
+      const loadMemory = (scope: MemoryScope) => {
+        const target = this.database.memories.path(scope, session.projectId)
+        const entries = this.database.memories.search(scope, text, session.projectId)
+        const detail = `${scope === 'global' ? '全局' : '项目'}记忆：加载 ${entries.length} 条\n${target}`
+        const recordId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+        this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_load', target, status: 'running', createdAt: Date.now() })
+        emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_load', target, status: 'running' } })
+        this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff: `- ${detail.replace('\n', '\n- ')}`, completedAt: Date.now() })
+        emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_load', target, status: 'ok', diff: `- ${detail.replace('\n', '\n- ')}` } })
+        activities.push({ id: `memory-load-${scope}`, label: `加载${scope === 'global' ? '全局' : '项目'}记忆`, detail, status: 'completed', startedAt: Date.now(), completedAt: Date.now() })
+        return entries.map(entry => `- [${entry.id}] ${entry.content}`).join('\n')
+      }
+      const globalMemory = memoryEnabled ? loadMemory('global') : ''
+      const projectMemory = memoryEnabled && session.projectId ? loadMemory('project') : ''
+      if (memoryEnabled) publishActivities()
       const registeredTools = this.tools(sender, sessionId)
+      const preferences = this.database.getSnapshot().preferences
       agent = new Agent({
         initialState: {
           systemPrompt: buildMiraSystemPrompt({
-            tone: normalizeAssistantTone(this.database.getSnapshot().preferences.assistantTone),
+            tone: normalizeAssistantTone(preferences.assistantTone),
+            identity: resolveMiraIdentity({
+              userName: preferences.miraUserName,
+              assistantName: preferences.miraAssistantName,
+            }),
             context: {
               model: { providerName: provider.name, modelName: selection.modelId },
               instructions: this.database.instructions.resolve(session.workingDirectory),
-              globalMemory: memory,
+              globalMemory,
+              projectMemory,
             },
           }),
           model,
@@ -472,7 +562,7 @@ export class HarnessRuntime {
       }
       if (event.type === 'tool_execution_start') {
         activities.filter(item => item.status === 'running' && item.label === '正在思考').forEach(item => finishActivity(item.id))
-        const labels: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索' }
+        const labels: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆' }
         startActivity(`tool-${event.toolCallId}`, labels[event.toolName] || `执行工具：${event.toolName}`, activityDetail(event.toolName, event.args))
         publishActivities()
       }
@@ -508,7 +598,20 @@ export class HarnessRuntime {
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
-      void this.saveLongTermMemory(sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off').catch(() => undefined)
+      const memoryWrite = this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off')
+        .catch(error => {
+          const target = session.projectId ? this.database.memories.path('project', session.projectId) : this.database.memories.path('global')
+          const record = this.database.harness.getSession(sessionId).toolCalls.find(item => item.tool === 'memory_auto_save' && item.status === 'running')
+          if (record) {
+            const message = error instanceof Error ? error.message : String(error)
+            this.database.harness.updateTool(sessionId, record.id, { status: 'failed', error: message, completedAt: Date.now() })
+            emit(sender, { sessionId, type: 'tool-call', payload: { id: record.id, tool: 'memory_auto_save', target, status: 'failed', error: message } })
+          }
+        })
+      this.memoryWrites.set(sessionId, memoryWrite)
+      void memoryWrite.finally(() => {
+        if (this.memoryWrites.get(sessionId) === memoryWrite) this.memoryWrites.delete(sessionId)
+      })
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()

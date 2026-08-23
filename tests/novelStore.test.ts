@@ -93,6 +93,7 @@ describe('platform database migration', () => {
     expect(database.getSnapshot().microApps).toEqual([])
     expect(database.getSnapshot().mainMenus.map(menu => menu.id)).toEqual([AI_NOVEL_MENU.id])
     expect(database.novels.listProjects()).toEqual([])
+    database.close()
     rmSync(directory, { recursive: true, force: true })
   })
 })

@@ -4,6 +4,7 @@ import { HarnessRuntime } from '../electron/harnessRuntime'
 function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default') {
   const sender = { isDestroyed: () => false, send: vi.fn() }
   const database = {
+    memories: { enabled: () => false },
     harness: {
       getSession: () => ({ permissionMode }),
       getPermissionConfig: () => ({ dangerousCommands: [' shutdown '] }),

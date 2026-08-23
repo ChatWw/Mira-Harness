@@ -22,6 +22,9 @@ export class MiraPaths {
 
   stateDatabase() { return join(this.root, 'state.sqlite') }
   globalAgents() { return join(this.root, 'AGENTS.md') }
+  memorySettings() { return join(this.memories, 'settings.json') }
+  globalMemory() { return join(this.memories, 'MEMORY.md') }
+  projectMemory(projectId: string) { return join(this.memories, 'projects', projectId, 'MEMORY.md') }
   agentsFile(directory: string) { return join(directory, 'AGENTS.md') }
   agentsOverrideFile(directory: string) { return join(directory, 'AGENTS.override.md') }
   modelsConfig() { return join(this.config, 'models.json') }

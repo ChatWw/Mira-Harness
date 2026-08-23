@@ -150,18 +150,20 @@ export interface PlatformApi {
   getGlobalInstructionsPath(): Promise<string>
   getHarnessMemoryEnabled(): Promise<boolean>
   setHarnessMemoryEnabled(enabled: boolean): Promise<boolean>
-  getHarnessToolAssistedMemoryEnabled(): Promise<boolean>
-  setHarnessToolAssistedMemoryEnabled(enabled: boolean): Promise<boolean>
+  getHarnessMemoryPath(): Promise<string>
   resetHarnessMemory(): Promise<number>
   listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
+  queryHarnessHistory(query: import('@/config/harness').HarnessHistoryQuery): Promise<import('@/config/harness').HarnessHistoryPage>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
+  archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
+  restoreHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   deleteHarnessSession(id: string): Promise<void>
   deleteHarnessSessions(ids: string[]): Promise<void>
   listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>

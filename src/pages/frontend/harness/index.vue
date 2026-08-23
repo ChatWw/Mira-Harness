@@ -1218,7 +1218,7 @@ onBeforeUnmount(() => {
 .composer-toolbar__git:hover { background: var(--cp-sidebar-menu-active-bg); }
 .composer-toolbar__git .composer-toolbar__label { color: var(--cp-text-secondary); font-size: 12px; font-weight: 400; }
 .composer { width: min(100%, 800px); min-height: 122px; margin: 0 auto; padding: 12px 14px 10px; border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent); border-radius: $radius-lg; box-shadow: 0 8px 22px rgb(24 24 27 / 7%); transition: border-color $transition-fast, box-shadow $transition-fast; }
-.composer:focus-within { border-color: color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); box-shadow: 0 10px 25px rgb(24 24 27 / 10%); }
+.composer:focus-within { box-shadow: 0 10px 25px rgb(24 24 27 / 10%); }
 .composer__context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 0; margin-bottom: 8px; }
 .composer-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 220px; gap: 5px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 84%, transparent); border-radius: $radius-sm; color: var(--cp-text-secondary); background: var(--cp-bg-hover); font-size: 12px; line-height: 20px; }
 .composer-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

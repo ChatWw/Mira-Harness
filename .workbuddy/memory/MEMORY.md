@@ -21,3 +21,28 @@
 
 ## 技术栈
 - uni-app Vue3 + 微信云开发（微信小程序）
+- 同时承载 Mira 桌面端（Electron + Vue3 + Element Plus + SCSS），见 `src/` 目录
+
+## Mira 桌面端 · 设计系统
+- 主色：`#06b6d4`（cyan，沿用 `--cp-primary`，见 `src/styles/variables.scss`）
+- 中性色：slate-zinc；背景 `#ffffff` / `#fafafa`；边框 `#e4e4e7`
+- 圆角阶梯：4 / 8 / 12 / 16；阴影：sm / md / lg 三档
+- 侧栏宽度：240px（`--sidebar-w` 等变量未定义，全局用 240px）
+- 字体：`-apple-system` 优先（macOS Electron）；中文 fallback PingFang SC / 微软雅黑
+- 头部组件：<GlobalHeader>（mac 红绿灯与导航合一行） + <AppSidebar> + <TabsBar>(可选) + <AppMain> + <AppFooter>
+
+## Mira 路由（重点路径）
+- `/workspace/history` → 渲染 `查看全部对话`，由 `src/pages/frontend/harness/history/index.vue` 实现
+- `/workspace/chat` 和 `/workspace/chat/:id` → Chat 主交互
+- `/workspace/projects` → 项目列表
+- `src/pages/frontend/harness/...` 是工作台相关页面群
+
+## 重要页面决策
+- 历史会话页（本次重写）：
+  - 4 张统计卡（总数 / 今日新建 / 进行中 / 最常使用模型）
+  - 工具栏：搜索 + 4 筛选 + 排序 + 密度切换
+  - 已应用筛选 chip 条
+  - 日期分组 (今天 / 昨天 / 本周 / 更早)
+  - 批量操作栏
+  - 完整 PRD 与设计稿在 `wiki/conversations-history-redesign/`
+

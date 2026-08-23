@@ -13,6 +13,12 @@ import {
   type HarnessFileChange,
   type HarnessGitBranch,
   type HarnessGitConfig,
+  type HarnessHistoryArchiveView,
+  type HarnessHistoryPage,
+  type HarnessHistoryQuery,
+  type HarnessHistoryRange,
+  type HarnessHistoryRow,
+  type HarnessHistorySort,
   type HarnessMessageAttachment,
   type HarnessProject,
   type HarnessRunSummary,
@@ -27,13 +33,14 @@ import { atomicMove } from './miraDataMigration'
 import { MiraPaths } from './miraPaths'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
-type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
+type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, archived_at: number | null, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
 const MAX_FILE_REFERENCES = 12
 const MAX_ATTACHMENT_FILE_BYTES = 256 * 1024
 const MAX_ATTACHMENT_TOTAL_BYTES = 1024 * 1024
 const MAX_LISTED_PROJECT_FILES = 240
+const TEMPORARY_PROJECT_ID = '__temporary__'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 function now() { return Date.now() }
@@ -86,6 +93,18 @@ function gitPrefix(value: unknown, fallback = DEFAULT_HARNESS_GIT_CONFIG.branchP
   if (!isValidGitPrefix(prefix)) throw new Error('分支前缀无效')
   return prefix
 }
+function startOfRange(range: HarnessHistoryRange) {
+  if (range === 'all') return undefined
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  if (range === 'week') date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+  if (range === 'month') date.setDate(1)
+  return date.getTime()
+}
+function previewFor(session: HarnessSession) {
+  const message = [...session.messages].reverse().find(item => item.content.trim())
+  return message?.content.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined
+}
 
 export class HarnessStore {
   private readonly paths: MiraPaths
@@ -130,13 +149,13 @@ export class HarnessStore {
     const temporaryPath = `${path}.${process.pid}.tmp`
     writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
     renameSync(temporaryPath, path)
-    this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, path, working_directory, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, archived_at, path, working_directory, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
-      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, path = excluded.path,
+      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, archived_at = excluded.archived_at, path = excluded.path,
       working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
-        session.status, Number(session.pinned), path, session.workingDirectory || null, session.createdAt, session.updatedAt)
+        session.status, Number(session.pinned), session.archivedAt || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
     if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     return clone(session)
   }
@@ -144,7 +163,7 @@ export class HarnessStore {
   private parseSession(raw: string): HarnessSession {
     const value = JSON.parse(raw) as Partial<HarnessSession>
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
-    return { ...value, pinned: Boolean(value.pinned) } as HarnessSession
+    return { ...value, pinned: Boolean(value.pinned), archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
   }
 
   listProjects(): HarnessProject[] {
@@ -250,10 +269,78 @@ export class HarnessStore {
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
-      WHERE s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
+      WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at }))
+  }
+
+  queryHistory(query: HarnessHistoryQuery = {}, providerKeys = new Map<string, string>()): HarnessHistoryPage {
+    const archiveView: HarnessHistoryArchiveView = query.archiveView === 'archived' ? 'archived' : 'visible'
+    const range: HarnessHistoryRange = ['today', 'week', 'month'].includes(query.range || '') ? query.range as HarnessHistoryRange : 'all'
+    const sort: HarnessHistorySort = ['created-desc', 'title-asc'].includes(query.sort || '') ? query.sort as HarnessHistorySort : 'updated-desc'
+    const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize || 20)))
+    const page = Math.max(1, Math.floor(query.page || 1))
+    const where = [archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL']
+    const parameters: Array<string | number> = []
+    const search = query.q?.trim()
+    if (search) {
+      const text = `%${search}%`
+      where.push('(s.title LIKE ? OR COALESCE(p.name, \'\') LIKE ? OR COALESCE(s.model_id, \'\') LIKE ?)')
+      parameters.push(text, text, text)
+    }
+    const projectIds = [...new Set((query.projectIds || []).filter(value => typeof value === 'string' && value))]
+    if (projectIds.length) {
+      const includesTemporary = projectIds.includes(TEMPORARY_PROJECT_ID)
+      const ids = projectIds.filter(id => id !== TEMPORARY_PROJECT_ID)
+      const parts: string[] = []
+      if (ids.length) { parts.push(`s.project_id IN (${ids.map(() => '?').join(', ')})`); parameters.push(...ids) }
+      if (includesTemporary) parts.push('s.project_id IS NULL')
+      where.push(`(${parts.join(' OR ')})`)
+    }
+    const modelIds = [...new Set((query.modelIds || []).filter(value => typeof value === 'string' && value))]
+    if (modelIds.length) { where.push(`s.model_id IN (${modelIds.map(() => '?').join(', ')})`); parameters.push(...modelIds) }
+    const statuses = [...new Set((query.statuses || []).filter((value): value is HarnessSession['status'] => ['active', 'completed', 'failed'].includes(value)))]
+    if (statuses.length) { where.push(`s.status IN (${statuses.map(() => '?').join(', ')})`); parameters.push(...statuses) }
+    const rangeStart = startOfRange(range)
+    if (rangeStart) { where.push('s.updated_at >= ?'); parameters.push(rangeStart) }
+    const order = sort === 'created-desc' ? 's.created_at DESC' : sort === 'title-asc' ? 's.title COLLATE NOCASE ASC' : 's.updated_at DESC'
+    const rows = this.database.prepare(`SELECT s.*, p.name AS project_name, p.icon AS project_icon FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${where.join(' AND ')} ORDER BY ${order}`).all(...parameters) as Array<SessionRow & { project_name: string | null, project_icon: string | null }>
+    const total = rows.length
+    const today = startOfRange('today')!
+    const yesterday = today - 24 * 60 * 60 * 1000
+    const todayNew = rows.filter(row => row.created_at >= today).length
+    const yesterdayNew = rows.filter(row => row.created_at >= yesterday && row.created_at < today).length
+    const activeRows = rows.filter(row => row.status === 'active')
+    const modelCounts = new Map<string, { count: number, providerKey?: string }>()
+    rows.forEach(row => {
+      const id = row.model_id || '默认模型'
+      const current = modelCounts.get(id) || { count: 0, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) : undefined }
+      current.count += 1
+      modelCounts.set(id, current)
+    })
+    const top = [...modelCounts.entries()].sort((left, right) => right[1].count - left[1].count)[0]
+    const resolvedPage = Math.min(page, Math.max(1, Math.ceil(total / pageSize)))
+    const offset = (resolvedPage - 1) * pageSize
+    const pageRows = rows.slice(offset, offset + pageSize).map(row => {
+      let preview: string | undefined
+      try { preview = previewFor(this.getSession(row.id)) } catch { /* unavailable session files remain listable */ }
+      const result: HarnessHistoryRow = {
+        id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined, projectIcon: row.project_icon ? projectIcon(row.project_icon) : undefined,
+        modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) as HarnessHistoryRow['providerKey'] : undefined,
+        permissionMode: row.permission_mode, status: row.status, pinned: Boolean(row.pinned), archivedAt: row.archived_at || undefined,
+        workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at, preview,
+      }
+      return result
+    })
+    const facetRows = this.database.prepare(`SELECT DISTINCT s.project_id, p.name AS project_name, p.icon AS project_icon, s.model_id, s.model_provider_id FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL'}`).all() as Array<{ project_id: string | null, project_name: string | null, project_icon: string | null, model_id: string | null, model_provider_id: string | null }>
+    const projects = facetRows.flatMap(row => row.project_id && row.project_name ? [{ id: row.project_id, name: row.project_name, icon: projectIcon(row.project_icon || undefined) }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
+    const models = facetRows.flatMap(row => row.model_id ? [{ id: row.model_id, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) as HarnessHistoryRow['providerKey'] : undefined }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
+    return {
+      rows: pageRows, total, page: resolvedPage, pageSize,
+      stats: { total, todayNew, todayNewDelta: todayNew - yesterdayNew, activeCount: activeRows.length, activeStaleCount: activeRows.filter(row => row.updated_at < now() - 60 * 60 * 1000).length, ...(top ? { topModel: { id: top[0], providerKey: top[1].providerKey as HarnessHistoryRow['providerKey'], count: top[1].count, ratio: total ? top[1].count / total : 0 } } : {}) },
+      facets: { projects, models },
+    }
   }
 
   getSession(id: string) {
@@ -276,6 +363,17 @@ export class HarnessStore {
     const session = this.getSession(id)
     session.title = nextTitle
     return this.saveSession(session)
+  }
+
+  archiveSessions(ids: string[]) {
+    const sessions = [...new Set(ids.filter(id => typeof id === 'string' && id))].map(id => this.getSession(id))
+    const archivedAt = now()
+    return sessions.map(session => this.saveSession({ ...session, archivedAt }))
+  }
+
+  restoreSessions(ids: string[]) {
+    const sessions = [...new Set(ids.filter(id => typeof id === 'string' && id))].map(id => this.getSession(id))
+    return sessions.map(session => this.saveSession({ ...session, archivedAt: undefined }))
   }
 
   addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[]) {

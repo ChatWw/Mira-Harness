@@ -23,16 +23,9 @@
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">启用记忆</span>
-            <span class="settings-row__hint">从聊天中生成新记忆，并将其带入新聊天</span>
+            <span class="settings-row__hint">自动提炼长期事实，并在每次对话时从本地记忆文件载入相关内容</span>
           </div>
           <el-switch v-model="memoryEnabled" :loading="memorySaving" aria-label="启用记忆" @change="setMemoryEnabled" />
-        </div>
-        <div class="settings-row">
-          <div class="settings-row__copy">
-            <span class="settings-row__label">允许从工具辅助聊天生成记忆</span>
-            <span class="settings-row__hint">从使用过文件、命令或 MCP 工具的聊天生成记忆</span>
-          </div>
-          <el-switch v-model="toolAssistedMemoryEnabled" :loading="memorySaving" aria-label="允许从工具辅助聊天生成记忆" @change="setToolAssistedMemoryEnabled" />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
@@ -42,15 +35,43 @@
           <el-button type="danger" plain :loading="memoryResetting" @click="resetMemory">重置</el-button>
         </div>
       </div>
+      <p v-if="memoryPath" class="file-hint">全局记忆文件：{{ memoryPath }}。关联项目后的会话会使用独立的项目记忆文件。</p>
     </section>
 
-    <el-alert
-      type="warning"
-      :closable="false"
-      show-icon
-      title="并非所有模型都支持个性设置。可在自定义指令中调整 Mira 的行为和语气。"
-      class="personalization-alert"
-    />
+    <section class="personalization-section" aria-labelledby="identity-heading">
+      <div class="section-heading">
+        <div>
+          <h2 id="identity-heading">身份设定</h2>
+          <p>设置你与 Mira 的默认称呼；未填写时分别使用“你”和“Mira”。</p>
+        </div>
+      </div>
+      <div class="identity-settings">
+        <div class="identity-card">
+          <span class="identity-card__label">Mira 对你的称呼</span>
+          <el-input v-if="editingMiraUserName" id="mira-user-name" v-model="miraUserName" clearable maxlength="32" placeholder="默认：你" aria-label="Mira 对你的称呼" />
+          <p v-else class="identity-card__value">{{ miraUserName || '默认：你' }}</p>
+          <div class="identity-card__actions">
+            <template v-if="editingMiraUserName">
+              <el-button @click="cancelMiraUserName">取消</el-button>
+              <el-button type="primary" :disabled="miraUserName === savedMiraUserName" @click="saveMiraUserName">保存</el-button>
+            </template>
+            <el-button v-else @click="editMiraUserName">编辑</el-button>
+          </div>
+        </div>
+        <div class="identity-card">
+          <span class="identity-card__label">你对 Mira 的称呼</span>
+          <el-input v-if="editingMiraAssistantName" id="mira-assistant-name" v-model="miraAssistantName" clearable maxlength="32" placeholder="默认：Mira" aria-label="你对 Mira 的称呼" />
+          <p v-else class="identity-card__value">{{ miraAssistantName || '默认：Mira' }}</p>
+          <div class="identity-card__actions">
+            <template v-if="editingMiraAssistantName">
+              <el-button @click="cancelMiraAssistantName">取消</el-button>
+              <el-button type="primary" :disabled="miraAssistantName === savedMiraAssistantName" @click="saveMiraAssistantName">保存</el-button>
+            </template>
+            <el-button v-else @click="editMiraAssistantName">编辑</el-button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section class="personalization-section" aria-labelledby="tone-heading">
       <div class="section-heading">
@@ -59,6 +80,13 @@
           <p>选择 Mira 回复的默认语气。</p>
         </div>
       </div>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        title="并非所有模型都支持个性设置。可在自定义指令中调整 Mira 的行为和语气。"
+        class="personalization-alert"
+      />
       <div class="settings-list">
         <div class="settings-row">
           <div class="settings-row__copy">
@@ -78,7 +106,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, type AssistantTone } from '@/config/harness'
+import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone } from '@/config/harness'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
@@ -86,21 +114,27 @@ const instructions = ref('')
 const instructionsPath = ref('')
 const instructionsSaving = ref(false)
 const memoryEnabled = ref(false)
-const toolAssistedMemoryEnabled = ref(false)
+const memoryPath = ref('')
 const memorySaving = ref(false)
 const memoryResetting = ref(false)
 const assistantTone = computed<AssistantTone>(() => normalizeAssistantTone(getPreference<unknown>('assistantTone', DEFAULT_ASSISTANT_TONE)))
+const savedMiraUserName = ref(normalizeMiraIdentityName(getPreference<unknown>('miraUserName', '')))
+const miraUserName = ref(savedMiraUserName.value)
+const editingMiraUserName = ref(false)
+const savedMiraAssistantName = ref(normalizeMiraIdentityName(getPreference<unknown>('miraAssistantName', '')))
+const miraAssistantName = ref(savedMiraAssistantName.value)
+const editingMiraAssistantName = ref(false)
 
 async function load() {
   const api = getPlatformApi()
   if (!api) return
-  const [content, path, enabled, toolAssisted] = await Promise.all([
-    api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessToolAssistedMemoryEnabled(),
+  const [content, path, enabled, savedMemoryPath] = await Promise.all([
+    api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
   ])
   instructions.value = content
   instructionsPath.value = path
   memoryEnabled.value = enabled
-  toolAssistedMemoryEnabled.value = toolAssisted
+  memoryPath.value = savedMemoryPath
 }
 
 async function saveInstructions() {
@@ -130,25 +164,11 @@ async function setMemoryEnabled(value: boolean) {
   }
 }
 
-async function setToolAssistedMemoryEnabled(value: boolean) {
-  const api = getPlatformApi()
-  if (!api || memorySaving.value) return
-  memorySaving.value = true
-  try {
-    toolAssistedMemoryEnabled.value = await api.setHarnessToolAssistedMemoryEnabled(value)
-  } catch (error) {
-    toolAssistedMemoryEnabled.value = !value
-    ElMessage.error(error instanceof Error ? error.message : '记忆设置保存失败')
-  } finally {
-    memorySaving.value = false
-  }
-}
-
 async function resetMemory() {
   const api = getPlatformApi()
   if (!api || memoryResetting.value) return
   try {
-    await ElMessageBox.confirm('将删除所有 Mira 全局记忆，且无法恢复。', '重置记忆', { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' })
+    await ElMessageBox.confirm('将清空全局记忆文件中的所有内容，且无法恢复。', '重置记忆', { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' })
   } catch {
     return
   }
@@ -167,6 +187,42 @@ function setAssistantTone(value: string) {
   savePreference('assistantTone', normalizeAssistantTone(value))
 }
 
+function saveMiraUserName() {
+  const value = normalizeMiraIdentityName(miraUserName.value)
+  miraUserName.value = value
+  savedMiraUserName.value = value
+  savePreference('miraUserName', value)
+  editingMiraUserName.value = false
+}
+
+function editMiraUserName() {
+  miraUserName.value = savedMiraUserName.value
+  editingMiraUserName.value = true
+}
+
+function cancelMiraUserName() {
+  miraUserName.value = savedMiraUserName.value
+  editingMiraUserName.value = false
+}
+
+function saveMiraAssistantName() {
+  const value = normalizeMiraIdentityName(miraAssistantName.value)
+  miraAssistantName.value = value
+  savedMiraAssistantName.value = value
+  savePreference('miraAssistantName', value)
+  editingMiraAssistantName.value = false
+}
+
+function editMiraAssistantName() {
+  miraAssistantName.value = savedMiraAssistantName.value
+  editingMiraAssistantName.value = true
+}
+
+function cancelMiraAssistantName() {
+  miraAssistantName.value = savedMiraAssistantName.value
+  editingMiraAssistantName.value = false
+}
+
 onMounted(() => { void load() })
 </script>
 
@@ -182,6 +238,11 @@ onMounted(() => { void load() })
 .settings-row__label { color: var(--cp-text); font-size: $font-sm; }
 .settings-row__hint, .file-hint { color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
 .file-hint { margin: 8px 0 0; word-break: break-all; }
-.personalization-alert { margin-bottom: 38px; }
+.identity-settings { display: grid; gap: 16px; }
+.identity-card { padding: 18px; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
+.identity-card__label { display: block; margin-bottom: 12px; color: var(--cp-text); font-size: $font-sm; font-weight: $font-semibold; }
+.identity-card__value { min-height: 32px; margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 32px; }
+.identity-card__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.personalization-alert { margin: 0 0 14px; }
 .assistant-tone-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
 </style>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, shouldAutoCompactContext, shouldSendWithShortcut } from '../src/config/harness'
+import { DEFAULT_ASSISTANT_TONE, DEFAULT_MIRA_NAME, DEFAULT_MIRA_USER_NAME, normalizeAssistantTone, normalizeMiraIdentityName, resolveMiraIdentity, shouldAutoCompactContext, shouldSendWithShortcut } from '../src/config/harness'
 
 function key(overrides: Partial<KeyboardEvent> = {}) {
   return { key: 'Enter', keyCode: 13, isComposing: false, metaKey: false, ctrlKey: false, shiftKey: false, ...overrides } as KeyboardEvent
@@ -35,5 +35,15 @@ describe('assistant tone preference', () => {
     expect(normalizeAssistantTone(undefined)).toBe(DEFAULT_ASSISTANT_TONE)
     expect(normalizeAssistantTone('invalid')).toBe(DEFAULT_ASSISTANT_TONE)
     expect(normalizeAssistantTone('professional')).toBe('professional')
+  })
+})
+
+describe('Mira identity preference', () => {
+  it('trims configured names and falls back to the default names', () => {
+    expect(normalizeMiraIdentityName('  阿明  ')).toBe('阿明')
+    expect(normalizeMiraIdentityName(undefined)).toBe('')
+    expect(resolveMiraIdentity()).toEqual({ userName: DEFAULT_MIRA_USER_NAME, assistantName: DEFAULT_MIRA_NAME })
+    expect(resolveMiraIdentity({ userName: '  阿明 ', assistantName: '  小米 ' })).toEqual({ userName: '阿明', assistantName: '小米' })
+    expect(resolveMiraIdentity({ userName: ' ', assistantName: '' })).toEqual({ userName: DEFAULT_MIRA_USER_NAME, assistantName: DEFAULT_MIRA_NAME })
   })
 })

@@ -13,7 +13,7 @@ function createStore() {
   const database = new Database(':memory:')
   database.exec(`
     CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
   return { root, database, store: new HarnessStore(database, new MiraPaths(root)) }
@@ -57,6 +57,89 @@ describe('HarnessStore', () => {
 
     const database = new PlatformDatabase(root)
     expect(database.harness.getProject('legacy').icon).toBe('FolderOpened')
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('adds the archive timestamp column when opening a pre-history database', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-history-migration-'))
+    const paths = new MiraPaths(root).ensure()
+    const legacy = new Database(paths.stateDatabase())
+    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);')
+    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
+    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '22')
+    legacy.close()
+
+    const database = new PlatformDatabase(root)
+    const columns = database.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
+    expect(columns.some(column => column.name === 'archived_at')).toBe(true)
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('filters, paginates, archives, and restores history without reading off-page previews', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'history-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, 'History project')
+    const alpha = store.createSession(project.id)
+    const beta = store.createSession()
+    const gamma = store.createSession(project.id)
+    const base = Date.now() - 3 * 60 * 60 * 1000
+    const prepare = (id: string, title: string, modelId: string, status: 'active' | 'completed' | 'failed', createdAt: number) => {
+      const session = store.getSession(id)
+      store.updateSession({ ...session, title, modelId, modelProviderId: 'provider-1', status })
+      database.prepare('UPDATE harness_sessions SET created_at = ?, updated_at = ? WHERE id = ?').run(createdAt, createdAt, id)
+    }
+    prepare(alpha.id, 'Alpha plan', 'model-a', 'completed', base)
+    prepare(beta.id, 'Beta notes', 'model-b', 'active', base + 60_000)
+    prepare(gamma.id, 'Gamma plan', 'model-a', 'failed', base + 120_000)
+    store.addMessage(alpha.id, 'user', 'Visible preview text')
+    database.prepare('UPDATE harness_sessions SET updated_at = ? WHERE id = ?').run(base, alpha.id)
+
+    const firstPage = store.queryHistory({ q: 'plan', page: 1, pageSize: 1 }, new Map([['provider-1', 'deepseek']]))
+    expect(firstPage.total).toBe(2)
+    expect(firstPage.rows).toHaveLength(1)
+    expect(firstPage.rows[0]).toMatchObject({ title: 'Gamma plan', modelId: 'model-a', projectName: 'History project' })
+    expect(firstPage.stats.topModel).toMatchObject({ id: 'model-a', count: 2 })
+    expect(firstPage.facets.projects).toContainEqual(expect.objectContaining({ id: project.id }))
+
+    const secondPage = store.queryHistory({ q: 'plan', page: 2, pageSize: 1 })
+    expect(secondPage.rows).toEqual([expect.objectContaining({ id: alpha.id, preview: 'Visible preview text' })])
+    expect(store.queryHistory({ q: 'plan', page: 99, pageSize: 1 })).toMatchObject({ page: 2, rows: [expect.objectContaining({ id: alpha.id })] })
+    expect(store.queryHistory({ projectIds: ['__temporary__'] }).rows).toEqual([expect.objectContaining({ id: beta.id })])
+    expect(store.queryHistory({ modelIds: ['model-b'], statuses: ['active'] }).rows).toEqual([expect.objectContaining({ id: beta.id })])
+
+    store.archiveSessions([alpha.id, beta.id])
+    expect(store.listSessions().map(session => session.id)).toEqual([gamma.id])
+    expect(store.queryHistory().rows).toEqual([expect.objectContaining({ id: gamma.id })])
+    expect(store.queryHistory({ archiveView: 'archived', sort: 'title-asc' }).rows.map(row => row.id)).toEqual([alpha.id, beta.id])
+    store.restoreSessions([beta.id])
+    expect(store.queryHistory({ archiveView: 'archived' }).rows).toEqual([expect.objectContaining({ id: alpha.id })])
+    expect(store.queryHistory().rows.map(row => row.id)).toContain(beta.id)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('removes legacy SQLite memory tables without affecting file memory', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-memory-schema-'))
+    const paths = new MiraPaths(root).ensure()
+    const legacy = new Database(paths.stateDatabase())
+    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE memories (id TEXT PRIMARY KEY, content TEXT NOT NULL); CREATE TABLE memory_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);')
+    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
+    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '21')
+    legacy.close()
+
+    const database = new PlatformDatabase(root)
+    const state = new Database(paths.stateDatabase(), { readonly: true })
+    expect(state.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('memories', 'memory_settings')").all()).toEqual([])
+    expect(database.memories.enabled()).toBe(false)
+    database.memories.setEnabled(true)
+    database.memories.remember('global', '用户偏好简洁回复')
+    expect(readFileSync(paths.globalMemory(), 'utf8')).toContain('用户偏好简洁回复')
+    state.close()
+    database.close()
     rmSync(root, { recursive: true, force: true })
   })
 

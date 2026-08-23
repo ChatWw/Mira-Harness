@@ -349,6 +349,27 @@
   .el-drawer__close-btn:focus i {
     color: var(--cp-primary-hover);
   }
+
+  // Avoid solid light blocks when a light primary preset is active in dark mode.
+  .el-radio-button {
+    --el-radio-button-checked-bg-color: var(--cp-primary-lighter);
+    --el-radio-button-checked-text-color: var(--cp-primary);
+    --el-radio-button-checked-border-color: var(--cp-primary-light);
+  }
+
+  .el-pagination {
+    --el-pagination-bg-color: var(--cp-bg-elevated);
+    --el-pagination-button-bg-color: var(--cp-bg-elevated);
+    --el-pagination-button-disabled-bg-color: var(--cp-bg-elevated);
+
+    &.is-background .btn-prev.is-active,
+    &.is-background .btn-next.is-active,
+    &.is-background .el-pager li.is-active {
+      border: 1px solid var(--cp-primary-light);
+      color: var(--cp-primary);
+      background-color: var(--cp-primary-lighter);
+    }
+  }
 }
 
 // 消息提示
