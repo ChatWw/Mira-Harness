@@ -404,3 +404,41 @@
     }
   }
 }
+
+// ============================================================
+// 全局统一 popover「弹出」动画（快 + 轻微回弹 duang）
+// 只作用于 el-popover（popper 根带 .el-popover + 过渡类 el-fade-in-linear-*），
+// 不影响 tooltip / dialog。以后新增的 el-popover 自动生效，无需重写 CSS。
+// ============================================================
+
+.el-popover.el-fade-in-linear-enter-active {
+  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.el-popover.el-fade-in-linear-leave-active {
+  transition: opacity 110ms ease, transform 110ms ease;
+}
+.el-popover.el-fade-in-linear-enter-from {
+  opacity: 0;
+}
+.el-popover.el-fade-in-linear-enter-from[data-popper-placement] {
+  transform: scale(0.88);
+}
+.el-popover.el-fade-in-linear-leave-to {
+  opacity: 0;
+}
+.el-popover.el-fade-in-linear-leave-to[data-popper-placement] {
+  transform: scale(0.95);
+}
+// 缩放原点跟随弹出方向，让内容从触发器方向弹开
+.el-popover.el-fade-in-linear-enter-active[data-popper-placement^='top'] {
+  transform-origin: bottom;
+}
+.el-popover.el-fade-in-linear-enter-active[data-popper-placement^='bottom'] {
+  transform-origin: top;
+}
+.el-popover.el-fade-in-linear-enter-active[data-popper-placement^='left'] {
+  transform-origin: right;
+}
+.el-popover.el-fade-in-linear-enter-active[data-popper-placement^='right'] {
+  transform-origin: left;
+}

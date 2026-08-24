@@ -259,8 +259,8 @@ const themeModeOptions: Array<{ label: string; value: ThemePreference }> = [
 ]
 
 const layoutModes = [
-  { value: 'sidebar-header' as LayoutMode, label: '侧边栏 + 顶栏', showSidebar: true, showHeader: true, showRail: false },
-  { value: 'sidebar-only' as LayoutMode, label: '仅侧边栏', showSidebar: true, showHeader: false, showRail: true },
+  { value: 'sidebar-header' as LayoutMode, label: '经典', showSidebar: true, showHeader: true, showRail: false },
+  { value: 'sidebar-only' as LayoutMode, label: '沉浸式', showSidebar: true, showHeader: false, showRail: true },
 ]
 
 const sidebarStyles = [

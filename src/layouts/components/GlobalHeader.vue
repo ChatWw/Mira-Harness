@@ -55,31 +55,6 @@
       ><AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" /></el-button>
       <Breadcrumb v-if="layoutStore.config.showBreadcrumb && !isWorkspaceRoute" class="global-breadcrumb" />
     </div>
-
-    <div class="global-actions">
-      <div class="application-switcher">
-        <el-dropdown trigger="click" :hide-on-click="true" popper-class="application-popper" @command="handleAppChange">
-          <button class="application-trigger">
-            <AppIcon class="application-icon" :name="selectedApp?.icon || 'Grid'" />
-            <span>{{ selectedApp?.name || '选择应用' }}</span>
-            <AppIcon class="application-arrow" name="ArrowDown" />
-          </button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item v-for="app in applications" :key="app.code" :command="app.code" :class="{ 'is-current': app.code === currentAppCode }">
-                <AppIcon v-if="app.icon" :name="app.icon" /><span>{{ app.name }}</span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-      <div class="global-toolbar">
-        <el-tooltip content="全局搜索 (Ctrl+K)"><el-button text @click="handleSearch"><AppIcon name="Search" /></el-button></el-tooltip>
-        <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'"><el-button text @click="toggleFullscreen"><AppIcon :name="isFullscreen ? 'Crop' : 'FullScreen'" /></el-button></el-tooltip>
-        <el-tooltip content="切换主题模式"><el-button text @click="handleThemeToggle"><AppIcon :name="themeStore.themeMode === 'dark' ? 'Sunny' : 'Moon'" /></el-button></el-tooltip>
-        <el-tooltip content="设置"><el-button text @click="openSettings"><AppIcon name="Setting" /></el-button></el-tooltip>
-      </div>
-    </div>
   </header>
 </template>
 
@@ -91,7 +66,6 @@ import { applications } from '@/config/runtime'
 import { getAppCodeFromPath, getApplicationEntryPath, isWorkspacePath, navigateToPath } from '@/config/navigation'
 import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import { useAppStore } from '@/stores/app'
-import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 
@@ -103,8 +77,6 @@ const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
-const selectedApp = computed(() => applications.value.find(app => app.code === currentAppCode.value))
-const commandPaletteStore = useCommandPaletteStore()
 const isFullscreen = ref(false)
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const isMacOverlay = windowChrome === 'macos-overlay'
@@ -182,21 +154,6 @@ watch(
   syncTitleBarChrome,
   { immediate: true },
 )
-
-function handleSearch() { commandPaletteStore.open() }
-function openSettings() { void router.push({ path: '/settings/general', query: { from: route.fullPath } }) }
-function handleThemeToggle(event: MouseEvent) {
-  themeStore.toggleThemeModeWithTransition(event, layoutStore.config.themeTransitionAnimation)
-}
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen()
-    isFullscreen.value = true
-  } else {
-    document.exitFullscreen()
-    isFullscreen.value = false
-  }
-}
 
 function syncFullscreenState() {
   isFullscreen.value = Boolean(document.fullscreenElement)

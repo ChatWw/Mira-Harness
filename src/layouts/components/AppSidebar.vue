@@ -19,6 +19,11 @@
             </span>
           </transition>
         </div>
+        <div class="sidebar-brand-actions">
+          <el-tooltip content="全局搜索 (Ctrl+K)" :disabled="appStore.sidebarCollapsed" placement="right">
+            <button type="button" class="brand-action" @click="handleSearch"><AppIcon name="Search" /></button>
+          </el-tooltip>
+        </div>
       </div>
     </Transition>
 
@@ -37,6 +42,79 @@
         <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
       </el-menu>
     </div>
+
+    <div class="sidebar-footer">
+      <el-popover
+        v-model:visible="settingsMenuVisible"
+        placement="top-start"
+        :width="240"
+        :padding="6"
+        :show-arrow="false"
+        trigger="click"
+        popper-class="settings-menu-popper"
+      >
+        <template #reference>
+          <button type="button" class="sidebar-settings">
+            <AppIcon name="Setting" />
+            <span v-if="!appStore.sidebarCollapsed">设置</span>
+          </button>
+        </template>
+        <div class="settings-menu">
+          <button type="button" class="settings-menu-item" @click="openSettings">
+            <AppIcon name="Setting" /><span>设置</span>
+          </button>
+          <div class="settings-menu-item settings-menu-item--appearance">
+            <button type="button" class="settings-menu-item__main" @click="openAppearance">
+              <AppIcon name="lucide:paintbrush-vertical" /><span>外观</span>
+            </button>
+            <div class="theme-segment" role="radiogroup" aria-label="主题模式">
+              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'light' }" @click="setTheme('light')">浅色</button>
+              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'dark' }" @click="setTheme('dark')">深色</button>
+            </div>
+          </div>
+          <div class="settings-menu-item settings-menu-item--submenu">
+            <el-popover
+              v-model:visible="appFlyoutVisible"
+              placement="right-start"
+              :width="200"
+              :padding="6"
+              :show-arrow="false"
+              :offset="20"
+              trigger="click"
+              popper-class="settings-app-popper"
+            >
+              <template #reference>
+                <button type="button" class="settings-menu-item__main">
+                  <AppIcon name="Grid" /><span>选择应用</span>
+                  <span class="settings-submenu-label">{{ selectedAppName }}</span>
+                  <AppIcon class="settings-submenu-arrow" name="ArrowRight" />
+                </button>
+              </template>
+              <div class="settings-app-menu">
+                <button
+                  v-for="app in applications"
+                  :key="app.code"
+                  type="button"
+                  class="settings-app-item"
+                  :class="{ 'is-active': app.code === currentAppCode }"
+                  @click="switchApp(app.code)"
+                >
+                  <AppIcon :name="app.icon || 'Grid'" />
+                  <span class="settings-app-item__name">{{ app.name }}</span>
+                  <AppIcon v-if="app.code === currentAppCode" name="Check" class="settings-app-item__check" />
+                </button>
+              </div>
+            </el-popover>
+          </div>
+          <button type="button" class="settings-menu-item" @click="openHelp">
+            <AppIcon name="lucide:circle-question-mark" /><span>帮助与反馈</span>
+          </button>
+          <button type="button" class="settings-menu-item" @click="checkUpdate">
+            <AppIcon name="material-symbols:update" /><span>检查更新</span>
+          </button>
+        </div>
+      </el-popover>
+    </div>
   </aside>
 </template>
 
@@ -45,10 +123,12 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
-import { navigateToPath } from '@/config/navigation'
-import { runtimeNavigation } from '@/config/runtime'
+import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
+import { applications, runtimeNavigation } from '@/config/runtime'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
+import { useThemeStore } from '@/stores/theme'
 import type { MenuItem } from '@/types'
 import SidebarMenuItem from './SidebarMenuItem.vue'
 import WorkspaceNavigation from './WorkspaceNavigation.vue'
@@ -62,11 +142,17 @@ withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const harnessStore = useHarnessStore()
+const commandPaletteStore = useCommandPaletteStore()
+const themeStore = useThemeStore()
 const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
 const sidebarScrolled = ref(false)
+const settingsMenuVisible = ref(false)
+const appFlyoutVisible = ref(false)
 
 const currentRoute = computed(() => route.path)
+const currentAppCode = computed(() => getAppCodeFromPath(route.path))
+const selectedAppName = computed(() => applications.value.find(app => app.code === currentAppCode.value)?.name || '通用')
 const applicationMenus = computed(() => runtimeNavigation.mainMenus.filter(item => item.target?.type === 'component'))
 function iframeTree(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? iframeTree(item.children) : undefined }]; const children = item.children ? iframeTree(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }
 const browserMenus = computed(() => iframeTree(runtimeNavigation.mainMenus))
@@ -79,6 +165,44 @@ function handleMenuSelect(path: string) {
 async function newSession() {
   const draft = harnessStore.startDraft()
   await router.push({ path: '/workspace/chat', query: { draft } })
+}
+
+function handleSearch() {
+  commandPaletteStore.open()
+}
+
+function closeSettingsMenu() {
+  settingsMenuVisible.value = false
+}
+
+function switchApp(code: string) {
+  closeSettingsMenu()
+  appFlyoutVisible.value = false
+  navigateToPath(router, getApplicationEntryPath(code))
+}
+
+function openSettings() {
+  closeSettingsMenu()
+  void router.push({ path: '/settings/general', query: { from: route.fullPath } })
+}
+
+function openAppearance() {
+  closeSettingsMenu()
+  void router.push({ path: '/settings/appearance', query: { from: route.fullPath } })
+}
+
+function openHelp() {
+  closeSettingsMenu()
+  void router.push({ path: '/settings/about', query: { from: route.fullPath } })
+}
+
+function setTheme(mode: 'light' | 'dark') {
+  themeStore.setThemeModeWithTransition(mode, undefined, layoutStore.config.themeTransitionAnimation)
+}
+
+function checkUpdate() {
+  closeSettingsMenu()
+  window.open('https://github.com/ChatWw/Mira-Harness/releases', '_blank')
 }
 
 function handleSidebarScroll(event: Event) {
@@ -137,7 +261,11 @@ watch(
 
   .sidebar-header {
     height: 52px;
-    @include flex-center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $spacing-sm;
+    padding: 0 10px;
     flex-shrink: 0;
     overflow: hidden;
 
@@ -145,7 +273,7 @@ watch(
       @include flex-center;
       justify-content: flex-start;
       gap: $spacing-xs;
-      padding: 0 12px;
+      min-width: 0;
 
       .brand-icon {
         width: 28px;
@@ -187,6 +315,32 @@ watch(
         animation: title-shimmer 5s ease-in-out infinite;
       }
     }
+
+    .sidebar-brand-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .brand-action {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: $radius-md;
+      background: transparent;
+      color: var(--cp-text-secondary);
+      font-size: 16px;
+      cursor: pointer;
+      transition: color $transition-fast, background $transition-fast;
+
+      &:hover {
+        color: var(--cp-text);
+        background: var(--cp-bg-hover);
+      }
+    }
   }
 
   .sidebar-content {
@@ -208,6 +362,34 @@ watch(
   }
 
   .sidebar-new-session {
+    display: flex;
+    width: 100%;
+    height: 32px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    color: var(--cp-sidebar-menu-text);
+    background: transparent;
+    border: 0;
+    border-radius: $radius-md;
+    font: inherit;
+    font-size: 14px;
+    font-weight: $font-medium;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--cp-sidebar-menu-hover-bg);
+    }
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0;
+    padding: 6px 8px 10px;
+    border-top: 1px solid var(--cp-border-light);
+  }
+
+  .sidebar-settings {
     display: flex;
     width: 100%;
     height: 32px;
@@ -302,6 +484,17 @@ watch(
     margin: 0 auto;
   }
 
+  &.collapsed .sidebar-brand-actions {
+    display: none;
+  }
+
+  &.collapsed .sidebar-settings {
+    width: 38px;
+    justify-content: center;
+    padding: 0;
+    margin: 0 auto;
+  }
+
   @include media-max($breakpoint-md) {
     position: fixed;
     left: 0;
@@ -358,5 +551,222 @@ watch(
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+</style>
+
+<style lang="scss">
+// 设置菜单通过 Teleport 挂载到 body，使用非 scoped 规则覆盖弹层样式。
+.el-popper.settings-menu-popper,
+.settings-menu-popper {
+  background: var(--cp-bg-elevated) !important;
+  border: 1px solid var(--cp-border);
+  border-radius: $radius-md;
+  box-shadow: $shadow-md;
+
+  .settings-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 200px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .settings-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: var(--cp-text);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color $transition-fast;
+
+    .app-icon {
+      font-size: 15px;
+      color: var(--cp-text-secondary);
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--cp-text) 10%, transparent);
+    }
+  }
+
+  .settings-menu-item--appearance {
+    justify-content: space-between;
+    padding: 2px 6px 2px 10px;
+
+    &:hover {
+      background: transparent;
+    }
+
+    .settings-menu-item__main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--cp-text);
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+
+      .app-icon {
+        font-size: 15px;
+        color: var(--cp-text-secondary);
+      }
+
+      &:hover {
+        color: var(--cp-primary);
+
+        .app-icon {
+          color: var(--cp-primary);
+        }
+      }
+    }
+  }
+
+  .theme-segment {
+    display: inline-flex;
+    padding: 2px;
+    background: color-mix(in srgb, var(--cp-text) 8%, transparent);
+    border-radius: 999px;
+
+    button {
+      padding: 3px 9px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--cp-text-secondary);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color $transition-fast, color $transition-fast;
+
+      &.is-active {
+        background: var(--cp-bg);
+        color: var(--cp-text);
+        box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+      }
+    }
+  }
+
+  // 应用切换：二级菜单（触发行，点击在右侧弹出新弹窗）
+  .settings-menu-item--submenu {
+    display: block;
+    padding: 2px 6px 2px 10px;
+
+    &:hover {
+      background: transparent;
+    }
+
+    .settings-menu-item__main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 34px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--cp-text);
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+
+      .app-icon {
+        font-size: 15px;
+        color: var(--cp-text-secondary);
+      }
+
+      .settings-submenu-label {
+        margin-left: auto;
+        color: var(--cp-text-secondary);
+        font-size: 12px;
+      }
+
+      .settings-submenu-arrow {
+        font-size: 12px;
+        color: var(--cp-text-tertiary);
+      }
+
+      &:hover {
+        .app-icon {
+          color: var(--cp-primary);
+        }
+      }
+    }
+  }
+}
+
+// 应用切换二级弹窗（右侧 flyout）
+.settings-app-popper {
+  background: var(--cp-bg-elevated) !important;
+  border: 1px solid var(--cp-border);
+  border-radius: $radius-md;
+  box-shadow: $shadow-md;
+
+  .settings-app-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 160px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .settings-app-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: var(--cp-text);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color $transition-fast, color $transition-fast;
+
+    .app-icon {
+      font-size: 15px;
+      color: var(--cp-text-secondary);
+    }
+
+    .settings-app-item__name {
+      flex: 1;
+    }
+
+    .settings-app-item__check {
+      font-size: 13px;
+      color: var(--cp-primary);
+    }
+
+    &:hover {
+      color: var(--cp-text);
+      background: color-mix(in srgb, var(--cp-text) 10%, transparent);
+    }
+
+    &.is-active {
+      color: var(--cp-text);
+      font-weight: $font-medium;
+
+      .app-icon {
+        color: var(--cp-primary);
+      }
+    }
+  }
 }
 </style>
