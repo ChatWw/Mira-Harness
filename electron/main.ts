@@ -11,7 +11,7 @@ import { MiraPaths } from './miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { HarnessFileReference, HarnessProjectCreateInput, ModelProviderInput } from '../src/config/harness'
+import type { HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -191,7 +191,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:open-model-config-file', () => shell.openPath(database.models.path()))
   ipcMain.handle('harness:list-model-provider-models', async (_event, provider: ModelProviderInput) => {
     const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
-    if (!endpoint) return []
+    if (!endpoint) return { models: [], error: '未填写 Endpoint' }
     const url = /\/models$/i.test(endpoint) ? endpoint : `${endpoint}/models`
     const apiKey = provider.apiKey?.trim() || database.models.getSecret(provider.id || '')
     const headers: Record<string, string> = { Accept: 'application/json' }
@@ -200,11 +200,17 @@ app.whenReady().then(async () => {
     const timeout = setTimeout(() => controller.abort(), 8000)
     try {
       const response = await fetch(url, { headers, signal: controller.signal })
-      if (!response.ok) return []
-      const payload = await response.json() as { data?: Array<{ id?: unknown }> }
-      return [...new Set((payload.data || []).map(item => typeof item.id === 'string' ? item.id.trim() : '').filter(Boolean))]
-    } catch {
-      return []
+      if (!response.ok) return { models: [], error: `请求失败（HTTP ${response.status}）${!apiKey ? '，请确认已填写 API Key' : ''}` }
+      const payload = await response.json() as { data?: Array<Record<string, unknown>>, models?: Array<Record<string, unknown>> }
+      const ids = (payload.data || payload.models || []).map(item => {
+        const value = item.id ?? item.model ?? item.name
+        return typeof value === 'string' ? value.trim() : ''
+      })
+      const models = [...new Set(ids.filter(Boolean))]
+      if (!models.length) return { models: [], error: '接口已响应，但未返回模型列表' }
+      return { models }
+    } catch (error) {
+      return { models: [], error: error instanceof Error && error.name === 'AbortError' ? '查询超时（8 秒）' : `查询失败：${error instanceof Error ? error.message : String(error)}` }
     } finally {
       clearTimeout(timeout)
     }
@@ -213,6 +219,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:delete-model-provider', (_event, id: string) => database.models.delete(id))
   ipcMain.handle('harness:get-model-role-bindings', () => database.models.bindings())
   ipcMain.handle('harness:save-model-role-bindings', (_event, bindings) => database.models.saveBindings(bindings))
+  ipcMain.handle('harness:list-skills', () => database.skills.list())
+  ipcMain.handle('harness:get-skill-settings', () => database.skills.settings())
+  ipcMain.handle('harness:save-skill-settings', (_event, settings: HarnessSkillSettings) => database.skills.saveSettings(settings))
+  ipcMain.handle('harness:set-skill-enabled', (_event, id: string, enabled: boolean) => database.skills.setEnabled(id, Boolean(enabled)))
   ipcMain.handle('harness:test-model-provider', async (_event, provider: ModelProviderInput, modelId: string) => {
     try {
       const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
@@ -253,9 +263,16 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:create-and-checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.createAndCheckoutGitBranch(projectId, branchName))
   ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
   ipcMain.handle('harness:query-history', (_event, query) => database.queryHarnessHistory(query))
+  ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
   ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
   ipcMain.handle('harness:set-permission', (_event, id: string, permissionMode) => database.harness.setPermission(id, permissionMode))
+  ipcMain.handle('harness:set-active-skills', (_event, id: string, skillIds: string[]) => {
+    const requested = Array.isArray(skillIds) ? skillIds : []
+    const selected = database.skills.resolve(requested)
+    if (selected.length !== new Set(requested).size) throw new Error('只能选择已启用且有效的 Skill')
+    return database.harness.setActiveSkills(id, selected.map(skill => skill.id))
+  })
   ipcMain.handle('harness:set-pinned', (_event, id: string, pinned: boolean) => database.harness.setPinned(id, pinned))
   ipcMain.handle('harness:rename-session', (_event, id: string, title: string) => database.harness.renameSession(id, title))
   ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => database.harness.archiveSessions(ids))

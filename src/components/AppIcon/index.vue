@@ -15,10 +15,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch, type Component } from 'vue'
 import { Icon } from '@iconify/vue'
-import * as ElementPlusIcons from '@element-plus/icons-vue'
 import { getIconifyLibrary, isAvailableIconifyIcon } from './iconify'
+import { elementIcons } from './elementIcons'
 
 const props = defineProps<{
   name: string
@@ -28,11 +28,19 @@ const props = defineProps<{
 }>()
 
 const iconifyReady = ref(false)
-const elementIcon = computed(() => !props.name.includes(':') ? ElementPlusIcons[props.name as keyof typeof ElementPlusIcons] : undefined)
+const loadedElementIcon = shallowRef<Component>()
+const elementIcon = computed(() => !props.name.includes(':') ? elementIcons[props.name as keyof typeof elementIcons] || loadedElementIcon.value : undefined)
 
 watch(() => props.name, async (name) => {
   iconifyReady.value = false
-  if (!name || elementIcon.value) return
+  loadedElementIcon.value = undefined
+  if (!name || elementIcons[name as keyof typeof elementIcons]) return
+  if (!name.includes(':')) {
+    const icons = await import('@element-plus/icons-vue')
+    loadedElementIcon.value = icons[name as keyof typeof icons] as Component | undefined
+    if (!loadedElementIcon.value) warnInvalidIcon(name)
+    return
+  }
   if (!getIconifyLibrary(name)) return warnInvalidIcon(name)
   if (await isAvailableIconifyIcon(name)) iconifyReady.value = true
   else warnInvalidIcon(name)

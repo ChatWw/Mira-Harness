@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import type { LayoutConfig } from '@/types'
 import { getPreference, savePreference } from '@/platform'
 
-export const APP_NAME = 'Mira'
+export const APP_NAME = 'Mira Harness'
 const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {

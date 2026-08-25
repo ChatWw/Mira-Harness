@@ -26,4 +26,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'element-plus': ['element-plus'],
+          'iconify-runtime': ['@iconify/vue'],
+        },
+      },
+    },
+  },
 })

@@ -64,6 +64,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
   select: [value: string]
   'library-change': [value: string]
+  'visibility-change': [visible: boolean]
 }>()
 
 const visible = ref(false)
@@ -93,6 +94,7 @@ watch(activeLibrary, () => {
   page.value = 1
   emit('library-change', activeLibrary.value)
 })
+watch(visible, value => emit('visibility-change', value))
 watch(() => props.modelValue, value => {
   const item = props.items.find(candidate => candidate.value === value)
   if (item) activeLibrary.value = itemLibrary(item)

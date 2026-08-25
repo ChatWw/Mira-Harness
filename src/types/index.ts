@@ -133,11 +133,15 @@ export interface PlatformApi {
   getModelConfigPath(): Promise<string>
   getModelProviderApiKey(id: string): Promise<string>
   openModelConfigFile(): Promise<string>
-  listModelProviderModels(provider: import('@/config/harness').ModelProviderInput): Promise<string[]>
+  listModelProviderModels(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelListResult>
   saveModelProvider(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelProviderSummary>
   deleteModelProvider(id: string): Promise<void>
   getModelRoleBindings(): Promise<import('@/config/harness').ModelRoleBinding>
   saveModelRoleBindings(bindings: import('@/config/harness').ModelRoleBinding): Promise<import('@/config/harness').ModelRoleBinding>
+  listHarnessSkills(): Promise<import('@/config/harness').HarnessSkill[]>
+  getHarnessSkillSettings(): Promise<import('@/config/harness').HarnessSkillSettings>
+  saveHarnessSkillSettings(settings: import('@/config/harness').HarnessSkillSettings): Promise<import('@/config/harness').HarnessSkillSettings>
+  setHarnessSkillEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSkill[]>
   testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
   listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
   openHarnessProjectDirectory(id: string): Promise<string>
@@ -157,9 +161,11 @@ export interface PlatformApi {
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
   queryHarnessHistory(query: import('@/config/harness').HarnessHistoryQuery): Promise<import('@/config/harness').HarnessHistoryPage>
+  queryHarnessUsage(): Promise<import('@/config/harness').HarnessUsageStats>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
+  setHarnessActiveSkills(id: string, skillIds: string[]): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
   archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>

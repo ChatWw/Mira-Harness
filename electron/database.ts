@@ -12,9 +12,11 @@ import { HarnessStore } from './harnessStore'
 import { ModelConfigStore } from './modelConfigStore'
 import { FileMemoryStore } from './fileMemoryStore'
 import { InstructionStore } from './instructionStore'
+import { RunLogStore } from './runLogStore'
+import { SkillStore } from './skillStore'
 import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../src/config/platformValidation'
-import { DEFAULT_ASSISTANT_TONE, type HarnessHistoryPage, type HarnessHistoryQuery } from '../src/config/harness'
+import { DEFAULT_ASSISTANT_TONE, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
 const CURRENT_SCHEMA_VERSION = 23
@@ -58,6 +60,8 @@ export class PlatformDatabase {
   readonly models: ModelConfigStore
   readonly memories: FileMemoryStore
   readonly instructions: InstructionStore
+  readonly logs: RunLogStore
+  readonly skills: SkillStore
 
   constructor(paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
@@ -69,6 +73,8 @@ export class PlatformDatabase {
     this.harness = new HarnessStore(this.database, this.paths)
     this.memories = new FileMemoryStore(this.paths)
     this.instructions = new InstructionStore(this.paths)
+    this.logs = new RunLogStore(this.paths)
+    this.skills = new SkillStore(this.paths)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
     this.harness.removeEmptySessions()
@@ -252,6 +258,10 @@ export class PlatformDatabase {
 
   queryHarnessHistory(query: HarnessHistoryQuery = {}): HarnessHistoryPage {
     return this.harness.queryHistory(query, new Map(this.models.list().map(provider => [provider.id, provider.providerKey])))
+  }
+
+  queryHarnessUsage(): HarnessUsageStats {
+    return this.harness.usageStats(new Map(this.models.list().map(provider => [provider.id, provider.name])))
   }
 
   close() {

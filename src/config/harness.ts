@@ -55,6 +55,35 @@ export interface HarnessTokenUsage {
   cacheRead: number
   cacheWrite: number
   totalTokens: number
+  cost?: HarnessUsageCost
+}
+
+export interface HarnessUsageCost {
+  currency: string
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  total: number
+  priced: boolean
+}
+
+/** Prices are expressed in the configured currency per one million tokens. */
+export interface ModelPricing {
+  currency: string
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+}
+
+export const DEFAULT_MODEL_PRICING: ModelPricing = {
+  currency: 'USD', input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
+}
+
+export interface ModelListResult {
+  models: string[]
+  error?: string
 }
 
 export interface HarnessContextUsage {
@@ -144,6 +173,22 @@ export interface HarnessSession {
   pinned: boolean
   archivedAt?: number
   context?: HarnessContextState
+  activeSkillIds?: string[]
+}
+
+export interface HarnessSkill {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  path: string
+  enabled: boolean
+  valid: boolean
+  error?: string
+}
+
+export interface HarnessSkillSettings {
+  directories: string[]
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned'> {
@@ -273,6 +318,7 @@ export interface ModelProviderInput {
   models: string[]
   reasoning?: boolean
   contextWindow?: number
+  pricing?: ModelPricing | null
   enabled: boolean
 }
 
@@ -284,13 +330,34 @@ export interface ModelProviderSummary {
   models: string[]
   reasoning: boolean
   contextWindow: number
+  pricing?: ModelPricing
   enabled: boolean
   hasApiKey: boolean
   createdAt: number
   updatedAt: number
 }
 
-export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'ollama' | 'custom'
+export interface HarnessUsageBucket {
+  id: string
+  label: string
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  totalTokens: number
+  costs: Record<string, number>
+  pricedRuns: number
+  unpricedRuns: number
+}
+
+export interface HarnessUsageStats {
+  total: Omit<HarnessUsageBucket, 'id' | 'label'>
+  providers: HarnessUsageBucket[]
+  projects: HarnessUsageBucket[]
+  sessions: HarnessUsageBucket[]
+}
+
+export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'qwen' | 'ollama' | 'custom'
 
 export function inferModelReasoning(modelId: string) {
   const value = modelId.toLocaleLowerCase()
@@ -328,10 +395,11 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
 }
 
 export const MODEL_PROVIDER_PRESETS = [
-  { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4.5', 'glm-4.5-air', 'glm-4.5-flash', 'glm-4-32b-0414-128k'] },
-  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', models: ['kimi-k3', 'kimi-k2.7', 'kimi-k2.7-code', 'kimi-k2.6', 'kimi-k2.5'] },
+  { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-5.3', 'glm-5.2', 'glm-5.1', 'glm-4.7', 'glm-4.6'] },
+  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6', 'kimi-k2.5'] },
   { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
-  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash'] },
+  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
+  { key: 'qwen' as const, name: '阿里千问 / Qwen', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-flash'] },
   { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
   { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', models: [''] },
 ]

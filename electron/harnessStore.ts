@@ -25,6 +25,8 @@ import {
   type HarnessSession,
   type HarnessSessionSummary,
   type HarnessTrashEntry,
+  type HarnessUsageBucket,
+  type HarnessUsageStats,
   type PermissionConfig,
   type PermissionMode,
   type ToolCallRecord,
@@ -343,6 +345,44 @@ export class HarnessStore {
     }
   }
 
+  usageStats(providerNames = new Map<string, string>()): HarnessUsageStats {
+    type UsageRow = Pick<SessionRow, 'id' | 'project_id' | 'model_provider_id' | 'model_id' | 'title'> & { project_name: string | null }
+    const rows = this.database.prepare(`SELECT s.id, s.project_id, s.model_provider_id, s.model_id, s.title, p.name AS project_name
+      FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id ORDER BY s.updated_at DESC`).all() as UsageRow[]
+    const empty = () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costs: {} as Record<string, number>, pricedRuns: 0, unpricedRuns: 0 })
+    const providers = new Map<string, HarnessUsageBucket>()
+    const projects = new Map<string, HarnessUsageBucket>()
+    const sessions = new Map<string, HarnessUsageBucket>()
+    const total = empty()
+    const add = (bucket: HarnessUsageBucket | typeof total, usage: NonNullable<HarnessMessage['usage']>) => {
+      bucket.input += usage.input; bucket.output += usage.output; bucket.cacheRead += usage.cacheRead; bucket.cacheWrite += usage.cacheWrite; bucket.totalTokens += usage.totalTokens
+      if (usage.cost?.priced) { bucket.costs[usage.cost.currency] = (bucket.costs[usage.cost.currency] || 0) + usage.cost.total; bucket.pricedRuns += 1 } else bucket.unpricedRuns += 1
+    }
+    const get = (map: Map<string, HarnessUsageBucket>, id: string, label: string) => {
+      let bucket = map.get(id)
+      if (!bucket) { bucket = { id, label, ...empty() }; map.set(id, bucket) }
+      return bucket
+    }
+    for (const row of rows) {
+      let session: HarnessSession
+      try { session = this.getSession(row.id) } catch { continue }
+      const providerId = row.model_provider_id || 'unknown-provider'
+      const providerLabel = row.model_id ? `${providerNames.get(providerId) || '未知供应商'} / ${row.model_id}` : '未选择模型'
+      const projectId = row.project_id || TEMPORARY_PROJECT_ID
+      const projectLabel = row.project_name || '未关联项目'
+      for (const message of session.messages) {
+        if (message.role !== 'assistant' || !message.usage) continue
+        add(total, message.usage)
+        add(get(providers, providerId, providerLabel), message.usage)
+        add(get(projects, projectId, projectLabel), message.usage)
+        add(get(sessions, row.id, session.title), message.usage)
+      }
+    }
+    const totalCost = (bucket: HarnessUsageBucket) => Object.values(bucket.costs).reduce((sum, value) => sum + value, 0)
+    const sort = (items: HarnessUsageBucket[]) => items.sort((left, right) => totalCost(right) - totalCost(left) || right.totalTokens - left.totalTokens || left.label.localeCompare(right.label))
+    return { total, providers: sort([...providers.values()]), projects: sort([...projects.values()]), sessions: sort([...sessions.values()]) }
+  }
+
   getSession(id: string) {
     const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
     if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
@@ -444,6 +484,12 @@ export class HarnessStore {
     if (permissionMode === 'auto-approve' && !config.autoApproveEnabled) throw new Error('自动审核权限未启用')
     if (permissionMode === 'full' && !config.fullAccessEnabled) throw new Error('完全访问权限未启用')
     const session = this.getSession(id); session.permissionMode = permissionMode; return this.saveSession(session)
+  }
+
+  setActiveSkills(id: string, skillIds: string[]) {
+    const session = this.getSession(id)
+    session.activeSkillIds = [...new Set(skillIds.filter(value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value)))]
+    return this.saveSession(session)
   }
 
   attachDirectory(sessionId: string, directory: string) {

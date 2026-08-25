@@ -58,6 +58,7 @@
           </div>
           <div class="message__toolbar">
             <time class="message__time">{{ formatMessageTime(message.createdAt) }}</time>
+            <span v-if="message.role === 'assistant' && message.usage" class="message__usage" :title="message.usage.cost?.priced ? '按模型单价估算的本次回复成本' : undefined">{{ messageUsageLabel(message) }}</span>
             <template v-if="editingMessageId === message.id">
               <button type="button" class="message__tool-btn" aria-label="取消编辑" @click="cancelMessageEdit"><AppIcon name="Close" /><span class="message__tool-label">取消</span></button>
               <button type="button" class="message__tool-btn" aria-label="保存并重新生成" :disabled="!editingMessageText.trim()" @click="saveMessageEdit(message)"><AppIcon name="Check" /><span class="message__tool-label">重跑</span></button>
@@ -125,6 +126,7 @@
         <div class="permission-request-card__content"><strong>{{ permissionRequest.title }}</strong><p>{{ permissionRequest.detail }}</p></div>
         <div class="permission-request-card__actions"><el-button :disabled="permissionResponding" @click="respondPermission(false)">拒绝</el-button><el-button type="primary" :loading="permissionResponding" @click="respondPermission(true)">允许</el-button></div>
       </section>
+      <section v-if="store.lastRunError" class="run-error-card" role="alert"><AppIcon name="WarningFilled" /><div><strong>本次运行未完成</strong><p>{{ store.lastRunError.message }}</p></div><el-button size="small" :disabled="isComposerBusy" @click="rerun">重试</el-button></section>
 
       <footer class="composer-shell">
         <div v-if="showProjectPicker" class="composer-toolbar" aria-label="对话项目工具">
@@ -192,6 +194,14 @@
                   </button>
                 </div>
               </el-popover>
+              <el-popover v-if="store.activeSession" v-model:visible="skillPickerVisible" trigger="click" placement="top-start" :width="300" :show-arrow="false" popper-class="harness-selector-popper" @show="loadSkills">
+                <template #reference><el-tooltip content="本会话 Skill" placement="top"><button type="button" class="composer-icon-button" :disabled="isComposerBusy" aria-label="本会话 Skill"><AppIcon name="MagicStick" /></button></el-tooltip></template>
+                <div class="skill-menu">
+                  <p class="skill-menu__title">本会话 Skill</p>
+                  <label v-for="skill in enabledSkills" :key="skill.id" class="skill-menu__item"><el-checkbox :model-value="activeSkillIds.includes(skill.id)" :disabled="isComposerBusy" @change="setActiveSkill(skill.id, Boolean($event))" /><span><strong>{{ skill.name }}</strong><small>{{ skill.description }}</small></span></label>
+                  <p v-if="!enabledSkills.length" class="selector-empty">没有已启用的 Skill，可在个性化设置中管理。</p>
+                </div>
+              </el-popover>
             </div>
             <div class="composer__submit">
               <el-tooltip v-if="showContextUsage && composerDraft.modelSelection" placement="top" :show-arrow="false">
@@ -238,7 +248,7 @@
     <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
       <div class="empty-state__hero">
         <h1 class="empty-state__title">Mira</h1>
-        <p class="empty-state__subtitle">今天想做什么？从一个想法开始，我陪你把它落地。</p>
+        <p class="empty-state__subtitle">{{ modelOptions.length ? '今天想做什么？从一个想法开始，我陪你把它落地。' : '先在右下角选择模型，或前往模型设置完成配置。' }}</p>
       </div>
       <div class="empty-state__cards">
         <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" class="starter-card" :disabled="isComposerBusy" @click="setDraftText(prompt.text)">
@@ -283,7 +293,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessFileReference, type HarnessGitBranch, type HarnessMessage, type HarnessSkill, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 
 const route = useRoute()
@@ -312,6 +322,7 @@ const gitPickerVisible = ref(false)
 const createGitBranchVisible = ref(false)
 const modelPickerVisible = ref(false)
 const permissionPickerVisible = ref(false)
+const skillPickerVisible = ref(false)
 const fullAccessConfirmVisible = ref(false)
 const fullAccessAcknowledged = ref(false)
 const permissionResponding = ref(false)
@@ -330,6 +341,7 @@ const fileQuery = ref('')
 const availableFiles = ref<HarnessFileReference[]>([])
 const filesLoading = ref(false)
 const providers = ref<ModelProviderSummary[]>([])
+const skills = ref<HarnessSkill[]>([])
 const permissionConfig = ref<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const showScrollToBottom = ref(false)
 const stickToBottom = ref(true)
@@ -397,6 +409,8 @@ const starterPrompts: Array<{ icon: string, title: string, hint: string, text: s
   { icon: 'Cpu', title: '写一段代码', hint: 'SQL、脚本、组件，描述需求即可', text: '帮我写一段代码：' },
 ]
 const selectedPermissionMode = computed<PermissionMode>(() => store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode)
+const enabledSkills = computed(() => skills.value.filter(skill => skill.valid && skill.enabled))
+const activeSkillIds = computed(() => store.activeSession?.activeSkillIds || [])
 const permissionLabel = computed(() => permissionOptions.find(option => option.mode === selectedPermissionMode.value)?.label || '默认权限')
 const availablePermissionOptions = computed(() => permissionOptions.filter(option => option.mode === 'default'
   || (option.mode === 'auto-approve' && permissionConfig.value.autoApproveEnabled)
@@ -442,8 +456,9 @@ const showLoadingIndicator = computed(() => {
 
 async function load() {
   const api = getPlatformApi()
-  const [,, configured, permissions] = await Promise.all([store.refreshSessions(), store.refreshProjects(), api?.listModelProviders() || [], api?.getHarnessPermissionConfig()])
+  const [,, configured, permissions, configuredSkills] = await Promise.all([store.refreshSessions(), store.refreshProjects(), api?.listModelProviders() || [], api?.getHarnessPermissionConfig(), api?.listHarnessSkills() || []])
   providers.value = configured
+  skills.value = configuredSkills
   if (permissions) permissionConfig.value = permissions
   if (sessionId.value) {
     if (store.activeSession?.id !== sessionId.value) await store.openSession(sessionId.value)
@@ -478,6 +493,14 @@ async function load() {
   }
 }
 
+async function loadSkills() { skills.value = await getPlatformApi()?.listHarnessSkills() || [] }
+async function setActiveSkill(id: string, enabled: boolean) {
+  const session = store.activeSession; const api = getPlatformApi()
+  if (!session || !api) return
+  const next = enabled ? [...new Set([...activeSkillIds.value, id])] : activeSkillIds.value.filter(value => value !== id)
+  try { store.activeSession = await api.setHarnessActiveSkills(session.id, next) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '更新 Skill 失败') }
+}
+
 let routeLoadPromise: Promise<void> = Promise.resolve()
 function reload() {
   routeLoadPromise = load()
@@ -497,6 +520,11 @@ function formatTokenCount(value: number) {
   if (value >= 1000000 && value % 1000000 === 0) return `${value / 1000000}M`
   const compact = value >= 100000 ? Math.round(value / 1000) : Math.round(value / 100) / 10
   return `${compact}K`
+}
+function messageUsageLabel(message: HarnessMessage) {
+  const usage = message.usage!
+  if (!usage.cost?.priced) return `${formatTokenCount(usage.totalTokens)} token`
+  return `${formatTokenCount(usage.totalTokens)} token · 估算 ${usage.cost.currency} ${usage.cost.total.toFixed(usage.cost.total >= 1 ? 2 : 4)}`
 }
 function renderAssistantMessage(content: string) { return markdown.render(content) }
 function fileChangeSummary(change: HarnessFileChange) {
@@ -1261,6 +1289,8 @@ onBeforeUnmount(() => {
 .permission-menu { display: flex; flex-direction: column; gap: 2px; }.permission-menu__item { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 48px; padding: 6px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.permission-menu__item > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.permission-menu__item strong { font-size: 12px; font-weight: 500; }.permission-menu__item small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }.permission-menu__item:hover, .permission-menu__item.active { background: var(--cp-bg-hover); }.permission-menu__item > .app-icon { color: var(--cp-primary); font-size: 13px; }
 .git-branch-panel { display: flex; flex-direction: column; gap: 8px; }.git-branch-panel__title { margin: 2px 8px -2px; color: var(--cp-text-tertiary); font-size: 11px; }.git-branch-panel__list { min-height: 72px; }.git-branch-option { display: grid; width: 100%; grid-template-columns: 16px minmax(0, 1fr) 16px; align-items: center; min-height: 38px; gap: 8px; padding: 5px 8px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }.git-branch-option > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.git-branch-option strong { overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }.git-branch-option small { color: var(--cp-text-tertiary); font-size: 11px; }.git-branch-option:hover:not(:disabled), .git-branch-option.active { background: var(--cp-bg-hover); }.git-branch-option:disabled { cursor: wait; opacity: .65; }.git-branch-option > .app-icon:last-child { color: var(--cp-primary); font-size: 13px; }.git-branch-panel__create { display: inline-flex; align-items: center; min-height: 34px; gap: 8px; margin-top: 1px; padding: 0 8px; border: 0; border-top: 1px solid var(--cp-border-light); color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }.git-branch-panel__create:hover:not(:disabled) { color: var(--cp-text); }.git-branch-panel__create:disabled { cursor: wait; opacity: .65; }
 .context-usage-tooltip { display: grid; min-width: 180px; gap: 4px; color: var(--cp-text); font-size: 12px; line-height: 1.45; }.context-usage-tooltip strong { font-size: 12px; font-weight: 600; }.context-usage-tooltip span, .context-usage-tooltip small { color: var(--cp-text-secondary); }.context-usage-tooltip small { font-size: 11px; }
+.skill-menu { display: grid; gap: 4px; }.skill-menu__title { margin: 2px 4px 6px; color: var(--cp-text); font-size: 13px; font-weight: 600; }.skill-menu__item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 5px; cursor: pointer; }.skill-menu__item span { display: grid; min-width: 0; gap: 2px; }.skill-menu__item strong { color: var(--cp-text); font-size: 12px; }.skill-menu__item small { color: var(--cp-text-secondary); font-size: 11px; line-height: 1.35; }
+.message__usage { margin-left: auto; color: var(--cp-text-tertiary); font-size: 11px; }.run-error-card { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; width: min(100% - 32px, 760px); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--cp-danger) 38%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 6%, var(--cp-bg)); }.run-error-card > div { min-width: 0; flex: 1; }.run-error-card strong { color: var(--cp-text); font-size: 12px; }.run-error-card p { margin: 2px 0 0; color: var(--cp-text-secondary); font-size: 12px; }.run-error-card :deep(.el-button) { flex: 0 0 auto; }
 .el-dialog.full-access-dialog { max-width: calc(100vw - 32px); border-radius: 18px; }.full-access-dialog .el-dialog__header { margin: 0; padding: 8px 0 0; border-bottom: 0 !important; }.full-access-dialog .el-dialog__body { padding: 12px 0 0; }.full-access-dialog .el-dialog__footer { padding: 12px 0 0; }.full-access-dialog__header { display: flex; align-items: center; gap: 9px; color: var(--cp-text); }.full-access-dialog__header .app-icon { color: var(--cp-danger); font-size: 22px; }.full-access-dialog__header h2 { margin: 0; font-size: 16px; font-weight: 600; }.full-access-dialog__copy { margin: 0; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.65; }.full-access-dialog__ack { margin-top: 18px; color: var(--cp-text); font-size: 14px; }.full-access-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; }.full-access-dialog__footer .el-button { min-width: 92px; margin: 0; font-weight: 600; }
 .el-dialog.git-branch-dialog { max-width: calc(100vw - 32px); border-radius: 16px; }.git-branch-dialog .el-dialog__header { margin: 0; padding: 8px 0 0; border-bottom: 0 !important; }.git-branch-dialog .el-dialog__body { padding: 14px 0 0; }.git-branch-dialog .el-dialog__footer { padding: 16px 0 0; }.git-branch-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.git-branch-dialog__header h2 { margin: 0; color: var(--cp-text); font-size: 17px; font-weight: 600; }.git-branch-dialog__header button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.git-branch-dialog__header button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }.git-branch-dialog__label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--cp-text); font-size: 13px; font-weight: 500; }.git-branch-dialog__label button { padding: 0; border: 0; color: var(--cp-text-secondary); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }.git-branch-dialog__label button:hover { color: var(--cp-text); }.git-branch-dialog__error { margin: 7px 0 0; color: var(--cp-danger); font-size: 12px; }.git-branch-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; }.git-branch-dialog__footer .el-button { min-width: 92px; margin: 0; font-weight: 600; }
 </style>

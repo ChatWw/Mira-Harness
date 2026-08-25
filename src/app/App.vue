@@ -1,6 +1,6 @@
 <template>
   <el-config-provider :size="layoutStore.config.componentSize">
-    <router-view />
+    <AppErrorBoundary><router-view /></AppErrorBoundary>
     <AppLoadingOverlay :active="globalLoading.active.value" :text="globalLoading.text.value" global />
   </el-config-provider>
 </template>
@@ -13,6 +13,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
 import { getPlatformApi } from '@/platform'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
+import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
 import { useLoading } from '@/hooks/useLoading'
 
 const themeStore = useThemeStore()

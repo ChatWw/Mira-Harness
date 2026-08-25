@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import type Database from 'better-sqlite3'
-import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelPricing, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding } from '../src/config/harness'
 import { MiraPaths } from './miraPaths'
+import { normalizePricing } from './usageCost'
 
 type JsonModelRecord = {
   id: string
@@ -13,6 +14,7 @@ type JsonModelRecord = {
   model: string
   reasoning: boolean
   contextWindow: number
+  pricing?: ModelPricing
   enabled: boolean
   createdAt: number
   updatedAt: number
@@ -26,6 +28,7 @@ function inferProviderKey(name: string, endpoint: string): ModelProviderKey {
   if (text.includes('kimi') || text.includes('moonshot')) return 'kimi'
   if (text.includes('minimax')) return 'minimax'
   if (text.includes('deepseek')) return 'deepseek'
+  if (text.includes('qwen') || text.includes('千问') || text.includes('dashscope') || text.includes('aliyun') || text.includes('tongyi')) return 'qwen'
   if (text.includes('ollama') || text.includes('11434')) return 'ollama'
   return 'custom'
 }
@@ -70,6 +73,7 @@ export class ModelConfigStore {
         model: item.model,
         reasoning: typeof item.reasoning === 'boolean' ? item.reasoning : inferModelReasoning(item.model),
         contextWindow: contextWindow(item.contextWindow),
+        pricing: normalizePricing(item.pricing),
         enabled: item.enabled !== false,
         createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
@@ -99,6 +103,7 @@ export class ModelConfigStore {
       models: [record.model],
       reasoning: record.reasoning,
       contextWindow: record.contextWindow,
+      ...(record.pricing ? { pricing: record.pricing } : {}),
       enabled: record.enabled,
       hasApiKey: Boolean(record.apiKey),
       createdAt: record.createdAt,
@@ -130,6 +135,7 @@ export class ModelConfigStore {
       model,
       reasoning: typeof input.reasoning === 'boolean' ? input.reasoning : existing?.reasoning || inferModelReasoning(model),
       contextWindow: contextWindow(input.contextWindow ?? existing?.contextWindow),
+      pricing: input.pricing === null ? undefined : (normalizePricing(input.pricing) || existing?.pricing),
       enabled: Boolean(input.enabled),
       createdAt: existing?.createdAt || now,
       updatedAt: now,

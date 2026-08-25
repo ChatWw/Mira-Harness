@@ -466,6 +466,28 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('aggregates persisted usage by provider, project, and session without pricing unknown models', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'usage-project'); mkdirSync(directory)
+    const project = store.createProject(directory, 'Usage project')
+    const priced = store.createSession(project.id)
+    const unpriced = store.createSession()
+    store.updateSession({ ...store.getSession(priced.id), modelProviderId: 'provider-1', modelId: 'model-a' })
+    store.updateSession({ ...store.getSession(unpriced.id), modelProviderId: 'provider-2', modelId: 'model-b' })
+    store.addMessage(priced.id, 'user', '计算成本')
+    store.appendAssistantText(priced.id, '已完成', undefined, { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150, cost: { currency: 'USD', input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0, total: 0.3, priced: true } })
+    store.addMessage(unpriced.id, 'user', '没有价格')
+    store.appendAssistantText(unpriced.id, '已完成', undefined, { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 30 })
+
+    const stats = store.usageStats(new Map([['provider-1', 'Provider One'], ['provider-2', 'Provider Two']]))
+    expect(stats.total).toMatchObject({ totalTokens: 180, costs: { USD: 0.3 }, pricedRuns: 1, unpricedRuns: 1 })
+    expect(stats.providers).toContainEqual(expect.objectContaining({ label: 'Provider One / model-a', totalTokens: 150 }))
+    expect(stats.projects).toContainEqual(expect.objectContaining({ id: project.id, totalTokens: 150 }))
+    expect(stats.sessions).toContainEqual(expect.objectContaining({ id: unpriced.id, unpricedRuns: 1 }))
+
+    database.close(); rmSync(root, { recursive: true, force: true })
+  })
+
   it('persists assistant deltas atomically and finalizes the same message', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()

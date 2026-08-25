@@ -9,6 +9,7 @@ export class MiraPaths {
   readonly trash: string
   readonly memories: string
   readonly logs: string
+  readonly skills: string
 
   constructor(home: string) {
     this.root = join(home, '.mira')
@@ -18,6 +19,7 @@ export class MiraPaths {
     this.trash = join(this.root, 'trash')
     this.memories = join(this.root, 'memories')
     this.logs = join(this.root, 'logs')
+    this.skills = join(this.root, 'skills')
   }
 
   stateDatabase() { return join(this.root, 'state.sqlite') }
@@ -29,11 +31,12 @@ export class MiraPaths {
   agentsOverrideFile(directory: string) { return join(directory, 'AGENTS.override.md') }
   modelsConfig() { return join(this.config, 'models.json') }
   mcpConfig() { return join(this.config, 'mcp-servers.json') }
+  skillSettings() { return join(this.config, 'skills.json') }
   session(id: string) { return join(this.sessions, `${id}.json`) }
   projectTrash(projectId: string) { return join(this.trash, projectId) }
 
   ensure() {
-    [this.root, this.config, this.sessions, this.attachments, this.trash, this.memories, this.logs]
+    [this.root, this.config, this.sessions, this.attachments, this.trash, this.memories, this.logs, this.skills]
       .forEach(path => mkdirSync(path, { recursive: true }))
     if (!existsSync(this.globalAgents())) writeFileSync(this.globalAgents(), '', 'utf8')
     return this

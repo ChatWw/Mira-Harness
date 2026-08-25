@@ -65,13 +65,13 @@
 npm install
 ```
 
-### Web 开发
+### Web 开发（界面预览）
 
 ```bash
 npm run dev
 ```
 
-默认地址为 [http://localhost:9000](http://localhost:9000)，会直接进入 Agent 工作台的新对话。
+默认地址为 [http://localhost:9000](http://localhost:9000)，用于预览 Web 界面。浏览器没有 Electron 主进程和 `window.platform` IPC，因此不能配置或调用模型、访问本地 Agent 工具，也不应作为 Harness 的运行入口。完整 Agent 工作台请使用桌面版。
 
 ### 桌面版
 

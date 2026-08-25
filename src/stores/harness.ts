@@ -65,6 +65,8 @@ export interface HarnessPendingPermissionRequest {
   detail: string
 }
 
+export interface HarnessRunError { sessionId: string, message: string }
+
 function loadModelSelection(): ModelSelection | undefined {
   try {
     const value = JSON.parse(localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) || 'null') as Partial<ModelSelection> | null
@@ -95,6 +97,7 @@ export const useHarnessStore = defineStore('harness', () => {
   const runningSessionIds = ref<string[]>([])
   const unreadSessionIds = ref<string[]>([])
   const pendingPermissionRequests = ref<Record<string, HarnessPendingPermissionRequest>>({})
+  const lastRunError = ref<HarnessRunError>()
 
   function persistDrafts() {
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts.value))
@@ -342,6 +345,7 @@ export const useHarnessStore = defineStore('harness', () => {
     }
     if (event.type === 'status') {
       if (event.payload.state === 'running') {
+        if (event.sessionId === activeSession.value?.id) lastRunError.value = undefined
         if (!runningSessionIds.value.includes(event.sessionId)) runningSessionIds.value = [...runningSessionIds.value, event.sessionId]
       } else {
         runningSessionIds.value = runningSessionIds.value.filter(id => id !== event.sessionId)
@@ -353,6 +357,9 @@ export const useHarnessStore = defineStore('harness', () => {
       }
     }
     if (event.sessionId !== activeSession.value?.id) return
+    if (event.type === 'error') {
+      lastRunError.value = { sessionId: event.sessionId, message: typeof event.payload.message === 'string' ? event.payload.message : '运行失败，请重试。' }
+    }
     if (event.type === 'run-start') {
       activeRun.value = {
         sessionId: event.sessionId,
@@ -396,6 +403,7 @@ export const useHarnessStore = defineStore('harness', () => {
     runningSessionIds,
     unreadSessionIds,
     pendingPermissionRequests,
+    lastRunError,
     refreshSessions,
     refreshProjects,
     createProject,

@@ -128,6 +128,17 @@ describe('harness message streaming', () => {
     expect(store.pendingPermissionRequests['session-2']).toBeUndefined()
   })
 
+  it('retains a runtime error for an explicit retry action', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+
+    store.applyEvent({ sessionId: 'session-1', type: 'error', payload: { message: '模型请求超时' } })
+    expect(store.lastRunError).toEqual({ sessionId: 'session-1', message: '模型请求超时' })
+    store.applyEvent({ sessionId: 'session-1', type: 'status', payload: { state: 'running' } })
+    expect(store.lastRunError).toBeUndefined()
+  })
+
   it('removes a deleted session from shared navigation state immediately', async () => {
     vi.useFakeTimers()
     installWindow()

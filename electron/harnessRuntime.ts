@@ -13,6 +13,13 @@ import { join, relative, resolve, sep } from 'node:path'
 import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
+import { withUsageCost } from './usageCost'
+import type { RuntimeLogRecord } from './runLogStore'
+
+// [AgentHarness 迁移标记] 当前使用 pi-agent-core 的低层 `Agent`（见下方 new Agent()）。
+// 暂不迁移到 `AgentHarness`：0.84.1 中大多核心方法抛 HarnessNotImplemented，且所需
+// `@earendil-works/pi-session-backend-sqlite-node` 未安装。重新评估的触发条件与清单见
+// wiki/design/HARNESS_ROADMAP.md「AgentHarness 迁移评估 · ADR」。改动本文件前先回看。
 
 const ASSISTANT_PERSIST_INTERVAL_MS = 250
 
@@ -42,7 +49,7 @@ function assistantText(message: unknown) {
     .join('')
 }
 
-function tokenUsage(value: unknown): HarnessTokenUsage | undefined {
+function tokenUsage(value: unknown): Omit<HarnessTokenUsage, 'cost'> | undefined {
   if (!value || typeof value !== 'object') return undefined
   const source = value as Record<string, unknown>
   const number = (key: string) => Math.max(0, Number(source[key]) || 0)
@@ -57,7 +64,7 @@ function tokenUsage(value: unknown): HarnessTokenUsage | undefined {
 function agentUsage(usage: HarnessTokenUsage) {
   return {
     ...usage,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    cost: usage.cost ? { input: usage.cost.input, output: usage.cost.output, cacheRead: usage.cost.cacheRead, cacheWrite: usage.cost.cacheWrite, total: usage.cost.total } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   }
 }
 
@@ -112,6 +119,10 @@ export class HarnessRuntime {
   private readonly memoryWrites = new Map<string, Promise<void>>()
   constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager) {}
 
+  private log(record: RuntimeLogRecord) {
+    try { this.database.logs?.write(record) } catch (error) { console.warn('[Mira] 写入运行日志失败', error) }
+  }
+
   private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
     return {
       role: message.role,
@@ -152,7 +163,9 @@ export class HarnessRuntime {
     const scope: MemoryScope = session.projectId ? 'project' : 'global'
     const target = this.database.memories.path(scope, session.projectId)
     const recordId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_auto_save', target, status: 'running', createdAt: Date.now() })
+    const startedAt = Date.now()
+    this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_auto_save', target, status: 'running', createdAt: startedAt })
+    this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, status: 'running', timestamp: startedAt })
     emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'running' } })
     const result = await generateSummaryWithUsage(
       session.messages.map(message => this.toAgentMessage(message, model)) as any,
@@ -170,7 +183,8 @@ export class HarnessRuntime {
     const content = result.value.text.trim()
     if (!content || content === 'NO_MEMORY') {
       const diff = `- ${scope === 'project' ? '项目' : '全局'}记忆：没有可保存的长期事实\n- ${target}`
-      this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt: Date.now() })
+      const completedAt = Date.now(); this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt })
+      this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, result: diff, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
       return
     }
@@ -178,7 +192,8 @@ export class HarnessRuntime {
     const diff = saved.created
       ? `- ${scope === 'project' ? '项目' : '全局'}记忆：新增 1 条\n- [${saved.entry.id}] ${saved.entry.content}`
       : `- ${scope === 'project' ? '项目' : '全局'}记忆：已有相同条目\n- [${saved.entry.id}] ${saved.entry.content}`
-    this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt: Date.now() })
+    const completedAt = Date.now(); this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt })
+    this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, result: diff, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
     emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
   }
 
@@ -255,7 +270,7 @@ export class HarnessRuntime {
     if (mode === 'full' || mode === 'auto-approve') return Promise.resolve(true)
     const requestId = randomUUID()
     return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => { this.pendingPermissions.delete(requestId); resolve(false) }, 5 * 60 * 1000)
+      const timer = setTimeout(() => { this.pendingPermissions.delete(requestId); emit(sender, { sessionId, type: 'error', payload: { message: '权限确认超时，已取消该操作。' } }); resolve(false) }, 5 * 60 * 1000)
       this.pendingPermissions.set(requestId, { resolve, timer })
       emit(sender, { sessionId, type: 'permission-request', payload: { requestId, title, detail } })
     })
@@ -286,14 +301,19 @@ export class HarnessRuntime {
 
   private tools(sender: WebContents, sessionId: string) {
     const descriptors = new Map<string, ToolDescriptor>()
+    const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const register = <T extends { name: string }>(tool: T, descriptor: ToolDescriptor) => {
       descriptors.set(tool.name, descriptor)
       return tool
     }
     const session = () => this.database.harness.getSession(sessionId)
-    const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt: Date.now() }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
+    const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const createdAt = Date.now(); recordedTools.set(id, { tool, target, startedAt: createdAt }); this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt }); this.log({ event: 'tool', sessionId, tool, target, status: 'running', timestamp: createdAt }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
     const finish = (id: string, status: 'ok' | 'failed', diff?: string) => {
-      this.database.harness.updateTool(sessionId, id, { status, diff, completedAt: Date.now() })
+      const completedAt = Date.now()
+      this.database.harness.updateTool(sessionId, id, { status, diff, completedAt })
+      const started = recordedTools.get(id)
+      this.log({ event: 'tool', sessionId, tool: started?.tool || 'tool', target: started?.target, status: status === 'ok' ? 'completed' : 'failed', timestamp: completedAt, durationMs: started ? completedAt - started.startedAt : undefined, ...(diff ? { result: diff } : {}) })
+      recordedTools.delete(id)
       emit(sender, { sessionId, type: 'tool-call', payload: { id, status, diff } })
     }
     const workingDirectory = session().workingDirectory
@@ -449,6 +469,7 @@ export class HarnessRuntime {
     session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
     const startedAt = Date.now()
+    this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'running', timestamp: startedAt })
     const activities: HarnessRunActivity[] = [{ id: 'thinking-0', label: '正在思考', status: 'running', startedAt }]
     const publishActivities = () => emit(sender, { sessionId, type: 'run-activity', payload: { activities } })
     const finishActivity = (id: string, status: HarnessRunActivity['status'] = 'completed', detail?: string) => {
@@ -482,11 +503,14 @@ export class HarnessRuntime {
         const target = this.database.memories.path(scope, session.projectId)
         const entries = this.database.memories.search(scope, text, session.projectId)
         const detail = `${scope === 'global' ? '全局' : '项目'}记忆：加载 ${entries.length} 条\n${target}`
-        const recordId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-        this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_load', target, status: 'running', createdAt: Date.now() })
+        const recordId = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const startedAt = Date.now()
+        this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_load', target, status: 'running', createdAt: startedAt })
+        this.log({ event: 'tool', sessionId, tool: 'memory_load', target, status: 'running', timestamp: startedAt })
         emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_load', target, status: 'running' } })
-        this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff: `- ${detail.replace('\n', '\n- ')}`, completedAt: Date.now() })
-        emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_load', target, status: 'ok', diff: `- ${detail.replace('\n', '\n- ')}` } })
+        const completedAt = Date.now(); const diff = `- ${detail.replace('\n', '\n- ')}`
+        this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt })
+        this.log({ event: 'tool', sessionId, tool: 'memory_load', target, result: diff, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
+        emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_load', target, status: 'ok', diff } })
         activities.push({ id: `memory-load-${scope}`, label: `加载${scope === 'global' ? '全局' : '项目'}记忆`, detail, status: 'completed', startedAt: Date.now(), completedAt: Date.now() })
         return entries.map(entry => `- [${entry.id}] ${entry.content}`).join('\n')
       }
@@ -495,6 +519,7 @@ export class HarnessRuntime {
       if (memoryEnabled) publishActivities()
       const registeredTools = this.tools(sender, sessionId)
       const preferences = this.database.getSnapshot().preferences
+      const activeSkills = this.database.skills.resolve(session.activeSkillIds || [])
       agent = new Agent({
         initialState: {
           systemPrompt: buildMiraSystemPrompt({
@@ -506,6 +531,7 @@ export class HarnessRuntime {
             context: {
               model: { providerName: provider.name, modelName: selection.modelId },
               instructions: this.database.instructions.resolve(session.workingDirectory),
+              activeSkills: activeSkills.map(skill => ({ name: skill.name, instructions: skill.instructions })),
               globalMemory,
               projectMemory,
             },
@@ -593,10 +619,12 @@ export class HarnessRuntime {
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
       run.contextUsage = usage
-      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined) })
+      const finalUsage = tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined)
+      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: finalUsage ? withUsageCost(finalUsage, provider.pricing) : undefined })
       assistantFinalized = true
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
+      this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
       const memoryWrite = this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off')
         .catch(error => {
@@ -604,7 +632,8 @@ export class HarnessRuntime {
           const record = this.database.harness.getSession(sessionId).toolCalls.find(item => item.tool === 'memory_auto_save' && item.status === 'running')
           if (record) {
             const message = error instanceof Error ? error.message : String(error)
-            this.database.harness.updateTool(sessionId, record.id, { status: 'failed', error: message, completedAt: Date.now() })
+            const completedAt = Date.now(); this.database.harness.updateTool(sessionId, record.id, { status: 'failed', error: message, completedAt })
+            this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, error: message, status: 'failed', timestamp: completedAt, durationMs: completedAt - record.createdAt })
             emit(sender, { sessionId, type: 'tool-call', payload: { id: record.id, tool: 'memory_auto_save', target, status: 'failed', error: message } })
           }
         })
@@ -626,6 +655,8 @@ export class HarnessRuntime {
         emit(sender, { sessionId, type: 'message-complete', payload: {} })
       }
       this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
+      const failureAt = Date.now()
+      this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: aborted ? 'aborted' : 'failed', timestamp: failureAt, durationMs: failureAt - startedAt, ...(aborted ? {} : { error: error instanceof Error ? error.message : String(error) }) })
       if (!aborted) {
         emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
         throw error
