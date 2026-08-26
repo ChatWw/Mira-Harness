@@ -345,7 +345,7 @@ async function save() {
   if (!model) return ElMessage.error('请选择或输入模型名称')
   saving.value = true
   try {
-    await api.saveModelProvider({ ...toRaw(form), pricing: pricingEnabled.value ? form.pricing : null, models: [model], apiKey: form.apiKey?.trim() || undefined })
+    await api.saveModelProvider({ ...toRaw(form), pricing: pricingEnabled.value ? { ...form.pricing! } : null, models: [model], apiKey: form.apiKey?.trim() || undefined })
     visible.value = false
     await load()
   } catch (error) {
