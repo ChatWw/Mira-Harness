@@ -23,6 +23,29 @@ function memoryTool(runtime: HarnessRuntime, sender: any, sessionId: string, nam
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })) )
 
 describe('HarnessRuntime file memory tools', () => {
+  it('rejects explicit project-memory saves when memory is disabled or the session has no project', async () => {
+    const { database, runtime, sender } = createRuntime()
+    const temporary = database.harness.createSession()
+
+    await expect(runtime.saveProjectMemory(sender, temporary.id, { providerId: 'missing', modelId: 'missing' })).rejects.toThrow('请先在个性化设置中启用记忆')
+    database.memories.setEnabled(true)
+    await expect(runtime.saveProjectMemory(sender, temporary.id, { providerId: 'missing', modelId: 'missing' })).rejects.toThrow('请先选择项目')
+    database.close()
+  })
+
+  it('does not derive project memory before the conversation has a complete exchange', async () => {
+    const { root, database, runtime, sender } = createRuntime()
+    database.memories.setEnabled(true)
+    const directory = join(root, 'project')
+    mkdirSync(directory)
+    const project = database.harness.createProject(directory, '测试项目')
+    const session = database.harness.createSession(project.id)
+
+    await expect(runtime.saveProjectMemory(sender, session.id)).rejects.toThrow('当前对话还没有可保存的内容')
+
+    database.close()
+  })
+
   it('only exposes memory tools when file memory is enabled', () => {
     const { database, runtime, sender } = createRuntime()
     const session = database.harness.createSession()

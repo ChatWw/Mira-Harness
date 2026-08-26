@@ -100,11 +100,15 @@ export interface HarnessContextState {
   compactedAt?: number
 }
 
+export type HarnessRunStatus = 'pending' | 'running' | 'completed' | 'failed'
+
 export interface HarnessRunActivity {
   id: string
   label: string
   detail?: string
-  status: 'running' | 'completed' | 'failed'
+  status: HarnessRunStatus
+  /** 用于区分「计划步骤」与「实际工具活动」等，前端按类型分组展示。 */
+  kind?: 'plan' | 'tool' | 'thought'
   startedAt: number
   completedAt?: number
 }
@@ -115,6 +119,30 @@ export interface HarnessRunSummary {
   durationMs: number
   activities: HarnessRunActivity[]
   contextUsage?: HarnessContextUsage
+}
+
+/** 计划步骤上限，避免模型一次性输出过长清单。 */
+export const MAX_PLAN_STEPS = 6
+
+export interface HarnessPlanStep {
+  label: string
+  detail?: string
+}
+
+/**
+ * 将 `set_plan` 工具传入的未知结构归一化为计划步骤。
+ * 过滤非法 / 空 label，截断到上限；纯函数，便于单测。
+ */
+export function normalizePlanSteps(steps: unknown): HarnessPlanStep[] {
+  if (!Array.isArray(steps)) return []
+  return steps
+    .map(step => (step && typeof step === 'object' ? step as Record<string, unknown> : {}))
+    .filter(step => typeof step.label === 'string' && step.label.trim())
+    .slice(0, MAX_PLAN_STEPS)
+    .map(step => ({
+      label: (step.label as string).trim(),
+      detail: typeof step.detail === 'string' && step.detail.trim() ? step.detail.trim() : undefined,
+    }))
 }
 
 export interface HarnessFileChange {
@@ -174,6 +202,7 @@ export interface HarnessSession {
   archivedAt?: number
   context?: HarnessContextState
   activeSkillIds?: string[]
+  activeMcpServerIds?: string[]
 }
 
 export interface HarnessSkill {

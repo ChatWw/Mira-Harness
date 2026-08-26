@@ -335,6 +335,13 @@ app.whenReady().then(async () => {
     if (selected.length !== new Set(requested).size) throw new Error('只能选择已启用且有效的 Skill')
     return database.harness.setActiveSkills(id, selected.map(skill => skill.id))
   })
+  ipcMain.handle('harness:set-active-mcp-servers', (_event, id: string, serverIds: string[]) => {
+    const requested = Array.isArray(serverIds) ? [...new Set(serverIds.filter((value): value is string => typeof value === 'string'))] : []
+    const enabledIds = new Set(mcpConfigStore.list().filter(server => server.enabled).map(server => server.id))
+    if (requested.some(id => !enabledIds.has(id))) throw new Error('只能选择已启用的 MCP 服务')
+    return database.harness.setActiveMcpServers(id, requested)
+  })
+  ipcMain.handle('harness:save-project-memory', (event, id: string, selection) => harnessRuntime.saveProjectMemory(event.sender, id, selection))
   ipcMain.handle('harness:set-pinned', (_event, id: string, pinned: boolean) => database.harness.setPinned(id, pinned))
   ipcMain.handle('harness:rename-session', (_event, id: string, title: string) => database.harness.renameSession(id, title))
   ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => database.harness.archiveSessions(ids))
@@ -342,6 +349,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
   ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
   ipcMain.handle('harness:list-project-files', (_event, projectId: string, query?: string) => database.harness.listProjectFiles(projectId, query))
+  ipcMain.handle('harness:select-files', async (event, projectId: string) => {
+    const project = database.harness.getProject(projectId)
+    const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+    const options = { defaultPath: project.directory, properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>, title: '选择引用文件' }
+    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : database.harness.selectFileReferences(projectId, result.filePaths)
+  })
   ipcMain.handle('harness:attach-directory', async (event, sessionId: string) => {
     const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
     const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择工作目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择工作目录' })

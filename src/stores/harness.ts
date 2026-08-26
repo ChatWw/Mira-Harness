@@ -15,6 +15,8 @@ export interface HarnessComposerDraft {
   projectId?: string
   modelSelection?: ModelSelection
   permissionMode?: PermissionMode
+  activeSkillIds?: string[]
+  activeMcpServerIds?: string[]
   attachments: HarnessFileReference[]
   updatedAt: number
 }
@@ -35,6 +37,12 @@ function loadDrafts() {
             }
           : undefined,
         permissionMode: isPermissionMode(draft.permissionMode) ? draft.permissionMode : undefined,
+        activeSkillIds: Array.isArray(draft.activeSkillIds)
+          ? [...new Set(draft.activeSkillIds.filter((id): id is string => typeof id === 'string' && /^[a-f0-9]{16}$/.test(id)))]
+          : undefined,
+        activeMcpServerIds: Array.isArray(draft.activeMcpServerIds)
+          ? [...new Set(draft.activeMcpServerIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))]
+          : undefined,
         attachments: draft.attachments.filter((file): file is HarnessFileReference => Boolean(file && typeof file.path === 'string' && typeof file.name === 'string')),
         updatedAt: typeof draft.updatedAt === 'number' ? draft.updatedAt : Date.now(),
       }]]
@@ -115,7 +123,7 @@ export const useHarnessStore = defineStore('harness', () => {
     return drafts.value[key]
   }
 
-  function updateComposerDraft(key: string, patch: Partial<Pick<HarnessComposerDraft, 'text' | 'projectId' | 'attachments' | 'modelSelection' | 'permissionMode'>>) {
+  function updateComposerDraft(key: string, patch: Partial<Pick<HarnessComposerDraft, 'text' | 'projectId' | 'attachments' | 'modelSelection' | 'permissionMode' | 'activeSkillIds' | 'activeMcpServerIds'>>) {
     const current = ensureComposerDraft(key)
     drafts.value = { ...drafts.value, [key]: { ...current, ...patch, updatedAt: Date.now() } }
     persistDrafts()
@@ -219,6 +227,14 @@ export const useHarnessStore = defineStore('harness', () => {
       : await api.runHarnessMessage(id, `/perm ${permissionMode}`).then(() => api.getHarnessSession(id))
     if (activeSession.value?.id === id) activeSession.value = session
     await refreshSessions()
+    return session
+  }
+
+  async function setActiveMcpServers(id: string, serverIds: string[]) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.setHarnessActiveMcpServers(id, [...serverIds])
+    if (activeSession.value?.id === id) activeSession.value = session
     return session
   }
 
@@ -414,6 +430,7 @@ export const useHarnessStore = defineStore('harness', () => {
     openSession,
     createSession,
     setSessionPermission,
+    setActiveMcpServers,
     setSessionPinned,
     renameSession,
     respondPermission,

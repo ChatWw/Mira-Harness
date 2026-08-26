@@ -106,6 +106,7 @@ export interface PlatformSnapshot {
 
 export interface PlatformApi {
   windowChrome: 'macos-overlay' | 'windows-overlay' | 'standard'
+  getPathForFile(file: File): string
   getSnapshot(): Promise<PlatformSnapshot>
   savePreference(key: string, value: unknown): Promise<void>
   updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>
@@ -176,6 +177,8 @@ export interface PlatformApi {
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
   setHarnessActiveSkills(id: string, skillIds: string[]): Promise<import('@/config/harness').HarnessSession>
+  setHarnessActiveMcpServers(id: string, serverIds: string[]): Promise<import('@/config/harness').HarnessSession>
+  saveHarnessProjectMemory(id: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
   archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
@@ -183,6 +186,7 @@ export interface PlatformApi {
   deleteHarnessSession(id: string): Promise<void>
   deleteHarnessSessions(ids: string[]): Promise<void>
   listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
+  selectHarnessFiles(projectId: string): Promise<import('@/config/harness').HarnessFileReference[]>
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
   runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<void>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>

@@ -552,4 +552,62 @@ describe('HarnessStore', () => {
     database.close()
     rmSync(root, { recursive: true, force: true })
   })
+
+  it('persists selected MCP services in the session file', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+
+    store.setActiveMcpServers(session.id, ['filesystem', 'github', 'filesystem', ''])
+
+    expect(store.getSession(session.id).activeMcpServerIds).toEqual(['filesystem', 'github'])
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('accepts selected external text files without weakening attachment limits', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'demo-project')
+    const externalDirectory = join(root, 'external')
+    mkdirSync(directory)
+    mkdirSync(externalDirectory)
+    const projectFile = join(directory, 'notes.txt')
+    const externalFile = join(externalDirectory, 'reference.txt')
+    const binaryFile = join(externalDirectory, 'binary.dat')
+    writeFileSync(projectFile, '项目说明', 'utf8')
+    writeFileSync(externalFile, '外部参考', 'utf8')
+    writeFileSync(binaryFile, Buffer.from([0, 1, 2]))
+    const project = store.createProject(directory, 'Demo 项目')
+    const session = store.createSession(project.id)
+
+    expect(store.selectFileReferences(project.id, [projectFile, externalFile])).toEqual([
+      { path: 'notes.txt', name: 'notes.txt' },
+      { path: externalFile, name: 'reference.txt' },
+    ])
+    expect(store.resolveMessageAttachments(session.id, [{ path: externalFile, name: 'reference.txt' }])).toEqual([
+      { path: externalFile, name: 'reference.txt', content: '外部参考' },
+    ])
+    expect(() => store.selectFileReferences(project.id, [binaryFile])).toThrow('不支持引用二进制文件')
+    expect(() => store.resolveMessageAttachments(session.id, [{ path: externalFile, name: 'reference.txt' }, { path: externalFile, name: 'reference.txt' }])).toThrow('引用文件重复或无效')
+
+    const oversizedFile = join(externalDirectory, 'oversized.txt')
+    writeFileSync(oversizedFile, Buffer.alloc(256 * 1024 + 1, 65))
+    expect(() => store.selectFileReferences(project.id, [oversizedFile])).toThrow('引用文件过大')
+
+    const totalFiles = Array.from({ length: 5 }, (_, index) => {
+      const path = join(externalDirectory, `total-${index}.txt`)
+      writeFileSync(path, Buffer.alloc(220 * 1024, 65))
+      return path
+    })
+    expect(() => store.selectFileReferences(project.id, totalFiles)).toThrow('引用文件总大小超过限制')
+
+    const countFiles = Array.from({ length: 13 }, (_, index) => {
+      const path = join(externalDirectory, `count-${index}.txt`)
+      writeFileSync(path, 'x', 'utf8')
+      return path
+    })
+    expect(() => store.selectFileReferences(project.id, countFiles)).toThrow('一次最多引用 12 个文件')
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
 })

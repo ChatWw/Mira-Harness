@@ -28,8 +28,9 @@ export class McpManager {
     }
   }
 
-  getTools(): any[] {
-    return [...this.toolsByServer.values()].flat()
+  getTools(serverIds?: string[]): any[] {
+    if (!serverIds) return [...this.toolsByServer.values()].flat()
+    return [...new Set(serverIds)].flatMap(id => this.toolsByServer.get(id) || [])
   }
 
   private toAgentTool(tool: any, client: Client, serverName: string): any {

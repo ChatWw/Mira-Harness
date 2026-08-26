@@ -135,6 +135,33 @@ export class HarnessStore {
     return resolved
   }
 
+  private externalFilePath(filePath: string) {
+    if (!filePath || !isAbsolute(filePath)) throw new Error('引用文件路径无效')
+    if (!existsSync(filePath) || !statSync(filePath).isFile()) throw new Error(`引用文件不存在：${filePath}`)
+    return realpathSync(filePath)
+  }
+
+  private attachmentFilePath(project: HarnessProject, filePath: string) {
+    return isAbsolute(filePath) ? this.externalFilePath(filePath) : this.projectFilePath(project, filePath)
+  }
+
+  private resolveAttachments(project: HarnessProject, references: HarnessFileReference[]) {
+    if (references.length > MAX_FILE_REFERENCES) throw new Error(`一次最多引用 ${MAX_FILE_REFERENCES} 个文件`)
+    const uniquePaths = new Set<string>()
+    let totalBytes = 0
+    return references.map(reference => {
+      if (!reference || typeof reference.path !== 'string' || uniquePaths.has(reference.path)) throw new Error('引用文件重复或无效')
+      uniquePaths.add(reference.path)
+      const target = this.attachmentFilePath(project, reference.path)
+      const content = readFileSync(target)
+      if (content.includes(0)) throw new Error(`不支持引用二进制文件：${reference.path}`)
+      if (content.byteLength > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
+      totalBytes += content.byteLength
+      if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
+      return { path: reference.path, name: basename(target), content: content.toString('utf8') }
+    })
+  }
+
   private isTextProjectFile(path: string) {
     try {
       const stat = lstatSync(path)
@@ -492,6 +519,12 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
+  setActiveMcpServers(id: string, serverIds: string[]) {
+    const session = this.getSession(id)
+    session.activeMcpServerIds = [...new Set(serverIds.filter(value => typeof value === 'string' && value.trim()))]
+    return this.saveSession(session)
+  }
+
   attachDirectory(sessionId: string, directory: string) {
     const session = this.getSession(sessionId)
     const project = this.createProject(directory)
@@ -522,25 +555,29 @@ export class HarnessStore {
     return files.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'))
   }
 
+  selectFileReferences(projectId: string, filePaths: string[]): HarnessFileReference[] {
+    const project = this.getProject(projectId)
+    const references = filePaths.map(filePath => {
+      if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('引用文件路径无效')
+      const candidate = resolve(filePath)
+      const relativePath = relative(project.directory, candidate)
+      if (relativePath && !relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath)) {
+        const target = this.projectFilePath(project, relativePath)
+        return { path: relative(project.directory, target), name: basename(target) }
+      }
+      const target = this.externalFilePath(candidate)
+      return { path: target, name: basename(target) }
+    })
+    this.resolveAttachments(project, references)
+    return references
+  }
+
   resolveMessageAttachments(sessionId: string, references: HarnessFileReference[] = []): HarnessMessageAttachment[] {
     if (!references.length) return []
-    if (references.length > MAX_FILE_REFERENCES) throw new Error(`一次最多引用 ${MAX_FILE_REFERENCES} 个文件`)
     const session = this.getSession(sessionId)
     if (!session.projectId) throw new Error('请先选择项目后再引用文件')
     const project = this.getProject(session.projectId)
-    const uniquePaths = new Set<string>()
-    let totalBytes = 0
-    return references.map(reference => {
-      if (!reference || typeof reference.path !== 'string' || uniquePaths.has(reference.path)) throw new Error('引用文件重复或无效')
-      uniquePaths.add(reference.path)
-      const target = this.projectFilePath(project, reference.path)
-      const content = readFileSync(target)
-      if (content.includes(0)) throw new Error(`不支持引用二进制文件：${reference.path}`)
-      if (content.byteLength > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
-      totalBytes += content.byteLength
-      if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
-      return { path: reference.path, name: basename(target), content: content.toString('utf8') }
-    })
+    return this.resolveAttachments(project, references)
   }
 
   removeEmptySessions() {

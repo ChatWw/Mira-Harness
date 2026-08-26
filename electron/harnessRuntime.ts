@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -90,12 +90,27 @@ function activityDetail(toolName: string, args: unknown) {
   const target = typeof value.path === 'string' ? value.path : typeof value.command === 'string' ? value.command : ''
   if (!target) return '已开始执行'
   const prefix = toolName === 'bash' ? '命令' : '目标'
-  const safeTarget = target
+  const safeTarget = sanitizeToolTarget(target)
+  return `${prefix}：${safeTarget}`
+}
+
+const TOOL_LABELS: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆' }
+
+function sanitizeToolTarget(target: string) {
+  return target
     .replace(/\b(api[_-]?key|token|password|secret)\b\s*(?:=|:)\s*([^\s'"\r\n]+)/gi, '$1=***')
     .replace(/(authorization\s*:\s*bearer\s+)[^\s'"\r\n]+/gi, '$1***')
     .replace(/\s+/g, ' ')
-    .slice(0, 240)
-  return `${prefix}：${safeTarget}`
+    .slice(0, 80)
+}
+
+function toolActivityLabel(toolName: string, args: unknown) {
+  const verb = TOOL_LABELS[toolName] || toolName
+  const value = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+  const target = typeof value.path === 'string' ? value.path : typeof value.command === 'string' ? value.command : ''
+  if (!target) return verb
+  const safeTarget = sanitizeToolTarget(target)
+  return safeTarget ? `${verb} ${safeTarget}` : verb
 }
 
 function argumentSummary(args: unknown) {
@@ -379,7 +394,7 @@ export class HarnessRuntime {
     })
     const webFetchTool = register(wrapRecordTool(createWebFetchTool(), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
     const webSearchTool = register(wrapRecordTool(createWebSearchTool(), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
-    const mcpTools = this.mcpManager.getTools().map(tool => {
+    const mcpTools = this.mcpManager.getTools(session().activeMcpServerIds || []).map(tool => {
       const serverName = typeof tool.miraMcpServerName === 'string' ? tool.miraMcpServerName : 'MCP 服务'
       return register(wrapRecordTool(tool, params => `${serverName} / ${tool.name}${argumentSummary(params) ? `: ${argumentSummary(params)}` : ''}`), {
         risk: 'mcp',
@@ -435,6 +450,14 @@ export class HarnessRuntime {
         },
       }, { risk: 'read', title: () => '', detail: () => '' }),
     ] : []
+    const planTool = register({
+      name: 'set_plan',
+      label: '制定计划',
+      description: '在开始一个多步骤任务前，提交一份简洁、可执行的计划步骤清单。步骤是待办清单，不是推理过程；每步一句短标签，必要时附一行说明。仅在多步骤任务时调用一次，建议不超过 6 步。',
+      parameters: Type.Object({ steps: Type.Array(Type.Object({ label: Type.String(), detail: Type.Optional(Type.String()) })) }),
+      executionMode: 'sequential',
+      execute: async () => ({ content: [{ type: 'text', text: '计划已记录。' }] }),
+    }, { risk: 'read', title: () => '', detail: () => '' })
     return { tools: [
       readTool,
       editTool,
@@ -444,6 +467,7 @@ export class HarnessRuntime {
       bashTool,
       webFetchTool,
       webSearchTool,
+      planTool,
       ...memoryTools,
       ...mcpTools,
     ] as any, descriptors }
@@ -477,6 +501,29 @@ export class HarnessRuntime {
     const apiKey = this.database.models.getSecret(selection.providerId)
     if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
     return { provider, apiKey }
+  }
+
+  async saveProjectMemory(sender: WebContents, sessionId: string, selection?: ModelSelection) {
+    if (this.running.has(sessionId)) throw new Error('该会话正在运行')
+    if (!this.database.memories.enabled()) throw new Error('请先在个性化设置中启用记忆')
+    const session = this.database.harness.getSession(sessionId)
+    if (!session.projectId) throw new Error('请先选择项目后再保存项目记忆')
+    if (!session.messages.some(message => message.role === 'user') || !session.messages.some(message => message.role === 'assistant')) throw new Error('当前对话还没有可保存的内容')
+    const { provider, apiKey } = this.requireProvider(selection)
+    const model = {
+      id: selection!.modelId, name: selection!.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
+      reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
+      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
+    } as any
+    const models = createModels()
+    models.setProvider(createProvider({
+      id: 'mira-openai', name: provider.name, baseUrl: provider.endpoint,
+      auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
+      models: [model], api: openAICompletionsApi(),
+    }) as any)
+    const task = this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection!.thinkingLevel || 'medium' : 'off')
+    this.memoryWrites.set(sessionId, task)
+    await task.finally(() => { if (this.memoryWrites.get(sessionId) === task) this.memoryWrites.delete(sessionId) })
   }
 
   async rerun(sender: WebContents, sessionId: string, selection?: ModelSelection) {
@@ -529,6 +576,37 @@ export class HarnessRuntime {
       if (!activities.some(item => item.id === id)) activities.push({ id, label, ...(detail ? { detail } : {}), status: 'running', startedAt: Date.now() })
     }
     const finishRunningActivities = (status: HarnessRunActivity['status']) => activities.filter(item => item.status === 'running').forEach(item => Object.assign(item, { status, completedAt: Date.now() }))
+    let planCursor = 0
+    const planSteps = () => activities.filter(item => item.kind === 'plan')
+    const applyPlan = (steps: unknown) => {
+      const normalized = normalizePlanSteps(steps)
+      if (!normalized.length) return
+      const now = Date.now()
+      const planActivities = normalized.map((step, index) => ({
+        id: `plan-${index}`,
+        label: step.label,
+        detail: step.detail,
+        status: 'pending',
+        kind: 'plan',
+        startedAt: now,
+      })) as HarnessRunActivity[]
+      const others = activities.filter(item => item.kind !== 'plan')
+      activities.splice(0, activities.length, ...planActivities, ...others)
+      planCursor = 0
+    }
+    const advancePlan = (status: 'running' | 'completed' | 'failed') => {
+      const current = planSteps()[planCursor]
+      if (!current) return
+      if (status === 'running' && current.status === 'pending') {
+        current.status = 'running'
+      } else if (status === 'completed' && (current.status === 'pending' || current.status === 'running')) {
+        Object.assign(current, { status: 'completed', completedAt: Date.now() })
+        planCursor++
+      } else if (status === 'failed' && current.status === 'running') {
+        Object.assign(current, { status: 'failed', completedAt: Date.now() })
+        planCursor++
+      }
+    }
     emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities } })
 
     let model: any
@@ -638,11 +716,18 @@ export class HarnessRuntime {
       }
       if (event.type === 'tool_execution_start') {
         activities.filter(item => item.status === 'running' && item.label === '正在思考').forEach(item => finishActivity(item.id))
-        const labels: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆' }
-        startActivity(`tool-${event.toolCallId}`, labels[event.toolName] || `执行工具：${event.toolName}`, activityDetail(event.toolName, event.args))
-        publishActivities()
+        if (event.toolName === 'set_plan') {
+          applyPlan(event.args?.steps)
+          publishActivities()
+        } else {
+          advancePlan('running')
+          startActivity(`tool-${event.toolCallId}`, toolActivityLabel(event.toolName, event.args), activityDetail(event.toolName, event.args))
+          publishActivities()
+        }
       }
       if (event.type === 'tool_execution_end') {
+        if (event.toolName === 'set_plan') return
+        advancePlan(event.isError ? 'failed' : 'completed')
         const suffix = event.isError ? '执行失败' : '执行完成'
         const activity = activities.find(item => item.id === `tool-${event.toolCallId}`)
         finishActivity(`tool-${event.toolCallId}`, event.isError ? 'failed' : 'completed', `${activity?.detail || '工具调用'}\n${suffix}`)

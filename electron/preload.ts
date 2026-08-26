@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('platform', {
   windowChrome: process.platform === 'darwin' ? 'macos-overlay' : (process.platform === 'win32' ? 'windows-overlay' : 'standard'),
@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('platform', {
   restoreDefaults: () => ipcRenderer.invoke('platform:restore-defaults'),
   setTitleBarChrome: (chrome: { color: string; symbolColor: string; height?: number }) => ipcRenderer.invoke('window:set-titlebar-chrome', chrome),
   windowCommand: (action: string) => ipcRenderer.invoke('window:command', action),
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   onWindowNavigate: (listener: (path: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, path: string) => listener(path)
     ipcRenderer.on('window:navigate', handler)
@@ -76,6 +77,8 @@ contextBridge.exposeInMainWorld('platform', {
   getHarnessSession: (id: string) => ipcRenderer.invoke('harness:get-session', id),
   setHarnessSessionPermission: (id: string, permissionMode: unknown) => ipcRenderer.invoke('harness:set-permission', id, permissionMode),
   setHarnessActiveSkills: (id: string, skillIds: string[]) => ipcRenderer.invoke('harness:set-active-skills', id, skillIds),
+  setHarnessActiveMcpServers: (id: string, serverIds: string[]) => ipcRenderer.invoke('harness:set-active-mcp-servers', id, serverIds),
+  saveHarnessProjectMemory: (id: string, selection: unknown) => ipcRenderer.invoke('harness:save-project-memory', id, selection),
   setHarnessSessionPinned: (id: string, pinned: boolean) => ipcRenderer.invoke('harness:set-pinned', id, pinned),
   renameHarnessSession: (id: string, title: string) => ipcRenderer.invoke('harness:rename-session', id, title),
   archiveHarnessSessions: (ids: string[]) => ipcRenderer.invoke('harness:archive-sessions', ids),
@@ -83,6 +86,7 @@ contextBridge.exposeInMainWorld('platform', {
   deleteHarnessSession: (id: string) => ipcRenderer.invoke('harness:delete-session', id),
   deleteHarnessSessions: (ids: string[]) => ipcRenderer.invoke('harness:delete-sessions', ids),
   listHarnessProjectFiles: (projectId: string, query?: string) => ipcRenderer.invoke('harness:list-project-files', projectId, query),
+  selectHarnessFiles: (projectId: string) => ipcRenderer.invoke('harness:select-files', projectId),
   attachHarnessDirectory: (sessionId: string) => ipcRenderer.invoke('harness:attach-directory', sessionId),
   runHarnessMessage: (sessionId: string, message: string, references?: unknown[], selection?: unknown) => ipcRenderer.invoke('harness:run-message', sessionId, message, references, selection),
   rerunHarness: (sessionId: string, selection?: unknown) => ipcRenderer.invoke('harness:rerun', sessionId, selection),
