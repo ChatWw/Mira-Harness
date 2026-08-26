@@ -174,6 +174,30 @@ const commandActions = computed<CommandPaletteItem[]>(() => [
     parent: '系统操作',
     action: async () => { await router.push({ path: '/settings/general', query: { from: router.currentRoute.value.fullPath } }) },
   },
+  {
+    id: 'command-usage',
+    title: '用量与成本',
+    icon: 'DataAnalysis',
+    category: 'command',
+    parent: '系统操作',
+    action: async () => { await router.push('/workspace/usage') },
+  },
+  {
+    id: 'command-projects',
+    title: '项目管理',
+    icon: 'FolderOpened',
+    category: 'command',
+    parent: '系统操作',
+    action: async () => { await router.push('/workspace/projects') },
+  },
+  {
+    id: 'command-history',
+    title: '查看全部对话',
+    icon: 'Clock',
+    category: 'command',
+    parent: '系统操作',
+    action: async () => { await router.push('/workspace/history') },
+  },
 ])
 const defaultResults = computed(() => [
   ...visibleRecentResults.value,

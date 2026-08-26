@@ -162,6 +162,16 @@ export interface PlatformApi {
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
   queryHarnessHistory(query: import('@/config/harness').HarnessHistoryQuery): Promise<import('@/config/harness').HarnessHistoryPage>
   queryHarnessUsage(): Promise<import('@/config/harness').HarnessUsageStats>
+  listAutomationTasks(): Promise<import('@/config/harness').AutomationTask[]>
+  getAutomationOverview(): Promise<import('@/config/harness').AutomationOverview>
+  getAutomationNextRuns(expression: string): Promise<number[]>
+  saveAutomationTask(task: import('@/config/harness').AutomationTaskInput): Promise<import('@/config/harness').AutomationTask>
+  setAutomationTaskEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').AutomationTask>
+  deleteAutomationTask(id: string): Promise<void>
+  listAutomationRuns(taskId: string, status?: import('@/config/harness').AutomationRunStatus): Promise<import('@/config/harness').AutomationRun[]>
+  runAutomationNow(taskId: string): Promise<import('@/config/harness').AutomationRun>
+  retryAutomationRun(runId: string): Promise<import('@/config/harness').AutomationRun>
+  abortAutomationRun(taskId: string): Promise<void>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
@@ -244,6 +254,7 @@ export interface LayoutConfig {
   pageTransition: PageTransition
   animationSpeed: AnimationSpeed
   themeTransitionAnimation: boolean
+  titleShimmerAnimation: boolean
   cornerRadius: CornerRadius
   componentSize: ComponentSize
   watermark: boolean

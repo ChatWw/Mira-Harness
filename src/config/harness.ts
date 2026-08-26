@@ -370,6 +370,71 @@ export interface ModelSelection {
   thinkingLevel?: ThinkingLevel
 }
 
+export type AutomationTrigger =
+  | { type: 'once', scheduledAt: number }
+  | { type: 'cron', expression: string, humanLabel?: string }
+  | { type: 'session-completed' }
+
+export type AutomationTarget =
+  | { type: 'new-session' }
+  | { type: 'existing-session', sessionId: string }
+
+export type AutomationRunSource = 'scheduled' | 'event' | 'manual' | 'manual-retry'
+export type AutomationRunStatus = 'running' | 'completed' | 'failed' | 'skipped' | 'interrupted'
+
+export interface AutomationTaskInput {
+  id?: string
+  name: string
+  projectId: string
+  trigger: AutomationTrigger
+  target: AutomationTarget
+  prompt: string
+  model: ModelSelection
+  permissionMode: PermissionMode
+  enabled?: boolean
+  templateId?: string
+  validFrom?: number
+  validUntil?: number
+}
+
+export interface AutomationTask extends AutomationTaskInput {
+  id: string
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+  lastRunAt?: number
+  nextRunAt?: number
+  endedAt?: number
+}
+
+export interface AutomationRunSnapshot {
+  prompt: string
+  model: ModelSelection
+  permissionMode: PermissionMode
+}
+
+export interface AutomationRun {
+  id: string
+  taskId: string
+  source: AutomationRunSource
+  status: AutomationRunStatus
+  scheduledAt?: number
+  startedAt?: number
+  completedAt?: number
+  sessionId?: string
+  sessionAvailable?: boolean
+  snapshot: AutomationRunSnapshot
+  resultSummary?: string
+  error?: string
+  retriedFrom?: string
+}
+
+export interface AutomationOverview {
+  enabledCount: number
+  runningCount: number
+  failedLastDayCount: number
+}
+
 export interface ModelRoleBinding {
   agentDefault?: { providerId: string, modelId: string }
   novelAuthoring?: { providerId: string, modelId: string }

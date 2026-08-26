@@ -19,8 +19,8 @@
         <el-option label="名称" value="name" />
       </el-select>
       <el-radio-group v-model="view" class="view-switch" aria-label="项目视图">
-        <el-tooltip content="网格视图"><el-radio-button value="grid" aria-label="网格视图"><AppIcon name="Grid" /></el-radio-button></el-tooltip>
-        <el-tooltip content="列表视图"><el-radio-button value="list" aria-label="列表视图"><AppIcon name="List" /></el-radio-button></el-tooltip>
+        <el-tooltip content="网格视图"><el-radio-button value="grid" aria-label="网格视图"><AppIcon name="material-symbols:cards-stack-outline" /></el-radio-button></el-tooltip>
+        <el-tooltip content="列表视图"><el-radio-button value="list" aria-label="列表视图"><AppIcon name="material-symbols:table-view-outline" /></el-radio-button></el-tooltip>
       </el-radio-group>
       <el-button aria-label="打开回收站" @click="openTrash()"><AppIcon name="material-symbols:delete-history" />&nbsp;回收站</el-button>
     </section>

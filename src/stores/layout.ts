@@ -59,6 +59,7 @@ const DEFAULT_CONFIG: LayoutConfig = {
   pageTransition: 'fade-slide',
   animationSpeed: 'normal',
   themeTransitionAnimation: false,
+  titleShimmerAnimation: false,
   cornerRadius: 'medium',
   componentSize: 'default',
   watermark: false,
@@ -210,6 +211,10 @@ export const useLayoutStore = defineStore('layout', () => {
     config.value.themeTransitionAnimation = value
   }
 
+  function setTitleShimmerAnimation(value: boolean) {
+    config.value.titleShimmerAnimation = value
+  }
+
   // 样式设置
   function setCornerRadius(radius: LayoutConfig['cornerRadius']) {
     config.value.cornerRadius = radius
@@ -348,6 +353,7 @@ export const useLayoutStore = defineStore('layout', () => {
     setPageTransition,
     setAnimationSpeed,
     setThemeTransitionAnimation,
+    setTitleShimmerAnimation,
     setCornerRadius,
     setComponentSize,
     setWatermark,

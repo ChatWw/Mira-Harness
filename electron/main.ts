@@ -7,11 +7,12 @@ import { HarnessRuntime } from './harnessRuntime'
 import { McpConfigStore } from './mcpConfigStore'
 import { McpManager } from './mcpManager'
 import { PythonEnvironment } from './pythonEnv'
+import { AutomationScheduler } from './automationScheduler'
 import { MiraPaths } from './miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, ModelProviderInput } from '../src/config/harness'
+import type { AutomationRun, AutomationTaskInput, HarnessEvent, HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -21,6 +22,7 @@ let harnessRuntime: HarnessRuntime
 let pythonEnvironment: PythonEnvironment
 let mcpConfigStore: McpConfigStore
 let mcpManager: McpManager
+let automationScheduler: AutomationScheduler
 const legacyUserDataPath = app.getPath('userData')
 const miraPaths = new MiraPaths(app.getPath('home')).ensure()
 const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
@@ -38,6 +40,22 @@ function cleanupExpiredTrash() {
     database.harness.cleanupExpiredTrash()
   } catch (error) {
     console.warn('[Mira] 回收站过期清理失败', error)
+  }
+}
+
+function publishHarnessEvent(event: HarnessEvent) {
+  BrowserWindow.getAllWindows().forEach(window => {
+    if (!window.isDestroyed()) window.webContents.send('harness:event', event)
+  })
+}
+
+function automationRunWithSessionState(run: AutomationRun) {
+  if (!run.sessionId) return run
+  try {
+    database.harness.getSession(run.sessionId)
+    return { ...run, sessionAvailable: true }
+  } catch {
+    return { ...run, sessionAvailable: false }
   }
 }
 
@@ -152,8 +170,10 @@ app.whenReady().then(async () => {
   setInterval(cleanupExpiredTrash, TRASH_CLEANUP_INTERVAL_MS)
   mcpConfigStore = new McpConfigStore(miraPaths)
   mcpManager = new McpManager()
-  harnessRuntime = new HarnessRuntime(database, mcpManager)
+  harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent)
+  automationScheduler = new AutomationScheduler(database, harnessRuntime)
   await mcpManager.refresh(mcpConfigStore.list())
+  automationScheduler.start()
   pythonEnvironment = new PythonEnvironment()
   localMicroAppServer = new LocalMicroAppServer({
     apiHandlers: new Map([['novel', createNovelApiHandler(database)]]),
@@ -250,7 +270,11 @@ app.whenReady().then(async () => {
     return database.harness.createProject(target, input.name, input.icon)
   })
   ipcMain.handle('harness:rename-project', (_event, id: string, name: string, icon?: string) => database.harness.renameProject(id, name, icon))
-  ipcMain.handle('harness:delete-project', (_event, id: string) => database.harness.deleteProject(id))
+  ipcMain.handle('harness:delete-project', (_event, id: string) => {
+    database.automations.listTasks().filter(task => task.projectId === id).forEach(task => database.automations.deleteTask(task.id))
+    database.harness.deleteProject(id)
+    automationScheduler.reschedule()
+  })
   ipcMain.handle('harness:get-global-instructions', () => database.instructions.readGlobal())
   ipcMain.handle('harness:save-global-instructions', (_event, content: string) => database.instructions.saveGlobal(content))
   ipcMain.handle('harness:get-global-instructions-path', () => miraPaths.globalAgents())
@@ -264,6 +288,44 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
   ipcMain.handle('harness:query-history', (_event, query) => database.queryHarnessHistory(query))
   ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
+  ipcMain.handle('automation:list-tasks', () => database.automations.listTasks().map(task => {
+    const nextRunAt = automationScheduler.taskNextRun(task)
+    return { ...task, ...(nextRunAt ? { nextRunAt } : {}) }
+  }))
+  ipcMain.handle('automation:overview', () => database.automations.overview())
+  ipcMain.handle('automation:next-runs', (_event, expression: string) => automationScheduler.nextRuns(expression))
+  ipcMain.handle('automation:save-task', (_event, input: AutomationTaskInput) => {
+    const project = database.harness.getProject(input.projectId)
+    if (!project.directoryExists) throw new Error('项目目录不存在')
+    const provider = database.models.get(input.model?.providerId)
+    if (!provider?.enabled || !provider.models.includes(input.model.modelId) || !database.models.getSecret(provider.id)) throw new Error('所选模型不可用')
+    const permission = database.harness.getPermissionConfig()
+    if (input.permissionMode === 'auto-approve' && !permission.autoApproveEnabled) throw new Error('自动审核权限未启用')
+    if (input.permissionMode === 'full' && !permission.fullAccessEnabled) throw new Error('完全访问权限未启用')
+    if (input.trigger.type === 'cron') automationScheduler.nextRuns(input.trigger.expression)
+    if (input.trigger.type === 'once' && input.trigger.scheduledAt <= Date.now()) throw new Error('一次性任务的执行时间必须晚于当前时间')
+    if (input.target.type === 'existing-session') {
+      const session = database.harness.getSession(input.target.sessionId)
+      if (session.projectId !== input.projectId || session.archivedAt) throw new Error('现有聊天必须属于所选项目且未归档')
+    }
+    const task = database.automations.saveTask(input)
+    automationScheduler.reschedule()
+    return task
+  })
+  ipcMain.handle('automation:set-enabled', (_event, id: string, enabled: boolean) => {
+    const task = database.automations.setEnabled(id, enabled)
+    automationScheduler.reschedule()
+    return task
+  })
+  ipcMain.handle('automation:delete-task', (_event, id: string) => { database.automations.deleteTask(id); automationScheduler.reschedule() })
+  ipcMain.handle('automation:list-runs', (_event, taskId: string, status?) => database.automations.listRuns(taskId, status ? { status } : {}).map(automationRunWithSessionState))
+  ipcMain.handle('automation:run-now', (_event, taskId: string) => automationScheduler.launch(taskId, 'manual').then(automationRunWithSessionState))
+  ipcMain.handle('automation:retry-run', (_event, runId: string) => {
+    const run = database.automations.getRun(runId)
+    if (run.status !== 'failed') throw new Error('只能重试失败的运行记录')
+    return automationScheduler.launch(run.taskId, 'manual-retry', run.id).then(automationRunWithSessionState)
+  })
+  ipcMain.handle('automation:abort', (_event, taskId: string) => automationScheduler.abort(taskId))
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
   ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
   ipcMain.handle('harness:set-permission', (_event, id: string, permissionMode) => database.harness.setPermission(id, permissionMode))
@@ -371,5 +433,6 @@ app.on('before-quit', () => {
   isQuitting = true
   tray?.destroy()
   tray = null
+  automationScheduler?.stop()
   void localMicroAppServer?.stop()
 })

@@ -30,7 +30,14 @@ type ToolDescriptor = {
   detail: (args: Record<string, unknown>) => string
 }
 
-function emit(sender: WebContents, event: HarnessEvent) { if (!sender.isDestroyed()) sender.send('harness:event', event) }
+let publishBackgroundEvent: ((event: HarnessEvent) => void) | undefined
+function emit(sender: WebContents | undefined, event: HarnessEvent) {
+  if (sender && !sender.isDestroyed()) sender.send('harness:event', event)
+  else publishBackgroundEvent?.(event)
+}
+
+type RunOrigin = 'manual' | 'automation'
+type RunCompleteEvent = { session: HarnessSession, origin: RunOrigin, status: 'completed' | 'failed' | 'aborted', content?: string }
 
 function messageContent(message: HarnessMessage) {
   if (!message.attachments?.length) return message.content
@@ -116,12 +123,33 @@ function permissionTitle(name: string, args: Record<string, unknown>) {
 
 export class HarnessRuntime {
   private readonly running = new Map<string, { controller: AbortController, agent?: Agent }>()
+  private readonly runningProjects = new Map<string, string>()
   private readonly memoryWrites = new Map<string, Promise<void>>()
-  constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager) {}
+  private readonly completeListeners = new Set<(event: RunCompleteEvent) => void>()
+  constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager, backgroundEventPublisher?: (event: HarnessEvent) => void) {
+    publishBackgroundEvent = backgroundEventPublisher
+  }
 
   private log(record: RuntimeLogRecord) {
     try { this.database.logs?.write(record) } catch (error) { console.warn('[Mira] 写入运行日志失败', error) }
   }
+
+  onRunComplete(listener: (event: RunCompleteEvent) => void) { this.completeListeners.add(listener); return () => this.completeListeners.delete(listener) }
+
+  private publishRunComplete(event: RunCompleteEvent) { queueMicrotask(() => this.completeListeners.forEach(listener => listener(event))) }
+
+  private lockProject(session: HarnessSession, sessionId: string) {
+    if (!session.projectId) return
+    const current = this.runningProjects.get(session.projectId)
+    if (current && current !== sessionId) throw new Error('该项目已有 Agent 正在运行')
+    this.runningProjects.set(session.projectId, sessionId)
+  }
+
+  private unlockProject(session: HarnessSession, sessionId: string) {
+    if (session.projectId && this.runningProjects.get(session.projectId) === sessionId) this.runningProjects.delete(session.projectId)
+  }
+
+  isProjectRunning(projectId: string) { return this.runningProjects.has(projectId) }
 
   private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
     return {
@@ -266,7 +294,7 @@ export class HarnessRuntime {
 
   private readonly pendingPermissions = new Map<string, { resolve: (allowed: boolean) => void, timer: ReturnType<typeof setTimeout> }>()
 
-  private approve(sender: WebContents, sessionId: string, mode: PermissionMode, title: string, detail: string): Promise<boolean> {
+  private approve(sender: WebContents | undefined, sessionId: string, mode: PermissionMode, title: string, detail: string): Promise<boolean> {
     if (mode === 'full' || mode === 'auto-approve') return Promise.resolve(true)
     const requestId = randomUUID()
     return new Promise<boolean>((resolve) => {
@@ -284,7 +312,7 @@ export class HarnessRuntime {
     entry.resolve(allowed)
   }
 
-  private async preflightToolCall(sender: WebContents, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown) {
+  private async preflightToolCall(sender: WebContents | undefined, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown, automation = false, permissionMode?: PermissionMode) {
     const descriptor = descriptors.get(name)
     if (!descriptor || descriptor.risk === 'read') return undefined
     const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
@@ -294,7 +322,8 @@ export class HarnessRuntime {
       const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized)
       if (blocked) return { block: true, reason: '危险命令已被永久拦截' }
     }
-    const mode = this.database.harness.getSession(sessionId).permissionMode
+    const mode = permissionMode || this.database.harness.getSession(sessionId).permissionMode
+    if (automation && mode === 'default') return { block: true, reason: '自动化任务的默认权限仅允许只读工具' }
     const allowed = await this.approve(sender, sessionId, mode, descriptor.title(values), descriptor.detail(values))
     return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }
   }
@@ -432,9 +461,13 @@ export class HarnessRuntime {
       return
     }
     const { provider, apiKey } = this.requireProvider(selection)
-    const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
-    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
-    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+    const initial = this.database.harness.getSession(sessionId)
+    this.lockProject(initial, sessionId)
+    try {
+      const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
+      const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+      return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+    } catch (error) { this.unlockProject(initial, sessionId); throw error }
   }
 
   private requireProvider(selection?: ModelSelection) {
@@ -449,18 +482,34 @@ export class HarnessRuntime {
   async rerun(sender: WebContents, sessionId: string, selection?: ModelSelection) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const { provider, apiKey } = this.requireProvider(selection)
-    const session = this.database.harness.regenerate(sessionId)
-    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+    const initial = this.database.harness.getSession(sessionId)
+    this.lockProject(initial, sessionId)
+    try { return this.runAgent(sender, sessionId, this.database.harness.regenerate(sessionId), selection, provider, apiKey) }
+    catch (error) { this.unlockProject(initial, sessionId); throw error }
   }
 
   async editAndRerun(sender: WebContents, sessionId: string, messageId: string, content: string, selection?: ModelSelection) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const { provider, apiKey } = this.requireProvider(selection)
-    const session = this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content)
-    return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
+    const initial = this.database.harness.getSession(sessionId)
+    this.lockProject(initial, sessionId)
+    try { return this.runAgent(sender, sessionId, this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content), selection, provider, apiKey) }
+    catch (error) { this.unlockProject(initial, sessionId); throw error }
   }
 
-  private async runAgent(sender: WebContents, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string) {
+  async runAutomation(sessionId: string, message: string, selection: ModelSelection, permissionMode: PermissionMode) {
+    if (this.running.has(sessionId)) throw new Error('该会话正在运行')
+    const { provider, apiKey } = this.requireProvider(selection)
+    const session = this.database.harness.getSession(sessionId)
+    this.lockProject(session, sessionId)
+    try {
+      const updated = this.database.harness.addMessage(sessionId, 'user', message.trim())
+      return this.runAgent(undefined, sessionId, updated, selection, provider, apiKey, { origin: 'automation', permissionMode })
+    } catch (error) { this.unlockProject(session, sessionId); throw error }
+  }
+
+  private async runAgent(sender: WebContents | undefined, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string, options: { origin?: RunOrigin, permissionMode?: PermissionMode } = {}) {
+    const origin = options.origin || 'manual'
     await this.memoryWrites.get(sessionId)
     const text = [...session.messages].reverse().find(message => message.role === 'user')?.content
     if (!text) throw new Error('没有可运行的对话')
@@ -543,7 +592,7 @@ export class HarnessRuntime {
         } as any,
         streamFn: models.streamSimple.bind(models) as any,
         sessionId,
-        beforeToolCall: ({ toolCall, args }) => this.preflightToolCall(sender, sessionId, registeredTools.descriptors, toolCall.name, args),
+        beforeToolCall: ({ toolCall, args }) => this.preflightToolCall(sender, sessionId, registeredTools.descriptors, toolCall.name, args, origin === 'automation', options.permissionMode),
       })
       this.running.get(sessionId)!.agent = agent
     } catch (error) {
@@ -551,6 +600,7 @@ export class HarnessRuntime {
       publishActivities()
       this.database.harness.setStatus(sessionId, 'failed')
       this.running.delete(sessionId)
+      this.unlockProject(session, sessionId)
       emit(sender, { sessionId, type: 'message-complete', payload: {} })
       emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
       emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })
@@ -626,7 +676,8 @@ export class HarnessRuntime {
       this.database.harness.setStatus(sessionId, 'completed')
       this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
-      const memoryWrite = this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off')
+      const memoryWrite = origin === 'manual' ? this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off')
+        : Promise.resolve()
         .catch(error => {
           const target = session.projectId ? this.database.memories.path('project', session.projectId) : this.database.memories.path('global')
           const record = this.database.harness.getSession(sessionId).toolCalls.find(item => item.tool === 'memory_auto_save' && item.status === 'running')
@@ -641,6 +692,8 @@ export class HarnessRuntime {
       void memoryWrite.finally(() => {
         if (this.memoryWrites.get(sessionId) === memoryWrite) this.memoryWrites.delete(sessionId)
       })
+      this.publishRunComplete({ session, origin, status: 'completed', content: output })
+      return { content: output, run }
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()
@@ -657,14 +710,18 @@ export class HarnessRuntime {
       this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
       const failureAt = Date.now()
       this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: aborted ? 'aborted' : 'failed', timestamp: failureAt, durationMs: failureAt - startedAt, ...(aborted ? {} : { error: error instanceof Error ? error.message : String(error) }) })
+      if (!aborted) this.publishRunComplete({ session, origin, status: 'failed', content: output || undefined })
       if (!aborted) {
         emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
         throw error
       }
+      this.publishRunComplete({ session, origin, status: 'aborted', content: output || undefined })
+      return { content: output, interrupted: true }
     } finally {
       flushAssistantDelta()
       unsubscribe()
       this.running.delete(sessionId)
+      this.unlockProject(session, sessionId)
       emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })
     }
   }

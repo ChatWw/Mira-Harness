@@ -1,10 +1,7 @@
 <template>
   <section class="workspace-navigation" :class="{ collapsed }" aria-label="Mira 工作台">
-    <el-tooltip :disabled="!collapsed" content="用量与成本" placement="right">
-      <button type="button" class="workspace-action" :class="{ active: route.path === '/workspace/usage' }" @click="router.push('/workspace/usage')"><AppIcon name="DataAnalysis" /><span v-if="!collapsed">用量与成本</span></button>
-    </el-tooltip>
     <el-tooltip :disabled="!collapsed" content="自动化（待上线）" placement="right">
-      <button type="button" class="workspace-action" :class="{ active: route.path === '/workspace/automations' }" @click="router.push('/workspace/automations')"><AppIcon name="Clock" /><span v-if="!collapsed">自动化</span><el-tag v-if="!collapsed" size="small" type="warning" effect="plain">待上线</el-tag></button>
+      <button type="button" class="workspace-action" :class="{ active: route.path === '/workspace/automations' }" @click="router.push('/workspace/automations')"><AppIcon name="Clock" /><span v-if="!collapsed">自动化</span></button>
     </el-tooltip>
 
     <template v-if="!collapsed">

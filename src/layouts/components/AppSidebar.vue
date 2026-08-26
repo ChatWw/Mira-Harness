@@ -14,7 +14,7 @@
             <img :src="miraLogo" class="brand-logo" alt="Mira" />
           </div>
           <transition name="fade" type="transition">
-            <span v-show="!appStore.sidebarCollapsed" class="brand-text brand-text-shimmer">
+            <span v-show="!appStore.sidebarCollapsed" class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">
               {{ APP_NAME }}
             </span>
           </transition>

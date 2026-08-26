@@ -196,6 +196,7 @@
           <el-select :model-value="layoutStore.config.animationSpeed" size="small" @change="layoutStore.setAnimationSpeed"><el-option label="快速" value="fast" /><el-option label="正常" value="normal" /><el-option label="缓慢" value="slow" /></el-select>
         </div>
         <div class="settings-row"><span class="settings-row__label">主题切换动画</span><el-switch :model-value="layoutStore.config.themeTransitionAnimation" @change="layoutStore.setThemeTransitionAnimation" /></div>
+        <div class="settings-row"><span class="settings-row__label">标题流光效果</span><el-switch :model-value="layoutStore.config.titleShimmerAnimation" @change="layoutStore.setTitleShimmerAnimation" /></div>
       </div>
     </section>
 

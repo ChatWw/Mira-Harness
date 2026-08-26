@@ -14,12 +14,13 @@ import { FileMemoryStore } from './fileMemoryStore'
 import { InstructionStore } from './instructionStore'
 import { RunLogStore } from './runLogStore'
 import { SkillStore } from './skillStore'
+import { AutomationStore } from './automationStore'
 import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 23
+const CURRENT_SCHEMA_VERSION = 24
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
@@ -62,6 +63,7 @@ export class PlatformDatabase {
   readonly instructions: InstructionStore
   readonly logs: RunLogStore
   readonly skills: SkillStore
+  readonly automations: AutomationStore
 
   constructor(paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
@@ -75,6 +77,7 @@ export class PlatformDatabase {
     this.instructions = new InstructionStore(this.paths)
     this.logs = new RunLogStore(this.paths)
     this.skills = new SkillStore(this.paths)
+    this.automations = new AutomationStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
     this.harness.removeEmptySessions()
@@ -93,6 +96,21 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
       CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS automation_tasks (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_type TEXT NOT NULL, cron_expression TEXT,
+        trigger_scheduled_at INTEGER, trigger_human_label TEXT,
+        project_id TEXT NOT NULL, target_type TEXT NOT NULL, target_session_id TEXT, prompt TEXT NOT NULL,
+        provider_id TEXT NOT NULL, model_id TEXT NOT NULL, thinking_level TEXT, permission_mode TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1, template_id TEXT, valid_from INTEGER, valid_until INTEGER, ended_at INTEGER,
+        last_run_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS automation_runs (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL,
+        scheduled_at INTEGER, started_at INTEGER, completed_at INTEGER, session_id TEXT, snapshot TEXT NOT NULL,
+        result_summary TEXT, error TEXT, retried_from TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_automation_runs_task_time ON automation_runs(task_id, completed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);
     `)
     const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
     if (!projectColumns.some(column => column.name === 'icon')) {
@@ -109,6 +127,18 @@ export class PlatformDatabase {
     if (!providerColumns.some(column => column.name === 'provider_key')) {
       this.database.exec('ALTER TABLE model_providers ADD COLUMN provider_key TEXT')
     }
+    const automationTaskColumns = this.database.prepare('PRAGMA table_info(automation_tasks)').all() as Array<{ name: string }>
+    const addAutomationTaskColumn = (name: string, type: string) => {
+      if (!automationTaskColumns.some(column => column.name === name)) this.database.exec(`ALTER TABLE automation_tasks ADD COLUMN ${name} ${type}`)
+    }
+    addAutomationTaskColumn('trigger_scheduled_at', 'INTEGER')
+    addAutomationTaskColumn('trigger_human_label', 'TEXT')
+    addAutomationTaskColumn('template_id', 'TEXT')
+    addAutomationTaskColumn('valid_from', 'INTEGER')
+    addAutomationTaskColumn('valid_until', 'INTEGER')
+    addAutomationTaskColumn('ended_at', 'INTEGER')
+    const automationRunColumns = this.database.prepare('PRAGMA table_info(automation_runs)').all() as Array<{ name: string }>
+    if (!automationRunColumns.some(column => column.name === 'retried_from')) this.database.exec('ALTER TABLE automation_runs ADD COLUMN retried_from TEXT')
     this.models.migrateLegacyBindings()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {

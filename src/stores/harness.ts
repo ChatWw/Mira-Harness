@@ -248,6 +248,8 @@ export const useHarnessStore = defineStore('harness', () => {
     ids.forEach(id => removeComposerDraft(`session:${id}`))
     sessions.value = sessions.value.filter(session => !ids.includes(session.id))
     const removed = new Set(ids)
+    runningSessionIds.value = runningSessionIds.value.filter(id => !removed.has(id))
+    unreadSessionIds.value = unreadSessionIds.value.filter(id => !removed.has(id))
     pendingPermissionRequests.value = Object.fromEntries(Object.entries(pendingPermissionRequests.value).filter(([id]) => !removed.has(id)))
     await Promise.all([refreshSessions(), refreshProjects()])
   }
@@ -344,6 +346,7 @@ export const useHarnessStore = defineStore('harness', () => {
       }
     }
     if (event.type === 'status') {
+      void refreshSessions()
       if (event.payload.state === 'running') {
         if (event.sessionId === activeSession.value?.id) lastRunError.value = undefined
         if (!runningSessionIds.value.includes(event.sessionId)) runningSessionIds.value = [...runningSessionIds.value, event.sessionId]
