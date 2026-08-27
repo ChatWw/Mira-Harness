@@ -173,6 +173,23 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('defaults delegation on and marks stale child tasks interrupted at startup recovery', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    expect(session.delegationEnabled).toBe(true)
+    store.setActiveRun(session.id, {
+      id: 'run-1', startedAt: 1, activities: [], subtasks: [{
+        id: 'task-1', parentToolCallId: 'call-1', role: 'reviewer', task: '检查', status: 'running', createdAt: 1, startedAt: 1, activities: [],
+      }],
+    })
+    store.recoverInterruptedSubtasks()
+    expect(store.getSession(session.id).activeRun?.subtasks[0]).toMatchObject({ status: 'interrupted' })
+    store.setDelegationEnabled(session.id, false)
+    expect(store.getSession(session.id).delegationEnabled).toBe(false)
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('stores project sessions and trash outside the project directory', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')

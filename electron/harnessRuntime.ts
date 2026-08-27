@@ -9,12 +9,14 @@ import { type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
-import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode } from '../src/config/harness'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, normalizePlanQuestions, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPlan } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
 import type { RuntimeLogRecord } from './runLogStore'
+import { ProjectTaskLock } from './projectTaskLock'
+import { SUBTASK_ROLE_TOOLS, SubtaskRuntime, subtaskMayMutate } from './subtaskRuntime'
 
 // [AgentHarness 迁移标记] 当前使用 pi-agent-core 的低层 `Agent`（见下方 new Agent()）。
 // 暂不迁移到 `AgentHarness`：0.84.1 中大多核心方法抛 HarnessNotImplemented，且所需
@@ -67,6 +69,24 @@ function tokenUsage(value: unknown): Omit<HarnessTokenUsage, 'cost'> | undefined
   const cacheWrite = number('cacheWrite')
   const totalTokens = Math.max(number('totalTokens'), input + output + cacheRead + cacheWrite)
   return totalTokens ? { input, output, cacheRead, cacheWrite, totalTokens } : undefined
+}
+
+function mergeUsage(items: Array<HarnessTokenUsage | undefined>): HarnessTokenUsage | undefined {
+  const values = items.filter((value): value is HarnessTokenUsage => Boolean(value))
+  if (!values.length) return undefined
+  const total = values.reduce((sum, value) => ({
+    input: sum.input + value.input,
+    output: sum.output + value.output,
+    cacheRead: sum.cacheRead + value.cacheRead,
+    cacheWrite: sum.cacheWrite + value.cacheWrite,
+    totalTokens: sum.totalTokens + value.totalTokens,
+  }), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 })
+  const costs = values.map(value => value.cost)
+  if (!costs.every(cost => cost?.priced && cost.currency === costs[0]?.currency)) return { ...total, cost: { currency: '', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, priced: false } }
+  return {
+    ...total,
+    cost: costs.reduce((sum, cost) => ({ currency: cost!.currency, input: sum.input + cost!.input, output: sum.output + cost!.output, cacheRead: sum.cacheRead + cost!.cacheRead, cacheWrite: sum.cacheWrite + cost!.cacheWrite, total: sum.total + cost!.total, priced: true }), { currency: costs[0]!.currency, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, priced: true }),
+  }
 }
 
 function agentUsage(usage: HarnessTokenUsage) {
@@ -158,8 +178,8 @@ function permissionTitle(name: string, args: Record<string, unknown>) {
 }
 
 export class HarnessRuntime {
-  private readonly running = new Map<string, { controller: AbortController, agent?: Agent }>()
-  private readonly runningProjects = new Map<string, string>()
+  private readonly running = new Map<string, { controller: AbortController, agent?: Agent, subtasks?: SubtaskRuntime }>()
+  private readonly projectLocks = new ProjectTaskLock()
   private readonly memoryWrites = new Map<string, Promise<void>>()
   private readonly memoryConfirmations = new Map<string, { resolve: (approved: boolean) => void, timer: ReturnType<typeof setTimeout>, candidate: MemoryCandidate }>()
   private readonly completeListeners = new Set<(event: RunCompleteEvent) => void>()
@@ -175,18 +195,9 @@ export class HarnessRuntime {
 
   private publishRunComplete(event: RunCompleteEvent) { queueMicrotask(() => this.completeListeners.forEach(listener => listener(event))) }
 
-  private lockProject(session: HarnessSession, sessionId: string) {
-    if (!session.projectId) return
-    const current = this.runningProjects.get(session.projectId)
-    if (current && current !== sessionId) throw new Error('该项目已有 Agent 正在运行')
-    this.runningProjects.set(session.projectId, sessionId)
+  isProjectRunning(projectId: string) {
+    return [...this.running.keys()].some(sessionId => this.database.harness.getSession(sessionId).projectId === projectId)
   }
-
-  private unlockProject(session: HarnessSession, sessionId: string) {
-    if (session.projectId && this.runningProjects.get(session.projectId) === sessionId) this.runningProjects.delete(session.projectId)
-  }
-
-  isProjectRunning(projectId: string) { return this.runningProjects.has(projectId) }
 
   private toAgentMessage(message: HarnessMessage, model: { api: string, provider: string, id: string }) {
     return {
@@ -392,7 +403,16 @@ export class HarnessRuntime {
     return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }
   }
 
-  private tools(sender: WebContents, sessionId: string) {
+  /** Delegates use fixed role capabilities, never interactive approvals. */
+  private preflightSubtaskToolCall(name: string, args: unknown) {
+    if (name !== 'bash') return undefined
+    const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+    const normalized = ` ${String(values.command ?? '').toLowerCase().replace(/\s+/g, ' ')} `
+    const blocked = this.database.harness.getPermissionConfig().dangerousCommands.some(item => normalized.includes(item)) || /\brm\b.*(-[a-z]*r[a-z]*|--recursive)/.test(normalized)
+    return blocked ? { block: true, reason: '危险命令已被永久拦截' } : undefined
+  }
+
+  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, onPlan?: (plan: HarnessPlan) => void } = {}) {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const register = <T extends { name: string }>(tool: T, descriptor: ToolDescriptor) => {
@@ -400,7 +420,7 @@ export class HarnessRuntime {
       return tool
     }
     const session = () => this.database.harness.getSession(sessionId)
-    const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const createdAt = Date.now(); recordedTools.set(id, { tool, target, startedAt: createdAt }); this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt }); this.log({ event: 'tool', sessionId, tool, target, status: 'running', timestamp: createdAt }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running' } }); return id }
+    const record = (tool: string, target: string) => { const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const createdAt = Date.now(); recordedTools.set(id, { tool, target, startedAt: createdAt }); this.database.harness.recordTool(sessionId, { id, tool, target, status: 'running', createdAt, ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}) }); this.log({ event: 'tool', sessionId, tool, target, status: 'running', timestamp: createdAt }); emit(sender, { sessionId, type: 'tool-call', payload: { id, tool, target, status: 'running', ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}) } }); return id }
     const finish = (id: string, status: 'ok' | 'failed', diff?: string) => {
       const completedAt = Date.now()
       this.database.harness.updateTool(sessionId, id, { status, diff, completedAt })
@@ -545,7 +565,25 @@ export class HarnessRuntime {
       executionMode: 'sequential',
       execute: async () => ({ content: [{ type: 'text', text: '计划已记录。' }] }),
     }, { risk: 'read', title: () => '', detail: () => '' })
-    return { tools: [
+    const submitPlanTool = register({
+      name: 'submit_plan', label: '提交方案', description: '提交结构化分析方案。信息不足时 ready=false 并提出问题；信息足够时 ready=true 且必须包含步骤。',
+      parameters: Type.Object({ understanding: Type.String(), questions: Type.Optional(Type.Array(Type.Object({ question: Type.String(), context: Type.Optional(Type.String()) }))), steps: Type.Array(Type.Object({ label: Type.String(), detail: Type.Optional(Type.String()) })), risks: Type.Optional(Type.Array(Type.String())), ready: Type.Boolean() }),
+      executionMode: 'sequential',
+      execute: async (_id: string, params: any) => {
+        const understanding = String(params.understanding || '').trim()
+        const questions = normalizePlanQuestions(params.questions)
+        const steps = normalizePlanSteps(params.steps)
+        const risks = normalizePlanRisks(params.risks)
+        if (!understanding) throw new Error('方案理解不能为空')
+        if (params.ready && questions.length) throw new Error('方案就绪时不能包含待澄清问题')
+        if (params.ready && !steps.length) throw new Error('方案至少需要一个步骤')
+        const existing = this.database.harness.getSession(sessionId).activePlan
+        const plan: HarnessPlan = { id: existing?.id || randomUUID(), status: params.ready ? 'ready' : 'awaiting_input', request: existing?.request || ([...this.database.harness.getSession(sessionId).messages].reverse().find(m => m.role === 'user')?.content || ''), understanding, questions, steps, risks, createdAt: existing?.createdAt || Date.now(), updatedAt: Date.now() }
+        options.onPlan?.(plan)
+        return { content: [{ type: 'text', text: params.ready ? '方案已提交，等待用户确认。' : '已记录需要补充的信息。' }], details: { planId: plan.id, status: plan.status } }
+      },
+    }, { risk: 'read', title: () => '', detail: () => '' })
+    const allTools = [
       readTool,
       editTool,
       listFilesTool,
@@ -554,13 +592,27 @@ export class HarnessRuntime {
       bashTool,
       webFetchTool,
       webSearchTool,
-      planTool,
+      ...(options.planning ? [submitPlanTool] : [planTool]),
       ...memoryTools,
       ...mcpTools,
-    ] as any, descriptors }
+    ] as any[]
+    const allowed = options.role ? new Set(SUBTASK_ROLE_TOOLS[options.role]) : undefined
+    const lockable = new Set(['read', 'list_files', 'edit', 'write', 'delete_file', 'bash'])
+    const write = new Set(['edit', 'write', 'delete_file', 'bash'])
+    const tools = allTools
+      .filter(tool => !allowed || allowed.has(tool.name))
+      .filter(tool => !options.planning || ['read', 'list_files', 'web_fetch', 'web_search', 'submit_plan'].includes(tool.name))
+      .map(tool => options.role || !lockable.has(tool.name) ? tool : {
+        ...tool,
+        execute: async (id: string, params: unknown, signal?: AbortSignal, onUpdate?: unknown) => {
+          const release = await this.projectLocks.acquire(session().projectId, write.has(tool.name) ? 'write' : 'read', signal)
+          try { return await tool.execute(id, params, signal, onUpdate) } finally { release() }
+        },
+      })
+    return { tools: tools as any, descriptors }
   }
 
-  async runMessage(sender: WebContents, sessionId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
+  async runMessage(sender: WebContents, sessionId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection, planning = false) {
     const text = message.trim()
     if (!text) throw new Error('请输入消息')
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
@@ -572,13 +624,14 @@ export class HarnessRuntime {
       return
     }
     const { provider, apiKey } = this.requireProvider(selection)
-    const initial = this.database.harness.getSession(sessionId)
-    this.lockProject(initial, sessionId)
-    try {
-      const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
-      const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
-      return this.runAgent(sender, sessionId, session, selection, provider, apiKey)
-    } catch (error) { this.unlockProject(initial, sessionId); throw error }
+    const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
+    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+    if (planning && !session.activePlan) {
+      const plan: HarnessPlan = { id: randomUUID(), status: 'planning', request: text, understanding: '', questions: [], steps: [], risks: [], createdAt: Date.now(), updatedAt: Date.now() }
+      this.database.harness.setActivePlan(sessionId, plan)
+      emit(sender, { sessionId, type: 'plan-updated', payload: { plan } })
+    }
+    return this.runAgent(sender, sessionId, session, selection, provider, apiKey, planning ? { planning: true } : {})
   }
 
   private requireProvider(selection?: ModelSelection) {
@@ -638,33 +691,46 @@ export class HarnessRuntime {
   async rerun(sender: WebContents, sessionId: string, selection?: ModelSelection) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const { provider, apiKey } = this.requireProvider(selection)
-    const initial = this.database.harness.getSession(sessionId)
-    this.lockProject(initial, sessionId)
-    try { return this.runAgent(sender, sessionId, this.database.harness.regenerate(sessionId), selection, provider, apiKey) }
-    catch (error) { this.unlockProject(initial, sessionId); throw error }
+    return this.runAgent(sender, sessionId, this.database.harness.regenerate(sessionId), selection, provider, apiKey)
   }
 
   async editAndRerun(sender: WebContents, sessionId: string, messageId: string, content: string, selection?: ModelSelection) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const { provider, apiKey } = this.requireProvider(selection)
-    const initial = this.database.harness.getSession(sessionId)
-    this.lockProject(initial, sessionId)
-    try { return this.runAgent(sender, sessionId, this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content), selection, provider, apiKey) }
-    catch (error) { this.unlockProject(initial, sessionId); throw error }
+    return this.runAgent(sender, sessionId, this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content), selection, provider, apiKey)
   }
 
   async runAutomation(sessionId: string, message: string, selection: ModelSelection, permissionMode: PermissionMode) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const { provider, apiKey } = this.requireProvider(selection)
-    const session = this.database.harness.getSession(sessionId)
-    this.lockProject(session, sessionId)
-    try {
-      const updated = this.database.harness.addMessage(sessionId, 'user', message.trim())
-      return this.runAgent(undefined, sessionId, updated, selection, provider, apiKey, { origin: 'automation', permissionMode })
-    } catch (error) { this.unlockProject(session, sessionId); throw error }
+    const updated = this.database.harness.addMessage(sessionId, 'user', message.trim())
+    return this.runAgent(undefined, sessionId, updated, selection, provider, apiKey, { origin: 'automation', permissionMode })
   }
 
-  private async runAgent(sender: WebContents | undefined, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string, options: { origin?: RunOrigin, permissionMode?: PermissionMode } = {}) {
+  async confirmPlan(sender: WebContents, sessionId: string, planId: string, selection?: ModelSelection) {
+    if (this.running.has(sessionId)) throw new Error('该会话正在运行')
+    const session = this.database.harness.getSession(sessionId)
+    if (!session.activePlan || session.activePlan.id !== planId || session.activePlan.status !== 'ready') throw new Error('计划当前不可执行')
+    const { provider, apiKey } = this.requireProvider(selection)
+    const confirmed = this.database.harness.confirmPlan(sessionId, planId)
+    emit(sender, { sessionId, type: 'plan-confirmed', payload: { plan: confirmed.activePlan } })
+    return this.runAgent(sender, sessionId, confirmed, selection!, provider, apiKey)
+  }
+
+  async continuePlan(sender: WebContents, sessionId: string, planId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
+    const session = this.database.harness.getSession(sessionId)
+    if (!session.activePlan || session.activePlan.id !== planId) throw new Error('计划不存在')
+    if (session.activePlan.status !== 'awaiting_input' && session.activePlan.status !== 'ready') throw new Error('计划当前不可继续')
+    return this.runMessage(sender, sessionId, message, references, selection, true)
+  }
+
+  cancelPlan(sender: WebContents, sessionId: string, planId: string) {
+    const plan = this.database.harness.cancelPlan(sessionId, planId).activePlan
+    emit(sender, { sessionId, type: 'plan-cancelled', payload: { plan } })
+    return plan
+  }
+
+  private async runAgent(sender: WebContents | undefined, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string, options: { origin?: RunOrigin, permissionMode?: PermissionMode, planning?: boolean } = {}) {
     const origin = options.origin || 'manual'
     await this.memoryWrites.get(sessionId)
     const text = [...session.messages].reverse().find(message => message.role === 'user')?.content
@@ -676,7 +742,13 @@ export class HarnessRuntime {
     const startedAt = Date.now()
     this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'running', timestamp: startedAt })
     const activities: HarnessRunActivity[] = [{ id: 'thinking-0', label: '正在思考', status: 'running', startedAt }]
-    const publishActivities = () => emit(sender, { sessionId, type: 'run-activity', payload: { activities } })
+    const runId = randomUUID()
+    let subtasks: SubtaskRuntime | undefined
+    const publishActivities = () => {
+      const currentSubtasks = subtasks?.list() || []
+      this.database.harness.setActiveRun(sessionId, { id: runId, startedAt, activities, subtasks: currentSubtasks })
+      emit(sender, { sessionId, type: 'run-activity', payload: { activities, subtasks: currentSubtasks } })
+    }
     const finishActivity = (id: string, status: HarnessRunActivity['status'] = 'completed', detail?: string) => {
       const activity = activities.find(item => item.id === id)
       if (activity?.status === 'running') Object.assign(activity, { status, completedAt: Date.now(), ...(detail ? { detail } : {}) })
@@ -716,7 +788,8 @@ export class HarnessRuntime {
         planCursor++
       }
     }
-    emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities } })
+    publishActivities()
+    emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities, subtasks: [] } })
 
     let model: any
     let models!: ReturnType<typeof createModels>
@@ -734,7 +807,7 @@ export class HarnessRuntime {
         models: [model], api: openAICompletionsApi(),
       }) as any)
       session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
-      const memoryEnabled = this.database.memories.enabled()
+      const memoryEnabled = !options.planning && this.database.memories.enabled()
       const loadMemory = (scope: MemoryScope) => {
         const target = this.database.memories.path(scope, session.projectId)
         const entries = this.database.memories.search(scope, text, session.projectId)
@@ -753,11 +826,67 @@ export class HarnessRuntime {
       const globalMemory = memoryEnabled ? loadMemory('global') : ''
       const projectMemory = memoryEnabled && session.projectId ? loadMemory('project') : ''
       if (memoryEnabled) publishActivities()
-      const registeredTools = this.tools(sender, sessionId)
+      const registeredTools = this.tools(sender, sessionId, options.planning ? { planning: true, onPlan: plan => { this.database.harness.setActivePlan(sessionId, plan); emit(sender, { sessionId, type: 'plan-updated', payload: { plan } }) } } : {})
       const preferences = this.database.getSnapshot().preferences
-      const activeSkills = this.database.skills.resolve(session.activeSkillIds || [])
+      const activeSkills = options.planning ? [] : this.database.skills.resolve(session.activeSkillIds || [])
+      const thinkingLevel = provider.reasoning ? selection.thinkingLevel || 'medium' : 'off'
+      const childPrompt = (role: HarnessSubtaskRole) => [
+        `你是 Mira 的 ${role} 子任务 Agent。只能完成收到的一项任务，不能联系用户、不能委派、不能假称执行过未调用的工具。`,
+        role === 'implementer' ? '可在指定项目内修改文件；只改本任务需要的内容。' : role === 'tester' ? '可执行测试命令；不要以直接编辑文件的方式修改工作区。' : '你没有被授予任意写入权限；不得声称修改了文件。',
+        '最终回复是父 Agent 唯一得到的完整报告。简洁说明结论、真实改动/检查、关键文件路径，以及未完成项。不要输出思维过程。',
+        buildMiraSystemPrompt({ tone: normalizeAssistantTone(preferences.assistantTone), context: { instructions: this.database.instructions.resolve(session.workingDirectory) } }),
+      ].join('\n\n')
+      if (!options.planning && origin === 'manual' && session.delegationEnabled !== false && session.workingDirectory) {
+        subtasks = new SubtaskRuntime(async (role, signal) => this.projectLocks.acquire(session.projectId, subtaskMayMutate(role) ? 'write' : 'read', signal))
+        this.running.get(sessionId)!.subtasks = subtasks
+      }
+      const taskTools = subtasks ? [
+        {
+          name: 'delegate_task', label: '委派子任务', description: '把可独立完成的工作委派给 explorer、reviewer、tester 或 implementer。子任务不共享本次对话，只获得任务说明与可选项目内文件。',
+          parameters: Type.Object({ role: Type.Union([Type.Literal('explorer'), Type.Literal('reviewer'), Type.Literal('tester'), Type.Literal('implementer')]), task: Type.String(), files: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
+          execute: async (toolCallId: string, params: { role: HarnessSubtaskRole, task: string, files?: string[] }) => {
+            const requested = [...new Set((params.files || []).filter(path => typeof path === 'string' && path.trim()))]
+            if (requested.length > 12) throw new Error('一次最多附带 12 个项目内文件')
+            const references = requested.map(path => {
+              if (isAbsolute(path)) throw new Error('子任务只能附带项目内相对路径文件')
+              return { path, name: path.split('/').at(-1) || path }
+            })
+            const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
+            const child = subtasks!.create({
+              parentToolCallId: toolCallId, role: params.role, task: params.task.trim(),
+              prompt: `${params.task.trim()}${attachments.length ? `\n\n已附带文件：\n${attachments.map(file => `[${file.path}]\n${file.content}`).join('\n\n')}` : ''}`,
+              files: references, systemPrompt: childPrompt(params.role), model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel,
+              toolsForTask: taskId => this.tools(sender, sessionId, { role: params.role, subtaskId: taskId }).tools,
+              beforeToolCall: async ({ toolCall, args }) => this.preflightSubtaskToolCall(toolCall.name, args),
+              onChanged: () => publishActivities(),
+              onFinished: childTask => {
+                if (childTask.usage) childTask.usage = withUsageCost(childTask.usage, provider.pricing)
+                publishActivities()
+                agent.followUp({ role: 'user', content: `子任务 ${childTask.id} 已结束，状态：${childTask.status}。如需报告，请调用 wait_for_tasks。`, timestamp: Date.now() } as any)
+              },
+            })
+            return { content: [{ type: 'text', text: `已创建子任务 ${child.id}（${child.role}）。` }], details: { id: child.id, status: child.status } }
+          },
+        },
+        {
+          name: 'list_tasks', label: '列出子任务', description: '查看当前父任务的子任务状态，不返回报告正文。', parameters: Type.Object({}), executionMode: 'sequential',
+          execute: async () => ({ content: [{ type: 'text', text: subtasks!.list().map(task => `${task.id} | ${task.role} | ${task.status}`).join('\n') || '没有子任务。' }] }),
+        },
+        {
+          name: 'wait_for_tasks', label: '等待子任务', description: '等待全部或指定子任务完成并读取受限最终报告。', parameters: Type.Object({ ids: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
+          execute: async (_id: string, params: { ids?: string[] }) => {
+            const completed = await subtasks!.wait(params.ids)
+            const text = completed.map(task => `## ${task.id} · ${task.role} · ${task.status}\n${task.report || task.error?.message || '无报告'}`).join('\n\n') || '没有匹配的子任务。'
+            return { content: [{ type: 'text', text }], details: { ids: completed.map(task => task.id) } }
+          },
+        },
+        {
+          name: 'stop_tasks', label: '停止子任务', description: '停止全部或指定仍在运行的子任务。', parameters: Type.Object({ ids: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
+          execute: async (_id: string, params: { ids?: string[] }) => { subtasks!.stop(params.ids); return { content: [{ type: 'text', text: '已请求停止子任务。' }] } },
+        },
+      ] : []
       agent = new Agent({
-        initialState: {
+          initialState: {
           systemPrompt: buildMiraSystemPrompt({
             tone: normalizeAssistantTone(preferences.assistantTone),
             identity: resolveMiraIdentity({
@@ -771,11 +900,11 @@ export class HarnessRuntime {
               globalMemory,
               projectMemory,
             },
-          }),
+          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。信息不足时调用 submit_plan(ready=false) 提问；信息足够时调用 submit_plan(ready=true) 提交方案，等待用户界面确认。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
           model,
-          thinkingLevel: provider.reasoning ? selection.thinkingLevel || 'medium' : 'off',
+          thinkingLevel,
           messages: this.agentMessages(session, model),
-          tools: registeredTools.tools,
+          tools: options.planning ? registeredTools.tools : [...registeredTools.tools, ...taskTools],
         } as any,
         streamFn: models.streamSimple.bind(models) as any,
         sessionId,
@@ -787,7 +916,6 @@ export class HarnessRuntime {
       publishActivities()
       this.database.harness.setStatus(sessionId, 'failed')
       this.running.delete(sessionId)
-      this.unlockProject(session, sessionId)
       emit(sender, { sessionId, type: 'message-complete', payload: {} })
       emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
       emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })
@@ -845,6 +973,12 @@ export class HarnessRuntime {
     })
     try {
       await agent.prompt(text)
+      // A parent is not allowed to leave child work behind. If it did not
+      // converge itself, wait and give it one explicit convergence turn.
+      if (subtasks?.active().length) {
+        await subtasks.wait()
+        await agent.prompt('系统提醒：你创建的子任务已经结束。请调用 wait_for_tasks 读取报告，整合结果后再给出最终答复；不要再创建子任务。')
+      }
       if (agent.state.errorMessage) throw new Error(agent.state.errorMessage)
       const finalMessage = agent.state.messages.at(-1)
       const finalText = assistantText(finalMessage)
@@ -859,18 +993,25 @@ export class HarnessRuntime {
       if (!output) throw new Error('模型没有返回文本')
       finishRunningActivities('completed')
       const completedAt = Date.now()
-      const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities }
+      const parentUsage = tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined)
+      const pricedParentUsage = parentUsage ? withUsageCost(parentUsage, provider.pricing) : undefined
+      const childUsage = mergeUsage(subtasks?.list().map(task => task.usage) || [])
+      const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
       run.contextUsage = usage
-      const finalUsage = tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined)
-      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: finalUsage ? withUsageCost(finalUsage, provider.pricing) : undefined })
+      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: pricedParentUsage })
       assistantFinalized = true
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
+      if (!options.planning && this.database.harness.getSession(sessionId).activePlan?.status === 'executing') {
+        const completedPlan = { ...this.database.harness.getSession(sessionId).activePlan!, status: 'completed' as const, updatedAt: Date.now() }
+        this.database.harness.setActivePlan(sessionId, completedPlan)
+        emit(sender, { sessionId, type: 'plan-updated', payload: { plan: completedPlan } })
+      }
       this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
-      const memoryWrite = origin === 'manual'
+      const memoryWrite = origin === 'manual' && !options.planning
         ? this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off').catch(() => undefined)
         : Promise.resolve()
       this.memoryWrites.set(sessionId, memoryWrite)
@@ -886,7 +1027,7 @@ export class HarnessRuntime {
       flushAssistantDelta()
       if (output && !assistantFinalized) {
         const completedAt = Date.now()
-        this.database.harness.finalizeAssistantMessage(sessionId, { run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities }, interrupted: aborted })
+        this.database.harness.finalizeAssistantMessage(sessionId, { run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list() } : {}) }, interrupted: aborted })
         assistantFinalized = true
         emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
       } else if (!output) {
@@ -905,8 +1046,9 @@ export class HarnessRuntime {
     } finally {
       flushAssistantDelta()
       unsubscribe()
+      if (subtasks?.active().length) await subtasks.close(controller.signal.aborted ? 'stopped' : 'interrupted')
+      this.database.harness.setActiveRun(sessionId, undefined)
       this.running.delete(sessionId)
-      this.unlockProject(session, sessionId)
       emit(sender, { sessionId, type: 'status', payload: { state: 'idle' } })
     }
   }
@@ -916,5 +1058,8 @@ export class HarnessRuntime {
     if (!entry) return
     entry.controller.abort()
     entry.agent?.abort()
+    entry.subtasks?.stop()
   }
+
+  stopSubtasks(sessionId: string, ids?: string[]) { this.running.get(sessionId)?.subtasks?.stop(ids) }
 }

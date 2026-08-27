@@ -24,14 +24,16 @@
               {{ liveStatusLabel }}
             </span>
             <details v-if="message.run" class="message__run">
-              <summary><span class="run-summary__label">已完成 · {{ formatDuration(message.run.durationMs) }}</span><span class="run-summary__meta">{{ toolActivities(message.run.activities).length }} 个步骤</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
+              <summary><span class="run-summary__label">已完成 · {{ formatDuration(message.run.durationMs) }}</span><span class="run-summary__meta">{{ toolActivities(message.run.activities).length }} 个步骤{{ runUsageLabel(message.run) ? ` · ${runUsageLabel(message.run)}` : '' }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
               <RunPlan :activities="message.run.activities" />
               <RunActivityList :activities="toolActivities(message.run.activities)" :completed-at="message.run.completedAt" />
+              <SubtaskList :subtasks="message.run.subtasks || []" />
             </details>
             <details v-else-if="isStreamingAssistantMessage(message)" class="run-progress" :open="store.activeRun != null">
               <summary><span class="run-progress__label">{{ activeRunLabel }} · {{ formatDuration(activeRunElapsed) }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
               <RunPlan :activities="store.activeRun?.activities || []" />
               <RunActivityList :activities="toolActivities(store.activeRun?.activities)" />
+              <SubtaskList :subtasks="store.activeRun?.subtasks || []" :stop="stopSubtask" />
             </details>
             <div class="message__markdown" v-html="renderAssistantMessage(message.content)" @click="copyCodeBlock" />
             <section v-if="message.fileChanges?.length" class="message-changes" aria-label="本次文件修改">
@@ -62,7 +64,9 @@
           <summary><span class="run-progress__label">{{ activeRunLabel }} · {{ formatDuration(activeRunElapsed) }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
           <RunPlan :activities="store.activeRun.activities" />
           <RunActivityList :activities="toolActivities(store.activeRun.activities)" />
+          <SubtaskList :subtasks="store.activeRun.subtasks" :stop="stopSubtask" />
         </details>
+        <PlanApprovalCard v-if="store.activePlan" :plan="store.activePlan" :busy="isComposerBusy" @confirm="confirmPlan" @continue="focusComposerForPlan" @cancel="cancelPlan" />
         </div>
         <div
           v-if="showQuickNavigation"
@@ -269,10 +273,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessGitBranch, type HarnessMessage, type HarnessRunActivity, type HarnessSkill, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessGitBranch, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSkill, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 import RunPlan from './components/RunPlan.vue'
 import RunActivityList from './components/RunActivityList.vue'
+import SubtaskList from './components/SubtaskList.vue'
+import PlanApprovalCard from './components/PlanApprovalCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -398,6 +404,7 @@ function slashCommandQuery(text: string) {
 const activeSkillIds = computed(() => store.activeSession?.activeSkillIds || composerDraft.value.activeSkillIds || [])
 const activeMcpServerIds = computed(() => store.activeSession?.activeMcpServerIds || composerDraft.value.activeMcpServerIds || [])
 const activeSkills = computed(() => enabledSkills.value.filter(skill => activeSkillIds.value.includes(skill.id)))
+const delegationEnabled = computed(() => store.activeSession?.delegationEnabled !== false)
 const permissionLabel = computed(() => permissionOptions.find(option => option.mode === selectedPermissionMode.value)?.label || '默认权限')
 const availablePermissionOptions = computed(() => permissionOptions.filter(option => option.mode === 'default'
   || (option.mode === 'auto-approve' && permissionConfig.value.autoApproveEnabled)
@@ -429,7 +436,8 @@ const slashCommands = computed<SlashOption[]>(() => {
     { id: 'mcp', title: 'MCP', description: '显示 MCP 服务器状态', icon: 'Paperclip' },
     { id: 'thinking', title: '推理', description: selectedModelOption.value ? (selectedModelOption.value.reasoning ? selectedThinkingLabel.value : '关闭') : '未选择模型', icon: 'Cpu' },
     { id: 'models', title: '模型', description: selectedModelOption.value?.modelName || '未选择模型', icon: 'Cpu' },
-    { id: 'plan', title: '计划模式', description: planMode.value ? '关闭计划模式' : '打开计划模式', icon: 'Finished' },
+    { id: 'plan', title: '计划模式', description: planMode.value ? '关闭计划模式' : '先分析和确认方案', icon: 'Finished' },
+    { id: 'delegation', title: '子任务委派', description: delegationEnabled.value ? '已启用' : '已关闭', icon: 'Connection' },
     { id: 'permissions', title: '权限', description: permissionLabel.value, icon: 'Lock' },
     { id: 'skills', title: 'Skill', description: '选择已启用 Skill', icon: 'MagicStick' },
   ]
@@ -611,6 +619,11 @@ function messageUsageLabel(message: HarnessMessage) {
   const usage = message.usage!
   if (!usage.cost?.priced) return `${formatTokenCount(usage.totalTokens)} token`
   return `${formatTokenCount(usage.totalTokens)} token · 估算 ${usage.cost.currency} ${usage.cost.total.toFixed(usage.cost.total >= 1 ? 2 : 4)}`
+}
+function runUsageLabel(run: HarnessRunSummary) {
+  const usage = run.usage?.total
+  if (!usage) return ''
+  return usage.cost?.priced ? `合计 ${usage.cost.currency} ${usage.cost.total.toFixed(usage.cost.total >= 1 ? 2 : 4)}` : `合计 ${formatTokenCount(usage.totalTokens)} token（未定价）`
 }
 function renderAssistantMessage(content: string) { return markdown.render(content) }
 function fileChangeSummary(change: HarnessFileChange) {
@@ -861,7 +874,26 @@ function createProjectFromPicker() {
 }
 
 function enablePlanMode() { planMode.value = true; closeComposerOverlay() }
-function closePlanMode() { planMode.value = false }
+async function closePlanMode() {
+  planMode.value = false
+  const plan = store.activePlan; const id = store.activeSession?.id
+  if (plan && id && ['planning', 'awaiting_input', 'ready'].includes(plan.status)) {
+    try { await store.cancelPlan(id, plan.id) } catch { /* session may already be gone */ }
+  }
+}
+async function confirmPlan() {
+  const plan = store.activePlan
+  const id = store.activeSession?.id
+  const selection = composerDraft.value.modelSelection
+  if (!plan || !id || !selection) return
+  try { await store.confirmPlan(id, plan.id, selection); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法执行计划') }
+}
+function focusComposerForPlan() { document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus() }
+async function cancelPlan() {
+  const plan = store.activePlan; const id = store.activeSession?.id
+  if (!plan || !id) return
+  try { await store.cancelPlan(id, plan.id); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法取消计划') }
+}
 
 function closeComposerOverlay() {
   if (composerOverlay.value === 'slash') {
@@ -958,6 +990,11 @@ async function selectSlashOption(id: string) {
       }
       return
     }
+    if (id === 'delegation') {
+      if (store.activeSession) await store.setDelegationEnabled(store.activeSession.id, !delegationEnabled.value)
+      closeSlashMenu()
+      return
+    }
     if (id === 'mcp' || id === 'thinking' || id === 'models' || id === 'permissions' || id === 'skills') {
       slashMenuView.value = id
       slashMenuIndex.value = 0
@@ -1017,9 +1054,7 @@ async function send() {
   const originKey = draftKey.value
   const draft = composerDraft.value
   const rawText = draft.text.trim()
-  const text = planMode.value && !/(计划|set_plan)/.test(rawText)
-    ? `（计划模式：请先制定并展示计划，再执行。）\n${rawText}`
-    : rawText
+  const text = rawText
   const payload = {
     text,
     attachments: draft.attachments.map(file => ({ path: file.path, name: file.name })),
@@ -1056,7 +1091,9 @@ async function send() {
     void scrollLatestMessageToTop(messageId)
     store.running = true
     await nextTick()
-    await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection)
+    const plan = store.activePlan
+    if (plan && (plan.status === 'awaiting_input' || plan.status === 'ready')) await api.continueHarnessPlan(activeId, plan.id, payload.text, payload.attachments, payload.modelSelection)
+    else await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection, planMode.value)
   } catch (error) {
     const sessionKey = activeId ? `session:${activeId}` : originKey
     const session = activeId ? await store.openSession(activeId).catch(() => undefined) : undefined
@@ -1069,6 +1106,7 @@ async function send() {
 }
 
 async function abort() { if (store.activeSession) await getPlatformApi()?.abortHarnessRun(store.activeSession.id) }
+async function stopSubtask(id: string) { if (store.activeSession) await getPlatformApi()?.stopHarnessSubtasks(store.activeSession.id, [id]) }
 
 function handleStreamScroll() {
   scheduleQuickNavigationUpdate()

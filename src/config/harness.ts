@@ -134,15 +134,83 @@ export interface HarnessContextState {
 
 export type HarnessRunStatus = 'pending' | 'running' | 'completed' | 'failed'
 
+export type HarnessPlanStatus = 'planning' | 'awaiting_input' | 'ready' | 'executing' | 'completed' | 'cancelled'
+export interface HarnessPlanQuestion { question: string, context?: string }
+export interface HarnessPlan {
+  id: string
+  status: HarnessPlanStatus
+  request: string
+  understanding: string
+  questions: HarnessPlanQuestion[]
+  steps: HarnessPlanStep[]
+  risks: string[]
+  createdAt: number
+  updatedAt: number
+  confirmedAt?: number
+  cancelledAt?: number
+}
+export interface HarnessPlanAction { sessionId: string, planId: string, message?: string }
+
+export function normalizePlanQuestions(value: unknown): HarnessPlanQuestion[] {
+  if (!Array.isArray(value)) return []
+  return value.map(item => item && typeof item === 'object' ? item as Record<string, unknown> : {})
+    .filter(item => typeof item.question === 'string' && item.question.trim())
+    .slice(0, 8)
+    .map(item => ({ question: (item.question as string).trim().slice(0, 1000), context: typeof item.context === 'string' && item.context.trim() ? item.context.trim().slice(0, 1000) : undefined }))
+}
+
+export function normalizePlanRisks(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map(item => item.trim().slice(0, 1000)).slice(0, 8)
+}
+
 export interface HarnessRunActivity {
   id: string
   label: string
   detail?: string
   status: HarnessRunStatus
   /** 用于区分「计划步骤」与「实际工具活动」等，前端按类型分组展示。 */
-  kind?: 'plan' | 'tool' | 'thought'
+  kind?: 'plan' | 'tool' | 'thought' | 'subtask'
   startedAt: number
   completedAt?: number
+}
+
+export type HarnessSubtaskRole = 'explorer' | 'reviewer' | 'tester' | 'implementer'
+export type HarnessSubtaskStatus = 'queued' | 'running' | 'stopping' | 'completed' | 'failed' | 'stopped' | 'timed_out' | 'turn_limit' | 'interrupted'
+
+export interface HarnessSubtaskError {
+  code: string
+  message: string
+}
+
+/** Public child-task record. It deliberately excludes the child transcript and thinking. */
+export interface HarnessSubtask {
+  id: string
+  parentToolCallId: string
+  role: HarnessSubtaskRole
+  task: string
+  files?: HarnessFileReference[]
+  status: HarnessSubtaskStatus
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+  activities: HarnessRunActivity[]
+  report?: string
+  error?: HarnessSubtaskError
+  usage?: HarnessTokenUsage
+}
+
+export interface HarnessRunUsage {
+  parent?: HarnessTokenUsage
+  children?: HarnessTokenUsage
+  total?: HarnessTokenUsage
+}
+
+export interface HarnessActiveRun {
+  id: string
+  startedAt: number
+  activities: HarnessRunActivity[]
+  subtasks: HarnessSubtask[]
 }
 
 export interface HarnessRunSummary {
@@ -150,6 +218,8 @@ export interface HarnessRunSummary {
   completedAt: number
   durationMs: number
   activities: HarnessRunActivity[]
+  subtasks?: HarnessSubtask[]
+  usage?: HarnessRunUsage
   contextUsage?: HarnessContextUsage
 }
 
@@ -214,6 +284,7 @@ export interface ToolCallRecord {
   error?: string
   createdAt: number
   completedAt?: number
+  subtaskId?: string
 }
 
 export interface HarnessSession {
@@ -235,6 +306,11 @@ export interface HarnessSession {
   context?: HarnessContextState
   activeSkillIds?: string[]
   activeMcpServerIds?: string[]
+  /** Defaults to true for older sessions. Automation never enables delegation. */
+  delegationEnabled?: boolean
+  activePlan?: HarnessPlan
+  /** Durable public progress for a currently executing parent run. */
+  activeRun?: HarnessActiveRun
 }
 
 export interface HarnessSkill {
@@ -366,7 +442,7 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled'
   payload: Record<string, unknown>
 }
 

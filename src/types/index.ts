@@ -186,6 +186,7 @@ export interface PlatformApi {
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
   setHarnessActiveSkills(id: string, skillIds: string[]): Promise<import('@/config/harness').HarnessSession>
   setHarnessActiveMcpServers(id: string, serverIds: string[]): Promise<import('@/config/harness').HarnessSession>
+  setHarnessDelegationEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSession>
   saveHarnessProjectMemory(id: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
@@ -196,13 +197,17 @@ export interface PlatformApi {
   listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
   selectHarnessFiles(projectId: string): Promise<import('@/config/harness').HarnessFileReference[]>
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
-  runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<void>
+  runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection, planning?: boolean): Promise<void>
+  confirmHarnessPlan(sessionId: string, planId: string, selection?: import('@/config/harness').ModelSelection): Promise<unknown>
+  continueHarnessPlan(sessionId: string, planId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
+  cancelHarnessPlan(sessionId: string, planId: string): Promise<unknown>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   listMcpServers(): Promise<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>
   saveMcpServer(config: { id?: string, name: string, command: string, args?: string[], enabled?: boolean }): Promise<{ id: string, name: string, command: string, args: string[], enabled: boolean }>
   deleteMcpServer(id: string): Promise<void>
   abortHarnessRun(sessionId: string): Promise<void>
+  stopHarnessSubtasks(sessionId: string, ids?: string[]): Promise<void>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
   getHarnessGitConfig(): Promise<import('@/config/harness').HarnessGitConfig>

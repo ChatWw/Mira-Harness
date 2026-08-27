@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPlatformApi } from '@/platform'
-import type { HarnessContextUsage, HarnessEvent, HarnessFileReference, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, ModelSelection, PermissionMode, ThinkingLevel } from '@/config/harness'
+import type { HarnessContextUsage, HarnessEvent, HarnessFileReference, HarnessPlan, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, HarnessSubtask, ModelSelection, PermissionMode, ThinkingLevel } from '@/config/harness'
 
 const DRAFT_STORAGE_KEY = 'mira-harness-composer-drafts'
 const MODEL_SELECTION_STORAGE_KEY = 'mira-harness-model-selection'
@@ -65,6 +65,7 @@ export interface HarnessRunProgress {
   sessionId: string
   startedAt: number
   activities: HarnessRunActivity[]
+  subtasks: HarnessSubtask[]
 }
 
 export interface HarnessPendingPermissionRequest {
@@ -100,6 +101,7 @@ export const useHarnessStore = defineStore('harness', () => {
   const running = ref(false)
   const rendering = ref(false)
   const activeRun = ref<HarnessRunProgress>()
+  const activePlan = ref<HarnessPlan>()
   const drafts = ref<Record<string, HarnessComposerDraft>>(loadDrafts())
   const lastModelSelection = ref<ModelSelection | undefined>(loadModelSelection())
   let queuedMessageSessionId: string | undefined
@@ -177,6 +179,7 @@ export const useHarnessStore = defineStore('harness', () => {
     activeSession.value = undefined
     running.value = false
     activeRun.value = undefined
+    activePlan.value = undefined
   }
 
   async function refreshSessions(query = '') {
@@ -215,6 +218,15 @@ export const useHarnessStore = defineStore('harness', () => {
     }
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
+    activePlan.value = activeSession.value?.activePlan
+    if (activeSession.value?.activeRun) {
+      activeRun.value = {
+        sessionId: id,
+        startedAt: activeSession.value.activeRun.startedAt,
+        activities: activeSession.value.activeRun.activities,
+        subtasks: activeSession.value.activeRun.subtasks,
+      }
+    }
     return activeSession.value
   }
 
@@ -241,6 +253,14 @@ export const useHarnessStore = defineStore('harness', () => {
     const api = getPlatformApi()
     if (!api) return undefined
     const session = await api.setHarnessActiveMcpServers(id, [...serverIds])
+    if (activeSession.value?.id === id) activeSession.value = session
+    return session
+  }
+
+  async function setDelegationEnabled(id: string, enabled: boolean) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.setHarnessDelegationEnabled(id, enabled)
     if (activeSession.value?.id === id) activeSession.value = session
     return session
   }
@@ -275,6 +295,23 @@ export const useHarnessStore = defineStore('harness', () => {
     unreadSessionIds.value = unreadSessionIds.value.filter(id => !removed.has(id))
     pendingPermissionRequests.value = Object.fromEntries(Object.entries(pendingPermissionRequests.value).filter(([id]) => !removed.has(id)))
     await Promise.all([refreshSessions(), refreshProjects()])
+  }
+
+  async function confirmPlan(sessionId: string, planId: string, selection?: ModelSelection) {
+    const api = getPlatformApi(); if (!api) return
+    running.value = true
+    await api.confirmHarnessPlan(sessionId, planId, selection)
+  }
+
+  async function continuePlan(sessionId: string, planId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
+    const api = getPlatformApi(); if (!api) return
+    running.value = true
+    await api.continueHarnessPlan(sessionId, planId, message, references, selection)
+  }
+
+  async function cancelPlan(sessionId: string, planId: string) {
+    const api = getPlatformApi(); if (!api) return
+    await api.cancelHarnessPlan(sessionId, planId)
   }
 
   function appendMessageDelta(delta: string) {
@@ -397,6 +434,10 @@ export const useHarnessStore = defineStore('harness', () => {
       }
     }
     if (event.sessionId !== activeSession.value?.id) return
+    if ((event.type === 'plan-updated' || event.type === 'plan-confirmed' || event.type === 'plan-cancelled') && event.payload.plan && typeof event.payload.plan === 'object') {
+      activePlan.value = event.payload.plan as HarnessPlan
+      activeSession.value = { ...activeSession.value, activePlan: activePlan.value }
+    }
     if (event.type === 'error') {
       lastRunError.value = { sessionId: event.sessionId, message: typeof event.payload.message === 'string' ? event.payload.message : '运行失败，请重试。' }
     }
@@ -405,10 +446,11 @@ export const useHarnessStore = defineStore('harness', () => {
         sessionId: event.sessionId,
         startedAt: Number(event.payload.startedAt) || Date.now(),
         activities: Array.isArray(event.payload.activities) ? event.payload.activities as HarnessRunActivity[] : [],
+        subtasks: Array.isArray(event.payload.subtasks) ? event.payload.subtasks as HarnessSubtask[] : [],
       }
     }
     if (event.type === 'run-activity' && activeRun.value?.sessionId === event.sessionId && Array.isArray(event.payload.activities)) {
-      activeRun.value = { ...activeRun.value, activities: event.payload.activities as HarnessRunActivity[] }
+      activeRun.value = { ...activeRun.value, activities: event.payload.activities as HarnessRunActivity[], subtasks: Array.isArray(event.payload.subtasks) ? event.payload.subtasks as HarnessSubtask[] : activeRun.value.subtasks }
     }
     if (event.type === 'message-delta') {
       const delta = String(event.payload.delta || '')
@@ -438,6 +480,7 @@ export const useHarnessStore = defineStore('harness', () => {
     running,
     rendering,
     activeRun,
+    activePlan,
     drafts,
     lastModelSelection,
     runningSessionIds,
@@ -453,7 +496,11 @@ export const useHarnessStore = defineStore('harness', () => {
     createSession,
     setSessionPermission,
     setActiveMcpServers,
+    setDelegationEnabled,
     setSessionPinned,
+    confirmPlan,
+    continuePlan,
+    cancelPlan,
     renameSession,
     respondPermission,
     respondMemoryConfirmation,

@@ -21,6 +21,7 @@ import {
   type HarnessHistorySort,
   type HarnessMessageAttachment,
   type HarnessProject,
+  type HarnessPlan,
   type HarnessRunSummary,
   type HarnessSession,
   type HarnessSessionSummary,
@@ -192,7 +193,7 @@ export class HarnessStore {
   private parseSession(raw: string): HarnessSession {
     const value = JSON.parse(raw) as Partial<HarnessSession>
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
-    return { ...value, pinned: Boolean(value.pinned), archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
+    return { ...value, pinned: Boolean(value.pinned), delegationEnabled: value.delegationEnabled !== false, archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
   }
 
   listProjects(): HarnessProject[] {
@@ -290,7 +291,7 @@ export class HarnessStore {
     const time = now()
     const session: HarnessSession = {
       version: 1, id: createSessionId(), title: '新对话', projectId: project?.id, workingDirectory: project?.directory,
-      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false,
+      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, delegationEnabled: true,
     }
     return this.saveSession(session)
   }
@@ -523,6 +524,76 @@ export class HarnessStore {
     const session = this.getSession(id)
     session.activeMcpServerIds = [...new Set(serverIds.filter(value => typeof value === 'string' && value.trim()))]
     return this.saveSession(session)
+  }
+
+  setDelegationEnabled(id: string, enabled: boolean) {
+    const session = this.getSession(id)
+    session.delegationEnabled = Boolean(enabled)
+    return this.saveSession(session)
+  }
+
+  setActiveRun(id: string, activeRun: HarnessSession['activeRun']) {
+    const session = this.getSession(id)
+    session.activeRun = activeRun
+    return this.saveSession(session)
+  }
+
+  setActivePlan(id: string, plan: HarnessPlan | undefined) {
+    const session = this.getSession(id)
+    session.activePlan = plan
+    return this.saveSession(session)
+  }
+
+  updatePlan(id: string, patch: Partial<HarnessPlan>) {
+    const session = this.getSession(id)
+    if (!session.activePlan) throw new Error('当前没有计划')
+    session.activePlan = { ...session.activePlan, ...patch, updatedAt: now() }
+    return this.saveSession(session)
+  }
+
+  confirmPlan(id: string, planId: string) {
+    const session = this.getSession(id)
+    if (!session.activePlan || session.activePlan.id !== planId) throw new Error('计划不存在')
+    if (session.activePlan.status !== 'ready') throw new Error('计划当前不可执行')
+    session.activePlan = { ...session.activePlan, status: 'executing', confirmedAt: now(), updatedAt: now() }
+    return this.saveSession(session)
+  }
+
+  cancelPlan(id: string, planId: string) {
+    const session = this.getSession(id)
+    if (!session.activePlan || session.activePlan.id !== planId) throw new Error('计划不存在')
+    session.activePlan = { ...session.activePlan, status: 'cancelled', cancelledAt: now(), updatedAt: now() }
+    return this.saveSession(session)
+  }
+
+  recoverInterruptedSubtasks() {
+    const rows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
+    for (const row of rows) {
+      let session: HarnessSession
+      try { session = this.getSession(row.id) } catch { continue }
+      if (!session.activeRun) continue
+      let changed = false
+      for (const task of session.activeRun.subtasks) {
+        if (task.status === 'queued' || task.status === 'running' || task.status === 'stopping') {
+          task.status = 'interrupted'; task.completedAt = now(); changed = true
+        }
+      }
+      if (session.activePlan?.status === 'planning') {
+        session.activePlan = { ...session.activePlan, status: 'awaiting_input', updatedAt: now() }
+        changed = true
+      }
+      if (changed) this.saveSession(session)
+    }
+    // Plans are persisted independently of active runs. A planning session that
+    // was interrupted before an active run was created must remain discussable.
+    const planRows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
+    for (const row of planRows) {
+      let session: HarnessSession
+      try { session = this.getSession(row.id) } catch { continue }
+      if (session.activePlan?.status !== 'planning') continue
+      session.activePlan = { ...session.activePlan, status: 'awaiting_input', updatedAt: now() }
+      this.saveSession(session)
+    }
   }
 
   attachDirectory(sessionId: string, directory: string) {
