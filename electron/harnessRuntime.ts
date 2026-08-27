@@ -1,7 +1,7 @@
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { createSandboxedEnv, wrapHarnessTool } from './agentTools'
 import { createWebFetchTool, createWebSearchTool } from './webTools'
-import type { MemoryScope } from './fileMemoryStore'
+import { classifyMemoryContent, type MemoryScope } from './fileMemoryStore'
 import type { McpManager } from './mcpManager'
 import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type ModelSelection, type PermissionMode } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -38,6 +38,7 @@ function emit(sender: WebContents | undefined, event: HarnessEvent) {
 
 type RunOrigin = 'manual' | 'automation'
 type RunCompleteEvent = { session: HarnessSession, origin: RunOrigin, status: 'completed' | 'failed' | 'aborted', content?: string }
+type ExtractedMemory = { decision: 'save' | 'no_memory', sensitivity: MemorySensitivity, content?: string, redactedContent?: string }
 
 function messageContent(message: HarnessMessage) {
   if (!message.attachments?.length) return message.content
@@ -124,6 +125,26 @@ function argumentSummary(args: unknown) {
     .slice(0, 240)
 }
 
+export function parseMemoryExtraction(text: string): ExtractedMemory {
+  const value = text.trim()
+  if (!value || value === 'NO_MEMORY') return { decision: 'no_memory', sensitivity: 'none' }
+  const jsonText = value.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  try {
+    const parsed = JSON.parse(jsonText) as Record<string, unknown>
+    const decision = parsed.decision === 'no_memory' ? 'no_memory' : parsed.decision === 'save' ? 'save' : undefined
+    const sensitivity = parsed.sensitivity === 'secret' || parsed.sensitivity === 'personal' ? parsed.sensitivity : parsed.sensitivity === 'none' ? 'none' : undefined
+    if (decision && sensitivity) return {
+      decision,
+      sensitivity,
+      content: typeof parsed.content === 'string' ? parsed.content.trim() : undefined,
+      redactedContent: typeof parsed.redactedContent === 'string' ? parsed.redactedContent.trim() : undefined,
+    }
+  } catch { /* rejected below */ }
+  // Some compatible models return a normal Markdown summary despite the JSON instruction.
+  // Preserve the existing deterministic safety checks instead of turning that into an IPC error.
+  return { decision: 'save', sensitivity: 'none', content: value }
+}
+
 function permissionTitle(name: string, args: Record<string, unknown>) {
   if (name === 'delete_file') return '允许 Mira 删除这个文件？'
   if (name === 'edit') return '允许 Mira 编辑这个文件？'
@@ -140,6 +161,7 @@ export class HarnessRuntime {
   private readonly running = new Map<string, { controller: AbortController, agent?: Agent }>()
   private readonly runningProjects = new Map<string, string>()
   private readonly memoryWrites = new Map<string, Promise<void>>()
+  private readonly memoryConfirmations = new Map<string, { resolve: (approved: boolean) => void, timer: ReturnType<typeof setTimeout>, candidate: MemoryCandidate }>()
   private readonly completeListeners = new Set<(event: RunCompleteEvent) => void>()
   constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager, backgroundEventPublisher?: (event: HarnessEvent) => void) {
     publishBackgroundEvent = backgroundEventPublisher
@@ -210,34 +232,39 @@ export class HarnessRuntime {
     this.database.harness.recordTool(sessionId, { id: recordId, tool: 'memory_auto_save', target, status: 'running', createdAt: startedAt })
     this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, status: 'running', timestamp: startedAt })
     emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'running' } })
-    const result = await generateSummaryWithUsage(
-      session.messages.map(message => this.toAgentMessage(message, model)) as any,
-      models,
-      model,
-      2048,
-      undefined,
-      scope === 'project'
-        ? 'Generate one concise project memory for future conversations in this project. Include only durable project-specific facts, conventions, decisions, and reusable work habits. Exclude private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section. If no durable fact should be saved, return exactly NO_MEMORY.'
-        : 'Generate one concise global memory for future conversations. Include only durable user preferences, long-term personal context, and reusable work habits that remain useful across projects. Exclude project-specific rules, directory details, one-off task details, private data, credentials, tokens, addresses, medical information, financial information, and transient discussion. Do not include a next-steps section. If no durable fact should be saved, return exactly NO_MEMORY.',
-      undefined,
-      thinkingLevel as any,
-    )
-    if (!result.ok) throw new Error('自动提炼记忆失败')
-    const content = result.value.text.trim()
-    if (!content || content === 'NO_MEMORY') {
-      const diff = `- ${scope === 'project' ? '项目' : '全局'}记忆：没有可保存的长期事实\n- ${target}`
-      const completedAt = Date.now(); this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt })
-      this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, result: diff, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
-      emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
-      return
+    try {
+      const result = await generateSummaryWithUsage(
+        session.messages.map(message => this.toAgentMessage(message, model)) as any,
+        models,
+        model,
+        2048,
+        undefined,
+        `${scope === 'project' ? 'project' : 'global'} memory extraction. Return JSON only: {"decision":"save"|"no_memory","sensitivity":"none"|"personal"|"secret","content":"...","redactedContent":"..."}. Save only durable facts. Exclude credentials, tokens, passwords, private keys, addresses, health, financial and transient details. For personal data, provide a safe redactedContent. If no durable fact should be saved, return decision no_memory.`,
+        undefined,
+        thinkingLevel as any,
+      )
+      if (!result.ok) throw new Error(result.error instanceof Error ? result.error.message : '自动提炼记忆失败')
+      const extracted = parseMemoryExtraction(result.value.text)
+      if (extracted.decision === 'no_memory' || !extracted.content) return this.finishMemoryTool(sender, sessionId, recordId, target, 'ok', '- 没有可保存的长期事实')
+      const classified = classifyMemoryContent(extracted.content)
+      const sensitivity = classified.sensitivity === 'secret' || extracted.sensitivity === 'secret' ? 'secret' : classified.sensitivity === 'personal' || extracted.sensitivity === 'personal' ? 'personal' : 'none'
+      if (sensitivity !== 'none') return this.finishMemoryTool(sender, sessionId, recordId, target, 'ok', sensitivity === 'secret' ? '- 出于安全原因未保存敏感秘密' : '- 自动记忆包含个人敏感信息，未主动保存')
+      const saved = this.database.memories.remember(scope, extracted.content, session.projectId, { source: 'auto', sensitivity: 'none' })
+      return this.finishMemoryTool(sender, sessionId, recordId, target, 'ok', saved.created ? `- ${scope === 'project' ? '项目' : '全局'}记忆：新增 1 条\n- [${saved.entry.id}] ${saved.entry.content}` : `- ${scope === 'project' ? '项目' : '全局'}记忆：已有相同条目\n- [${saved.entry.id}] ${saved.entry.content}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.database.harness.updateTool(sessionId, recordId, { status: 'failed', error: message, completedAt: Date.now() })
+      this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, error: message, status: 'failed', timestamp: Date.now(), durationMs: Date.now() - startedAt })
+      emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'failed', error: message } })
+      throw error
     }
-    const saved = this.database.memories.remember(scope, content, session.projectId)
-    const diff = saved.created
-      ? `- ${scope === 'project' ? '项目' : '全局'}记忆：新增 1 条\n- [${saved.entry.id}] ${saved.entry.content}`
-      : `- ${scope === 'project' ? '项目' : '全局'}记忆：已有相同条目\n- [${saved.entry.id}] ${saved.entry.content}`
-    const completedAt = Date.now(); this.database.harness.updateTool(sessionId, recordId, { status: 'ok', diff, completedAt })
-    this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, result: diff, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
-    emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'ok', diff } })
+  }
+
+  private finishMemoryTool(sender: WebContents | undefined, sessionId: string, recordId: string, target: string, status: 'ok' | 'failed', diff: string) {
+    const completedAt = Date.now()
+    this.database.harness.updateTool(sessionId, recordId, { status, diff, completedAt })
+    this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, result: diff, status: status === 'ok' ? 'completed' : 'failed', timestamp: completedAt })
+    emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status, diff } })
   }
 
   private retainedStart(messages: HarnessMessage[], model: { api: string, provider: string, id: string }, maximumTokens = 20000) {
@@ -325,6 +352,28 @@ export class HarnessRuntime {
     clearTimeout(entry.timer)
     this.pendingPermissions.delete(requestId)
     entry.resolve(allowed)
+  }
+
+  private async requestMemoryConfirmation(sender: WebContents, sessionId: string, candidate: MemoryCandidate) {
+    const requestId = randomUUID()
+    const promise = new Promise<boolean>(resolve => {
+      const timer = setTimeout(() => {
+        this.memoryConfirmations.delete(requestId)
+        emit(sender, { sessionId, type: 'memory-status', payload: { status: 'rejected', requestId, candidateId: candidate.id, reason: '确认超时' } })
+        resolve(false)
+      }, 5 * 60 * 1000)
+      this.memoryConfirmations.set(requestId, { resolve, timer, candidate })
+    })
+    emit(sender, { sessionId, type: 'memory-status', payload: { status: 'needs_confirmation', requestId, candidateId: candidate.id, content: candidate.redactedContent } })
+    return { requestId, approved: await promise }
+  }
+
+  respondMemoryConfirmation(requestId: string, approved: boolean) {
+    const entry = this.memoryConfirmations.get(requestId)
+    if (!entry) return
+    clearTimeout(entry.timer)
+    this.memoryConfirmations.delete(requestId)
+    entry.resolve(Boolean(approved))
   }
 
   private async preflightToolCall(sender: WebContents | undefined, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown, automation = false, permissionMode?: PermissionMode) {
@@ -426,15 +475,53 @@ export class HarnessRuntime {
       }, { risk: 'read', title: () => '', detail: () => '' }),
       register({
         name: 'remember_memory', label: '保存记忆', description: '仅在用户明确要求记住某项长期事实时保存到指定范围。内容必须是稳定、可复用的事实或偏好。',
-        parameters: Type.Object({ content: Type.String(), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
-        execute: async (_id: string, params: { content: string, scope: string }) => {
+        parameters: Type.Object({ content: Type.String(), redactedContent: Type.Optional(Type.String()), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
+        execute: async (_id: string, params: { content: string, redactedContent?: string, scope: string }) => {
           const scope = memoryScope(params.scope); const target = this.database.memories.path(scope, session().projectId); const id = record('remember_memory', target)
           try {
-            const result = this.database.memories.remember(scope, params.content, session().projectId)
+            const classified = classifyMemoryContent(params.content)
+            if (classified.sensitivity === 'secret') {
+              const diff = '- 出于安全原因，未保存高风险秘密'
+              finish(id, 'ok', diff)
+              emit(sender, { sessionId, type: 'memory-status', payload: { status: 'blocked_secret', candidateId: id } })
+              return { content: [{ type: 'text', text: '出于安全原因，不能将这类敏感信息保存到长期记忆。' }], details: { scope, path: target, status: 'blocked_secret' } }
+            }
+            if (classified.sensitivity === 'personal') {
+              const redactedContent = typeof params.redactedContent === 'string' && params.redactedContent.trim() ? params.redactedContent.trim() : classified.redactedContent
+              if (!redactedContent) {
+                const diff = '- 个人敏感信息未提供安全脱敏内容，未保存'
+                finish(id, 'ok', diff)
+                emit(sender, { sessionId, type: 'memory-status', payload: { status: 'blocked_secret', candidateId: id } })
+                return { content: [{ type: 'text', text: '这类个人敏感信息没有可用的安全脱敏版本，未保存。' }], details: { scope, path: target, status: 'blocked_secret' } }
+              }
+              const candidate: MemoryCandidate = { id, sessionId, scope, projectId: session().projectId, source: 'explicit', decision: 'save', sensitivity: 'personal', redactedContent, status: 'candidate', createdAt: Date.now(), updatedAt: Date.now() }
+              this.database.memories.savePending({ ...candidate, status: 'needs_confirmation' })
+              this.database.harness.updateTool(sessionId, id, { status: 'waiting-confirm' })
+              emit(sender, { sessionId, type: 'tool-call', payload: { id, tool: 'remember_memory', target, status: 'waiting-confirm' } })
+              const confirmation = await this.requestMemoryConfirmation(sender, sessionId, candidate)
+              if (!confirmation.approved) {
+                this.database.memories.removePending(candidate.id)
+                finish(id, 'ok', '- 用户拒绝保存脱敏记忆')
+                return { content: [{ type: 'text', text: '已取消保存这条敏感个人信息。' }], details: { scope, path: target, status: 'rejected' } }
+              }
+              const result = this.database.memories.remember(scope, redactedContent, session().projectId, { source: 'explicit', sensitivity: 'personal', allowPersonal: true, sourceSessionId: sessionId })
+              this.database.memories.removePending(candidate.id)
+              const diff = result.created ? `- ${memoryScopeLabel(scope)}：新增 1 条\n- [${result.entry.id}] ${result.entry.content}` : `- ${memoryScopeLabel(scope)}：已有相同记忆\n- [${result.entry.id}] ${result.entry.content}`
+              finish(id, 'ok', diff)
+              emit(sender, { sessionId, type: 'memory-status', payload: { status: result.created ? 'saved' : 'duplicate', candidateId: id, entryId: result.entry.id, content: result.entry.content } })
+              return { content: [{ type: 'text', text: result.created ? `已保存记忆 [${result.entry.id}]。` : `该记忆已存在 [${result.entry.id}]。` }], details: { scope, id: result.entry.id, path: target, created: result.created } }
+            }
+            const result = this.database.memories.remember(scope, params.content, session().projectId, { source: 'explicit', sensitivity: 'none', sourceSessionId: sessionId })
             const diff = result.created ? `- ${memoryScopeLabel(scope)}：新增 1 条\n- [${result.entry.id}] ${result.entry.content}` : `- ${memoryScopeLabel(scope)}：新增 0 条，已有相同记忆\n- [${result.entry.id}] ${result.entry.content}`
             finish(id, 'ok', diff)
+            emit(sender, { sessionId, type: 'memory-status', payload: { status: result.created ? 'saved' : 'duplicate', candidateId: id, entryId: result.entry.id, content: result.entry.content } })
             return { content: [{ type: 'text', text: result.created ? `已保存记忆 [${result.entry.id}]。` : `该记忆已存在 [${result.entry.id}]。` }], details: { scope, id: result.entry.id, path: target, created: result.created } }
-          } catch (error) { finish(id, 'failed'); throw error }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            const classified = classifyMemoryContent(params.content)
+            if (classified.sensitivity !== 'secret') this.database.memories.savePending({ id, sessionId, scope: params.scope as MemoryScope, projectId: session().projectId, source: 'explicit', decision: 'save', sensitivity: classified.sensitivity, content: classified.sensitivity === 'none' ? params.content.trim() : undefined, redactedContent: params.redactedContent?.trim() || classified.redactedContent, status: 'failed', error: message, createdAt: Date.now(), updatedAt: Date.now() })
+            finish(id, 'failed'); emit(sender, { sessionId, type: 'memory-status', payload: { status: 'failed', candidateId: id, error: message } }); throw error
+          }
         },
       }, { risk: 'read', title: () => '', detail: () => '' }),
       register({
@@ -501,6 +588,28 @@ export class HarnessRuntime {
     const apiKey = this.database.models.getSecret(selection.providerId)
     if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
     return { provider, apiKey }
+  }
+
+  listMemory(scope: MemoryScope, projectId?: string) { return this.database.memories.list(scope, projectId) }
+  rememberMemory(content: string) {
+    if (!this.database.memories.enabled()) throw new Error('请先启用记忆后再保存')
+    return this.database.memories.remember('global', content, undefined, { source: 'manual' })
+  }
+  updateMemory(scope: MemoryScope, id: string, content: string, projectId?: string) { return this.database.memories.update(scope, id, content, projectId) }
+  deleteMemory(scope: MemoryScope, id: string, projectId?: string) { return this.database.memories.delete(scope, id, projectId) }
+  listPendingMemory() { return this.database.memories.listPending() }
+  discardPendingMemory(candidateId: string) { this.database.memories.removePending(candidateId) }
+
+  async retryMemory(candidateId: string) {
+    const candidate = this.database.memories.listPending().find(item => item.id === candidateId)
+    if (!candidate) throw new Error('未找到待重试的记忆候选')
+    const content = candidate.redactedContent || candidate.content
+    if (!content) throw new Error('该记忆需要重新提炼原会话，请在原会话中重新发起记忆请求')
+    const classified = classifyMemoryContent(content)
+    if (classified.sensitivity === 'secret') throw new Error('记忆内容包含高风险秘密，未写入')
+    const result = this.database.memories.remember(candidate.scope, content, candidate.projectId, { source: candidate.source, sourceSessionId: candidate.sessionId, sensitivity: classified.sensitivity, allowPersonal: classified.sensitivity === 'personal' })
+    this.database.memories.removePending(candidateId)
+    emit(undefined, { sessionId: candidate.sessionId || '', type: 'memory-status', payload: { status: result.created ? 'saved' : 'duplicate', candidateId, entryId: result.entry.id, content: result.entry.content } })
   }
 
   async saveProjectMemory(sender: WebContents, sessionId: string, selection?: ModelSelection) {
@@ -761,18 +870,9 @@ export class HarnessRuntime {
       this.database.harness.setStatus(sessionId, 'completed')
       this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
-      const memoryWrite = origin === 'manual' ? this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off')
+      const memoryWrite = origin === 'manual'
+        ? this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off').catch(() => undefined)
         : Promise.resolve()
-        .catch(error => {
-          const target = session.projectId ? this.database.memories.path('project', session.projectId) : this.database.memories.path('global')
-          const record = this.database.harness.getSession(sessionId).toolCalls.find(item => item.tool === 'memory_auto_save' && item.status === 'running')
-          if (record) {
-            const message = error instanceof Error ? error.message : String(error)
-            const completedAt = Date.now(); this.database.harness.updateTool(sessionId, record.id, { status: 'failed', error: message, completedAt })
-            this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, error: message, status: 'failed', timestamp: completedAt, durationMs: completedAt - record.createdAt })
-            emit(sender, { sessionId, type: 'tool-call', payload: { id: record.id, tool: 'memory_auto_save', target, status: 'failed', error: message } })
-          }
-        })
       this.memoryWrites.set(sessionId, memoryWrite)
       void memoryWrite.finally(() => {
         if (this.memoryWrites.get(sessionId) === memoryWrite) this.memoryWrites.delete(sessionId)

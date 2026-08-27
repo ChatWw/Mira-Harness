@@ -563,10 +563,14 @@ export class HarnessStore {
       const relativePath = relative(project.directory, candidate)
       if (relativePath && !relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath)) {
         const target = this.projectFilePath(project, relativePath)
-        return { path: relative(project.directory, target), name: basename(target) }
+        // 引用路径沿用“原始相对路径”（而非用 realpath 回算 relative），
+        // 避免 macOS（/var → /private/var）与 Windows（符号链接 / junction / 盘符大小写）
+        // 下 project.directory 与 realpath 前缀不一致，从而拼出 ../.. 逃逸路径。
+        return { path: relativePath, name: basename(target) }
       }
-      const target = this.externalFilePath(candidate)
-      return { path: target, name: basename(target) }
+      // 外部文件：存 resolve 后的绝对路径（非 realpath）作为引用；读取端会经
+      // attachmentFilePath → externalFilePath 再次 realpathSync，跨平台稳定且显示与来源一致。
+      return { path: candidate, name: basename(candidate) }
     })
     this.resolveAttachments(project, references)
     return references

@@ -157,6 +157,14 @@ export interface PlatformApi {
   setHarnessMemoryEnabled(enabled: boolean): Promise<boolean>
   getHarnessMemoryPath(): Promise<string>
   resetHarnessMemory(): Promise<number>
+  listHarnessMemory(scope: 'global' | 'project', projectId?: string): Promise<import('@/config/harness').HarnessMemoryEntry[]>
+  rememberHarnessMemory(content: string): Promise<import('@/config/harness').HarnessMemoryEntry>
+  updateHarnessMemory(scope: 'global' | 'project', id: string, content: string, projectId?: string): Promise<import('@/config/harness').HarnessMemoryEntry>
+  deleteHarnessMemory(scope: 'global' | 'project', id: string, projectId?: string): Promise<void>
+  listPendingHarnessMemory(): Promise<import('@/config/harness').MemoryCandidate[]>
+  discardHarnessMemory(candidateId: string): Promise<void>
+  retryHarnessMemory(candidateId: string): Promise<void>
+  respondHarnessMemoryConfirmation(requestId: string, approved: boolean): Promise<void>
   listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>

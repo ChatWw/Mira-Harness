@@ -12,7 +12,7 @@ import { MiraPaths } from './miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { AutomationRun, AutomationTaskInput, HarnessEvent, HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, ModelProviderInput } from '../src/config/harness'
+import type { AutomationRun, AutomationTaskInput, HarnessEvent, HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, MemoryScope, ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -282,6 +282,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:set-memory-enabled', (_event, enabled: boolean) => database.memories.setEnabled(enabled))
   ipcMain.handle('harness:get-memory-path', () => database.memories.path('global'))
   ipcMain.handle('harness:reset-memory', () => database.memories.resetGlobal())
+  ipcMain.handle('harness:list-memory', (_event, scope: MemoryScope, projectId?: string) => harnessRuntime.listMemory(scope, projectId))
+  ipcMain.handle('harness:remember-memory', (_event, content: string) => harnessRuntime.rememberMemory(content))
+  ipcMain.handle('harness:update-memory', (_event, scope: MemoryScope, id: string, content: string, projectId?: string) => harnessRuntime.updateMemory(scope, id, content, projectId))
+  ipcMain.handle('harness:delete-memory', (_event, scope: MemoryScope, id: string, projectId?: string) => harnessRuntime.deleteMemory(scope, id, projectId))
+  ipcMain.handle('harness:list-pending-memory', () => harnessRuntime.listPendingMemory())
+  ipcMain.handle('harness:discard-pending-memory', (_event, candidateId: string) => harnessRuntime.discardPendingMemory(candidateId))
+  ipcMain.handle('harness:retry-memory', (_event, candidateId: string) => harnessRuntime.retryMemory(candidateId))
+  ipcMain.handle('harness:respond-memory-confirmation', (_event, requestId: string, approved: boolean) => harnessRuntime.respondMemoryConfirmation(requestId, approved))
   ipcMain.handle('harness:list-git-branches', (_event, projectId: string) => database.harness.listGitBranches(projectId))
   ipcMain.handle('harness:checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.checkoutGitBranch(projectId, branchName))
   ipcMain.handle('harness:create-and-checkout-git-branch', (_event, projectId: string, branchName: string) => database.harness.createAndCheckoutGitBranch(projectId, branchName))

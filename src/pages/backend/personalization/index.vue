@@ -50,7 +50,22 @@
           <el-button type="danger" plain :loading="memoryResetting" @click="resetMemory">重置</el-button>
         </div>
       </div>
-      <p v-if="memoryPath" class="file-hint">全局记忆文件：{{ memoryPath }}。关联项目后的会话会使用独立的项目记忆文件。</p>
+      <p v-if="memoryPath" class="file-hint">关闭记忆不会删除本地数据，只会暂停对话中的读取和自动写入。全局记忆文件：{{ memoryPath }}。</p>
+      <div class="memory-manager">
+        <div class="memory-manager__header"><strong>全局记忆</strong><el-button size="small" @click="addMemory">新增记忆</el-button></div>
+        <el-empty v-if="!memoryEntries.length" description="还没有全局记忆" :image-size="52" />
+        <div v-for="entry in memoryEntries" :key="entry.id" class="memory-entry">
+          <div class="memory-entry__content"><p>{{ entry.content }}</p><small>{{ memorySourceLabel(entry.source) }} · {{ formatMemoryTime(entry.updatedAt) }}<template v-if="entry.sourceSessionId"> · 会话 {{ entry.sourceSessionId.slice(0, 8) }}</template></small></div>
+          <div class="memory-entry__actions"><el-button text size="small" @click="editMemory(entry)">编辑</el-button><el-button text type="danger" size="small" @click="deleteMemory(entry)">删除</el-button></div>
+        </div>
+      </div>
+      <div v-if="pendingMemory.length" class="memory-manager">
+        <div class="memory-manager__header"><strong>待处理记忆</strong></div>
+        <div v-for="candidate in pendingMemory" :key="candidate.id" class="memory-entry">
+          <div class="memory-entry__content"><p>{{ candidate.redactedContent || '需要回到来源会话重新提炼' }}</p><small>{{ candidate.error || '保存未完成' }}</small></div>
+          <div class="memory-entry__actions"><el-button text size="small" @click="retryMemory(candidate.id)">重试</el-button><el-button text type="danger" size="small" @click="discardMemory(candidate.id)">放弃</el-button></div>
+        </div>
+      </div>
     </section>
 
     <section class="personalization-section" aria-labelledby="identity-heading">
@@ -121,7 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessSkill } from '@/config/harness'
+import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type HarnessSkill, type MemoryCandidate, type MemorySource } from '@/config/harness'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
@@ -132,6 +147,9 @@ const memoryEnabled = ref(false)
 const memoryPath = ref('')
 const memorySaving = ref(false)
 const memoryResetting = ref(false)
+const memoryEntries = ref<HarnessMemoryEntry[]>([])
+const pendingMemory = ref<MemoryCandidate[]>([])
+const memoryManaging = ref(false)
 const skills = ref<HarnessSkill[]>([])
 const skillDirectories = ref('')
 const skillsSaving = ref(false)
@@ -146,9 +164,9 @@ const editingMiraAssistantName = ref(false)
 async function load() {
   const api = getPlatformApi()
   if (!api) return
-  const [content, path, enabled, savedMemoryPath, skillSettings, loadedSkills] = await Promise.all([
+  const [content, path, enabled, savedMemoryPath, skillSettings, loadedSkills, entries, pending] = await Promise.all([
     api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
-    api.getHarnessSkillSettings(), api.listHarnessSkills(),
+    api.getHarnessSkillSettings(), api.listHarnessSkills(), api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
   ])
   instructions.value = content
   instructionsPath.value = path
@@ -156,6 +174,55 @@ async function load() {
   memoryPath.value = savedMemoryPath
   skillDirectories.value = skillSettings.directories.join('\n')
   skills.value = loadedSkills
+  memoryEntries.value = entries
+  pendingMemory.value = pending
+}
+
+async function refreshMemory() {
+  const api = getPlatformApi(); if (!api) return
+  const [entries, pending] = await Promise.all([api.listHarnessMemory('global'), api.listPendingHarnessMemory()])
+  memoryEntries.value = entries; pendingMemory.value = pending
+}
+
+function memorySourceLabel(source: MemorySource) {
+  return ({ auto: '自动提炼', explicit: '用户请求', manual: '手动新增', legacy: '已有记忆' } as Record<MemorySource, string>)[source]
+}
+
+function formatMemoryTime(value: number) { return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value) }
+
+async function addMemory() {
+  const api = getPlatformApi(); if (!api || memoryManaging.value) return
+  try {
+    const { value } = await ElMessageBox.prompt('输入长期有效的偏好或事实。高风险秘密不会保存。', '新增全局记忆', { inputPattern: /\S+/, inputErrorMessage: '记忆内容不能为空', confirmButtonText: '保存', cancelButtonText: '取消' })
+    memoryManaging.value = true; await api.rememberHarnessMemory(value); await refreshMemory(); ElMessage.success('已保存记忆')
+  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '保存记忆失败') } finally { memoryManaging.value = false }
+}
+
+async function editMemory(entry: HarnessMemoryEntry) {
+  const api = getPlatformApi(); if (!api || memoryManaging.value) return
+  try {
+    const { value } = await ElMessageBox.prompt('编辑后的内容会立即用于后续对话。', '编辑全局记忆', { inputValue: entry.content, inputPattern: /\S+/, inputErrorMessage: '记忆内容不能为空', confirmButtonText: '保存', cancelButtonText: '取消' })
+    memoryManaging.value = true; await api.updateHarnessMemory('global', entry.id, value); await refreshMemory(); ElMessage.success('记忆已更新')
+  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '更新记忆失败') } finally { memoryManaging.value = false }
+}
+
+async function deleteMemory(entry: HarnessMemoryEntry) {
+  const api = getPlatformApi(); if (!api || memoryManaging.value) return
+  try { await ElMessageBox.confirm('删除后不会再注入未来对话，且无法恢复。', '删除记忆', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }) } catch { return }
+  memoryManaging.value = true
+  try { await api.deleteHarnessMemory('global', entry.id); await refreshMemory(); ElMessage.success('记忆已删除') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '删除记忆失败') } finally { memoryManaging.value = false }
+}
+
+async function retryMemory(id: string) {
+  const api = getPlatformApi(); if (!api || memoryManaging.value) return
+  memoryManaging.value = true
+  try { await api.retryHarnessMemory(id); await refreshMemory(); ElMessage.success('记忆已保存') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重试保存失败') } finally { memoryManaging.value = false }
+}
+
+async function discardMemory(id: string) {
+  const api = getPlatformApi(); if (!api || memoryManaging.value) return
+  memoryManaging.value = true
+  try { await api.discardHarnessMemory(id); await refreshMemory() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '放弃记忆失败') } finally { memoryManaging.value = false }
 }
 
 async function saveSkillSettings() {
@@ -280,4 +347,5 @@ onMounted(() => { void load() })
 .personalization-alert { margin: 0 0 14px; }
 .assistant-tone-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
 .skill-list { margin-top: 12px; overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }.skill-list .file-hint { padding: 12px 16px; }
+.memory-manager { margin-top: 14px; overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }.memory-manager__header { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid var(--cp-border-light); color: var(--cp-text); font-size: $font-sm; }.memory-entry { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 14px; }.memory-entry + .memory-entry { border-top: 1px solid var(--cp-border-light); }.memory-entry__content { min-width: 0; }.memory-entry__content p { margin: 0; color: var(--cp-text); font-size: $font-sm; line-height: 1.5; white-space: pre-wrap; }.memory-entry__content small { display: block; margin-top: 5px; color: var(--cp-text-tertiary); font-size: $font-xs; }.memory-entry__actions { display: flex; flex: 0 0 auto; gap: 2px; }
 </style>

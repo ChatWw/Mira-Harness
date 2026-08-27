@@ -3,6 +3,38 @@ export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type SendShortcut = 'enter' | 'mod-enter'
 export type AssistantTone = 'casual' | 'professional'
+export type MemorySource = 'auto' | 'explicit' | 'manual' | 'legacy'
+export type MemorySensitivity = 'none' | 'personal' | 'secret'
+export type MemoryLifecycleStatus = 'candidate' | 'no_memory' | 'blocked_secret' | 'needs_confirmation' | 'saved' | 'duplicate' | 'failed' | 'rejected'
+
+export interface MemoryCandidate {
+  id: string
+  sessionId?: string
+  messageId?: string
+  scope: 'global' | 'project'
+  projectId?: string
+  source: Exclude<MemorySource, 'legacy'>
+  decision: 'save' | 'no_memory'
+  sensitivity: MemorySensitivity
+  content?: string
+  redactedContent?: string
+  status: MemoryLifecycleStatus
+  error?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface HarnessMemoryEntry {
+  id: string
+  content: string
+  scope: 'global' | 'project'
+  projectId?: string
+  source: MemorySource
+  sourceSessionId?: string
+  sensitivity: MemorySensitivity
+  createdAt: number
+  updatedAt: number
+}
 
 export interface MiraIdentity {
   userName: string
@@ -334,7 +366,7 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status'
   payload: Record<string, unknown>
 }
 

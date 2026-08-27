@@ -1332,6 +1332,16 @@ watch(() => store.activeSession?.id, () => {
 watch(slashOptions, options => {
   if (slashMenuIndex.value >= options.length) slashMenuIndex.value = 0
 })
+watch(() => store.pendingMemoryConfirmations[store.activeSession?.id || ''], async request => {
+  const sessionId = store.activeSession?.id
+  if (!request || !sessionId) return
+  try {
+    await ElMessageBox.confirm(`以下脱敏后的内容将保存到长期记忆：\n\n${request.content}`, '确认保存敏感个人信息', { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '不保存', distinguishCancelAndClose: true })
+    await store.respondMemoryConfirmation(sessionId, true)
+  } catch {
+    await store.respondMemoryConfirmation(sessionId, false)
+  }
+})
 watch(() => {
   const messages = store.activeSession?.messages
   return [messages?.length, messages?.[messages.length - 1]?.content]

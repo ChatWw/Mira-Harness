@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { FileMemoryStore } from '../electron/fileMemoryStore'
+import { classifyMemoryContent, FileMemoryStore } from '../electron/fileMemoryStore'
 import { MiraPaths } from '../electron/miraPaths'
 
 const roots: string[] = []
@@ -51,5 +51,34 @@ describe('FileMemoryStore', () => {
   it('refuses project memory without an attached project', () => {
     const { store } = createStore()
     expect(() => store.remember('project', '项目约定')).toThrow('关联项目')
+  })
+
+  it('stores metadata separately while retaining editable Markdown compatibility', () => {
+    const { paths, store } = createStore()
+    const saved = store.remember('global', '用户偏好使用 pnpm', undefined, { source: 'explicit', sourceSessionId: 'session-1' })
+    const [entry] = store.list('global')
+    expect(entry).toMatchObject({ id: saved.entry.id, source: 'explicit', sourceSessionId: 'session-1', sensitivity: 'none' })
+    const updated = store.update('global', entry.id, '用户偏好在 Vue 项目中使用 pnpm')
+    expect(updated.id).toBe(entry.id)
+    expect(updated.updatedAt).toBeGreaterThanOrEqual(entry.updatedAt)
+    expect(readFileSync(paths.globalMemoryMeta(), 'utf8')).toContain('session-1')
+    store.delete('global', entry.id)
+    expect(store.list('global')).toEqual([])
+  })
+
+  it('allows technical terminology but blocks real secrets and classifies personal data', () => {
+    const { store } = createStore()
+    expect(() => store.remember('global', '项目使用 token 作为分页标记')).not.toThrow()
+    expect(() => store.remember('global', 'API key 从环境变量读取，不写入代码')).not.toThrow()
+    expect(() => store.remember('global', 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz')).toThrow('敏感信息')
+    expect(classifyMemoryContent('用户邮箱为 test@example.com')).toMatchObject({ sensitivity: 'personal', redactedContent: '用户邮箱为 [邮箱]' })
+  })
+
+  it('persists safe pending candidates for retry', () => {
+    const { store } = createStore()
+    store.savePending({ id: 'candidate-1', scope: 'global', source: 'explicit', decision: 'save', sensitivity: 'none', content: '用户偏好简洁回复', status: 'failed', error: 'temporary failure', createdAt: 1, updatedAt: 1 })
+    expect(store.listPending()).toHaveLength(1)
+    store.removePending('candidate-1')
+    expect(store.listPending()).toEqual([])
   })
 })

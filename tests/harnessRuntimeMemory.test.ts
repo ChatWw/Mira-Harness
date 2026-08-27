@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PlatformDatabase } from '../electron/database'
-import { HarnessRuntime } from '../electron/harnessRuntime'
+import { HarnessRuntime, parseMemoryExtraction } from '../electron/harnessRuntime'
 
 const roots: string[] = []
 
@@ -23,6 +23,14 @@ function memoryTool(runtime: HarnessRuntime, sender: any, sessionId: string, nam
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })) )
 
 describe('HarnessRuntime file memory tools', () => {
+  it('accepts a non-JSON model summary as a memory candidate', () => {
+    expect(parseMemoryExtraction('## Goal\n- Keep replies in Chinese')).toEqual({
+      decision: 'save',
+      sensitivity: 'none',
+      content: '## Goal\n- Keep replies in Chinese',
+    })
+  })
+
   it('rejects explicit project-memory saves when memory is disabled or the session has no project', async () => {
     const { database, runtime, sender } = createRuntime()
     const temporary = database.harness.createSession()
@@ -82,6 +90,29 @@ describe('HarnessRuntime file memory tools', () => {
     await projectRemember.execute('remember-project', { scope: 'project', content: '项目采用 Vitest' })
     expect(database.memories.search('project', 'Vitest', project.id)).toHaveLength(1)
     expect(database.memories.search('global', 'Vitest')).toEqual([])
+    database.close()
+  })
+
+  it('blocks real secrets without persisting them while keeping technical memory terms usable', async () => {
+    const { database, runtime, sender } = createRuntime()
+    database.memories.setEnabled(true)
+    const session = database.harness.createSession()
+    const remember = memoryTool(runtime, sender, session.id, 'remember_memory')
+
+    const blocked = await remember.execute('remember-secret', { scope: 'global', content: 'apiKey=abcdefghijklmnopqrstuvwx' })
+    expect(blocked.content[0].text).toContain('不能将这类敏感信息保存')
+    expect(database.memories.list('global')).toEqual([])
+    await remember.execute('remember-term', { scope: 'global', content: '项目使用 token 作为分页标记' })
+    expect(database.memories.list('global')).toHaveLength(1)
+    database.close()
+  })
+
+  it('retries persisted safe candidates without rerunning the conversation', async () => {
+    const { database, runtime } = createRuntime()
+    database.memories.savePending({ id: 'candidate-1', sessionId: 'missing-session', scope: 'global', source: 'explicit', decision: 'save', sensitivity: 'none', content: '用户偏好专业回复', status: 'failed', error: 'temporary', createdAt: 1, updatedAt: 1 })
+    await runtime.retryMemory('candidate-1')
+    expect(database.memories.search('global', '专业')).toHaveLength(1)
+    expect(database.memories.listPending()).toEqual([])
     database.close()
   })
 })

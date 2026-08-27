@@ -26,7 +26,10 @@ export class MiraPaths {
   globalAgents() { return join(this.root, 'AGENTS.md') }
   memorySettings() { return join(this.memories, 'settings.json') }
   globalMemory() { return join(this.memories, 'MEMORY.md') }
+  globalMemoryMeta() { return join(this.memories, 'MEMORY.meta.json') }
   projectMemory(projectId: string) { return join(this.memories, 'projects', projectId, 'MEMORY.md') }
+  projectMemoryMeta(projectId: string) { return join(this.memories, 'projects', projectId, 'MEMORY.meta.json') }
+  pendingMemory() { return join(this.memories, 'pending.json') }
   agentsFile(directory: string) { return join(directory, 'AGENTS.md') }
   agentsOverrideFile(directory: string) { return join(directory, 'AGENTS.override.md') }
   modelsConfig() { return join(this.config, 'models.json') }
