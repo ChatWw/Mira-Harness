@@ -581,6 +581,26 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('persists pending plan interactions and projects their sidebar state', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const startedAt = Date.now()
+    store.setActivePlan(session.id, { id: 'plan-1', status: 'awaiting_input', request: '规划', understanding: '', steps: [], risks: [], createdAt: startedAt, updatedAt: startedAt })
+    store.setPendingInteraction(session.id, { id: 'question-1', kind: 'question', status: 'waiting', questions: [{ id: 'scope', question: '选择范围', options: [{ label: '最小改动' }] }], createdAt: startedAt })
+
+    expect(store.listSessions().find(item => item.id === session.id)?.planStatus).toBe('needs_input')
+    store.resolvePendingInteraction(session.id, 'question-1', 'answered', [{ id: 'scope', selected: ['最小改动'] }])
+    const restored = store.getSession(session.id)
+    expect(restored.interactions?.[0]).toMatchObject({ id: 'question-1', kind: 'question', status: 'answered', answers: [{ id: 'scope', selected: ['最小改动'] }] })
+
+    store.setActivePlan(session.id, { ...restored.activePlan!, status: 'awaiting_confirmation', understanding: '范围已确认', steps: [{ label: '修改' }], updatedAt: Date.now() })
+    store.setPendingInteraction(session.id, { id: 'review-1', kind: 'plan-review', status: 'waiting', planId: 'plan-1', createdAt: Date.now() })
+    expect(store.listSessions().find(item => item.id === session.id)?.planStatus).toBe('awaiting_confirmation')
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('accepts selected external text files without weakening attachment limits', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')

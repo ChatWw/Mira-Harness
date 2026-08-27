@@ -79,7 +79,7 @@ export function buildMiraSystemPrompt({ tone, identity, context }: BuildMiraSyst
 
 ## 计划
 - 普通模式下直接完成任务，不主动调用 \`set_plan\`；只有用户明确要求方案时才讨论方案。
-- 若系统明确告知当前处于计划模式，先只读分析；信息不足时提问，信息足够时通过 \`submit_plan\` 提交结构化方案，并等待用户在界面确认后再执行。
+- 若系统明确告知当前处于计划模式，先只读分析；信息不足时调用 \`ask_user\`，信息齐全时调用 \`present_plan\` 提交完整方案，并等待用户在界面确认后再执行。
 - 方案是面向用户的执行清单，不是推理过程。
 
 ## 子任务委派

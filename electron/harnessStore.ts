@@ -22,6 +22,9 @@ import {
   type HarnessMessageAttachment,
   type HarnessProject,
   type HarnessPlan,
+  type HarnessPendingInteraction,
+  type HarnessPlanSessionStatus,
+  type HarnessUserAnswer,
   type HarnessRunSummary,
   type HarnessSession,
   type HarnessSessionSummary,
@@ -193,7 +196,27 @@ export class HarnessStore {
   private parseSession(raw: string): HarnessSession {
     const value = JSON.parse(raw) as Partial<HarnessSession>
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
-    return { ...value, pinned: Boolean(value.pinned), delegationEnabled: value.delegationEnabled !== false, archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
+    const session = { ...value, pinned: Boolean(value.pinned), delegationEnabled: value.delegationEnabled !== false, archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
+    const legacy = value.activePlan as (HarnessPlan & { questions?: unknown[] }) | undefined
+    if (legacy?.status === 'ready') session.activePlan = { ...legacy, status: 'awaiting_confirmation' }
+    if (session.activePlan) {
+      const { questions: _questions, ...plan } = session.activePlan as HarnessPlan & { questions?: unknown[] }
+      session.activePlan = plan
+      if (!session.pendingInteraction && Array.isArray(legacy?.questions) && legacy.questions.length) {
+        session.pendingInteraction = { id: randomUUID(), kind: 'question', status: 'waiting', questions: legacy.questions.filter((item): item is { question: string, context?: string } => Boolean(item && typeof item === 'object' && typeof (item as { question?: unknown }).question === 'string')).map((item, index) => ({ id: `legacy-${index + 1}`, question: item.question, context: item.context })), createdAt: now() }
+      }
+    }
+    return session
+  }
+
+  private planStatus(session: HarnessSession): HarnessPlanSessionStatus | undefined {
+    if (session.pendingInteraction?.status === 'waiting') return session.pendingInteraction.kind === 'question' ? 'needs_input' : 'awaiting_confirmation'
+    switch (session.activePlan?.status) {
+      case 'executing': return 'executing'
+      case 'completed': return 'completed'
+      case 'cancelled': return 'cancelled'
+      default: return undefined
+    }
   }
 
   listProjects(): HarnessProject[] {
@@ -302,7 +325,8 @@ export class HarnessStore {
       WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
-      status: row.status, pinned: Boolean(row.pinned), workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at }))
+      status: row.status, pinned: Boolean(row.pinned), workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at,
+      planStatus: this.planStatus(this.getSession(row.id)) }))
   }
 
   queryHistory(query: HarnessHistoryQuery = {}, providerKeys = new Map<string, string>()): HarnessHistoryPage {
@@ -544,6 +568,23 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
+  setPendingInteraction(id: string, interaction: HarnessPendingInteraction | undefined) {
+    const session = this.getSession(id)
+    session.pendingInteraction = interaction
+    if (interaction?.status === 'waiting') session.interactions = [...(session.interactions || []).filter(item => item.id !== interaction.id), interaction]
+    return this.saveSession(session)
+  }
+
+  resolvePendingInteraction(id: string, interactionId: string, status: HarnessPendingInteraction['status'], answers?: HarnessUserAnswer[]) {
+    const session = this.getSession(id)
+    const interaction = session.pendingInteraction
+    if (!interaction || interaction.id !== interactionId || interaction.status !== 'waiting') throw new Error('交互当前不可处理')
+    if (interaction.kind === 'question') session.pendingInteraction = { ...interaction, status: status === 'cancelled' ? 'cancelled' : 'answered', ...(answers ? { answers } : {}), resolvedAt: now() }
+    else session.pendingInteraction = { ...interaction, status: status === 'cancelled' ? 'cancelled' : status === 'discussing' ? 'discussing' : 'approved', resolvedAt: now() }
+    session.interactions = [...(session.interactions || []).filter(item => item.id !== interaction.id), session.pendingInteraction]
+    return this.saveSession(session)
+  }
+
   updatePlan(id: string, patch: Partial<HarnessPlan>) {
     const session = this.getSession(id)
     if (!session.activePlan) throw new Error('当前没有计划')
@@ -554,7 +595,7 @@ export class HarnessStore {
   confirmPlan(id: string, planId: string) {
     const session = this.getSession(id)
     if (!session.activePlan || session.activePlan.id !== planId) throw new Error('计划不存在')
-    if (session.activePlan.status !== 'ready') throw new Error('计划当前不可执行')
+    if (session.activePlan.status !== 'awaiting_confirmation') throw new Error('计划当前不可执行')
     session.activePlan = { ...session.activePlan, status: 'executing', confirmedAt: now(), updatedAt: now() }
     return this.saveSession(session)
   }
@@ -578,21 +619,7 @@ export class HarnessStore {
           task.status = 'interrupted'; task.completedAt = now(); changed = true
         }
       }
-      if (session.activePlan?.status === 'planning') {
-        session.activePlan = { ...session.activePlan, status: 'awaiting_input', updatedAt: now() }
-        changed = true
-      }
       if (changed) this.saveSession(session)
-    }
-    // Plans are persisted independently of active runs. A planning session that
-    // was interrupted before an active run was created must remain discussable.
-    const planRows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
-    for (const row of planRows) {
-      let session: HarnessSession
-      try { session = this.getSession(row.id) } catch { continue }
-      if (session.activePlan?.status !== 'planning') continue
-      session.activePlan = { ...session.activePlan, status: 'awaiting_input', updatedAt: now() }
-      this.saveSession(session)
     }
   }
 

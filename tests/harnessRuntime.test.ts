@@ -92,4 +92,67 @@ describe('HarnessRuntime tool approval', () => {
     const result = await planTool.execute('plan-id', { steps: [{ label: '读取配置' }] })
     expect(result.content?.[0]?.text).toContain('计划已记录')
   })
+
+  it('limits planning to read and interaction tools, then terminates after presenting a plan', async () => {
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const activePlan = { id: 'plan-1', status: 'planning', request: '规划改动', understanding: '', steps: [], risks: [], createdAt: 1, updatedAt: 1 }
+    const database = {
+      memories: { enabled: () => true },
+      harness: {
+        getSession: () => ({ permissionMode: 'default', activePlan }),
+        getPermissionConfig: () => ({ dangerousCommands: [] }),
+        recordTool: vi.fn(), updateTool: vi.fn(), setActivePlan: vi.fn(), setPendingInteraction: vi.fn(),
+      },
+    }
+    const runtime = new HarnessRuntime(database as any, { getTools: () => [{ name: 'mcp_query', execute: vi.fn() }] } as any)
+    const registered = (runtime as any).tools(sender, 'session-1', { planning: true })
+
+    expect(registered.tools.map((tool: any) => tool.name)).toEqual(['read', 'list_files', 'web_fetch', 'web_search', 'ask_user', 'present_plan'])
+    const result = await registered.tools.find((tool: any) => tool.name === 'present_plan').execute('review-1', { understanding: '只读分析范围', steps: [{ label: '修改运行时' }] })
+    expect(result.terminate).toBe(true)
+    expect(database.harness.setActivePlan).toHaveBeenCalledWith('session-1', expect.objectContaining({ status: 'awaiting_confirmation' }))
+    expect(database.harness.setPendingInteraction).toHaveBeenCalledWith('session-1', expect.objectContaining({ kind: 'plan-review', status: 'waiting' }))
+  })
+
+  it('accepts planning questions without model-supplied identifiers', async () => {
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const activePlan = { id: 'plan-1', status: 'planning', request: '规划改动', understanding: '', steps: [], risks: [], createdAt: 1, updatedAt: 1 }
+    const database = {
+      memories: { enabled: () => false },
+      harness: {
+        getSession: () => ({ permissionMode: 'default', activePlan }),
+        getPermissionConfig: () => ({ dangerousCommands: [] }),
+        recordTool: vi.fn(), updateTool: vi.fn(), updatePlan: vi.fn(), setPendingInteraction: vi.fn(),
+      },
+    }
+    const runtime = new HarnessRuntime(database as any, { getTools: () => [] } as any)
+    const ask = (runtime as any).tools(sender, 'session-1', { planning: true }).tools.find((tool: any) => tool.name === 'ask_user')
+
+    const result = await ask.execute('question-1', { questions: '这次优先解决稳定性还是功能扩展？' })
+
+    expect(database.harness.setPendingInteraction).toHaveBeenCalledWith('session-1', expect.objectContaining({ kind: 'question', questions: [expect.objectContaining({ id: 'question-1', question: '这次优先解决稳定性还是功能扩展？' })] }))
+    expect(result.terminate).toBe(true)
+  })
+
+  it('runs the planning agent with the persisted plan instead of the pre-plan session snapshot', async () => {
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const existingSession = { id: 'session-1', messages: [{ role: 'user', content: '规划这项改动' }], permissionMode: 'default' }
+    const persistedSession = { ...existingSession, activePlan: expect.objectContaining({ status: 'planning', request: '规划这项改动' }) }
+    const database = {
+      memories: { enabled: () => false },
+      harness: {
+        resolveMessageAttachments: vi.fn(() => []),
+        addMessage: vi.fn(() => existingSession),
+        setActivePlan: vi.fn((_id, plan) => ({ ...existingSession, activePlan: plan })),
+      },
+    }
+    const runtime = new HarnessRuntime(database as any, { getTools: () => [] } as any)
+    vi.spyOn(runtime as any, 'requireProvider').mockReturnValue({ provider: { id: 'provider-1' }, apiKey: 'key' })
+    const runAgent = vi.spyOn(runtime as any, 'runAgent').mockResolvedValue({ content: '' })
+
+    await runtime.runMessage(sender as any, 'session-1', '规划这项改动', [], { providerId: 'provider-1', modelId: 'model-1' } as any, true)
+
+    expect(database.harness.setActivePlan).toHaveBeenCalledWith('session-1', expect.objectContaining({ status: 'planning', request: '规划这项改动' }))
+    expect(runAgent).toHaveBeenCalledWith(sender, 'session-1', persistedSession, expect.anything(), expect.anything(), 'key', { planning: true })
+  })
 })

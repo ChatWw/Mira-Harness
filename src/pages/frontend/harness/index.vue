@@ -66,7 +66,9 @@
           <RunActivityList :activities="toolActivities(store.activeRun.activities)" />
           <SubtaskList :subtasks="store.activeRun.subtasks" :stop="stopSubtask" />
         </details>
-        <PlanApprovalCard v-if="store.activePlan" :plan="store.activePlan" :busy="isComposerBusy" @confirm="confirmPlan" @continue="focusComposerForPlan" @cancel="cancelPlan" />
+        <PlanQuestionCard v-for="interaction in store.activeSession?.interactions?.filter(item => item.kind === 'question' && item.status !== 'waiting') || []" :key="interaction.id" :interaction="interaction as Extract<import('@/config/harness').HarnessPendingInteraction, { kind: 'question' }>" />
+        <PlanQuestionCard v-if="store.activeInteraction?.kind === 'question' && store.activeInteraction.status === 'waiting'" :interaction="store.activeInteraction" :busy="interactionSubmitting" @answer="answerPlanQuestions" @cancel="cancelPlan" />
+        <PlanApprovalCard v-if="store.activePlan && store.activeInteraction?.kind === 'plan-review'" :plan="store.activePlan" :busy="interactionSubmitting" @confirm="confirmPlan" @continue="focusComposerForPlan" @cancel="cancelPlan" />
         </div>
         <div
           v-if="showQuickNavigation"
@@ -279,6 +281,7 @@ import RunPlan from './components/RunPlan.vue'
 import RunActivityList from './components/RunActivityList.vue'
 import SubtaskList from './components/SubtaskList.vue'
 import PlanApprovalCard from './components/PlanApprovalCard.vue'
+import PlanQuestionCard from './components/PlanQuestionCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -304,6 +307,7 @@ type SlashOption = { id: string, title: string, description?: string, icon: stri
 
 const composerOverlay = ref<'add' | 'slash'>()
 const planMode = ref(false)
+const interactionSubmitting = ref(false)
 const projectPickerVisible = ref(false)
 const gitPickerVisible = ref(false)
 const createGitBranchVisible = ref(false)
@@ -877,7 +881,7 @@ function enablePlanMode() { planMode.value = true; closeComposerOverlay() }
 async function closePlanMode() {
   planMode.value = false
   const plan = store.activePlan; const id = store.activeSession?.id
-  if (plan && id && ['planning', 'awaiting_input', 'ready'].includes(plan.status)) {
+  if (plan && id && ['planning', 'awaiting_input', 'awaiting_confirmation'].includes(plan.status)) {
     try { await store.cancelPlan(id, plan.id) } catch { /* session may already be gone */ }
   }
 }
@@ -886,13 +890,21 @@ async function confirmPlan() {
   const id = store.activeSession?.id
   const selection = composerDraft.value.modelSelection
   if (!plan || !id || !selection) return
-  try { await store.confirmPlan(id, plan.id, selection); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法执行计划') }
+  interactionSubmitting.value = true
+  try { await store.confirmPlan(id, plan.id, selection); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法执行计划') } finally { interactionSubmitting.value = false }
 }
 function focusComposerForPlan() { document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus() }
+async function answerPlanQuestions(answers: import('@/config/harness').HarnessUserAnswer[]) {
+  const interaction = store.activeInteraction; const id = store.activeSession?.id; const selection = composerDraft.value.modelSelection
+  if (!interaction || interaction.kind !== 'question' || !id || !selection) return
+  interactionSubmitting.value = true
+  try { await store.answerInteraction(id, interaction.id, answers, selection) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法提交回答') } finally { interactionSubmitting.value = false }
+}
 async function cancelPlan() {
   const plan = store.activePlan; const id = store.activeSession?.id
   if (!plan || !id) return
-  try { await store.cancelPlan(id, plan.id); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法取消计划') }
+  interactionSubmitting.value = true
+  try { await store.cancelPlan(id, plan.id); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法取消计划') } finally { interactionSubmitting.value = false }
 }
 
 function closeComposerOverlay() {
@@ -1092,7 +1104,7 @@ async function send() {
     store.running = true
     await nextTick()
     const plan = store.activePlan
-    if (plan && (plan.status === 'awaiting_input' || plan.status === 'ready')) await api.continueHarnessPlan(activeId, plan.id, payload.text, payload.attachments, payload.modelSelection)
+    if (plan && plan.status === 'awaiting_confirmation') await api.continueHarnessPlan(activeId, plan.id, payload.text, payload.attachments, payload.modelSelection)
     else await api.runHarnessMessage(activeId, payload.text, payload.attachments, payload.modelSelection, planMode.value)
   } catch (error) {
     const sessionKey = activeId ? `session:${activeId}` : originKey

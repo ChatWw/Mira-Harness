@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPlatformApi } from '@/platform'
-import type { HarnessContextUsage, HarnessEvent, HarnessFileReference, HarnessPlan, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, HarnessSubtask, ModelSelection, PermissionMode, ThinkingLevel } from '@/config/harness'
+import type { HarnessContextUsage, HarnessEvent, HarnessFileReference, HarnessPendingInteraction, HarnessPlan, HarnessProject, HarnessProjectCreateInput, HarnessRunActivity, HarnessSession, HarnessSessionSummary, HarnessSubtask, HarnessUserAnswer, ModelSelection, PermissionMode, ThinkingLevel } from '@/config/harness'
 
 const DRAFT_STORAGE_KEY = 'mira-harness-composer-drafts'
 const MODEL_SELECTION_STORAGE_KEY = 'mira-harness-model-selection'
@@ -102,6 +102,7 @@ export const useHarnessStore = defineStore('harness', () => {
   const rendering = ref(false)
   const activeRun = ref<HarnessRunProgress>()
   const activePlan = ref<HarnessPlan>()
+  const activeInteraction = ref<HarnessPendingInteraction>()
   const drafts = ref<Record<string, HarnessComposerDraft>>(loadDrafts())
   const lastModelSelection = ref<ModelSelection | undefined>(loadModelSelection())
   let queuedMessageSessionId: string | undefined
@@ -180,6 +181,7 @@ export const useHarnessStore = defineStore('harness', () => {
     running.value = false
     activeRun.value = undefined
     activePlan.value = undefined
+    activeInteraction.value = undefined
   }
 
   async function refreshSessions(query = '') {
@@ -219,6 +221,7 @@ export const useHarnessStore = defineStore('harness', () => {
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
     activePlan.value = activeSession.value?.activePlan
+    activeInteraction.value = activeSession.value?.pendingInteraction
     if (activeSession.value?.activeRun) {
       activeRun.value = {
         sessionId: id,
@@ -312,6 +315,21 @@ export const useHarnessStore = defineStore('harness', () => {
   async function cancelPlan(sessionId: string, planId: string) {
     const api = getPlatformApi(); if (!api) return
     await api.cancelHarnessPlan(sessionId, planId)
+  }
+
+  async function answerInteraction(sessionId: string, interactionId: string, answers: HarnessUserAnswer[], selection?: ModelSelection) {
+    const api = getPlatformApi(); if (!api) return
+    const plainAnswers = answers.map(answer => ({
+      id: answer.id,
+      selected: [...answer.selected],
+      ...(answer.custom?.trim() ? { custom: answer.custom.trim() } : {}),
+    }))
+    const plainSelection = selection ? {
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+      ...(selection.thinkingLevel ? { thinkingLevel: selection.thinkingLevel } : {}),
+    } : undefined
+    await api.answerHarnessInteraction(sessionId, interactionId, plainAnswers, plainSelection)
   }
 
   function appendMessageDelta(delta: string) {
@@ -437,6 +455,17 @@ export const useHarnessStore = defineStore('harness', () => {
     if ((event.type === 'plan-updated' || event.type === 'plan-confirmed' || event.type === 'plan-cancelled') && event.payload.plan && typeof event.payload.plan === 'object') {
       activePlan.value = event.payload.plan as HarnessPlan
       activeSession.value = { ...activeSession.value, activePlan: activePlan.value }
+      void refreshSessions()
+    }
+    if (event.type === 'interaction-created' || event.type === 'interaction-resolved') {
+      const api = getPlatformApi()
+      if (api) void api.getHarnessSession(event.sessionId).then(session => {
+        if (activeSession.value?.id !== event.sessionId) return
+        activeSession.value = session
+        activePlan.value = session.activePlan
+        activeInteraction.value = session.pendingInteraction
+      })
+      void refreshSessions()
     }
     if (event.type === 'error') {
       lastRunError.value = { sessionId: event.sessionId, message: typeof event.payload.message === 'string' ? event.payload.message : '运行失败，请重试。' }
@@ -481,6 +510,7 @@ export const useHarnessStore = defineStore('harness', () => {
     rendering,
     activeRun,
     activePlan,
+    activeInteraction,
     drafts,
     lastModelSelection,
     runningSessionIds,
@@ -501,6 +531,7 @@ export const useHarnessStore = defineStore('harness', () => {
     confirmPlan,
     continuePlan,
     cancelPlan,
+    answerInteraction,
     renameSession,
     respondPermission,
     respondMemoryConfirmation,

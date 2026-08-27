@@ -199,6 +199,7 @@ export interface PlatformApi {
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
   runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection, planning?: boolean): Promise<void>
   confirmHarnessPlan(sessionId: string, planId: string, selection?: import('@/config/harness').ModelSelection): Promise<unknown>
+  answerHarnessInteraction(sessionId: string, interactionId: string, answers: import('@/config/harness').HarnessUserAnswer[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
   continueHarnessPlan(sessionId: string, planId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
   cancelHarnessPlan(sessionId: string, planId: string): Promise<unknown>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>

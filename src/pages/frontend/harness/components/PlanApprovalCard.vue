@@ -2,11 +2,10 @@
   <section class="plan-approval" :class="`plan-approval--${plan.status}`">
     <header><strong>计划模式</strong><span>{{ statusLabel }}</span></header>
     <p v-if="plan.understanding"><b>当前理解</b>{{ plan.understanding }}</p>
-    <div v-if="plan.questions.length"><b>需要确认</b><ul><li v-for="item in plan.questions" :key="item.question">{{ item.question }}<small v-if="item.context">{{ item.context }}</small></li></ul></div>
     <div v-if="plan.steps.length"><b>执行步骤</b><ol><li v-for="step in plan.steps" :key="step.label">{{ step.label }}<small v-if="step.detail">{{ step.detail }}</small></li></ol></div>
     <div v-if="plan.risks.length"><b>风险与注意事项</b><ul><li v-for="risk in plan.risks" :key="risk">{{ risk }}</li></ul></div>
-    <footer v-if="plan.status === 'ready' || plan.status === 'awaiting_input'">
-      <button v-if="plan.status === 'ready'" type="button" class="plan-approval__primary" :disabled="busy" @click="$emit('confirm')">执行方案</button>
+    <footer v-if="plan.status === 'awaiting_confirmation'">
+      <button type="button" class="plan-approval__primary" :disabled="busy" @click="$emit('confirm')">执行方案</button>
       <button type="button" :disabled="busy" @click="$emit('continue')">继续讨论/修改</button>
       <button type="button" :disabled="busy" @click="$emit('cancel')">取消规划</button>
     </footer>
@@ -18,7 +17,7 @@ import { computed } from 'vue'
 import type { HarnessPlan } from '@/config/harness'
 const props = defineProps<{ plan: HarnessPlan, busy?: boolean }>()
 defineEmits<{ confirm: [], continue: [], cancel: [] }>()
-const statusLabel = computed(() => ({ planning: '分析中', awaiting_input: '等待补充', ready: '等待确认', executing: '执行中', completed: '已完成', cancelled: '已取消' })[props.plan.status])
+const statusLabel = computed(() => ({ planning: '分析中', awaiting_input: '等待补充', awaiting_confirmation: '等待确认', executing: '执行中', completed: '已完成', cancelled: '已取消' })[props.plan.status])
 </script>
 
 <style scoped>

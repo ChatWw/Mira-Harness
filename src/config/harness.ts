@@ -134,14 +134,27 @@ export interface HarnessContextState {
 
 export type HarnessRunStatus = 'pending' | 'running' | 'completed' | 'failed'
 
-export type HarnessPlanStatus = 'planning' | 'awaiting_input' | 'ready' | 'executing' | 'completed' | 'cancelled'
-export interface HarnessPlanQuestion { question: string, context?: string }
+export type HarnessPlanStatus = 'planning' | 'awaiting_input' | 'awaiting_confirmation' | 'executing' | 'completed' | 'cancelled'
+export type HarnessPlanSessionStatus = 'needs_input' | 'awaiting_confirmation' | 'executing' | 'completed' | 'cancelled'
+export interface HarnessQuestionOption { label: string, description?: string }
+export interface HarnessUserQuestion {
+  id: string
+  header?: string
+  question: string
+  context?: string
+  options?: HarnessQuestionOption[]
+  multiSelect?: boolean
+  allowCustom?: boolean
+}
+export interface HarnessUserAnswer { id: string, selected: string[], custom?: string }
+export type HarnessPendingInteraction =
+  | { id: string, kind: 'question', status: 'waiting' | 'answered' | 'cancelled', questions: HarnessUserQuestion[], answers?: HarnessUserAnswer[], createdAt: number, resolvedAt?: number }
+  | { id: string, kind: 'plan-review', status: 'waiting' | 'approved' | 'discussing' | 'cancelled', planId: string, createdAt: number, resolvedAt?: number }
 export interface HarnessPlan {
   id: string
   status: HarnessPlanStatus
   request: string
   understanding: string
-  questions: HarnessPlanQuestion[]
   steps: HarnessPlanStep[]
   risks: string[]
   createdAt: number
@@ -151,12 +164,12 @@ export interface HarnessPlan {
 }
 export interface HarnessPlanAction { sessionId: string, planId: string, message?: string }
 
-export function normalizePlanQuestions(value: unknown): HarnessPlanQuestion[] {
+export function normalizePlanQuestions(value: unknown): HarnessUserQuestion[] {
   if (!Array.isArray(value)) return []
   return value.map(item => item && typeof item === 'object' ? item as Record<string, unknown> : {})
     .filter(item => typeof item.question === 'string' && item.question.trim())
     .slice(0, 8)
-    .map(item => ({ question: (item.question as string).trim().slice(0, 1000), context: typeof item.context === 'string' && item.context.trim() ? item.context.trim().slice(0, 1000) : undefined }))
+    .map((item, index) => ({ id: typeof item.id === 'string' && item.id.trim() ? item.id.trim().slice(0, 80) : `question-${index + 1}`, question: (item.question as string).trim().slice(0, 1000), context: typeof item.context === 'string' && item.context.trim() ? item.context.trim().slice(0, 1000) : undefined }))
 }
 
 export function normalizePlanRisks(value: unknown): string[] {
@@ -309,6 +322,8 @@ export interface HarnessSession {
   /** Defaults to true for older sessions. Automation never enables delegation. */
   delegationEnabled?: boolean
   activePlan?: HarnessPlan
+  pendingInteraction?: HarnessPendingInteraction
+  interactions?: HarnessPendingInteraction[]
   /** Durable public progress for a currently executing parent run. */
   activeRun?: HarnessActiveRun
 }
@@ -331,6 +346,7 @@ export interface HarnessSkillSettings {
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned'> {
   projectName?: string
   workingDirectory?: string
+  planStatus?: HarnessPlanSessionStatus
 }
 
 export type HarnessHistoryRange = 'all' | 'today' | 'week' | 'month'
@@ -442,7 +458,7 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved'
   payload: Record<string, unknown>
 }
 

@@ -150,4 +150,20 @@ describe('harness message streaming', () => {
     expect(store.sessions).toEqual([])
     expect(store.activeSession).toBeUndefined()
   })
+
+  it('serializes plan answers before sending them through Electron IPC', async () => {
+    vi.useFakeTimers()
+    const answerHarnessInteraction = vi.fn(async () => undefined)
+    installWindow()
+    window.platform.answerHarnessInteraction = answerHarnessInteraction
+    const store = await createStore()
+    const reactiveAnswer = new Proxy({ id: 'scope', selected: new Proxy(['稳定性'], {}) }, {})
+
+    await store.answerInteraction('session-1', 'question-1', [reactiveAnswer as any], { providerId: 'provider-1', modelId: 'model-1', thinkingLevel: 'medium' })
+
+    const [, , answers, selection] = answerHarnessInteraction.mock.calls[0]
+    expect(answers).toEqual([{ id: 'scope', selected: ['稳定性'] }])
+    expect(answers[0].selected).not.toBe((reactiveAnswer as any).selected)
+    expect(selection).toEqual({ providerId: 'provider-1', modelId: 'model-1', thinkingLevel: 'medium' })
+  })
 })

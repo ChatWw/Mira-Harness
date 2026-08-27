@@ -373,6 +373,7 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('harness:run-message', (event, sessionId: string, message: string, references: HarnessFileReference[] = [], selection, planning = false) => harnessRuntime.runMessage(event.sender, sessionId, message, references, selection, Boolean(planning)))
   ipcMain.handle('harness:confirm-plan', (event, sessionId: string, planId: string, selection) => harnessRuntime.confirmPlan(event.sender, sessionId, planId, selection))
+  ipcMain.handle('harness:answer-interaction', (event, sessionId: string, interactionId: string, answers, selection) => harnessRuntime.answerInteraction(event.sender, sessionId, interactionId, answers, selection))
   ipcMain.handle('harness:continue-plan', (event, sessionId: string, planId: string, message: string, references: HarnessFileReference[] = [], selection) => harnessRuntime.continuePlan(event.sender, sessionId, planId, message, references, selection))
   ipcMain.handle('harness:cancel-plan', (event, sessionId: string, planId: string) => harnessRuntime.cancelPlan(event.sender, sessionId, planId))
   ipcMain.handle('harness:rerun', (event, sessionId: string, selection) => harnessRuntime.rerun(event.sender, sessionId, selection))

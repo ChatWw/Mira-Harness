@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld('platform', {
   attachHarnessDirectory: (sessionId: string) => ipcRenderer.invoke('harness:attach-directory', sessionId),
   runHarnessMessage: (sessionId: string, message: string, references?: unknown[], selection?: unknown, planning?: boolean) => ipcRenderer.invoke('harness:run-message', sessionId, message, references, selection, planning),
   confirmHarnessPlan: (sessionId: string, planId: string, selection?: unknown) => ipcRenderer.invoke('harness:confirm-plan', sessionId, planId, selection),
+  answerHarnessInteraction: (sessionId: string, interactionId: string, answers: unknown, selection?: unknown) => ipcRenderer.invoke('harness:answer-interaction', sessionId, interactionId, answers, selection),
   continueHarnessPlan: (sessionId: string, planId: string, message: string, references?: unknown[], selection?: unknown) => ipcRenderer.invoke('harness:continue-plan', sessionId, planId, message, references, selection),
   cancelHarnessPlan: (sessionId: string, planId: string) => ipcRenderer.invoke('harness:cancel-plan', sessionId, planId),
   rerunHarness: (sessionId: string, selection?: unknown) => ipcRenderer.invoke('harness:rerun', sessionId, selection),

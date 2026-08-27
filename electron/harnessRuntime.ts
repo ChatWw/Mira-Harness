@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, normalizePlanQuestions, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPlan } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPendingInteraction, type HarnessPlan, type HarnessUserAnswer, type HarnessUserQuestion } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -115,7 +115,7 @@ function activityDetail(toolName: string, args: unknown) {
   return `${prefix}：${safeTarget}`
 }
 
-const TOOL_LABELS: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆' }
+const TOOL_LABELS: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆', ask_user: '需要你的输入', present_plan: '等待方案确认' }
 
 function sanitizeToolTarget(target: string) {
   return target
@@ -412,7 +412,7 @@ export class HarnessRuntime {
     return blocked ? { block: true, reason: '危险命令已被永久拦截' } : undefined
   }
 
-  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, onPlan?: (plan: HarnessPlan) => void } = {}) {
+  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean } = {}) {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const register = <T extends { name: string }>(tool: T, descriptor: ToolDescriptor) => {
@@ -565,22 +565,62 @@ export class HarnessRuntime {
       executionMode: 'sequential',
       execute: async () => ({ content: [{ type: 'text', text: '计划已记录。' }] }),
     }, { risk: 'read', title: () => '', detail: () => '' })
-    const submitPlanTool = register({
-      name: 'submit_plan', label: '提交方案', description: '提交结构化分析方案。信息不足时 ready=false 并提出问题；信息足够时 ready=true 且必须包含步骤。',
-      parameters: Type.Object({ understanding: Type.String(), questions: Type.Optional(Type.Array(Type.Object({ question: Type.String(), context: Type.Optional(Type.String()) }))), steps: Type.Array(Type.Object({ label: Type.String(), detail: Type.Optional(Type.String()) })), risks: Type.Optional(Type.Array(Type.String())), ready: Type.Boolean() }),
+    const askUserTool = register({
+      name: 'ask_user', label: '询问用户', description: '在继续规划前向用户提出关键澄清问题。调用后会等待用户在界面中作答；不要把同样的问题重复写进普通回复。',
+      // Provider tool-call serializers vary: some omit optional fields, while others
+      // flatten a single question to a string. Normalize the model payload here so a
+      // malformed presentation cannot strand the user without a question card.
+      parameters: Type.Object({ questions: Type.Optional(Type.Any()) }),
+      executionMode: 'sequential',
+      execute: async (_id: string, params: any) => {
+        const seen = new Set<string>()
+        const rawQuestions = Array.isArray(params?.questions) ? params.questions : params?.questions === undefined ? [] : [params.questions]
+        const questions = rawQuestions.flatMap((raw: unknown, index: number): HarnessUserQuestion[] => {
+          const value = typeof raw === 'string' ? { question: raw } : raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+          const suppliedId = typeof value.id === 'string' ? value.id.trim().slice(0, 80) : ''
+          const id = suppliedId || `question-${index + 1}`
+          const question = [value.question, value.text, value.prompt, value.content].find(item => typeof item === 'string' && item.trim()) as string | undefined
+          if (!id || !question || seen.has(id)) return []
+          seen.add(id)
+          const options = Array.isArray(value.options) ? value.options.flatMap((option: unknown) => {
+            if (typeof option === 'string' && option.trim()) return [{ label: option.trim().slice(0, 160) }]
+            if (!option || typeof option !== 'object') return []
+            const item = option as Record<string, unknown>
+            return typeof item.label === 'string' && item.label.trim() ? [{ label: item.label.trim().slice(0, 160), ...(typeof item.description === 'string' && item.description.trim() ? { description: item.description.trim().slice(0, 500) } : {}) }] : []
+          }).slice(0, 5) : undefined
+          return [{ id, question: question.trim().slice(0, 1000), ...(typeof value.header === 'string' && value.header.trim() ? { header: value.header.trim().slice(0, 80) } : {}), ...(typeof value.context === 'string' && value.context.trim() ? { context: value.context.trim().slice(0, 1000) } : {}), ...(options?.length ? { options } : {}), ...(value.multiSelect === true ? { multiSelect: true } : {}), ...(value.allowCustom !== false ? { allowCustom: true } : {}) }]
+        }).slice(0, 4)
+        if (!questions.length) questions.push({ id: 'question-1', question: '为了继续制定方案，请补充这次最希望解决的问题、预期效果或优先级。' })
+        const plan = session().activePlan
+        if (!plan) throw new Error('当前没有计划')
+        const interaction: HarnessPendingInteraction = { id: randomUUID(), kind: 'question', status: 'waiting', questions, createdAt: Date.now() }
+        this.database.harness.updatePlan(sessionId, { status: 'awaiting_input' })
+        this.database.harness.setPendingInteraction(sessionId, interaction)
+        emit(sender, { sessionId, type: 'interaction-created', payload: { interaction } })
+        // A question is a durable pause point, not a suspended in-memory tool call.
+        // This lets the sidebar and conversation recover cleanly after an app restart.
+        return { content: [{ type: 'text', text: '问题已展示，等待用户回答。' }], details: { interactionId: interaction.id }, terminate: true }
+      },
+    }, { risk: 'read', title: () => '', detail: () => '' })
+    const presentPlanTool = register({
+      name: 'present_plan', label: '展示方案', description: '信息已经齐全时提交完整方案供用户审阅。不要包含待回答问题；用户批准前不得执行修改。',
+      parameters: Type.Object({ understanding: Type.String(), steps: Type.Array(Type.Object({ label: Type.String(), detail: Type.Optional(Type.String()) })), risks: Type.Optional(Type.Array(Type.String())) }),
       executionMode: 'sequential',
       execute: async (_id: string, params: any) => {
         const understanding = String(params.understanding || '').trim()
-        const questions = normalizePlanQuestions(params.questions)
-        const steps = normalizePlanSteps(params.steps)
-        const risks = normalizePlanRisks(params.risks)
-        if (!understanding) throw new Error('方案理解不能为空')
-        if (params.ready && questions.length) throw new Error('方案就绪时不能包含待澄清问题')
-        if (params.ready && !steps.length) throw new Error('方案至少需要一个步骤')
-        const existing = this.database.harness.getSession(sessionId).activePlan
-        const plan: HarnessPlan = { id: existing?.id || randomUUID(), status: params.ready ? 'ready' : 'awaiting_input', request: existing?.request || ([...this.database.harness.getSession(sessionId).messages].reverse().find(m => m.role === 'user')?.content || ''), understanding, questions, steps, risks, createdAt: existing?.createdAt || Date.now(), updatedAt: Date.now() }
-        options.onPlan?.(plan)
-        return { content: [{ type: 'text', text: params.ready ? '方案已提交，等待用户确认。' : '已记录需要补充的信息。' }], details: { planId: plan.id, status: plan.status } }
+        const steps = normalizePlanSteps(params.steps); const risks = normalizePlanRisks(params.risks)
+        if (!understanding || !steps.length) throw new Error('完整方案必须包含当前理解和至少一个步骤')
+        const existing = session().activePlan
+        if (!existing) throw new Error('当前没有计划')
+        const plan: HarnessPlan = { ...existing, understanding, steps, risks, status: 'awaiting_confirmation', updatedAt: Date.now() }
+        this.database.harness.setActivePlan(sessionId, plan)
+        const interaction: HarnessPendingInteraction = { id: randomUUID(), kind: 'plan-review', status: 'waiting', planId: plan.id, createdAt: Date.now() }
+        this.database.harness.setPendingInteraction(sessionId, interaction)
+        emit(sender, { sessionId, type: 'plan-updated', payload: { plan } })
+        emit(sender, { sessionId, type: 'interaction-created', payload: { interaction } })
+        // The review card is the terminal surface for this planning turn.
+        // Pi honors terminate and does not ask the model for a redundant prose reply.
+        return { content: [{ type: 'text', text: '方案已展示，等待用户确认。' }], details: { planId: plan.id, interactionId: interaction.id }, terminate: true }
       },
     }, { risk: 'read', title: () => '', detail: () => '' })
     const allTools = [
@@ -592,7 +632,7 @@ export class HarnessRuntime {
       bashTool,
       webFetchTool,
       webSearchTool,
-      ...(options.planning ? [submitPlanTool] : [planTool]),
+      ...(options.planning ? [askUserTool, presentPlanTool] : [planTool]),
       ...memoryTools,
       ...mcpTools,
     ] as any[]
@@ -601,7 +641,7 @@ export class HarnessRuntime {
     const write = new Set(['edit', 'write', 'delete_file', 'bash'])
     const tools = allTools
       .filter(tool => !allowed || allowed.has(tool.name))
-      .filter(tool => !options.planning || ['read', 'list_files', 'web_fetch', 'web_search', 'submit_plan'].includes(tool.name))
+      .filter(tool => !options.planning || ['read', 'list_files', 'web_fetch', 'web_search', 'ask_user', 'present_plan'].includes(tool.name))
       .map(tool => options.role || !lockable.has(tool.name) ? tool : {
         ...tool,
         execute: async (id: string, params: unknown, signal?: AbortSignal, onUpdate?: unknown) => {
@@ -625,10 +665,10 @@ export class HarnessRuntime {
     }
     const { provider, apiKey } = this.requireProvider(selection)
     const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
-    const session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
+    let session = this.database.harness.addMessage(sessionId, 'user', text, attachments)
     if (planning && !session.activePlan) {
-      const plan: HarnessPlan = { id: randomUUID(), status: 'planning', request: text, understanding: '', questions: [], steps: [], risks: [], createdAt: Date.now(), updatedAt: Date.now() }
-      this.database.harness.setActivePlan(sessionId, plan)
+      const plan: HarnessPlan = { id: randomUUID(), status: 'planning', request: text, understanding: '', steps: [], risks: [], createdAt: Date.now(), updatedAt: Date.now() }
+      session = this.database.harness.setActivePlan(sessionId, plan)
       emit(sender, { sessionId, type: 'plan-updated', payload: { plan } })
     }
     return this.runAgent(sender, sessionId, session, selection, provider, apiKey, planning ? { planning: true } : {})
@@ -710,23 +750,52 @@ export class HarnessRuntime {
   async confirmPlan(sender: WebContents, sessionId: string, planId: string, selection?: ModelSelection) {
     if (this.running.has(sessionId)) throw new Error('该会话正在运行')
     const session = this.database.harness.getSession(sessionId)
-    if (!session.activePlan || session.activePlan.id !== planId || session.activePlan.status !== 'ready') throw new Error('计划当前不可执行')
+    const interaction = session.pendingInteraction
+    if (!session.activePlan || session.activePlan.id !== planId || session.activePlan.status !== 'awaiting_confirmation' || interaction?.kind !== 'plan-review' || interaction.status !== 'waiting' || interaction.planId !== planId) throw new Error('计划当前不可执行')
     const { provider, apiKey } = this.requireProvider(selection)
+    this.database.harness.resolvePendingInteraction(sessionId, interaction.id, 'approved')
     const confirmed = this.database.harness.confirmPlan(sessionId, planId)
     emit(sender, { sessionId, type: 'plan-confirmed', payload: { plan: confirmed.activePlan } })
+    emit(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId: interaction.id, status: 'approved' } })
     return this.runAgent(sender, sessionId, confirmed, selection!, provider, apiKey)
+  }
+
+  async answerInteraction(sender: WebContents, sessionId: string, interactionId: string, answers: HarnessUserAnswer[], selection?: ModelSelection) {
+    const session = this.database.harness.getSession(sessionId)
+    const interaction = session.pendingInteraction
+    if (!session.activePlan || interaction?.id !== interactionId || interaction.kind !== 'question' || interaction.status !== 'waiting') throw new Error('问题当前不可回答')
+    const expected = new Set(interaction.questions.map(question => question.id))
+    if (!Array.isArray(answers) || answers.length !== expected.size || answers.some(answer => !expected.has(answer.id))) throw new Error('回答不完整或不匹配')
+    if (this.running.has(sessionId)) throw new Error('当前问题正在保存，请稍后重试')
+    this.database.harness.resolvePendingInteraction(sessionId, interactionId, 'answered', answers)
+    this.database.harness.updatePlan(sessionId, { status: 'planning' })
+    emit(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId, status: 'answered', answers } })
+    const { provider, apiKey } = this.requireProvider(selection)
+    const text = `用户对澄清问题的回答：\n${answers.map(answer => `- ${answer.id}: ${answer.custom || answer.selected.join('、')}`).join('\n')}`
+    const resumed = this.database.harness.addMessage(sessionId, 'user', text)
+    return this.runAgent(sender, sessionId, resumed, selection!, provider, apiKey, { planning: true })
   }
 
   async continuePlan(sender: WebContents, sessionId: string, planId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
     const session = this.database.harness.getSession(sessionId)
     if (!session.activePlan || session.activePlan.id !== planId) throw new Error('计划不存在')
-    if (session.activePlan.status !== 'awaiting_input' && session.activePlan.status !== 'ready') throw new Error('计划当前不可继续')
+    if (session.pendingInteraction?.kind === 'plan-review' && session.pendingInteraction.status === 'waiting') {
+      this.database.harness.resolvePendingInteraction(sessionId, session.pendingInteraction.id, 'discussing')
+      emit(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId: session.pendingInteraction.id, status: 'discussing' } })
+    }
+    this.database.harness.updatePlan(sessionId, { status: 'planning' })
     return this.runMessage(sender, sessionId, message, references, selection, true)
   }
 
   cancelPlan(sender: WebContents, sessionId: string, planId: string) {
+    const session = this.database.harness.getSession(sessionId)
+    if (session.pendingInteraction?.status === 'waiting') {
+      this.database.harness.resolvePendingInteraction(sessionId, session.pendingInteraction.id, 'cancelled')
+      emit(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId: session.pendingInteraction.id, status: 'cancelled' } })
+    }
     const plan = this.database.harness.cancelPlan(sessionId, planId).activePlan
     emit(sender, { sessionId, type: 'plan-cancelled', payload: { plan } })
+    this.abort(sessionId)
     return plan
   }
 
@@ -826,7 +895,7 @@ export class HarnessRuntime {
       const globalMemory = memoryEnabled ? loadMemory('global') : ''
       const projectMemory = memoryEnabled && session.projectId ? loadMemory('project') : ''
       if (memoryEnabled) publishActivities()
-      const registeredTools = this.tools(sender, sessionId, options.planning ? { planning: true, onPlan: plan => { this.database.harness.setActivePlan(sessionId, plan); emit(sender, { sessionId, type: 'plan-updated', payload: { plan } }) } } : {})
+      const registeredTools = this.tools(sender, sessionId, options.planning ? { planning: true } : {})
       const preferences = this.database.getSnapshot().preferences
       const activeSkills = options.planning ? [] : this.database.skills.resolve(session.activeSkillIds || [])
       const thinkingLevel = provider.reasoning ? selection.thinkingLevel || 'medium' : 'off'
@@ -900,7 +969,7 @@ export class HarnessRuntime {
               globalMemory,
               projectMemory,
             },
-          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。信息不足时调用 submit_plan(ready=false) 提问；信息足够时调用 submit_plan(ready=true) 提交方案，等待用户界面确认。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
+          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user；该工具会等待用户的结构化回答，不要在普通回复重复问题。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
           model,
           thinkingLevel,
           messages: this.agentMessages(session, model),
@@ -989,6 +1058,11 @@ export class HarnessRuntime {
           emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
         }
         output = finalText
+      }
+      if (!output && options.planning && this.database.harness.getSession(sessionId).pendingInteraction?.status === 'waiting') {
+        output = this.database.harness.getSession(sessionId).pendingInteraction?.kind === 'question' ? '我需要先确认几个关键信息。' : '方案已整理，请确认是否开始执行。'
+        pendingAssistantDelta += output
+        emit(sender, { sessionId, type: 'message-delta', payload: { delta: output } })
       }
       if (!output) throw new Error('模型没有返回文本')
       finishRunningActivities('completed')
