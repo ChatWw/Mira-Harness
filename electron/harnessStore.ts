@@ -8,6 +8,7 @@ import {
   DEFAULT_HARNESS_GIT_CONFIG,
   DEFAULT_PROJECT_ICON,
   isProjectIcon,
+  normalizeAutoTitle,
   type HarnessMessage,
   type HarnessFileReference,
   type HarnessFileChange,
@@ -196,7 +197,14 @@ export class HarnessStore {
   private parseSession(raw: string): HarnessSession {
     const value = JSON.parse(raw) as Partial<HarnessSession>
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
-    const session = { ...value, pinned: Boolean(value.pinned), delegationEnabled: value.delegationEnabled !== false, archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined } as HarnessSession
+    const session = {
+      ...value,
+      titleSource: value.titleSource === 'auto' ? 'auto' : 'manual',
+      titleRevision: typeof value.titleRevision === 'number' && Number.isSafeInteger(value.titleRevision) && value.titleRevision >= 0 ? value.titleRevision : 0,
+      pinned: Boolean(value.pinned),
+      delegationEnabled: value.delegationEnabled !== false,
+      archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined,
+    } as HarnessSession
     const legacy = value.activePlan as (HarnessPlan & { questions?: unknown[] }) | undefined
     if (legacy?.status === 'ready') session.activePlan = { ...legacy, status: 'awaiting_confirmation' }
     if (session.activePlan) {
@@ -214,7 +222,8 @@ export class HarnessStore {
     switch (session.activePlan?.status) {
       case 'executing': return 'executing'
       case 'completed': return 'completed'
-      case 'cancelled': return 'cancelled'
+      // 已取消的计划无需在侧边栏保留状态，视为终止即可。
+      case 'cancelled': return undefined
       default: return undefined
     }
   }
@@ -313,7 +322,7 @@ export class HarnessStore {
     const project = projectId ? this.getProject(projectId) : undefined
     const time = now()
     const session: HarnessSession = {
-      version: 1, id: createSessionId(), title: '新对话', projectId: project?.id, workingDirectory: project?.directory,
+      version: 1, id: createSessionId(), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory,
       permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, delegationEnabled: true,
     }
     return this.saveSession(session)
@@ -454,6 +463,29 @@ export class HarnessStore {
     if (!nextTitle) throw new Error('聊天名称不能为空')
     const session = this.getSession(id)
     session.title = nextTitle
+    session.titleSource = 'manual'
+    session.titleRevision = (session.titleRevision || 0) + 1
+    return this.saveSession(session)
+  }
+
+  reserveAutoTitle(id: string) {
+    const session = this.getSession(id)
+    if (session.titleSource !== 'auto') return undefined
+    session.titleRevision = (session.titleRevision || 0) + 1
+    this.saveSession(session)
+    return session.titleRevision
+  }
+
+  isAutoTitleCurrent(id: string, revision: number) {
+    const session = this.getSession(id)
+    return session.titleSource === 'auto' && session.titleRevision === revision
+  }
+
+  applyAutoTitle(id: string, title: string, revision: number) {
+    const nextTitle = normalizeAutoTitle(title)
+    if (!nextTitle || !this.isAutoTitleCurrent(id, revision)) return undefined
+    const session = this.getSession(id)
+    session.title = nextTitle
     return this.saveSession(session)
   }
 
@@ -468,10 +500,10 @@ export class HarnessStore {
     return sessions.map(session => this.saveSession({ ...session, archivedAt: undefined }))
   }
 
-  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[]) {
+  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false) {
     const session = this.getSession(id)
-    session.messages.push({ id: randomUUID(), role, content, ...(attachments?.length ? { attachments } : {}), createdAt: now() })
-    if (role === 'user' && session.title === '新对话') session.title = titleFor(content)
+    session.messages.push({ id: randomUUID(), role, content, ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), createdAt: now() })
+    if (!internal && role === 'user' && session.titleSource === 'auto' && session.title === '新对话') session.title = titleFor(content)
     return this.saveSession(session)
   }
 

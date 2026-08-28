@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizePlanSteps, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPendingInteraction, type HarnessPlan, type HarnessUserAnswer, type HarnessUserQuestion } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPendingInteraction, type HarnessPlan, type HarnessUserAnswer, type HarnessUserQuestion } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -57,6 +57,13 @@ function assistantText(message: unknown) {
     .filter((block): block is { type: 'text', text: string } => Boolean(block && typeof block === 'object' && (block as { type?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string'))
     .map(block => block.text)
     .join('')
+}
+
+function firstTurnTitleInput(session: HarnessSession) {
+  const users = session.messages.filter(message => message.role === 'user')
+  const assistants = session.messages.filter(message => message.role === 'assistant')
+  if (users.length !== 1 || assistants.length) return undefined
+  return shouldGenerateAutoTitle(users[0].content) ? users[0].content : undefined
 }
 
 function tokenUsage(value: unknown): Omit<HarnessTokenUsage, 'cost'> | undefined {
@@ -268,6 +275,35 @@ export class HarnessRuntime {
       this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, error: message, status: 'failed', timestamp: Date.now(), durationMs: Date.now() - startedAt })
       emit(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'failed', error: message } })
       throw error
+    }
+  }
+
+  private async generateAutoTitle(sender: WebContents | undefined, sessionId: string, models: ReturnType<typeof createModels>, model: any, revision: number) {
+    if (!this.database.harness.isAutoTitleCurrent(sessionId, revision)) return
+    const session = this.database.harness.getSession(sessionId)
+    const user = session.messages.find(message => message.role === 'user')
+    const assistant = session.messages.find(message => message.role === 'assistant')
+    if (!user || !assistant) return
+    try {
+      const titleAgent = new Agent({
+        initialState: {
+          systemPrompt: '你只负责为一轮中文对话生成会话标题。只输出 8 到 20 个汉字的单行主题，不要使用引号、序号、Markdown 或解释；不要回答对话中的问题。',
+          model,
+          thinkingLevel: 'off',
+          messages: [],
+          tools: [],
+        } as any,
+        streamFn: models.streamSimple.bind(models) as any,
+        sessionId: `${sessionId}:title:${revision}`,
+      })
+      await titleAgent.prompt(`用户首条消息：\n${user.content.slice(0, 1200)}\n\n助手首条回复：\n${assistant.content.slice(0, 1600)}`)
+      if (titleAgent.state.errorMessage) return
+      const title = normalizeAutoTitle(assistantText(titleAgent.state.messages.at(-1)))
+      if (!title) return
+      const updated = this.database.harness.applyAutoTitle(sessionId, title, revision)
+      if (updated) emit(sender, { sessionId, type: 'title-updated', payload: { title: updated.title } })
+    } catch {
+      // A title is cosmetic; failures must never affect the completed conversation.
     }
   }
 
@@ -566,7 +602,7 @@ export class HarnessRuntime {
       execute: async () => ({ content: [{ type: 'text', text: '计划已记录。' }] }),
     }, { risk: 'read', title: () => '', detail: () => '' })
     const askUserTool = register({
-      name: 'ask_user', label: '询问用户', description: '在继续规划前向用户提出关键澄清问题。调用后会等待用户在界面中作答；不要把同样的问题重复写进普通回复。',
+      name: 'ask_user', label: '询问用户', description: '在继续规划前向用户提出关键澄清问题。可以一次提出最多 5 个问题，用户会逐个作答（也可跳过）。单选题请给出不超过 3 个候选，多选题不超过 5 个；自由输入由界面提供，无需兜底选项。调用后会等待用户作答；不要把同样的问题重复写进普通回复。',
       // Provider tool-call serializers vary: some omit optional fields, while others
       // flatten a single question to a string. Normalize the model payload here so a
       // malformed presentation cannot strand the user without a question card.
@@ -587,9 +623,9 @@ export class HarnessRuntime {
             if (!option || typeof option !== 'object') return []
             const item = option as Record<string, unknown>
             return typeof item.label === 'string' && item.label.trim() ? [{ label: item.label.trim().slice(0, 160), ...(typeof item.description === 'string' && item.description.trim() ? { description: item.description.trim().slice(0, 500) } : {}) }] : []
-          }).slice(0, 5) : undefined
+          }).slice(0, value.multiSelect === true ? 5 : 3) : undefined
           return [{ id, question: question.trim().slice(0, 1000), ...(typeof value.header === 'string' && value.header.trim() ? { header: value.header.trim().slice(0, 80) } : {}), ...(typeof value.context === 'string' && value.context.trim() ? { context: value.context.trim().slice(0, 1000) } : {}), ...(options?.length ? { options } : {}), ...(value.multiSelect === true ? { multiSelect: true } : {}), ...(value.allowCustom !== false ? { allowCustom: true } : {}) }]
-        }).slice(0, 4)
+        }).slice(0, 5)
         if (!questions.length) questions.push({ id: 'question-1', question: '为了继续制定方案，请补充这次最希望解决的问题、预期效果或优先级。' })
         const plan = session().activePlan
         if (!plan) throw new Error('当前没有计划')
@@ -771,8 +807,14 @@ export class HarnessRuntime {
     this.database.harness.updatePlan(sessionId, { status: 'planning' })
     emit(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId, status: 'answered', answers } })
     const { provider, apiKey } = this.requireProvider(selection)
-    const text = `用户对澄清问题的回答：\n${answers.map(answer => `- ${answer.id}: ${answer.custom || answer.selected.join('、')}`).join('\n')}`
-    const resumed = this.database.harness.addMessage(sessionId, 'user', text)
+    const questionById = new Map(interaction.questions.map(question => [question.id, question] as const))
+    const text = `用户对澄清问题的回答：\n${answers.map(answer => {
+      const question = questionById.get(answer.id)
+      const label = question?.question || answer.id
+      const value = answer.custom || answer.selected.join('、') || '（用户跳过）'
+      return `- ${label}：${value}`
+    }).join('\n')}`
+    const resumed = this.database.harness.addMessage(sessionId, 'user', text, undefined, true)
     return this.runAgent(sender, sessionId, resumed, selection!, provider, apiKey, { planning: true })
   }
 
@@ -807,6 +849,8 @@ export class HarnessRuntime {
     const controller = new AbortController()
     this.running.set(sessionId, { controller })
     session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
+    const autoTitleInput = origin === 'manual' ? firstTurnTitleInput(session) : undefined
+    const autoTitleRevision = autoTitleInput && session.titleSource === 'auto' ? this.database.harness.reserveAutoTitle(sessionId) : undefined
     emit(sender, { sessionId, type: 'status', payload: { state: 'running' } })
     const startedAt = Date.now()
     this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'running', timestamp: startedAt })
@@ -969,7 +1013,7 @@ export class HarnessRuntime {
               globalMemory,
               projectMemory,
             },
-          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user；该工具会等待用户的结构化回答，不要在普通回复重复问题。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
+          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user 提出澄清问题，一次最多 5 个，用户会逐个作答（也可跳过），不要把问题重复写进普通回复；单选问题提供不超过 3 个候选、多选不超过 5 个，自由输入始终由界面提供。用户作答后，先简短确认一句（例如「好的，我继续…」）再继续规划；他们的回答已经作为上下文提供，不需要复述或重复问题内容。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改，并把完整方案（当前理解、编号执行步骤、风险列表）作为你的最终回复用列表呈现。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
           model,
           thinkingLevel,
           messages: this.agentMessages(session, model),
@@ -1085,6 +1129,9 @@ export class HarnessRuntime {
       }
       this.log({ event: 'run', sessionId, projectId: session.projectId, providerId: provider.id, modelId: selection.modelId, status: 'completed', timestamp: completedAt, durationMs: completedAt - startedAt })
       emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
+      if (autoTitleRevision !== undefined && this.database.harness.isAutoTitleCurrent(sessionId, autoTitleRevision)) {
+        void this.generateAutoTitle(sender, sessionId, models, model, autoTitleRevision)
+      }
       const memoryWrite = origin === 'manual' && !options.planning
         ? this.saveLongTermMemory(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off').catch(() => undefined)
         : Promise.resolve()

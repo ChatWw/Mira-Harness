@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { HarnessStore } from '../electron/harnessStore'
 import { PlatformDatabase } from '../electron/database'
 import { MiraPaths } from '../electron/miraPaths'
+import { shouldGenerateAutoTitle } from '../src/config/harness'
 
 function createStore() {
   const root = mkdtempSync(join(tmpdir(), 'mira-harness-store-'))
@@ -337,6 +338,35 @@ describe('HarnessStore', () => {
 
     database.close()
     rmSync(root, { recursive: true, force: true })
+  })
+
+  it('keeps manual titles ahead of asynchronous automatic title results', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+
+    expect(store.getSession(session.id)).toMatchObject({ titleSource: 'auto', titleRevision: 0 })
+    const revision = store.reserveAutoTitle(session.id)
+    expect(revision).toBe(1)
+    expect(store.applyAutoTitle(session.id, '  “会话   摘要标题”  ', revision!)).toMatchObject({ title: '会话 摘要标题' })
+
+    const nextRevision = store.reserveAutoTitle(session.id)
+    store.renameSession(session.id, '人工标题')
+    expect(store.isAutoTitleCurrent(session.id, nextRevision!)).toBe(false)
+    expect(store.applyAutoTitle(session.id, '过期自动标题', nextRevision!)).toBeUndefined()
+    expect(store.getSession(session.id)).toMatchObject({ title: '人工标题', titleSource: 'manual' })
+
+    const legacy = (store as any).parseSession(JSON.stringify({ ...session, titleSource: undefined, titleRevision: undefined }))
+    expect(legacy).toMatchObject({ titleSource: 'manual', titleRevision: 0 })
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('only generates automatic titles for long, meaningful first messages', () => {
+    expect(shouldGenerateAutoTitle('测试')).toBe(false)
+    expect(shouldGenerateAutoTitle('111')).toBe(false)
+    expect(shouldGenerateAutoTitle('hahahahahaha')).toBe(false)
+    expect(shouldGenerateAutoTitle('请帮我梳理这个桌面端应用的会话标题生成流程，并给出最小可行实现与验收测试建议。')).toBe(true)
   })
 
   it('includes the current Git branch only for projects on a branch', () => {

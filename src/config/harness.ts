@@ -1,5 +1,6 @@
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
+export type HarnessTitleSource = 'auto' | 'manual'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type SendShortcut = 'enter' | 'mod-enter'
 export type AssistantTone = 'casual' | 'professional'
@@ -44,6 +45,8 @@ export interface MiraIdentity {
 export const DEFAULT_ASSISTANT_TONE: AssistantTone = 'casual'
 export const DEFAULT_MIRA_USER_NAME = '你'
 export const DEFAULT_MIRA_NAME = 'Mira'
+const AUTO_TITLE_MAX_LENGTH = 42
+const AUTO_TITLE_MIN_WEIGHT = 40
 
 export function normalizeAssistantTone(value: unknown): AssistantTone {
   return value === 'professional' ? 'professional' : DEFAULT_ASSISTANT_TONE
@@ -58,6 +61,25 @@ export function resolveMiraIdentity(identity?: Partial<MiraIdentity>): MiraIdent
     userName: normalizeMiraIdentityName(identity?.userName) || DEFAULT_MIRA_USER_NAME,
     assistantName: normalizeMiraIdentityName(identity?.assistantName) || DEFAULT_MIRA_NAME,
   }
+}
+
+export function normalizeAutoTitle(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+    .replace(/^["'`“”‘’]+\s*/, '')
+    .replace(/\s*["'`“”‘’]+$/, '')
+    .trim()
+    .slice(0, AUTO_TITLE_MAX_LENGTH)
+}
+
+export function shouldGenerateAutoTitle(value: string) {
+  const title = value.trim().replace(/\s+/g, ' ')
+  if (!title) return false
+  const compact = title.replace(/[\s\p{P}\p{S}_]+/gu, '').toLocaleLowerCase()
+  if (!compact || /^\d+$/.test(compact)) return false
+  if (/^(?:(?:test|testing|测试|hello|hi|haha|hahaha|哈哈))+$/iu.test(compact)) return false
+  if (/^(.{1,4})\1+$/u.test(compact)) return false
+  const weight = Array.from(title).reduce((total, character) => total + (/[ᄀ-ᇿ⺀-鿿豈-﫿！-｠￠-￮]/u.test(character) ? 2 : 1), 0)
+  return weight > AUTO_TITLE_MIN_WEIGHT
 }
 
 export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<KeyboardEvent, 'key' | 'keyCode' | 'isComposing' | 'metaKey' | 'ctrlKey' | 'shiftKey'>) {
@@ -277,6 +299,8 @@ export interface HarnessMessage {
   fileChanges?: HarnessFileChange[]
   createdAt: number
   interrupted?: boolean
+  /** 内部消息：参与模型上下文但不作为气泡渲染（如澄清问题的答案回填）。 */
+  internal?: boolean
 }
 
 export interface HarnessFileReference {
@@ -304,6 +328,8 @@ export interface HarnessSession {
   version: 1
   id: string
   title: string
+  titleSource?: HarnessTitleSource
+  titleRevision?: number
   projectId?: string
   workingDirectory?: string
   modelProviderId?: string
@@ -458,7 +484,7 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved'
   payload: Record<string, unknown>
 }
 

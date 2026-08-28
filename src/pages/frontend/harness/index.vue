@@ -12,7 +12,7 @@
 
       <div class="conversation__messages">
         <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel">
-        <article v-for="message in store.activeSession?.messages" :key="message.id" class="message" :class="[message.role, { 'is-entering': message.id === enteringMessageId }]" :data-message-id="message.id" @animationend="clearMessageEntrance(message.id)">
+        <article v-for="message in conversationMessages" :key="message.id" class="message" :class="[message.role, { 'is-entering': message.id === enteringMessageId }]" :data-message-id="message.id" @animationend="clearMessageEntrance(message.id)">
           <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '我' : 'Mira' }}</span>
           <template v-if="message.role === 'user'">
             <el-input v-if="editingMessageId === message.id" v-model="editingMessageText" class="message__edit-input" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="编辑消息" />
@@ -66,9 +66,6 @@
           <RunActivityList :activities="toolActivities(store.activeRun.activities)" />
           <SubtaskList :subtasks="store.activeRun.subtasks" :stop="stopSubtask" />
         </details>
-        <PlanQuestionCard v-for="interaction in store.activeSession?.interactions?.filter(item => item.kind === 'question' && item.status !== 'waiting') || []" :key="interaction.id" :interaction="interaction as Extract<import('@/config/harness').HarnessPendingInteraction, { kind: 'question' }>" />
-        <PlanQuestionCard v-if="store.activeInteraction?.kind === 'question' && store.activeInteraction.status === 'waiting'" :interaction="store.activeInteraction" :busy="interactionSubmitting" @answer="answerPlanQuestions" @cancel="cancelPlan" />
-        <PlanApprovalCard v-if="store.activePlan && store.activeInteraction?.kind === 'plan-review'" :plan="store.activePlan" :busy="interactionSubmitting" @confirm="confirmPlan" @continue="focusComposerForPlan" @cancel="cancelPlan" />
         </div>
         <div
           v-if="showQuickNavigation"
@@ -119,6 +116,8 @@
 
       <footer class="composer-shell" @keydown.esc="closeComposerOverlay">
         <div v-if="composerOverlay" class="composer-overlay__backdrop" @mousedown="closeComposerOverlay" />
+        <PlanClarificationWizard v-if="pendingQuestionInteraction" :interaction="pendingQuestionInteraction" :busy="interactionSubmitting" @answer="answerPlanQuestions" @cancel="cancelPlan" />
+        <PlanReviewPanel v-else-if="confirmPlanPending && store.activePlan" :plan="store.activePlan" :busy="interactionSubmitting" @execute="confirmPlan" @cancel="cancelPlan" />
         <div v-if="showProjectPicker" class="composer-toolbar" aria-label="对话项目工具">
           <div class="composer-toolbar__project-control" :class="{ 'has-project': selectedProject }">
             <el-popover v-model:visible="projectPickerVisible" trigger="click" placement="top" :width="250" popper-class="harness-selector-popper" :show-arrow="false" @show="refreshProjectPicker">
@@ -169,7 +168,7 @@
           <div v-if="composerDraft.attachments.length" class="composer__context">
             <span v-for="file in composerDraft.attachments" :key="file.path" class="composer-chip is-selected"><AppIcon name="Document" /><span>{{ file.name }}</span><button type="button" class="composer-chip__remove" :aria-label="`移除 ${file.name}`" @click="removeAttachment(file.path)"><AppIcon name="Close" /></button></span>
           </div>
-          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="随便问" :disabled="isComposerBusy" @update:model-value="setDraftText" @keydown="handleComposerKeydown" />
+          <el-input :model-value="composerDraft.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" resize="none" placeholder="随便问" :disabled="isComposerBusy || !!pendingQuestionInteraction" @update:model-value="setDraftText" @keydown="handleComposerKeydown" />
           <div class="composer__actions">
             <div class="composer__status">
               <button type="button" class="composer-icon-button" :class="{ 'is-active': composerOverlay === 'add' }" title="添加内容" aria-label="添加内容" :disabled="isComposerBusy" @click="toggleAddMenu"><AppIcon name="Plus" /></button>
@@ -220,7 +219,7 @@
                 </div>
               </el-popover>
               <el-tooltip v-if="store.running" content="停止生成" placement="top"><button type="button" class="composer__send is-stop" aria-label="停止生成" @click="abort"><AppIcon name="VideoPause" /></button></el-tooltip>
-              <el-tooltip v-else :content="composerDraft.modelSelection ? '发送消息' : '请先选择模型'" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="isComposerBusy || !composerDraft.text.trim() || !composerDraft.modelSelection" @click="send"><AppIcon name="Top" /></button></el-tooltip>
+              <el-tooltip v-else :content="composerDraft.modelSelection ? '发送消息' : '请先选择模型'" placement="top"><button type="button" class="composer__send" aria-label="发送消息" :disabled="isComposerBusy || !composerDraft.text.trim() || !composerDraft.modelSelection || !!pendingQuestionInteraction" @click="send"><AppIcon name="Top" /></button></el-tooltip>
             </div>
           </div>
         </div>
@@ -280,8 +279,8 @@ import { useHarnessStore } from '@/stores/harness'
 import RunPlan from './components/RunPlan.vue'
 import RunActivityList from './components/RunActivityList.vue'
 import SubtaskList from './components/SubtaskList.vue'
-import PlanApprovalCard from './components/PlanApprovalCard.vue'
-import PlanQuestionCard from './components/PlanQuestionCard.vue'
+import PlanClarificationWizard from './components/PlanClarificationWizard.vue'
+import PlanReviewPanel from './components/PlanReviewPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -308,6 +307,12 @@ type SlashOption = { id: string, title: string, description?: string, icon: stri
 const composerOverlay = ref<'add' | 'slash'>()
 const planMode = ref(false)
 const interactionSubmitting = ref(false)
+/** 当前等待用户作答的计划澄清问题（writer 面板用）。 */
+const pendingQuestionInteraction = computed(() => store.activeInteraction?.kind === 'question' && store.activeInteraction.status === 'waiting' ? store.activeInteraction : undefined)
+/** 方案已生成、等待用户确认执行（review 面板用）。 */
+const confirmPlanPending = computed(() => store.activePlan?.status === 'awaiting_confirmation')
+/** 对话中展示的消息（过滤掉内部上下文消息，如澄清问题回填的答案）。 */
+const conversationMessages = computed(() => (store.activeSession?.messages || []).filter(message => !message.internal))
 const projectPickerVisible = ref(false)
 const gitPickerVisible = ref(false)
 const createGitBranchVisible = ref(false)
@@ -893,7 +898,6 @@ async function confirmPlan() {
   interactionSubmitting.value = true
   try { await store.confirmPlan(id, plan.id, selection); planMode.value = false } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法执行计划') } finally { interactionSubmitting.value = false }
 }
-function focusComposerForPlan() { document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus() }
 async function answerPlanQuestions(answers: import('@/config/harness').HarnessUserAnswer[]) {
   const interaction = store.activeInteraction; const id = store.activeSession?.id; const selection = composerDraft.value.modelSelection
   if (!interaction || interaction.kind !== 'question' || !id || !selection) return
@@ -1077,6 +1081,7 @@ async function send() {
     modelSelection: draft.modelSelection ? { ...draft.modelSelection } : undefined,
   }
   if (!api || !originKey || !payload.text || !payload.modelSelection || isComposerBusy.value) return
+  if (pendingQuestionInteraction.value) { ElMessage.info('请先回答当前澄清问题。'); return }
 
   let activeId = sessionId.value
   try {

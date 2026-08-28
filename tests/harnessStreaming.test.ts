@@ -166,4 +166,23 @@ describe('harness message streaming', () => {
     expect(answers[0].selected).not.toBe((reactiveAnswer as any).selected)
     expect(selection).toEqual({ providerId: 'provider-1', modelId: 'model-1', thinkingLevel: 'medium' })
   })
+
+  it('updates active and inactive session titles from a title event', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+    store.sessions = [
+      { id: 'session-1', title: '旧标题', permissionMode: 'auto-approve', status: 'completed', pinned: false, createdAt: 1, updatedAt: 1 },
+      { id: 'session-2', title: '另一个旧标题', permissionMode: 'auto-approve', status: 'completed', pinned: false, createdAt: 1, updatedAt: 1 },
+    ]
+
+    store.applyEvent({ sessionId: 'session-1', type: 'title-updated', payload: { title: '新的摘要标题' } })
+    store.applyEvent({ sessionId: 'session-2', type: 'title-updated', payload: { title: '非活动会话标题' } })
+
+    expect(store.activeSession?.title).toBe('新的摘要标题')
+    expect(store.sessions).toEqual([
+      expect.objectContaining({ id: 'session-1', title: '新的摘要标题' }),
+      expect.objectContaining({ id: 'session-2', title: '非活动会话标题' }),
+    ])
+  })
 })

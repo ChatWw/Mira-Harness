@@ -423,6 +423,14 @@ export const useHarnessStore = defineStore('harness', () => {
   }
 
   function applyEvent(event: HarnessEvent) {
+    if (event.type === 'title-updated') {
+      const title = typeof event.payload.title === 'string' ? event.payload.title : ''
+      if (title) {
+        sessions.value = sessions.value.map(session => session.id === event.sessionId ? { ...session, title } : session)
+        if (activeSession.value?.id === event.sessionId) activeSession.value = { ...activeSession.value, title }
+      }
+      return
+    }
     if (event.type === 'permission-request') {
       const requestId = typeof event.payload.requestId === 'string' ? event.payload.requestId : ''
       if (requestId) {
