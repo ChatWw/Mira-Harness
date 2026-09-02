@@ -1,6 +1,6 @@
 <template>
   <section class="workspace-navigation" :class="{ collapsed }" aria-label="Mira 工作台">
-    <el-tooltip :disabled="!collapsed" content="自动化（待上线）" placement="right">
+    <el-tooltip :disabled="!collapsed" content="自动化" placement="right">
       <button type="button" class="workspace-action" :class="{ active: route.path === '/workspace/automations' }" @click="router.push('/workspace/automations')"><AppIcon name="Clock" /><span v-if="!collapsed">自动化</span></button>
     </el-tooltip>
 

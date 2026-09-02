@@ -4,8 +4,8 @@ import type { LayoutConfig } from '@/types'
 import { getPreference, savePreference } from '@/platform'
 
 export const APP_NAME = 'Mira Harness'
-const SUPPORTED_LAYOUT_MODES: LayoutConfig['mode'][] = ['sidebar-header', 'sidebar-only']
 const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
+const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
   chrome: 'personalized',
   plain: 'square',
@@ -38,13 +38,9 @@ const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, 
 }
 
 const DEFAULT_CONFIG: LayoutConfig = {
-  mode: 'sidebar-header',
   sidebarStyle: 'embedded',
-  sidebarWidth: 200,
-  collapsedWidth: 48,
   uniqueOpened: false,
   showLogo: false,
-  showFooter: false,
   headerHeight: 48,
   showBreadcrumb: true,
   breadcrumbIcon: false,
@@ -64,38 +60,20 @@ const DEFAULT_CONFIG: LayoutConfig = {
   componentSize: 'default',
   watermark: false,
   watermarkText: '',
-  footerStyle: 'simple',
-  footerHeight: 40,
-  footerCopyright: 'Mira',
-  footerYearMode: 'auto',
-  footerYearStart: null,
-  footerYearEnd: null,
-  footerIcp: '',
-  footerIcpLink: 'https://beian.miit.gov.cn/',
-  footerLinks: [],
   dynamicTitle: true,
 }
 
 export const useLayoutStore = defineStore('layout', () => {
   // 布局配置
-  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...getPreference<Partial<LayoutConfig>>('layout', {}) })
-
-  // 布局模式
-  function setLayoutMode(mode: LayoutConfig['mode']) {
-    config.value.mode = mode
+  const storedLayout = getPreference<Record<string, unknown>>('layout', {})
+  const normalizedLayout = Object.fromEntries(Object.entries(storedLayout).filter(([key]) => !REMOVED_LAYOUT_KEYS.has(key))) as Partial<LayoutConfig>
+  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...normalizedLayout })
+  if (Object.keys(normalizedLayout).length !== Object.keys(storedLayout).length) {
+    savePreference('layout', config.value)
   }
 
   function setSidebarStyle(style: LayoutConfig['sidebarStyle']) {
     config.value.sidebarStyle = style
-  }
-
-  // 侧边栏设置
-  function setSidebarWidth(width: number) {
-    config.value.sidebarWidth = width
-  }
-
-  function setCollapsedWidth(width: number) {
-    config.value.collapsedWidth = width
   }
 
   function setUniqueOpened(value: boolean) {
@@ -108,47 +86,6 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function setShowLogo(value: boolean) {
     config.value.showLogo = value
-  }
-
-  // 底栏设置
-  function setShowFooter(value: boolean) {
-    config.value.showFooter = value
-  }
-
-  function setFooterStyle(style: LayoutConfig['footerStyle']) {
-    config.value.footerStyle = style
-  }
-
-  function setFooterHeight(height: number) {
-    config.value.footerHeight = height
-  }
-
-  function setFooterCopyright(text: string) {
-    config.value.footerCopyright = text
-  }
-
-  function setFooterYearMode(mode: LayoutConfig['footerYearMode']) {
-    config.value.footerYearMode = mode
-  }
-
-  function setFooterYearStart(year: number | null) {
-    config.value.footerYearStart = year
-  }
-
-  function setFooterYearEnd(year: number | null) {
-    config.value.footerYearEnd = year
-  }
-
-  function setFooterIcp(text: string) {
-    config.value.footerIcp = text
-  }
-
-  function setFooterIcpLink(link: string) {
-    config.value.footerIcpLink = link
-  }
-
-  function setFooterLinks(links: LayoutConfig['footerLinks']) {
-    config.value.footerLinks = links
   }
 
   // 顶栏设置
@@ -280,16 +217,6 @@ export const useLayoutStore = defineStore('layout', () => {
   )
 
   watch(
-    () => config.value.mode,
-    (mode) => {
-      if (!SUPPORTED_LAYOUT_MODES.includes(mode)) {
-        config.value.mode = DEFAULT_CONFIG.mode
-      }
-    },
-    { immediate: true }
-  )
-
-  watch(
     () => config.value.sidebarStyle,
     (style) => {
       if (!SUPPORTED_SIDEBAR_STYLES.includes(style)) {
@@ -322,23 +249,10 @@ export const useLayoutStore = defineStore('layout', () => {
 
   return {
     config,
-    setLayoutMode,
     setSidebarStyle,
-    setSidebarWidth,
-    setCollapsedWidth,
     setUniqueOpened,
     toggleLogo,
     setShowLogo,
-    setShowFooter,
-    setFooterStyle,
-    setFooterHeight,
-    setFooterCopyright,
-    setFooterYearMode,
-    setFooterYearStart,
-    setFooterYearEnd,
-    setFooterIcp,
-    setFooterIcpLink,
-    setFooterLinks,
     setHeaderHeight,
     setShowBreadcrumb,
     setBreadcrumbIcon,

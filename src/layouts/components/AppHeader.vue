@@ -2,7 +2,6 @@
   <header class="app-header">
     <div class="header-left">
       <el-button
-        v-if="hasSidebar"
         text
         @click="appStore.toggleSidebar()"
         class="collapse-btn"
@@ -20,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useLayoutStore } from '@/stores/layout'
@@ -31,7 +30,6 @@ import { useCommandPaletteStore } from '@/stores/commandPalette'
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
-const hasSidebar = computed(() => ['sidebar-header', 'sidebar-only'].includes(layoutStore.config.mode))
 const commandPaletteStore = useCommandPaletteStore()
 const route = useRoute()
 const router = useRouter()

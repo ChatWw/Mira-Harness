@@ -10,18 +10,8 @@
     </div>
 
     <div class="layout-workspace">
-      <!-- 仅侧栏模式：一级应用栏常驻，二级菜单按当前应用配置显示。 -->
-      <div v-if="isSidebarOnly" class="layout-navigation-group">
-        <Transition name="rail-slide">
-          <div class="layout-rail-transition">
-            <GlobalHeader variant="rail" />
-          </div>
-        </Transition>
-        <AppSidebar v-if="showSidebar" :show-brand="true" text-only-brand />
-      </div>
-
-      <!-- 默认布局：品牌置于顶栏下方的工作区导航内。 -->
-      <AppSidebar v-else-if="showSidebar" :show-brand="true" />
+      <!-- 经典布局：品牌置于顶栏下方的工作区导航内。 -->
+      <AppSidebar v-if="showSidebar" :show-brand="true" />
 
       <!-- 主容器 -->
       <div class="main-container">
@@ -30,9 +20,6 @@
 
         <!-- 主内容区 -->
         <AppMain />
-
-        <!-- 底栏 -->
-        <AppFooter v-if="layoutStore.config.showFooter" />
       </div>
     </div>
 
@@ -52,13 +39,11 @@ import AppSidebar from './components/AppSidebar.vue'
 import GlobalHeader from './components/GlobalHeader.vue'
 import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
-import AppFooter from './components/AppFooter.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const route = useRoute()
-const isSidebarOnly = computed(() => layoutStore.config.mode === 'sidebar-only')
 const isMacDesktop = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
 const desktopHeaderHeight = computed(() => isMacDesktop
   ? 34
@@ -83,7 +68,6 @@ const watermarkProps = computed(() => {
 
 const layoutClasses = computed(() => {
   const classes = [
-    `layout--${layoutStore.config.mode}`,
     `layout--sidebar-style-${layoutStore.config.sidebarStyle}`,
   ]
 
@@ -124,11 +108,6 @@ const layoutClasses = computed(() => {
     overflow: hidden;
   }
 
-  .layout-navigation-group {
-    display: flex;
-    flex-shrink: 0;
-  }
-
   .main-container {
     flex: 1;
     display: flex;
@@ -149,7 +128,7 @@ const layoutClasses = computed(() => {
     }
 
     .main-container {
-      margin: 12px 12px 12px 0;
+      margin: 0 12px 12px 0;
       background: var(--cp-bg);
       border: 1px solid var(--cp-layout-border);
       border-radius: calc(1rem * 1.4);
@@ -157,34 +136,20 @@ const layoutClasses = computed(() => {
     }
 
     :deep(.global-header),
-    :deep(.global-rail),
     :deep(.app-sidebar) {
       background: var(--cp-bg-elevated);
     }
 
     :deep(.global-header),
-    :deep(.app-sidebar),
-    :deep(.global-rail) {
+    :deep(.app-sidebar) {
       border-color: var(--cp-layout-border);
     }
 
-    &.layout--sidebar-header {
-      :deep(.el-sub-menu .el-menu) {
-        background: transparent;
-      }
+    :deep(.el-sub-menu .el-menu) {
+      background: transparent;
     }
 
-    &.layout--sidebar-only {
-      :deep(.el-sub-menu .el-menu) {
-        background: transparent;
-      }
-    }
-
-    &.layout--sidebar-only .main-container {
-      margin-left: 12px;
-    }
-
-    &.layout--sidebar-header.layout--without-workspace-menu .main-container {
+    &.layout--without-workspace-menu .main-container {
       margin-left: 12px;
     }
 
@@ -200,7 +165,6 @@ const layoutClasses = computed(() => {
       background: var(--cp-bg);
     }
 
-    .layout-navigation-group,
     :deep(.app-sidebar) {
       align-self: stretch;
       height: auto;
@@ -219,28 +183,8 @@ const layoutClasses = computed(() => {
       background: var(--cp-bg-elevated);
     }
 
-    &.layout--sidebar-header {
-      :deep(.app-sidebar) {
-        margin-right: 12px;
-      }
-    }
-
-    &.layout--sidebar-only {
-      .layout-navigation-group {
-        margin-right: 12px;
-      }
-
-      :deep(.app-sidebar) {
-        margin: 0;
-        border: 0;
-        border-radius: 0;
-        box-shadow: none;
-      }
-
-      :deep(.global-rail) {
-        height: 100%;
-        background: transparent;
-      }
+    :deep(.app-sidebar) {
+      margin-right: 12px;
     }
   }
 
@@ -252,13 +196,11 @@ const layoutClasses = computed(() => {
       border-bottom: 1px solid var(--cp-layout-border);
     }
 
-    :deep(.app-sidebar),
-    :deep(.global-rail) {
+    :deep(.app-sidebar) {
       border-right: 1px solid var(--cp-layout-border);
     }
 
-    :deep(.app-sidebar),
-    :deep(.global-rail) {
+    :deep(.app-sidebar) {
       background: transparent;
     }
 
@@ -266,27 +208,6 @@ const layoutClasses = computed(() => {
       background: transparent;
     }
 
-    &.layout--sidebar-only {
-      :deep(.app-sidebar) {
-        background: transparent;
-      }
-    }
-  }
-
-  // 1. 侧边栏+顶栏模式（默认）
-  &--sidebar-header {
-    // 默认布局，无需额外样式
-  }
-
-  // 2. 仅侧边栏模式：应用栏、二级菜单和主工作区均在同一个三栏工作区中。
-  &--sidebar-only {
-    :deep(.app-sidebar) {
-      background: var(--cp-bg);
-    }
-
-    :deep(.sidebar-header) {
-      border-bottom: none;
-    }
   }
 
   // ========== 响应式 ==========
@@ -304,7 +225,6 @@ const layoutClasses = computed(() => {
     }
 
     &--sidebar-style-floating {
-      .layout-navigation-group,
       :deep(.app-sidebar) {
         margin: 0;
         border-radius: 0;
@@ -333,30 +253,4 @@ const layoutClasses = computed(() => {
   overflow: hidden;
 }
 
-.layout-rail-transition {
-  width: 72px;
-  height: 100%;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.rail-slide-enter-active,
-.rail-slide-leave-active {
-  overflow: hidden;
-  transition: width var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
-}
-
-.rail-slide-enter-from,
-.rail-slide-leave-to {
-  width: 0;
-  opacity: 0;
-  transform: translateX(-100%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rail-slide-enter-active,
-  .rail-slide-leave-active {
-    transition: none;
-  }
-}
 </style>

@@ -24,6 +24,7 @@ const CURRENT_SCHEMA_VERSION = 24
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
+const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
@@ -229,6 +230,18 @@ export class PlatformDatabase {
         this.backup()
         this.writeSnapshot({ ...snapshot, mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus) })
         this.savePreference('novelModelProfilesMigratedAt', Date.now())
+      }
+    }
+    const layoutRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('layout') as { value?: string } | undefined
+    if (layoutRow?.value) {
+      try {
+        const layout = JSON.parse(layoutRow.value) as Record<string, unknown>
+        if (layout && typeof layout === 'object' && !Array.isArray(layout)) {
+          const normalizedLayout = Object.fromEntries(Object.entries(layout).filter(([key]) => !REMOVED_LAYOUT_KEYS.has(key)))
+          if (Object.keys(normalizedLayout).length !== Object.keys(layout).length) this.savePreference('layout', normalizedLayout)
+        }
+      } catch {
+        // Ignore malformed legacy layout preferences and let the renderer use defaults.
       }
     }
     let workspaceSettings = this.novels.getSettings()

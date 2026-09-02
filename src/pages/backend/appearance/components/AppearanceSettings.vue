@@ -80,29 +80,6 @@
       </div>
 
       <div class="visual-setting">
-        <span class="visual-setting__label">布局模式</span>
-        <div class="choice-grid choice-grid--layout" role="radiogroup" aria-label="布局模式">
-          <button
-            v-for="mode in layoutModes"
-            :key="mode.value"
-            type="button"
-            class="choice-card layout-card"
-            :class="{ 'is-selected': layoutStore.config.mode === mode.value }"
-            role="radio"
-            :aria-checked="layoutStore.config.mode === mode.value"
-            @click="layoutStore.setLayoutMode(mode.value)"
-          >
-            <span class="layout-preview" aria-hidden="true">
-              <i v-if="mode.showRail" class="layout-preview__rail"></i>
-              <i v-if="mode.showSidebar" class="layout-preview__sidebar"></i>
-              <span class="layout-preview__main"><i v-if="mode.showHeader"></i><b></b></span>
-            </span>
-            <span class="choice-card__label">{{ mode.label }}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="visual-setting">
         <span class="visual-setting__label">侧边栏样式</span>
         <div class="choice-grid choice-grid--sidebar" role="radiogroup" aria-label="侧边栏样式">
           <button
@@ -122,14 +99,6 @@
       </div>
 
       <div class="settings-list">
-        <div class="settings-row">
-          <span class="settings-row__label">侧边栏宽度</span>
-          <el-input-number :model-value="layoutStore.config.sidebarWidth" :min="200" :max="280" :step="10" size="small" @change="layoutStore.setSidebarWidth" />
-        </div>
-        <div class="settings-row">
-          <span class="settings-row__label">折叠宽度</span>
-          <el-input-number :model-value="layoutStore.config.collapsedWidth" :min="48" :max="80" :step="4" size="small" @change="layoutStore.setCollapsedWidth" />
-        </div>
         <div class="settings-row">
           <span class="settings-row__label">唯一展开</span>
           <el-switch :model-value="layoutStore.config.uniqueOpened" @change="layoutStore.setUniqueOpened" />
@@ -200,29 +169,6 @@
       </div>
     </section>
 
-    <section class="settings-section" aria-labelledby="footer-heading">
-      <div class="section-heading"><h2 id="footer-heading">底栏</h2><p>配置工作台底部的版权信息。</p></div>
-      <div class="settings-list">
-        <div class="settings-row"><span class="settings-row__label">显示底栏</span><el-switch :model-value="layoutStore.config.showFooter" @change="layoutStore.setShowFooter" /></div>
-        <div class="settings-row">
-          <span class="settings-row__label">底栏样式</span>
-          <el-select :model-value="layoutStore.config.footerStyle" size="small" @change="layoutStore.setFooterStyle"><el-option label="简约" value="simple" /><el-option label="分栏" value="split" /><el-option label="多列" value="multi" /></el-select>
-        </div>
-        <div class="settings-row"><span class="settings-row__label">底栏高度</span><el-input-number :model-value="layoutStore.config.footerHeight" :min="32" :max="64" :step="4" size="small" @change="layoutStore.setFooterHeight" /></div>
-        <div class="settings-row"><span class="settings-row__label">版权文本</span><el-input :model-value="layoutStore.config.footerCopyright" class="settings-control--wide" placeholder="请输入版权文本" size="small" @input="layoutStore.setFooterCopyright" /></div>
-        <div class="settings-row">
-          <span class="settings-row__label">版权年份</span>
-          <el-select :model-value="layoutStore.config.footerYearMode" size="small" @change="layoutStore.setFooterYearMode"><el-option label="自动" value="auto" /><el-option label="自定义" value="custom" /></el-select>
-        </div>
-        <template v-if="layoutStore.config.footerYearMode === 'custom'">
-          <div class="settings-row"><span class="settings-row__label">起始年份</span><el-input-number :model-value="layoutStore.config.footerYearStart" :min="2000" :max="2100" size="small" @change="layoutStore.setFooterYearStart" /></div>
-          <div class="settings-row"><span class="settings-row__label">结束年份</span><el-input-number :model-value="layoutStore.config.footerYearEnd" :min="2000" :max="2100" size="small" @change="layoutStore.setFooterYearEnd" /></div>
-        </template>
-        <div class="settings-row"><span class="settings-row__label">备案号</span><el-input :model-value="layoutStore.config.footerIcp" class="settings-control--wide" placeholder="请输入备案号" size="small" @input="layoutStore.setFooterIcp" /></div>
-        <div class="settings-row"><span class="settings-row__label">备案号链接</span><el-input :model-value="layoutStore.config.footerIcpLink" class="settings-control--wide" placeholder="请输入备案号链接" size="small" @input="layoutStore.setFooterIcpLink" /></div>
-      </div>
-    </section>
-
     <section class="settings-section" aria-labelledby="other-heading">
       <div class="section-heading"><h2 id="other-heading">其他</h2><p>管理内容区域和水印偏好。</p></div>
       <div class="settings-list">
@@ -247,7 +193,7 @@
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import router, { updateDocumentTitle } from '@/router'
-import type { LayoutMode, PageTransition, SidebarStyle, ThemePreference } from '@/types'
+import type { PageTransition, SidebarStyle, ThemePreference } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
@@ -257,11 +203,6 @@ const themeModeOptions: Array<{ label: string; value: ThemePreference }> = [
   { label: '系统', value: 'system' },
   { label: '浅色', value: 'light' },
   { label: '深色', value: 'dark' },
-]
-
-const layoutModes = [
-  { value: 'sidebar-header' as LayoutMode, label: '经典', showSidebar: true, showHeader: true, showRail: false },
-  { value: 'sidebar-only' as LayoutMode, label: '沉浸式', showSidebar: true, showHeader: false, showRail: true },
 ]
 
 const sidebarStyles = [
@@ -300,7 +241,6 @@ function handleDynamicTitleChange(value: boolean) {
 
 .choice-grid { display: grid; justify-content: start; gap: 12px; }
 .choice-grid--theme { grid-template-columns: repeat(3, minmax(0, 176px)); }
-.choice-grid--layout { grid-template-columns: repeat(2, minmax(0, 176px)); }
 .choice-grid--sidebar { grid-template-columns: repeat(3, minmax(0, 144px)); }
 .choice-grid--transition { grid-template-columns: repeat(6, minmax(0, 128px)); }
 
@@ -392,11 +332,6 @@ function handleDynamicTitleChange(value: boolean) {
 .visual-setting { margin-top: 24px; }
 .visual-setting__label { display: block; margin-bottom: 10px; color: var(--cp-text); font-size: $font-sm; }
 .layout-preview, .sidebar-preview, .transition-preview { display: flex; height: 72px; overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: 6px; background: var(--cp-bg-elevated); }
-.layout-preview__rail { display: block; width: 12px; background: color-mix(in srgb, var(--cp-primary) 12%, var(--cp-bg-elevated)); }
-.layout-preview__sidebar { display: block; width: 34px; background: var(--cp-bg-hover); border-right: 1px solid var(--cp-border-light); }
-.layout-preview__main { display: flex; flex: 1; flex-direction: column; gap: 9px; padding: 10px; }
-.layout-preview__main i { display: block; height: 10px; background: var(--cp-bg-hover); border-bottom: 1px solid var(--cp-border-light); }
-.layout-preview__main b { display: block; flex: 1; border-radius: 3px; background: var(--cp-bg); }
 
 .sidebar-preview { position: relative; padding: 10px; }
 .sidebar-preview i { display: block; width: 34px; border-radius: 3px; background: var(--cp-bg-hover); }

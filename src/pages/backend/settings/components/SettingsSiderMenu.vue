@@ -94,7 +94,7 @@ function goToSection(path: string) {
 .settings-sidebar {
   box-sizing: border-box;
   display: flex;
-  flex: 0 0 260px;
+  flex: 0 0 240px;
   flex-direction: column;
   gap: 30px;
   padding: 34px 8px 24px;

@@ -3,8 +3,7 @@
     class="app-sidebar"
     :class="{ collapsed: appStore.sidebarCollapsed }"
     :style="{
-      width: appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
-      '--sidebar-width': appStore.sidebarCollapsed ? `${layoutStore.config.collapsedWidth}px` : `${layoutStore.config.sidebarWidth}px`,
+      width: appStore.sidebarCollapsed ? '48px' : '240px',
     }"
   >
     <Transition name="sidebar-header-slide">
@@ -35,7 +34,7 @@
 
     <div class="sidebar-content" @scroll="handleSidebarScroll">
       <WorkspaceNavigation :collapsed="appStore.sidebarCollapsed" />
-      <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': `${(layoutStore.config.collapsedWidth - 24 - 8) / 2}px` } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
+      <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': '8px' } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
         <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">应用</div></template>
         <SidebarMenuItem v-for="item in applicationMenus" :key="item.id" :item="item" />
         <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">菜单</div></template>

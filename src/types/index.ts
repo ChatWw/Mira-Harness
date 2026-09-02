@@ -225,8 +225,6 @@ export interface PlatformApi {
 // 关闭窗口时的行为
 export type CloseWindowBehavior = 'background' | 'quit'
 
-// 布局模式
-export type LayoutMode = 'sidebar-header' | 'sidebar-only'
 export type SidebarStyle = 'embedded' | 'floating' | 'docked'
 
 // 页面切换动画
@@ -238,26 +236,14 @@ export type ContentPadding = 'compact' | 'normal' | 'comfortable'
 export type CornerRadius = 'sharp' | 'medium' | 'rounded'
 export type ComponentSize = 'large' | 'default' | 'small'
 export type AnimationSpeed = 'fast' | 'normal' | 'slow'
-export type FooterStyle = 'simple' | 'split' | 'multi'
-export type FooterYearMode = 'auto' | 'custom'
 export type TabStyle = 'default' | 'personalized' | 'square' | 'card'
 export type BreadcrumbStyle = 'normal' | 'card'
 
-export interface FooterLink {
-  text: string
-  url: string
-  target?: '_blank' | '_self'
-}
-
 // 布局配置
 export interface LayoutConfig {
-  mode: LayoutMode
   sidebarStyle: SidebarStyle
-  sidebarWidth: number
-  collapsedWidth: number
   uniqueOpened: boolean
   showLogo: boolean
-  showFooter: boolean
   headerHeight: number
   showBreadcrumb: boolean
   breadcrumbIcon: boolean
@@ -277,14 +263,5 @@ export interface LayoutConfig {
   componentSize: ComponentSize
   watermark: boolean
   watermarkText: string
-  footerStyle: FooterStyle
-  footerHeight: number
-  footerCopyright: string
-  footerYearMode: FooterYearMode
-  footerYearStart: number | null
-  footerYearEnd: number | null
-  footerIcp: string
-  footerIcpLink: string
-  footerLinks: FooterLink[]
   dynamicTitle: boolean
 }
