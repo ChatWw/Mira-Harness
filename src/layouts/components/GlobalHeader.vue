@@ -55,7 +55,7 @@ const isFullscreen = ref(false)
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const isMacOverlay = windowChrome === 'macos-overlay'
 const isWindowsOverlay = windowChrome === 'windows-overlay'
-const headerHeight = computed(() => isMacOverlay ? 34 : layoutStore.config.headerHeight)
+const headerHeight = computed(() => isMacOverlay ? 34 : 48)
 const headerEl = ref<HTMLElement | null>(null)
 const windowsMenu: Array<{ label: string; items: Array<{ label: string; action: string; divided?: boolean }> }> = [
   {

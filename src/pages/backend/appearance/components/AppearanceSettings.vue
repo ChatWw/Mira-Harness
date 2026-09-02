@@ -113,10 +113,6 @@
     <section class="settings-section" aria-labelledby="header-heading">
       <div class="section-heading"><h2 id="header-heading">顶栏</h2><p>控制页面导航和工具栏信息。</p></div>
       <div class="settings-list">
-        <div class="settings-row">
-          <span class="settings-row__label">顶栏高度</span>
-          <el-input-number :model-value="isMacOverlay ? 34 : layoutStore.config.headerHeight" :min="48" :max="80" :step="4" :disabled="isMacOverlay" size="small" @change="layoutStore.setHeaderHeight" />
-        </div>
         <div class="settings-row"><span class="settings-row__label">显示面包屑</span><el-switch :model-value="layoutStore.config.showBreadcrumb" @change="layoutStore.setShowBreadcrumb" /></div>
         <div class="settings-row"><span class="settings-row__label">面包屑图标</span><el-switch :model-value="layoutStore.config.breadcrumbIcon" @change="layoutStore.setBreadcrumbIcon" /></div>
         <div class="settings-row">
@@ -197,8 +193,6 @@ import type { PageTransition, SidebarStyle, ThemePreference } from '@/types'
 
 const layoutStore = useLayoutStore()
 const themeStore = useThemeStore()
-const isMacOverlay = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
-
 const themeModeOptions: Array<{ label: string; value: ThemePreference }> = [
   { label: '系统', value: 'system' },
   { label: '浅色', value: 'light' },

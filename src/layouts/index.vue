@@ -45,9 +45,7 @@ const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const route = useRoute()
 const isMacDesktop = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
-const desktopHeaderHeight = computed(() => isMacDesktop
-  ? 34
-  : layoutStore.config.headerHeight)
+const desktopHeaderHeight = isMacDesktop ? 34 : 48
 const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 

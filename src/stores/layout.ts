@@ -41,7 +41,6 @@ const DEFAULT_CONFIG: LayoutConfig = {
   sidebarStyle: 'embedded',
   uniqueOpened: false,
   showLogo: false,
-  headerHeight: 48,
   showBreadcrumb: true,
   breadcrumbIcon: false,
   breadcrumbStyle: 'normal',
@@ -86,11 +85,6 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function setShowLogo(value: boolean) {
     config.value.showLogo = value
-  }
-
-  // 顶栏设置
-  function setHeaderHeight(height: number) {
-    config.value.headerHeight = height
   }
 
   function setShowBreadcrumb(value: boolean) {
@@ -253,7 +247,6 @@ export const useLayoutStore = defineStore('layout', () => {
     setUniqueOpened,
     toggleLogo,
     setShowLogo,
-    setHeaderHeight,
     setShowBreadcrumb,
     setBreadcrumbIcon,
     setBreadcrumbStyle,

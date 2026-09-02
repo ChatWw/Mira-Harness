@@ -244,7 +244,6 @@ export interface LayoutConfig {
   sidebarStyle: SidebarStyle
   uniqueOpened: boolean
   showLogo: boolean
-  headerHeight: number
   showBreadcrumb: boolean
   breadcrumbIcon: boolean
   breadcrumbStyle: BreadcrumbStyle
