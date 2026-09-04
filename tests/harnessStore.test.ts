@@ -21,6 +21,23 @@ function createStore() {
 }
 
 describe('HarnessStore', () => {
+  it('persists assistant web sources with the completed message', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+
+    store.appendAssistantText(session.id, '带引用的回答[1]', undefined, undefined, false, [
+      { index: 1, title: '示例来源', url: 'https://example.com', snippet: '摘要' },
+    ])
+
+    expect(store.getSession(session.id).messages.at(-1)?.sources).toEqual([
+      { index: 1, title: '示例来源', url: 'https://example.com', snippet: '摘要' },
+    ])
+    store.finalizeAssistantMessage(session.id, { content: '重新编号后的回答[1]', sources: [{ index: 1, title: '示例来源', url: 'https://example.com' }] })
+    expect(store.getSession(session.id).messages.at(-1)?.content).toBe('重新编号后的回答[1]')
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('persists the selected project icon and deletes selected session files with their index rows', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')

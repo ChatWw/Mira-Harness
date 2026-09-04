@@ -28,6 +28,7 @@ import {
   type HarnessUserAnswer,
   type HarnessRunSummary,
   type HarnessSession,
+  type HarnessSource,
   type HarnessSessionSummary,
   type HarnessTrashEntry,
   type HarnessUsageBucket,
@@ -516,12 +517,15 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  finalizeAssistantMessage(id: string, options: { run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean } = {}) {
+  finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[] } = {}) {
     const session = this.getSession(id)
     const last = session.messages.at(-1)
     if (!last || last.role !== 'assistant') throw new Error('没有可完成的助手回复')
+    if (options.content !== undefined) last.content = options.content
     if (options.run) last.run = options.run
     if (options.usage) last.usage = options.usage
+    if (options.sources?.length) last.sources = options.sources
+    else delete last.sources
     if (options.run) {
       const changes = session.toolCalls
         .filter(tool => tool.status === 'ok' && tool.createdAt >= options.run!.startedAt && tool.createdAt <= options.run!.completedAt && (tool.tool === 'edit' || tool.tool === 'write' || tool.tool === 'delete') && tool.target)
@@ -534,9 +538,9 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean) {
+  appendAssistantText(id: string, content: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[]) {
     if (content) this.appendAssistantDelta(id, content)
-    return this.finalizeAssistantMessage(id, { run, usage, interrupted })
+    return this.finalizeAssistantMessage(id, { run, usage, interrupted, sources })
   }
 
   regenerate(id: string) {

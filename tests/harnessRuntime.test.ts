@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { HarnessRuntime } from '../electron/harnessRuntime'
+import { finalizeAssistantCitations, HarnessRuntime, sourcesFromWebToolResult } from '../electron/harnessRuntime'
 
 function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default') {
   const sender = { isDestroyed: () => false, send: vi.fn() }
@@ -20,6 +20,61 @@ function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default') 
 }
 
 describe('HarnessRuntime tool approval', () => {
+  it('normalizes only valid web citation details', () => {
+    expect(sourcesFromWebToolResult('web_search', { details: { results: [
+      { index: 2, title: ' 第二条 ', url: 'https://example.com/2', snippet: ' 摘要 ' },
+      { index: 1, title: '', url: 'https://example.com/1' },
+      { index: 3, title: '本地文件', url: 'file:///tmp/a' },
+    ] } })).toEqual([
+      { index: 2, title: '第二条', url: 'https://example.com/2', snippet: '摘要' },
+      { index: 1, title: 'https://example.com/1', url: 'https://example.com/1' },
+    ])
+    expect(sourcesFromWebToolResult('web_fetch', { details: { index: 3, url: 'https://example.com/page' } })).toEqual([
+      { index: 3, title: 'https://example.com/page', url: 'https://example.com/page' },
+    ])
+    expect(sourcesFromWebToolResult('read', { details: { index: 4, url: 'https://example.com' } })).toEqual([])
+  })
+
+  it('keeps only cited sources and assigns display indexes by citation order', () => {
+    const result = finalizeAssistantCitations(
+      '**第一条新闻**\n\n这是第一条的总结。[[source:8]]\n\n**第二条新闻**\n\n这是第二条的总结。[[source:3]]',
+      [
+        { index: 3, title: '候选三', url: 'https://example.com/3', snippet: '原摘要三' },
+        { index: 8, title: '候选八', url: 'https://example.com/8', snippet: '原摘要八' },
+        { index: 12, title: '未引用候选', url: 'https://example.com/12' },
+      ],
+    )
+
+    expect(result.content).toContain('这是第一条的总结。[1]')
+    expect(result.content).toContain('这是第二条的总结。[2]')
+    expect(result.sources).toEqual([
+      { index: 1, title: '第一条新闻', url: 'https://example.com/8', snippet: '这是第一条的总结。' },
+      { index: 2, title: '第二条新闻', url: 'https://example.com/3', snippet: '这是第二条的总结。' },
+    ])
+  })
+
+  it('leaves missing source markers untouched instead of binding a wrong link', () => {
+    expect(finalizeAssistantCitations('无法确认。[[source:99]]', [{ index: 1, title: '来源', url: 'https://example.com' }])).toEqual({
+      content: '无法确认。[[source:99]]',
+      sources: [],
+    })
+  })
+
+  it('assigns each answer item its own display citation even when they share a source page', () => {
+    const result = finalizeAssistantCitations(
+      '1. **第一条新闻** —— 第一条总结。[[source:1]]\n\n2. **第二条新闻** —— 第二条总结。[[source:1]]\n\n3. **第三条新闻** —— 第三条总结。[[source:1]]',
+      [{ index: 1, title: '聚合页', url: 'https://example.com' }],
+    )
+    expect(result.content).toContain('第一条总结。[1]')
+    expect(result.content).toContain('第二条总结。[2]')
+    expect(result.content).toContain('第三条总结。[3]')
+    expect(result.sources).toEqual([
+      { index: 1, title: '第一条新闻', url: 'https://example.com', snippet: '第一条新闻 —— 第一条总结。' },
+      { index: 2, title: '第二条新闻', url: 'https://example.com', snippet: '第二条新闻 —— 第二条总结。' },
+      { index: 3, title: '第三条新闻', url: 'https://example.com', snippet: '第三条新闻 —— 第三条总结。' },
+    ])
+  })
+
   it('does not inject MCP tools for sessions without selected services', () => {
     const sender = { isDestroyed: () => false, send: vi.fn() }
     const getTools = vi.fn(() => [])

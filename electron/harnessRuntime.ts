@@ -1,6 +1,6 @@
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { createSandboxedEnv, wrapHarnessTool } from './agentTools'
-import { createWebFetchTool, createWebSearchTool } from './webTools'
+import { createWebCitationContext, createWebFetchTool, createWebSearchTool } from './webTools'
 import { classifyMemoryContent, type MemoryScope } from './fileMemoryStore'
 import type { McpManager } from './mcpManager'
 import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPendingInteraction, type HarnessPlan, type HarnessUserAnswer, type HarnessUserQuestion } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, normalizePlanRisks, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSource, type HarnessSubtaskRole, type HarnessTokenUsage, type MemoryCandidate, type MemorySensitivity, type ModelSelection, type PermissionMode, type HarnessPendingInteraction, type HarnessPlan, type HarnessUserAnswer, type HarnessUserQuestion } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -41,6 +41,69 @@ function emit(sender: WebContents | undefined, event: HarnessEvent) {
 type RunOrigin = 'manual' | 'automation'
 type RunCompleteEvent = { session: HarnessSession, origin: RunOrigin, status: 'completed' | 'failed' | 'aborted', content?: string }
 type ExtractedMemory = { decision: 'save' | 'no_memory', sensitivity: MemorySensitivity, content?: string, redactedContent?: string }
+
+function normalizeHarnessSource(value: unknown): HarnessSource | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const source = value as Record<string, unknown>
+  if (!Number.isSafeInteger(source.index) || Number(source.index) < 1 || typeof source.url !== 'string') return undefined
+  let url: URL
+  try { url = new URL(source.url) } catch { return undefined }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+  const title = typeof source.title === 'string' && source.title.trim() ? source.title.trim() : source.url
+  const snippet = typeof source.snippet === 'string' && source.snippet.trim() ? source.snippet.trim() : undefined
+  return { index: Number(source.index), title, url: source.url, ...(snippet ? { snippet } : {}) }
+}
+
+export function sourcesFromWebToolResult(toolName: string, result: unknown): HarnessSource[] {
+  if (!result || typeof result !== 'object') return []
+  const details = (result as { details?: unknown }).details
+  if (!details || typeof details !== 'object') return []
+  const candidates = toolName === 'web_search' && Array.isArray((details as { results?: unknown }).results)
+    ? (details as { results: unknown[] }).results
+    : toolName === 'web_fetch' ? [details] : []
+  return candidates.map(normalizeHarnessSource).filter((source): source is HarnessSource => Boolean(source))
+}
+
+function plainCitationText(value: string) {
+  return value
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/[*_`>#~]/g, '')
+    .replace(/^\s*\d+[.)、]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function citationContext(content: string, offset: number) {
+  const prefix = content.slice(0, offset)
+  const boundary = prefix.lastIndexOf('\n\n')
+  const blockStart = boundary < 0 ? 0 : boundary + 2
+  const currentBlock = prefix.slice(blockStart)
+  const boldTitle = currentBlock.match(/(?:\*\*|__)(.+?)(?:\*\*|__)/)?.[1]
+  const snippet = plainCitationText(currentBlock).slice(0, 320)
+  const previousBlocks = prefix.slice(0, Math.max(0, blockStart - 2)).split(/\n\s*\n/)
+  const previousRaw = previousBlocks.at(-1) || ''
+  const previous = plainCitationText(previousRaw)
+  const title = boldTitle?.trim() || (/^(?:\s*#{1,6}\s+|\s*(?:\*\*|__)|\s*\d+[.)、]\s*)/.test(previousRaw) && previous.length <= 180 ? previous : undefined)
+  return { title, snippet }
+}
+
+export function finalizeAssistantCitations(content: string, candidates: HarnessSource[]) {
+  const sources: HarnessSource[] = []
+  const rewritten = content.replace(/\[\[source:(\d+)]]/g, (marker, rawIndex: string, offset: number) => {
+    const candidate = candidates.find(source => source.index === Number(rawIndex))
+    if (!candidate) return marker
+    const context = citationContext(content, offset)
+    const index = sources.length + 1
+    sources.push({
+      index,
+      title: context.title || candidate.title,
+      url: candidate.url,
+      ...(context.snippet || candidate.snippet ? { snippet: context.snippet || candidate.snippet } : {}),
+    })
+    return `[${index}]`
+  })
+  return { content: rewritten, sources }
+}
 
 function messageContent(message: HarnessMessage) {
   if (!message.attachments?.length) return message.content
@@ -497,8 +560,9 @@ export class HarnessRuntime {
         }
       },
     })
-    const webFetchTool = register(wrapRecordTool(createWebFetchTool(), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
-    const webSearchTool = register(wrapRecordTool(createWebSearchTool(), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const webCitations = createWebCitationContext()
+    const webFetchTool = register(wrapRecordTool(createWebFetchTool(webCitations), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const webSearchTool = register(wrapRecordTool(createWebSearchTool(webCitations), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
     const mcpTools = this.mcpManager.getTools(session().activeMcpServerIds || []).map(tool => {
       const serverName = typeof tool.miraMcpServerName === 'string' ? tool.miraMcpServerName : 'MCP 服务'
       return register(wrapRecordTool(tool, params => `${serverName} / ${tool.name}${argumentSummary(params) ? `: ${argumentSummary(params)}` : ''}`), {
@@ -1013,7 +1077,7 @@ export class HarnessRuntime {
               globalMemory,
               projectMemory,
             },
-          }) + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user 提出澄清问题，一次最多 5 个，用户会逐个作答（也可跳过），不要把问题重复写进普通回复；单选问题提供不超过 3 个候选、多选不超过 5 个，自由输入始终由界面提供。用户作答后，先简短确认一句（例如「好的，我继续…」）再继续规划；他们的回答已经作为上下文提供，不需要复述或重复问题内容。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改，并把完整方案（当前理解、编号执行步骤、风险列表）作为你的最终回复用列表呈现。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
+          }) + '\n\n## 联网来源引用\n联网工具返回的 [[source:N]] 是内部来源标识。引用联网信息时，必须在对应陈述句末原样复制该标识；不得把搜索排名、网页列表序号或其他数字写成引用。总结多条新闻或事实时，每条应引用其各自最直接的来源；不要用同一个热榜、列表或聚合页替代多个不同条目的原文链接，必要时继续搜索或抓取原文。界面会在回答完成后自动转换为连续脚标。' + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user 提出澄清问题，一次最多 5 个，用户会逐个作答（也可跳过），不要把问题重复写进普通回复；单选问题提供不超过 3 个候选、多选不超过 5 个，自由输入始终由界面提供。用户作答后，先简短确认一句（例如「好的，我继续…」）再继续规划；他们的回答已经作为上下文提供，不需要复述或重复问题内容。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改，并把完整方案（当前理解、编号执行步骤、风险列表）作为你的最终回复用列表呈现。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
           model,
           thinkingLevel,
           messages: this.agentMessages(session, model),
@@ -1036,6 +1100,7 @@ export class HarnessRuntime {
     }
     let output = ''
     let pendingAssistantDelta = ''
+    const sources: HarnessSource[] = []
     let assistantPersistTimer: ReturnType<typeof setTimeout> | undefined
     let assistantFinalized = false
     const flushAssistantDelta = () => {
@@ -1077,6 +1142,11 @@ export class HarnessRuntime {
       }
       if (event.type === 'tool_execution_end') {
         if (event.toolName === 'set_plan') return
+        if (!event.isError && (event.toolName === 'web_search' || event.toolName === 'web_fetch')) {
+          for (const source of sourcesFromWebToolResult(event.toolName, event.result)) {
+            if (!sources.some(item => item.index === source.index)) sources.push(source)
+          }
+        }
         advancePlan(event.isError ? 'failed' : 'completed')
         const suffix = event.isError ? '执行失败' : '执行完成'
         const activity = activities.find(item => item.id === `tool-${event.toolCallId}`)
@@ -1118,7 +1188,9 @@ export class HarnessRuntime {
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
       run.contextUsage = usage
-      session = this.database.harness.finalizeAssistantMessage(sessionId, { run, usage: pricedParentUsage })
+      const citations = finalizeAssistantCitations(output, sources)
+      output = citations.content
+      session = this.database.harness.finalizeAssistantMessage(sessionId, { content: output, run, usage: pricedParentUsage, sources: citations.sources })
       assistantFinalized = true
       session = this.publishContextUsage(sender, session, usage)
       this.database.harness.setStatus(sessionId, 'completed')
@@ -1148,7 +1220,9 @@ export class HarnessRuntime {
       flushAssistantDelta()
       if (output && !assistantFinalized) {
         const completedAt = Date.now()
-        this.database.harness.finalizeAssistantMessage(sessionId, { run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list() } : {}) }, interrupted: aborted })
+        const citations = finalizeAssistantCitations(output, sources)
+        output = citations.content
+        this.database.harness.finalizeAssistantMessage(sessionId, { content: output, run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list() } : {}) }, interrupted: aborted, sources: citations.sources })
         assistantFinalized = true
         emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
       } else if (!output) {

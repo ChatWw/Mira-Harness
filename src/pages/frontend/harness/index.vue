@@ -35,7 +35,7 @@
               <RunActivityList :activities="toolActivities(store.activeRun?.activities)" />
               <SubtaskList :subtasks="store.activeRun?.subtasks || []" :stop="stopSubtask" />
             </details>
-            <div class="message__markdown" v-html="renderAssistantMessage(message.content)" @click="copyCodeBlock" />
+            <div class="message__markdown" v-html="renderAssistantMessage(message)" @click="handleMarkdownClick($event, message)" @mouseover="handleCitationHover($event, message)" @mouseleave="hideCitationCard" @focusin="handleCitationHover($event, message)" @focusout="hideCitationCard" />
             <section v-if="message.fileChanges?.length" class="message-changes" aria-label="本次文件修改">
               <p class="message-changes__title">本次修改</p>
               <button v-for="change in message.fileChanges" :key="change.toolCallId" type="button" class="file-change" @click="openFileChange(change)">
@@ -106,6 +106,12 @@
           </button>
         </el-tooltip>
       </div>
+
+      <aside v-if="activeCitation" class="citation-card" :style="citationCardStyle" role="tooltip">
+        <strong>{{ activeCitation.source.title }}</strong>
+        <span>{{ citationDomain(activeCitation.source.url) }}</span>
+        <p v-if="activeCitation.source.snippet">{{ activeCitation.source.snippet }}</p>
+      </aside>
 
       <section v-if="permissionRequest" class="permission-request-card" aria-live="polite">
         <div class="permission-request-card__icon"><AppIcon name="WarningFilled" /></div>
@@ -274,7 +280,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { getPlatformApi, getPreference } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessGitBranch, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSkill, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_HARNESS_GIT_CONFIG, DEFAULT_PERMISSION_CONFIG, OPEN_HARNESS_PROJECT_DIALOG_EVENT, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileChange, type HarnessGitBranch, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSkill, type HarnessSource, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type SendShortcut, type ThinkingLevel } from '@/config/harness'
+import { installHarnessCitations, renderHarnessMarkdown } from '@/utils/harnessCitations'
 import { useHarnessStore } from '@/stores/harness'
 import RunPlan from './components/RunPlan.vue'
 import RunActivityList from './components/RunActivityList.vue'
@@ -286,6 +293,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useHarnessStore()
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
+installHarnessCitations(markdown)
 markdown.renderer.rules.table_open = () => '<div class="markdown-table"><table>\n'
 markdown.renderer.rules.table_close = () => '</table></div>\n'
 markdown.renderer.rules.fence = (tokens, index) => {
@@ -301,6 +309,8 @@ const editingMessageId = ref<string>()
 const editingMessageText = ref('')
 const fileChangeVisible = ref(false)
 const activeFileChange = ref<HarnessFileChange>()
+const activeCitation = ref<{ source: HarnessSource, top: number, left: number }>()
+const citationCardStyle = computed(() => activeCitation.value ? { top: `${activeCitation.value.top}px`, left: `${activeCitation.value.left}px` } : {})
 type SlashMenuView = 'commands' | 'mcp' | 'thinking' | 'models' | 'permissions' | 'skills'
 type SlashOption = { id: string, title: string, description?: string, icon: string, active?: boolean, disabled?: boolean }
 
@@ -634,7 +644,46 @@ function runUsageLabel(run: HarnessRunSummary) {
   if (!usage) return ''
   return usage.cost?.priced ? `合计 ${usage.cost.currency} ${usage.cost.total.toFixed(usage.cost.total >= 1 ? 2 : 4)}` : `合计 ${formatTokenCount(usage.totalTokens)} token（未定价）`
 }
-function renderAssistantMessage(content: string) { return markdown.render(content) }
+function renderAssistantMessage(message: HarnessMessage) { return renderHarnessMarkdown(markdown, message.content, message.sources) }
+function citationMarker(event: Event) { return (event.target as HTMLElement).closest<HTMLButtonElement>('[data-citation-index]') }
+function citationFor(message: HarnessMessage, marker: HTMLButtonElement) {
+  const index = Number(marker.dataset.citationIndex)
+  return message.sources?.find(source => source.index === index)
+}
+function handleCitationHover(event: Event, message: HarnessMessage) {
+  const marker = citationMarker(event)
+  if (!marker) return
+  const source = citationFor(message, marker)
+  if (!source) return
+  const rect = marker.getBoundingClientRect()
+  const cardWidth = 320
+  const cardHeight = 220
+  const margin = 12
+  activeCitation.value = {
+    source,
+    top: rect.bottom + 8 + cardHeight <= window.innerHeight - margin ? rect.bottom + 8 : Math.max(margin, rect.top - cardHeight - 8),
+    left: Math.max(margin, Math.min(rect.left, window.innerWidth - cardWidth - margin)),
+  }
+}
+function hideCitationCard() { activeCitation.value = undefined }
+function citationDomain(rawUrl: string) {
+  try { return new URL(rawUrl).hostname } catch { return rawUrl }
+}
+function openCitation(source: HarnessSource) {
+  try {
+    const url = new URL(source.url)
+    if (url.protocol === 'http:' || url.protocol === 'https:') window.open(url.toString(), '_blank', 'noopener,noreferrer')
+  } catch { /* Ignore invalid persisted URLs. */ }
+}
+function handleMarkdownClick(event: MouseEvent, message: HarnessMessage) {
+  const marker = citationMarker(event)
+  if (marker) {
+    const source = citationFor(message, marker)
+    if (source) openCitation(source)
+    return
+  }
+  void copyCodeBlock(event)
+}
 function fileChangeSummary(change: HarnessFileChange) {
   if (change.tool === 'delete') return '已移入回收站'
   const lines = change.diff?.split('\n') || []
@@ -1453,6 +1502,11 @@ onBeforeUnmount(() => {
 .message.user .message__role { justify-content: flex-end; }
 .message p { max-width: 72ch; margin: 0; color: var(--cp-text); font-size: 14px; white-space: pre-wrap; line-height: 1.82; }
 .message__markdown { max-width: min(100%, 760px); overflow-wrap: anywhere; color: var(--cp-text); font-size: 14px; line-height: 1.82; }
+.message__markdown :deep(.citation-marker) { margin-left: 2px; vertical-align: super; font-size: .72em; line-height: 0; }
+.message__markdown :deep(.citation-marker button) { padding: 1px 3px; border: 0; border-radius: $radius-sm; color: var(--cp-primary); background: var(--cp-primary-lighter); font: inherit; font-weight: 600; line-height: 1.2; cursor: pointer; }
+.message__markdown :deep(.citation-marker button:hover), .message__markdown :deep(.citation-marker button:focus-visible) { color: var(--cp-bg); background: var(--cp-primary); outline: none; }
+.citation-card { position: fixed; z-index: 20; width: 320px; max-height: 220px; box-sizing: border-box; padding: 12px 14px; overflow: hidden; border: 1px solid var(--cp-border); border-radius: $radius-md; color: var(--cp-text); background: var(--cp-bg-overlay); box-shadow: $shadow-lg; pointer-events: none; }
+.citation-card strong, .citation-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.citation-card strong { font-size: 13px; line-height: 1.5; }.citation-card span { margin-top: 2px; color: var(--cp-text-tertiary); font-size: 11px; }.citation-card p { display: -webkit-box; margin: 8px 0 0; overflow: hidden; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .message__run, .run-progress { width: min(100%, 760px); margin: 0 0 12px; color: var(--cp-text-secondary); font-size: 12px; }
 .message__live-status { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 6px; padding: 3px 10px; width: fit-content; border-radius: 999px; color: var(--cp-primary); background: color-mix(in srgb, var(--cp-primary) 10%, transparent); font-size: 11px; line-height: 1.4; }
 .message__live-status .is-spinning { animation: harness-live-spin 1s linear infinite; }

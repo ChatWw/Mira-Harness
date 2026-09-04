@@ -289,6 +289,13 @@ export interface HarnessFileChange {
   diff?: string
 }
 
+export interface HarnessSource {
+  index: number
+  title: string
+  url: string
+  snippet?: string
+}
+
 export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
@@ -297,6 +304,7 @@ export interface HarnessMessage {
   run?: HarnessRunSummary
   usage?: HarnessTokenUsage
   fileChanges?: HarnessFileChange[]
+  sources?: HarnessSource[]
   createdAt: number
   interrupted?: boolean
   /** 内部消息：参与模型上下文但不作为气泡渲染（如澄清问题的答案回填）。 */

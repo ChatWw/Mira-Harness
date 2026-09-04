@@ -1,4 +1,5 @@
 import { Type } from '@earendil-works/pi-ai'
+import type { HarnessSource } from '../src/config/harness'
 
 const MAX_FETCH_BYTES = 512 * 1024
 const FETCH_TIMEOUT_MS = 15000
@@ -61,7 +62,15 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   }
 }
 
-async function fetchPageText(rawUrl: string, maxChars: number): Promise<string> {
+export function createWebCitationContext() {
+  let nextIndex = 1
+  return { nextIndex: () => nextIndex++ }
+}
+
+type WebCitationContext = ReturnType<typeof createWebCitationContext>
+type SearchResult = Omit<HarnessSource, 'index'>
+
+async function fetchPageText(rawUrl: string, maxChars: number): Promise<{ text: string, title?: string, url: string }> {
   const url = assertSafeHttpUrl(rawUrl)
   const response = await fetchWithTimeout(url.toString(), FETCH_TIMEOUT_MS)
   if (!response.ok) throw new Error(`抓取失败：HTTP ${response.status}`)
@@ -69,17 +78,19 @@ async function fetchPageText(rawUrl: string, maxChars: number): Promise<string> 
   const buffer = await response.arrayBuffer()
   if (buffer.byteLength > MAX_FETCH_BYTES) throw new Error(`网页过大（超过 ${MAX_FETCH_BYTES / 1024}KB）`)
   const raw = new TextDecoder('utf-8').decode(buffer)
+  const title = contentType.includes('html') ? htmlToText(raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '') : ''
   const text = contentType.includes('html') ? htmlToText(raw) : raw
-  return text.slice(0, maxChars)
+  const finalUrl = assertSafeHttpUrl(response.url || url.toString()).toString()
+  return { text: text.slice(0, maxChars), ...(title ? { title } : {}), url: finalUrl }
 }
 
-async function searchWeb(query: string, limit: number): Promise<string> {
+async function searchWeb(query: string, limit: number): Promise<SearchResult[]> {
   const url = new URL('https://www.bing.com/search')
   url.searchParams.set('q', query)
   const response = await fetchWithTimeout(url.toString(), FETCH_TIMEOUT_MS)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const html = await response.text()
-  const items: string[] = []
+  const items: SearchResult[] = []
   const blocks = html.match(/<li class="b_algo"[\s\S]*?<\/li>/gi) || []
   for (const block of blocks) {
     if (items.length >= limit) break
@@ -87,13 +98,18 @@ async function searchWeb(query: string, limit: number): Promise<string> {
     const title = block.match(/<h2[^>]*><a[^>]*>([\s\S]*?)<\/a>/i)?.[1]
     const snippet = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i)?.[1]
     if (href && title) {
-      items.push(`${htmlToText(title)}\n${decodeHtmlEntities(href)}\n${htmlToText(snippet || '')}`)
+      try {
+        const parsedTitle = htmlToText(title)
+        const resultUrl = assertSafeHttpUrl(decodeHtmlEntities(href)).toString()
+        const summary = htmlToText(snippet || '')
+        if (parsedTitle) items.push({ title: parsedTitle, url: resultUrl, ...(summary ? { snippet: summary } : {}) })
+      } catch { /* Ignore malformed or unsafe search results. */ }
     }
   }
-  return items.length ? items.join('\n\n') : '没有找到搜索结果'
+  return items
 }
 
-export function createWebFetchTool() {
+export function createWebFetchTool(citations = createWebCitationContext()) {
   return {
     name: 'web_fetch',
     label: '抓取网页',
@@ -103,17 +119,20 @@ export function createWebFetchTool() {
     execute: async (_id: string, params: { url: string, maxChars?: number }) => {
       const maxChars = Math.min(Math.max(params.maxChars ?? 8000, 1000), 32000)
       try {
-        const text = await fetchPageText(params.url, maxChars)
-        return { content: [{ type: 'text', text }], details: { url: params.url } }
+        const page = await fetchPageText(params.url, maxChars)
+        const index = citations.nextIndex()
+        const marker = `[[source:${index}]]`
+        const heading = `来源标识 ${marker}：${page.title || page.url}\n${page.url}\n回答引用此页面时，只能在相关句末原样写 ${marker}；不要把网页中的排名数字写成引用。`
+        return { content: [{ type: 'text', text: `${heading}\n\n${page.text}` }], details: { index, url: page.url, ...(page.title ? { title: page.title } : {}) } }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        return { content: [{ type: 'text', text: `抓取网页失败：${message}` }], details: { url: params.url } }
+        throw new Error(`抓取网页失败：${message}`)
       }
     },
   }
 }
 
-export function createWebSearchTool() {
+export function createWebSearchTool(citations = createWebCitationContext()) {
   return {
     name: 'web_search',
     label: '网页搜索',
@@ -123,11 +142,15 @@ export function createWebSearchTool() {
     execute: async (_id: string, params: { query: string, limit?: number }) => {
       const limit = Math.min(Math.max(params.limit ?? 5, 1), 10)
       try {
-        const text = await searchWeb(params.query, limit)
-        return { content: [{ type: 'text', text }], details: { query: params.query } }
+        const items = await searchWeb(params.query, limit)
+        const results = items.map(item => ({ index: citations.nextIndex(), ...item }))
+        const text = results.length
+          ? `找到 ${results.length} 条结果。每条的 [[source:N]] 是内部来源标识；回答引用时只能在相关句末原样复制该标识，不能使用搜索排名或网页序号：\n${results.map(item => `[[source:${item.index}]] ${item.title}  ${item.url}${item.snippet ? `\n    ${item.snippet}` : ''}`).join('\n')}`
+          : '没有找到搜索结果'
+        return { content: [{ type: 'text', text }], details: { query: params.query, results } }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        return { content: [{ type: 'text', text: `网页搜索失败：${message}。请检查网络连接。` }], details: { query: params.query } }
+        throw new Error(`网页搜索失败：${message}。请检查网络连接。`)
       }
     },
   }
