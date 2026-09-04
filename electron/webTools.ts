@@ -30,6 +30,23 @@ function htmlToText(html: string): string {
   )
 }
 
+function extractPageLinks(html: string, baseUrl: URL): Array<{ title: string, url: string }> {
+  const links: Array<{ title: string, url: string }> = []
+  const pattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+  for (const match of html.matchAll(pattern)) {
+    const title = htmlToText(match[2]).replace(/\s+/g, ' ').trim()
+    if (!title || title.length < 2) continue
+    try {
+      const url = assertSafeHttpUrl(new URL(decodeHtmlEntities(match[1]), baseUrl).toString()).toString()
+      if (url === baseUrl.toString() || links.some(link => link.url === url)) continue
+      links.push({ title: title.slice(0, 160), url })
+    } catch { /* Ignore malformed or unsafe page links. */ }
+  }
+  return links
+    .sort((a, b) => Number(new URL(a.url).origin === baseUrl.origin) - Number(new URL(b.url).origin === baseUrl.origin))
+    .slice(0, 30)
+}
+
 function assertSafeHttpUrl(raw: string): URL {
   let url: URL
   try {
@@ -70,7 +87,7 @@ export function createWebCitationContext() {
 type WebCitationContext = ReturnType<typeof createWebCitationContext>
 type SearchResult = Omit<HarnessSource, 'index'>
 
-async function fetchPageText(rawUrl: string, maxChars: number): Promise<{ text: string, title?: string, url: string }> {
+async function fetchPageText(rawUrl: string, maxChars: number): Promise<{ text: string, title?: string, url: string, links: Array<{ title: string, url: string }> }> {
   const url = assertSafeHttpUrl(rawUrl)
   const response = await fetchWithTimeout(url.toString(), FETCH_TIMEOUT_MS)
   if (!response.ok) throw new Error(`抓取失败：HTTP ${response.status}`)
@@ -81,7 +98,8 @@ async function fetchPageText(rawUrl: string, maxChars: number): Promise<{ text: 
   const title = contentType.includes('html') ? htmlToText(raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '') : ''
   const text = contentType.includes('html') ? htmlToText(raw) : raw
   const finalUrl = assertSafeHttpUrl(response.url || url.toString()).toString()
-  return { text: text.slice(0, maxChars), ...(title ? { title } : {}), url: finalUrl }
+  const links = contentType.includes('html') ? extractPageLinks(raw, new URL(finalUrl)) : []
+  return { text: text.slice(0, maxChars), ...(title ? { title } : {}), url: finalUrl, links }
 }
 
 async function searchWeb(query: string, limit: number): Promise<SearchResult[]> {
@@ -123,7 +141,11 @@ export function createWebFetchTool(citations = createWebCitationContext()) {
         const index = citations.nextIndex()
         const marker = `[[source:${index}]]`
         const heading = `来源标识 ${marker}：${page.title || page.url}\n${page.url}\n回答引用此页面时，只能在相关句末原样写 ${marker}；不要把网页中的排名数字写成引用。`
-        return { content: [{ type: 'text', text: `${heading}\n\n${page.text}` }], details: { index, url: page.url, ...(page.title ? { title: page.title } : {}) } }
+        const linkedSources = page.links.map(link => ({ index: citations.nextIndex(), ...link }))
+        const links = linkedSources.length
+          ? `\n\n页面中的可引用链接（引用具体文章时使用对应来源标识；如需核实正文，再抓取该链接）：\n${linkedSources.map(link => `[[source:${link.index}]] ${link.title}  ${link.url}`).join('\n')}`
+          : ''
+        return { content: [{ type: 'text', text: `${heading}\n\n${page.text}${links}` }], details: { index, url: page.url, ...(page.title ? { title: page.title } : {}), ...(linkedSources.length ? { links: linkedSources } : {}) } }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         throw new Error(`抓取网页失败：${message}`)

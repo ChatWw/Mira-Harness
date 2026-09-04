@@ -60,7 +60,7 @@ export function sourcesFromWebToolResult(toolName: string, result: unknown): Har
   if (!details || typeof details !== 'object') return []
   const candidates = toolName === 'web_search' && Array.isArray((details as { results?: unknown }).results)
     ? (details as { results: unknown[] }).results
-    : toolName === 'web_fetch' ? [details] : []
+    : toolName === 'web_fetch' ? [details, ...(Array.isArray((details as { links?: unknown }).links) ? (details as { links: unknown[] }).links : [])] : []
   return candidates.map(normalizeHarnessSource).filter((source): source is HarnessSource => Boolean(source))
 }
 
@@ -89,11 +89,16 @@ function citationContext(content: string, offset: number) {
 
 export function finalizeAssistantCitations(content: string, candidates: HarnessSource[]) {
   const sources: HarnessSource[] = []
+  const displayIndexes = new Map<number, number>()
   const rewritten = content.replace(/\[\[source:(\d+)]]/g, (marker, rawIndex: string, offset: number) => {
-    const candidate = candidates.find(source => source.index === Number(rawIndex))
+    const sourceIndex = Number(rawIndex)
+    const candidate = candidates.find(source => source.index === sourceIndex)
     if (!candidate) return marker
+    const existingIndex = displayIndexes.get(sourceIndex)
+    if (existingIndex) return `[${existingIndex}]`
     const context = citationContext(content, offset)
     const index = sources.length + 1
+    displayIndexes.set(sourceIndex, index)
     sources.push({
       index,
       title: context.title || candidate.title,

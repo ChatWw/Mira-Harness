@@ -49,4 +49,25 @@ describe('web citation tools', () => {
     const result = await search.execute('search-1', { query: '恢复后' })
     expect(result.details.results[0].index).toBe(1)
   })
+
+  it('keeps article links from fetched HTML so the agent can fetch direct sources', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(`
+      <html><head><title>热榜</title></head><body>
+        <a href="/category">站内分类</a>
+        <a href="https://news.example.com/posts/42">新闻详情</a>
+        <a href="javascript:alert(1)">危险链接</a>
+      </body></html>
+    `, 'text/html', 'https://example.com/hot')))
+
+    const result = await createWebFetchTool().execute('fetch-1', { url: 'https://example.com/hot' })
+
+    expect(result.content[0].text).toContain('页面中的可引用链接')
+    expect(result.content[0].text).toContain('[[source:2]] 新闻详情  https://news.example.com/posts/42')
+    expect(result.content[0].text).toContain('[[source:3]] 站内分类  https://example.com/category')
+    expect(result.content[0].text).not.toContain('javascript:')
+    expect(result.details.links).toEqual([
+      { index: 2, title: '新闻详情', url: 'https://news.example.com/posts/42' },
+      { index: 3, title: '站内分类', url: 'https://example.com/category' },
+    ])
+  })
 })

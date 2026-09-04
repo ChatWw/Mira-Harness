@@ -29,8 +29,9 @@ describe('HarnessRuntime tool approval', () => {
       { index: 2, title: '第二条', url: 'https://example.com/2', snippet: '摘要' },
       { index: 1, title: 'https://example.com/1', url: 'https://example.com/1' },
     ])
-    expect(sourcesFromWebToolResult('web_fetch', { details: { index: 3, url: 'https://example.com/page' } })).toEqual([
+    expect(sourcesFromWebToolResult('web_fetch', { details: { index: 3, url: 'https://example.com/page', links: [{ index: 4, title: '详情', url: 'https://example.com/article' }] } })).toEqual([
       { index: 3, title: 'https://example.com/page', url: 'https://example.com/page' },
+      { index: 4, title: '详情', url: 'https://example.com/article' },
     ])
     expect(sourcesFromWebToolResult('read', { details: { index: 4, url: 'https://example.com' } })).toEqual([])
   })
@@ -60,18 +61,16 @@ describe('HarnessRuntime tool approval', () => {
     })
   })
 
-  it('assigns each answer item its own display citation even when they share a source page', () => {
+  it('keeps repeated citations bound to the same source instead of inventing distinct links', () => {
     const result = finalizeAssistantCitations(
       '1. **第一条新闻** —— 第一条总结。[[source:1]]\n\n2. **第二条新闻** —— 第二条总结。[[source:1]]\n\n3. **第三条新闻** —— 第三条总结。[[source:1]]',
       [{ index: 1, title: '聚合页', url: 'https://example.com' }],
     )
     expect(result.content).toContain('第一条总结。[1]')
-    expect(result.content).toContain('第二条总结。[2]')
-    expect(result.content).toContain('第三条总结。[3]')
+    expect(result.content).toContain('第二条总结。[1]')
+    expect(result.content).toContain('第三条总结。[1]')
     expect(result.sources).toEqual([
       { index: 1, title: '第一条新闻', url: 'https://example.com', snippet: '第一条新闻 —— 第一条总结。' },
-      { index: 2, title: '第二条新闻', url: 'https://example.com', snippet: '第二条新闻 —— 第二条总结。' },
-      { index: 3, title: '第三条新闻', url: 'https://example.com', snippet: '第三条新闻 —— 第三条总结。' },
     ])
   })
 
