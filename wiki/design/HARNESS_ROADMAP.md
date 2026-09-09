@@ -1,10 +1,10 @@
 # Mira Harness 开发计划
 
-> 更新日期：2026-09-08
+> 更新日期：2026-09-09
 > 状态：执行中
 > 范围：个人本地 Agent 工作台（Harness）
 > 基线：基于最新代码 `desktop-dev`。里程碑一（P0 可靠性与工具边界）与后续 P0 批次（成本/用量、Skill、健壮性、工程健康）已完成；P1-1 计划与子任务委派、P1-2 自动化一期、P1-3 记忆单阶段可靠化，以及网页来源引用均已落地。当前主要剩余通用 Slash 注册机制、自动化二期和记忆治理增强。
-> 注：文件引用体验已做跨平台（macOS / Windows）路径修复，网页引用已支持来源持久化、脚标渲染和文章链接提取；当前全量测试为 129/129。类型检查、Web 生产构建和 Electron 构建脚本已通过，但 macOS 安装包交互、Windows 运行验收和真实模型端到端验收仍未完成。
+> 注：文件引用体验已做跨平台（macOS / Windows）路径修复，网页引用已支持来源持久化、脚标渲染和文章链接提取；当前全量测试为 143/143。类型检查、Web 生产构建和 Electron 构建脚本已通过，但 macOS 安装包交互、Windows 运行验收和真实模型端到端验收仍未完成。
 
 ## 目标
 
@@ -171,6 +171,8 @@ AI 小说创作、账号体系、云端同步和团队协作不属于本计划�
 
 ### P1 · 能力扩展（主体已完成，进入稳定性收敛）
 
+> 本轮分层重构已完成页面 facade / 消息组件、Store 职责拆分、Runtime 协调器拆分和结构化会话迁移。公开 IPC 方法名与产品交互保持不变；新增协调器分别位于 `electron/harnessPermissionPolicy.ts`、`electron/harnessPlanCoordinator.ts`、`electron/harnessSubtaskCoordinator.ts`、`electron/harnessMemoryCoordinator.ts` 和 `electron/harnessRunCoordinator.ts`。
+
 #### P1-1 计划与子任务委派（里程碑三 #7，已完成）
 
 > 状态：计划展示与子任务委派均已落地。子任务继续基于低层 `Agent` 实现，不迁移到仍为脚手架的 `AgentHarness`。
@@ -195,7 +197,7 @@ AI 小说创作、账号体系、云端同步和团队协作不属于本计划�
 
 **验收**：用户能看清计划与实际工具活动；计划步骤可折叠并反映完成状态；若实现第二步，取消父任务能可靠处理所有子任务。
 
-**测试**：计划解析单测、todo 状态更新单测（第一步）；子任务取消传播（第二步，实现后补）。
+**测试**：计划解析、todo 状态更新和运行协调器父子取消传播单测均已覆盖；真实模型下的超时与异常退出仍需 macOS Electron 验收。
 
 **技术风险**：子任务若在低层 `Agent` 上自造编排，未来迁移 `AgentHarness` 可能返工 → **先做第一步，第二步动工前重读 ADR**。
 
@@ -253,7 +255,7 @@ AI 小说创作、账号体系、云端同步和团队协作不属于本计划�
 
 **扩展预留**：稳定条目 ID、来源/时间/敏感等级 sidecar 元数据、pending candidate 状态、独立 `memory-status` 事件和 Store 的 `list/update/delete` 接口，为后续迁移保留边界。
 
-**验证**：覆盖旧 Markdown 兼容、sidecar 元数据、编辑删除、秘密硬拦截、技术术语不误报、pending 重试、自动保存错误隔离、Memory 关闭路径与 Markdown 提炼兼容；当前 `npm test` 为 129/129，`npm run build` 与 Electron 构建脚本已通过。
+**验证**：覆盖旧 Markdown 兼容、sidecar 元数据、编辑删除、秘密硬拦截、技术术语不误报、pending 重试、自动保存错误隔离、Memory 关闭路径与 Markdown 提炼兼容；当前 `npm test` 为 143/143，`npm run build` 与 Electron 构建脚本已通过。
 
 
 ### P2 · 打磨与规模化（远期）

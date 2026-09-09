@@ -576,6 +576,36 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('migrates legacy session JSON into structured tables and keeps a recovery backup', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    store.addMessage(session.id, 'user', '迁移测试')
+    const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
+    database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
+    database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(session.id)
+
+    store.migrateStructuredSessions()
+
+    expect(store.getSession(session.id).messages.at(-1)?.content).toBe('迁移测试')
+    expect(database.prepare('SELECT COUNT(*) AS count FROM harness_messages WHERE session_id = ?').get(session.id)).toEqual({ count: 1 })
+    expect(existsSync(`${row.path}.legacy.bak`)).toBe(true)
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('keeps the source JSON when structured migration fails', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
+    database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
+    writeFileSync(row.path, '{broken', 'utf8')
+
+    expect(() => store.migrateStructuredSessions()).toThrow()
+    expect(readFileSync(row.path, 'utf8')).toBe('{broken')
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it('edits a user message, truncates later history, and clears compacted context', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()

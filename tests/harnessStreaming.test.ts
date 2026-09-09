@@ -82,6 +82,19 @@ describe('harness message streaming', () => {
     expect(streamedContent(store).length).toBe(48)
   })
 
+  it('routes duplicate message events through the single reducer entry only once', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+    const event = { sessionId: 'session-1', runId: 'run-1', eventId: 'event-1', sequence: 1, type: 'message-delta' as const, payload: { delta: '只出现一次' } }
+
+    store.applyEvent(event)
+    store.applyEvent(event)
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(streamedContent(store)).toBe('只出现一次')
+  })
+
   it('keeps the visual tail after the model becomes idle and refreshes only after it drains', async () => {
     vi.useFakeTimers()
     const getHarnessSession = installWindow()
@@ -126,6 +139,17 @@ describe('harness message streaming', () => {
 
     store.applyEvent({ sessionId: 'session-2', type: 'status', payload: { state: 'idle' } })
     expect(store.pendingPermissionRequests['session-2']).toBeUndefined()
+  })
+
+  it('does not let an older event replace a newer permission request', async () => {
+    vi.useFakeTimers()
+    installWindow()
+    const store = await createStore()
+
+    store.applyEvent({ sessionId: 'session-2', runId: 'run-2', sequence: 2, type: 'permission-request', payload: { requestId: 'approval-new', title: '新请求', detail: 'npm test' } })
+    store.applyEvent({ sessionId: 'session-2', runId: 'run-2', sequence: 1, type: 'permission-request', payload: { requestId: 'approval-old', title: '旧请求', detail: 'rm file' } })
+
+    expect(store.pendingPermissionRequests['session-2']).toEqual({ requestId: 'approval-new', title: '新请求', detail: 'npm test' })
   })
 
   it('retains a runtime error for an explicit retry action', async () => {
@@ -184,5 +208,25 @@ describe('harness message streaming', () => {
       expect.objectContaining({ id: 'session-1', title: '新的摘要标题' }),
       expect.objectContaining({ id: 'session-2', title: '非活动会话标题' }),
     ])
+  })
+
+  it('restores the public run snapshot when reopening an interrupted session', async () => {
+    vi.useFakeTimers()
+    const restored = {
+      ...createSession(),
+      activeRun: {
+        id: 'run-restored',
+        startedAt: 100,
+        activities: [{ id: 'activity-1', label: '读取文件', status: 'running' as const, startedAt: 100 }],
+        subtasks: [],
+      },
+    }
+    installWindow(vi.fn(async () => restored))
+    const store = await createStore()
+
+    await store.openSession('session-1')
+
+    expect(store.publicRunState).toMatchObject({ sessionId: 'session-1', runId: 'run-restored', startedAt: 100 })
+    expect(store.activeRun?.activities).toEqual(restored.activeRun.activities)
   })
 })

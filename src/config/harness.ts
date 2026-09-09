@@ -492,6 +492,14 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
+  /** 公开事件的幂等标识；旧版本事件可能没有该字段。 */
+  eventId?: string
+  /** 一次 Agent 运行的标识；旧版本事件可能没有该字段。 */
+  runId?: string
+  /** 同一运行内单调递增的序列号；旧版本事件可能没有该字段。 */
+  sequence?: number
+  /** 主进程产生事件的时间。 */
+  occurredAt?: number
   type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved'
   payload: Record<string, unknown>
 }

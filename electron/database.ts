@@ -20,7 +20,7 @@ import { validateSnapshot } from '../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
-const CURRENT_SCHEMA_VERSION = 24
+const CURRENT_SCHEMA_VERSION = 25
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'mod-enter', assistantTone: DEFAULT_ASSISTANT_TONE }
@@ -96,6 +96,14 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
       CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
+      CREATE TABLE IF NOT EXISTS harness_tool_calls (session_id TEXT NOT NULL, tool_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, tool_id));
+      CREATE TABLE IF NOT EXISTS harness_plans (session_id TEXT NOT NULL, plan_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(session_id, plan_id));
+      CREATE TABLE IF NOT EXISTS harness_interactions (session_id TEXT NOT NULL, interaction_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, interaction_id));
+      CREATE TABLE IF NOT EXISTS harness_runs (session_id TEXT NOT NULL, run_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id));
+      CREATE TABLE IF NOT EXISTS harness_run_activities (session_id TEXT NOT NULL, run_id TEXT NOT NULL, activity_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, activity_id));
+      CREATE TABLE IF NOT EXISTS harness_subtasks (session_id TEXT NOT NULL, run_id TEXT NOT NULL, subtask_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, subtask_id));
       CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS automation_tasks (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_type TEXT NOT NULL, cron_expression TEXT,
@@ -231,6 +239,7 @@ export class PlatformDatabase {
         this.writeSnapshot({ ...snapshot, mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus) })
         this.savePreference('novelModelProfilesMigratedAt', Date.now())
       }
+      if (version < 25) this.harness.migrateStructuredSessions()
     }
     const layoutRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('layout') as { value?: string } | undefined
     if (layoutRow?.value) {

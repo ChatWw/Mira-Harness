@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
@@ -120,6 +120,20 @@ export class HarnessStore {
   constructor(private readonly database: Database.Database, paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
     mkdirSync(this.paths.sessions, { recursive: true })
+    this.ensureStructuredSchema()
+  }
+
+  private ensureStructuredSchema() {
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
+      CREATE TABLE IF NOT EXISTS harness_tool_calls (session_id TEXT NOT NULL, tool_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, tool_id));
+      CREATE TABLE IF NOT EXISTS harness_plans (session_id TEXT NOT NULL, plan_id TEXT NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(session_id, plan_id));
+      CREATE TABLE IF NOT EXISTS harness_interactions (session_id TEXT NOT NULL, interaction_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, interaction_id));
+      CREATE TABLE IF NOT EXISTS harness_runs (session_id TEXT NOT NULL, run_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id));
+      CREATE TABLE IF NOT EXISTS harness_run_activities (session_id TEXT NOT NULL, run_id TEXT NOT NULL, activity_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, activity_id));
+      CREATE TABLE IF NOT EXISTS harness_subtasks (session_id TEXT NOT NULL, run_id TEXT NOT NULL, subtask_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, subtask_id));
+    `)
   }
 
   private sessionPath(session: HarnessSession) { return this.paths.session(session.id) }
@@ -181,18 +195,61 @@ export class HarnessStore {
     const path = this.sessionPath(session)
     mkdirSync(dirname(path), { recursive: true })
     session.updatedAt = now()
-    const temporaryPath = `${path}.${process.pid}.tmp`
-    writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
-    renameSync(temporaryPath, path)
-    this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, archived_at, path, working_directory, created_at, updated_at)
+    const persist = this.database.transaction(() => {
+      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, archived_at, path, working_directory, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
       model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, archived_at = excluded.archived_at, path = excluded.path,
       working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
         session.status, Number(session.pinned), session.archivedAt || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
-    if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
+      this.persistStructuredSession(session)
+      if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
+    })
+    persist()
+    const temporaryPath = `${path}.${process.pid}.tmp`
+    writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
+    renameSync(temporaryPath, path)
     return clone(session)
+  }
+
+  private persistStructuredSession(session: HarnessSession) {
+    this.database.prepare('INSERT INTO harness_session_state(session_id, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at').run(session.id, JSON.stringify(session), session.updatedAt)
+    this.database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(session.id)
+    const insertMessage = this.database.prepare('INSERT INTO harness_messages(session_id, message_id, role, content, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    session.messages.forEach(message => insertMessage.run(session.id, message.id, message.role, message.content, JSON.stringify(message), message.createdAt))
+    this.database.prepare('DELETE FROM harness_tool_calls WHERE session_id = ?').run(session.id)
+    const insertTool = this.database.prepare('INSERT INTO harness_tool_calls(session_id, tool_id, payload, created_at) VALUES (?, ?, ?, ?)')
+    session.toolCalls.forEach(tool => insertTool.run(session.id, tool.id, JSON.stringify(tool), tool.createdAt))
+    this.database.prepare('DELETE FROM harness_plans WHERE session_id = ?').run(session.id)
+    if (session.activePlan) this.database.prepare('INSERT INTO harness_plans(session_id, plan_id, payload, updated_at) VALUES (?, ?, ?, ?)').run(session.id, session.activePlan.id, JSON.stringify(session.activePlan), session.activePlan.updatedAt)
+    this.database.prepare('DELETE FROM harness_interactions WHERE session_id = ?').run(session.id)
+    const insertInteraction = this.database.prepare('INSERT INTO harness_interactions(session_id, interaction_id, payload, created_at) VALUES (?, ?, ?, ?)')
+    ;(session.interactions || []).forEach(interaction => insertInteraction.run(session.id, interaction.id, JSON.stringify(interaction), interaction.createdAt))
+    this.database.prepare('DELETE FROM harness_runs WHERE session_id = ?').run(session.id)
+    this.database.prepare('DELETE FROM harness_run_activities WHERE session_id = ?').run(session.id)
+    this.database.prepare('DELETE FROM harness_subtasks WHERE session_id = ?').run(session.id)
+    if (session.activeRun) {
+      this.database.prepare('INSERT INTO harness_runs(session_id, run_id, payload, started_at) VALUES (?, ?, ?, ?)').run(session.id, session.activeRun.id, JSON.stringify(session.activeRun), session.activeRun.startedAt)
+      const insertActivity = this.database.prepare('INSERT INTO harness_run_activities(session_id, run_id, activity_id, payload, started_at) VALUES (?, ?, ?, ?, ?)')
+      const insertSubtask = this.database.prepare('INSERT INTO harness_subtasks(session_id, run_id, subtask_id, payload, created_at) VALUES (?, ?, ?, ?, ?)')
+      session.activeRun.activities.forEach(activity => insertActivity.run(session.id, session.activeRun!.id, activity.id, JSON.stringify(activity), activity.startedAt))
+      session.activeRun.subtasks.forEach(task => insertSubtask.run(session.id, session.activeRun!.id, task.id, JSON.stringify(task), task.createdAt))
+    }
+  }
+
+  migrateStructuredSessions() {
+    const rows = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
+    const migrate = this.database.transaction(() => {
+      for (const row of rows) {
+        const raw = readFileSync(row.path, 'utf8')
+        const session = this.parseSession(raw)
+        const backupPath = `${row.path}.legacy.bak`
+        if (!existsSync(backupPath)) copyFileSync(row.path, backupPath)
+        this.persistStructuredSession(session)
+      }
+    })
+    migrate()
   }
 
   private parseSession(raw: string): HarnessSession {
@@ -446,9 +503,13 @@ export class HarnessStore {
   }
 
   getSession(id: string) {
+    const structured = this.database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(id) as { payload?: string } | undefined
+    if (structured?.payload) return this.parseSession(structured.payload)
     const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
     if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
-    return this.parseSession(readFileSync(row.path, 'utf8'))
+    const session = this.parseSession(readFileSync(row.path, 'utf8'))
+    this.persistStructuredSession(session)
+    return session
   }
 
   updateSession(session: HarnessSession) { return this.saveSession(session) }
@@ -719,14 +780,9 @@ export class HarnessStore {
   }
 
   removeEmptySessions() {
-    const rows = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
+    const rows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
     const emptyIds = rows.flatMap(row => {
-      try {
-        const session = this.parseSession(readFileSync(row.path, 'utf8'))
-        return session.messages.some(message => message.role === 'user') ? [] : [row.id]
-      } catch {
-        return []
-      }
+      try { return this.getSession(row.id).messages.some(message => message.role === 'user') ? [] : [row.id] } catch { return [] }
     })
     if (!emptyIds.length) return 0
     this.deleteSessions(emptyIds)
@@ -739,6 +795,7 @@ export class HarnessStore {
   deleteSession(id: string) {
     const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
     if (row?.path) rmSync(row.path, { force: true })
+    this.deleteStructuredSession(id)
     this.database.prepare('DELETE FROM harness_sessions WHERE id = ?').run(id)
   }
 
@@ -749,9 +806,21 @@ export class HarnessStore {
     const rows = this.database.prepare(`SELECT path FROM harness_sessions WHERE id IN (${placeholders})`).all(...uniqueIds) as Array<{ path: string }>
     const remove = this.database.transaction(() => {
       rows.forEach(row => rmSync(row.path, { force: true }))
+      uniqueIds.forEach(id => this.deleteStructuredSession(id))
       this.database.prepare(`DELETE FROM harness_sessions WHERE id IN (${placeholders})`).run(...uniqueIds)
     })
     remove()
+  }
+
+  private deleteStructuredSession(id: string) {
+    this.database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_tool_calls WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_plans WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_interactions WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_runs WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_run_activities WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_subtasks WHERE session_id = ?').run(id)
   }
 
   recordTool(id: string, record: ToolCallRecord) {
