@@ -5,7 +5,7 @@ import { getPreference, savePreference } from '@/platform'
 
 export const APP_NAME = 'Mira Harness'
 const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
-const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
+const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'headerHeight', 'showBreadcrumb', 'breadcrumbIcon', 'breadcrumbStyle', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
 const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
   chrome: 'personalized',
   plain: 'square',
@@ -41,9 +41,6 @@ const DEFAULT_CONFIG: LayoutConfig = {
   sidebarStyle: 'embedded',
   uniqueOpened: false,
   showLogo: false,
-  showBreadcrumb: true,
-  breadcrumbIcon: false,
-  breadcrumbStyle: 'normal',
   enableTabs: true,
   tabStyle: 'card',
   showTabIcon: true,
@@ -85,18 +82,6 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function setShowLogo(value: boolean) {
     config.value.showLogo = value
-  }
-
-  function setShowBreadcrumb(value: boolean) {
-    config.value.showBreadcrumb = value
-  }
-
-  function setBreadcrumbIcon(value: boolean) {
-    config.value.breadcrumbIcon = value
-  }
-
-  function setBreadcrumbStyle(style: LayoutConfig['breadcrumbStyle']) {
-    config.value.breadcrumbStyle = style
   }
 
   // 多标签页设置
@@ -247,9 +232,6 @@ export const useLayoutStore = defineStore('layout', () => {
     setUniqueOpened,
     toggleLogo,
     setShowLogo,
-    setShowBreadcrumb,
-    setBreadcrumbIcon,
-    setBreadcrumbStyle,
     setEnableTabs,
     setTabStyle,
     setShowTabIcon,

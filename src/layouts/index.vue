@@ -1,29 +1,16 @@
 <template>
   <el-watermark v-bind="watermarkProps" class="layout-watermark">
     <div class="layout" :class="layoutClasses">
-    <!-- 桌面窗口顶栏：macOS 红绿灯、导航与工具条统一在同一行。 -->
-    <div
-      class="layout-header-transition"
-      :style="{ '--layout-header-height': `${desktopHeaderHeight}px` }"
-    >
-      <GlobalHeader />
-    </div>
+      <div class="layout-workspace">
+        <AppSidebar v-if="showSidebar" :show-brand="true" />
 
-    <div class="layout-workspace">
-      <!-- 经典布局：品牌置于顶栏下方的工作区导航内。 -->
-      <AppSidebar v-if="showSidebar" :show-brand="true" />
-
-      <!-- 主容器 -->
-      <div class="main-container">
-        <!-- 多标签页 -->
-        <TabsBar v-if="layoutStore.config.enableTabs && !isWorkspaceRoute" />
-
-        <!-- 主内容区 -->
-        <AppMain />
+        <div class="main-container">
+          <TabsBar v-if="!isWorkspaceRoute" />
+          <AppMain />
+        </div>
       </div>
-    </div>
 
-    <SearchBar />
+      <SearchBar />
     </div>
   </el-watermark>
 </template>
@@ -36,7 +23,6 @@ import { getVisibleMenus, isWorkspacePath, resolveNavigation } from '@/config/na
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import AppSidebar from './components/AppSidebar.vue'
-import GlobalHeader from './components/GlobalHeader.vue'
 import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
@@ -44,8 +30,7 @@ import SearchBar from '@/components/SearchBar/index.vue'
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const route = useRoute()
-const isMacDesktop = Boolean(window.platform) && navigator.userAgent.includes('Macintosh')
-const desktopHeaderHeight = isMacDesktop ? 34 : 48
+const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 
@@ -67,14 +52,11 @@ const watermarkProps = computed(() => {
 const layoutClasses = computed(() => {
   const classes = [
     `layout--sidebar-style-${layoutStore.config.sidebarStyle}`,
+    `layout--${windowChrome}`,
   ]
 
   if (appStore.sidebarCollapsed) {
     classes.push('sidebar-collapsed')
-  }
-
-  if (layoutStore.config.enableTabs && !isWorkspaceRoute.value) {
-    classes.push('layout--with-tabs')
   }
 
   if (!showSidebar.value) {
@@ -94,14 +76,26 @@ const layoutClasses = computed(() => {
 .layout {
   width: 100%;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
   background: var(--cp-bg);
+  --cp-window-controls-inset: 0px;
+  --cp-mac-collapsed-safe-inset: 0px;
+
+  &--windows-overlay {
+    --cp-window-controls-inset: max(150px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 150px))));
+  }
+
+  &--macos-overlay.sidebar-collapsed {
+    --cp-mac-collapsed-safe-inset: 40px;
+  }
+
+  &--macos-overlay.layout--without-workspace-menu {
+    --cp-mac-collapsed-safe-inset: 80px;
+  }
 
   .layout-workspace {
-    min-height: 0;
-    flex: 1;
+    width: 100%;
+    height: 100%;
     display: flex;
     overflow: hidden;
   }
@@ -116,30 +110,24 @@ const layoutClasses = computed(() => {
 
   // ========== 布局模式 ==========
 
-  // 内嵌：顶栏和导航组成框架，内容主体以卡片方式突出。
+  // 内嵌：侧栏融入窗口底色，Main 是唯一强调面板。
   &--sidebar-style-embedded {
     background: var(--cp-bg-elevated);
 
-    .layout-header-transition,
     .layout-workspace {
       background: var(--cp-bg-elevated);
     }
 
     .main-container {
-      margin: 0 12px 12px 0;
+      margin: 12px 12px 12px 0;
       background: var(--cp-bg);
       border: 1px solid var(--cp-layout-border);
-      border-radius: calc(1rem * 1.4);
+      border-radius: var(--cp-radius-xl);
       box-shadow: 0 10px 30px rgb(24 24 27 / 4%);
     }
 
-    :deep(.global-header),
     :deep(.app-sidebar) {
       background: var(--cp-bg-elevated);
-    }
-
-    :deep(.global-header),
-    :deep(.app-sidebar) {
       border-color: var(--cp-layout-border);
     }
 
@@ -153,7 +141,7 @@ const layoutClasses = computed(() => {
 
   }
 
-  // 浮动：顶栏和内容处于同一平面，仅菜单区域作为卡片被突出。
+  // 浮动：Main 保持平面，仅侧栏内缩并悬浮。
   &--sidebar-style-floating {
     .layout-workspace {
       background: var(--cp-bg);
@@ -166,34 +154,22 @@ const layoutClasses = computed(() => {
     :deep(.app-sidebar) {
       align-self: stretch;
       height: auto;
-      margin: 12px 0 12px 12px;
+      margin: 12px;
       overflow: hidden;
-      background: transparent;
-    }
-
-    :deep(.app-sidebar .sidebar-menu) {
       background: var(--cp-bg-elevated);
       border: 1px solid var(--cp-layout-border);
       border-radius: var(--cp-radius-xl);
+      box-shadow: 0 10px 26px rgb(24 24 27 / 7%);
     }
 
     :deep(.el-sub-menu .el-menu) {
       background: var(--cp-bg-elevated);
     }
 
-    :deep(.app-sidebar) {
-      margin-right: 12px;
-    }
   }
 
-  // 侧边栏：常规贴边分区，不突出任何容器。
+  // 分栏：两栏贴边，只用分隔线表达层级。
   &--sidebar-style-docked {
-    :deep(.global-header),
-    :deep(.app-header),
-    :deep(.sidebar-header) {
-      border-bottom: 1px solid var(--cp-layout-border);
-    }
-
     :deep(.app-sidebar) {
       border-right: 1px solid var(--cp-layout-border);
     }
@@ -208,47 +184,6 @@ const layoutClasses = computed(() => {
 
   }
 
-  // ========== 响应式 ==========
-  @include media-max($breakpoint-md) {
-    .main-container {
-      margin-left: 0 !important;
-    }
-
-    &--sidebar-style-embedded .main-container,
-    &--sidebar-style-floating .main-container {
-      margin: 0;
-      border: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
-
-    &--sidebar-style-floating {
-      :deep(.app-sidebar) {
-        margin: 0;
-        border-radius: 0;
-        box-shadow: none;
-      }
-    }
-
-    // 移动端：侧边栏变为抽屉式（这里简化处理）
-    :deep(.app-sidebar) {
-      position: fixed;
-      z-index: $z-modal;
-      transform: translateX(-100%);
-      transition: transform $transition-base;
-
-      &.is-open {
-        transform: translateX(0);
-      }
-    }
-  }
-}
-
-.layout-header-transition {
-  height: var(--layout-header-height);
-  max-height: var(--layout-header-height);
-  flex-shrink: 0;
-  overflow: hidden;
 }
 
 </style>

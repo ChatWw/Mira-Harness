@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mira Harness 对话页面重设计方案</title>
+<style>
+  :root {
+    /* 默认主题 = monochrome 预设（theme.ts: DEFAULT_PRIMARY_PRESET_ID），运行时由 theme store 注入 */
+    --cp-bg: #ffffff;
+    --cp-bg-elevated: #fafafa;
+    --cp-bg-hover: #f4f4f5;
+    --cp-sidebar-bg: #f6f6f7;
+    --cp-text: #18181b;
+    --cp-text-secondary: #71717a;
+    --cp-text-tertiary: #a1a1aa;
+    --cp-border: #e4e4e7;
+    --cp-border-light: #f4f4f5;
+    --cp-primary: #080808;            /* monochrome light */
+    --cp-primary-hover: #26262b;      /* adjustColor(-10) 视觉示意 */
+    --cp-primary-light: #0808081a;    /* 10% 透明 */
+    --cp-success: #10b981;
+    --cp-warning: #f59e0b;
+    --cp-danger: #ef4444;
+    --cp-purple: #9333ea;
+    --cp-purple-bg: #f3e8ff;
+    --cp-amber-bg: #fef3c7;
+    --cp-info: #3b82f6;
+    --cp-info-bg: #eff6ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #ececee;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Inter", sans-serif;
+    color: var(--cp-text);
+    padding: 40px 24px 80px;
+  }
+  .page-header { max-width: 1280px; margin: 0 auto 36px; }
+  .page-header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-header p { margin-top: 8px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
+  .page-header code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; background: var(--cp-bg-hover); padding: 1px 5px; border-radius: 4px; }
+  .section { max-width: 1280px; margin: 0 auto 48px; }
+  .section-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .section-title .num { font-size: 13px; font-weight: 600; color: var(--cp-text-secondary); border: 1px solid var(--cp-border); border-radius: 999px; padding: 1px 8px; }
+  .section-title h2 { font-size: 19px; font-weight: 700; }
+  .section-notes { margin-bottom: 16px; padding-left: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .section-notes li { font-size: 12.5px; color: var(--cp-text-secondary); position: relative; padding-left: 16px; line-height: 1.8; }
+  .section-notes li::before { content: ""; position: absolute; left: 2px; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-secondary); }
+  .screen { width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 12px 40px rgba(24,24,27,0.1), 0 2px 8px rgba(24,24,27,0.05); border: 1px solid var(--cp-border); display: flex; background: var(--cp-bg); height: 780px; }
+  .anno { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #f97316; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 4px rgba(249,115,22,0.18); z-index: 30; }
+  .legend { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 24px; }
+  .legend div { font-size: 12.5px; color: var(--cp-text-secondary); line-height: 1.7; }
+  .legend b { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; background: #f97316; color: #fff; font-size: 11px; align-items: center; justify-content: center; margin-right: 8px; flex: none; vertical-align: -3px; }
+  .legend code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; background: var(--cp-bg-hover); padding: 1px 5px; border-radius: 4px; }
+
+  /* ===== 侧边栏（保持现状，仅作上下文） ===== */
+  .sidebar { width: 232px; flex: none; background: var(--cp-sidebar-bg); border-right: 1px solid var(--cp-border-light); display: flex; flex-direction: column; padding: 16px 12px; }
+  .sidebar__brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 18px; }
+  .sidebar__logo { width: 28px; height: 28px; border-radius: 8px; background: var(--cp-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
+  .sidebar__brand strong { font-size: 14px; font-weight: 650; }
+  .new-chat-btn { display: flex; align-items: center; justify-content: center; gap: 7px; height: 36px; border-radius: 9px; background: var(--cp-primary); color: #fff; font-size: 13.5px; font-weight: 600; margin-bottom: 14px; flex: none; }
+  .sidebar__group { font-size: 11px; color: var(--cp-text-tertiary); padding: 10px 8px 6px; letter-spacing: 0.04em; }
+  .chat-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 12.5px; color: #414145; margin-bottom: 2px; }
+  .chat-item.is-active { background: #e8e8ea; color: #262629; font-weight: 550; }
+  .chat-item svg { flex: none; opacity: 0.55; }
+
+  /* ===== 主体公共 ===== */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; background: var(--cp-bg); }
+  .icon { width: 16px; height: 16px; flex: none; }
+
+  /* ===== Screen 1：新对话 ===== */
+  .empty-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px 40px; gap: 0; }
+  .hero { text-align: center; margin-bottom: 26px; }
+  .hero h3 { font-size: 30px; font-weight: 750; letter-spacing: -0.02em; color: var(--cp-text); }
+  .hero p { margin-top: 9px; font-size: 13.5px; color: var(--cp-text-secondary); line-height: 1.7; }
+  .starter-cards { display: flex; gap: 14px; margin-bottom: 22px; position: relative; }
+  .starter-card { width: 200px; padding: 15px 15px 14px; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: all .16s ease; position: relative; }
+  .starter-card:hover { border-color: rgba(8,8,8,0.4); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(24,24,27,0.07); }
+  .starter-card.is-hover { border-color: rgba(8,8,8,0.45); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(24,24,27,0.08); }
+  .starter-card__icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 11px; }
+  .starter-card__icon svg { width: 18px; height: 18px; }
+  .ic-blue { background: var(--cp-info-bg); color: var(--cp-info); }
+  .ic-purple { background: var(--cp-purple-bg); color: var(--cp-purple); }
+  .ic-amber { background: var(--cp-amber-bg); color: var(--cp-warning); }
+  .starter-card strong { display: block; font-size: 14.5px; font-weight: 620; color: var(--cp-text); line-height: 1.45; }
+  .starter-card small { display: block; margin-top: 4px; font-size: 12px; color: var(--cp-text-secondary); line-height: 1.5; }
+  .starter-card__dot { position: absolute; top: 10px; right: 10px; width: 6px; height: 6px; border-radius: 50%; }
+  .dot-blue { background: var(--cp-info); } .dot-purple { background: var(--cp-purple); } .dot-amber { background: var(--cp-warning); }
+
+  /* ===== Composer 公共 ===== */
+  .composer-wrap { width: 640px; max-width: 100%; }
+  .composer { background: var(--cp-bg); border: 1px solid var(--cp-border); border-radius: 14px; box-shadow: 0 6px 24px rgba(24,24,27,0.06); padding: 14px 14px 10px; }
+  .composer__input { font-size: 14px; color: var(--cp-text-tertiary); min-height: 44px; line-height: 1.6; }
+  .composer__actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .composer__status { display: flex; align-items: center; gap: 8px; }
+  .chip-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid transparent; background: var(--cp-bg-hover); color: var(--cp-text-secondary); font-size: 12.5px; cursor: pointer; }
+  .chip-btn--ghost { background: transparent; width: 30px; padding: 0; justify-content: center; }
+  .chip-btn--ghost:hover { background: var(--cp-bg-hover); }
+  .chip-btn .caret { opacity: 0.5; width: 11px; height: 11px; }
+  .composer__submit { display: flex; align-items: center; gap: 8px; }
+  .send-btn { width: 30px; height: 30px; border-radius: 9px; background: var(--cp-primary); color: #fff; display: flex; align-items: center; justify-content: center; }
+  .context-ring { position: relative; width: 26px; height: 26px; }
+  .context-ring svg { width: 26px; height: 26px; }
+  .composer-hint { margin-top: 9px; text-align: center; font-size: 11px; color: var(--cp-text-tertiary); }
+
+  /* ===== Screen 2/3：对话页 ===== */
+  .conv-header { flex: none; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 22px; border-bottom: 1px solid var(--cp-border-light); position: relative; z-index: 5; }
+  .conv-header__left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .conv-header__project { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--cp-text-tertiary); flex: none; }
+  .conv-header__divider { color: var(--cp-border); font-size: 12px; }
+  .conv-header__title { font-size: 13px; font-weight: 600; color: var(--cp-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .perm-pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--cp-border); font-size: 11px; color: var(--cp-text-secondary); background: var(--cp-bg); flex: none; }
+  .perm-pill svg { width: 11px; height: 11px; opacity: 0.6; }
+  .conv-header__right { display: flex; align-items: center; gap: 6px; }
+  .hdr-icon-btn { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--cp-text-secondary); cursor: pointer; border: 1px solid transparent; }
+  .hdr-icon-btn:hover { background: var(--cp-bg-hover); }
+  .hdr-icon-btn.is-active { background: var(--cp-primary-light); color: var(--cp-text); }
+
+  .msg-area { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 20px 24px 8px; }
+  .msg-col { width: 720px; max-width: 100%; display: flex; flex-direction: column; gap: 22px; position: relative; }
+  .msg-user { display: flex; justify-content: flex-end; }
+  .msg-user__bubble { max-width: 78%; background: var(--cp-bg-hover); border-radius: 14px 14px 4px 14px; padding: 11px 15px; font-size: 13.5px; line-height: 1.7; color: var(--cp-text); }
+  .msg-ai { display: flex; gap: 12px; }
+  .msg-ai__avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--cp-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: none; margin-top: 1px; }
+  .msg-ai__body { flex: 1; min-width: 0; }
+  .msg-ai__name { font-size: 11.5px; font-weight: 600; color: var(--cp-text-tertiary); margin-bottom: 6px; letter-spacing: 0.02em; }
+  .msg-ai__content { font-size: 13.5px; line-height: 1.75; color: var(--cp-text); }
+  .msg-ai__content p + p { margin-top: 8px; }
+  .msg-ai__content code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; background: var(--cp-bg-hover); padding: 1px 5px; border-radius: 4px; }
+
+  .tool-strip { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 7px 12px; border-radius: 9px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border-light); font-size: 12px; color: var(--cp-text-secondary); cursor: pointer; }
+  .tool-strip:hover { border-color: var(--cp-border); }
+  .tool-strip svg { width: 13px; height: 13px; opacity: 0.7; }
+  .tool-strip .chev { margin-left: 2px; opacity: 0.45; }
+  .tool-strip b { color: var(--cp-text); font-weight: 600; }
+  .tool-strip__counts { display: inline-flex; gap: 6px; }
+  .tool-count { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--cp-text-tertiary); }
+  .tool-count i { width: 5px; height: 5px; border-radius: 50%; }
+  .i-ok { background: var(--cp-success); } .i-run { background: var(--cp-text-secondary); } .i-fail { background: var(--cp-danger); }
+
+  .msg-actions { display: flex; gap: 2px; margin-top: 8px; opacity: 1; }
+  .msg-actions .act { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; color: var(--cp-text-tertiary); cursor: pointer; }
+  .msg-actions .act:hover { background: var(--cp-bg-hover); color: var(--cp-text-secondary); }
+  .msg-actions .act svg { width: 12px; height: 12px; }
+  .msg-actions .sep { width: 1px; height: 14px; background: var(--cp-border); margin: 5px 4px; }
+
+  .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-tertiary); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  /* ===== Screen 3：右侧面板展开 ===== */
+  .split { flex: 1; min-height: 0; display: flex; }
+  .split__conv { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .session-panel { width: 288px; flex: none; border-left: 1px solid var(--cp-border-light); background: color-mix(in srgb, var(--cp-bg-elevated) 88%, var(--cp-bg)); display: flex; flex-direction: column; }
+  .session-panel__head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+  .session-panel__head strong { font-size: 12.5px; font-weight: 620; }
+  .panel-search { margin: 0 14px 12px; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--cp-border); background: var(--cp-bg); font-size: 12px; color: var(--cp-text-tertiary); }
+  .panel-search svg { width: 13px; height: 13px; opacity: 0.6; }
+  .session-panel__body { flex: 1; overflow: hidden; padding: 0 14px 14px; }
+  .panel-section-title { font-size: 11px; font-weight: 600; color: var(--cp-text-secondary); margin: 14px 0 10px; }
+  .info-list { display: flex; flex-direction: column; gap: 10px; }
+  .info-list > div { font-size: 12px; }
+  .info-list dt { color: var(--cp-text-tertiary); font-size: 11px; }
+  .info-list dd { margin-top: 3px; color: var(--cp-text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+  .tool-list { display: flex; flex-direction: column; }
+  .tool-item { display: flex; align-items: center; gap: 8px; padding: 7px 2px; font-size: 12px; color: var(--cp-text-secondary); border-bottom: 1px solid var(--cp-border-light); }
+  .tool-item:last-child { border-bottom: none; }
+  .tool-item i { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .tool-item .t-name { color: var(--cp-text); font-weight: 500; }
+  .tool-item .t-target { flex: 1; min-width: 0; text-align: right; font-size: 11px; color: var(--cp-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .panel-more { margin-top: 10px; text-align: center; font-size: 11.5px; color: var(--cp-text-tertiary); }
+  .panel-mask { position: absolute; inset: 0; background: rgba(24,24,27,0.04); z-index: 4; }
+
+  .footer-note { max-width: 1280px; margin: 0 auto; background: var(--cp-bg); border: 1px solid var(--cp-border); border-radius: 14px; padding: 22px 26px; }
+  .footer-note h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+  .footer-note table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .footer-note th { text-align: left; font-size: 11.5px; color: var(--cp-text-tertiary); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--cp-border); }
+  .footer-note td { padding: 9px 10px; border-bottom: 1px solid var(--cp-border-light); vertical-align: top; line-height: 1.6; }
+  .footer-note tr:last-child td { border-bottom: none; }
+  .footer-note td:first-child { color: var(--cp-text); font-weight: 550; white-space: nowrap; }
+  .footer-note td code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; background: var(--cp-bg-hover); padding: 1px 5px; border-radius: 4px; color: var(--cp-text-secondary); }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Mira Harness · 对话页面重设计方案</h1>
+  <p>本稿按<b>项目当前默认主题</b>出图：monochrome 预设（<code>theme.ts</code> 中 <code>DEFAULT_PRIMARY_PRESET_ID = 'monochrome'</code>），亮色模式主色 <code>--cp-primary = #080808</code>（近黑），由 theme store 运行时注入。SCSS 里的 <code>$primary: #06b6d4</code> 仅为编译兜底、非运行时默认。落地时全部引用 <code>var(--cp-primary)</code>，用户切换靛蓝/紫/蓝/青/绿预设时 UI 自动跟随；卡片点缀色使用不随主题切换的语义色板（蓝/紫/琥珀）。</p>
+</header>
+
+<!-- ============ Screen 1：新对话页面 ============ -->
+<section class="section">
+  <div class="section-title"><span class="num">01</span><h2>新对话页面 —— 保持 Codex 式骨架，调字号 + 加色彩点缀</h2></div>
+  <ul class="section-notes">
+    <li>骨架不动：居中 Hero → 快捷卡片 → 输入框，间距收紧让卡片与输入框成组</li>
+    <li>卡片文字放大：标题 13→14.5px，描述 11→12px 且提亮（tertiary→secondary）</li>
+    <li>色彩点缀用语义色板（蓝/紫/琥珀），黑白主题下不显寡淡，切主题也不受影响</li>
+  </ul>
+  <div class="screen">
+    <!-- 侧边栏仅作上下文 -->
+    <aside class="sidebar">
+      <div class="sidebar__brand"><span class="sidebar__logo">M</span><strong>Mira Harness</strong></div>
+      <div class="new-chat-btn">＋ 新对话</div>
+      <div class="sidebar__group">最近对话</div>
+      <div class="chat-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>章节结构分析</div>
+      <div class="chat-item is-active"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>角色设定整理</div>
+      <div class="sidebar__group" style="margin-top:auto">自动化</div>
+    </aside>
+
+    <main class="main">
+      <div class="empty-body">
+        <div class="hero">
+          <h3>Mira</h3>
+          <p>今天想做什么？从一个想法开始，我陪你把它落地。</p>
+        </div>
+        <div class="starter-cards">
+          <span class="anno" style="top:-11px; left:-11px">1</span>
+          <span class="anno" style="top:118px; left:-11px">2</span>
+          <button class="starter-card is-hover">
+            <span class="starter-card__icon ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+            <strong>写一段文案</strong>
+            <small>产品介绍、朋友圈、公告……</small>
+            <span class="starter-card__dot dot-blue"></span>
+          </button>
+          <button class="starter-card">
+            <span class="starter-card__icon ic-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+            <strong>总结一篇文章</strong>
+            <small>粘贴链接或长文本，我来提炼要点</small>
+            <span class="starter-card__dot dot-purple"></span>
+          </button>
+          <button class="starter-card">
+            <span class="starter-card__icon ic-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg></span>
+            <strong>写一段代码</strong>
+            <small>SQL、脚本、组件，描述需求即可</small>
+            <span class="starter-card__dot dot-amber"></span>
+          </button>
+        </div>
+        <div class="composer-wrap">
+          <span class="anno" style="top:-11px; left:-11px">3</span>
+          <div class="composer">
+            <div class="composer__input">随便问</div>
+            <div class="composer__actions">
+              <div class="composer__status">
+                <span class="chip-btn chip-btn--ghost"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="chip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>默认权限<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+              </div>
+              <div class="composer__submit">
+                <span class="context-ring"><svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="#e4e4e7" stroke-width="2.5"/><path d="M13 2 A 11 11 0 0 1 24 13" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"/></svg></span>
+                <span class="chip-btn">GLM-4.6<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+                <span class="send-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div class="composer-hint">⏎ 发送 · ⇧⏎ 换行</div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="legend">
+    <div><b>1</b>「Mira」40→30px，默认黑白主题下保持纯文字色，不加重不渐变</div>
+    <div><b>2</b>卡片标题/描述各升一档；图标底 30→36px，三卡分别用 <code>--cp-stat-icon-info</code> / <code>--cp-stat-icon-purple</code> / <code>--cp-stat-icon-warning</code> 色板点缀</div>
+    <div><b>3</b>输入框与卡片间距 28→22px 视觉成组；发送按钮、上下文圆环均走 <code>var(--cp-primary)</code></div>
+  </div>
+</section>
+
+<!-- ============ Screen 2：对话页面（默认态，面板收起） ============ -->
+<section class="section">
+  <div class="section-title"><span class="num">02</span><h2>对话页面（默认态）—— 顶栏缩窄 · 右侧面板默认收起</h2></div>
+  <ul class="section-notes">
+    <li>顶栏 66→44px：项目名、标题、目录压成一行，去掉大块身份区</li>
+    <li>右侧常驻面板移除，主对话区独占全宽（宽屏收益最大）</li>
+    <li>工具调用改为消息内的折叠条，不再无限堆在右侧</li>
+  </ul>
+  <div class="screen">
+    <aside class="sidebar">
+      <div class="sidebar__brand"><span class="sidebar__logo">M</span><strong>Mira Harness</strong></div>
+      <div class="new-chat-btn">＋ 新对话</div>
+      <div class="sidebar__group">最近对话</div>
+      <div class="chat-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>章节结构分析</div>
+      <div class="chat-item is-active"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>角色设定整理</div>
+      <div class="sidebar__group" style="margin-top:auto">自动化</div>
+    </aside>
+
+    <main class="main">
+      <header class="conv-header">
+        <div class="conv-header__left">
+          <span class="anno" style="top:11px; left:-11px">1</span>
+          <span class="conv-header__project"><svg class="icon" style="width:13px;height:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>TripFrog 桌面端</span>
+          <span class="conv-header__divider">/</span>
+          <span class="conv-header__title">我想更新一版角色设定的描述</span>
+        </div>
+        <div class="conv-header__right">
+          <span class="anno" style="top:8px; right:-11px">2</span>
+          <span class="perm-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>默认权限</span>
+          <span class="hdr-icon-btn" title="在对话中搜索"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span>
+          <span class="hdr-icon-btn" title="展开会话面板"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></span>
+        </div>
+      </header>
+
+      <div class="msg-area">
+        <div class="msg-col">
+          <div class="msg-user">
+            <div class="msg-user__bubble">帮我把主角团三人的设定统一整理一下，重点补全各自的动机和口头禅，输出成表格。</div>
+          </div>
+
+          <div class="msg-ai">
+            <span class="msg-ai__avatar">M</span>
+            <div class="msg-ai__body">
+              <div class="msg-ai__name">Mira</div>
+              <div class="msg-ai__content">
+                <p>我先把项目里 <code>characters/</code> 目录下的三份设定稿读了一遍，又核对了第二章出现过的对话细节。整理结果如下：</p>
+                <p>三人的核心冲突已经错开——林见秋困在「过去」，白栎困在「身份」，阿澈困在「归属」。动机链条建议按这个顺序铺……</p>
+              </div>
+              <div class="tool-strip">
+                <span class="anno" style="top:-8px; left:-30px">3</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14.7 6.3a4.5 4.5 0 0 1-6.4 6.4L4 17v3h3l4.3-4.3a4.5 4.5 0 0 0 6.4-6.4z"/></svg>
+                <span>已调用 <b>5</b> 个工具</span>
+                <span class="tool-strip__counts">
+                  <span class="tool-count"><i class="i-ok"></i>read ×2</span>
+                  <span class="tool-count"><i class="i-ok"></i>list_files ×2</span>
+                  <span class="tool-count"><i class="i-run"></i>search ×1</span>
+                </span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="msg-actions">
+                <span class="anno" style="top:-4px; left:-30px">4</span>
+                <span class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>复制</span>
+                <span class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>重新生成</span>
+                <span class="sep"></span>
+                <span class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v8H4v-8zM7 11l4-8a2.4 2.4 0 0 1 2.4 2.4L12.5 10H18a2 2 0 0 1 2 2.4l-1.2 5A2 2 0 0 1 16.8 19H7z"/></svg></span>
+                <span class="act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><path d="M7 11v8H4v-8zM7 11l4-8a2.4 2.4 0 0 1 2.4 2.4L12.5 10H18a2 2 0 0 1 2 2.4l-1.2 5A2 2 0 0 1 16.8 19H7z"/></svg></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <span class="msg-ai__avatar">M</span>
+            <div class="msg-ai__body">
+              <div class="msg-ai__name">Mira</div>
+              <div class="typing"><i></i><i></i><i></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:none; display:flex; justify-content:center; padding: 0 24px 22px;">
+        <div class="composer-wrap" style="width:720px">
+          <div class="composer">
+            <div class="composer__input" style="color:var(--cp-text)">再把阿澈的口头禅改成方言版本，保留上一轮的表格格式</div>
+            <div class="composer__actions">
+              <div class="composer__status">
+                <span class="chip-btn chip-btn--ghost"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="chip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>默认权限<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+              </div>
+              <div class="composer__submit">
+                <span class="context-ring"><svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="#e4e4e7" stroke-width="2.5"/><path d="M13 2 A 11 11 0 0 1 22.5 8" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"/></svg></span>
+                <span class="chip-btn">GLM-4.6<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+                <span class="send-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="legend">
+    <div><b>1</b>顶栏压成 44px 单行：项目 · 标题 · 权限 pill，目录路径收进 tooltip</div>
+    <div><b>2</b>右侧新增「搜索」「面板」两个图标按钮，点击后面板滑出（见 03 屏）；激活态用 <code>var(--cp-primary-light)</code>（黑白主题下即 10% 黑）</div>
+    <div><b>3</b>工具调用改为消息内折叠条：汇总计数 + 状态点（成功绿/进行中灰/失败红），展开可见明细</div>
+    <div><b>4</b>复制 / 重新生成 / 点赞点踩保留 hover 显示（此处示意 hover 态）</div>
+  </div>
+</section>
+
+<!-- ============ Screen 3：对话页面（面板展开态） ============ -->
+<section class="section">
+  <div class="section-title"><span class="num">03</span><h2>对话页面（面板展开态）—— 点击顶栏按钮后右侧滑出</h2></div>
+  <ul class="section-notes">
+    <li>面板从右侧滑入（overlay 模式，压住对话区而非挤压，对话列不跳动）</li>
+    <li>面板顶部带「搜索工具调用」框，长会话里直接过滤定位</li>
+    <li>会话信息（模型/权限/工作目录）收进面板，顶栏只留轻量 pill</li>
+  </ul>
+  <div class="screen">
+    <aside class="sidebar">
+      <div class="sidebar__brand"><span class="sidebar__logo">M</span><strong>Mira Harness</strong></div>
+      <div class="new-chat-btn">＋ 新对话</div>
+      <div class="sidebar__group">最近对话</div>
+      <div class="chat-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>章节结构分析</div>
+      <div class="chat-item is-active"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>角色设定整理</div>
+      <div class="sidebar__group" style="margin-top:auto">自动化</div>
+    </aside>
+
+    <main class="main">
+      <div class="split">
+        <div class="split__conv">
+          <header class="conv-header">
+            <div class="conv-header__left">
+              <span class="conv-header__project"><svg class="icon" style="width:13px;height:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>TripFrog 桌面端</span>
+              <span class="conv-header__divider">/</span>
+              <span class="conv-header__title">我想更新一版角色设定的描述</span>
+            </div>
+            <div class="conv-header__right">
+              <span class="perm-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>默认权限</span>
+              <span class="hdr-icon-btn" title="在对话中搜索"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span>
+              <span class="anno" style="top:8px; right:-11px">5</span>
+              <span class="hdr-icon-btn is-active" title="收起会话面板"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></span>
+            </div>
+          </header>
+
+          <div class="msg-area" style="padding-left:16px">
+            <div class="msg-col" style="opacity:1">
+              <div class="msg-user">
+                <div class="msg-user__bubble">帮我把主角团三人的设定统一整理一下，重点补全各自的动机和口头禅，输出成表格。</div>
+              </div>
+              <div class="msg-ai">
+                <span class="msg-ai__avatar">M</span>
+                <div class="msg-ai__body">
+                  <div class="msg-ai__name">Mira</div>
+                  <div class="msg-ai__content"><p>整理结果如下：三人的核心冲突已经错开——林见秋困在「过去」，白栎困在「身份」，阿澈困在「归属」……</p></div>
+                  <div class="tool-strip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14.7 6.3a4.5 4.5 0 0 1-6.4 6.4L4 17v3h3l4.3-4.3a4.5 4.5 0 0 0 6.4-6.4z"/></svg>
+                    <span>已调用 <b>5</b> 个工具</span>
+                    <span class="tool-strip__counts">
+                      <span class="tool-count"><i class="i-ok"></i>read ×2</span>
+                      <span class="tool-count"><i class="i-ok"></i>list_files ×2</span>
+                      <span class="tool-count"><i class="i-run"></i>search ×1</span>
+                    </span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="msg-ai">
+                <span class="msg-ai__avatar">M</span>
+                <div class="msg-ai__body">
+                  <div class="msg-ai__name">Mira</div>
+                  <div class="typing"><i></i><i></i><i></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:none; display:flex; justify-content:center; padding: 0 16px 22px;">
+            <div class="composer-wrap" style="width:720px">
+              <div class="composer">
+                <div class="composer__input" style="color:var(--cp-text-tertiary)">随便问</div>
+                <div class="composer__actions">
+                  <div class="composer__status">
+                    <span class="chip-btn chip-btn--ghost"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                    <span class="chip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>默认权限<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+                  </div>
+                  <div class="composer__submit">
+                    <span class="chip-btn">GLM-4.6<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span>
+                    <span class="send-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="session-panel">
+          <div class="session-panel__head">
+            <strong>会话信息</strong>
+            <span class="hdr-icon-btn" style="width:24px;height:24px" title="收起面板"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+          </div>
+          <div class="panel-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            搜索工具调用
+          </div>
+          <div class="session-panel__body">
+            <div class="info-list">
+              <div><dt>模型</dt><dd>GLM-4.6</dd></div>
+              <div><dt>权限</dt><dd>默认权限</dd></div>
+              <div><dt>工作目录</dt><dd>/Users/wu/project/tripfrog</dd></div>
+            </div>
+            <div class="panel-section-title">工具调用</div>
+            <div class="tool-list">
+              <div class="tool-item"><i class="i-ok"></i><span class="t-name">read</span><span class="t-target">characters/linjianqiu.md</span></div>
+              <div class="tool-item"><i class="i-ok"></i><span class="t-name">read</span><span class="t-target">characters/baili.md</span></div>
+              <div class="tool-item"><i class="i-ok"></i><span class="t-name">read</span><span class="t-target">characters/achi.md</span></div>
+              <div class="tool-item"><i class="i-ok"></i><span class="t-name">list_files</span><span class="t-target">chapters/02/</span></div>
+              <div class="tool-item"><i class="i-run"></i><span class="t-name">search</span><span class="t-target">口头禅 方言</span></div>
+            </div>
+            <div class="panel-more">已显示 5 / 23 条 · 滚动加载</div>
+          </div>
+        </aside>
+      </div>
+      <div class="panel-mask" style="pointer-events:none"></div>
+    </main>
+  </div>
+  <div class="legend">
+    <div><b>5</b>顶栏按钮切换为激活态（<code>var(--cp-primary-light)</code> 浅底）；面板 overlay 滑出，对话列位置不动</div>
+    <div>面板内容 = 现 HarnessSessionPanel 的两个区块 + 新增搜索框；宽度 248→288px 更好展示路径</div>
+    <div>展开/收起建议做成可记住的偏好（如 <code>harness.panelVisible</code> 持久化到本地配置）</div>
+  </div>
+</section>
+
+<!-- ============ 落地改动清单 ============ -->
+<section class="footer-note">
+  <h3>落地改动清单（对应现有代码）</h3>
+  <table>
+    <thead><tr><th style="width:220px">改动点</th><th style="width:260px">涉及文件</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>顶栏缩窄 66→44px</td>
+        <td><code>src/pages/frontend/harness/index.vue</code></td>
+        <td><code>.conversation__header</code> 改为单行 flex：项目名（小字）+ 分隔符 + 标题；目录路径移入 title tooltip；新增右侧搜索 / 面板两个 <code>hdr-icon-btn</code>，激活态用 <code>var(--cp-primary-light)</code></td>
+      </tr>
+      <tr>
+        <td>右侧面板改为滑出</td>
+        <td><code>index.vue</code> + <code>HarnessSessionPanel.vue</code></td>
+        <td><code>.harness-page</code> 的 grid 去掉常驻 248px 列；面板改为 fixed/absolute overlay + 过渡动画，由顶栏按钮控制 <code>v-if</code>；面板顶部加搜索框过滤 <code>toolCalls</code></td>
+      </tr>
+      <tr>
+        <td>工具调用折叠条</td>
+        <td><code>HarnessMessageItem.vue</code></td>
+        <td>AI 消息内新增 tool-strip：聚合本轮工具计数（成功绿/进行中灰/失败红状态点），点击展开明细；右侧面板保留完整列表</td>
+      </tr>
+      <tr>
+        <td>新对话页字号与配色</td>
+        <td><code>index.vue</code>（empty-state 样式）</td>
+        <td>卡片标题 13→14.5px、描述 11→12px 且改 <code>--cp-text-secondary</code>；图标底 30→36px；三卡分别用 <code>--cp-stat-icon-info</code> / <code>--cp-stat-icon-purple</code> / <code>--cp-stat-icon-warning</code> 系列色（不随主题切换的语义色板，满足"色彩点缀"）；「Mira」标题 40→30px 保持纯文字色；卡片与输入框间距 28→22px</td>
+      </tr>
+      <tr>
+        <td>主题适配（重要）</td>
+        <td>所有新增样式</td>
+        <td>主色一律写 <code>var(--cp-primary)</code> / <code>var(--cp-primary-light)</code>，不硬编码色值——默认 monochrome（#080808）下呈现黑白极简，用户切换靛蓝/紫/蓝/青/绿预设时自动跟随；暗色模式下 monochrome 主色为 #f3f3f3，按钮/激活态需带 <code>--cp-primary-contrast</code> 前景色处理</td>
+      </tr>
+      <tr>
+        <td>消息操作行（已存在，无需改）</td>
+        <td><code>HarnessMessageItem.vue</code></td>
+        <td>复制 / 重新生成 / 反馈保持 hover 显示即可，本方案仅确认不改</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>

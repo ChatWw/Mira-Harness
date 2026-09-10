@@ -143,7 +143,7 @@ function createWindow() {
     backgroundColor: '#f7f7f8',
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
     ...(isWindows ? {
-      titleBarOverlay: { color: '#fafafa', symbolColor: '#18181b', height: 48 },
+      titleBarOverlay: { color: '#00000000', symbolColor: '#18181b', height: 48 },
     } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   })
@@ -431,7 +431,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('window:set-titlebar-chrome', (event, chrome: { color: string; symbolColor: string; height?: number }) => {
     if (process.platform !== 'win32') return
     const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
-    win?.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor, height: chrome.height })
+    win?.setTitleBarOverlay({ ...chrome, color: '#00000000' })
   })
   ipcMain.handle('window:command', (event, action: string) => {
     const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]

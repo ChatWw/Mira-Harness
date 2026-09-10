@@ -11,6 +11,7 @@ import {
 } from '@/config/theme'
 import { getPreference, savePreference } from '@/platform'
 import miraFavicon from '@/asset/mira-favicon.png'
+import { resolveWindowChromeDelay, syncWindowChrome } from '@/utils/windowChrome'
 
 type ViewTransitionController = {
   ready: Promise<void>
@@ -133,11 +134,12 @@ export const useThemeStore = defineStore('theme', () => {
     // 先清理旧的状态，避免上一次的值残留
     root.removeAttribute(THEME_TRANSITION_ATTR)
 
+    let chromeSynced = false
     try {
       document.head.append(transitionStyle)
 
       const transition = documentWithTransition.startViewTransition(async () => {
-        setThemePreference(nextMode)
+        setThemePreference(nextMode, false)
         await nextTick()
       })
 
@@ -146,10 +148,12 @@ export const useThemeStore = defineStore('theme', () => {
       // 标记当前切换方向，触发对应的 View Transition 伪元素动画
       root.setAttribute(THEME_TRANSITION_ATTR, nextEffectiveMode)
 
-      // 等待 CSS 伪元素动画开始，避免第一帧闪现
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      await new Promise(resolve => window.setTimeout(resolve, transitionDurationMs))
+      const chromeDelay = resolveWindowChromeDelay(transitionDurationMs, true)
+      await new Promise(resolve => window.setTimeout(resolve, chromeDelay))
+      chromeSynced = await syncWindowChrome(window.platform, nextEffectiveMode)
+      await new Promise(resolve => window.setTimeout(resolve, transitionDurationMs - chromeDelay))
     } finally {
+      if (!chromeSynced) await syncWindowChrome(window.platform, themeMode.value)
       root.removeAttribute(THEME_TRANSITION_ATTR)
       transitionStyle.remove()
     }
@@ -159,7 +163,7 @@ export const useThemeStore = defineStore('theme', () => {
     setThemePreference(mode)
   }
 
-  function setThemePreference(preference: ThemePreference) {
+  function setThemePreference(preference: ThemePreference, syncNativeChrome = true) {
     const nextMode = resolveThemeMode(preference)
     if (themePreference.value === preference && themeMode.value === nextMode) return
 
@@ -168,7 +172,7 @@ export const useThemeStore = defineStore('theme', () => {
     savePreference('themeMode', preference)
     if (themeMode.value === nextMode) return
     themeMode.value = nextMode
-    applyTheme()
+    applyTheme(syncNativeChrome)
   }
 
   function getTransitionDuration(root: HTMLElement) {
@@ -206,7 +210,7 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  function applyTheme() {
+  function applyTheme(syncNativeChrome = true) {
     const root = document.documentElement
     const preset = activePreset.value
     const color = primaryColor.value
@@ -236,6 +240,7 @@ export const useThemeStore = defineStore('theme', () => {
     applyElementColor(root, 'info', color, lightVariantBase)
 
     updateFavicon()
+    if (syncNativeChrome) void syncWindowChrome(window.platform, themeMode.value)
   }
 
   function updateFavicon() {

@@ -1,35 +1,55 @@
 <template>
   <aside
     class="app-sidebar"
-    :class="{ collapsed: appStore.sidebarCollapsed }"
+    :class="[`app-sidebar--${windowChrome}`, { collapsed: appStore.sidebarCollapsed }]"
     :style="{
       width: appStore.sidebarCollapsed ? '48px' : '240px',
     }"
   >
-    <Transition name="sidebar-header-slide">
-      <div v-if="showBrand" class="sidebar-header">
-        <div class="brand">
-          <div v-if="!textOnlyBrand && layoutStore.config.showLogo" class="brand-icon">
-            <img :src="miraLogo" class="brand-logo" alt="Mira" />
-          </div>
-          <transition name="fade" type="transition">
-            <span v-show="!appStore.sidebarCollapsed" class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">
-              {{ APP_NAME }}
-            </span>
-          </transition>
-        </div>
-        <div class="sidebar-brand-actions">
-          <el-tooltip content="全局搜索 (Ctrl+K)" :disabled="appStore.sidebarCollapsed" placement="right">
-            <button type="button" class="brand-action" @click="handleSearch"><AppIcon name="Search" /></button>
-          </el-tooltip>
-        </div>
+    <div class="sidebar-window-chrome">
+      <el-dropdown
+        v-if="isWindowsOverlay && showBrand && !appStore.sidebarCollapsed"
+        trigger="click"
+        placement="bottom-start"
+        popper-class="windows-mira-menu-popper"
+        @command="handleWindowCommand"
+      >
+        <button type="button" class="sidebar-brand sidebar-brand--button">
+          <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
+          <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
+          <AppIcon name="ArrowDown" class="brand-arrow" />
+        </button>
+        <template #dropdown><WindowMenuItems :groups="windowsMenuGroups" /></template>
+      </el-dropdown>
+      <div v-else-if="showBrand && !appStore.sidebarCollapsed" class="sidebar-brand">
+        <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
+        <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
       </div>
-    </Transition>
-
-    <div class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
-      <el-tooltip :disabled="!appStore.sidebarCollapsed" content="新对话" placement="right">
-        <button type="button" class="sidebar-new-session" @click="newSession"><AppIcon name="tabler:edit" /><span v-if="!appStore.sidebarCollapsed">新对话</span></button>
+      <el-tooltip v-else-if="isWindowsOverlay && showBrand" content="Mira 菜单" placement="right">
+        <el-dropdown trigger="click" placement="bottom-start" popper-class="windows-mira-menu-popper" @command="handleWindowCommand">
+          <button type="button" class="compact-brand" aria-label="打开 Mira 菜单">M</button>
+          <template #dropdown><WindowMenuItems :groups="windowsMenuGroups" /></template>
+        </el-dropdown>
       </el-tooltip>
+
+      <div v-if="!appStore.sidebarCollapsed" class="sidebar-chrome-actions">
+        <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
+          <button type="button" class="chrome-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button>
+        </el-tooltip>
+        <el-tooltip content="折叠侧边栏" placement="bottom">
+          <button type="button" class="chrome-action" aria-label="折叠侧边栏" @click="appStore.toggleSidebar()"><AppIcon name="tabler:layout-sidebar-right-expand" /></button>
+        </el-tooltip>
+      </div>
+    </div>
+
+    <div v-if="appStore.sidebarCollapsed" class="sidebar-compact-actions">
+      <el-tooltip content="展开侧边栏" placement="right"><button type="button" class="compact-action" aria-label="展开侧边栏" @click="appStore.toggleSidebar()"><AppIcon name="tabler:layout-sidebar-left-expand" /></button></el-tooltip>
+      <el-tooltip content="全局搜索 (Ctrl+K)" placement="right"><button type="button" class="compact-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button></el-tooltip>
+      <el-tooltip content="新对话" placement="right"><button type="button" class="compact-action" aria-label="新对话" @click="newSession"><AppIcon name="tabler:edit" /></button></el-tooltip>
+    </div>
+
+    <div v-else class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
+      <button type="button" class="sidebar-new-session" @click="newSession"><AppIcon name="tabler:edit" /><span>新对话</span></button>
     </div>
 
     <div class="sidebar-content" @scroll="handleSidebarScroll">
@@ -118,13 +138,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineComponent, h, ref, watch } from 'vue'
+import { ElDropdownItem, ElDropdownMenu } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import { applications, runtimeNavigation } from '@/config/runtime'
-import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { useThemeStore } from '@/stores/theme'
@@ -134,9 +155,8 @@ import WorkspaceNavigation from './WorkspaceNavigation.vue'
 
 const route = useRoute()
 const router = useRouter()
-withDefaults(defineProps<{ showBrand?: boolean; textOnlyBrand?: boolean }>(), {
+withDefaults(defineProps<{ showBrand?: boolean }>(), {
   showBrand: true,
-  textOnlyBrand: false,
 })
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
@@ -148,6 +168,22 @@ const openedSubmenuIndexes = ref<string[]>([])
 const sidebarScrolled = ref(false)
 const settingsMenuVisible = ref(false)
 const appFlyoutVisible = ref(false)
+const windowChrome = window.platform?.windowChrome ?? 'standard'
+const isWindowsOverlay = windowChrome === 'windows-overlay'
+type WindowMenuGroup = { label: string; items: Array<{ label: string; action: string; divided?: boolean }> }
+const windowsMenuGroups: WindowMenuGroup[] = [
+  { label: '应用', items: [{ label: '关于 Mira', action: 'about' }, { label: '退出 Mira', action: 'quit', divided: true }] },
+  { label: '编辑', items: [{ label: '撤销', action: 'undo' }, { label: '重做', action: 'redo' }, { label: '剪切', action: 'cut', divided: true }, { label: '复制', action: 'copy' }, { label: '粘贴', action: 'paste' }, { label: '全选', action: 'selectAll' }] },
+  { label: '视图', items: [...(import.meta.env.DEV ? [{ label: '重新加载', action: 'reload' }, { label: '开发者工具', action: 'toggleDevTools' }] : []), { label: '切换全屏', action: 'toggleFullscreen', divided: import.meta.env.DEV }] },
+  { label: '窗口', items: [{ label: '最小化', action: 'minimize' }, { label: '最大化/还原', action: 'maximize' }, { label: '关闭窗口', action: 'close' }] },
+]
+const WindowMenuItems = defineComponent({
+  props: { groups: { type: Array as () => WindowMenuGroup[], required: true } },
+  setup: props => () => h(ElDropdownMenu, null, () => props.groups.flatMap(group => [
+    h('div', { class: 'windows-menu-group-label' }, group.label),
+    ...group.items.map(item => h(ElDropdownItem, { key: item.action, command: item.action, divided: item.divided }, () => item.label)),
+  ])),
+})
 
 const currentRoute = computed(() => route.path)
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))
@@ -168,6 +204,10 @@ async function newSession() {
 
 function handleSearch() {
   commandPaletteStore.open()
+}
+
+function handleWindowCommand(action: string) {
+  void window.platform?.windowCommand(action)
 }
 
 function closeSettingsMenu() {
@@ -258,88 +298,130 @@ watch(
   position: relative;
   flex-shrink: 0;
 
-  .sidebar-header {
-    height: 52px;
+  .sidebar-window-chrome {
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: $spacing-sm;
-    padding: 0 10px;
+    gap: 4px;
+    padding: 0 8px;
     flex-shrink: 0;
     overflow: hidden;
+    -webkit-app-region: drag;
+  }
 
-    .brand {
-      @include flex-center;
-      justify-content: flex-start;
-      gap: $spacing-xs;
-      min-width: 0;
+  &--macos-overlay:not(.collapsed) .sidebar-window-chrome {
+    padding-left: 78px;
+  }
 
-      .brand-icon {
-        width: 28px;
-        height: 28px;
-        background: linear-gradient(135deg, var(--cp-primary), var(--cp-primary-hover));
-        border-radius: $radius-md;
-        @include flex-center;
-        color: white;
-        flex-shrink: 0;
+  .sidebar-brand {
+    display: flex;
+    min-width: 0;
+    height: 32px;
+    align-items: center;
+    gap: 7px;
+    color: var(--cp-text);
+    -webkit-app-region: no-drag;
 
-        .brand-logo {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          border-radius: inherit;
-        }
-      }
-
-      .brand-text {
-        font-size: $font-sm;
-        font-weight: 600;
-        color: var(--cp-text);
-        white-space: nowrap;
-      }
-
-      .brand-text-shimmer {
-        display: inline-block;
-        background: linear-gradient(
-          110deg,
-          var(--cp-text) 38%,
-          color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 46%,
-          var(--cp-title-shimmer) 52%,
-          color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 58%,
-          var(--cp-text) 66%
-        );
-        background-size: 250% 100%;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: title-shimmer 5s ease-in-out infinite;
-      }
-    }
-
-    .sidebar-brand-actions {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      flex-shrink: 0;
-    }
-
-    .brand-action {
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
+    &--button {
+      padding: 0 6px;
       border: 0;
-      border-radius: $radius-md;
+      border-radius: var(--cp-radius-md);
       background: transparent;
-      color: var(--cp-text-secondary);
-      font-size: 16px;
       cursor: pointer;
-      transition: color $transition-fast, background $transition-fast;
 
       &:hover {
-        color: var(--cp-text);
         background: var(--cp-bg-hover);
       }
     }
+  }
+
+  .brand-logo {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    border-radius: var(--cp-radius-sm);
+    object-fit: cover;
+  }
+
+  .brand-text {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--cp-text);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-arrow {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    color: var(--cp-text-tertiary);
+  }
+
+  .sidebar-chrome-actions,
+  .sidebar-compact-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .sidebar-chrome-actions {
+    gap: 2px;
+    flex: 0 0 auto;
+    -webkit-app-region: no-drag;
+  }
+
+  .sidebar-compact-actions {
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 4px 6px;
+    border-bottom: 1px solid transparent;
+  }
+
+  .chrome-action,
+  .compact-action,
+  .compact-brand {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-radius-md);
+    color: var(--cp-text-secondary);
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 16px;
+    -webkit-app-region: no-drag;
+
+    &:hover {
+      color: var(--cp-text);
+      background: var(--cp-sidebar-menu-hover-bg);
+    }
+  }
+
+  .compact-brand {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .brand-text-shimmer {
+    display: inline-block;
+    background: linear-gradient(
+      110deg,
+      var(--cp-text) 38%,
+      color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 46%,
+      var(--cp-title-shimmer) 52%,
+      color-mix(in srgb, var(--cp-text) 35%, var(--cp-title-shimmer)) 58%,
+      var(--cp-text) 66%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: title-shimmer 5s ease-in-out infinite;
   }
 
   .sidebar-content {
@@ -483,10 +565,6 @@ watch(
     margin: 0 auto;
   }
 
-  &.collapsed .sidebar-brand-actions {
-    display: none;
-  }
-
   &.collapsed .sidebar-settings {
     width: 38px;
     justify-content: center;
@@ -494,31 +572,6 @@ watch(
     margin: 0 auto;
   }
 
-  @include media-max($breakpoint-md) {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: $z-fixed;
-    transform: translateX(-100%);
-    transition: transform var(--cp-animation-duration);
-
-    &:not(.collapsed) {
-      transform: translateX(0);
-    }
-  }
-}
-
-.sidebar-header-slide-enter-active,
-.sidebar-header-slide-leave-active {
-  transition: height var(--cp-animation-duration) ease, opacity var(--cp-animation-duration) ease, transform var(--cp-animation-duration) ease;
-}
-
-.sidebar-header-slide-enter-from,
-.sidebar-header-slide-leave-to {
-  height: 0;
-  opacity: 0;
-  transform: translateX(-12px);
 }
 
 @keyframes title-shimmer {
@@ -536,20 +589,6 @@ watch(
     animation: none;
   }
 
-  .sidebar-header-slide-enter-active,
-  .sidebar-header-slide-leave-active {
-    transition: none;
-  }
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity var(--cp-animation-duration);
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>
 
@@ -765,6 +804,27 @@ watch(
       .app-icon {
         color: var(--cp-primary);
       }
+    }
+  }
+}
+
+.el-popper.windows-mira-menu-popper,
+.windows-mira-menu-popper {
+  min-width: 220px;
+
+  .windows-menu-group-label {
+    padding: 8px 12px 4px;
+    color: var(--cp-text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .el-dropdown-menu__item {
+    color: var(--cp-text);
+
+    &:hover {
+      color: var(--cp-text);
+      background: var(--cp-bg-hover);
     }
   }
 }

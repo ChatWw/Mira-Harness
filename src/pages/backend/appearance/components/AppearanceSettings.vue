@@ -75,13 +75,13 @@
 
     <section class="settings-section" aria-labelledby="layout-heading">
       <div class="section-heading">
-        <h2 id="layout-heading">布局</h2>
-        <p>调整工作台的导航结构和侧边栏呈现方式。</p>
+        <h2 id="layout-heading">工作区布局</h2>
+        <p>选择侧栏与主工作区的空间关系，功能位置在三种布局中保持一致。</p>
       </div>
 
       <div class="visual-setting">
-        <span class="visual-setting__label">侧边栏样式</span>
-        <div class="choice-grid choice-grid--sidebar" role="radiogroup" aria-label="侧边栏样式">
+        <span class="visual-setting__label">工作区布局</span>
+        <div class="choice-grid choice-grid--sidebar" role="radiogroup" aria-label="工作区布局">
           <button
             v-for="style in sidebarStyles"
             :key="style.value"
@@ -92,8 +92,14 @@
             :aria-checked="layoutStore.config.sidebarStyle === style.value"
             @click="layoutStore.setSidebarStyle(style.value)"
           >
-            <span class="sidebar-preview" aria-hidden="true"><i></i><b></b></span>
-            <span class="choice-card__label">{{ style.label }}</span>
+            <span class="sidebar-preview" aria-hidden="true">
+              <i class="sidebar-preview__sider"><span></span><span></span><span></span></i>
+              <b class="sidebar-preview__main"><span></span><span></span><span></span></b>
+            </span>
+            <span class="choice-card__copy">
+              <span class="choice-card__label">{{ style.label }}</span>
+              <small>{{ style.description }}</small>
+            </span>
           </button>
         </div>
       </div>
@@ -106,18 +112,6 @@
         <div class="settings-row">
           <span class="settings-row__label">显示 Logo</span>
           <el-switch :model-value="layoutStore.config.showLogo" @change="layoutStore.setShowLogo" />
-        </div>
-      </div>
-    </section>
-
-    <section class="settings-section" aria-labelledby="header-heading">
-      <div class="section-heading"><h2 id="header-heading">顶栏</h2><p>控制页面导航和工具栏信息。</p></div>
-      <div class="settings-list">
-        <div class="settings-row"><span class="settings-row__label">显示面包屑</span><el-switch :model-value="layoutStore.config.showBreadcrumb" @change="layoutStore.setShowBreadcrumb" /></div>
-        <div class="settings-row"><span class="settings-row__label">面包屑图标</span><el-switch :model-value="layoutStore.config.breadcrumbIcon" @change="layoutStore.setBreadcrumbIcon" /></div>
-        <div class="settings-row">
-          <span class="settings-row__label">面包屑样式</span>
-          <el-select :model-value="layoutStore.config.breadcrumbStyle" size="small" @change="layoutStore.setBreadcrumbStyle"><el-option label="普通" value="normal" /><el-option label="卡片" value="card" /></el-select>
         </div>
       </div>
     </section>
@@ -200,9 +194,9 @@ const themeModeOptions: Array<{ label: string; value: ThemePreference }> = [
 ]
 
 const sidebarStyles = [
-  { value: 'embedded' as SidebarStyle, label: '内嵌' },
-  { value: 'floating' as SidebarStyle, label: '浮动' },
-  { value: 'docked' as SidebarStyle, label: '侧边栏' },
+  { value: 'embedded' as SidebarStyle, label: '内嵌', description: '聚焦内容，适合持续工作' },
+  { value: 'floating' as SidebarStyle, label: '浮动', description: '强调导航，适合频繁切换' },
+  { value: 'docked' as SidebarStyle, label: '分栏', description: '边界清晰，适合高密度操作' },
 ]
 
 const pageTransitions = [
@@ -230,12 +224,12 @@ function handleDynamicTitleChange(value: boolean) {
 .settings-section { min-width: 0; }
 
 .section-heading { margin-bottom: 18px; }
-.section-heading h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; letter-spacing: -0.01em; }
+.section-heading h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; letter-spacing: 0; }
 .section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 
 .choice-grid { display: grid; justify-content: start; gap: 12px; }
 .choice-grid--theme { grid-template-columns: repeat(3, minmax(0, 176px)); }
-.choice-grid--sidebar { grid-template-columns: repeat(3, minmax(0, 144px)); }
+.choice-grid--sidebar { grid-template-columns: repeat(3, minmax(0, 176px)); }
 .choice-grid--transition { grid-template-columns: repeat(6, minmax(0, 128px)); }
 
 .choice-card {
@@ -258,6 +252,8 @@ function handleDynamicTitleChange(value: boolean) {
   &.is-selected { border-color: color-mix(in srgb, var(--cp-primary) 60%, var(--cp-border)); background: color-mix(in srgb, var(--cp-primary) 7%, var(--cp-bg)); box-shadow: 0 6px 16px rgb(24 24 27 / 7%); }
 }
 .choice-card__label { font-size: $font-sm; font-weight: $font-medium; text-align: center; }
+.choice-card__copy { display: flex; flex-direction: column; gap: 3px; text-align: center; }
+.choice-card__copy small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.4; }
 
 .theme-preview { display: flex; height: 92px; overflow: hidden; border: 1px solid rgb(0 0 0 / 7%); border-radius: 6px; background: #f7f7f7; }
 .theme-preview__bar { display: block; width: 26px; background: #efefef; }
@@ -327,12 +323,22 @@ function handleDynamicTitleChange(value: boolean) {
 .visual-setting__label { display: block; margin-bottom: 10px; color: var(--cp-text); font-size: $font-sm; }
 .layout-preview, .sidebar-preview, .transition-preview { display: flex; height: 72px; overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: 6px; background: var(--cp-bg-elevated); }
 
-.sidebar-preview { position: relative; padding: 10px; }
-.sidebar-preview i { display: block; width: 34px; border-radius: 3px; background: var(--cp-bg-hover); }
-.sidebar-preview b { display: block; flex: 1; margin-left: 9px; border-radius: 3px; background: var(--cp-bg); }
-.sidebar-card.is-floating .sidebar-preview i { z-index: 1; margin: 5px -7px 5px 3px; box-shadow: 0 5px 10px rgb(24 24 27 / 12%); }
-.sidebar-card.is-docked .sidebar-preview { background: var(--cp-sidebar-bg); }
-.sidebar-card.is-docked .sidebar-preview i { background: color-mix(in srgb, var(--cp-primary) 12%, var(--cp-sidebar-bg)); }
+.sidebar-preview { position: relative; gap: 8px; padding: 8px; }
+.sidebar-preview__sider, .sidebar-preview__main { display: flex; flex-direction: column; gap: 5px; padding: 7px; border-radius: 3px; }
+.sidebar-preview__sider { width: 36px; flex: 0 0 auto; background: var(--cp-bg-elevated); }
+.sidebar-preview__main { flex: 1; background: var(--cp-bg); }
+.sidebar-preview__sider span, .sidebar-preview__main span { display: block; height: 4px; border-radius: 2px; background: var(--cp-border); }
+.sidebar-preview__sider span:first-child { width: 70%; background: color-mix(in srgb, var(--cp-primary) 38%, var(--cp-border)); }
+.sidebar-preview__main span:first-child { width: 48%; }
+.sidebar-preview__main span:nth-child(2) { width: 82%; }
+.sidebar-preview__main span:nth-child(3) { width: 64%; }
+.sidebar-card.is-embedded .sidebar-preview { gap: 0; background: var(--cp-bg-elevated); }
+.sidebar-card.is-embedded .sidebar-preview__main { border: 1px solid var(--cp-border-light); border-radius: 5px; }
+.sidebar-card.is-floating .sidebar-preview { gap: 8px; background: var(--cp-bg); }
+.sidebar-card.is-floating .sidebar-preview__sider { margin: 2px 0; border: 1px solid var(--cp-border-light); box-shadow: 0 4px 9px rgb(24 24 27 / 10%); }
+.sidebar-card.is-docked .sidebar-preview { gap: 0; padding: 0; background: var(--cp-bg); }
+.sidebar-card.is-docked .sidebar-preview__sider, .sidebar-card.is-docked .sidebar-preview__main { border-radius: 0; }
+.sidebar-card.is-docked .sidebar-preview__sider { border-right: 1px solid var(--cp-border); }
 
 .transition-preview { position: relative; align-items: center; justify-content: center; }
 .transition-preview i { display: block; width: 54px; height: 38px; border-radius: 4px; background: color-mix(in srgb, var(--cp-primary) 15%, var(--cp-bg)); border: 1px solid color-mix(in srgb, var(--cp-primary) 26%, var(--cp-border)); }

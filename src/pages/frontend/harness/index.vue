@@ -1,6 +1,7 @@
 <template>
   <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }">
     <section class="conversation">
+      <div v-if="!store.activeSession?.messages.length" class="conversation__empty-drag-region" aria-hidden="true" />
       <header v-if="store.activeSession?.messages.length" class="conversation__header">
         <div class="conversation__identity">
           <span class="conversation__eyebrow"><AppIcon name="FolderOpened" />{{ selectedProject?.name || '最近对话' }}</span>
@@ -133,7 +134,8 @@ onMounted(() => { void reload() })
 .harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
 .conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
-.conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px clamp(20px, 4vw, 56px); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); }
+.conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px calc(clamp(20px, 4vw, 56px) + var(--cp-window-controls-inset)) 10px calc(clamp(20px, 4vw, 56px) + var(--cp-mac-collapsed-safe-inset)); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); -webkit-app-region: drag; }
+.conversation__empty-drag-region { position: absolute; z-index: 3; top: 0; right: var(--cp-window-controls-inset); left: var(--cp-mac-collapsed-safe-inset); height: 48px; -webkit-app-region: drag; }
 .permission-request-card { display: grid; width: min(calc(100% - 28px), 760px); box-sizing: border-box; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--cp-warning) 34%, var(--cp-border)); border-radius: $radius-md; background: color-mix(in srgb, var(--cp-warning) 8%, var(--cp-bg-elevated)); box-shadow: 0 8px 20px rgb(24 24 27 / 8%); }
 .permission-request-card__icon { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 14%, transparent); font-size: 15px; }.permission-request-card__content { min-width: 0; }.permission-request-card__content strong { display: block; color: var(--cp-text); font-size: 13px; font-weight: 600; }.permission-request-card__content p { max-height: 54px; margin: 3px 0 0; overflow: auto; color: var(--cp-text-secondary); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }.permission-request-card__actions { display: flex; flex: 0 0 auto; gap: 8px; }.permission-request-card__actions .el-button { min-width: 68px; margin: 0; }
 .conversation__identity { min-width: 0; }
@@ -141,7 +143,7 @@ onMounted(() => { void reload() })
 .conversation__identity strong { overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .conversation__eyebrow { display: inline-flex !important; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--cp-text-secondary); font-size: 11px; line-height: 1.4; }
 .conversation__directory { max-width: 44vw; margin-top: 2px; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.conversation__actions { display: flex; align-items: center; }
+.conversation__actions { display: flex; align-items: center; -webkit-app-region: no-drag; }
 .empty-state { position: absolute; inset: 0; z-index: 1; display: flex; width: min(100%, 760px); margin-right: auto; margin-left: auto; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
@@ -155,6 +157,5 @@ onMounted(() => { void reload() })
 .starter-card__body strong { color: var(--cp-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .starter-card__body small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }
 @media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; } }
-@media (max-width: 768px) { .conversation__header { min-height: 60px; padding: 9px 14px; }.conversation__directory { max-width: 58vw; }.permission-request-card { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }.permission-request-card__actions { grid-column: 2; justify-content: flex-end; }.empty-state { gap: 22px; padding-bottom: 28px; }.empty-state__title { font-size: 32px; }.empty-state__subtitle { max-width: 280px; font-size: 13px; }.starter-card { width: 100%; max-width: 320px; } }
 .run-error-card { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; width: min(100% - 32px, 760px); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--cp-danger) 38%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 6%, var(--cp-bg)); }.run-error-card > div { min-width: 0; flex: 1; }.run-error-card strong { color: var(--cp-text); font-size: 12px; }.run-error-card p { margin: 2px 0 0; color: var(--cp-text-secondary); font-size: 12px; }.run-error-card :deep(.el-button) { flex: 0 0 auto; }
 </style>

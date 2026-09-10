@@ -23,6 +23,7 @@ import type { PropType } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLayoutStore } from '@/stores/layout'
 import type { ContentWidth, ContentPadding } from '@/types'
+import { isWorkspacePath } from '@/config/navigation'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -44,6 +45,7 @@ const actualMaxWidth = computed(() => props.maxWidth || layoutStore.config.conte
 const actualPadding = computed(() => props.padding || layoutStore.config.contentPadding)
 
 const containerClass = computed(() => ({
+  'is-workspace': isWorkspacePath(route.path),
   'is-full': actualMaxWidth.value === 'full',
   'is-fill-content': props.fillContent,
   [`max-width-${actualMaxWidth.value}`]: actualMaxWidth.value !== 'full',
@@ -107,6 +109,23 @@ const containerClass = computed(() => ({
 
   &__right {
     margin-left: $spacing-lg;
+  }
+}
+
+.page-container.is-workspace .page-header {
+  min-height: 48px;
+  padding-left: var(--cp-mac-collapsed-safe-inset);
+  padding-right: var(--cp-window-controls-inset);
+  -webkit-app-region: drag;
+
+  &__right,
+  :deep(button),
+  :deep(a),
+  :deep(input),
+  :deep(textarea),
+  :deep(select),
+  :deep([role='button']) {
+    -webkit-app-region: no-drag;
   }
 }
 

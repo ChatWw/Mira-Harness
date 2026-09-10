@@ -237,16 +237,12 @@ export type CornerRadius = 'sharp' | 'medium' | 'rounded'
 export type ComponentSize = 'large' | 'default' | 'small'
 export type AnimationSpeed = 'fast' | 'normal' | 'slow'
 export type TabStyle = 'default' | 'personalized' | 'square' | 'card'
-export type BreadcrumbStyle = 'normal' | 'card'
 
 // 布局配置
 export interface LayoutConfig {
   sidebarStyle: SidebarStyle
   uniqueOpened: boolean
   showLogo: boolean
-  showBreadcrumb: boolean
-  breadcrumbIcon: boolean
-  breadcrumbStyle: BreadcrumbStyle
   enableTabs: boolean
   tabStyle: TabStyle
   showTabIcon: boolean

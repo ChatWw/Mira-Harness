@@ -1,6 +1,6 @@
 <template>
-  <div v-if="layoutStore.config.enableTabs" class="tabs-bar" :class="`tabs-style-${layoutStore.config.tabStyle}`">
-    <div class="tabs-container">
+  <div class="tabs-bar" :class="[`tabs-style-${layoutStore.config.tabStyle}`, { 'is-title-only': !layoutStore.config.enableTabs }]">
+    <div v-if="layoutStore.config.enableTabs" class="tabs-container">
       <draggable
         :list="tabsStore.tabs"
         item-key="path"
@@ -31,7 +31,12 @@
       </draggable>
     </div>
 
-    <div class="tabs-actions">
+    <div v-else class="window-page-title">
+      <AppIcon v-if="navigation.icon" :name="navigation.icon" />
+      <span>{{ currentPageTitle }}</span>
+    </div>
+
+    <div v-if="layoutStore.config.enableTabs" class="tabs-actions">
       <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
         <el-button circle size="small"><AppIcon name="ArrowDown" /></el-button>
         <template #dropdown>
@@ -123,6 +128,7 @@ const tabMenuItems = computed(() => [
 ])
 
 const navigation = computed(() => resolveNavigation(route.path))
+const currentPageTitle = computed(() => navigation.value.title || String(route.meta.title || 'Mira'))
 
 watch(
   () => route.path,
@@ -253,12 +259,26 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
   width: 100%;
   display: flex;
   align-items: center;
-  height: 40px;
+  height: 48px;
   background: var(--cp-bg);
   border-bottom: 1px solid var(--cp-layout-border);
-  padding: 0 $spacing-md;
+  padding: 0 var(--cp-window-controls-inset) 0 var(--cp-mac-collapsed-safe-inset);
   gap: $spacing-sm;
   flex-shrink: 0;
+  -webkit-app-region: drag;
+
+  .window-page-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+    padding: 0 $spacing-md;
+    color: var(--cp-text-secondary);
+    font-size: $font-sm;
+
+    .app-icon { flex: 0 0 auto; font-size: 15px; }
+    span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
 
   .tabs-container {
     flex: 1;
@@ -287,6 +307,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
     transition: all $transition-fast;
     user-select: none;
     flex-shrink: 0;
+    -webkit-app-region: no-drag;
 
     .tab-icon {
       width: 14px;
@@ -629,6 +650,26 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+.tabs-bar,
+.tabs-style-default,
+.tabs-style-square,
+.tabs-style-card {
+  height: 48px;
+  min-height: 48px;
+  padding-right: var(--cp-window-controls-inset);
+}
+
+.tabs-style-default,
+.tabs-style-square,
+.tabs-style-personalized {
+  padding-left: var(--cp-mac-collapsed-safe-inset);
+}
+
+.tabs-style-card {
+  padding-left: calc(8px + var(--cp-mac-collapsed-safe-inset));
 }
 
 .tabs-context-menu {
@@ -640,6 +681,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeContextMenu))
   border-radius: $radius-md;
   background: var(--cp-bg-overlay);
   box-shadow: $shadow-md;
+  -webkit-app-region: no-drag;
 
   .context-menu-item {
     width: 100%;
