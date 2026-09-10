@@ -10,6 +10,7 @@ import { PythonEnvironment } from './pythonEnv'
 import { AutomationScheduler } from './automationScheduler'
 import { MiraPaths } from './miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from './miraDataMigration'
+import { shouldBlockReloadShortcut } from './windowShortcuts'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
 import type { AutomationRun, AutomationTaskInput, HarnessEvent, HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, MemoryScope, ModelProviderInput } from '../src/config/harness'
@@ -154,6 +155,9 @@ function createWindow() {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
+  })
+  window.webContents.on('before-input-event', (event, input) => {
+    if (shouldBlockReloadShortcut(input, app.isPackaged)) event.preventDefault()
   })
   window.once('ready-to-show', () => window.show())
   if (process.env.ELECTRON_RENDERER_URL) window.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -441,7 +445,7 @@ app.whenReady().then(async () => {
       case 'copy': win.webContents.copy(); break
       case 'paste': win.webContents.paste(); break
       case 'selectAll': win.webContents.selectAll(); break
-      case 'reload': win.webContents.reload(); break
+      case 'reload': if (!app.isPackaged) win.webContents.reload(); break
       case 'toggleDevTools': win.webContents.toggleDevTools(); break
       case 'toggleFullscreen': win.setFullScreen(!win.isFullScreen()); break
       case 'minimize': win.minimize(); break
