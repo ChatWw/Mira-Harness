@@ -142,6 +142,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#f7f7f8',
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
+    ...(isMac ? { trafficLightPosition: { x: 24, y: 24 } } : {}),
     ...(isWindows ? {
       titleBarOverlay: { color: '#00000000', symbolColor: '#18181b', height: 48 },
     } : {}),

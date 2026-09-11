@@ -1,14 +1,15 @@
 <template>
   <aside
     class="app-sidebar"
-    :class="[`app-sidebar--${windowChrome}`, { collapsed: appStore.sidebarCollapsed }]"
-    :style="{
-      width: appStore.sidebarCollapsed ? '48px' : '240px',
-    }"
+    :class="[`app-sidebar--${windowChrome}`]"
+    :style="{ width: '240px' }"
   >
     <div class="sidebar-window-chrome">
+    </div>
+
+    <div class="sidebar-identity-row">
       <el-dropdown
-        v-if="isWindowsOverlay && showBrand && !appStore.sidebarCollapsed"
+        v-if="isWindowsOverlay && showBrand"
         trigger="click"
         placement="bottom-start"
         popper-class="windows-mira-menu-popper"
@@ -21,43 +22,25 @@
         </button>
         <template #dropdown><WindowMenuItems :groups="windowsMenuGroups" /></template>
       </el-dropdown>
-      <div v-else-if="showBrand && !appStore.sidebarCollapsed" class="sidebar-brand">
+      <div v-else-if="showBrand" class="sidebar-brand">
         <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
         <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
       </div>
-      <el-tooltip v-else-if="isWindowsOverlay && showBrand" content="Mira 菜单" placement="right">
-        <el-dropdown trigger="click" placement="bottom-start" popper-class="windows-mira-menu-popper" @command="handleWindowCommand">
-          <button type="button" class="compact-brand" aria-label="打开 Mira 菜单">M</button>
-          <template #dropdown><WindowMenuItems :groups="windowsMenuGroups" /></template>
-        </el-dropdown>
+      <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
+        <button type="button" class="chrome-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button>
       </el-tooltip>
-
-      <div v-if="!appStore.sidebarCollapsed" class="sidebar-chrome-actions">
-        <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
-          <button type="button" class="chrome-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button>
-        </el-tooltip>
-        <el-tooltip content="折叠侧边栏" placement="bottom">
-          <button type="button" class="chrome-action" aria-label="折叠侧边栏" @click="appStore.toggleSidebar()"><AppIcon name="tabler:layout-sidebar-right-expand" /></button>
-        </el-tooltip>
-      </div>
     </div>
 
-    <div v-if="appStore.sidebarCollapsed" class="sidebar-compact-actions">
-      <el-tooltip content="展开侧边栏" placement="right"><button type="button" class="compact-action" aria-label="展开侧边栏" @click="appStore.toggleSidebar()"><AppIcon name="tabler:layout-sidebar-left-expand" /></button></el-tooltip>
-      <el-tooltip content="全局搜索 (Ctrl+K)" placement="right"><button type="button" class="compact-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button></el-tooltip>
-      <el-tooltip content="新对话" placement="right"><button type="button" class="compact-action" aria-label="新对话" @click="newSession"><AppIcon name="tabler:edit" /></button></el-tooltip>
-    </div>
-
-    <div v-else class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
+    <div class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
       <button type="button" class="sidebar-new-session" @click="newSession"><AppIcon name="tabler:edit" /><span>新对话</span></button>
     </div>
 
     <div class="sidebar-content" @scroll="handleSidebarScroll">
-      <WorkspaceNavigation :collapsed="appStore.sidebarCollapsed" />
-      <el-menu ref="menuRef" :default-active="currentRoute" :collapse="appStore.sidebarCollapsed" :unique-opened="layoutStore.config.uniqueOpened" :style="appStore.sidebarCollapsed ? { '--el-menu-base-level-padding': '8px' } : undefined" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
-        <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">应用</div></template>
+      <WorkspaceNavigation :collapsed="false" />
+      <el-menu ref="menuRef" :default-active="currentRoute" :unique-opened="layoutStore.config.uniqueOpened" class="sidebar-menu" @select="handleMenuSelect" @open="handleMenuOpen" @close="handleMenuClose">
+        <div class="menu-group-label">应用</div>
         <SidebarMenuItem v-for="item in applicationMenus" :key="item.id" :item="item" />
-        <template v-if="!appStore.sidebarCollapsed"><div class="menu-group-label">菜单</div></template>
+        <div class="menu-group-label">菜单</div>
         <SidebarMenuItem v-for="item in browserMenus" :key="item.id" :item="item" />
       </el-menu>
     </div>
@@ -75,7 +58,7 @@
         <template #reference>
           <button type="button" class="sidebar-settings">
             <AppIcon name="Setting" />
-            <span v-if="!appStore.sidebarCollapsed">设置</span>
+            <span>设置</span>
           </button>
         </template>
         <div class="settings-menu">
@@ -310,8 +293,8 @@ watch(
     -webkit-app-region: drag;
   }
 
-  &--macos-overlay:not(.collapsed) .sidebar-window-chrome {
-    padding-left: 78px;
+  &--macos-overlay .sidebar-window-chrome {
+    padding-left: 72px;
   }
 
   .sidebar-brand {
@@ -361,27 +344,20 @@ watch(
     color: var(--cp-text-tertiary);
   }
 
-  .sidebar-chrome-actions,
-  .sidebar-compact-actions {
+  .sidebar-identity-row {
     display: flex;
     align-items: center;
-  }
+    gap: 4px;
+    padding: 0 8px;
+    flex-shrink: 0;
+    -webkit-app-region: drag;
 
-  .sidebar-chrome-actions {
-    gap: 2px;
-    flex: 0 0 auto;
-    -webkit-app-region: no-drag;
-  }
-
-  .sidebar-compact-actions {
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px 4px 6px;
-    border-bottom: 1px solid transparent;
+    .sidebar-brand {
+      flex: 1;
+    }
   }
 
   .chrome-action,
-  .compact-action,
   .compact-brand {
     display: grid;
     width: 32px;
@@ -542,35 +518,6 @@ watch(
   }
 
   .menu-group-label { padding: 16px 14px 4px; color: var(--cp-text-tertiary); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: uppercase; }
-
-  &.collapsed .sidebar-menu {
-    width: 100%;
-
-    :deep(.el-menu-item),
-    :deep(.el-sub-menu__title) {
-      width: calc(100% - 8px);
-      margin: 2px 4px;
-    }
-  }
-
-  &.collapsed .sidebar-fixed-action {
-    padding-right: 4px;
-    padding-left: 4px;
-  }
-
-  &.collapsed .sidebar-new-session {
-    width: 38px;
-    justify-content: center;
-    padding: 0;
-    margin: 0 auto;
-  }
-
-  &.collapsed .sidebar-settings {
-    width: 38px;
-    justify-content: center;
-    padding: 0;
-    margin: 0 auto;
-  }
 
 }
 

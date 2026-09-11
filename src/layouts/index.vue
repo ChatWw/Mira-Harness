@@ -2,12 +2,41 @@
   <el-watermark v-bind="watermarkProps" class="layout-watermark">
     <div class="layout" :class="layoutClasses">
       <div class="layout-workspace">
-        <AppSidebar v-if="showSidebar" :show-brand="true" />
+        <div
+          v-if="showSidebar"
+          class="sidebar-host"
+          :class="{
+            'is-collapsed': appStore.sidebarCollapsed,
+            'is-flyout-visible': sidebarFlyoutVisible,
+          }"
+        >
+          <AppSidebar
+            v-if="!appStore.sidebarCollapsed || sidebarFlyoutVisible"
+            :show-brand="true"
+            @mouseenter="showSidebarFlyout"
+            @mouseleave="scheduleSidebarFlyoutClose"
+          />
+        </div>
 
         <div class="main-container">
           <TabsBar v-if="!isWorkspaceRoute" />
           <AppMain />
         </div>
+      </div>
+
+      <div v-if="showSidebar" class="sidebar-window-controls">
+        <button
+          type="button"
+          class="sidebar-toggle"
+          :aria-label="appStore.sidebarCollapsed ? '显示侧边栏' : '收起侧边栏'"
+          @mouseenter="showSidebarFlyout"
+          @mouseleave="scheduleSidebarFlyoutClose"
+          @focus="showSidebarFlyout"
+          @blur="scheduleSidebarFlyoutClose"
+          @click="appStore.toggleSidebar()"
+        >
+          <AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" />
+        </button>
       </div>
 
       <SearchBar />
@@ -16,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useRoute } from 'vue-router'
 import { getVisibleMenus, isWorkspacePath, resolveNavigation } from '@/config/navigation'
@@ -33,6 +62,26 @@ const route = useRoute()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
+const sidebarFlyoutVisible = ref(false)
+let sidebarFlyoutCloseTimer: number | undefined
+
+function showSidebarFlyout() {
+  if (!appStore.sidebarCollapsed) return
+  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+  sidebarFlyoutVisible.value = true
+}
+
+function scheduleSidebarFlyoutClose() {
+  if (!appStore.sidebarCollapsed) return
+  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+  sidebarFlyoutCloseTimer = window.setTimeout(() => {
+    sidebarFlyoutVisible.value = false
+  }, 140)
+}
+
+onBeforeUnmount(() => {
+  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+})
 
 const showSidebar = computed(() => {
   if (navigation.value.area === 'main') return true
@@ -86,7 +135,7 @@ const layoutClasses = computed(() => {
   }
 
   &--macos-overlay.sidebar-collapsed {
-    --cp-mac-collapsed-safe-inset: 40px;
+    --cp-mac-collapsed-safe-inset: 112px;
   }
 
   &--macos-overlay.layout--without-workspace-menu {
@@ -98,6 +147,70 @@ const layoutClasses = computed(() => {
     height: 100%;
     display: flex;
     overflow: hidden;
+  }
+
+  .sidebar-host {
+    width: 240px;
+    height: 100%;
+    flex: 0 0 240px;
+    position: relative;
+    z-index: 20;
+
+    &.is-collapsed {
+      width: 0;
+      flex-basis: 0;
+
+      :deep(.app-sidebar) {
+        position: fixed;
+        top: 8px;
+        bottom: 8px;
+        left: 8px;
+        width: 240px !important;
+        height: auto;
+        border: 1px solid var(--cp-layout-border);
+        border-radius: var(--cp-radius-xl);
+        box-shadow: 0 12px 32px rgb(24 24 27 / 12%);
+      }
+
+    }
+  }
+
+  .sidebar-window-controls {
+    position: fixed;
+    z-index: 30;
+    top: 14px;
+    left: 20px;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    -webkit-app-region: drag;
+  }
+
+  .sidebar-toggle {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-radius-md);
+    color: var(--cp-text-secondary);
+    background: transparent;
+    cursor: pointer;
+    -webkit-app-region: no-drag !important;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--cp-text);
+      background: var(--cp-sidebar-menu-hover-bg);
+      outline: none;
+    }
+  }
+
+  &--macos-overlay .sidebar-window-controls {
+    left: 92px;
   }
 
   .main-container {
@@ -136,6 +249,10 @@ const layoutClasses = computed(() => {
     }
 
     &.layout--without-workspace-menu .main-container {
+      margin-left: 12px;
+    }
+
+    &.sidebar-collapsed .main-container {
       margin-left: 12px;
     }
 
