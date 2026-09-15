@@ -141,6 +141,9 @@ const router = useRouter()
 withDefaults(defineProps<{ showBrand?: boolean }>(), {
   showBrand: true,
 })
+const emit = defineEmits<{
+  (event: 'flyout-menu-visibility-change', visible: boolean): void
+}>()
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const harnessStore = useHarnessStore()
@@ -167,6 +170,13 @@ const WindowMenuItems = defineComponent({
     ...group.items.map(item => h(ElDropdownItem, { key: item.action, command: item.action, divided: item.divided }, () => item.label)),
   ])),
 })
+
+watch(
+  [settingsMenuVisible, appFlyoutVisible],
+  ([settingsVisible, appVisible]) => {
+    emit('flyout-menu-visibility-change', settingsVisible || appVisible)
+  }
+)
 
 const currentRoute = computed(() => route.path)
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))

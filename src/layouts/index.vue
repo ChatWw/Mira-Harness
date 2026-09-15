@@ -14,8 +14,9 @@
             <AppSidebar
               v-if="!appStore.sidebarCollapsed || sidebarFlyoutVisible"
               :show-brand="true"
-              @mouseenter="showSidebarFlyout"
-              @mouseleave="scheduleSidebarFlyoutClose"
+              @mouseenter="handleSidebarMouseEnter"
+              @mouseleave="handleSidebarMouseLeave"
+              @flyout-menu-visibility-change="handleSidebarFlyoutMenuVisibilityChange"
             />
           </Transition>
         </div>
@@ -65,6 +66,8 @@ const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 const sidebarFlyoutVisible = ref(false)
 const sidebarFlyoutArmed = ref(false)
+const sidebarPointerInside = ref(false)
+const sidebarFlyoutMenuVisible = ref(false)
 let sidebarFlyoutCloseTimer: number | undefined
 
 function showSidebarFlyout() {
@@ -81,16 +84,41 @@ function armSidebarFlyout() {
 
 function scheduleSidebarFlyoutClose() {
   if (!appStore.sidebarCollapsed) return
+  if (sidebarPointerInside.value || sidebarFlyoutMenuVisible.value) return
   if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
   sidebarFlyoutCloseTimer = window.setTimeout(() => {
-    sidebarFlyoutVisible.value = false
+    if (!sidebarPointerInside.value && !sidebarFlyoutMenuVisible.value) {
+      sidebarFlyoutVisible.value = false
+    }
   }, 140)
+}
+
+function handleSidebarMouseEnter() {
+  sidebarPointerInside.value = true
+  showSidebarFlyout()
+}
+
+function handleSidebarMouseLeave() {
+  sidebarPointerInside.value = false
+  scheduleSidebarFlyoutClose()
+}
+
+function handleSidebarFlyoutMenuVisibilityChange(visible: boolean) {
+  sidebarFlyoutMenuVisible.value = visible
+  if (visible) {
+    if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+    return
+  }
+
+  scheduleSidebarFlyoutClose()
 }
 
 function toggleSidebar() {
   if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
   sidebarFlyoutVisible.value = false
   sidebarFlyoutArmed.value = false
+  sidebarPointerInside.value = false
+  sidebarFlyoutMenuVisible.value = false
   appStore.toggleSidebar()
 }
 
