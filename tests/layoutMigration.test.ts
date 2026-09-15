@@ -11,6 +11,20 @@ afterEach(() => {
 })
 
 describe('layout preference cleanup', () => {
+  it('defaults new installations to sending with Enter while preserving an explicit shortcut preference', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'mira-send-shortcut-default-'))
+    directories.push(directory)
+    const database = new PlatformDatabase(directory)
+    expect(database.getSnapshot().preferences.sendShortcut).toBe('enter')
+
+    database.savePreference('sendShortcut', 'mod-enter')
+    database.close()
+
+    const reopened = new PlatformDatabase(directory)
+    expect(reopened.getSnapshot().preferences.sendShortcut).toBe('mod-enter')
+    reopened.close()
+  })
+
   it('removes legacy breadcrumb fields while preserving active layout fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'mira-layout-migration-'))
     directories.push(directory)

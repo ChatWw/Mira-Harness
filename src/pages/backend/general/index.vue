@@ -110,7 +110,7 @@ const config = reactive<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const permissionSaving = ref(false)
 const closeWindowBehavior = computed<CloseWindowBehavior>(() => platformPreferences.closeWindowBehavior === 'quit' ? 'quit' : 'background')
 const showContextUsage = computed(() => getPreference('showContextUsage', true))
-const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'mod-enter') === 'enter' ? 'enter' : 'mod-enter')
+const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'enter') === 'mod-enter' ? 'mod-enter' : 'enter')
 
 async function loadPermissionConfig() {
   const value = await getPlatformApi()?.getHarnessPermissionConfig()

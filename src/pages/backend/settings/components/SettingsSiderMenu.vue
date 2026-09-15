@@ -97,7 +97,7 @@ function goToSection(path: string) {
   flex: 0 0 240px;
   flex-direction: column;
   gap: 30px;
-  padding: 34px 8px 24px;
+  padding: 48px 8px 24px;
   border-right: 1px solid var(--cp-border-light);
   background: color-mix(in srgb, var(--cp-bg-elevated) 88%, transparent);
   min-height: 0;

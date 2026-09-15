@@ -10,12 +10,14 @@
             'is-flyout-visible': sidebarFlyoutVisible,
           }"
         >
-          <AppSidebar
-            v-if="!appStore.sidebarCollapsed || sidebarFlyoutVisible"
-            :show-brand="true"
-            @mouseenter="showSidebarFlyout"
-            @mouseleave="scheduleSidebarFlyoutClose"
-          />
+          <Transition name="sidebar-panel">
+            <AppSidebar
+              v-if="!appStore.sidebarCollapsed || sidebarFlyoutVisible"
+              :show-brand="true"
+              @mouseenter="showSidebarFlyout"
+              @mouseleave="scheduleSidebarFlyoutClose"
+            />
+          </Transition>
         </div>
 
         <div class="main-container">
@@ -30,10 +32,9 @@
           class="sidebar-toggle"
           :aria-label="appStore.sidebarCollapsed ? '显示侧边栏' : '收起侧边栏'"
           @mouseenter="showSidebarFlyout"
-          @mouseleave="scheduleSidebarFlyoutClose"
-          @focus="showSidebarFlyout"
+          @mouseleave="armSidebarFlyout"
           @blur="scheduleSidebarFlyoutClose"
-          @click="appStore.toggleSidebar()"
+          @click="toggleSidebar"
         >
           <AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" />
         </button>
@@ -63,12 +64,19 @@ const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 const sidebarFlyoutVisible = ref(false)
+const sidebarFlyoutArmed = ref(false)
 let sidebarFlyoutCloseTimer: number | undefined
 
 function showSidebarFlyout() {
-  if (!appStore.sidebarCollapsed) return
+  if (!appStore.sidebarCollapsed || !sidebarFlyoutArmed.value) return
   if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
   sidebarFlyoutVisible.value = true
+}
+
+function armSidebarFlyout() {
+  if (!appStore.sidebarCollapsed) return
+  sidebarFlyoutArmed.value = true
+  scheduleSidebarFlyoutClose()
 }
 
 function scheduleSidebarFlyoutClose() {
@@ -77,6 +85,13 @@ function scheduleSidebarFlyoutClose() {
   sidebarFlyoutCloseTimer = window.setTimeout(() => {
     sidebarFlyoutVisible.value = false
   }, 140)
+}
+
+function toggleSidebar() {
+  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+  sidebarFlyoutVisible.value = false
+  sidebarFlyoutArmed.value = false
+  appStore.toggleSidebar()
 }
 
 onBeforeUnmount(() => {
@@ -155,10 +170,16 @@ const layoutClasses = computed(() => {
     flex: 0 0 240px;
     position: relative;
     z-index: 20;
+    overflow: hidden;
+    transition:
+      width var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1),
+      flex-basis var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1);
 
     &.is-collapsed {
       width: 0;
       flex-basis: 0;
+      z-index: 100;
+      overflow: visible;
 
       :deep(.app-sidebar) {
         position: fixed;
@@ -175,10 +196,23 @@ const layoutClasses = computed(() => {
     }
   }
 
+  .sidebar-panel-enter-active,
+  .sidebar-panel-leave-active {
+    transition:
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .sidebar-panel-enter-from,
+  .sidebar-panel-leave-to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
   .sidebar-window-controls {
     position: fixed;
-    z-index: 30;
-    top: 14px;
+    z-index: 110;
+    top: 15px;
     left: 20px;
     display: grid;
     width: 32px;
@@ -301,6 +335,23 @@ const layoutClasses = computed(() => {
 
   }
 
+  // 收起态是跨布局悬浮层，必须使用不透明表面，避免主页面内容透出。
+  &.sidebar-collapsed .sidebar-host.is-collapsed :deep(.app-sidebar) {
+    z-index: 100;
+    background: var(--cp-sidebar-bg) !important;
+    border-color: var(--cp-layout-border);
+    box-shadow: 0 12px 32px rgb(24 24 27 / 16%);
+    isolation: isolate;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout .sidebar-host,
+  .layout .sidebar-panel-enter-active,
+  .layout .sidebar-panel-leave-active {
+    transition: none;
+  }
 }
 
 </style>

@@ -170,7 +170,7 @@ const selectedThinkingLevel = computed<ThinkingLevel>(() => composerDraft.value.
 const selectedThinkingLabel = computed(() => thinkingOptions.find(option => option.value === selectedThinkingLevel.value)?.label || '中')
 const isComposerBusy = computed(() => store.running || store.rendering)
 const showContextUsage = computed(() => getPreference('showContextUsage', true))
-const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'mod-enter') === 'enter' ? 'enter' : 'mod-enter')
+const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'enter') === 'mod-enter' ? 'mod-enter' : 'enter')
 const contextUsage = computed<HarnessContextUsage>(() => { const stored = store.activeSession?.context?.usage; const contextWindow = selectedModelOption.value?.contextWindow || stored?.contextWindow || DEFAULT_CONTEXT_WINDOW; return stored ? { ...stored, contextWindow } : { usedTokens: 0, contextWindow, source: 'estimated', updatedAt: Date.now() } })
 const contextUsagePercent = computed(() => Math.min(100, Math.round(contextUsage.value.usedTokens / Math.max(1, contextUsage.value.contextWindow) * 100)))
 const contextUsageRemaining = computed(() => Math.max(0, contextUsage.value.contextWindow - contextUsage.value.usedTokens))

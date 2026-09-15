@@ -89,6 +89,11 @@ function setupWindowsTray() {
   tray.on('click', () => showMainWindow())
 }
 
+function setupDevelopmentDockIcon() {
+  if (process.platform !== 'darwin' || app.isPackaged) return
+  app.dock.setIcon(join(__dirname, '../../src/asset/mira-app-icon.png'))
+}
+
 function setupApplicationMenu() {
   const viewMenu: MenuItemConstructorOptions[] = [
     { label: '切换全屏', role: 'togglefullscreen' },
@@ -166,6 +171,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  setupDevelopmentDockIcon()
   prepareMiraDataMigration(miraPaths, legacyUserDataPath)
   database = new PlatformDatabase(miraPaths)
   database.harness.migrateLegacyStorage()
