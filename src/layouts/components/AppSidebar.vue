@@ -180,7 +180,7 @@ watch(
 
 const currentRoute = computed(() => route.path)
 const currentAppCode = computed(() => getAppCodeFromPath(route.path))
-const selectedAppName = computed(() => applications.value.find(app => app.code === currentAppCode.value)?.name || '通用')
+const selectedAppName = computed(() => applications.value.find(app => app.code === currentAppCode.value)?.name || 'Mira')
 const applicationMenus = computed(() => runtimeNavigation.mainMenus.filter(item => item.target?.type === 'component'))
 function iframeTree(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? iframeTree(item.children) : undefined }]; const children = item.children ? iframeTree(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }
 const browserMenus = computed(() => iframeTree(runtimeNavigation.mainMenus))

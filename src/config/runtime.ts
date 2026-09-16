@@ -18,7 +18,7 @@ export const microMenus = computed<Record<string, MenuItem[]>>(() => Object.from
 ))
 
 export const applications = computed<ApplicationOption[]>(() => [
-  { code: 'main', name: '通用', icon: 'HomeFilled', type: 'main' },
+  { code: 'main', name: 'Mira', icon: 'HomeFilled', type: 'main' },
   ...runtimeNavigation.microApps
     .filter(app => app.enabled)
     .sort((a, b) => a.sort - b.sort)
