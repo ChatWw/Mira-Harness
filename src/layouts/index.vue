@@ -330,10 +330,15 @@ const layoutClasses = computed(() => {
       background: var(--cp-bg);
     }
 
-    :deep(.app-sidebar) {
-      align-self: stretch;
-      height: auto;
-      margin: 12px;
+    .sidebar-host:not(.is-collapsed) {
+      width: 264px;
+      flex-basis: 264px;
+      padding: 12px;
+      overflow: visible;
+    }
+
+    .sidebar-host:not(.is-collapsed) :deep(.app-sidebar) {
+      height: 100%;
       overflow: hidden;
       background: var(--cp-bg-elevated);
       border: 1px solid var(--cp-layout-border);

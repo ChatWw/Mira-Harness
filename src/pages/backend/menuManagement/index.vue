@@ -27,20 +27,20 @@ import { validateMenus } from '@/config/platformValidation'
 import { getPlatformApi } from '@/platform'
 import type { MenuItem } from '@/types'
 import MenuTreeEditor from './components/MenuTreeEditor.vue'
-import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
+import { filterIframeMenus } from './menuUtils'
+import { applyManagementSnapshot, cloneValue, requirePlatformApi } from '../platformManagement'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const saving = ref(false)
 const desktopAvailable = Boolean(getPlatformApi())
-function onlyIframe(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? onlyIframe(item.children) : undefined }]; const children = item.children ? onlyIframe(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }
-const iframeMenus = computed(() => onlyIframe(runtimeNavigation.mainMenus))
+const iframeMenus = computed(() => filterIframeMenus(runtimeNavigation.mainMenus))
 
 async function saveMenus(menus: MenuItem[]) {
   saving.value = true
   try {
     validateMenus(menus)
     const components = runtimeNavigation.mainMenus.filter(menu => menu.target?.type === 'component')
-    applyManagementSnapshot(await requirePlatformApi().updateMenus([...components, ...menus]))
+    applyManagementSnapshot(await requirePlatformApi().updateMenus(cloneValue([...components, ...menus])))
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '菜单配置保存失败')
   } finally {
