@@ -7,23 +7,36 @@
           <p>配置供应商连接与可用模型</p>
         </header>
 
-        <nav class="provider-list" aria-label="模型供应商">
-          <button
-            v-for="provider in providerEntries"
-            :key="provider.id"
-            type="button"
-            class="provider-item"
-            :class="{ active: provider.id === selectedId }"
-            @click="selectProvider(provider)"
-          >
-            <span class="provider-mark"><img :src="providerIconUrl(provider.providerKey)" alt=""></span>
-            <span class="provider-item__copy">
-              <strong>{{ provider.name }}</strong>
-              <small>{{ isDraftProvider(provider) ? '未配置' : `${enabledModelCount(provider)} 个模型` }}</small>
-            </span>
-            <span class="provider-status" :class="{ available: isModelProviderAvailable(provider) }" :aria-label="isModelProviderAvailable(provider) ? '可用' : '未就绪'" />
-          </button>
-        </nav>
+        <draggable
+          v-model="providerGroups"
+          item-key="key"
+          tag="nav"
+          class="provider-list"
+          ghost-class="provider-group--ghost"
+          chosen-class="provider-group--chosen"
+          :animation="160"
+          aria-label="模型供应商"
+        >
+          <template #item="{ element: group }">
+            <div class="provider-group">
+              <button
+                v-for="provider in group.entries"
+                :key="provider.id"
+                type="button"
+                class="provider-item"
+                :class="{ active: provider.id === selectedId }"
+                @click="selectProvider(provider)"
+              >
+                <AppIcon class="provider-drag-indicator" name="material-symbols:drag-indicator" :size="18" aria-hidden="true" />
+                <span class="provider-mark"><img :src="providerIconUrl(provider.providerKey)" alt=""></span>
+                <el-tooltip :content="provider.name" placement="top" :show-after="500">
+                  <span class="provider-name">{{ provider.name }}</span>
+                </el-tooltip>
+                <span v-if="provider.enabled" class="provider-status" aria-label="已启用" />
+              </button>
+            </div>
+          </template>
+        </draggable>
 
         <footer class="provider-rail__footer">
           <button type="button" class="config-link" @click="openConfigFile">
@@ -162,7 +175,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPlatformApi } from '@/platform'
+import Draggable from 'vuedraggable'
+import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MODEL_PRICING, inferModelReasoning, isModelProviderAvailable, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ProviderModelConfig } from '@/config/harness'
 import { lookupModelKnowledge } from '@/config/modelKnowledge'
 import glmIcon from '@/asset/modules_icon/glm.svg'
@@ -174,7 +188,24 @@ import qwenIcon from '@/asset/modules_icon/qwen.svg'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const FIXED_PRESETS = MODEL_PROVIDER_PRESETS.filter(preset => preset.key !== 'custom')
+const PROVIDER_ORDER_PREFERENCE_KEY = 'modelProviderOrder'
+const FIXED_PROVIDER_KEYS = FIXED_PRESETS.map(preset => preset.key)
+
+interface ProviderGroup {
+  key: ModelProviderKey
+  entries: ModelProviderSummary[]
+}
+
+function normalizeProviderOrder(value: unknown): ModelProviderKey[] {
+  const knownKeys = new Set<ModelProviderKey>(FIXED_PROVIDER_KEYS)
+  const storedKeys = Array.isArray(value)
+    ? value.filter((key): key is ModelProviderKey => typeof key === 'string' && knownKeys.has(key as ModelProviderKey))
+    : []
+  return [...new Set([...storedKeys, ...FIXED_PROVIDER_KEYS])]
+}
+
 const providers = ref<ModelProviderSummary[]>([])
+const providerOrder = ref(normalizeProviderOrder(getPreference<unknown>(PROVIDER_ORDER_PREFERENCE_KEY, [])))
 const selectedId = ref('')
 const configPath = ref('')
 const loading = ref(false)
@@ -202,10 +233,19 @@ function syntheticProvider(preset: typeof FIXED_PRESETS[number]): ModelProviderS
   return { id: `draft:${preset.key}`, providerKey: preset.key, name: preset.name, endpoint: preset.endpoint, authMode: preset.authMode, models: preset.models.map(createModel), enabled: false, hasApiKey: false, createdAt: 0, updatedAt: 0 }
 }
 
-const providerEntries = computed(() => FIXED_PRESETS.flatMap(preset => {
-  const configured = providers.value.filter(provider => provider.providerKey === preset.key)
-  return configured.length ? configured : [syntheticProvider(preset)]
-}))
+const providerGroups = computed<ProviderGroup[]>({
+  get: () => providerOrder.value.flatMap((key) => {
+    const preset = FIXED_PRESETS.find(item => item.key === key)
+    if (!preset) return []
+    const configured = providers.value.filter(provider => provider.providerKey === key)
+    return [{ key, entries: configured.length ? configured : [syntheticProvider(preset)] }]
+  }),
+  set: (groups) => {
+    providerOrder.value = normalizeProviderOrder(groups.map(group => group.key))
+    savePreference(PROVIDER_ORDER_PREFERENCE_KEY, providerOrder.value)
+  },
+})
+const providerEntries = computed(() => providerGroups.value.flatMap(group => group.entries))
 const activePreset = computed(() => FIXED_PRESETS.find(preset => preset.key === form.providerKey))
 const endpointLocked = computed(() => form.providerKey !== 'ollama')
 const previewAvailable = computed(() => isModelProviderAvailable({ ...form, id: form.id || 'draft', providerKey: form.providerKey || 'glm', authMode: form.authMode || 'api-key', hasApiKey: Boolean(form.apiKey?.trim()), createdAt: 0, updatedAt: 0 } as ModelProviderSummary))
@@ -218,7 +258,6 @@ function providerIconUrl(key: ModelProviderKey) {
 }
 
 function isDraftProvider(provider: ModelProviderSummary) { return provider.id.startsWith('draft:') }
-function enabledModelCount(provider: ModelProviderSummary) { return provider.models.filter(model => model.enabled).length }
 function isMultimodal(modelId: string) { return lookupModelKnowledge(modelId)?.multimodal === true }
 function formatContextWindow(tokens: number) { return tokens >= 1000000 && tokens % 1000000 === 0 ? `${tokens / 1000000}M` : tokens >= 1000 && tokens % 1000 === 0 ? `${tokens / 1000}K` : String(tokens) }
 function formSnapshot() { return JSON.stringify({ id: form.id, providerKey: form.providerKey, endpoint: form.endpoint, authMode: form.authMode, apiKey: form.apiKey, enabled: form.enabled, models: form.models }) }
@@ -359,18 +398,22 @@ onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible);
 .provider-rail__header { padding: 24px 20px 18px; }
 .provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: 20px; line-height: 1.3; }
 .provider-rail__header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.provider-list { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 10px 16px; }
-.provider-item { display: flex; width: 100%; min-height: 58px; align-items: center; gap: 11px; padding: 8px 10px; color: var(--cp-text); background: transparent; border: 0; border-radius: $radius-sm; font: inherit; text-align: left; cursor: pointer; }
+.provider-list { min-width: 0; min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 4px 10px 16px; }
+.provider-group { display: grid; min-width: 0; max-width: 100%; gap: 6px; margin-bottom: 6px; border-radius: 8px; cursor: grab; }
+.provider-group:last-child { margin-bottom: 0; }
+.provider-group--chosen { cursor: grabbing; }
+.provider-group--ghost { background: var(--cp-bg-hover); opacity: 0.5; }
+.provider-item { box-sizing: border-box; display: flex; width: 100%; min-width: 0; max-width: 100%; min-height: 46px; align-items: center; gap: 9px; padding: 6px 8px; color: var(--cp-text); background: transparent; border: 0; border-radius: 8px; font: inherit; text-align: left; cursor: inherit; }
 .provider-item:hover { background: var(--cp-border-light); }
 .provider-item.active { background: var(--cp-bg-hover); }
 .provider-mark, .provider-logo { display: grid; flex: 0 0 auto; place-items: center; background: #f5f5f4; border: 1px solid #e7e5e4; }
-.provider-mark { width: 34px; height: 34px; border-radius: 7px; }
+.provider-mark { width: 34px; height: 34px; margin-left: 0px; border-radius: 7px; }
 .provider-mark img { width: 23px; height: 23px; object-fit: contain; }
-.provider-item__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
-.provider-item__copy strong { overflow: hidden; font-size: $font-sm; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.provider-item__copy small { color: var(--cp-text-secondary); font-size: 11px; }
-.provider-status { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--cp-border); }
-.provider-status.available { background: var(--cp-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-success) 16%, transparent); }
+.provider-name { min-width: 0; flex: 1; overflow: hidden; font-size: $font-sm; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.provider-item.active .provider-name { font-weight: 600; }
+.provider-drag-indicator { color: var(--cp-text-secondary); opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
+.provider-item:hover .provider-drag-indicator, .provider-item.active .provider-drag-indicator, .provider-item:focus-visible .provider-drag-indicator { opacity: 1; }
+.provider-status { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--cp-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-success) 16%, transparent); }
 .provider-rail__footer, .provider-panel__footer { box-sizing: border-box; height: 64px; flex: 0 0 64px; border-top: 1px solid var(--cp-border); background: var(--cp-bg); }
 .provider-rail__footer { display: flex; align-items: center; padding: 0 14px; }
 .config-link { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 6px; color: var(--cp-text-secondary); background: transparent; border: 0; font: inherit; font-size: $font-xs; cursor: pointer; }
