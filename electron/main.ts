@@ -13,7 +13,7 @@ import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDa
 import { shouldBlockReloadShortcut } from './windowShortcuts'
 import type { NovelProjectDocument, NovelWorkspaceSettings } from '../src/config/novel'
 import type { MicroApp } from '../src/types'
-import type { AutomationRun, AutomationTaskInput, HarnessEvent, HarnessFileReference, HarnessProjectCreateInput, HarnessSkillSettings, MemoryScope, ModelProviderInput } from '../src/config/harness'
+import { isModelProviderAvailable, providerModel, type AutomationRun, type AutomationTaskInput, type HarnessEvent, type HarnessFileReference, type HarnessProjectCreateInput, type HarnessSkillSettings, type MemoryScope, type ModelProviderInput } from '../src/config/harness'
 
 let database: PlatformDatabase
 let localMicroAppServer: LocalMicroAppServer
@@ -232,7 +232,7 @@ app.whenReady().then(async () => {
     const timeout = setTimeout(() => controller.abort(), 8000)
     try {
       const response = await fetch(url, { headers, signal: controller.signal })
-      if (!response.ok) return { models: [], error: `请求失败（HTTP ${response.status}）${!apiKey ? '，请确认已填写 API Key' : ''}` }
+      if (!response.ok) return { models: [], error: `请求失败（HTTP ${response.status}）${!apiKey && provider.authMode !== 'none' ? '，请确认已填写 API Key' : ''}` }
       const payload = await response.json() as { data?: Array<Record<string, unknown>>, models?: Array<Record<string, unknown>> }
       const ids = (payload.data || payload.models || []).map(item => {
         const value = item.id ?? item.model ?? item.name
@@ -259,7 +259,10 @@ app.whenReady().then(async () => {
     try {
       const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
       const url = /\/chat\/completions$/i.test(endpoint) ? endpoint : `${endpoint}/chat/completions`
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.apiKey || database.models.getSecret(provider.id || '')}` }, body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: '请用一个词回复“已连接”。' }], stream: false }) })
+      const apiKey = provider.apiKey || database.models.getSecret(provider.id || '')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+      const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: '请用一个词回复“已连接”。' }], stream: false }) })
       if (!response.ok) return { ok: false, text: `请求失败：${response.status} ${(await response.text()).slice(0, 240)}` }
       return { ok: true, text: '连接成功' }
     } catch (error) { return { ok: false, text: error instanceof Error ? error.message : String(error) } }
@@ -318,7 +321,8 @@ app.whenReady().then(async () => {
     const project = database.harness.getProject(input.projectId)
     if (!project.directoryExists) throw new Error('项目目录不存在')
     const provider = database.models.get(input.model?.providerId)
-    if (!provider?.enabled || !provider.models.includes(input.model.modelId) || !database.models.getSecret(provider.id)) throw new Error('所选模型不可用')
+    const model = provider && providerModel(provider, input.model.modelId)
+    if (!provider || !isModelProviderAvailable(provider) || !model?.enabled || (provider.authMode === 'api-key' && !database.models.getSecret(provider.id))) throw new Error('所选模型不可用')
     const permission = database.harness.getPermissionConfig()
     if (input.permissionMode === 'auto-approve' && !permission.autoApproveEnabled) throw new Error('自动审核权限未启用')
     if (input.permissionMode === 'full' && !permission.fullAccessEnabled) throw new Error('完全访问权限未启用')

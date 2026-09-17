@@ -3,7 +3,7 @@ import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { DEFAULT_CONTEXT_WINDOW, type HarnessEvent, type HarnessMessage, type HarnessRunActivity, type HarnessSession, type MemoryCandidate, type MemorySensitivity, type ModelSelection } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, providerModel, type HarnessEvent, type HarnessMessage, type HarnessRunActivity, type HarnessSession, type MemoryCandidate, type MemorySensitivity, type ModelSelection } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { classifyMemoryContent, type MemoryScope } from './fileMemoryStore'
 import type { ToolDescriptor } from './harnessPermissionPolicy'
@@ -88,10 +88,11 @@ export class HarnessMemoryCoordinator {
     if (!session.projectId) throw new Error('请先选择项目后再保存项目记忆')
     if (!session.messages.some(message => message.role === 'user') || !session.messages.some(message => message.role === 'assistant')) throw new Error('当前对话还没有可保存的内容')
     const { provider, apiKey } = options.requireProvider(selection)
+    const modelConfig = providerModel(provider, selection!.modelId)!
     const model = {
       id: selection!.modelId, name: selection!.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
-      reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
-      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
+      reasoning: modelConfig.reasoning, compat: modelConfig.reasoning ? { supportsReasoningEffort: true } : undefined,
+      input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: modelConfig.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
     } as any
     const models = createModels()
     models.setProvider(createProvider({
@@ -99,7 +100,7 @@ export class HarnessMemoryCoordinator {
       auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
       models: [model], api: openAICompletionsApi(),
     }) as any)
-    const task = this.saveLongTerm(sender, sessionId, models, model, provider.reasoning ? selection!.thinkingLevel || 'medium' : 'off', options.toAgentMessage)
+    const task = this.saveLongTerm(sender, sessionId, models, model, modelConfig.reasoning ? selection!.thinkingLevel || 'medium' : 'off', options.toAgentMessage)
     this.track(sessionId, task)
     await task
   }

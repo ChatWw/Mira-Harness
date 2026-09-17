@@ -3,7 +3,7 @@
     <SettingsSiderMenu />
 
     <section class="settings-main">
-      <div class="settings-main__content" :class="{ 'is-wide': wide }">
+      <div class="settings-main__content" :class="{ 'is-wide': wide, 'is-workspace': workspace }">
         <header v-if="showTitle !== false" class="settings-page-header">
           <h1>{{ title }}</h1>
         </header>
@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import SettingsSiderMenu from './SettingsSiderMenu.vue'
 
-defineProps<{ title: string, wide?: boolean, showTitle?: boolean }>()
+defineProps<{ title: string, wide?: boolean, workspace?: boolean, showTitle?: boolean }>()
 
 const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
 </script>
@@ -47,6 +47,7 @@ const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
 .settings-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
 .settings-main__content { box-sizing: border-box; width: min(920px, 100%); margin: 0 auto; padding: 76px 48px 56px; }
 .settings-main__content.is-wide { width: min(1280px, 100%); }
+.settings-main__content.is-workspace { width: 100%; height: 100%; padding: 0; }
 .settings-page-header { margin-bottom: 38px; }
 .settings-page-header h1 { margin: 0; font-size: 30px; line-height: 1.25; }
 .settings-page-header p { margin: 10px 0 0; color: var(--cp-text-secondary); }

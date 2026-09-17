@@ -510,11 +510,19 @@ export interface ModelProviderInput {
   name: string
   endpoint: string
   apiKey?: string
-  models: string[]
-  reasoning?: boolean
-  contextWindow?: number
-  pricing?: ModelPricing | null
+  authMode?: ModelProviderAuthMode
+  models: ProviderModelConfig[]
   enabled: boolean
+}
+
+export type ModelProviderAuthMode = 'api-key' | 'none'
+
+export interface ProviderModelConfig {
+  id: string
+  enabled: boolean
+  reasoning: boolean
+  contextWindow: number
+  pricing?: ModelPricing
 }
 
 export interface ModelProviderSummary {
@@ -522,14 +530,30 @@ export interface ModelProviderSummary {
   providerKey: ModelProviderKey
   name: string
   endpoint: string
-  models: string[]
-  reasoning: boolean
-  contextWindow: number
-  pricing?: ModelPricing
+  authMode: ModelProviderAuthMode
+  models: ProviderModelConfig[]
   enabled: boolean
   hasApiKey: boolean
   createdAt: number
   updatedAt: number
+}
+
+export function providerModel(provider: ModelProviderSummary, modelId: string) {
+  return provider.models.find(model => model.id === modelId)
+}
+
+export function hasValidModelEndpoint(endpoint: string) {
+  try {
+    const url = new URL(endpoint.trim())
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname)
+  } catch { return false }
+}
+
+export function isModelProviderAvailable(provider: ModelProviderSummary) {
+  return provider.enabled
+    && hasValidModelEndpoint(provider.endpoint)
+    && (provider.authMode === 'none' || provider.hasApiKey)
+    && provider.models.some(model => model.enabled && Boolean(model.id.trim()))
 }
 
 export interface HarnessUsageBucket {
@@ -655,11 +679,11 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
 }
 
 export const MODEL_PROVIDER_PRESETS = [
-  { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-5.3', 'glm-5.2', 'glm-5.1', 'glm-4.7', 'glm-4.6'] },
-  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6', 'kimi-k2.5'] },
-  { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
-  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
-  { key: 'qwen' as const, name: '阿里千问 / Qwen', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-flash'] },
-  { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
-  { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', models: [''] },
+  { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', authMode: 'api-key' as const, models: ['glm-5.3', 'glm-5.2', 'glm-5.1', 'glm-4.7', 'glm-4.6'] },
+  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', authMode: 'api-key' as const, models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6', 'kimi-k2.5'] },
+  { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' as const, models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
+  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key' as const, models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
+  { key: 'qwen' as const, name: '阿里千问 / Qwen', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' as const, models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-flash'] },
+  { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' as const, models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
+  { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', authMode: 'api-key' as const, models: [''] },
 ]

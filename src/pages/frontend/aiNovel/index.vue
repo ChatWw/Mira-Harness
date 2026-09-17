@@ -82,7 +82,7 @@ import AiPanel from './aiPanel/AiPanel.vue'
 import EditorWorkspace from './editorWorkspace/EditorWorkspace.vue'
 import ProjectSidebar from './projectSidebar/ProjectSidebar.vue'
 import { DEFAULT_NOVEL_PROMPTS, DEFAULT_NOVEL_WORKSPACE_SETTINGS, type NovelChapter, type NovelModelRole, type NovelProjectDocument, type NovelProjectSummary, type NovelWorkspaceSettings } from '@/config/novel'
-import type { ModelProviderSummary } from '@/config/harness'
+import { isModelProviderAvailable, type ModelProviderSummary } from '@/config/harness'
 import { getPlatformApi } from '@/platform'
 import type { EditorTarget, QuickAction, SetupField, Stage, StageDefinition, Tool } from './types'
 
@@ -143,7 +143,7 @@ const selectedChapter = computed(() => project.value?.chapters.find(item => item
 const chapterIndex = computed(() => project.value?.chapters.findIndex(item => item.id === activeChapterId.value) ?? -1)
 const currentStageLabel = computed(() => activeStage.value === 'content' ? '正文' : stages.find(item => item.key === activeStage.value)?.title || '')
 const toolTitle = computed(() => ({ knowledge: '知识库', prompts: '提示词模板', mindMap: '思维导图', ideas: '书名与简介', splitter: '拆书', optimizer: '批量优化', shortcuts: '快捷词条' })[activeTool.value])
-const modelOptions = computed(() => providers.value.filter(provider => provider.enabled && provider.hasApiKey).flatMap(provider => provider.models.map(modelId => ({ value: `${provider.id}:${modelId}`, label: `${provider.name} · ${modelId}` }))))
+const modelOptions = computed(() => providers.value.filter(isModelProviderAvailable).flatMap(provider => provider.models.filter(model => model.enabled).map(model => ({ value: `${provider.id}:${model.id}`, label: `${provider.name} · ${model.id}` }))))
 
 function newId() { return crypto.randomUUID() }
 function formatChapterLabel(index: number) {

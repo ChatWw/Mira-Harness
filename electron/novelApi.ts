@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { ModelSelection } from '../src/config/harness'
+import { isModelProviderAvailable, providerModel, type ModelSelection } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { corsHeadersFor } from './localMicroAppServer'
 
@@ -57,22 +57,22 @@ async function consumeSse(stream: ReadableStream<Uint8Array>, onContent: (conten
 function getProfile(database: PlatformDatabase, selection: ModelSelection) {
   if (!selection?.providerId || !selection.modelId) throw new Error('请先在模型页面配置并选择模型')
   const provider = database.models.get(selection.providerId)
-  if (!provider?.enabled) throw new Error('当前模型不可用，请检查模型配置')
-  if (!provider.models.includes(selection.modelId)) throw new Error('所选模型不属于当前供应商')
+  if (!provider || !isModelProviderAvailable(provider)) throw new Error('当前模型不可用，请检查模型配置')
+  const model = providerModel(provider, selection.modelId)
+  if (!model?.enabled) throw new Error('所选模型不属于当前供应商')
   const apiKey = database.models.getSecret(selection.providerId)
-  if (!apiKey) throw new Error('当前模型未配置 API Key')
+  if (provider.authMode === 'api-key' && !apiKey) throw new Error('当前模型未配置 API Key')
   const endpoint = normalizeEndpoint(provider.endpoint)
   if (!endpoint) throw new Error('当前模型未配置 Endpoint')
   return { endpoint, apiKey, modelId: selection.modelId }
 }
 
 async function requestModel(profile: { endpoint: string, apiKey: string, modelId: string }, prompt: string, signal?: AbortSignal) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (profile.apiKey.trim()) headers.Authorization = `Bearer ${profile.apiKey.trim()}`
   return fetch(profile.endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${profile.apiKey.trim()}`,
-    },
+    headers,
     body: JSON.stringify({
       model: profile.modelId.trim(),
       messages: [{ role: 'user', content: prompt }],

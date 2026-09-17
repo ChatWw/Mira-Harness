@@ -1,160 +1,169 @@
 <template>
-  <SettingsPageShell title="模型" wide>
-    <div class="model-page">
-      <h2 class="model-page__title">自定义模型</h2>
+  <SettingsPageShell title="模型" wide workspace :show-title="false">
+    <div class="provider-page">
+      <aside class="provider-rail">
+        <header class="provider-rail__header">
+          <h1>模型服务</h1>
+          <p>配置供应商连接与可用模型</p>
+        </header>
 
-      <section class="config-file-card">
-        <div>
-          <h3>本地配置文件</h3>
-          <p>管理写入 <a v-if="configPath" class="config-file-link" href="#" @click.prevent="openConfigFile">{{ configPath }}</a><code v-else>models.json</code> 的本地自定义模型配置。</p>
-        </div>
-        <el-button type="primary" plain @click="openCreate"><AppIcon name="Plus" />添加模型</el-button>
-      </section>
+        <nav class="provider-list" aria-label="模型供应商">
+          <button
+            v-for="provider in providerEntries"
+            :key="provider.id"
+            type="button"
+            class="provider-item"
+            :class="{ active: provider.id === selectedId }"
+            @click="selectProvider(provider)"
+          >
+            <span class="provider-mark"><img :src="providerIconUrl(provider.providerKey)" alt=""></span>
+            <span class="provider-item__copy">
+              <strong>{{ provider.name }}</strong>
+              <small>{{ isDraftProvider(provider) ? '未配置' : `${enabledModelCount(provider)} 个模型` }}</small>
+            </span>
+            <span class="provider-status" :class="{ available: isModelProviderAvailable(provider) }" :aria-label="isModelProviderAvailable(provider) ? '可用' : '未就绪'" />
+          </button>
+        </nav>
 
-      <section class="saved-models">
-        <h2>已保存模型</h2>
-        <div v-if="loading" v-loading="loading" class="saved-models__loading" />
-        <div v-else-if="providers.length" class="model-list">
-          <article v-for="provider in providers" :key="provider.id" class="model-row">
-            <div class="model-row__identity">
-              <span class="provider-mark">
-                <img v-if="providerIconUrl(provider.providerKey)" :src="providerIconUrl(provider.providerKey)" alt="">
-                <AppIcon v-else :name="providerIcon(provider.providerKey)" />
-              </span>
+        <footer class="provider-rail__footer">
+          <button type="button" class="config-link" @click="openConfigFile">
+            <AppIcon name="Document" />
+            <span>打开本地配置</span>
+            <AppIcon name="ArrowRight" />
+          </button>
+        </footer>
+      </aside>
+
+      <main class="provider-panel" v-loading="loading">
+        <template v-if="activePreset">
+          <header class="provider-panel__header">
+            <div class="provider-identity">
+              <span class="provider-logo"><img :src="providerIconUrl(activePreset.key)" alt=""></span>
               <div>
-                <h3>{{ provider.models[0] }} <el-tag v-if="provider.reasoning" size="small" effect="plain">支持推理</el-tag> <el-tag v-if="isMultimodal(provider)" size="small" effect="plain" type="warning">多模态</el-tag></h3>
-                <p>{{ provider.name }} · {{ formatContextWindow(provider.contextWindow) }} 上下文 · {{ provider.pricing ? `${provider.pricing.currency} 单价已配置` : '未配置单价' }}</p>
+                <h2>{{ activePreset.name }}</h2>
+                <p>{{ form.authMode === 'none' ? '本地 OpenAI 兼容服务' : 'OpenAI 兼容 API' }}</p>
               </div>
             </div>
-            <div class="model-row__actions">
-              <el-tooltip content="编辑模型" placement="top">
-                <el-button text circle aria-label="编辑模型" @click="edit(provider)"><AppIcon name="EditPen" /></el-button>
-              </el-tooltip>
-              <el-tooltip content="删除模型" placement="top">
-                <el-button text circle type="danger" aria-label="删除模型" @click="remove(provider.id)"><AppIcon name="Delete" /></el-button>
-              </el-tooltip>
+            <div class="provider-enable">
+              <span>{{ form.enabled ? '已启用' : '已停用' }}</span>
+              <el-switch v-model="form.enabled" aria-label="启用供应商" />
             </div>
-          </article>
-        </div>
-        <div v-else class="model-empty">
-          <strong>还没有配置自定义模型</strong>
-          <p>添加后会自动写入本地 models.json，并出现在聊天和 AI 小说页面的模型选择中。</p>
-        </div>
-      </section>
+          </header>
+
+          <div class="provider-panel__body">
+            <section class="settings-section">
+              <div class="section-heading">
+                <div>
+                  <h3>连接设置</h3>
+                  <p>用于访问 {{ activePreset.name }} 的服务地址和凭据。</p>
+                </div>
+                <span class="readiness" :class="{ ready: previewAvailable }"><i />{{ previewAvailable ? '可用' : '未就绪' }}</span>
+              </div>
+
+              <el-form label-position="top" class="connection-form">
+                <el-form-item v-if="form.authMode === 'api-key'" label="API Key">
+                  <el-input v-model="form.apiKey" type="password" show-password autocomplete="off" placeholder="输入 API Key" />
+                  <p class="field-tip">密钥仅保存在本机配置文件中。</p>
+                </el-form-item>
+                <div v-else class="no-auth-row">
+                  <span class="no-auth-row__icon"><AppIcon name="Monitor" /></span>
+                  <div><strong>无需 API Key</strong><p>Ollama 默认通过本机地址访问。</p></div>
+                </div>
+                <el-form-item label="Endpoint">
+                  <el-input v-model="form.endpoint" :disabled="endpointLocked" placeholder="https://api.example.com/v1" />
+                  <p v-if="endpointLocked" class="field-tip">内置供应商使用官方兼容地址。</p>
+                </el-form-item>
+              </el-form>
+
+              <div class="connection-actions">
+                <el-button :loading="testing" :disabled="!form.models.length" @click="testConnection"><AppIcon name="Connection" />测试连接</el-button>
+                <span v-if="connectionMessage" class="connection-result" :class="connectionState"><AppIcon :name="connectionState === 'success' ? 'CircleCheck' : 'Warning'" />{{ connectionMessage }}</span>
+              </div>
+            </section>
+
+            <section class="settings-section model-section">
+              <div class="section-heading">
+                <div>
+                  <h3>模型</h3>
+                  <p>启用的模型会按“供应商 → 模型名称”出现在选择器中。</p>
+                </div>
+                <div class="model-actions">
+                  <el-tooltip content="从供应商获取模型列表" placement="top">
+                    <el-button circle :loading="loadingModels" aria-label="同步模型列表" @click="syncModels"><AppIcon name="Refresh" /></el-button>
+                  </el-tooltip>
+                  <el-button type="primary" plain @click="openModelDialog"><AppIcon name="Plus" />添加模型</el-button>
+                </div>
+              </div>
+
+              <div v-if="form.models.length" class="model-list">
+                <article v-for="(model, index) in form.models" :key="model.id" class="model-row">
+                  <el-switch v-model="model.enabled" :aria-label="`${model.enabled ? '停用' : '启用'} ${model.id}`" />
+                  <div class="model-row__identity">
+                    <strong>{{ model.id }}</strong>
+                    <span v-if="model.reasoning" class="model-badge">推理</span>
+                    <span v-if="isMultimodal(model.id)" class="model-badge">多模态</span>
+                  </div>
+                  <span class="model-meta">{{ formatContextWindow(model.contextWindow) }} 上下文</span>
+                  <span class="model-meta model-meta--pricing">{{ model.pricing ? `${model.pricing.currency} 已计价` : '未计价' }}</span>
+                  <div class="model-row__actions">
+                    <el-tooltip content="编辑模型" placement="top"><el-button text circle aria-label="编辑模型" @click="editModel(index)"><AppIcon name="EditPen" /></el-button></el-tooltip>
+                    <el-tooltip content="移除模型" placement="top"><el-button text circle type="danger" aria-label="移除模型" @click="removeModel(index)"><AppIcon name="Delete" /></el-button></el-tooltip>
+                  </div>
+                </article>
+              </div>
+              <button v-else type="button" class="model-empty" @click="openModelDialog">
+                <span><AppIcon name="Plus" /></span>
+                <strong>添加第一个模型</strong>
+                <small>模型保存并启用后即可在前台选择</small>
+              </button>
+            </section>
+          </div>
+
+          <footer class="provider-panel__footer">
+            <span>{{ saveHint }}</span>
+            <el-button type="primary" :loading="saving" @click="saveProvider">保存配置</el-button>
+          </footer>
+        </template>
+      </main>
     </div>
 
-    <el-dialog v-model="visible" :width="dialogWidth" destroy-on-close align-center>
-      <template #header>
-        <div class="dialog-header">
-          <span class="dialog-header__title">{{ form.id ? '编辑模型' : '添加模型' }}</span>
-          <span class="dialog-tag">仅支持 OpenAI 兼容协议 API</span>
-        </div>
-      </template>
-      <el-form label-position="top">
-        <el-form-item label="供应商">
-          <el-select v-model="form.providerKey" placeholder="请选择供应商" clearable @change="applyPreset">
-            <template #label="{ label, value }">
-              <span class="provider-option">
-                <img v-if="providerIconUrl(value)" :src="providerIconUrl(value)" class="provider-option__icon" alt="">
-                <AppIcon v-else :name="providerIcon(value)" />
-                <span>{{ label }}</span>
-              </span>
-            </template>
-            <el-option-group v-for="group in providerGroupList" :key="group.label" :label="group.label">
-              <el-option v-for="preset in group.items" :key="preset.key" :label="preset.name" :value="preset.key">
-                <span class="provider-option">
-                  <img v-if="providerIconUrl(preset.key)" :src="providerIconUrl(preset.key)" class="provider-option__icon" alt="">
-                  <AppIcon v-else :name="providerIcon(preset.key)" />
-                  <span>{{ preset.name }}</span>
-                </span>
-              </el-option>
-            </el-option-group>
+    <el-dialog v-model="modelDialogVisible" :title="editingModelIndex === -1 ? '添加模型' : '编辑模型'" width="600px" destroy-on-close align-center>
+      <el-form label-position="top" class="model-dialog-form">
+        <el-form-item label="模型名称" required>
+          <el-select v-model="modelDraft.id" filterable allow-create default-first-option placeholder="选择或输入模型名称" @change="applyModelKnowledge">
+            <el-option v-for="name in modelCandidates" :key="name" :label="name" :value="name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="API Key">
-          <el-input v-model="form.apiKey" type="password" show-password :placeholder="apiKeyPlaceholder" />
-          <p v-if="form.providerKey === 'ollama'" class="form-tip">本地模型通常无需 API Key，留空即可。</p>
+        <div class="model-dialog-grid">
+          <el-form-item label="模型状态"><el-switch v-model="modelDraft.enabled" active-text="启用" inactive-text="停用" /></el-form-item>
+          <el-form-item label="推理能力"><el-switch v-model="modelDraft.reasoning" active-text="支持推理" inactive-text="标准回复" /></el-form-item>
+        </div>
+        <el-form-item label="上下文长度">
+          <el-input-number v-model="modelDraft.contextWindow" :min="16384" :step="16000" :precision="0" controls-position="right" />
+          <span class="input-suffix">token</span>
         </el-form-item>
-        <el-form-item label="模型名称">
-          <div class="model-name-row">
-            <el-select v-model="selectedModel" filterable allow-create :loading="loadingModels" :disabled="!form.providerKey" placeholder="选择或输入模型名称" @focus="loadModelNames" @change="applyModelKnowledge">
-              <el-option v-for="model in modelOptions" :key="model" :label="model" :value="model" />
-            </el-select>
-            <el-button text circle aria-label="刷新模型列表" :disabled="!form.providerKey || !form.endpoint.trim()" :loading="loadingModels" @click="loadModelNames"><AppIcon name="Refresh" /></el-button>
-          </div>
-          <p v-if="modelQueryError" class="form-tip form-tip--error">模型列表获取失败：{{ modelQueryError }}。</p>
-          <p v-else-if="modelListMessage" class="form-tip">{{ modelListMessage }}</p>
-        </el-form-item>
-
-        <div class="advanced-section">
-          <button type="button" class="advanced-toggle" :aria-expanded="showAdvanced" @click="showAdvanced = !showAdvanced">
-            <AppIcon name="Setting" />
-            <span class="advanced-toggle__label">高级设置</span>
-            <span class="advanced-toggle__summary">{{ advancedSummary }}</span>
-            <span v-if="advancedCount" class="advanced-toggle__badge">{{ advancedCount }}</span>
-            <AppIcon class="advanced-toggle__chevron" :name="showAdvanced ? 'ArrowUp' : 'ArrowDown'" />
-          </button>
-          <div v-if="showAdvanced" class="advanced-body">
-            <el-form-item label="推理能力">
-              <el-switch v-model="form.reasoning" active-text="支持推理" inactive-text="标准回复" />
-              <p class="form-tip">模型列表接口通常不返回此能力；已知推理模型会自动识别，其他模型请按供应商文档确认。</p>
-            </el-form-item>
-            <el-form-item label="上下文长度">
-              <el-input-number v-model="form.contextWindow" class="context-window-input" :min="16384" :step="16000" :precision="0" controls-position="right" :formatter="formatContextWindow" :parser="parseContextWindow" />
-              <div class="context-window-presets" aria-label="常用上下文长度">
-                <button v-for="value in CONTEXT_WINDOW_PRESETS" :key="value" type="button" :class="{ active: form.contextWindow === value }" @click="form.contextWindow = value">{{ formatContextWindow(String(value)) }}</button>
-              </div>
-              <p class="form-tip">单位为 token。请按模型供应商的上下文窗口填写，Mira 会据此显示使用情况并提前压缩历史。</p>
-            </el-form-item>
-            <el-form-item label="模型单价">
-              <p class="form-tip pricing-intro">按供应商账单填写每 <strong>100 万 token</strong> 的单价。Mira 只用它估算本地用量，不会产生实际扣费。</p>
-              <el-switch v-model="pricingEnabled" active-text="启用用量估算" inactive-text="不估算" />
-              <div v-if="pricingEnabled" class="pricing-grid">
-                <div class="pricing-field pricing-field--currency">
-                  <span class="pricing-field__label">币种</span>
-                  <el-input v-model="form.pricing!.currency" maxlength="8" placeholder="例如 USD、CNY" aria-label="价格币种" />
-                </div>
-                <div class="pricing-field">
-                  <span class="pricing-field__label">输入 token <small>每 100 万</small></span>
-                  <el-input-number v-model="form.pricing!.input" :min="0" :precision="6" controls-position="right" placeholder="例如 0.27" aria-label="输入 token 单价" />
-                </div>
-                <div class="pricing-field">
-                  <span class="pricing-field__label">输出 token <small>每 100 万</small></span>
-                  <el-input-number v-model="form.pricing!.output" :min="0" :precision="6" controls-position="right" placeholder="例如 1.10" aria-label="输出 token 单价" />
-                </div>
-                <div class="pricing-field">
-                  <span class="pricing-field__label">缓存读取 token <small>每 100 万</small></span>
-                  <el-input-number v-model="form.pricing!.cacheRead" :min="0" :precision="6" controls-position="right" placeholder="没有则填 0" aria-label="缓存读取 token 单价" />
-                </div>
-                <div class="pricing-field">
-                  <span class="pricing-field__label">缓存写入 token <small>每 100 万</small></span>
-                  <el-input-number v-model="form.pricing!.cacheWrite" :min="0" :precision="6" controls-position="right" placeholder="没有则填 0" aria-label="缓存写入 token 单价" />
-                </div>
-              </div>
-              <p class="form-tip">例如供应商标价为 $0.27 / 100 万输入 token，就填 <strong>0.27</strong>，不要换算成 0.00000027。没有单独收费的项目填 0；不确定时请以供应商价格页为准。</p>
-            </el-form-item>
-            <el-form-item label="Endpoint">
-              <el-input v-model="form.endpoint" :disabled="endpointLocked" placeholder="https://api.example.com/v1" />
-            </el-form-item>
-            <el-form-item label="状态">
-              <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
-            </el-form-item>
-          </div>
+        <div class="pricing-heading">
+          <div><strong>用量估算</strong><p>每 100 万 token 的供应商单价。</p></div>
+          <el-switch v-model="pricingEnabled" />
+        </div>
+        <div v-if="pricingEnabled" class="pricing-grid">
+          <el-form-item label="币种"><el-input v-model="modelDraft.pricing!.currency" maxlength="8" placeholder="USD" /></el-form-item>
+          <el-form-item label="输入"><el-input-number v-model="modelDraft.pricing!.input" :min="0" :precision="6" controls-position="right" /></el-form-item>
+          <el-form-item label="输出"><el-input-number v-model="modelDraft.pricing!.output" :min="0" :precision="6" controls-position="right" /></el-form-item>
+          <el-form-item label="缓存读取"><el-input-number v-model="modelDraft.pricing!.cacheRead" :min="0" :precision="6" controls-position="right" /></el-form-item>
+          <el-form-item label="缓存写入"><el-input-number v-model="modelDraft.pricing!.cacheWrite" :min="0" :precision="6" controls-position="right" /></el-form-item>
         </div>
       </el-form>
-      <template #footer>
-        <el-button @click="visible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
-      </template>
+      <template #footer><el-button @click="modelDialogVisible = false">取消</el-button><el-button type="primary" @click="confirmModel">确定</el-button></template>
     </el-dialog>
   </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MODEL_PRICING, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary } from '@/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MODEL_PRICING, inferModelReasoning, isModelProviderAvailable, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ProviderModelConfig } from '@/config/harness'
 import { lookupModelKnowledge } from '@/config/modelKnowledge'
 import glmIcon from '@/asset/modules_icon/glm.svg'
 import kimiIcon from '@/asset/modules_icon/Kimi.svg'
@@ -164,266 +173,233 @@ import ollamaIcon from '@/asset/modules_icon/Ollama.svg'
 import qwenIcon from '@/asset/modules_icon/qwen.svg'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
+const FIXED_PRESETS = MODEL_PROVIDER_PRESETS.filter(preset => preset.key !== 'custom')
 const providers = ref<ModelProviderSummary[]>([])
+const selectedId = ref('')
 const configPath = ref('')
 const loading = ref(false)
 const saving = ref(false)
-const visible = ref(false)
-const selectedModel = ref('')
-const modelOptions = ref<string[]>([])
 const loadingModels = ref(false)
-const modelRequestId = ref(0)
-const modelQueryError = ref('')
-const modelListMessage = ref('')
-const form = reactive<ModelProviderInput>({ providerKey: undefined, name: '', endpoint: '', apiKey: '', models: [], reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING }, enabled: true })
+const testing = ref(false)
+const remoteModels = ref<string[]>([])
+const connectionState = ref<'idle' | 'success' | 'error'>('idle')
+const connectionMessage = ref('')
+const secretRequestId = ref(0)
+const cleanSnapshot = ref('')
+const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoint: '', authMode: 'api-key', apiKey: '', models: [], enabled: false })
+
+const modelDialogVisible = ref(false)
+const editingModelIndex = ref(-1)
 const pricingEnabled = ref(false)
-const showAdvanced = ref(false)
-const endpointLocked = computed(() => form.providerKey !== 'ollama' && form.providerKey !== 'custom')
-const CONTEXT_WINDOW_PRESETS = [32000, 64000, 128000, 256000, 512000, 1000000]
-const providerGroups = computed(() => ({
-  cloud: { label: '云端供应商', items: MODEL_PROVIDER_PRESETS.filter(item => item.key !== 'ollama' && item.key !== 'custom') },
-  local: { label: '本地 / 自定义', items: MODEL_PROVIDER_PRESETS.filter(item => item.key === 'ollama' || item.key === 'custom') },
+const modelDraft = reactive<ProviderModelConfig>({ id: '', enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
+
+function createModel(id: string): ProviderModelConfig {
+  const knowledge = lookupModelKnowledge(id)
+  return { id, enabled: true, reasoning: knowledge?.reasoning ?? inferModelReasoning(id), contextWindow: knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW, ...(knowledge?.pricing ? { pricing: { ...knowledge.pricing } } : {}) }
+}
+
+function syntheticProvider(preset: typeof FIXED_PRESETS[number]): ModelProviderSummary {
+  return { id: `draft:${preset.key}`, providerKey: preset.key, name: preset.name, endpoint: preset.endpoint, authMode: preset.authMode, models: preset.models.map(createModel), enabled: false, hasApiKey: false, createdAt: 0, updatedAt: 0 }
+}
+
+const providerEntries = computed(() => FIXED_PRESETS.flatMap(preset => {
+  const configured = providers.value.filter(provider => provider.providerKey === preset.key)
+  return configured.length ? configured : [syntheticProvider(preset)]
 }))
-const providerGroupList = computed(() => [providerGroups.value.cloud, providerGroups.value.local])
-const advancedSummary = '推理能力 · 上下文长度 · 模型单价 · Endpoint · 状态'
-const dialogWidth = computed(() => showAdvanced.value ? 'min(640px, calc(100vw - 32px))' : 'min(560px, calc(100vw - 32px))')
-const apiKeyPlaceholder = computed(() => form.id ? '留空则保持现有密钥' : (form.providerKey === 'ollama' ? '本地模型通常无需，可留空' : '输入 API Key'))
-const advancedCount = computed(() => {
-  let count = 0
-  if (form.reasoning !== inferModelReasoning(selectedModel.value || '')) count += 1
-  if (form.contextWindow !== DEFAULT_CONTEXT_WINDOW) count += 1
-  if (pricingEnabled.value) count += 1
-  if (form.providerKey === 'custom' && form.endpoint.trim()) count += 1
-  return count
-})
+const activePreset = computed(() => FIXED_PRESETS.find(preset => preset.key === form.providerKey))
+const endpointLocked = computed(() => form.providerKey !== 'ollama')
+const previewAvailable = computed(() => isModelProviderAvailable({ ...form, id: form.id || 'draft', providerKey: form.providerKey || 'glm', authMode: form.authMode || 'api-key', hasApiKey: Boolean(form.apiKey?.trim()), createdAt: 0, updatedAt: 0 } as ModelProviderSummary))
+const modelCandidates = computed(() => [...new Set([...(activePreset.value?.models || []), ...remoteModels.value, ...form.models.map(model => model.id)])])
+const saveHint = computed(() => !form.enabled ? '供应商当前为停用状态' : previewAvailable.value ? '保存后可在聊天、小说和自动化中使用' : '完成凭据并至少启用一个模型后可用')
+const hasUnsavedChanges = computed(() => Boolean(cleanSnapshot.value && cleanSnapshot.value !== formSnapshot()))
 
-function providerIcon(key: ModelProviderKey | string) {
-  return ({ glm: 'Connection', kimi: 'ChatDotRound', minimax: 'MagicStick', deepseek: 'Search', qwen: 'ChatLineRound', ollama: 'Monitor', custom: 'Operation' } as Record<ModelProviderKey, string>)[key as ModelProviderKey] || 'Operation'
+function providerIconUrl(key: ModelProviderKey) {
+  return ({ glm: glmIcon, kimi: kimiIcon, minimax: minimaxIcon, deepseek: deepseekIcon, ollama: ollamaIcon, qwen: qwenIcon } as Partial<Record<ModelProviderKey, string>>)[key] || ''
 }
 
-function providerIconUrl(key: ModelProviderKey | string) {
-  return ({ glm: glmIcon, kimi: kimiIcon, minimax: minimaxIcon, deepseek: deepseekIcon, ollama: ollamaIcon, qwen: qwenIcon } as Partial<Record<ModelProviderKey, string>>)[key as ModelProviderKey]
+function isDraftProvider(provider: ModelProviderSummary) { return provider.id.startsWith('draft:') }
+function enabledModelCount(provider: ModelProviderSummary) { return provider.models.filter(model => model.enabled).length }
+function isMultimodal(modelId: string) { return lookupModelKnowledge(modelId)?.multimodal === true }
+function formatContextWindow(tokens: number) { return tokens >= 1000000 && tokens % 1000000 === 0 ? `${tokens / 1000000}M` : tokens >= 1000 && tokens % 1000 === 0 ? `${tokens / 1000}K` : String(tokens) }
+function formSnapshot() { return JSON.stringify({ id: form.id, providerKey: form.providerKey, endpoint: form.endpoint, authMode: form.authMode, apiKey: form.apiKey, enabled: form.enabled, models: form.models }) }
+function markFormClean() { cleanSnapshot.value = formSnapshot() }
+
+function assignProvider(provider: ModelProviderSummary) {
+  Object.assign(form, { id: isDraftProvider(provider) ? undefined : provider.id, providerKey: provider.providerKey, name: provider.name, endpoint: provider.endpoint, authMode: provider.authMode, apiKey: '', models: provider.models.map(model => ({ ...model, ...(model.pricing ? { pricing: { ...model.pricing } } : {}) })), enabled: provider.enabled })
+  remoteModels.value = []
+  connectionState.value = 'idle'
+  connectionMessage.value = ''
 }
 
-function formatContextWindow(value: string | number) {
-  const tokens = Number(value)
-  if (!Number.isFinite(tokens)) return ''
-  if (tokens >= 1000000 && tokens % 1000000 === 0) return `${tokens / 1000000}M`
-  if (tokens >= 1000 && tokens % 1000 === 0) return `${tokens / 1000}K`
-  return `${tokens}`
+async function selectProvider(provider: ModelProviderSummary, skipConfirm = false) {
+  if (!skipConfirm && provider.id === selectedId.value) return
+  if (!skipConfirm && hasUnsavedChanges.value) {
+    try { await ElMessageBox.confirm('当前供应商的修改尚未保存，切换后将丢失这些修改。', '切换供应商', { confirmButtonText: '放弃修改', cancelButtonText: '继续编辑', type: 'warning' }) }
+    catch { return }
+  }
+  selectedId.value = provider.id
+  assignProvider(provider)
+  markFormClean()
+  const requestId = ++secretRequestId.value
+  if (!isDraftProvider(provider) && provider.authMode === 'api-key') {
+    const secret = await getPlatformApi()?.getModelProviderApiKey(provider.id)
+    if (requestId === secretRequestId.value && selectedId.value === provider.id) { form.apiKey = secret || ''; markFormClean() }
+  }
 }
 
-function parseContextWindow(value: string) {
-  const match = value.trim().replace(/,/g, '').match(/^(\d+(?:\.\d+)?)\s*([kKmM])?$/)
-  if (!match) return ''
-  const multiplier = match[2]?.toLowerCase() === 'm' ? 1000000 : match[2] ? 1000 : 1
-  return `${Math.round(Number(match[1]) * multiplier)}`
-}
-
-async function load() {
+async function load(preferredId?: string) {
   const api = getPlatformApi()
   loading.value = true
   try {
     const [loadedProviders, path] = await Promise.all([api?.listModelProviders() || [], api?.getModelConfigPath() || ''])
     providers.value = loadedProviders
     configPath.value = path
+    const entries = providerEntries.value
+    const selected = entries.find(provider => provider.id === (preferredId || selectedId.value)) || entries.find(isModelProviderAvailable) || entries.find(provider => !isDraftProvider(provider)) || entries[0]
+    if (selected) await selectProvider(selected, true)
   } finally { loading.value = false }
 }
 
-function refreshWhenVisible() {
-  if (document.visibilityState === 'visible') void load()
+function plainInput(): ModelProviderInput {
+  return { ...(form.id ? { id: form.id } : {}), providerKey: form.providerKey, name: form.name, endpoint: form.endpoint, authMode: form.authMode, ...(form.apiKey?.trim() ? { apiKey: form.apiKey.trim() } : {}), enabled: form.enabled, models: form.models.map(model => ({ ...toRaw(model), ...(model.pricing ? { pricing: { ...toRaw(model.pricing) } } : {}) })) }
+}
+
+async function saveProvider() {
+  const api = getPlatformApi()
+  if (!api) return ElMessage.error('模型仅支持在 Mira 桌面端保存')
+  if (!form.endpoint.trim()) return ElMessage.error('请填写 Endpoint')
+  if (form.enabled && form.authMode === 'api-key' && !form.apiKey?.trim()) return ElMessage.error('启用供应商前请填写 API Key')
+  if (form.enabled && !form.models.some(model => model.enabled)) return ElMessage.error('启用供应商前请至少启用一个模型')
+  saving.value = true
+  try {
+    const saved = await api.saveModelProvider(plainInput())
+    ElMessage.success('供应商配置已保存')
+    await load(saved.id)
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '供应商配置保存失败') }
+  finally { saving.value = false }
+}
+
+async function syncModels() {
+  const api = getPlatformApi()
+  if (!api || !form.endpoint.trim()) return ElMessage.warning('请先填写 Endpoint')
+  if (form.authMode === 'api-key' && !form.apiKey?.trim()) return ElMessage.warning('请先填写 API Key')
+  loadingModels.value = true
+  try {
+    const result = await api.listModelProviderModels(plainInput())
+    remoteModels.value = result.models || []
+    if (remoteModels.value.length) {
+      ElMessage.success(`已获取 ${remoteModels.value.length} 个模型`)
+      openModelDialog()
+    } else ElMessage.warning(result.error || '供应商未返回模型列表')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '模型列表获取失败') }
+  finally { loadingModels.value = false }
+}
+
+async function testConnection() {
+  const api = getPlatformApi()
+  const model = form.models.find(item => item.enabled) || form.models[0]
+  if (!api || !model) return
+  if (form.authMode === 'api-key' && !form.apiKey?.trim()) return ElMessage.warning('请先填写 API Key')
+  testing.value = true
+  connectionState.value = 'idle'
+  connectionMessage.value = ''
+  try {
+    const result = await api.testModelProvider(plainInput(), model.id)
+    connectionState.value = result.ok ? 'success' : 'error'
+    connectionMessage.value = result.text
+  } catch (error) {
+    connectionState.value = 'error'
+    connectionMessage.value = error instanceof Error ? error.message : '连接失败'
+  } finally { testing.value = false }
+}
+
+function resetModelDraft(model?: ProviderModelConfig) {
+  Object.assign(modelDraft, model ? { ...model, pricing: { ...model.pricing || DEFAULT_MODEL_PRICING } } : { id: '', enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
+  pricingEnabled.value = Boolean(model?.pricing)
+}
+
+function openModelDialog() { editingModelIndex.value = -1; resetModelDraft(); modelDialogVisible.value = true }
+function editModel(index: number) { editingModelIndex.value = index; resetModelDraft(form.models[index]); modelDialogVisible.value = true }
+function applyModelKnowledge() {
+  const knowledge = lookupModelKnowledge(modelDraft.id)
+  modelDraft.reasoning = knowledge?.reasoning ?? inferModelReasoning(modelDraft.id)
+  modelDraft.contextWindow = knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
+  pricingEnabled.value = Boolean(knowledge?.pricing)
+  modelDraft.pricing = { ...knowledge?.pricing || DEFAULT_MODEL_PRICING }
+}
+function confirmModel() {
+  const id = modelDraft.id.trim()
+  if (!id) return ElMessage.warning('请输入模型名称')
+  if (form.models.some((model, index) => model.id === id && index !== editingModelIndex.value)) return ElMessage.warning('该模型已存在')
+  const next = { id, enabled: modelDraft.enabled, reasoning: modelDraft.reasoning, contextWindow: modelDraft.contextWindow, ...(pricingEnabled.value ? { pricing: { ...modelDraft.pricing! } } : {}) }
+  if (editingModelIndex.value === -1) form.models.push(next)
+  else form.models.splice(editingModelIndex.value, 1, next)
+  modelDialogVisible.value = false
+}
+async function removeModel(index: number) {
+  try {
+    await ElMessageBox.confirm(`从该供应商移除 ${form.models[index].id}？`, '移除模型', { type: 'warning' })
+    form.models.splice(index, 1)
+  } catch {}
 }
 
 async function openConfigFile() {
   const error = await getPlatformApi()?.openModelConfigFile()
   if (error) ElMessage.error(error)
 }
+function refreshWhenVisible() { if (document.visibilityState === 'visible' && !hasUnsavedChanges.value) void load() }
 
-function setModelOptions(models: string[]) { modelOptions.value = [...new Set(models.map(item => item.trim()).filter(Boolean))] }
-
-async function loadModelNames() {
-  const requestId = ++modelRequestId.value
-  const preset = MODEL_PROVIDER_PRESETS.find(item => item.key === form.providerKey)
-  const needsKey = form.providerKey !== 'ollama' && form.providerKey !== 'custom'
-  setModelOptions([selectedModel.value, ...(preset?.models || [])])
-  modelQueryError.value = ''
-  const api = getPlatformApi()
-  if (!api || !form.endpoint.trim()) { loadingModels.value = false; return }
-  if (needsKey && !form.apiKey?.trim()) {
-    loadingModels.value = false
-    modelListMessage.value = '填写 API Key 后，会自动获取该供应商的真实模型列表；当前先显示内置列表，也可手动输入模型名称。'
-    return
-  }
-  modelListMessage.value = ''
-  loadingModels.value = true
-  try {
-    const result = await api.listModelProviderModels({ ...toRaw(form), models: selectedModel.value ? [selectedModel.value] : [], apiKey: form.apiKey?.trim() || undefined })
-    if (requestId === modelRequestId.value) {
-      // 兼容两种返回：新版 { models, error } 与旧版 string[]（主进程未重启时可能出现）。
-      const models = Array.isArray(result) ? result : (result?.models || [])
-      const error = Array.isArray(result) ? undefined : result?.error
-      if (models.length) {
-        setModelOptions([selectedModel.value, ...models])
-        modelQueryError.value = ''
-        modelListMessage.value = `已获取 ${models.length} 个模型。`
-      } else {
-        setModelOptions([selectedModel.value])
-        modelQueryError.value = error || '未能获取模型列表，可手动输入模型名称'
-      }
-    }
-  } finally {
-    if (requestId === modelRequestId.value) loadingModels.value = false
-  }
-}
-
-watch(() => form.apiKey, (value, oldValue) => {
-  const hadKey = Boolean(oldValue?.trim())
-  const hasKey = Boolean(value?.trim())
-  if (!hadKey && hasKey && visible.value) void loadModelNames()
-})
-
-function applyModelKnowledge() {
-  const model = selectedModel.value.trim()
-  const knowledge = lookupModelKnowledge(model)
-  form.reasoning = knowledge?.reasoning ?? inferModelReasoning(model)
-  form.contextWindow = knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
-  if (knowledge?.pricing) {
-    pricingEnabled.value = true
-    Object.assign(form.pricing!, knowledge.pricing)
-  } else {
-    pricingEnabled.value = false
-  }
-}
-
-function isMultimodal(row: ModelProviderSummary) {
-  return lookupModelKnowledge(row.models[0] || '')?.multimodal === true
-}
-
-function applyPreset() {
-  const preset = MODEL_PROVIDER_PRESETS.find(item => item.key === form.providerKey)
-  form.name = preset?.name || ''
-  form.endpoint = preset?.endpoint || ''
-  selectedModel.value = ''
-  form.models = []
-  form.reasoning = false
-  modelQueryError.value = ''
-  const needsKey = form.providerKey !== 'ollama' && form.providerKey !== 'custom'
-  modelListMessage.value = (preset && needsKey && !form.apiKey?.trim()) ? '填写 API Key 后，会自动获取该供应商的真实模型列表；当前显示内置列表，也可手动输入模型名称。' : ''
-  setModelOptions(preset?.models || [])
-}
-
-function openCreate() {
-  Object.assign(form, { id: undefined, providerKey: undefined, name: '', endpoint: '', apiKey: '', reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING }, enabled: true })
-  pricingEnabled.value = false
-  selectedModel.value = ''
-  modelOptions.value = []
-  showAdvanced.value = false
-  modelQueryError.value = ''
-  modelListMessage.value = ''
-  visible.value = true
-}
-
-async function edit(row: ModelProviderSummary) {
-  const api = getPlatformApi()
-  Object.assign(form, { id: row.id, providerKey: row.providerKey, name: row.name, endpoint: row.endpoint, apiKey: '', models: [...row.models], reasoning: row.reasoning, contextWindow: row.contextWindow, pricing: { ...row.pricing || DEFAULT_MODEL_PRICING }, enabled: row.enabled })
-  pricingEnabled.value = Boolean(row.pricing)
-  selectedModel.value = row.models[0] || ''
-  setModelOptions([selectedModel.value])
-  showAdvanced.value = advancedCount.value > 0
-  modelQueryError.value = ''
-  modelListMessage.value = ''
-  visible.value = true
-  if (api) form.apiKey = await api.getModelProviderApiKey(row.id)
-  void loadModelNames()
-}
-
-async function save() {
-  const api = getPlatformApi()
-  if (!api) return ElMessage.error('模型仅支持在 Mira 桌面端保存')
-  if (!form.providerKey) return ElMessage.error('请选择供应商')
-  const model = selectedModel.value.trim()
-  if (!model) return ElMessage.error('请选择或输入模型名称')
-  saving.value = true
-  try {
-    await api.saveModelProvider({ ...toRaw(form), pricing: pricingEnabled.value ? { ...form.pricing! } : null, models: [model], apiKey: form.apiKey?.trim() || undefined })
-    visible.value = false
-    await load()
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '模型保存失败')
-  } finally { saving.value = false }
-}
-
-async function remove(id: string) {
-  try {
-    await ElMessageBox.confirm('删除模型后不能恢复。', '删除模型', { type: 'warning' })
-    await getPlatformApi()?.deleteModelProvider(id)
-    await load()
-  } catch {}
-}
-
-onMounted(() => {
-  void load()
-  window.addEventListener('focus', refreshWhenVisible)
-  document.addEventListener('visibilitychange', refreshWhenVisible)
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('focus', refreshWhenVisible)
-  document.removeEventListener('visibilitychange', refreshWhenVisible)
-})
+onMounted(() => { void load(); window.addEventListener('focus', refreshWhenVisible); document.addEventListener('visibilitychange', refreshWhenVisible) })
+onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible); document.removeEventListener('visibilitychange', refreshWhenVisible) })
 </script>
 
 <style scoped lang="scss">
-.model-page { max-width: 920px; }
-.model-page__title { margin: 0 0 $spacing-lg; color: var(--cp-text); font-size: $font-lg; }
-.config-file-card { display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg; padding: 18px 20px; background: var(--cp-bg-hover); border-radius: $radius-sm; }
-.config-file-card h3 { margin: 0; color: var(--cp-text); font-size: $font-sm; }
-.config-file-card p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.config-file-card code, .config-file-link { color: var(--cp-primary); font-family: inherit; word-break: break-all; }
-.config-file-link { text-decoration: none; cursor: pointer; }
-.config-file-link:hover { text-decoration: underline; }
-.saved-models { margin-top: 32px; }
-.saved-models > h2 { margin: 0 0 $spacing-md; color: var(--cp-text); font-size: $font-base; }
-.saved-models__loading { min-height: 96px; }
-.model-list { display: grid; gap: 8px; }
-.model-row { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: $spacing-md; padding: 10px 16px; background: var(--cp-bg-hover); border-radius: $radius-sm; }
-.model-row__identity { display: flex; min-width: 0; align-items: center; gap: 12px; }
-.model-row__identity > div { min-width: 0; }
-.model-row h3 { overflow: hidden; margin: 0; color: var(--cp-text); font-size: $font-sm; text-overflow: ellipsis; white-space: nowrap; }
-.model-row p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.provider-mark { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; color: var(--cp-text-secondary); font-size: 16px; }
-.provider-mark img { width: 22px; height: 22px; object-fit: contain; }
-.model-row__actions { display: flex; flex: 0 0 auto; gap: 2px; }
-.model-row__actions :deep(.el-button) { margin: 0; }
-.model-empty { display: grid; min-height: 118px; place-items: center; padding: 22px; text-align: center; border: 1px dashed var(--cp-border); border-radius: $radius-sm; }
-.model-empty strong { color: var(--cp-text); font-size: $font-sm; }
-.model-empty p { margin: 8px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.dialog-header { display: flex; align-items: center; gap: 10px; }
-.dialog-header__title { color: var(--cp-text); font-size: $font-base; font-weight: 600; }
-.dialog-tag { padding: 3px 12px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border: 1px solid var(--cp-border); border-radius: 13px; font-size: $font-xs; line-height: 1.4; white-space: nowrap; }
-:deep(.el-dialog__body) { max-height: calc(100vh - 210px); overflow-y: auto; }
-.form-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-tertiary); font-size: $font-xs; line-height: 1.55; }
-.form-tip--error { color: var(--cp-danger); }
-.model-name-row { display: flex; width: 100%; align-items: center; gap: 8px; }
-.model-name-row .el-select { flex: 1; min-width: 0; }
-.model-name-row :deep(.el-button) { flex: 0 0 auto; }
-.context-window-input { width: 208px; }
-.context-window-presets { display: flex; width: 100%; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.context-window-presets button { height: 28px; padding: 0 12px; color: var(--cp-text-secondary); background: transparent; border: 0; border-radius: 14px; font: inherit; font-size: $font-sm; cursor: pointer; }
-.context-window-presets button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
-.context-window-presets button.active { color: var(--cp-text); background: var(--cp-border); }
-.pricing-intro { margin-top: 0; }.pricing-intro strong, .form-tip strong { color: var(--cp-text-secondary); font-weight: 600; }.pricing-grid { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }.pricing-field { display: flex; min-width: 0; flex-direction: column; gap: 5px; }.pricing-field--currency { grid-column: 1 / -1; }.pricing-field__label { color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.3; }.pricing-field__label small { color: var(--cp-text-tertiary); font-size: inherit; }.pricing-field :deep(.el-input-number), .pricing-field :deep(.el-input) { width: 100%; }
-.advanced-section { margin-top: 4px; }
-.advanced-toggle { display: flex; width: 100%; align-items: center; gap: 8px; padding: 12px 14px; background: var(--cp-bg-hover); border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); font: inherit; font-size: $font-xs; text-align: left; cursor: pointer; }
-.advanced-toggle:hover { color: var(--cp-text); background: var(--cp-border); }
-.advanced-toggle__label { flex: 0 0 auto; color: var(--cp-text); font-weight: 600; }
-.advanced-toggle__summary { flex: 1; min-width: 0; overflow: hidden; color: var(--cp-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
-.advanced-toggle__badge { display: inline-flex; min-width: 18px; height: 18px; align-items: center; justify-content: center; padding: 0 5px; color: var(--cp-text); background: var(--cp-border); border-radius: 9px; font-size: $font-xs; }
-.advanced-toggle__chevron { flex: 0 0 auto; }
-.advanced-body { margin-top: 4px; }
-.provider-option { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.provider-option__icon { width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
-@include media-max($breakpoint-md) {
-  .config-file-card { align-items: stretch; flex-direction: column; }
-  .config-file-card :deep(.el-button) { align-self: flex-start; }
+.provider-page { display: grid; height: 100%; min-width: 0; min-height: 560px; grid-template-columns: 260px minmax(0, 1fr); overflow: hidden; background: var(--cp-bg); }
+.provider-rail { display: flex; min-height: 0; flex-direction: column; background: var(--cp-bg); border-right: 1px solid var(--cp-border); }
+.provider-rail__header { padding: 24px 20px 18px; }
+.provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: 20px; line-height: 1.3; }
+.provider-rail__header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-list { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 10px 16px; }
+.provider-item { display: flex; width: 100%; min-height: 58px; align-items: center; gap: 11px; padding: 8px 10px; color: var(--cp-text); background: transparent; border: 0; border-radius: $radius-sm; font: inherit; text-align: left; cursor: pointer; }
+.provider-item:hover { background: var(--cp-border-light); }
+.provider-item.active { background: var(--cp-bg-hover); }
+.provider-mark, .provider-logo { display: grid; flex: 0 0 auto; place-items: center; background: #f5f5f4; border: 1px solid #e7e5e4; }
+.provider-mark { width: 34px; height: 34px; border-radius: 7px; }
+.provider-mark img { width: 23px; height: 23px; object-fit: contain; }
+.provider-item__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.provider-item__copy strong { overflow: hidden; font-size: $font-sm; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.provider-item__copy small { color: var(--cp-text-secondary); font-size: 11px; }
+.provider-status { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--cp-border); }
+.provider-status.available { background: var(--cp-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-success) 16%, transparent); }
+.provider-rail__footer, .provider-panel__footer { box-sizing: border-box; height: 64px; flex: 0 0 64px; border-top: 1px solid var(--cp-border); background: var(--cp-bg); }
+.provider-rail__footer { display: flex; align-items: center; padding: 0 14px; }
+.config-link { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 6px; color: var(--cp-text-secondary); background: transparent; border: 0; font: inherit; font-size: $font-xs; cursor: pointer; }
+.config-link span { flex: 1; text-align: left; }.config-link:hover { color: var(--cp-text); }
+.provider-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.provider-panel__header { display: flex; min-height: 88px; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 30px; border-bottom: 1px solid var(--cp-border); }
+.provider-identity { display: flex; min-width: 0; align-items: center; gap: 14px; }
+.provider-logo { width: 48px; height: 48px; border-radius: 8px; }.provider-logo img { width: 32px; height: 32px; object-fit: contain; }
+.provider-identity h2 { margin: 0; color: var(--cp-text); font-size: 19px; line-height: 1.35; }.provider-identity p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-enable { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-panel__body { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 30px 28px; }
+.settings-section { padding: 26px 0 30px; border-bottom: 1px solid var(--cp-border-light); }.settings-section:last-child { border-bottom: 0; }
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.section-heading h3 { margin: 0; color: var(--cp-text); font-size: $font-base; }.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
+.readiness { display: inline-flex; height: 26px; align-items: center; gap: 7px; padding: 0 10px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 13px; font-size: 11px; }.readiness i { width: 7px; height: 7px; border-radius: 50%; background: var(--cp-border); }.readiness.ready { color: var(--cp-success); }.readiness.ready i { background: var(--cp-success); }
+.connection-form { max-width: 700px; }.connection-form :deep(.el-form-item) { margin-bottom: 18px; }.connection-form :deep(.el-input__inner::placeholder), .model-dialog-form :deep(.el-input__inner::placeholder) { color: var(--cp-text-secondary); }.connection-form :deep(.el-input.is-disabled .el-input__inner) { -webkit-text-fill-color: var(--cp-text-secondary); }.field-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-secondary); font-size: 11px; }
+.no-auth-row { display: flex; max-width: 700px; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 14px; background: var(--cp-bg-hover); border-radius: $radius-sm; }.no-auth-row__icon { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-success); }.no-auth-row strong { color: var(--cp-text); font-size: $font-sm; }.no-auth-row p { margin: 3px 0 0; color: var(--cp-text-secondary); font-size: 11px; }
+.connection-actions, .model-actions { display: flex; align-items: center; gap: 10px; }.connection-result { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-text-secondary); font-size: $font-xs; }.connection-result.success { color: var(--cp-success); }.connection-result.error { color: var(--cp-danger); }
+.model-list { border-top: 1px solid var(--cp-border-light); }.model-row { display: grid; min-height: 62px; align-items: center; column-gap: 14px; grid-template-columns: auto minmax(180px, 1fr) 112px 92px auto; border-bottom: 1px solid var(--cp-border-light); }
+.model-row__identity { display: flex; min-width: 0; align-items: center; gap: 7px; }.model-row__identity strong { overflow: hidden; color: var(--cp-text); font-size: $font-sm; text-overflow: ellipsis; white-space: nowrap; }
+.model-badge { padding: 2px 6px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 3px; font-size: 10px; white-space: nowrap; }.model-meta { color: var(--cp-text-secondary); font-size: 11px; white-space: nowrap; }.model-row__actions { display: flex; gap: 2px; }.model-row__actions :deep(.el-button) { margin: 0; }
+.model-empty { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; color: var(--cp-text-secondary); background: transparent; border: 1px dashed var(--cp-border); border-radius: $radius-sm; font: inherit; cursor: pointer; }.model-empty:hover { border-color: var(--cp-primary); }.model-empty > span { display: grid; width: 32px; height: 32px; place-items: center; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: 50%; }.model-empty strong { color: var(--cp-text); font-size: $font-sm; }.model-empty small { color: var(--cp-text-secondary); font-size: 11px; }
+.provider-panel__footer { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 10px 30px; }.provider-panel__footer span { color: var(--cp-text-secondary); font-size: 11px; }
+.model-dialog-form :deep(.el-select) { width: 100%; }.model-dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.input-suffix { margin-left: 8px; color: var(--cp-text-secondary); font-size: $font-xs; }.pricing-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; padding-top: 16px; border-top: 1px solid var(--cp-border-light); }.pricing-heading strong { color: var(--cp-text); font-size: $font-sm; }.pricing-heading p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: 11px; }.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }.pricing-grid :deep(.el-input-number), .pricing-grid :deep(.el-input) { width: 100%; }
+@media (max-width: 1180px) {
+  .provider-page { grid-template-columns: 220px minmax(0, 1fr); }
+  .provider-panel__header, .provider-panel__footer { padding-right: 20px; padding-left: 20px; }
+  .provider-panel__body { padding-right: 20px; padding-left: 20px; }
+  .model-row { column-gap: 10px; grid-template-columns: auto minmax(120px, 1fr) 84px auto; }
+  .model-meta--pricing { display: none; }
 }
 </style>

@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
-import { DEFAULT_CONTEXT_WINDOW, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSource, type HarnessSubtaskRole, type HarnessTokenUsage, type ModelSelection, type PermissionMode, type HarnessUserAnswer } from '../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, isModelProviderAvailable, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, providerModel, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSource, type HarnessSubtaskRole, type HarnessTokenUsage, type ModelSelection, type PermissionMode, type HarnessUserAnswer } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
 import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
 import { withUsageCost } from './usageCost'
@@ -528,10 +528,11 @@ export class HarnessRuntime {
   private requireProvider(selection?: ModelSelection) {
     if (!selection?.providerId || !selection.modelId) throw new Error('请先选择一个可用模型')
     const provider = this.database.models.get(selection.providerId)
-    if (!provider?.models.includes(selection.modelId)) throw new Error('所选模型不属于当前供应商')
+    const configuredModel = provider && providerModel(provider, selection.modelId)
+    if (!configuredModel) throw new Error('所选模型不属于当前供应商')
     const apiKey = this.database.models.getSecret(selection.providerId)
-    if (!provider?.enabled || !apiKey) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
-    return { provider, apiKey }
+    if (!isModelProviderAvailable(provider) || !configuredModel.enabled || (provider.authMode === 'api-key' && !apiKey)) throw new Error('当前 Agent 模型不可用，请检查 Provider 配置')
+    return { provider, model: configuredModel, apiKey }
   }
 
   listMemory(scope: MemoryScope, projectId?: string) { return this.memoryCoordinator.list(scope, projectId) }
@@ -647,14 +648,15 @@ export class HarnessRuntime {
     this.database.harness.setActiveRun(sessionId, { id: runId, startedAt, activities, subtasks: [] })
     this.emit(sender, { sessionId, type: 'run-start', payload: { startedAt, activities, subtasks: [] } })
 
+    const modelConfig = providerModel(provider, selection.modelId)!
     let model: any
     let models!: ReturnType<typeof createModels>
     let agent!: Agent
     try {
       model = {
         id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
-        reasoning: provider.reasoning, compat: provider.reasoning ? { supportsReasoningEffort: true } : undefined,
-        input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: provider.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
+        reasoning: modelConfig.reasoning, compat: modelConfig.reasoning ? { supportsReasoningEffort: true } : undefined,
+        input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: modelConfig.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
       } as any
       models = createModels()
       models.setProvider(createProvider({
@@ -662,18 +664,18 @@ export class HarnessRuntime {
         auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
         models: [model], api: openAICompletionsApi(),
       }) as any)
-      session = await this.compactContext(sender, session, model, models, controller, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
+      session = await this.compactContext(sender, session, model, models, controller, modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
       const memory = options.planning ? { globalMemory: '', projectMemory: '', loaded: false } : this.memoryCoordinator.loadForRun(sender, sessionId, session, text, activities)
       const { globalMemory, projectMemory } = memory
       if (memory.loaded) publishActivities()
       const registeredTools = this.tools(sender, sessionId, options.planning ? { planning: true } : {})
       const preferences = this.database.getSnapshot().preferences
       const activeSkills = options.planning ? [] : this.database.skills.resolve(session.activeSkillIds || [])
-      const thinkingLevel = provider.reasoning ? selection.thinkingLevel || 'medium' : 'off'
+      const thinkingLevel = modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off'
       let taskTools: any[] = []
       if (!options.planning && origin === 'manual' && session.delegationEnabled !== false && session.workingDirectory) {
         const created = this.subtaskCoordinator.create({
-          sender, sessionId, session, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: provider.pricing,
+          sender, sessionId, session, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: modelConfig.pricing,
           publishActivities,
           toolsForTask: (role, taskId) => this.tools(sender, sessionId, { role, subtaskId: taskId }).tools,
           preflightToolCall: (name, args) => this.preflightSubtaskToolCall(name, args),
@@ -801,7 +803,7 @@ export class HarnessRuntime {
       finishRunningActivities('completed')
       const completedAt = Date.now()
       const parentUsage = tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined)
-      const pricedParentUsage = parentUsage ? withUsageCost(parentUsage, provider.pricing) : undefined
+      const pricedParentUsage = parentUsage ? withUsageCost(parentUsage, modelConfig.pricing) : undefined
       const childUsage = mergeUsage(subtasks?.list().map(task => task.usage) || [])
       const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
       flushAssistantDelta()
@@ -824,7 +826,7 @@ export class HarnessRuntime {
         void this.generateAutoTitle(sender, sessionId, models, model, autoTitleRevision)
       }
       if (origin === 'manual' && !options.planning) {
-        this.memoryCoordinator.scheduleAutoSave(sender, sessionId, models, model, provider.reasoning ? selection.thinkingLevel || 'medium' : 'off', (message, targetModel) => this.toAgentMessage(message, targetModel))
+        this.memoryCoordinator.scheduleAutoSave(sender, sessionId, models, model, modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off', (message, targetModel) => this.toAgentMessage(message, targetModel))
       }
       this.runCoordinator.publishComplete({ session, origin, status: 'completed', content: output })
       return { content: output, run }

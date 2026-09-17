@@ -50,7 +50,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { DEFAULT_PERMISSION_CONFIG, type HarnessFileChange, type HarnessSkill, type ModelProviderSummary, type PermissionConfig } from '@/config/harness'
+import { DEFAULT_PERMISSION_CONFIG, isModelProviderAvailable, type HarnessFileChange, type HarnessSkill, type ModelProviderSummary, type PermissionConfig } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 import HarnessMessageList from './components/HarnessMessageList.vue'
 import HarnessComposer from './components/HarnessComposer.vue'
@@ -86,7 +86,7 @@ const permissionRequest = computed(() => store.activeSession ? store.pendingPerm
 const projectId = computed(() => store.activeSession?.projectId || composerDraft.value.projectId)
 const selectedProject = computed(() => store.projects.find(project => project.id === projectId.value))
 const permissionLabel = computed(() => ({ default: '默认权限', 'auto-approve': '自动审核', full: '完全访问' }[store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode]))
-const hasConfiguredModels = computed(() => providers.value.some(provider => provider.enabled && provider.hasApiKey && provider.models.length))
+const hasConfiguredModels = computed(() => providers.value.some(isModelProviderAvailable))
 const starterPrompts: Array<{ icon: string, title: string, hint: string, text: string }> = [
   { icon: 'EditPen', title: '写一段文案', hint: '产品介绍、朋友圈、公告……', text: '帮我写一段产品介绍' },
   { icon: 'Document', title: '总结一篇文章', hint: '粘贴链接或长文本，我来提炼要点', text: '帮我总结这篇文章的要点：' },

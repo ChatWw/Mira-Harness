@@ -17,7 +17,7 @@ import { SkillStore } from './skillStore'
 import { AutomationStore } from './automationStore'
 import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../src/config/platformValidation'
-import { DEFAULT_ASSISTANT_TONE, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../src/config/harness'
+import { DEFAULT_ASSISTANT_TONE, isModelProviderAvailable, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../src/types'
 
 const CURRENT_SCHEMA_VERSION = 25
@@ -149,6 +149,7 @@ export class PlatformDatabase {
     const automationRunColumns = this.database.prepare('PRAGMA table_info(automation_runs)').all() as Array<{ name: string }>
     if (!automationRunColumns.some(column => column.name === 'retried_from')) this.database.exec('ALTER TABLE automation_runs ADD COLUMN retried_from TEXT')
     this.models.migrateLegacyBindings()
+    this.models.migrateLegacyProviderReferences()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
@@ -254,12 +255,15 @@ export class PlatformDatabase {
       }
     }
     let workspaceSettings = this.novels.getSettings()
-    if (workspaceSettings.modelSelection && !this.models.get(workspaceSettings.modelSelection.providerId)) {
-      workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: undefined })
+    if (workspaceSettings.modelSelection) {
+      const provider = this.models.get(workspaceSettings.modelSelection.providerId)
+      if (!provider) workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: undefined })
+      else if (provider.id !== workspaceSettings.modelSelection.providerId) workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: { ...workspaceSettings.modelSelection, providerId: provider.id } })
     }
     if (!workspaceSettings.modelSelection) {
-      const provider = this.models.list().find(item => item.enabled && item.hasApiKey && item.models.length)
-      if (provider) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: provider.models[0] } })
+      const provider = this.models.list().find(item => isModelProviderAvailable(item))
+      const model = provider?.models.find(item => item.enabled)
+      if (provider && model) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: model.id } })
     }
     const insertPreference = this.database.prepare('INSERT OR IGNORE INTO preferences(key, value) VALUES (?, ?)')
     Object.entries(DEFAULT_PREFERENCES).forEach(([key, value]) => insertPreference.run(key, JSON.stringify(value)))
