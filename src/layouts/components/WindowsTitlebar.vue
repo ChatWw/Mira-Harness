@@ -29,7 +29,7 @@
     </nav>
 
     <div class="windows-titlebar__actions">
-      <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
+      <el-tooltip v-if="showSearch" content="全局搜索 (Ctrl+K)" placement="bottom">
         <button type="button" class="windows-titlebar__search" aria-label="全局搜索" @click="commandPaletteStore.open()">
           <AppIcon name="Search" />
         </button>
@@ -52,8 +52,9 @@
 <script setup lang="ts">
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 
-withDefaults(defineProps<{ menuLeft?: number }>(), {
+withDefaults(defineProps<{ menuLeft?: number, showSearch?: boolean }>(), {
   menuLeft: 20,
+  showSearch: true,
 })
 
 const commandPaletteStore = useCommandPaletteStore()

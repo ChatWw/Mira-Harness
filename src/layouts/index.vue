@@ -29,6 +29,11 @@
 
       <div v-if="windowChrome !== 'windows-overlay'" class="window-titlebar-drag-region" aria-hidden="true" />
 
+      <WindowsTitlebar
+        v-if="windowChrome === 'windows-overlay'"
+        :menu-left="showSidebar ? 60 : 20"
+      />
+
       <div v-if="showSidebar" class="sidebar-window-controls">
         <button
           type="button"
@@ -43,12 +48,7 @@
         </button>
       </div>
 
-      <WindowsTitlebar
-        v-if="windowChrome === 'windows-overlay'"
-        :menu-left="showSidebar ? 60 : 20"
-      />
-
-      <div v-else class="window-titlebar-actions">
+      <div v-if="windowChrome !== 'windows-overlay'" class="window-titlebar-actions">
         <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
           <button type="button" class="titlebar-search" aria-label="全局搜索" @click="openSearch"><AppIcon name="Search" /></button>
         </el-tooltip>
@@ -254,14 +254,14 @@ const layoutClasses = computed(() => {
 
   .sidebar-window-controls {
     position: fixed;
-    z-index: 110;
+    z-index: 120;
     top: 2px;
     left: 20px;
     display: grid;
     width: 32px;
     height: 32px;
     place-items: center;
-    -webkit-app-region: drag;
+    -webkit-app-region: no-drag !important;
   }
 
   .window-titlebar-drag-region {
