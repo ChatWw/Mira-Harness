@@ -1,5 +1,5 @@
 <template>
-  <aside class="settings-sidebar">
+  <aside class="settings-sidebar" :class="`settings-sidebar--${windowChrome}`">
     <button class="back-button" type="button" aria-label="返回应用" @click="returnToApplication">
       <AppIcon name="lucide:arrow-left" />
       <span>返回应用</span>
@@ -29,6 +29,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+const windowChrome = window.platform?.windowChrome ?? 'standard'
 type SettingsNavItem = {
   key: string
   label: string
@@ -97,7 +98,7 @@ function goToSection(path: string) {
   flex: 0 0 240px;
   flex-direction: column;
   gap: 30px;
-  padding: 48px 8px 24px;
+  padding: 0 8px 24px;
   border-right: 1px solid var(--cp-border-light);
   background: color-mix(in srgb, var(--cp-bg-elevated) 88%, transparent);
   min-height: 0;
@@ -105,6 +106,10 @@ function goToSection(path: string) {
   position: relative;
   z-index: 1;
   box-shadow: inset -10px 0 16px -16px rgb(24 24 27 / 18%);
+}
+
+.settings-sidebar--macos-overlay {
+  padding-top: 48px;
 }
 
 .back-button,

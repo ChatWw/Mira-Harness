@@ -1,5 +1,12 @@
 <template>
-  <main class="settings-page" :class="{ 'is-macos-overlay': isMacOverlay }">
+  <main
+    class="settings-page"
+    :class="{
+      'is-macos-overlay': isMacOverlay,
+      'is-windows-overlay': isWindowsOverlay,
+    }"
+  >
+    <WindowsTitlebar v-if="isWindowsOverlay" />
     <SettingsSiderMenu />
 
     <section class="settings-main">
@@ -14,16 +21,21 @@
 </template>
 
 <script setup lang="ts">
+import WindowsTitlebar from '@/layouts/components/WindowsTitlebar.vue'
 import SettingsSiderMenu from './SettingsSiderMenu.vue'
 
 defineProps<{ title: string, wide?: boolean, workspace?: boolean, showTitle?: boolean }>()
 
-const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
+const windowChrome = window.platform?.windowChrome ?? 'standard'
+const isMacOverlay = windowChrome === 'macos-overlay'
+const isWindowsOverlay = windowChrome === 'windows-overlay'
 </script>
 
 <style scoped lang="scss">
 .settings-page {
+  --cp-titlebar-height: 36px;
   position: relative;
+  box-sizing: border-box;
   display: flex;
   width: 100%;
   height: 100vh;
@@ -31,6 +43,14 @@ const isMacOverlay = window.platform?.windowChrome === 'macos-overlay'
   overflow: hidden;
   background: var(--cp-bg);
   color: var(--cp-text);
+}
+
+.settings-page.is-windows-overlay {
+  padding-top: var(--cp-titlebar-height);
+}
+
+.settings-page.is-windows-overlay .settings-main__content:not(.is-workspace) {
+  padding-top: 40px;
 }
 
 .settings-page.is-macos-overlay::before {
