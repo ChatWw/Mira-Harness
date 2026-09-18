@@ -15,7 +15,7 @@
           :class="[{ 'is-selected': themeStore.themePreference === mode.value }, `is-${mode.value}`]"
           role="radio"
           :aria-checked="themeStore.themePreference === mode.value"
-          @click="handleThemeModeChange(mode.value)"
+          @click="handleThemeModeChange(mode.value, $event)"
         >
           <span class="theme-preview" :class="{ 'theme-preview--system': mode.value === 'system' }" aria-hidden="true">
             <template v-if="mode.value === 'system'">
@@ -208,8 +208,8 @@ const pageTransitions = [
   { value: 'none' as PageTransition, label: '无动画' },
 ]
 
-function handleThemeModeChange(mode: ThemePreference) {
-  themeStore.setThemeModeWithTransition(mode, undefined, layoutStore.config.themeTransitionAnimation)
+function handleThemeModeChange(mode: ThemePreference, event: MouseEvent) {
+  themeStore.setThemeModeWithTransition(mode, event, layoutStore.config.themeTransitionAnimation)
 }
 
 function handleDynamicTitleChange(value: boolean) {
@@ -323,7 +323,8 @@ function handleDynamicTitleChange(value: boolean) {
 .visual-setting__label { display: block; margin-bottom: 10px; color: var(--cp-text); font-size: $font-sm; }
 .layout-preview, .sidebar-preview, .transition-preview { display: flex; height: 72px; overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: 6px; background: var(--cp-bg-elevated); }
 
-.sidebar-preview { position: relative; gap: 8px; padding: 8px; }
+.sidebar-preview { position: relative; gap: 8px; padding: 16px 8px 8px; }
+.sidebar-preview::before { position: absolute; top: 6px; right: 8px; left: 8px; height: 4px; border-radius: 2px; background: var(--cp-border-light); content: ''; }
 .sidebar-preview__sider, .sidebar-preview__main { display: flex; flex-direction: column; gap: 5px; padding: 7px; border-radius: 3px; }
 .sidebar-preview__sider { width: 36px; flex: 0 0 auto; background: var(--cp-bg-elevated); }
 .sidebar-preview__main { flex: 1; background: var(--cp-bg); }
@@ -334,10 +335,11 @@ function handleDynamicTitleChange(value: boolean) {
 .sidebar-preview__main span:nth-child(3) { width: 64%; }
 .sidebar-card.is-embedded .sidebar-preview { gap: 0; background: var(--cp-bg-elevated); }
 .sidebar-card.is-embedded .sidebar-preview__main { border: 1px solid var(--cp-border-light); border-radius: 5px; }
-.sidebar-card.is-floating .sidebar-preview { gap: 8px; background: var(--cp-bg); }
-.sidebar-card.is-floating .sidebar-preview__sider { margin: 2px 0; border: 1px solid var(--cp-border-light); box-shadow: 0 4px 9px rgb(24 24 27 / 10%); }
-.sidebar-card.is-docked .sidebar-preview { gap: 0; padding: 0; background: var(--cp-bg); }
-.sidebar-card.is-docked .sidebar-preview__sider, .sidebar-card.is-docked .sidebar-preview__main { border-radius: 0; }
+.sidebar-card.is-floating .sidebar-preview { gap: 8px; background: var(--cp-bg-elevated); }
+.sidebar-card.is-floating .sidebar-preview__sider { margin: 2px 0; border: 1px solid var(--cp-border-light); background: var(--cp-bg); box-shadow: 0 4px 9px rgb(24 24 27 / 10%); }
+.sidebar-card.is-docked .sidebar-preview { gap: 0; padding: 16px 4px 4px; background: var(--cp-bg-elevated); }
+.sidebar-card.is-docked .sidebar-preview__sider { border-radius: 4px 0 0 4px; background: var(--cp-bg); }
+.sidebar-card.is-docked .sidebar-preview__main { border-radius: 0 4px 4px 0; }
 .sidebar-card.is-docked .sidebar-preview__sider { border-right: 1px solid var(--cp-border); }
 
 .transition-preview { position: relative; align-items: center; justify-content: center; }

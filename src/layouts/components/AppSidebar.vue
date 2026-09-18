@@ -26,9 +26,6 @@
         <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
         <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
       </div>
-      <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
-        <button type="button" class="chrome-action" aria-label="全局搜索" @click="handleSearch"><AppIcon name="Search" /></button>
-      </el-tooltip>
     </div>
 
     <div class="sidebar-fixed-action" :class="{ 'is-scrolled': sidebarScrolled }">
@@ -70,8 +67,8 @@
               <AppIcon name="lucide:paintbrush-vertical" /><span>外观</span>
             </button>
             <div class="theme-segment" role="radiogroup" aria-label="主题模式">
-              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'light' }" @click="setTheme('light')">浅色</button>
-              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'dark' }" @click="setTheme('dark')">深色</button>
+              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'light' }" @click="setTheme('light', $event)">浅色</button>
+              <button type="button" :class="{ 'is-active': themeStore.themeMode === 'dark' }" @click="setTheme('dark', $event)">深色</button>
             </div>
           </div>
           <div class="settings-menu-item settings-menu-item--submenu">
@@ -130,7 +127,6 @@ import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/c
 import { applications, runtimeNavigation } from '@/config/runtime'
 import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
-import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { useThemeStore } from '@/stores/theme'
 import type { MenuItem } from '@/types'
 import SidebarMenuItem from './SidebarMenuItem.vue'
@@ -147,7 +143,6 @@ const emit = defineEmits<{
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
 const harnessStore = useHarnessStore()
-const commandPaletteStore = useCommandPaletteStore()
 const themeStore = useThemeStore()
 const menuRef = ref<{ close: (index: string) => void }>()
 const openedSubmenuIndexes = ref<string[]>([])
@@ -195,10 +190,6 @@ async function newSession() {
   await router.push({ path: '/workspace/chat', query: { draft } })
 }
 
-function handleSearch() {
-  commandPaletteStore.open()
-}
-
 function handleWindowCommand(action: string) {
   void window.platform?.windowCommand(action)
 }
@@ -228,8 +219,8 @@ function openHelp() {
   void router.push({ path: '/settings/about', query: { from: route.fullPath } })
 }
 
-function setTheme(mode: 'light' | 'dark') {
-  themeStore.setThemeModeWithTransition(mode, undefined, layoutStore.config.themeTransitionAnimation)
+function setTheme(mode: 'light' | 'dark', event: MouseEvent) {
+  themeStore.setThemeModeWithTransition(mode, event, layoutStore.config.themeTransitionAnimation)
 }
 
 function checkUpdate() {
@@ -292,7 +283,7 @@ watch(
   flex-shrink: 0;
 
   .sidebar-window-chrome {
-    height: 48px;
+    height: var(--cp-titlebar-height, 36px);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -358,7 +349,7 @@ watch(
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0 8px;
+    padding: 8px 0 0 14px;
     flex-shrink: 0;
     -webkit-app-region: drag;
 
@@ -367,7 +358,6 @@ watch(
     }
   }
 
-  .chrome-action,
   .compact-brand {
     display: grid;
     width: 32px;

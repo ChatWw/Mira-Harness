@@ -146,11 +146,9 @@ function createWindow() {
     width: 1440, height: 900, minWidth: 1024, minHeight: 680,
     show: false,
     backgroundColor: '#f7f7f8',
+    frame: !isWindows,
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
-    ...(isMac ? { trafficLightPosition: { x: 24, y: 24 } } : {}),
-    ...(isWindows ? {
-      titleBarOverlay: { color: '#00000000', symbolColor: '#18181b', height: 48 },
-    } : {}),
+    ...(isMac ? { trafficLightPosition: { x: 24, y: 12 } } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   })
   window.on('close', event => {
@@ -439,11 +437,8 @@ app.whenReady().then(async () => {
     localMicroAppServer.setApps(next.microApps)
     return next
   })
-  ipcMain.handle('window:set-titlebar-chrome', (event, chrome: { color: string; symbolColor: string; height?: number }) => {
-    if (process.platform !== 'win32') return
-    const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
-    win?.setTitleBarOverlay({ ...chrome, color: '#00000000' })
-  })
+  // Windows uses application-drawn controls, so theme transitions no longer touch native title-bar chrome.
+  ipcMain.handle('window:set-titlebar-chrome', () => {})
   ipcMain.handle('window:command', (event, action: string) => {
     const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
     if (!win) return

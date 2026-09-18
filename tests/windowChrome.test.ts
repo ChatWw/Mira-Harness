@@ -9,8 +9,8 @@ import {
 
 describe('Windows title-bar chrome', () => {
   it('keeps the native overlay transparent in light and dark themes', () => {
-    expect(resolveWindowChrome('light')).toEqual({ color: '#00000000', symbolColor: '#18181b', height: 48 })
-    expect(resolveWindowChrome('dark')).toEqual({ color: '#00000000', symbolColor: '#fafafa', height: 48 })
+    expect(resolveWindowChrome('light')).toEqual({ color: '#00000000', symbolColor: '#18181b', height: 36 })
+    expect(resolveWindowChrome('dark')).toEqual({ color: '#00000000', symbolColor: '#fafafa', height: 36 })
   })
 
   it('delays animated symbol updates until the animation midpoint', () => {

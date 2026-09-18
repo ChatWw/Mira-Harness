@@ -27,6 +27,8 @@
         </div>
       </div>
 
+      <div class="window-titlebar-drag-region" aria-hidden="true" />
+
       <div v-if="showSidebar" class="sidebar-window-controls">
         <button
           type="button"
@@ -41,6 +43,17 @@
         </button>
       </div>
 
+      <div class="window-titlebar-actions">
+        <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
+          <button type="button" class="titlebar-search" aria-label="全局搜索" @click="openSearch"><AppIcon name="Search" /></button>
+        </el-tooltip>
+        <div v-if="windowChrome === 'windows-overlay'" class="windows-window-controls" aria-label="窗口控制">
+          <button type="button" class="windows-window-control" aria-label="最小化" @click="runWindowCommand('minimize')"><span class="windows-window-control__glyph windows-window-control__glyph--minimize" /></button>
+          <button type="button" class="windows-window-control" aria-label="最大化或还原" @click="runWindowCommand('maximize')"><span class="windows-window-control__glyph windows-window-control__glyph--maximize" /></button>
+          <button type="button" class="windows-window-control windows-window-control--close" aria-label="关闭窗口" @click="runWindowCommand('close')"><span class="windows-window-control__glyph windows-window-control__glyph--close" /></button>
+        </div>
+      </div>
+
       <SearchBar />
     </div>
   </el-watermark>
@@ -53,6 +66,7 @@ import { useRoute } from 'vue-router'
 import { getVisibleMenus, isWorkspacePath, resolveNavigation } from '@/config/navigation'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
 import AppSidebar from './components/AppSidebar.vue'
 import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
@@ -60,6 +74,7 @@ import SearchBar from '@/components/SearchBar/index.vue'
 
 const appStore = useAppStore()
 const layoutStore = useLayoutStore()
+const commandPaletteStore = useCommandPaletteStore()
 const route = useRoute()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
@@ -122,6 +137,14 @@ function toggleSidebar() {
   appStore.toggleSidebar()
 }
 
+function openSearch() {
+  commandPaletteStore.open()
+}
+
+function runWindowCommand(action: 'minimize' | 'maximize' | 'close') {
+  void window.platform?.windowCommand(action)
+}
+
 onBeforeUnmount(() => {
   if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
 })
@@ -170,25 +193,15 @@ const layoutClasses = computed(() => {
   height: 100vh;
   overflow: hidden;
   background: var(--cp-bg);
+  --cp-titlebar-height: 36px;
   --cp-window-controls-inset: 0px;
   --cp-mac-collapsed-safe-inset: 0px;
-
-  &--windows-overlay {
-    --cp-window-controls-inset: max(150px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 150px))));
-  }
-
-  &--macos-overlay.sidebar-collapsed {
-    --cp-mac-collapsed-safe-inset: 112px;
-  }
-
-  &--macos-overlay.layout--without-workspace-menu {
-    --cp-mac-collapsed-safe-inset: 80px;
-  }
 
   .layout-workspace {
     width: 100%;
     height: 100%;
     display: flex;
+    padding-top: var(--cp-titlebar-height);
     overflow: hidden;
   }
 
@@ -203,6 +216,10 @@ const layoutClasses = computed(() => {
       width var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1),
       flex-basis var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1);
 
+    &:not(.is-collapsed) :deep(.sidebar-window-chrome) {
+      display: none;
+    }
+
     &.is-collapsed {
       width: 0;
       flex-basis: 0;
@@ -211,14 +228,15 @@ const layoutClasses = computed(() => {
 
       :deep(.app-sidebar) {
         position: fixed;
-        top: 8px;
-        bottom: 8px;
-        left: 8px;
+        top: 0;
+        bottom: 0;
+        left: 0;
         width: 240px !important;
-        height: auto;
-        border: 1px solid var(--cp-layout-border);
-        border-radius: var(--cp-radius-xl);
-        box-shadow: 0 12px 32px rgb(24 24 27 / 12%);
+        height: 100vh;
+        border: 0;
+        border-right: 1px solid var(--cp-layout-border);
+        border-radius: 0;
+        box-shadow: 12px 0 28px rgb(24 24 27 / 14%);
       }
 
     }
@@ -234,19 +252,130 @@ const layoutClasses = computed(() => {
   .sidebar-panel-enter-from,
   .sidebar-panel-leave-to {
     opacity: 0;
-    transform: translateX(-12px);
+    transform: translateX(-100%);
   }
 
   .sidebar-window-controls {
     position: fixed;
     z-index: 110;
-    top: 15px;
+    top: 2px;
     left: 20px;
     display: grid;
     width: 32px;
     height: 32px;
     place-items: center;
     -webkit-app-region: drag;
+  }
+
+  .window-titlebar-drag-region {
+    position: fixed;
+    z-index: 100;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: var(--cp-titlebar-height);
+    -webkit-app-region: drag;
+  }
+
+  .window-titlebar-actions {
+    position: fixed;
+    z-index: 110;
+    top: 0;
+    right: 16px;
+    display: flex;
+    height: var(--cp-titlebar-height);
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+
+  .titlebar-search {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-radius-md);
+    color: var(--cp-text-secondary);
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--cp-text);
+      background: var(--cp-sidebar-menu-hover-bg);
+      outline: none;
+    }
+  }
+
+  .windows-window-controls {
+    display: flex;
+    height: 100%;
+    margin-right: -16px;
+  }
+
+  .windows-window-control {
+    display: grid;
+    width: 44px;
+    height: 100%;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    color: var(--cp-text-secondary);
+    background: transparent;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--cp-text);
+      background: var(--cp-bg-hover);
+      outline: none;
+    }
+
+    &--close:hover,
+    &--close:focus-visible {
+      color: #fff;
+      background: #c42b1c;
+    }
+  }
+
+  .windows-window-control__glyph {
+    position: relative;
+    display: block;
+    width: 10px;
+    height: 10px;
+
+    &--minimize::after {
+      position: absolute;
+      right: 0;
+      bottom: 1px;
+      left: 0;
+      height: 1px;
+      background: currentcolor;
+      content: '';
+    }
+
+    &--maximize {
+      width: 10px;
+      height: 10px;
+      border: 1px solid currentcolor;
+    }
+
+    &--close::before,
+    &--close::after {
+      position: absolute;
+      top: 4px;
+      left: 0;
+      width: 12px;
+      height: 1px;
+      background: currentcolor;
+      content: '';
+    }
+
+    &--close::before { transform: rotate(45deg); }
+    &--close::after { transform: rotate(-45deg); }
   }
 
   .sidebar-toggle {
@@ -294,11 +423,11 @@ const layoutClasses = computed(() => {
     }
 
     .main-container {
-      margin: 12px 12px 12px 0;
+      margin: 0 12px 12px 0;
       background: var(--cp-bg);
       border: 1px solid var(--cp-layout-border);
       border-radius: var(--cp-radius-xl);
-      box-shadow: 0 10px 30px rgb(24 24 27 / 4%);
+      box-shadow: 0 8px 24px rgb(24 24 27 / 5%);
     }
 
     :deep(.app-sidebar) {
@@ -320,50 +449,83 @@ const layoutClasses = computed(() => {
 
   }
 
-  // 浮动：Main 保持平面，仅侧栏内缩并悬浮。
+  // 浮动：窗口底色包裹两块内缩面板，侧栏通过阴影强调悬浮层级。
   &--sidebar-style-floating {
+    background: var(--cp-bg-elevated);
+
     .layout-workspace {
-      background: var(--cp-bg);
+      background: var(--cp-bg-elevated);
     }
 
     .main-container {
+      margin: 0 12px 12px 0;
+      overflow: hidden;
       background: var(--cp-bg);
+      border-radius: var(--cp-radius-xl);
     }
 
     .sidebar-host:not(.is-collapsed) {
       width: 264px;
       flex-basis: 264px;
-      padding: 12px;
-      overflow: visible;
+      padding: 0 12px 12px;
+      overflow: hidden;
     }
 
     .sidebar-host:not(.is-collapsed) :deep(.app-sidebar) {
       height: 100%;
       overflow: hidden;
-      background: var(--cp-bg-elevated);
+      background: var(--cp-bg);
       border: 1px solid var(--cp-layout-border);
       border-radius: var(--cp-radius-xl);
-      box-shadow: 0 10px 26px rgb(24 24 27 / 7%);
+      box-shadow: 0 8px 24px rgb(24 24 27 / 8%);
     }
 
     :deep(.el-sub-menu .el-menu) {
       background: var(--cp-bg-elevated);
+    }
+
+    &.layout--without-workspace-menu .main-container,
+    &.sidebar-collapsed .main-container {
+      margin-left: 12px;
     }
 
   }
 
-  // 分栏：两栏贴边，只用分隔线表达层级。
+  // 分栏：两栏组成一块内缩面板，内部只用分隔线划分区域。
   &--sidebar-style-docked {
-    :deep(.app-sidebar) {
-      border-right: 1px solid var(--cp-layout-border);
+    background: var(--cp-bg-elevated);
+
+    .layout-workspace {
+      padding-right: 12px;
+      padding-bottom: 12px;
+      padding-left: 12px;
+      background: var(--cp-bg-elevated);
+    }
+
+    .main-container {
+      overflow: hidden;
+      background: var(--cp-bg);
+      border-radius: 0 var(--cp-radius-xl) var(--cp-radius-xl) 0;
+    }
+
+    .sidebar-host:not(.is-collapsed) {
+      overflow: hidden;
+      background: var(--cp-bg);
+      border-radius: var(--cp-radius-xl) 0 0 var(--cp-radius-xl);
     }
 
     :deep(.app-sidebar) {
+      border-right: 1px solid var(--cp-layout-border);
       background: transparent;
     }
 
     :deep(.el-sub-menu .el-menu) {
       background: transparent;
+    }
+
+    &.layout--without-workspace-menu .main-container,
+    &.sidebar-collapsed .main-container {
+      border-radius: var(--cp-radius-xl);
     }
 
   }
@@ -373,7 +535,7 @@ const layoutClasses = computed(() => {
     z-index: 100;
     background: var(--cp-sidebar-bg) !important;
     border-color: var(--cp-layout-border);
-    box-shadow: 0 12px 32px rgb(24 24 27 / 16%);
+    box-shadow: 12px 0 28px rgb(24 24 27 / 14%);
     isolation: isolate;
   }
 

@@ -1,6 +1,6 @@
 import type { PlatformApi, ThemeMode } from '@/types'
 
-export const WINDOW_CHROME_HEIGHT = 48
+export const WINDOW_CHROME_HEIGHT = 36
 
 export function resolveWindowChrome(theme: ThemeMode) {
   return {
