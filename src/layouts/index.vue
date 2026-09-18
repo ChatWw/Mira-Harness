@@ -43,6 +43,37 @@
         </button>
       </div>
 
+      <nav
+        v-if="windowChrome === 'windows-overlay'"
+        class="windows-titlebar-menu"
+        :class="{ 'is-without-sidebar': !showSidebar }"
+        aria-label="应用菜单"
+      >
+        <el-dropdown
+          v-for="group in windowsMenuGroups"
+          :key="group.label"
+          trigger="click"
+          placement="bottom-start"
+          :show-arrow="false"
+          popper-class="windows-titlebar-menu-popper"
+          @command="runWindowCommand"
+        >
+          <button type="button" class="windows-titlebar-menu__trigger">{{ group.label }}</button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="item in group.items"
+                :key="item.action"
+                :command="item.action"
+                :divided="item.divided"
+              >
+                {{ item.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </nav>
+
       <div class="window-titlebar-actions">
         <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
           <button type="button" class="titlebar-search" aria-label="全局搜索" @click="openSearch"><AppIcon name="Search" /></button>
@@ -79,6 +110,13 @@ const route = useRoute()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
+type WindowMenuGroup = { label: string; items: Array<{ label: string; action: string; divided?: boolean }> }
+const windowsMenuGroups: WindowMenuGroup[] = [
+  { label: '应用', items: [{ label: '关于 Mira', action: 'about' }, { label: '退出 Mira', action: 'quit', divided: true }] },
+  { label: '编辑', items: [{ label: '撤销', action: 'undo' }, { label: '重做', action: 'redo' }, { label: '剪切', action: 'cut', divided: true }, { label: '复制', action: 'copy' }, { label: '粘贴', action: 'paste' }, { label: '全选', action: 'selectAll' }] },
+  { label: '视图', items: [...(import.meta.env.DEV ? [{ label: '重新加载', action: 'reload' }, { label: '开发者工具', action: 'toggleDevTools' }] : []), { label: '切换全屏', action: 'toggleFullscreen', divided: import.meta.env.DEV }] },
+  { label: '窗口', items: [{ label: '最小化', action: 'minimize' }, { label: '最大化/还原', action: 'maximize' }, { label: '关闭窗口', action: 'close' }] },
+]
 const sidebarFlyoutVisible = ref(false)
 const sidebarFlyoutArmed = ref(false)
 const sidebarPointerInside = ref(false)
@@ -141,7 +179,7 @@ function openSearch() {
   commandPaletteStore.open()
 }
 
-function runWindowCommand(action: 'minimize' | 'maximize' | 'close') {
+function runWindowCommand(action: string) {
   void window.platform?.windowCommand(action)
 }
 
@@ -287,6 +325,40 @@ const layoutClasses = computed(() => {
     align-items: center;
     gap: 8px;
     -webkit-app-region: no-drag;
+  }
+
+  .windows-titlebar-menu {
+    position: fixed;
+    z-index: 110;
+    top: 0;
+    left: 60px;
+    display: flex;
+    height: var(--cp-titlebar-height);
+    align-items: center;
+    -webkit-app-region: no-drag;
+
+    &.is-without-sidebar {
+      left: 20px;
+    }
+  }
+
+  .windows-titlebar-menu__trigger {
+    height: 28px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: var(--cp-radius-sm);
+    color: var(--cp-text-secondary);
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--cp-text);
+      background: var(--cp-bg-hover);
+      outline: none;
+    }
   }
 
   .titlebar-search {
@@ -549,4 +621,34 @@ const layoutClasses = computed(() => {
   }
 }
 
+</style>
+
+<style lang="scss">
+.el-popper.windows-titlebar-menu-popper,
+.windows-titlebar-menu-popper {
+  min-width: 160px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius-md);
+  background: var(--cp-bg-elevated) !important;
+  box-shadow: 0 8px 24px rgb(24 24 27 / 14%);
+
+  .el-dropdown-menu {
+    padding: 4px;
+    background: transparent;
+  }
+
+  .el-dropdown-menu__item {
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: var(--cp-radius-sm);
+    color: var(--cp-text);
+    font-size: 13px;
+
+    &:hover,
+    &:focus {
+      color: var(--cp-text);
+      background: var(--cp-bg-hover);
+    }
+  }
+}
 </style>

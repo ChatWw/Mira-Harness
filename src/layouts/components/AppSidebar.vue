@@ -8,21 +8,7 @@
     </div>
 
     <div class="sidebar-identity-row">
-      <el-dropdown
-        v-if="isWindowsOverlay && showBrand"
-        trigger="click"
-        placement="bottom-start"
-        popper-class="windows-mira-menu-popper"
-        @command="handleWindowCommand"
-      >
-        <button type="button" class="sidebar-brand sidebar-brand--button">
-          <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
-          <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
-          <AppIcon name="ArrowDown" class="brand-arrow" />
-        </button>
-        <template #dropdown><WindowMenuItems :groups="windowsMenuGroups" /></template>
-      </el-dropdown>
-      <div v-else-if="showBrand" class="sidebar-brand">
+      <div v-if="showBrand" class="sidebar-brand">
         <img v-if="layoutStore.config.showLogo" :src="miraLogo" class="brand-logo" alt="" />
         <span class="brand-text" :class="{ 'brand-text-shimmer': layoutStore.config.titleShimmerAnimation }">Mira</span>
       </div>
@@ -118,8 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, watch } from 'vue'
-import { ElDropdownItem, ElDropdownMenu } from 'element-plus'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
@@ -150,21 +135,6 @@ const sidebarScrolled = ref(false)
 const settingsMenuVisible = ref(false)
 const appFlyoutVisible = ref(false)
 const windowChrome = window.platform?.windowChrome ?? 'standard'
-const isWindowsOverlay = windowChrome === 'windows-overlay'
-type WindowMenuGroup = { label: string; items: Array<{ label: string; action: string; divided?: boolean }> }
-const windowsMenuGroups: WindowMenuGroup[] = [
-  { label: '应用', items: [{ label: '关于 Mira', action: 'about' }, { label: '退出 Mira', action: 'quit', divided: true }] },
-  { label: '编辑', items: [{ label: '撤销', action: 'undo' }, { label: '重做', action: 'redo' }, { label: '剪切', action: 'cut', divided: true }, { label: '复制', action: 'copy' }, { label: '粘贴', action: 'paste' }, { label: '全选', action: 'selectAll' }] },
-  { label: '视图', items: [...(import.meta.env.DEV ? [{ label: '重新加载', action: 'reload' }, { label: '开发者工具', action: 'toggleDevTools' }] : []), { label: '切换全屏', action: 'toggleFullscreen', divided: import.meta.env.DEV }] },
-  { label: '窗口', items: [{ label: '最小化', action: 'minimize' }, { label: '最大化/还原', action: 'maximize' }, { label: '关闭窗口', action: 'close' }] },
-]
-const WindowMenuItems = defineComponent({
-  props: { groups: { type: Array as () => WindowMenuGroup[], required: true } },
-  setup: props => () => h(ElDropdownMenu, null, () => props.groups.flatMap(group => [
-    h('div', { class: 'windows-menu-group-label' }, group.label),
-    ...group.items.map(item => h(ElDropdownItem, { key: item.action, command: item.action, divided: item.divided }, () => item.label)),
-  ])),
-})
 
 watch(
   [settingsMenuVisible, appFlyoutVisible],
@@ -188,10 +158,6 @@ function handleMenuSelect(path: string) {
 async function newSession() {
   const draft = harnessStore.startDraft()
   await router.push({ path: '/workspace/chat', query: { draft } })
-}
-
-function handleWindowCommand(action: string) {
-  void window.platform?.windowCommand(action)
 }
 
 function closeSettingsMenu() {
@@ -307,17 +273,6 @@ watch(
     color: var(--cp-text);
     -webkit-app-region: no-drag;
 
-    &--button {
-      padding: 0 6px;
-      border: 0;
-      border-radius: var(--cp-radius-md);
-      background: transparent;
-      cursor: pointer;
-
-      &:hover {
-        background: var(--cp-bg-hover);
-      }
-    }
   }
 
   .brand-logo {
@@ -336,13 +291,6 @@ watch(
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .brand-arrow {
-    width: 12px;
-    height: 12px;
-    flex: 0 0 auto;
-    color: var(--cp-text-tertiary);
   }
 
   .sidebar-identity-row {
@@ -755,24 +703,4 @@ watch(
   }
 }
 
-.el-popper.windows-mira-menu-popper,
-.windows-mira-menu-popper {
-  min-width: 220px;
-
-  .windows-menu-group-label {
-    padding: 8px 12px 4px;
-    color: var(--cp-text-tertiary);
-    font-size: 11px;
-    font-weight: 600;
-  }
-
-  .el-dropdown-menu__item {
-    color: var(--cp-text);
-
-    &:hover {
-      color: var(--cp-text);
-      background: var(--cp-bg-hover);
-    }
-  }
-}
 </style>
