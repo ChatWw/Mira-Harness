@@ -1,0 +1,127 @@
+name: 🐛 问题反馈
+description: 使用中遇到错误、闪退、卡顿、显示异常或行为不符合预期
+title: "[问题] "
+labels: ["bug", "待确认"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你帮忙测试 Mira！请尽量把下面的信息填完整——**信息越全，我定位问题的速度越快**。
+        填不完也没关系，先提交，我们可以在评论里继续补充。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前请确认
+      options:
+        - label: 我已经在 Issues 列表里搜索过，没有找到相同的问题
+          required: true
+        - label: 我使用的是**桌面应用**（不是浏览器里的 `npm run dev` 预览版）
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 发生了什么？你原本期望发生什么？
+      placeholder: |
+        例如：在对话里让 Mira 读取项目文件，它一直显示"正在读取"不动了，等了 5 分钟也没有反应。
+        我期望它会很快返回文件内容。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请按顺序写清楚每一步，越具体越好。如果只是偶尔出现，也请说明。
+      placeholder: |
+        1. 打开 Mira，进入「新对话」
+        2. 选择一个项目文件夹
+        3. 发送消息：帮我看看 package.json 里有哪些依赖
+        4. 界面出现"正在读取"后卡住不动
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Mira 版本
+      description: 打开「设置 → 关于」页面，把「版本信息」那一行的内容抄过来（例如 v0.1.0）
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - macOS (Apple Silicon / M 系列芯片)
+        - macOS (Intel 芯片)
+        - Windows 11
+        - Windows 10
+        - 其他（请在下方补充说明）
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 系统版本号
+      description: |
+        macOS：点左上角苹果图标 →「关于本机」，抄下版本号（例如 macOS 15.2）
+        Windows：按 Win+R 输入 `winver` 回车，抄下版本号
+      placeholder: "macOS 15.2 / Windows 11 23H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志文件
+      description: |
+        如果应用还能正常打开，请把日志贴在这里。日志位置：
+
+        **macOS**：打开访达，按 `Command + Shift + G`，粘贴 `~/.mira/logs` 回车
+        **Windows**：在文件资源管理器地址栏粘贴 `%USERPROFILE%\.mira\logs` 回车
+
+        里面会有几个 `.jsonl` 文件（运行日志）。请把**最近时间修改的那个文件**用记事本/文本编辑器打开，把最后 100 行左右复制过来。
+
+        > 日志文件是纯文本。请注意：**不要往这里粘贴你的 API Key**，粘贴前扫一眼内容。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图或录屏
+      description: 直接把图片拖到这个框里就能上传。界面异常、报错弹窗、卡住的状态，截图非常有用。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 出现频率
+      options:
+        - 每次都出现（稳定复现）
+        - 经常出现（一半以上概率）
+        - 偶尔出现（少数几次）
+        - 只遇到过一次
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息（可选）
+      description: |
+        其他可能有帮助的信息，例如：
+        - 使用的模型供应商（DeepSeek / GLM / Kimi / Ollama 等）
+        - 当前会话的权限模式（默认 / 自动批准 / 完全）
+        - 是否启用了 MCP 服务或自动化任务
+        - 项目文件夹的大小、文件数量（如果是文件相关的问题）
+    validations:
+      required: false

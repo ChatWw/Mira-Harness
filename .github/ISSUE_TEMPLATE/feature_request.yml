@@ -1,0 +1,61 @@
+name: 💡 功能建议
+description: 希望 Mira 增加什么能力，或者哪里可以做得更好用
+title: "[建议] "
+labels: ["增强"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        内测阶段的功能建议特别有价值——**你在实际使用中遇到的别扭，往往是我自己发现不了的**。
+        不用写得正式，说清楚"你想干什么、现在卡在哪"就够了。
+
+  - type: textarea
+    id: need
+    attributes:
+      label: 你想解决什么问题
+      description: 先说你原本想完成什么事，再说 Mira 现在哪里让你不顺。
+      placeholder: |
+        例如：我想让 Mira 每天自动整理一遍我的素材文件。
+        现在自动化任务只能设固定的时间点，但我希望它在"检测到文件夹有新文件"时才跑。
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 现在你是怎么做的
+      description: 目前有没有变通办法？或者你只能手动做？这一步能帮我理解真实的痛点在哪。
+      placeholder: |
+        例如：现在只能手动跑一遍，或者设一个每天固定的时间，但经常是白跑一次。
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你期望的方式（可选）
+      description: 如果你对怎么做有想法，写在下面。没有想法也没关系，说清问题就够我判断了。
+      placeholder: |
+        例如：希望自动化任务里除了"定时"，还能选"文件变化触发"，然后让我指定监听哪个文件夹。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: 这件事对你的重要程度
+      options:
+        - 很重要 —— 挡住了我正常使用
+        - 比较重要 —— 经常需要，现在很不方便
+        - 一般 —— 有更好，没有也能接受
+        - 只是想法 —— 顺便提一下
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充说明（可选）
+      description: 参考过的其他工具怎么做的、截图、草图，都可以放这里。
+    validations:
+      required: false

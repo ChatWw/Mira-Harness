@@ -1,0 +1,119 @@
+name: 🚫 安装或启动失败
+description: 装不上、装完打不开、启动后白屏或闪退
+title: "[安装] "
+labels: ["安装问题", "待确认"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **装不上或打不开，是最需要优先解决的问题。** 请把下面的信息尽量填全。
+        如果应用完全打不开，下面的「日志」可能会拿不到，那就跳过，重点填**截图和报错文字**。
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 你的操作系统
+      options:
+        - macOS (Apple Silicon / M 系列芯片)
+        - macOS (Intel 芯片)
+        - Windows 11
+        - Windows 10
+        - 其他（请在下方说明）
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 系统版本号
+      description: |
+        macOS：苹果图标 →「关于本机」，抄下版本号
+        Windows：Win+R 输入 `winver` 回车，抄下版本号
+      placeholder: "macOS 15.2 / Windows 11 23H2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: 哪一步出的问题
+      options:
+        - 下载安装包失败
+        - 双击安装包没反应
+        - 安装过程中报错中断
+        - 安装完成了，但找不到应用图标
+        - 双击应用图标没反应
+        - 弹出安全警告 / 阻止打开
+        - 应用启动了，但界面白屏
+        - 应用启动后立刻闪退
+        - 其他（请在下方说明）
+    validations:
+      required: true
+
+  - type: input
+    id: package
+    attributes:
+      label: 安装包文件名
+      description: 你下载的那个文件的完整名称，例如 Mira-0.1.0-arm64.dmg 或 Mira Setup 0.1.0.exe
+      placeholder: "Mira-0.1.0-arm64.dmg"
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-text
+    attributes:
+      label: 报错文字
+      description: 把屏幕上出现的报错信息**原文抄下来**（不要只写"报错了"）。看不清就截图。
+      placeholder: |
+        例如（macOS）：
+        "Mira" 已损坏，无法打开。你应该将它移到废纸篓。
+
+        例如（Windows）：
+        Windows 已保护你的电脑 / 此应用无法在你的电脑上运行
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图
+      description: 把报错画面、安装界面、或者任何异常的地方截图拖进来。**这一项对安装问题特别有价值。**
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 你已经尝试过哪些方法
+      description: 比如右键打开、关闭杀毒软件、重新下载、换电脑试过等等。说清楚哪些没用，可以避免走弯路。
+      placeholder: |
+        例如：重新下载了两次，还是一样。
+        右键选了"打开"也没用。
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（能启动的话）
+      description: |
+        如果应用还能打开（哪怕是白屏），尝试拿一下日志：
+
+        **macOS**：访达里按 `Command + Shift + G`，粘贴 `~/.mira/logs` 回车
+        **Windows**：文件资源管理器地址栏粘贴 `%USERPROFILE%\.mira\logs` 回车
+
+        把最近修改的那个文件最后 100 行贴过来。如果这个目录不存在，说明应用没启动成功，跳过即可。
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: env
+    attributes:
+      label: 环境补充（勾选符合的情况）
+      options:
+        - label: 电脑上装了杀毒软件或安全软件（360、火绒、卡巴斯基、MacPaw 等）
+        - label: 公司/学校统一管理的电脑（可能有权限限制）
+        - label: 之前装过旧版本的 Mira
+        - label: 系统是很久没更新的老版本

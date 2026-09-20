@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 内测说明（先看这里）
+    url: https://github.com/ChatWw/Mira-Harness/blob/desktop-dev/内测反馈指南.md
+    about: 内测范围、已知问题、日志在哪、怎么反馈——遇到问题请先看这份说明
+  - name: 💬 使用上的疑问 / 想法交流
+    url: https://github.com/ChatWw/Mira-Harness/discussions
+    about: 不是 bug 也不是功能建议，只是想聊聊怎么用，欢迎来这里
