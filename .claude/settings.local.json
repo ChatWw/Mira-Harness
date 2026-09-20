@@ -32,7 +32,10 @@
       "Bash(xargs kill -9)",
       "Bash(kill 87433)",
       "Bash(curl -s http://localhost:5173)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(grep -n \"^#\\\\{1,3\\\\} \" /tmp/system_prompts_leaks/OpenAI/Codex/gpt-6-astra.md)",
+      "Bash(grep -n \"^#\\\\{1,3\\\\} \")",
+      "Bash(grep -vi \"namespace\\\\|^.*### \\\\`\")"
     ]
   }
 }

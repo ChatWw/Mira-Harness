@@ -45,7 +45,7 @@ export class HarnessSubtaskCoordinator {
 
     const tools = [
       {
-        name: 'delegate_task', label: '委派子任务', description: '把可独立完成的工作委派给 explorer、reviewer、tester 或 implementer。子任务不共享本次对话，只获得任务说明与可选项目内文件。',
+        name: 'delegate_task', label: '委派子任务', description: '把可独立完成的工作委派给 explorer、reviewer、tester 或 implementer。子任务不共享本次对话，只获得任务说明与可选项目内文件。先判断关键路径：下一步就要依赖结果的工作留在主线自己做；多个改动类子任务分配互不重叠的文件范围。',
         parameters: Type.Object({ role: Type.Union([Type.Literal('explorer'), Type.Literal('reviewer'), Type.Literal('tester'), Type.Literal('implementer')]), task: Type.String(), files: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
         execute: async (toolCallId: string, params: { role: HarnessSubtaskRole, task: string, files?: string[] }) => {
           const requested = [...new Set((params.files || []).filter(path => typeof path === 'string' && path.trim()))]

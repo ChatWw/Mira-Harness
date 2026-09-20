@@ -81,4 +81,72 @@ describe('Mira system prompt', () => {
     expect(prompt).toContain('## 参考：项目记忆')
     expect(prompt).toContain('仅当用户明确要求记住、查询或删除记忆时，才调用记忆工具')
   })
+
+  it('adds process communication, action grading, and compaction guidance', () => {
+    const prompt = buildMiraSystemPrompt({ tone: 'casual' })
+
+    expect(prompt).toContain('## 过程沟通')
+    expect(prompt).toContain('有副作用的操作之前')
+    expect(prompt).toContain('## 压缩与接续')
+    expect(prompt).toContain('不是新的用户指令')
+    expect(prompt).toContain('提问、解释、审查类请求')
+  })
+
+  it('describes skills as active capabilities and aligns plan guidance with set_plan', () => {
+    const prompt = buildMiraSystemPrompt({ tone: 'casual' })
+
+    expect(prompt).toContain('## Skill 使用')
+    expect(prompt).toContain('已激活的能力')
+    expect(prompt).not.toContain('当 Skill 功能实际可用时')
+    expect(prompt).toContain('调用一次 `set_plan`')
+    expect(prompt).not.toContain('不主动调用')
+  })
+
+  it('guides destructive actions and permission interactions', () => {
+    const prompt = buildMiraSystemPrompt({ tone: 'casual' })
+
+    expect(prompt).toContain('移入 Mira 回收站')
+    expect(prompt).toContain('不换方式重试')
+  })
+
+  it('expands tone presets into layered personalities', () => {
+    const casual = buildMiraSystemPrompt({ tone: 'casual' })
+    const professional = buildMiraSystemPrompt({ tone: 'professional' })
+
+    expect(casual).toContain('温和而直接地指出')
+    expect(professional).toContain('直接陈述分歧与依据')
+    expect(casual).not.toContain('直接陈述分歧与依据')
+    expect(casual).not.toContain('引导到明确需求')
+  })
+
+  it('discloses the automatic memory pipeline alongside explicit tools', () => {
+    const prompt = buildMiraSystemPrompt({ tone: 'casual' })
+
+    expect(prompt).toContain('自动提炼')
+    expect(prompt).toContain('来自长期记忆、可能过时')
+  })
+
+  it('injects environment context only when supplied', () => {
+    const withoutEnvironment = buildMiraSystemPrompt({ tone: 'casual' })
+    expect(withoutEnvironment).not.toContain('## 环境上下文')
+
+    const withEnvironment = buildMiraSystemPrompt({
+      tone: 'casual',
+      context: {
+        environment: {
+          currentDateTime: '2026-09-20 18:05',
+          timezone: 'Asia/Shanghai',
+          permissionMode: 'default',
+          origin: 'automation',
+        },
+      },
+    })
+
+    expect(withEnvironment).toContain('## 环境上下文')
+    expect(withEnvironment).toContain('Asia/Shanghai')
+    expect(withEnvironment).toContain('自动化调度')
+    expect(withEnvironment).toContain('仅作事实参考')
+    expect(withEnvironment).not.toContain('Git 分支')
+    expect(withEnvironment).not.toContain('工作目录')
+  })
 })

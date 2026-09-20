@@ -12,7 +12,19 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { DEFAULT_CONTEXT_WINDOW, isModelProviderAvailable, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, providerModel, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSource, type HarnessSubtaskRole, type HarnessTokenUsage, type ModelSelection, type PermissionMode, type HarnessUserAnswer } from '../src/config/harness'
 import type { PlatformDatabase } from './database'
-import { buildMiraSystemPrompt } from './prompts/mira-system-prompt'
+import { buildMiraSystemPrompt, type MiraEnvironmentContext } from './prompts/mira-system-prompt'
+import { PLANNING_MODE_SECTION, UNATTENDED_RUN_SECTION, WEB_CITATIONS_SECTION, executingPlanSection } from './prompts/mira-sections'
+import type { HarnessPlan } from '../src/config/harness'
+
+/** 一次运行在基础提示词之后追加的条件章节：计划模式 / 已确认执行方案 / 无人值守。纯函数，便于单测。 */
+export function runPromptSuffix(options: { planning?: boolean, activePlan?: HarnessPlan, origin: HarnessRunOrigin }) {
+  const conditionalSections = options.planning
+    ? PLANNING_MODE_SECTION
+    : options.activePlan?.status === 'executing' ? executingPlanSection(options.activePlan) : ''
+  return `\n\n${WEB_CITATIONS_SECTION}`
+    + (conditionalSections ? `\n\n${conditionalSections}` : '')
+    + (options.origin === 'automation' ? `\n\n${UNATTENDED_RUN_SECTION}` : '')
+}
 import { withUsageCost } from './usageCost'
 import type { RuntimeLogRecord } from './runLogStore'
 import { SUBTASK_ROLE_TOOLS, SubtaskRuntime } from './subtaskRuntime'
@@ -383,6 +395,24 @@ export class HarnessRuntime {
     return target
   }
 
+  /** 环境上下文仅作事实参考注入；分支等信息可能滞后。 */
+  private environmentContext(session: HarnessSession, origin: HarnessRunOrigin): MiraEnvironmentContext {
+    const now = new Date()
+    const pad = (value: number) => String(value).padStart(2, '0')
+    let gitBranch: string | undefined
+    if (session.projectId) {
+      try { gitBranch = this.database.harness.getProject(session.projectId)?.gitBranch } catch { gitBranch = undefined }
+    }
+    return {
+      currentDateTime: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      workingDirectory: session.workingDirectory,
+      gitBranch,
+      permissionMode: session.permissionMode,
+      origin,
+    }
+  }
+
   resolvePermission(requestId: string, allowed: boolean) {
     this.permissionPolicy.resolve(requestId, allowed)
   }
@@ -695,12 +725,13 @@ export class HarnessRuntime {
             }),
             context: {
               model: { providerName: provider.name, modelName: selection.modelId },
+              environment: this.environmentContext(session, origin),
               instructions: this.database.instructions.resolve(session.workingDirectory),
               activeSkills: activeSkills.map(skill => ({ name: skill.name, instructions: skill.instructions })),
               globalMemory,
               projectMemory,
             },
-          }) + '\n\n## 联网来源引用\n联网工具返回的 [[source:N]] 是内部来源标识。引用联网信息时，必须在对应陈述句末原样复制该标识；不得把搜索排名、网页列表序号或其他数字写成引用。总结多条新闻或事实时，每条应引用其各自最直接的来源；不要用同一个热榜、列表或聚合页替代多个不同条目的原文链接，必要时继续搜索或抓取原文。界面会在回答完成后自动转换为连续脚标。' + (options.planning ? '\n\n## 当前处于计划模式\n只能进行只读探索。禁止修改文件、执行命令、调用 MCP、Memory、Skill 或委派子任务。关键信息不足时调用 ask_user 提出澄清问题，一次最多 5 个，用户会逐个作答（也可跳过），不要把问题重复写进普通回复；单选问题提供不超过 3 个候选、多选不超过 5 个，自由输入始终由界面提供。用户作答后，先简短确认一句（例如「好的，我继续…」）再继续规划；他们的回答已经作为上下文提供，不需要复述或重复问题内容。信息齐全时调用 present_plan 展示完整方案供用户确认；调用后绝不能执行修改，并把完整方案（当前理解、编号执行步骤、风险列表）作为你的最终回复用列表呈现。' : session.activePlan?.status === 'executing' ? `\n\n## 已确认执行方案\n以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。\n当前理解：${session.activePlan.understanding}\n执行步骤：${session.activePlan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}\n风险：${session.activePlan.risks.join('；') || '无'}` : ''),
+          }) + runPromptSuffix({ planning: options.planning, activePlan: session.activePlan, origin }),
           model,
           thinkingLevel,
           messages: this.agentMessages(session, model),

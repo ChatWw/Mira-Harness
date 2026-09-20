@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { finalizeAssistantCitations, HarnessRuntime, sourcesFromWebToolResult } from '../electron/harnessRuntime'
+import { finalizeAssistantCitations, HarnessRuntime, runPromptSuffix, sourcesFromWebToolResult } from '../electron/harnessRuntime'
 
 function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default') {
   const sender = { isDestroyed: () => false, send: vi.fn() }
@@ -208,5 +208,28 @@ describe('HarnessRuntime tool approval', () => {
 
     expect(database.harness.setActivePlan).toHaveBeenCalledWith('session-1', expect.objectContaining({ status: 'planning', request: '规划这项改动' }))
     expect(runAgent).toHaveBeenCalledWith(sender, 'session-1', persistedSession, expect.anything(), expect.anything(), 'key', { planning: true })
+  })
+})
+
+describe('runPromptSuffix', () => {
+  const executingPlan = { id: 'plan-1', status: 'executing' as const, request: '重构', understanding: '统一口径', steps: [{ label: '更新提示词' }], risks: [], createdAt: 0, updatedAt: 0 }
+
+  it('always appends web citations, and plan sections only for the matching run kind', () => {
+    expect(runPromptSuffix({ origin: 'manual' })).toContain('## 联网来源引用')
+    expect(runPromptSuffix({ origin: 'manual' })).not.toContain('## 当前处于计划模式')
+    expect(runPromptSuffix({ origin: 'manual', planning: true })).toContain('## 当前处于计划模式')
+    expect(runPromptSuffix({ origin: 'manual', planning: true })).not.toContain('## 已确认执行方案')
+    expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('## 已确认执行方案')
+    expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('统一口径')
+    expect(runPromptSuffix({ origin: 'manual', planning: true, activePlan: { ...executingPlan, status: 'awaiting_confirmation' } })).toContain('## 当前处于计划模式')
+  })
+
+  it('adds the unattended section for automation runs only', () => {
+    const manual = runPromptSuffix({ origin: 'manual' })
+    const automated = runPromptSuffix({ origin: 'automation' })
+
+    expect(manual).not.toContain('## 无人值守运行')
+    expect(automated).toContain('## 无人值守运行')
+    expect(automated).toContain('不要声称“稍后通知你”')
   })
 })

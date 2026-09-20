@@ -43,7 +43,7 @@ export class HarnessPlanCoordinator {
   createTools(sender: WebContents | undefined, sessionId: string) {
     const session = () => this.database.harness.getSession(sessionId)
     const askUserTool = {
-      name: 'ask_user', label: '询问用户', description: '在继续规划前向用户提出关键澄清问题。可以一次提出最多 5 个问题，用户会逐个作答（也可跳过）。单选题请给出不超过 3 个候选，多选题不超过 5 个；自由输入由界面提供，无需兜底选项。调用后会等待用户作答；不要把同样的问题重复写进普通回复。',
+      name: 'ask_user', label: '询问用户', description: '在继续规划前向用户提出关键澄清问题。只问实质影响方案、或需要确认关键权衡的问题；能从项目内探索得到答案的，先探索再决定是否提问。可以一次提出最多 5 个问题，用户会逐个作答（也可跳过）。单选题请给出不超过 3 个候选，多选题不超过 5 个；自由输入由界面提供，无需兜底选项。调用后会等待用户作答；不要把同样的问题重复写进普通回复。',
       parameters: Type.Object({ questions: Type.Optional(Type.Any()) }),
       executionMode: 'sequential',
       execute: async (_id: string, params: any) => {
