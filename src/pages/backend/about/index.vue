@@ -24,6 +24,8 @@
             <el-button link class="feedback-copy" @click="copyFeedbackEmail">
               <span class="feed-email"><AppIcon name="material-symbols:stacked-email-outline-rounded" /> {{ feedbackEmail }}</span>
             </el-button>
+            <span class="feedback-divider" aria-hidden="true">|</span>
+            <a class="issue-link" :href="issueUrl" target="_blank" rel="noreferrer" aria-label="在 GitHub 新建 Issue"><AppIcon name="lucide:github" />&nbsp;Issue</a>
           </dd>
         </div>
         <div>
@@ -64,6 +66,8 @@ import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const appVersion = __MIRA_VERSION__
 const feedbackEmail = 'tuyn53@163.com'
+// GitHub Issue 模板选择页，与 .github/ISSUE_TEMPLATE/（bug_report / feature_request / install_problem）对应
+const issueUrl = 'https://github.com/ChatWw/Mira-Harness/issues/new/choose'
 
 async function copyFeedbackEmail() {
   let copied = false
@@ -100,7 +104,11 @@ async function copyFeedbackEmail() {
 .about-details dd { display: flex; align-items: center; justify-content: flex-end; min-width: 0; margin: 0; color: var(--cp-text); font-size: $font-sm; font-weight: $font-medium; }
 .feedback-detail { gap: 4px; white-space: nowrap; }
 .feedback-copy { height: auto; padding: 0; font: inherit; }
-.feedback-copy :deep(.app-icon), .github-link :deep(.app-icon) { margin-right: 4px; }
+.feedback-divider { margin: 0 6px; color: var(--cp-text-tertiary); }
+.issue-link { display: inline-flex; align-items: center; color: var(--cp-primary); font: inherit; text-decoration: none; transition: all 0.3s ease-in-out;
+  &:hover { text-decoration: underline; }
+}
+.feedback-copy :deep(.app-icon), .github-link :deep(.app-icon), .issue-link :deep(.app-icon) { margin-right: 4px; }
 .github-link { display: inline-flex; align-items: center; color: var(--cp-primary); font: inherit; text-decoration: none; }
 .github-link :deep(.app-icon) { width: 14px; height: 14px; margin: 0 0 0 4px; }
 .support-section { padding: $spacing-xl 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
