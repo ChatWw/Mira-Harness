@@ -31,7 +31,7 @@
         <p class="empty-state__subtitle">{{ hasConfiguredModels ? '今天想做什么？从一个想法开始，我陪你把它落地。' : '先在右下角选择模型，或前往模型设置完成配置。' }}</p>
       </div>
       <div class="empty-state__cards">
-        <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" class="starter-card" :disabled="isComposerBusy" @click="setStarterPrompt(prompt.text)">
+        <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" :class="['starter-card', `starter-card--${prompt.tone}`]" :disabled="isComposerBusy" @click="setStarterPrompt(prompt.text)">
           <span class="starter-card__icon"><AppIcon :name="prompt.icon" /></span>
           <span class="starter-card__body">
             <strong>{{ prompt.title }}</strong>
@@ -98,10 +98,10 @@ const projectId = computed(() => store.activeSession?.projectId || composerDraft
 const selectedProject = computed(() => store.projects.find(project => project.id === projectId.value))
 const permissionLabel = computed(() => ({ default: '逐次确认', 'auto-approve': '项目内自动批准', full: '完全访问' }[store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode]))
 const hasConfiguredModels = computed(() => providers.value.some(isModelProviderAvailable))
-const starterPrompts: Array<{ icon: string, title: string, hint: string, text: string }> = [
-  { icon: 'EditPen', title: '写一段文案', hint: '产品介绍、朋友圈、公告……', text: '帮我写一段产品介绍' },
-  { icon: 'Document', title: '总结一篇文章', hint: '粘贴链接或长文本，我来提炼要点', text: '帮我总结这篇文章的要点：' },
-  { icon: 'Cpu', title: '写一段代码', hint: 'SQL、脚本、组件，描述需求即可', text: '帮我写一段代码：' },
+const starterPrompts: Array<{ icon: string, title: string, hint: string, text: string, tone: 'info' | 'purple' | 'warning' }> = [
+  { icon: 'EditPen', title: '写一段文案', hint: '产品介绍、朋友圈、公告……', text: '帮我写一段产品介绍', tone: 'info' },
+  { icon: 'Document', title: '总结一篇文章', hint: '粘贴链接或长文本，我来提炼要点', text: '帮我总结这篇文章的要点：', tone: 'purple' },
+  { icon: 'Cpu', title: '写一段代码', hint: 'SQL、脚本、组件，描述需求即可', text: '帮我写一段代码：', tone: 'warning' },
 ]
 const isComposerBusy = computed(() => store.running || store.rendering)
 async function loadEnvironment() {
@@ -145,6 +145,8 @@ onMounted(() => { void reload() })
 .harness-page { height: 100%; min-height: 0; min-width: 0; display: flex; overflow: hidden; background: var(--cp-bg); position: relative; }
 .harness-page.is-empty-session { display: flex; flex-direction: column; }
 .harness-page.is-empty-session .conversation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; height: 100%; }
+.harness-page.is-empty-session .conversation { background: radial-gradient(ellipse 36% 25% at 50% 49%, rgb(226 218 245 / 42%) 0%, transparent 100%); }
+[data-theme='dark'] .harness-page.is-empty-session .conversation { background: radial-gradient(ellipse 36% 25% at 50% 49%, rgb(129 115 167 / 26%) 0%, transparent 100%); }
 .harness-page.is-empty-session .conversation__messages { flex: 1 1 auto; min-height: 0; }
 .harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
 .conversation { display: grid; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
@@ -158,14 +160,13 @@ onMounted(() => { void reload() })
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
 .empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
-.empty-state__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 680px; pointer-events: auto; }
-.starter-card { display: flex; align-items: flex-start; gap: 10px; width: 208px; padding: 14px 14px 13px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 80%, transparent); border-radius: $radius-md; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast; }
+.empty-state__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 672px; pointer-events: auto; }
+.starter-card { --starter-icon-bg: var(--cp-stat-icon-info-bg); --starter-icon-color: var(--cp-stat-icon-info-color); display: flex; width: 200px; min-height: 132px; flex-direction: column; align-items: flex-start; padding: 15px 15px 14px; border: 1px solid color-mix(in srgb, var(--cp-border-light) 80%, transparent); border-radius: $radius-md; background: var(--cp-bg-elevated); text-align: left; cursor: pointer; transition: border-color $transition-fast, transform $transition-fast, box-shadow $transition-fast; }
 .starter-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-primary) 40%, var(--cp-border)); transform: translateY(-2px); box-shadow: 0 8px 20px rgb(24 24 27 / 6%); }
 .starter-card:disabled { cursor: default; opacity: .6; }
-.starter-card__icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: var(--cp-primary); background: color-mix(in srgb, var(--cp-primary) 12%, transparent); font-size: 16px; }
-.starter-card__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.starter-card__body strong { color: var(--cp-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
-.starter-card__body small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }
+.starter-card--purple { --starter-icon-bg: var(--cp-stat-icon-purple-bg); --starter-icon-color: var(--cp-stat-icon-purple-color); }.starter-card--warning { --starter-icon-bg: var(--cp-stat-icon-warning-bg); --starter-icon-color: var(--cp-stat-icon-warning-color); }
+.starter-card__icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; margin-bottom: 11px; place-items: center; border-radius: 10px; color: var(--starter-icon-color); background: var(--starter-icon-bg); font-size: 18px; }
+.starter-card__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }.starter-card__body strong { color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.45; }.starter-card__body small { color: var(--cp-text-secondary); font-size: 12px; line-height: 1.5; }
 .work-panel-host { width: 0; height: 100%; flex: 0 0 0; overflow: hidden; transition: width var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1), flex-basis var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1); }.work-panel-host.is-open { width: 320px; flex-basis: 320px; }.work-panel-host :deep(.session-panel) { width: 320px; }.work-panel-enter-active, .work-panel-leave-active { transition: opacity 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }.work-panel-enter-from, .work-panel-leave-to { opacity: 0; transform: translateX(100%); }
 .run-error-card { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; width: min(100% - 32px, 760px); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--cp-danger) 38%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 6%, var(--cp-bg)); }.run-error-card > div { min-width: 0; flex: 1; }.run-error-card strong { color: var(--cp-text); font-size: 12px; }.run-error-card p { margin: 2px 0 0; color: var(--cp-text-secondary); font-size: 12px; }.run-error-card :deep(.el-button) { flex: 0 0 auto; }
 </style>
