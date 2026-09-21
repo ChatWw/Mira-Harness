@@ -1,6 +1,5 @@
 <template>
   <article class="message" :class="[message.role, { 'is-entering': entering }]" :data-message-id="message.id" @animationend="$emit('entrance-end', message.id)">
-    <span class="message__role"><AppIcon :name="message.role === 'user' ? 'User' : 'ChatDotRound'" />{{ message.role === 'user' ? '我' : 'Mira' }}</span>
     <template v-if="message.role === 'user'">
       <el-input v-if="editing" v-model="editingText" class="message__edit-input" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="编辑消息" />
       <p v-else>{{ message.content }}</p>
@@ -142,8 +141,6 @@ function stopSubtask(id: string) { emit('stop-subtask', id) }
 .message { width: min(100%, 760px); margin: 0 auto 28px; }
 .message.user.is-entering { animation: user-message-enter 240ms cubic-bezier(.16, 1, .3, 1) both; }
 .message.user { margin-left: auto; }
-.message__role { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; color: var(--cp-text-tertiary); font-size: 12px; }
-.message.user .message__role { justify-content: flex-end; text-align: right; }
 .message p { max-width: 72ch; margin: 0; color: var(--cp-text); font-size: 14px; white-space: pre-wrap; line-height: 1.82; }
 .message__markdown { max-width: min(100%, 760px); overflow-wrap: anywhere; color: var(--cp-text); font-size: 14px; line-height: 1.82; }
 .message__markdown :deep(.citation-marker) { margin-left: 2px; vertical-align: super; font-size: .72em; line-height: 0; }
