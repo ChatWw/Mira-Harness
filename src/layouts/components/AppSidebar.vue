@@ -84,7 +84,8 @@
                   :class="{ 'is-active': app.code === currentAppCode }"
                   @click="switchApp(app.code)"
                 >
-                  <AppIcon :name="app.icon || 'Grid'" />
+                  <img v-if="app.code === 'main'" :src="miraLogo" class="settings-app-item__icon" alt="" />
+                  <AppIcon v-else :name="app.icon || 'Grid'" />
                   <span class="settings-app-item__name">{{ app.name }}</span>
                   <AppIcon v-if="app.code === currentAppCode" name="Check" class="settings-app-item__check" />
                 </button>
@@ -106,6 +107,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import miraArt from '@/asset/Mira-art.svg'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
@@ -676,6 +678,13 @@ watch(
     .app-icon {
       font-size: 15px;
       color: var(--cp-text-secondary);
+    }
+
+    .settings-app-item__icon {
+      flex: 0 0 15px;
+      width: 15px;
+      height: 15px;
+      object-fit: contain;
     }
 
     .settings-app-item__name {
