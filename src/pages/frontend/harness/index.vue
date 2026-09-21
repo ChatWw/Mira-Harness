@@ -1,17 +1,19 @@
 <template>
-  <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }">
+    <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }">
     <section class="conversation">
       <div v-if="!store.activeSession?.messages.length" class="conversation__empty-drag-region" aria-hidden="true" />
       <header v-if="store.activeSession?.messages.length" class="conversation__header">
         <div class="conversation__identity">
-          <span class="conversation__eyebrow"><AppIcon name="FolderOpened" />{{ selectedProject?.name || '最近对话' }}</span>
-          <strong>{{ store.activeSession?.title || '新对话' }}</strong>
-          <span class="conversation__directory">{{ selectedProject?.directory || '未关联项目' }}</span>
+          <el-tooltip :content="selectedProject?.directory || '未关联项目'" placement="bottom-start"><span class="conversation__project"><AppIcon name="FolderOpened" /></span></el-tooltip>
+          <strong :title="store.activeSession?.title || '新对话'">{{ store.activeSession?.title || '新对话' }}</strong>
         </div>
-        <div class="conversation__actions"><el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag></div>
+        <div class="conversation__actions">
+          <!-- <el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag> -->
+          <el-tooltip :content="workPanelVisible ? '关闭工作面板' : '打开工作面板'" placement="bottom"><button type="button" class="conversation__action-button" :aria-label="workPanelVisible ? '关闭工作面板' : '打开工作面板'" :aria-expanded="workPanelVisible" @click="toggleWorkPanel"><AppIcon name="material-symbols:grid-layout-side-outline" /></button></el-tooltip>
+        </div>
       </header>
 
-      <HarnessMessageList ref="messageListRef" :messages="conversationMessages" :active-run="store.activeRun" :running="store.running" :rendering="store.rendering" :entering-message-id="enteringMessageId" @entrance-end="clearMessageEntrance" @edit-and-rerun="saveMessageEdit" @rerun="rerun" @open-file-change="openFileChange" @stop-subtask="stopSubtask" />
+      <HarnessMessageList ref="messageListRef" :messages="conversationMessages" :active-run="store.activeRun" :running="store.running" :rendering="store.rendering" :entering-message-id="enteringMessageId" @entrance-end="clearMessageEntrance" @edit-and-rerun="saveMessageEdit" @rerun="rerun" @open-file-change="openFileChange" @open-work-panel="openWorkPanel" @continue="focusComposer" @stop-subtask="stopSubtask" />
 
       <section v-if="permissionRequest" class="permission-request-card" aria-live="polite">
         <div class="permission-request-card__icon"><AppIcon name="WarningFilled" /></div>
@@ -20,7 +22,7 @@
       </section>
       <section v-if="store.lastRunError" class="run-error-card" role="alert"><AppIcon name="WarningFilled" /><div><strong>本次运行未完成</strong><p>{{ store.lastRunError.message }}</p></div><el-button size="small" :disabled="isComposerBusy" @click="rerun">重试</el-button></section>
 
-      <HarnessComposer v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :dispatch="pageFacade.dispatchComposerAction" />
+      <HarnessComposer ref="composerRef" v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :dispatch="pageFacade.dispatchComposerAction" />
     </section>
 
     <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
@@ -39,7 +41,11 @@
       </div>
     </div>
 
-    <HarnessSessionPanel v-if="store.activeSession?.messages.length" :model-id="store.activeSession?.modelId" :permission-label="permissionLabel" :project-directory="selectedProject?.directory" :tool-calls="store.activeSession?.toolCalls || []" />
+    <aside v-if="store.activeSession?.messages.length" class="work-panel-host" :class="{ 'is-open': workPanelVisible }" aria-label="工作面板容器">
+      <Transition name="work-panel">
+        <HarnessSessionPanel v-if="workPanelVisible" :model-id="store.activeSession?.modelId" :permission-label="permissionLabel" :project-directory="selectedProject?.directory" :tool-calls="store.activeSession?.toolCalls || []" :active-run="workPanelRun" :running="store.running" :file-changes="latestFileChanges" @close="closeWorkPanel" @open-file-change="openFileChange" />
+      </Transition>
+    </aside>
 
     <HarnessFileChangeDrawer v-model="fileChangeVisible" :change="activeFileChange" />
   </main>
@@ -61,12 +67,17 @@ import { useHarnessPageFacade } from './useHarnessPageFacade'
 const route = useRoute()
 const store = useHarnessStore()
 const messageListRef = ref<InstanceType<typeof HarnessMessageList>>()
+const composerRef = ref<InstanceType<typeof HarnessComposer>>()
 const fileChangeVisible = ref(false)
 const activeFileChange = ref<HarnessFileChange>()
 const planMode = ref(false)
 const interactionSubmitting = ref(false)
+const workPanelVisible = ref(false)
 /** 对话中展示的消息（过滤掉内部上下文消息，如澄清问题回填的答案）。 */
 const conversationMessages = computed(() => (store.activeSession?.messages || []).filter(message => !message.internal))
+const latestCompletedMessage = computed(() => [...conversationMessages.value].reverse().find(message => message.run))
+const latestFileChanges = computed(() => latestCompletedMessage.value?.fileChanges || [])
+const workPanelRun = computed(() => store.activeRun || latestCompletedMessage.value?.run)
 const providers = ref<ModelProviderSummary[]>([])
 const skills = ref<HarnessSkill[]>([])
 const mcpServers = ref<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>([])
@@ -85,7 +96,7 @@ const { draftKey, isPersistedSession, composerDraft, enteringMessageId, reload, 
 const permissionRequest = computed(() => store.activeSession ? store.pendingPermissionRequests[store.activeSession.id] : undefined)
 const projectId = computed(() => store.activeSession?.projectId || composerDraft.value.projectId)
 const selectedProject = computed(() => store.projects.find(project => project.id === projectId.value))
-const permissionLabel = computed(() => ({ default: '默认权限', 'auto-approve': '自动审核', full: '完全访问' }[store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode]))
+const permissionLabel = computed(() => ({ default: '逐次确认', 'auto-approve': '项目内自动批准', full: '完全访问' }[store.activeSession?.permissionMode || composerDraft.value.permissionMode || permissionConfig.value.globalDefaultMode]))
 const hasConfiguredModels = computed(() => providers.value.some(isModelProviderAvailable))
 const starterPrompts: Array<{ icon: string, title: string, hint: string, text: string }> = [
   { icon: 'EditPen', title: '写一段文案', hint: '产品介绍、朋友圈、公告……', text: '帮我写一段产品介绍' },
@@ -104,6 +115,10 @@ async function loadEnvironment() {
 }
 
 function openFileChange(change: HarnessFileChange) { activeFileChange.value = change; fileChangeVisible.value = true }
+function openWorkPanel() { workPanelVisible.value = true }
+function closeWorkPanel() { workPanelVisible.value = false }
+function toggleWorkPanel() { if (workPanelVisible.value) closeWorkPanel(); else openWorkPanel() }
+function focusComposer() { composerRef.value?.focus() }
 function setStarterPrompt(text: string) { void pageFacade.dispatchComposerAction({ type: "update-draft", patch: { text } }) }
 watch(() => [route.params.id, route.query.draft], () => {
   messageListRef.value?.reset()
@@ -127,23 +142,18 @@ onMounted(() => { void reload() })
 </script>
 
 <style scoped lang="scss">
-.harness-page { height: 100%; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; overflow: hidden; background: var(--cp-bg); position: relative; }
+.harness-page { height: 100%; min-height: 0; min-width: 0; display: flex; overflow: hidden; background: var(--cp-bg); position: relative; }
 .harness-page.is-empty-session { display: flex; flex-direction: column; }
 .harness-page.is-empty-session .conversation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; height: 100%; }
 .harness-page.is-empty-session .conversation__messages { flex: 1 1 auto; min-height: 0; }
 .harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
-.conversation { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
+.conversation { display: grid; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
-.conversation__header { display: flex; justify-content: space-between; align-items: center; gap: $spacing-md; min-height: 66px; padding: 10px calc(clamp(20px, 4vw, 56px) + var(--cp-window-controls-inset)) 10px calc(clamp(20px, 4vw, 56px) + var(--cp-mac-collapsed-safe-inset)); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); -webkit-app-region: drag; }
+.conversation__header { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: $spacing-md; padding: 0 calc(clamp(20px, 4vw, 16px) + var(--cp-window-controls-inset)) 0 calc(clamp(20px, 4vw, 26px) + var(--cp-mac-collapsed-safe-inset)); border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); -webkit-app-region: drag; }
 .conversation__empty-drag-region { position: absolute; z-index: 3; top: 0; right: var(--cp-window-controls-inset); left: var(--cp-mac-collapsed-safe-inset); height: 48px; -webkit-app-region: drag; }
 .permission-request-card { display: grid; width: min(calc(100% - 28px), 760px); box-sizing: border-box; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--cp-warning) 34%, var(--cp-border)); border-radius: $radius-md; background: color-mix(in srgb, var(--cp-warning) 8%, var(--cp-bg-elevated)); box-shadow: 0 8px 20px rgb(24 24 27 / 8%); }
 .permission-request-card__icon { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 14%, transparent); font-size: 15px; }.permission-request-card__content { min-width: 0; }.permission-request-card__content strong { display: block; color: var(--cp-text); font-size: 13px; font-weight: 600; }.permission-request-card__content p { max-height: 54px; margin: 3px 0 0; overflow: auto; color: var(--cp-text-secondary); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }.permission-request-card__actions { display: flex; flex: 0 0 auto; gap: 8px; }.permission-request-card__actions .el-button { min-width: 68px; margin: 0; }
-.conversation__identity { min-width: 0; }
-.conversation__identity strong, .conversation__identity span { display: block; }
-.conversation__identity strong { overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
-.conversation__eyebrow { display: inline-flex !important; align-items: center; gap: 5px; margin-bottom: 2px; color: var(--cp-text-secondary); font-size: 11px; line-height: 1.4; }
-.conversation__directory { max-width: 44vw; margin-top: 2px; overflow: hidden; color: var(--cp-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.conversation__actions { display: flex; align-items: center; -webkit-app-region: no-drag; }
+.conversation__identity { display: flex; min-width: 0; align-items: center; gap: 8px; }.conversation__identity strong { overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }.conversation__project { display: inline-grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; color: var(--cp-text-secondary); }.conversation__project .app-icon { font-size: 15px; }.conversation__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; -webkit-app-region: no-drag; }.conversation__actions :deep(.el-tag) { max-width: 148px; overflow: hidden; color: var(--cp-text-secondary); text-overflow: ellipsis; white-space: nowrap; }.conversation__action-button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__action-button:hover, .conversation__action-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
 .empty-state { position: absolute; inset: 0; z-index: 1; display: flex; width: min(100%, 760px); margin-right: auto; margin-left: auto; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
@@ -156,6 +166,6 @@ onMounted(() => { void reload() })
 .starter-card__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .starter-card__body strong { color: var(--cp-text); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .starter-card__body small { color: var(--cp-text-tertiary); font-size: 11px; line-height: 1.45; }
-@media (max-width: 1024px) { .harness-page { grid-template-columns: 1fr; } }
+.work-panel-host { width: 0; height: 100%; flex: 0 0 0; overflow: hidden; transition: width var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1), flex-basis var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1); }.work-panel-host.is-open { width: 320px; flex-basis: 320px; }.work-panel-host :deep(.session-panel) { width: 320px; }.work-panel-enter-active, .work-panel-leave-active { transition: opacity 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }.work-panel-enter-from, .work-panel-leave-to { opacity: 0; transform: translateX(100%); }
 .run-error-card { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; width: min(100% - 32px, 760px); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--cp-danger) 38%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-danger); background: color-mix(in srgb, var(--cp-danger) 6%, var(--cp-bg)); }.run-error-card > div { min-width: 0; flex: 1; }.run-error-card strong { color: var(--cp-text); font-size: 12px; }.run-error-card p { margin: 2px 0 0; color: var(--cp-text-secondary); font-size: 12px; }.run-error-card :deep(.el-button) { flex: 0 0 auto; }
 </style>

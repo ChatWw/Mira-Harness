@@ -1,7 +1,7 @@
 <template>
   <div class="conversation__messages">
     <div ref="streamRef" class="message-stream" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel">
-      <HarnessMessageItem v-for="(message, index) in messages" :key="message.id" :message="message" :active-run="activeRun" :active-run-elapsed="activeRunElapsed" :active-run-label="activeRunLabel" :live-status-label="liveStatusLabel" :live-status-icon="liveStatusIcon" :live-status-spinning="liveStatusSpinning" :streaming="isStreaming(message)" :entering="message.id === enteringMessageId" :busy="running || rendering" :last-message="index === messages.length - 1" @entrance-end="$emit('entrance-end', $event)" @edit-and-rerun="(item, content) => $emit('edit-and-rerun', item, content)" @rerun="$emit('rerun')" @open-file-change="$emit('open-file-change', $event)" @stop-subtask="$emit('stop-subtask', $event)" />
+      <HarnessMessageItem v-for="(message, index) in messages" :key="message.id" :message="message" :active-run="activeRun" :active-run-elapsed="activeRunElapsed" :active-run-label="activeRunLabel" :live-status-label="liveStatusLabel" :live-status-icon="liveStatusIcon" :live-status-spinning="liveStatusSpinning" :streaming="isStreaming(message)" :entering="message.id === enteringMessageId" :busy="running || rendering" :last-message="index === messages.length - 1" @entrance-end="$emit('entrance-end', $event)" @edit-and-rerun="(item, content) => $emit('edit-and-rerun', item, content)" @rerun="$emit('rerun')" @open-file-change="$emit('open-file-change', $event)" @open-work-panel="$emit('open-work-panel')" @continue="$emit('continue')" @stop-subtask="$emit('stop-subtask', $event)" />
       <HarnessRunProgress v-if="activeRun && !hasStreamingAssistantMessage" :activities="activeRun.activities" :subtasks="activeRun.subtasks" :duration-label="formatDuration(activeRunElapsed)" :progress-label="activeRunLabel" :pending="true" :open="true" :stop="stopSubtask" />
     </div>
     <div v-if="showQuickNavigation" ref="quickNavigationRef" class="quick-navigation" role="slider" tabindex="0" aria-label="对话快速导航" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="quickNavigationPercent" :aria-valuetext="`阅读位置 ${quickNavigationPercent}%`" @keydown="handleQuickNavigationKeydown" @pointerenter="updateQuickNavigationHover" @pointerdown="beginQuickNavigation" @pointermove="moveQuickNavigation" @pointerup="endQuickNavigation" @pointercancel="endQuickNavigation" @pointerleave="clearQuickNavigationHover">
@@ -22,7 +22,7 @@ import HarnessMessageItem from './HarnessMessageItem.vue'
 import HarnessRunProgress from './HarnessRunProgress.vue'
 
 const props = defineProps<{ messages: HarnessMessage[], activeRun?: HarnessRunProgressState, running: boolean, rendering: boolean, enteringMessageId?: string }>()
-const emit = defineEmits<{ 'entrance-end': [id: string], 'edit-and-rerun': [message: HarnessMessage, content: string], rerun: [], 'open-file-change': [change: HarnessFileChange], 'stop-subtask': [id: string] }>()
+const emit = defineEmits<{ 'entrance-end': [id: string], 'edit-and-rerun': [message: HarnessMessage, content: string], rerun: [], 'open-file-change': [change: HarnessFileChange], 'open-work-panel': [], continue: [], 'stop-subtask': [id: string] }>()
 const clock = ref(Date.now())
 let elapsedTimer: number | undefined
 const messageSource = computed(() => props.messages)
