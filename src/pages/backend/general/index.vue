@@ -10,20 +10,25 @@
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">默认权限</span>
-            <span class="settings-row__hint">读取、列目录和网页工具自动批准；写入、编辑、删除、命令和每次 MCP 调用逐次确认。</span>
+            <span class="settings-row__hint">与对话输入框保持同步，后续新对话和历史对话均使用此全局选择。</span>
           </div>
-          <el-switch :model-value="true" aria-label="默认权限已启用" disabled />
+          <el-radio-group v-if="permissionConfigLoaded" class="permission-mode-picker" :model-value="config.globalDefaultMode" :disabled="permissionSaving" aria-label="默认权限" @change="setGlobalDefaultMode">
+            <el-radio-button value="default">逐次确认</el-radio-button>
+            <el-radio-button value="auto-approve" :disabled="!config.autoApproveEnabled">帮我批准</el-radio-button>
+            <el-radio-button value="full" :disabled="!config.fullAccessEnabled">完全访问</el-radio-button>
+          </el-radio-group>
+          <span v-else class="permission-mode-placeholder" aria-label="正在加载默认权限" />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
-            <span class="settings-row__label">自动审核</span>
+            <span class="settings-row__label">启用“帮我批准”</span>
             <span class="settings-row__hint">项目目录内的读写、删除、命令和 MCP 调用自动批准；危险命令仍会被拦截。</span>
           </div>
           <el-switch :model-value="config.autoApproveEnabled" :loading="permissionSaving" aria-label="启用自动审核" @update:model-value="setPermissionAvailability('autoApproveEnabled', $event)" />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
-            <span class="settings-row__label">完全访问权限</span>
+            <span class="settings-row__label">启用“完全访问”</span>
             <span class="settings-row__hint">不再显示操作确认；危险命令、路径逃逸和回收站删除限制仍然有效。</span>
           </div>
           <el-switch :model-value="config.fullAccessEnabled" :loading="permissionSaving" aria-label="启用完全访问权限" @update:model-value="setPermissionAvailability('fullAccessEnabled', $event)" />
@@ -100,7 +105,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type SendShortcut } from '@/config/harness'
+import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type PermissionMode, type SendShortcut } from '@/config/harness'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import type { CloseWindowBehavior } from '@/types'
@@ -108,13 +113,18 @@ import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const config = reactive<PermissionConfig>({ ...DEFAULT_PERMISSION_CONFIG })
 const permissionSaving = ref(false)
+const permissionConfigLoaded = ref(false)
 const closeWindowBehavior = computed<CloseWindowBehavior>(() => platformPreferences.closeWindowBehavior === 'quit' ? 'quit' : 'background')
 const showContextUsage = computed(() => getPreference('showContextUsage', true))
 const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'enter') === 'mod-enter' ? 'mod-enter' : 'enter')
 
 async function loadPermissionConfig() {
-  const value = await getPlatformApi()?.getHarnessPermissionConfig()
-  if (value) Object.assign(config, value)
+  try {
+    const value = await getPlatformApi()?.getHarnessPermissionConfig()
+    if (value) Object.assign(config, value)
+  } finally {
+    permissionConfigLoaded.value = true
+  }
 }
 
 async function setPermissionAvailability(key: 'autoApproveEnabled' | 'fullAccessEnabled', enabled: boolean) {
@@ -136,6 +146,31 @@ async function setPermissionAvailability(key: 'autoApproveEnabled' | 'fullAccess
     Object.assign(config, saved)
   } catch (error) {
     config[key] = previous
+    ElMessage.error(error instanceof Error ? error.message : '权限设置保存失败')
+  } finally {
+    permissionSaving.value = false
+  }
+}
+
+async function setGlobalDefaultMode(mode: PermissionMode) {
+  if (permissionSaving.value || config.globalDefaultMode === mode) return
+  const previous = config.globalDefaultMode
+  config.globalDefaultMode = mode
+  permissionSaving.value = true
+  try {
+    const api = getPlatformApi()
+    if (!api) throw new Error('权限设置仅在桌面端中可用')
+    const saved = await api.saveHarnessPermissionConfig({
+      globalDefaultMode: config.globalDefaultMode,
+      autoApproveEnabled: config.autoApproveEnabled,
+      fullAccessEnabled: config.fullAccessEnabled,
+      dangerousCommands: [...config.dangerousCommands],
+      trashRetentionDays: config.trashRetentionDays,
+      trashDirName: config.trashDirName,
+    })
+    Object.assign(config, saved)
+  } catch (error) {
+    config.globalDefaultMode = previous
     ElMessage.error(error instanceof Error ? error.message : '权限设置保存失败')
   } finally {
     permissionSaving.value = false
@@ -189,6 +224,8 @@ onMounted(() => { void loadPermissionConfig() })
 .settings-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-list .settings-row { padding-right: 16px; padding-left: 16px; }
 .window-behavior-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
+.permission-mode-picker :deep(.el-radio-button) { --el-radio-button-checked-bg-color: var(--cp-primary); --el-radio-button-checked-text-color: var(--cp-primary-contrast); --el-radio-button-checked-border-color: var(--cp-primary); }
+.permission-mode-placeholder { display: block; width: 360px; height: 34px; border: 1px solid var(--cp-border); border-radius: 8px; background: var(--cp-bg-hover); }
 .send-shortcut-picker { width: min(260px, 44vw); }
 .settings-row {
   display: flex;

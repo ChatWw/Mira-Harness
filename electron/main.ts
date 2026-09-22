@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron'
+import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { PlatformDatabase } from './database'
 import { LocalMicroAppServer } from './localMicroAppServer'
@@ -366,11 +367,31 @@ app.whenReady().then(async () => {
   ipcMain.handle('harness:set-delegation-enabled', (_event, id: string, enabled: boolean) => database.harness.setDelegationEnabled(id, Boolean(enabled)))
   ipcMain.handle('harness:save-project-memory', (event, id: string, selection) => harnessRuntime.saveProjectMemory(event.sender, id, selection))
   ipcMain.handle('harness:set-pinned', (_event, id: string, pinned: boolean) => database.harness.setPinned(id, pinned))
+  ipcMain.handle('harness:set-unread', (_event, id: string, unread: boolean) => database.harness.setUnread(id, unread))
+  ipcMain.handle('harness:move-session', (_event, id: string, projectId: string) => database.harness.moveSession(id, projectId))
   ipcMain.handle('harness:rename-session', (_event, id: string, title: string) => database.harness.renameSession(id, title))
   ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => database.harness.archiveSessions(ids))
   ipcMain.handle('harness:restore-sessions', (_event, ids: string[]) => database.harness.restoreSessions(ids))
   ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
   ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
+  ipcMain.handle('harness:open-session-project', (_event, id: string, target: 'file-manager' | 'terminal') => {
+    const session = database.harness.getSession(id)
+    const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+    if (!directory) throw new Error('该会话没有可用工作目录')
+    if (target === 'file-manager') return shell.openPath(directory)
+    if (process.platform === 'darwin') {
+      const terminal = spawn('open', ['-a', 'Terminal', directory], { detached: true, stdio: 'ignore' })
+      terminal.unref()
+      return ''
+    }
+    if (process.platform === 'win32') {
+      const command = `cd /d "${directory.replace(/"/g, '""')}"`
+      const terminal = spawn('cmd.exe', ['/d', '/c', 'start', '', 'cmd.exe', '/K', command], { detached: true, stdio: 'ignore', windowsHide: true })
+      terminal.unref()
+      return ''
+    }
+    throw new Error('当前系统不支持从 Mira 打开终端')
+  })
   ipcMain.handle('harness:list-project-files', (_event, projectId: string, query?: string) => database.harness.listProjectFiles(projectId, query))
   ipcMain.handle('harness:select-files', async (event, projectId: string) => {
     const project = database.harness.getProject(projectId)

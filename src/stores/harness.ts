@@ -21,7 +21,7 @@ export const useHarnessStore = defineStore('harness', () => {
     refreshSessions,
     refreshProjects,
   })
-  const { running, rendering, activeRun, publicRunState, runningSessionIds, unreadSessionIds } = runState
+  const { running, rendering, activeRun, publicRunState, runningSessionIds, unreadSessionIds, setSessionUnread: setRunStateUnread, syncUnreadSessions } = runState
   const interactionState = createHarnessInteractionState({
     getActiveSession: () => activeSession.value,
     setActiveSession: session => { activeSession.value = session },
@@ -46,6 +46,7 @@ export const useHarnessStore = defineStore('harness', () => {
   async function refreshSessions(query = '') {
     const api = getPlatformApi()
     sessions.value = api ? await api.listHarnessSessions(query) : []
+    syncUnreadSessions(sessions.value)
   }
 
   async function refreshProjects() {
@@ -74,6 +75,7 @@ export const useHarnessStore = defineStore('harness', () => {
     runState.prepareSession(id)
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
+    if (activeSession.value?.unread && api) activeSession.value = await api.setHarnessSessionUnread(id, false)
     interactionState.syncSession(activeSession.value)
     runState.restoreSession(activeSession.value)
     return activeSession.value
@@ -123,6 +125,25 @@ export const useHarnessStore = defineStore('harness', () => {
     return session
   }
 
+  async function setSessionUnread(id: string, unread: boolean) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.setHarnessSessionUnread(id, unread)
+    if (activeSession.value?.id === id) activeSession.value = session
+    setRunStateUnread(id, unread)
+    await refreshSessions()
+    return session
+  }
+
+  async function moveSession(id: string, projectId: string) {
+    const api = getPlatformApi()
+    if (!api) return undefined
+    const session = await api.moveHarnessSession(id, projectId)
+    if (activeSession.value?.id === id) activeSession.value = session
+    await Promise.all([refreshSessions(), refreshProjects()])
+    return session
+  }
+
   async function renameSession(id: string, title: string) {
     const api = getPlatformApi()
     if (!api) return undefined
@@ -156,6 +177,10 @@ export const useHarnessStore = defineStore('harness', () => {
     }
     interactionState.applyEvent(event)
     runState.applyEvent(event)
+    if (event.type === 'status' && event.payload.state !== 'running' && event.sessionId !== activeSession.value?.id) {
+      const api = getPlatformApi()
+      if (typeof api?.setHarnessSessionUnread === 'function') void api.setHarnessSessionUnread(event.sessionId, true).then(() => refreshSessions()).catch(() => undefined)
+    }
     if (event.sessionId !== activeSession.value?.id) return
     if (event.type === 'context-usage' && event.payload.usage && typeof event.payload.usage === 'object') {
       activeSession.value = {
@@ -192,6 +217,8 @@ export const useHarnessStore = defineStore('harness', () => {
     setActiveMcpServers,
     setDelegationEnabled,
     setSessionPinned,
+    setSessionUnread,
+    moveSession,
     confirmPlan,
     continuePlan,
     cancelPlan,

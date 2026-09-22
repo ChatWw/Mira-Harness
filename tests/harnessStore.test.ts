@@ -14,7 +14,7 @@ function createStore() {
   const database = new Database(':memory:')
   database.exec(`
     CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
   return { root, database, store: new HarnessStore(database, new MiraPaths(root)) }
@@ -79,7 +79,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('adds the archive timestamp column when opening a pre-history database', () => {
+  it('adds archive and unread columns when opening a pre-history database', () => {
     const root = mkdtempSync(join(tmpdir(), 'mira-history-migration-'))
     const paths = new MiraPaths(root).ensure()
     const legacy = new Database(paths.stateDatabase())
@@ -91,6 +91,28 @@ describe('HarnessStore', () => {
     const database = new PlatformDatabase(root)
     const columns = database.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
     expect(columns.some(column => column.name === 'archived_at')).toBe(true)
+    expect(columns.some(column => column.name === 'unread')).toBe(true)
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists unread state and moves a session to an existing project', () => {
+    const { root, database, store } = createStore()
+    const directoryA = join(root, 'project-a')
+    const directoryB = join(root, 'project-b')
+    mkdirSync(directoryA)
+    mkdirSync(directoryB)
+    const projectA = store.createProject(directoryA, '项目 A')
+    const projectB = store.createProject(directoryB, '项目 B')
+    const session = store.createSession(projectA.id)
+
+    store.setUnread(session.id, true)
+    const moved = store.moveSession(session.id, projectB.id)
+
+    expect(moved).toMatchObject({ projectId: projectB.id, workingDirectory: directoryB, unread: true })
+    expect(store.getSession(session.id)).toMatchObject({ projectId: projectB.id, workingDirectory: directoryB, unread: true })
+    expect(store.listSessions()).toContainEqual(expect.objectContaining({ id: session.id, projectId: projectB.id, unread: true }))
+
     database.close()
     rmSync(root, { recursive: true, force: true })
   })
@@ -174,7 +196,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('creates an unassigned session unless a project is explicitly selected', () => {
+  it('uses the shared Mira workspace for an unassigned session', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')
     mkdirSync(directory)
@@ -184,8 +206,29 @@ describe('HarnessStore', () => {
     const projectSession = store.createSession(project.id)
 
     expect(recent.projectId).toBeUndefined()
-    expect(recent.workingDirectory).toBeUndefined()
+    expect(recent.workingDirectory).toBe(join(root, '.mira', 'workspace'))
+    expect(existsSync(recent.workingDirectory)).toBe(true)
     expect(projectSession.projectId).toBe(project.id)
+    expect(projectSession.workingDirectory).toBe(directory)
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('backfills the shared workspace for legacy unassigned sessions', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const updatedAt = session.updatedAt
+    database.prepare('UPDATE harness_sessions SET working_directory = NULL WHERE id = ?').run(session.id)
+    database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify({ ...session, workingDirectory: undefined, unread: undefined }), session.id)
+
+    const restored = store.getSession(session.id)
+
+    expect(restored.workingDirectory).toBe(join(root, '.mira', 'workspace'))
+    expect(restored.unread).toBe(false)
+    expect(database.prepare('SELECT working_directory FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ working_directory: join(root, '.mira', 'workspace') })
+    expect(database.prepare('SELECT unread FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ unread: 0 })
+    expect(restored.updatedAt).toBe(updatedAt)
 
     database.close()
     rmSync(root, { recursive: true, force: true })

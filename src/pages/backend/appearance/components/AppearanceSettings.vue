@@ -106,7 +106,7 @@
 
       <div class="settings-list">
         <div class="settings-row">
-          <span class="settings-row__label">唯一展开</span>
+          <span class="settings-row__label">菜单唯一展开</span>
           <el-switch :model-value="layoutStore.config.uniqueOpened" @change="layoutStore.setUniqueOpened" />
         </div>
         <div class="settings-row">

@@ -189,11 +189,14 @@ export interface PlatformApi {
   setHarnessDelegationEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSession>
   saveHarnessProjectMemory(id: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
+  setHarnessSessionUnread(id: string, unread: boolean): Promise<import('@/config/harness').HarnessSession>
+  moveHarnessSession(id: string, projectId: string): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
   archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   restoreHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   deleteHarnessSession(id: string): Promise<void>
   deleteHarnessSessions(ids: string[]): Promise<void>
+  openHarnessSessionProject(id: string, target: 'file-manager' | 'terminal'): Promise<string>
   listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
   selectHarnessFiles(projectId: string): Promise<import('@/config/harness').HarnessFileReference[]>
   attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 export class MiraPaths {
   readonly root: string
   readonly config: string
+  readonly workspace: string
   readonly sessions: string
   readonly attachments: string
   readonly trash: string
@@ -14,6 +15,7 @@ export class MiraPaths {
   constructor(home: string) {
     this.root = join(home, '.mira')
     this.config = join(this.root, 'config')
+    this.workspace = join(this.root, 'workspace')
     this.sessions = join(this.root, 'sessions')
     this.attachments = join(this.root, 'attachments')
     this.trash = join(this.root, 'trash')
@@ -39,7 +41,7 @@ export class MiraPaths {
   projectTrash(projectId: string) { return join(this.trash, projectId) }
 
   ensure() {
-    [this.root, this.config, this.sessions, this.attachments, this.trash, this.memories, this.logs, this.skills]
+    [this.root, this.config, this.workspace, this.sessions, this.attachments, this.trash, this.memories, this.logs, this.skills]
       .forEach(path => mkdirSync(path, { recursive: true }))
     if (!existsSync(this.globalAgents())) writeFileSync(this.globalAgents(), '', 'utf8')
     return this

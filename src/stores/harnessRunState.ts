@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { HarnessEvent, HarnessRunActivity, HarnessSession, HarnessSubtask } from '@/config/harness'
+import type { HarnessEvent, HarnessRunActivity, HarnessSession, HarnessSessionSummary, HarnessSubtask } from '@/config/harness'
 import { createHarnessRunState, reduceHarnessRunEvent, type HarnessRunState } from './harnessEventReducer'
 
 const STREAM_FRAME_MS = 16
@@ -89,6 +89,23 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
     runningSessionIds.value = runningSessionIds.value.filter(id => !removed.has(id))
     unreadSessionIds.value = unreadSessionIds.value.filter(id => !removed.has(id))
     ids.forEach(id => eventStates.delete(id))
+  }
+
+  function clearSessionUnread(id: string) {
+    unreadSessionIds.value = unreadSessionIds.value.filter(sessionId => sessionId !== id)
+  }
+
+  function setSessionUnread(id: string, unread: boolean) {
+    if (unread) {
+      if (!unreadSessionIds.value.includes(id)) unreadSessionIds.value = [...unreadSessionIds.value, id]
+      return
+    }
+    clearSessionUnread(id)
+  }
+
+  function syncUnreadSessions(sessions: HarnessSessionSummary[]) {
+    const persistedIds = sessions.filter(session => session.unread).map(session => session.id)
+    unreadSessionIds.value = [...new Set([...unreadSessionIds.value, ...persistedIds])]
   }
 
   function acceptEvent(event: HarnessEvent) {
@@ -202,5 +219,5 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
     }
   }
 
-  return { running, rendering, activeRun, publicRunState, runningSessionIds, unreadSessionIds, resetMessageQueue, prepareSession, restoreSession, clearActive, removeSessions, acceptEvent, applyEvent }
+  return { running, rendering, activeRun, publicRunState, runningSessionIds, unreadSessionIds, resetMessageQueue, prepareSession, restoreSession, clearActive, removeSessions, clearSessionUnread, setSessionUnread, syncUnreadSessions, acceptEvent, applyEvent }
 }

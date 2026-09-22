@@ -6,7 +6,7 @@
         <div class="conversation__identity">
           <el-popover v-if="selectedProject" v-model:visible="projectSummaryVisible" trigger="click" placement="bottom-start" :width="320" :show-arrow="false" popper-class="conversation-project-popper">
             <template #reference>
-              <el-tooltip :content="selectedProject.name" placement="bottom-start"><button type="button" class="conversation__project" :aria-label="`查看项目 ${selectedProject.name}`" :aria-expanded="projectSummaryVisible"><AppIcon name="FolderOpened" /></button></el-tooltip>
+              <span class="conversation__project-trigger"><button type="button" class="conversation__project" :class="{ 'is-open': projectSummaryVisible }" :data-tooltip="selectedProject.name" :aria-label="`查看项目 ${selectedProject.name}`" :aria-expanded="projectSummaryVisible" @click.stop="toggleProjectSummary"><AppIcon name="FolderOpened" /></button></span>
             </template>
             <section class="conversation-project-card" :aria-label="`${selectedProject.name} 项目概览`">
               <div class="conversation-project-card__title"><AppIcon name="FolderOpened" /><strong>{{ selectedProject.name }}</strong></div>
@@ -16,8 +16,10 @@
               <button type="button" class="conversation-project-card__edit" @click="openProjectSettings"><AppIcon name="tabler:settings" /><span>编辑项目</span></button>
             </section>
           </el-popover>
-          <strong :title="store.activeSession?.title || '新对话'">{{ store.activeSession?.title || '新对话' }}</strong>
+          <input v-if="titleEditing" ref="titleInputRef" v-model="titleDraft" class="conversation__title-input" :disabled="titleSaving" aria-label="会话名称" @blur="saveSessionTitle" @keydown.enter.prevent="saveSessionTitle" @keydown.esc.prevent="cancelSessionTitleEdit" />
+          <button v-else type="button" class="conversation__title-button" :title="store.activeSession?.title || '新对话'" @click="beginSessionTitleEdit">{{ store.activeSession?.title || '新对话' }}</button>
         </div>
+        <div class="conversation__header-drag" aria-hidden="true" />
         <div class="conversation__actions">
           <!-- <el-tag effect="plain" size="small">{{ permissionLabel }}</el-tag> -->
           <el-tooltip :content="workPanelVisible ? '关闭工作面板' : '打开工作面板'" placement="bottom"><button type="button" class="conversation__action-button" :aria-label="workPanelVisible ? '关闭工作面板' : '打开工作面板'" :aria-expanded="workPanelVisible" @click="toggleWorkPanel"><AppIcon :name="workPanelVisible ? 'tabler:layout-sidebar-right-filled' : 'tabler:layout-sidebar-right'" /></button></el-tooltip>
@@ -63,9 +65,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
 import { DEFAULT_PERMISSION_CONFIG, isModelProviderAvailable, OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessFileChange, type HarnessSkill, type ModelProviderSummary, type PermissionConfig } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
@@ -85,6 +87,11 @@ const planMode = ref(false)
 const interactionSubmitting = ref(false)
 const workPanelVisible = ref(false)
 const projectSummaryVisible = ref(false)
+const titleEditing = ref(false)
+const titleDraft = ref('')
+const titleEditingSessionId = ref<string>()
+const titleSaving = ref(false)
+const titleInputRef = ref<HTMLInputElement>()
 /** 对话中展示的消息（过滤掉内部上下文消息，如澄清问题回填的答案）。 */
 const conversationMessages = computed(() => (store.activeSession?.messages || []).filter(message => !message.internal))
 const latestCompletedMessage = computed(() => [...conversationMessages.value].reverse().find(message => message.run))
@@ -131,6 +138,33 @@ function openFileChange(change: HarnessFileChange) { activeFileChange.value = ch
 function openWorkPanel() { workPanelVisible.value = true }
 function closeWorkPanel() { workPanelVisible.value = false }
 function toggleWorkPanel() { if (workPanelVisible.value) closeWorkPanel(); else openWorkPanel() }
+function toggleProjectSummary() { projectSummaryVisible.value = !projectSummaryVisible.value }
+async function beginSessionTitleEdit() {
+  const session = store.activeSession
+  if (!session) return
+  titleEditingSessionId.value = session.id
+  titleDraft.value = session.title
+  titleEditing.value = true
+  await nextTick()
+  titleInputRef.value?.select()
+}
+function cancelSessionTitleEdit() { titleEditing.value = false; titleDraft.value = ''; titleEditingSessionId.value = undefined }
+async function saveSessionTitle() {
+  const sessionId = titleEditingSessionId.value
+  const title = titleDraft.value.trim()
+  if (titleSaving.value || !sessionId) return
+  if (!title) { ElMessage.warning('会话名称不能为空'); titleInputRef.value?.focus(); return }
+  if (store.activeSession?.id === sessionId && store.activeSession.title === title) { cancelSessionTitleEdit(); return }
+  titleSaving.value = true
+  try {
+    await store.renameSession(sessionId, title)
+    cancelSessionTitleEdit()
+    ElMessage.success('会话已重命名')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '重命名会话失败')
+    titleInputRef.value?.focus()
+  } finally { titleSaving.value = false }
+}
 function openProjectSettings() {
   const project = selectedProject.value
   if (!project) return
@@ -145,6 +179,7 @@ watch(() => [route.params.id, route.query.draft], () => {
 })
 watch(() => store.activeSession?.id, () => {
   projectSummaryVisible.value = false
+  cancelSessionTitleEdit()
   messageListRef.value?.reset()
   void messageListRef.value?.snapSessionToBottom()
 })
@@ -171,11 +206,11 @@ onMounted(() => { void reload() })
 .harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
 .conversation { display: grid; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
-.conversation__header { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: $spacing-md; padding: 0 4px; border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 72%, transparent); -webkit-app-region: drag; }
+.conversation__header { position: relative; z-index: 101; display: flex; min-height: 52px; align-items: center; gap: $spacing-md; padding: 0 4px 0 8px; border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 42%, transparent); -webkit-app-region: no-drag; }
 .conversation__empty-drag-region { position: absolute; z-index: 3; top: 0; right: var(--cp-window-controls-inset); left: var(--cp-mac-collapsed-safe-inset); height: 48px; -webkit-app-region: drag; }
 .permission-request-card { display: grid; width: min(calc(100% - 28px), 760px); box-sizing: border-box; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--cp-warning) 34%, var(--cp-border)); border-radius: $radius-md; background: color-mix(in srgb, var(--cp-warning) 8%, var(--cp-bg-elevated)); box-shadow: 0 8px 20px rgb(24 24 27 / 8%); }
 .permission-request-card__icon { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: var(--cp-warning); background: color-mix(in srgb, var(--cp-warning) 14%, transparent); font-size: 15px; }.permission-request-card__content { min-width: 0; }.permission-request-card__content strong { display: block; color: var(--cp-text); font-size: 13px; font-weight: 600; }.permission-request-card__content p { max-height: 54px; margin: 3px 0 0; overflow: auto; color: var(--cp-text-secondary); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }.permission-request-card__actions { display: flex; flex: 0 0 auto; gap: 8px; }.permission-request-card__actions .el-button { min-width: 68px; margin: 0; }
-.conversation__identity { display: flex; min-width: 0; align-items: center; gap: 8px; }.conversation__identity strong { overflow: hidden; color: var(--cp-text); font-size: 14px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }.conversation__project { display: inline-grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; -webkit-app-region: no-drag; }.conversation__project:hover, .conversation__project:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }.conversation__project .app-icon { font-size: 16px; }.conversation__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; -webkit-app-region: no-drag; }.conversation__actions :deep(.el-tag) { max-width: 148px; overflow: hidden; color: var(--cp-text-secondary); text-overflow: ellipsis; white-space: nowrap; }.conversation__action-button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__action-button:hover, .conversation__action-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
+.conversation__identity { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 8px; }.conversation__title-button { max-width: min(360px, 40vw); overflow: hidden; padding: 4px 6px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: text; }.conversation__title-button:hover, .conversation__title-button:focus-visible { background: var(--cp-bg-hover); outline: none; }.conversation__title-input { width: min(180px, 40vw); height: 28px; box-sizing: border-box; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-elevated); font: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; outline: none; }.conversation__title-input:focus { border-color: var(--cp-primary); box-shadow: 0 0 0 2px var(--cp-primary-lighter); }.conversation__project-trigger { display: inline-flex; flex: 0 0 auto; }.conversation__project { position: relative; display: inline-grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__project::after { position: absolute; z-index: 2; top: calc(100% + 8px); left: 0; padding: 6px 10px; border-radius: 8px; color: var(--cp-bg); background: var(--cp-text); box-shadow: 0 8px 20px rgb(0 0 0 / 16%); content: attr(data-tooltip); font-size: 12px; line-height: 1.35; opacity: 0; pointer-events: none; transform: translateY(-2px); transition: opacity $transition-fast, transform $transition-fast; white-space: nowrap; }.conversation__project:hover, .conversation__project:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }.conversation__project:hover:not(.is-open)::after, .conversation__project:focus-visible:not(.is-open)::after { opacity: 1; transform: translateY(0); }.conversation__project .app-icon { font-size: 16px; }.conversation__header-drag { min-width: 24px; align-self: stretch; flex: 1 1 auto; -webkit-app-region: drag; }.conversation__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }.conversation__actions :deep(.el-tag) { max-width: 148px; overflow: hidden; color: var(--cp-text-secondary); text-overflow: ellipsis; white-space: nowrap; }.conversation__action-button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__action-button:hover, .conversation__action-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
 .conversation-project-card { display: grid; gap: 8px; padding: 12px; }.conversation-project-card__title, .conversation-project-card__meta, .conversation-project-card__edit { display: flex; min-width: 0; align-items: center; gap: 9px; }.conversation-project-card__title { min-height: 28px; color: var(--cp-text); font-size: 14px; }.conversation-project-card__title .app-icon { flex: 0 0 auto; color: var(--cp-text-secondary); font-size: 18px; }.conversation-project-card__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-project-card__meta { color: var(--cp-text-secondary); font-size: 12px; line-height: 1.45; }.conversation-project-card__meta .app-icon { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 16px; }.conversation-project-card__directory { padding-bottom: 10px; border-bottom: 1px solid var(--cp-border-light); }.conversation-project-card__directory span { min-width: 0; overflow-wrap: anywhere; }.conversation-project-card__edit { min-height: 32px; padding: 0 6px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.conversation-project-card__edit:hover, .conversation-project-card__edit:focus-visible { background: var(--cp-bg-hover); outline: none; }.conversation-project-card__edit .app-icon { color: var(--cp-text-secondary); font-size: 16px; }
 :global(.conversation-project-popper.el-popover.el-popper) { max-width: calc(100vw - 32px); padding: 0; overflow: hidden; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg-overlay); box-shadow: 0 14px 30px rgb(0 0 0 / 12%); }
 .empty-state { position: absolute; inset: 0; z-index: 1; display: flex; width: min(100%, 760px); margin-right: auto; margin-left: auto; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }

@@ -41,7 +41,7 @@ import { atomicMove } from './miraDataMigration'
 import { MiraPaths } from './miraPaths'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
-type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, archived_at: number | null, path: string, working_directory: string | null, created_at: number, updated_at: number }
+type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
 const MAX_FILE_REFERENCES = 12
@@ -119,6 +119,7 @@ export class HarnessStore {
 
   constructor(private readonly database: Database.Database, paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
+    mkdirSync(this.paths.workspace, { recursive: true })
     mkdirSync(this.paths.sessions, { recursive: true })
     this.ensureStructuredSchema()
   }
@@ -191,18 +192,18 @@ export class HarnessStore {
     }
   }
 
-  private saveSession(session: HarnessSession) {
+  private saveSession(session: HarnessSession, preserveUpdatedAt = false) {
     const path = this.sessionPath(session)
     mkdirSync(dirname(path), { recursive: true })
-    session.updatedAt = now()
+    if (!preserveUpdatedAt) session.updatedAt = now()
     const persist = this.database.transaction(() => {
-      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, archived_at, path, working_directory, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, path, working_directory, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
-      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, archived_at = excluded.archived_at, path = excluded.path,
+      model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, unread = excluded.unread, archived_at = excluded.archived_at, path = excluded.path,
       working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
-        session.status, Number(session.pinned), session.archivedAt || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
+        session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
       this.persistStructuredSession(session)
       if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     })
@@ -260,6 +261,7 @@ export class HarnessStore {
       titleSource: value.titleSource === 'auto' ? 'auto' : 'manual',
       titleRevision: typeof value.titleRevision === 'number' && Number.isSafeInteger(value.titleRevision) && value.titleRevision >= 0 ? value.titleRevision : 0,
       pinned: Boolean(value.pinned),
+      unread: Boolean(value.unread),
       delegationEnabled: value.delegationEnabled !== false,
       archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined,
     } as HarnessSession
@@ -272,6 +274,7 @@ export class HarnessStore {
         session.pendingInteraction = { id: randomUUID(), kind: 'question', status: 'waiting', questions: legacy.questions.filter((item): item is { question: string, context?: string } => Boolean(item && typeof item === 'object' && typeof (item as { question?: unknown }).question === 'string')).map((item, index) => ({ id: `legacy-${index + 1}`, question: item.question, context: item.context })), createdAt: now() }
       }
     }
+    if (!session.projectId && !session.workingDirectory) session.workingDirectory = this.paths.workspace
     return session
   }
 
@@ -380,8 +383,8 @@ export class HarnessStore {
     const project = projectId ? this.getProject(projectId) : undefined
     const time = now()
     const session: HarnessSession = {
-      version: 1, id: createSessionId(), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory,
-      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, delegationEnabled: true,
+      version: 1, id: createSessionId(), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory || this.paths.workspace,
+      permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false, delegationEnabled: true,
     }
     return this.saveSession(session)
   }
@@ -392,7 +395,7 @@ export class HarnessStore {
       WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
-      status: row.status, pinned: Boolean(row.pinned), workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at,
+      status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
       planStatus: this.planStatus(this.getSession(row.id)) }))
   }
 
@@ -450,7 +453,7 @@ export class HarnessStore {
         id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined, projectIcon: row.project_icon ? projectIcon(row.project_icon) : undefined,
         modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) as HarnessHistoryRow['providerKey'] : undefined,
         permissionMode: row.permission_mode, status: row.status, pinned: Boolean(row.pinned), archivedAt: row.archived_at || undefined,
-        workingDirectory: row.working_directory || undefined, createdAt: row.created_at, updatedAt: row.updated_at, preview,
+        workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at, preview,
       }
       return result
     })
@@ -504,10 +507,18 @@ export class HarnessStore {
 
   getSession(id: string) {
     const structured = this.database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(id) as { payload?: string } | undefined
-    if (structured?.payload) return this.parseSession(structured.payload)
+    if (structured?.payload) {
+      const session = this.parseSession(structured.payload)
+      const stored = JSON.parse(structured.payload) as Partial<HarnessSession>
+      if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
+      return session
+    }
     const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
     if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
-    const session = this.parseSession(readFileSync(row.path, 'utf8'))
+    const raw = readFileSync(row.path, 'utf8')
+    const session = this.parseSession(raw)
+    const stored = JSON.parse(raw) as Partial<HarnessSession>
+    if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
     this.persistStructuredSession(session)
     return session
   }
@@ -518,6 +529,27 @@ export class HarnessStore {
     const session = this.getSession(id)
     session.pinned = Boolean(pinned)
     return this.saveSession(session)
+  }
+
+  setUnread(id: string, unread: boolean) {
+    const session = this.getSession(id)
+    session.unread = Boolean(unread)
+    return this.saveSession(session)
+  }
+
+  moveSession(id: string, projectId: string) {
+    const session = this.getSession(id)
+    const project = this.getProject(projectId)
+    const previousProjectId = session.projectId
+    session.projectId = project.id
+    session.workingDirectory = project.directory
+    const saved = this.saveSession(session)
+    if (previousProjectId && previousProjectId !== project.id) {
+      this.database.prepare(`UPDATE harness_projects SET last_session_at = (
+        SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id
+      ) WHERE id = ?`).run(previousProjectId)
+    }
+    return saved
   }
 
   renameSession(id: string, title: string) {

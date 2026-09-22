@@ -349,6 +349,7 @@ export interface HarnessSession {
   updatedAt: number
   status: HarnessSessionStatus
   pinned: boolean
+  unread?: boolean
   archivedAt?: number
   context?: HarnessContextState
   activeSkillIds?: string[]
@@ -377,7 +378,7 @@ export interface HarnessSkillSettings {
   directories: string[]
 }
 
-export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned'> {
+export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {
   projectName?: string
   workingDirectory?: string
   planStatus?: HarnessPlanSessionStatus

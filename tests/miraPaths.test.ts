@@ -6,6 +6,7 @@ describe('MiraPaths', () => {
   it('derives the macOS hidden data directory from a home directory', () => {
     const paths = new MiraPaths('/Users/mira')
     expect(paths.root).toBe(join('/Users/mira', '.mira'))
+    expect(paths.workspace).toBe(join('/Users/mira', '.mira', 'workspace'))
     expect(paths.stateDatabase()).toBe(join('/Users/mira', '.mira', 'state.sqlite'))
     expect(paths.globalAgents()).toBe(join('/Users/mira', '.mira', 'AGENTS.md'))
     expect(paths.globalMemory()).toBe(join('/Users/mira', '.mira', 'memories', 'MEMORY.md'))
