@@ -44,7 +44,7 @@
           @blur="scheduleSidebarFlyoutClose"
           @click="toggleSidebar"
         >
-          <AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-left-expand' : 'tabler:layout-sidebar-right-expand'" />
+          <AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-filled' : 'tabler:layout-sidebar'" />
         </button>
       </div>
 
