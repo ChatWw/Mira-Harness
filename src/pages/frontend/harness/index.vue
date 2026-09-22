@@ -89,6 +89,7 @@ const pageFacade = useHarnessPageFacade({
   planMode,
   interactionSubmitting,
   permissionResponding,
+  permissionConfig,
   loadEnvironment,
   scrollLatestMessageToTop: messageId => { void messageListRef.value?.scrollLatestMessageToTop(messageId) },
 })

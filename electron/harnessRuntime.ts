@@ -396,7 +396,7 @@ export class HarnessRuntime {
   }
 
   /** 环境上下文仅作事实参考注入；分支等信息可能滞后。 */
-  private environmentContext(session: HarnessSession, origin: HarnessRunOrigin): MiraEnvironmentContext {
+  private environmentContext(session: HarnessSession, origin: HarnessRunOrigin, automationPermissionMode?: PermissionMode): MiraEnvironmentContext {
     const now = new Date()
     const pad = (value: number) => String(value).padStart(2, '0')
     let gitBranch: string | undefined
@@ -408,7 +408,9 @@ export class HarnessRuntime {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       workingDirectory: session.workingDirectory,
       gitBranch,
-      permissionMode: session.permissionMode,
+      permissionMode: origin === 'automation'
+        ? automationPermissionMode || session.permissionMode
+        : this.database.harness.getPermissionConfig().globalDefaultMode,
       origin,
     }
   }
@@ -725,7 +727,7 @@ export class HarnessRuntime {
             }),
             context: {
               model: { providerName: provider.name, modelName: selection.modelId },
-              environment: this.environmentContext(session, origin),
+              environment: this.environmentContext(session, origin, options.permissionMode),
               instructions: this.database.instructions.resolve(session.workingDirectory),
               activeSkills: activeSkills.map(skill => ({ name: skill.name, instructions: skill.instructions })),
               globalMemory,

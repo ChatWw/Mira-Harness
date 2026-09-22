@@ -50,7 +50,7 @@ export class HarnessPermissionPolicy {
     if (!descriptor || descriptor.risk === 'read') return undefined
     const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
     if (name === 'bash' && this.isDangerousCommand(String(values.command ?? ''))) return { block: true, reason: '危险命令已被永久拦截' }
-    const mode = permissionMode || this.database.harness.getSession(sessionId).permissionMode
+    const mode = permissionMode || this.database.harness.getPermissionConfig().globalDefaultMode || 'default'
     if (automation && mode === 'default') return { block: true, reason: '自动化任务的默认权限仅允许只读工具' }
     const allowed = await this.approve(sender, sessionId, mode, descriptor.title(values), descriptor.detail(values))
     return allowed ? undefined : { block: true, reason: '用户拒绝了操作' }

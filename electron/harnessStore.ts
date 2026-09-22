@@ -837,12 +837,15 @@ export class HarnessStore {
     const row = this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get('permission') as { value?: string } | undefined
     try {
       const stored = row?.value ? JSON.parse(row.value) as Partial<PermissionConfig> : {}
+      const globalDefaultMode = ['default', 'auto-approve', 'full'].includes(stored.globalDefaultMode || '')
+        ? stored.globalDefaultMode as PermissionMode
+        : DEFAULT_PERMISSION_CONFIG.globalDefaultMode
       return {
         ...DEFAULT_PERMISSION_CONFIG,
         ...stored,
         autoApproveEnabled: typeof stored.autoApproveEnabled === 'boolean' ? stored.autoApproveEnabled : DEFAULT_PERMISSION_CONFIG.autoApproveEnabled,
         fullAccessEnabled: typeof stored.fullAccessEnabled === 'boolean' ? stored.fullAccessEnabled : DEFAULT_PERMISSION_CONFIG.fullAccessEnabled,
-        globalDefaultMode: 'default',
+        globalDefaultMode,
       }
     } catch { return clone(DEFAULT_PERMISSION_CONFIG) }
   }
@@ -856,8 +859,11 @@ export class HarnessStore {
       trashRetentionDays: Number.isInteger(config.trashRetentionDays) && config.trashRetentionDays >= 1 && config.trashRetentionDays <= 30
         ? config.trashRetentionDays
         : current.trashRetentionDays,
-      globalDefaultMode: 'default',
+      globalDefaultMode: ['default', 'auto-approve', 'full'].includes(config.globalDefaultMode)
+        ? config.globalDefaultMode
+        : current.globalDefaultMode,
     }
+    if ((next.globalDefaultMode === 'auto-approve' && !next.autoApproveEnabled) || (next.globalDefaultMode === 'full' && !next.fullAccessEnabled)) next.globalDefaultMode = 'default'
     this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(next))
     return this.getPermissionConfig()
   }

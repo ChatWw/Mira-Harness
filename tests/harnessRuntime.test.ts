@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { finalizeAssistantCitations, HarnessRuntime, runPromptSuffix, sourcesFromWebToolResult } from '../electron/harnessRuntime'
 
-function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default') {
+function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default', globalDefaultMode: 'default' | 'auto-approve' | 'full' = 'default') {
   const sender = { isDestroyed: () => false, send: vi.fn() }
   const database = {
     memories: { enabled: () => false },
     harness: {
       getSession: () => ({ permissionMode }),
-      getPermissionConfig: () => ({ dangerousCommands: [' shutdown '] }),
+      getPermissionConfig: () => ({ globalDefaultMode, dangerousCommands: [' shutdown '] }),
       recordTool: vi.fn(), updateTool: vi.fn(),
     },
   }
@@ -123,6 +123,28 @@ describe('HarnessRuntime tool approval', () => {
     expect(request.detail).toContain('token=***')
     ;(runtime as any).resolvePermission(request.requestId, true)
     await expect(pending).resolves.toBeUndefined()
+  })
+
+  it('uses the global permission mode for interactive conversations', async () => {
+    const { runtime, sender, registered } = setup('default', 'full')
+
+    await expect((runtime as any).preflightToolCall(sender, 'session-1', registered.descriptors, 'mcp_query', { query: 'hello' })).resolves.toBeUndefined()
+    expect(sender.send).not.toHaveBeenCalled()
+  })
+
+  it('keeps an automation task on its explicit permission mode', async () => {
+    const { runtime, sender, registered } = setup('default', 'full')
+
+    await expect((runtime as any).preflightToolCall(sender, 'session-1', registered.descriptors, 'mcp_query', { query: 'hello' }, true, 'default')).resolves.toEqual({ block: true, reason: '自动化任务的默认权限仅允许只读工具' })
+    expect(sender.send).not.toHaveBeenCalled()
+  })
+
+  it('uses the global mode in manual prompt context and the task mode for automation', () => {
+    const { runtime } = setup('default', 'full')
+    const session = { permissionMode: 'default' }
+
+    expect((runtime as any).environmentContext(session, 'manual').permissionMode).toBe('full')
+    expect((runtime as any).environmentContext(session, 'automation', 'auto-approve').permissionMode).toBe('auto-approve')
   })
 
   it('keeps dangerous bash commands blocked in every permission mode', async () => {

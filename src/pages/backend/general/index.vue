@@ -126,7 +126,7 @@ async function setPermissionAvailability(key: 'autoApproveEnabled' | 'fullAccess
     const api = getPlatformApi()
     if (!api) throw new Error('权限设置仅在桌面端中可用')
     const saved = await api.saveHarnessPermissionConfig({
-      globalDefaultMode: 'default',
+      globalDefaultMode: config.globalDefaultMode,
       autoApproveEnabled: config.autoApproveEnabled,
       fullAccessEnabled: config.fullAccessEnabled,
       dangerousCommands: [...config.dangerousCommands],
@@ -151,7 +151,7 @@ async function setTrashRetentionDays(value: number | undefined) {
     const api = getPlatformApi()
     if (!api) throw new Error('回收站设置仅在桌面端中可用')
     const saved = await api.saveHarnessPermissionConfig({
-      globalDefaultMode: 'default',
+      globalDefaultMode: config.globalDefaultMode,
       autoApproveEnabled: config.autoApproveEnabled,
       fullAccessEnabled: config.fullAccessEnabled,
       dangerousCommands: [...config.dangerousCommands],

@@ -2,7 +2,7 @@ import { computed, nextTick, ref, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPlatformApi } from '@/platform'
-import { OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessFileReference, type HarnessGitBranch, type HarnessGitConfig, type HarnessMessage, type HarnessUserAnswer, type ModelSelection, type PermissionMode, type ThinkingLevel } from '@/config/harness'
+import { OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessFileReference, type HarnessGitBranch, type HarnessGitConfig, type HarnessMessage, type HarnessUserAnswer, type ModelSelection, type PermissionConfig, type PermissionMode, type ThinkingLevel } from '@/config/harness'
 import { useHarnessStore } from '@/stores/harness'
 import { createHarnessSendAction, type HarnessSendAction } from './harnessComposerActions'
 
@@ -39,6 +39,7 @@ export function useHarnessPageFacade(options: {
   planMode: Ref<boolean>
   interactionSubmitting: Ref<boolean>
   permissionResponding: Ref<boolean>
+  permissionConfig: Ref<PermissionConfig>
   loadEnvironment: () => Promise<void>
   scrollLatestMessageToTop: (messageId: string) => void
 }) {
@@ -277,8 +278,13 @@ export function useHarnessPageFacade(options: {
       return
     }
     if (action.type === 'set-permission') {
-      if (store.activeSession) await store.setSessionPermission(store.activeSession.id, action.permissionMode)
-      if (draftKey.value) store.updateComposerDraft(draftKey.value, { permissionMode: action.permissionMode })
+      if (!api) return
+      const saved = await api.saveHarnessPermissionConfig({
+        ...options.permissionConfig.value,
+        globalDefaultMode: action.permissionMode,
+        dangerousCommands: [...options.permissionConfig.value.dangerousCommands],
+      })
+      options.permissionConfig.value = saved
       return
     }
     if (action.type === 'set-skill') {

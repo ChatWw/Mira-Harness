@@ -355,6 +355,10 @@ watch(
     flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
   }
 
   .sidebar-fixed-action {

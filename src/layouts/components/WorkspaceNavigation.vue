@@ -219,7 +219,7 @@ function expandProjectSessions(projectId: string) {
   projectSessionVisibleCounts.value = { ...projectSessionVisibleCounts.value, [projectId]: current < PROJECT_SESSION_EXTENDED_LIMIT ? PROJECT_SESSION_EXTENDED_LIMIT : total }
 }
 async function createProjectSession(projectId: string) { const draft = store.startDraft(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
-async function openSession(id: string) { await store.openSession(id); await router.push(`/workspace/chat/${id}`) }
+async function openSession(id: string) { await router.push(`/workspace/chat/${id}`) }
 
 function showProjectDialog(onCreated?: (projectId: string) => void) { Object.assign(projectForm, { name: '', icon: DEFAULT_PROJECT_ICON, directory: '' }); projectCreatedCallback = onCreated; projectDialogVisible.value = true }
 function openProjectDialog() { showProjectDialog() }
@@ -307,7 +307,6 @@ watch(() => recentSessions.value.length, (count, previousCount) => {
   if (!count) { sessionsExpanded.value = false; showAllSessions.value = false }
   else if (!previousCount) sessionsExpanded.value = true
 })
-watch(() => route.params.id, id => { if (typeof id === 'string') void store.openSession(id) })
 watch(projectDialogVisible, visible => { if (!visible) projectCreatedCallback = undefined })
 onMounted(() => { void refresh(); document.addEventListener('click', closeSessionContextMenu); window.addEventListener(OPEN_HARNESS_PROJECT_DIALOG_EVENT, handleProjectDialogRequest) })
 onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContextMenu); window.removeEventListener(OPEN_HARNESS_PROJECT_DIALOG_EVENT, handleProjectDialogRequest) })

@@ -474,14 +474,15 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('migrates legacy permission defaults and limits disabled permission modes', () => {
+  it('persists the global permission default and limits disabled permission modes', () => {
     const { root, database, store } = createStore()
     database.prepare('INSERT INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify({ globalDefaultMode: 'full' }))
 
-    expect(store.getPermissionConfig()).toMatchObject({ globalDefaultMode: 'default', autoApproveEnabled: true, fullAccessEnabled: true })
-    expect(store.createSession().permissionMode).toBe('default')
+    expect(store.getPermissionConfig()).toMatchObject({ globalDefaultMode: 'full', autoApproveEnabled: true, fullAccessEnabled: true })
+    expect(store.createSession().permissionMode).toBe('full')
 
     store.savePermissionConfig({ ...store.getPermissionConfig(), autoApproveEnabled: false, fullAccessEnabled: false })
+    expect(store.getPermissionConfig().globalDefaultMode).toBe('default')
     const session = store.createSession()
     expect(() => store.setPermission(session.id, 'auto-approve')).toThrow('自动审核权限未启用')
     expect(() => store.setPermission(session.id, 'full')).toThrow('完全访问权限未启用')
