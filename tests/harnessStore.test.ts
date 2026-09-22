@@ -21,6 +21,24 @@ function createStore() {
 }
 
 describe('HarnessStore', () => {
+  it.each(['failed', 'stopped'] as const)('persists an empty %s reply with elapsed time', status => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      store.addMessage(session.id, 'user', '分析项目')
+      const run = { status, startedAt: 1000, completedAt: 84000, durationMs: 83000, activities: [], ...(status === 'failed' ? { error: '连接超时' } : {}) }
+      store.finalizeAssistantMessage(session.id, { content: '', run, interrupted: status === 'stopped' })
+      const reply = store.getSession(session.id).messages.at(-1)!
+      expect(reply.role).toBe('assistant')
+      expect(reply.content).toBe('')
+      expect(reply.run).toEqual(run)
+      expect(Boolean(reply.interrupted)).toBe(status === 'stopped')
+    } finally {
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('persists assistant web sources with the completed message', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()

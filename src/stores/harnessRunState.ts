@@ -1,11 +1,11 @@
 import { ref } from 'vue'
-import type { HarnessEvent, HarnessRunActivity, HarnessSession, HarnessSessionSummary, HarnessSubtask } from '@/config/harness'
+import type { HarnessEvent, HarnessRunActivity, HarnessRunSummary, HarnessSession, HarnessSessionSummary, HarnessSubtask } from '@/config/harness'
 import { createHarnessRunState, reduceHarnessRunEvent, type HarnessRunState } from './harnessEventReducer'
 
-const STREAM_FRAME_MS = 16
+const STREAM_FRAME_MS = 50
 const STREAM_BASE_CHARACTERS_PER_SECOND = 90
 const STREAM_DRAIN_WINDOW_MS = 500
-const STREAM_MAX_CHARACTERS_PER_FRAME = 48
+const STREAM_MAX_CHARACTERS_PER_FRAME = 150
 
 export interface HarnessRunProgress {
   sessionId: string
@@ -33,6 +33,7 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
   let queuedMessageCharacters: string[] = []
   let queuedMessageTimer: number | undefined
   let completedMessageSessionId: string | undefined
+  let completedRun: HarnessRunSummary | undefined
   let messageCompletionDeadline: number | undefined
   let streamCharacterCarry = 0
 
@@ -42,6 +43,7 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
     queuedMessageCharacters = []
     queuedMessageTimer = undefined
     completedMessageSessionId = undefined
+    completedRun = undefined
     messageCompletionDeadline = undefined
     streamCharacterCarry = 0
     rendering.value = false
@@ -127,11 +129,22 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
 
   function finishMessageStream() {
     const sessionId = completedMessageSessionId
+    const run = completedRun
+    completedRun = undefined
     queuedMessageSessionId = undefined
     completedMessageSessionId = undefined
     messageCompletionDeadline = undefined
     rendering.value = false
     if (!sessionId || sessionId !== options.getActiveSession()?.id) return
+    // 在读取持久化消息前冻结状态和计时，也保留尚无正文的失败/停止回复。
+    const session = options.getActiveSession()!
+    if (run) {
+      const last = session.messages[session.messages.length - 1]
+      if (last?.role === 'assistant') {
+        last.run = run
+        last.interrupted = run.status === 'stopped'
+      } else session.messages.push({ id: `finished-${run.startedAt}`, role: 'assistant', content: '', createdAt: run.startedAt, run, interrupted: run.status === 'stopped' })
+    }
     const api = window.platform
     if (!api) return
     void api.getHarnessSession(sessionId).then(session => {
@@ -213,6 +226,7 @@ export function createHarnessRunStateManager(options: HarnessRunStateOptions) {
       if (!running.value && !rendering.value) activeRun.value = undefined
     }
     if (event.type === 'message-complete') {
+      completedRun = event.payload.run as HarnessRunSummary | undefined
       completedMessageSessionId = event.sessionId
       messageCompletionDeadline = Date.now() + STREAM_DRAIN_WINDOW_MS
       if (queuedMessageTimer === undefined && !queuedMessageCharacters.length) finishMessageStream()

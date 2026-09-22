@@ -612,8 +612,12 @@ export class HarnessStore {
 
   finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[] } = {}) {
     const session = this.getSession(id)
-    const last = session.messages.at(-1)
-    if (!last || last.role !== 'assistant') throw new Error('没有可完成的助手回复')
+    let last = session.messages.at(-1)
+    if (!last || last.role !== 'assistant') {
+      if (!options.run) throw new Error('没有可完成的助手回复')
+      last = { id: randomUUID(), role: 'assistant', content: '', createdAt: options.run.startedAt }
+      session.messages.push(last)
+    }
     if (options.content !== undefined) last.content = options.content
     if (options.run) last.run = options.run
     if (options.usage) last.usage = options.usage

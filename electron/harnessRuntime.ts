@@ -290,7 +290,7 @@ export class HarnessRuntime {
 
   private agentMessages(session: HarnessSession, model: { api: string, provider: string, id: string }) {
     const summary = session.context?.summary?.trim()
-    const messages = session.messages.slice(this.historyStart(session)).map(message => this.toAgentMessage(message, model))
+    const messages = session.messages.slice(this.historyStart(session)).filter(message => message.role !== 'assistant' || message.content.trim()).map(message => this.toAgentMessage(message, model))
     if (!summary) return messages
     return [{
       role: 'user',
@@ -747,9 +747,15 @@ export class HarnessRuntime {
     } catch (error) {
       finishRunningActivities('failed')
       publishActivities()
-      this.database.harness.setStatus(sessionId, 'failed')
-      this.emit(sender, { sessionId, type: 'message-complete', payload: {} })
-      this.emit(sender, { sessionId, type: 'error', payload: { message: error instanceof Error ? error.message : String(error) } })
+      const completedAt = Date.now()
+      const aborted = controller.signal.aborted
+      const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, status: aborted ? 'stopped' : 'failed', ...(aborted ? {} : { error: error instanceof Error ? error.message : String(error) }) }
+      this.database.harness.finalizeAssistantMessage(sessionId, { run, interrupted: aborted })
+      this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
+      this.emit(sender, { sessionId, type: 'message-complete', payload: { run } })
+      if (!aborted) this.emit(sender, { sessionId, type: 'error', payload: { message: run.error } })
+      await this.runCoordinator.finish(sender, sessionId)
+      if (aborted) return { content: '', interrupted: true }
       throw error
     }
     let output = ''
@@ -774,9 +780,10 @@ export class HarnessRuntime {
       }
       if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
         const thinking = activities.find(item => item.status === 'running' && item.label === '正在思考')
+        const startingAnswer = !activities.some(item => item.id === 'answering')
         if (thinking) finishActivity(thinking.id)
         startActivity('answering', '正在生成回复')
-        publishActivities()
+        if (thinking || startingAnswer) publishActivities()
         const delta = event.assistantMessageEvent.delta as string
         output += delta
         pendingAssistantDelta += delta
@@ -810,12 +817,14 @@ export class HarnessRuntime {
     })
     try {
       await agent.prompt(text)
+      if (controller.signal.aborted) throw new Error('回复已停止')
       // A parent is not allowed to leave child work behind. If it did not
       // converge itself, wait and give it one explicit convergence turn.
       if (subtasks?.active().length) {
         await subtasks.wait()
         await agent.prompt('系统提醒：你创建的子任务已经结束。请调用 wait_for_tasks 读取报告，整合结果后再给出最终答复；不要再创建子任务。')
       }
+      if (controller.signal.aborted) throw new Error('回复已停止')
       if (agent.state.errorMessage) throw new Error(agent.state.errorMessage)
       const finalMessage = agent.state.messages.at(-1)
       const finalText = assistantText(finalMessage)
@@ -838,7 +847,7 @@ export class HarnessRuntime {
       const parentUsage = tokenUsage(finalMessage && typeof finalMessage === 'object' ? (finalMessage as { usage?: unknown }).usage : undefined)
       const pricedParentUsage = parentUsage ? withUsageCost(parentUsage, modelConfig.pricing) : undefined
       const childUsage = mergeUsage(subtasks?.list().map(task => task.usage) || [])
-      const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
+      const run: HarnessRunSummary = { status: 'completed', startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
       run.contextUsage = usage
@@ -868,15 +877,14 @@ export class HarnessRuntime {
       publishActivities()
       const aborted = controller.signal.aborted
       flushAssistantDelta()
-      if (output && !assistantFinalized) {
+      if (!assistantFinalized) {
         const completedAt = Date.now()
         const citations = finalizeAssistantCitations(output, sources)
         output = citations.content
-        this.database.harness.finalizeAssistantMessage(sessionId, { content: output, run: { startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list() } : {}) }, interrupted: aborted, sources: citations.sources })
+        const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, status: aborted ? 'stopped' : 'failed', ...(aborted ? {} : { error: error instanceof Error ? error.message : String(error) }), ...(subtasks?.list().length ? { subtasks: subtasks.list() } : {}) }
+        this.database.harness.finalizeAssistantMessage(sessionId, { content: output, run, interrupted: aborted, sources: citations.sources })
         assistantFinalized = true
-        this.emit(sender, { sessionId, type: 'message-complete', payload: { content: output } })
-      } else if (!output) {
-        this.emit(sender, { sessionId, type: 'message-complete', payload: {} })
+        this.emit(sender, { sessionId, type: 'message-complete', payload: { content: output, run } })
       }
       this.database.harness.setStatus(sessionId, aborted ? 'active' : 'failed')
       const failureAt = Date.now()

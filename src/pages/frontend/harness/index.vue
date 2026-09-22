@@ -33,7 +33,7 @@
         <div class="permission-request-card__content"><strong>{{ permissionRequest.title }}</strong><p>{{ permissionRequest.detail }}</p></div>
         <div class="permission-request-card__actions"><el-button :disabled="permissionResponding" @click="respondPermission(false)">拒绝</el-button><el-button type="primary" :loading="permissionResponding" @click="respondPermission(true)">允许</el-button></div>
       </section>
-      <section v-if="store.lastRunError" class="run-error-card" role="alert"><AppIcon name="WarningFilled" /><div><strong>本次运行未完成</strong><p>{{ store.lastRunError.message }}</p></div><el-button size="small" :disabled="isComposerBusy" @click="rerun">重试</el-button></section>
+      <section v-if="store.lastRunError?.sessionId === store.activeSession?.id && store.lastRunError && conversationMessages[conversationMessages.length - 1]?.run?.status !== 'failed'" class="run-error-card" role="alert"><AppIcon name="WarningFilled" /><div><strong>本次运行未完成</strong><p>{{ store.lastRunError.message }}</p></div><el-button size="small" :disabled="isComposerBusy" @click="rerun">重试</el-button></section>
 
       <HarnessComposer ref="composerRef" v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :dispatch="pageFacade.dispatchComposerAction" />
     </section>
@@ -171,7 +171,7 @@ function openProjectSettings() {
   projectSummaryVisible.value = false
   window.dispatchEvent(new CustomEvent(OPEN_HARNESS_PROJECT_DIALOG_EVENT, { detail: { project, onUpdated: () => { void store.refreshProjects() } } }))
 }
-function focusComposer() { composerRef.value?.focus() }
+function focusComposer() { setStarterPrompt('请接着上次中止的位置继续回答。'); composerRef.value?.focus() }
 function setStarterPrompt(text: string) { void pageFacade.dispatchComposerAction({ type: "update-draft", patch: { text } }) }
 watch(() => [route.params.id, route.query.draft], () => {
   messageListRef.value?.reset()

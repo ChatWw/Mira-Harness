@@ -111,6 +111,8 @@ export function useHarnessPageFacade(options: {
     if (!api || !session || store.running || store.rendering) return
     const last = session.messages[session.messages.length - 1]
     if (last?.role === 'assistant') session.messages.pop()
+    const question = session.messages[session.messages.length - 1]
+    if (question?.role === 'user') options.scrollLatestMessageToTop(question.id)
     const selection = composerDraft.value.modelSelection
     try {
       await api.rerunHarness(session.id, selection ? { ...selection } : undefined)
@@ -128,6 +130,7 @@ export function useHarnessPageFacade(options: {
     session.messages[messageIndex].content = content
     session.messages = session.messages.slice(0, messageIndex + 1)
     session.context = undefined
+    options.scrollLatestMessageToTop(message.id)
     store.running = true
     try {
       const selection = composerDraft.value.modelSelection

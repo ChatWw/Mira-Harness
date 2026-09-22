@@ -54,7 +54,20 @@ afterEach(() => {
 })
 
 describe('harness message streaming', () => {
-  it('renders a buffered model delta over multiple 16ms frames', async () => {
+  it.each(['failed', 'stopped'] as const)('freezes an empty %s reply before the saved session finishes loading', async status => {
+    vi.useFakeTimers()
+    installWindow(vi.fn(() => new Promise<HarnessSession>(() => {})))
+    const store = await createStore()
+    store.activeSession!.messages.push({ id: 'question', role: 'user', content: '分析项目', createdAt: 1000 })
+    const run = { status, startedAt: 1000, completedAt: 84000, durationMs: 83000, activities: [] }
+    store.applyEvent({ sessionId: 'session-1', type: 'message-complete', payload: { run } })
+    store.applyEvent({ sessionId: 'session-1', type: 'status', payload: { state: 'idle' } })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(store.activeSession!.messages.at(-1)).toMatchObject({ role: 'assistant', content: '', run, interrupted: status === 'stopped' })
+    expect(store.rendering).toBe(false)
+  })
+
+  it('batches incoming deltas into 50ms updates while preserving the full response', async () => {
     vi.useFakeTimers()
     installWindow()
     const store = await createStore()
@@ -63,7 +76,9 @@ describe('harness message streaming', () => {
     store.applyEvent({ sessionId: 'session-1', type: 'message-delta', payload: { delta } })
 
     expect(streamedContent(store)).toBe('')
-    await vi.advanceTimersByTimeAsync(16)
+    await vi.advanceTimersByTimeAsync(49)
+    expect(streamedContent(store)).toBe('')
+    await vi.advanceTimersByTimeAsync(1)
     expect(streamedContent(store).length).toBeGreaterThan(0)
     expect(streamedContent(store).length).toBeLessThan(delta.length)
     await vi.advanceTimersByTimeAsync(500)
@@ -77,9 +92,9 @@ describe('harness message streaming', () => {
     const delta = '一'.repeat(2_000)
 
     store.applyEvent({ sessionId: 'session-1', type: 'message-delta', payload: { delta } })
-    await vi.advanceTimersByTimeAsync(16)
+    await vi.advanceTimersByTimeAsync(50)
 
-    expect(streamedContent(store).length).toBe(48)
+    expect(streamedContent(store).length).toBe(150)
   })
 
   it('routes duplicate message events through the single reducer entry only once', async () => {

@@ -249,6 +249,8 @@ export interface HarnessActiveRun {
 }
 
 export interface HarnessRunSummary {
+  status?: 'completed' | 'failed' | 'stopped'
+  error?: string
   startedAt: number
   completedAt: number
   durationMs: number

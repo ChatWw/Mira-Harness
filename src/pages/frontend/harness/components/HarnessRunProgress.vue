@@ -1,21 +1,26 @@
 <template>
-  <details v-if="completed" class="message__run">
-    <summary><span class="run-summary__label">已完成 · {{ durationLabel }}</span><span class="run-summary__meta">{{ activitiesWithoutPlan.length }} 个步骤{{ summaryMeta ? ` · ${summaryMeta}` : '' }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
-    <RunPlan :activities="activities" />
-    <RunActivityList :activities="activitiesWithoutPlan" :completed-at="completedAt" />
-    <SubtaskList :subtasks="subtasks" />
-  </details>
-  <details v-else class="run-progress" :class="{ 'run-progress--pending': pending }" :open="open">
-    <summary><span class="run-progress__label">{{ progressLabel }} · {{ durationLabel }}</span><AppIcon name="ArrowDown" class="run-summary__chevron" /></summary>
-    <RunPlan :activities="activities" />
-    <RunActivityList :activities="activitiesWithoutPlan" />
-    <SubtaskList :subtasks="subtasks" :stop="stop" />
-  </details>
+  <section class="reply-progress" :class="`is-${status}`" aria-label="回复状态">
+    <header class="reply-progress__header">{{ statusLabel }}<template v-if="durationMs !== undefined"> · {{ status === 'running' ? '' : status === 'failed' ? '耗时' : '用时' }}{{ replyDuration(durationMs) }}</template></header>
+    <div v-if="status === 'running'" class="reply-progress__current"><span class="reply-progress__shimmer">{{ currentActivityLabel(activities, progressLabel) }}…</span></div>
+    <details v-if="activities.length || subtasks.length" class="reply-progress__details">
+      <summary>
+        <span>{{ completedCount ? `已完成 ${completedCount} 项操作` : '执行过程' }}<template v-if="failedCount"> · {{ failedCount }} 项异常记录</template></span>
+        <span class="reply-progress__toggle">查看过程<AppIcon name="ArrowDown" /></span>
+      </summary>
+      <div class="reply-progress__history">
+        <RunPlan :activities="activities" />
+        <RunActivityList :activities="activitiesWithoutPlan" :completed-at="completedAt" />
+        <SubtaskList :subtasks="subtasks" :stop="stop" />
+      </div>
+      <span v-if="summaryMeta" class="reply-progress__meta">{{ summaryMeta }}</span>
+    </details>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { HarnessRunActivity, HarnessSubtask } from '@/config/harness'
+import { currentActivityLabel, replyDuration } from '../runPresentation'
 import RunPlan from './RunPlan.vue'
 import RunActivityList from './RunActivityList.vue'
 import SubtaskList from './SubtaskList.vue'
@@ -23,33 +28,40 @@ import SubtaskList from './SubtaskList.vue'
 const props = withDefaults(defineProps<{
   activities?: HarnessRunActivity[]
   subtasks?: HarnessSubtask[]
-  completed?: boolean
+  status: 'running' | 'completed' | 'failed' | 'stopped'
   completedAt?: number
-  durationLabel: string
+  durationMs?: number
   summaryMeta?: string
-  progressLabel: string
-  open?: boolean
-  pending?: boolean
+  progressLabel?: string
   stop?: (id: string) => void
-}>(), { activities: () => [], subtasks: () => [], completed: false, open: true, pending: false })
+}>(), { activities: () => [], subtasks: () => [], progressLabel: '正在思考' })
 
+const statusLabel = computed(() => ({ running: '正在回复', completed: '回复完成', failed: '回复失败', stopped: '回复已停止' }[props.status]))
 const activitiesWithoutPlan = computed(() => props.activities.filter(activity => activity.kind !== 'plan'))
+const operations = computed(() => activitiesWithoutPlan.value.filter(activity => activity.kind === 'tool' || activity.id.startsWith('tool-')))
+const completedCount = computed(() => operations.value.filter(activity => activity.status === 'completed').length)
+const failedCount = computed(() => operations.value.filter(activity => activity.status === 'failed').length)
 </script>
 
 <style scoped lang="scss">
-.message__run, .run-progress { width: min(100%, 760px); margin: 0 0 12px; color: var(--cp-text-secondary); font-size: 12px; }
-.run-progress { margin: 0 auto 18px; }
-.message__run summary, .run-progress summary { display: flex; align-items: center; min-width: 0; gap: 8px; width: fit-content; color: var(--cp-text-secondary); cursor: pointer; list-style: none; }
-.message__run summary::-webkit-details-marker, .run-progress summary::-webkit-details-marker { display: none; }
-.run-summary__label, .run-progress__label { min-width: 0; }
-.run-summary__meta { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 11px; }
-.run-summary__chevron { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 12px; opacity: 0; transform: rotate(0); transition: opacity .12s ease, transform .12s ease; }
-.message__run summary:hover .run-summary__chevron, .run-progress summary:hover .run-summary__chevron, .message__run summary:focus-visible .run-summary__chevron, .run-progress summary:focus-visible .run-summary__chevron { opacity: 1; }
-.message__run[open] > summary .run-summary__chevron, .run-progress[open] > summary .run-summary__chevron { transform: rotate(180deg); }
-.run-progress__label { --run-sweep-base: var(--cp-text-tertiary); --run-sweep-edge: color-mix(in srgb, var(--cp-text-tertiary) 34%, white); --run-sweep-highlight: var(--cp-bg); color: var(--run-sweep-base); }
+.reply-progress { margin-bottom: 20px; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.6; }
+.reply-progress__header { padding-bottom: 12px; border-bottom: 1px solid var(--cp-border-light); font-size: 13px; font-variant-numeric: tabular-nums; }
+.is-failed .reply-progress__header { color: var(--cp-danger); }
+.reply-progress__current { display: flex; min-height: 26px; align-items: center; margin-top: 12px; }
+.reply-progress__shimmer { overflow: hidden; color: var(--cp-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.reply-progress__details { margin-top: 8px; }
+.reply-progress__details > summary { display: flex; min-height: 26px; align-items: center; gap: 14px; width: fit-content; max-width: 100%; cursor: pointer; list-style: none; }
+.reply-progress__details > summary::-webkit-details-marker { display: none; }
+.reply-progress__details > summary:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 3px; border-radius: 3px; }
+.reply-progress__toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: var(--cp-text-tertiary); }
+.reply-progress__toggle .app-icon { font-size: 11px; transition: transform .15s ease; }
+.reply-progress__details[open] .reply-progress__toggle .app-icon { transform: rotate(180deg); }
+.reply-progress__details > summary:hover .reply-progress__toggle { color: var(--cp-text); }
+.reply-progress__history { max-height: 260px; margin-top: 8px; padding: 0 12px 12px; overflow: auto; border: 1px solid var(--cp-border-light); border-radius: 8px; background: var(--cp-bg-hover); }
+.reply-progress__meta { display: block; margin-top: 8px; color: var(--cp-text-tertiary); }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .run-progress__label { background: linear-gradient(100deg, var(--run-sweep-base) 0 24%, var(--run-sweep-edge) 38%, var(--run-sweep-highlight) 50%, var(--run-sweep-edge) 62%, var(--run-sweep-base) 76% 100%); background-size: 260% 100%; color: transparent; background-clip: text; -webkit-background-clip: text; animation: run-text-sweep 1.8s ease-in-out infinite; }
+  .reply-progress__shimmer { background: linear-gradient(100deg, var(--cp-text-secondary) 25%, var(--cp-text-tertiary) 42%, var(--cp-text) 50%, var(--cp-text-tertiary) 58%, var(--cp-text-secondary) 75%); background-size: 240% 100%; color: transparent; background-clip: text; -webkit-background-clip: text; animation: reply-shimmer 2.2s linear infinite; }
 }
-@keyframes run-text-sweep { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0 0; } }
-@media (prefers-reduced-motion: reduce) { .run-progress__label { animation: none; } }
+@keyframes reply-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .reply-progress__shimmer { animation: none; background: none; color: var(--cp-text-secondary); }.reply-progress__toggle .app-icon { transition: none; } }
 </style>

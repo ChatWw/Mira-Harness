@@ -21,20 +21,23 @@ export function useHarnessNavigation(options: {
 }) {
   const streamRef = ref<HTMLElement>()
   const quickNavigationRef = ref<HTMLElement>()
+  const contentRef = ref<HTMLElement>()
+  const spacerRef = ref<HTMLElement>()
   const showScrollToBottom = ref(false)
-  const stickToBottom = ref(true)
+  const followLatest = ref(true)
   const quickNavigationSegments = ref<QuickNavigationSegment[]>([])
   const quickNavigationScrollTop = ref(0)
   const quickNavigationMaxScrollTop = ref(0)
   const hoveredQuickNavigationId = ref<string>()
   let bottomScrollRequest = 0
-  let autoScrollTimer: number | undefined
+  let layoutFrame: number | undefined
   let quickNavigationFrame: number | undefined
   let quickNavigationResizeObserver: ResizeObserver | undefined
   let quickNavigationPointerId: number | undefined
-  let positioningLatestMessage = false
-  let latestMessageIdToPosition: string | undefined
-  let scrollFollowLocked = false
+  let reserveLatestTurn = false
+  let lastScrollTop = 0
+  let userScrolling = false
+  let disposed = false
 
   const showQuickNavigation = computed(() => quickNavigationMaxScrollTop.value > 2 && quickNavigationSegments.value.length > 0)
   const quickNavigationProgress = computed(() => quickNavigationMaxScrollTop.value > 0 ? quickNavigationScrollTop.value / quickNavigationMaxScrollTop.value : 0)
@@ -83,40 +86,92 @@ export function useHarnessNavigation(options: {
       const proximity = hoveredIndex < 0 ? 0 : Math.max(0, 4 - Math.abs(index - hoveredIndex))
       return { id: turn.message.id, top: topPercent, scrollTop: top, width: 8, left: 0, scaleX: 1 + proximity * .375, scaleY: 1 + proximity * .1, active: top < viewportBottom && end > stream.scrollTop, title: formatQuickNavigationPreview(turn.message.content, 88, '这条提问'), reply: formatQuickNavigationPreview(turn.reply?.content || '', 280, '正在生成回复…') }
     }) : []
-    quickNavigationResizeObserver?.observe(stream)
-    stream.querySelectorAll<HTMLElement>('.message, .run-progress').forEach(element => quickNavigationResizeObserver?.observe(element))
+
+  }
+
+  function bottomDistance() {
+    const stream = streamRef.value
+    return stream ? Math.max(0, stream.scrollHeight - stream.clientHeight - stream.scrollTop) : 0
+  }
+
+  function updateBottomButton() {
+    showScrollToBottom.value = !followLatest.value && bottomDistance() > 32
+  }
+
+  function writeScrollTop(top: number) {
+    const stream = streamRef.value
+    if (!stream) return
+    stream.scrollTop = top
+    lastScrollTop = stream.scrollTop
+  }
+
+  function updateReplySpace() {
+    const stream = streamRef.value
+    const content = contentRef.value
+    const spacer = spacerRef.value
+    if (!stream || !content || !spacer) return
+    const questions = content.querySelectorAll<HTMLElement>('.message.user')
+    const question = questions[questions.length - 1]
+    const naturalBottom = content.offsetTop + content.offsetHeight + 24
+    const height = reserveLatestTurn && question
+      ? Math.max(0, question.offsetTop - 20 + stream.clientHeight - naturalBottom)
+      : 0
+    const value = `${Math.ceil(height)}px`
+    if (spacer.style.height !== value) spacer.style.height = value
   }
 
   function handleStreamScroll() {
+    const stream = streamRef.value
+    if (!stream) return
+    const scrollTop = stream.scrollTop
+    const movedUp = scrollTop < lastScrollTop - 1
+    const movedDown = scrollTop > lastScrollTop + 1
+    // 只有实际发生了用户向上滚动才暂停跟随，避免滚轮刚触发就显示浮动控件。
+    if (userScrolling && movedUp) {
+      pauseFollowing()
+    // 只有用户主动向下回到底部才能恢复跟随，内容增长和程序定位不改变模式。
+    } else if (userScrolling && movedDown && bottomDistance() <= 32) {
+      followLatest.value = true
+      userScrolling = false
+    }
+    lastScrollTop = scrollTop
+    updateBottomButton()
     scheduleQuickNavigationUpdate()
-    if (positioningLatestMessage) return
-    const element = streamRef.value
-    if (!element) return
-    if (!options.messages.value.length) { stickToBottom.value = true; showScrollToBottom.value = false; return }
-    const distance = element.scrollHeight - element.scrollTop - element.clientHeight
-    if (scrollFollowLocked) { showScrollToBottom.value = distance > 2; return }
-    if (distance <= 2) stickToBottom.value = true
-    else if (distance > 72) stickToBottom.value = false
-    showScrollToBottom.value = !stickToBottom.value && distance > 2
+  }
+
+  function cancelAutoScroll() {
+    if (layoutFrame !== undefined) window.cancelAnimationFrame(layoutFrame)
+    layoutFrame = undefined
+  }
+
+  function pauseFollowing() {
+    cancelAutoScroll()
+    bottomScrollRequest++
+    followLatest.value = false
+    userScrolling = true
+    lastScrollTop = streamRef.value?.scrollTop || 0
+    updateBottomButton()
+  }
+
+  function markUserScrollIntent() {
+    cancelAutoScroll()
+    bottomScrollRequest++
+    userScrolling = true
   }
 
   async function scrollLatestMessageToTop(messageId: string) {
-    cancelAutoScroll(); bottomScrollRequest += 1; positioningLatestMessage = true; scrollFollowLocked = true; stickToBottom.value = false; latestMessageIdToPosition = messageId
+    cancelAutoScroll()
+    const request = ++bottomScrollRequest
+    followLatest.value = true
+    userScrolling = false
+    reserveLatestTurn = true
     await nextTick()
-    if (positionLatestMessageToTop(messageId)) latestMessageIdToPosition = undefined
-    positioningLatestMessage = false
-  }
-
-  function positionLatestMessageToTop(messageId: string) {
-    const stream = streamRef.value
-    const message = Array.from(stream?.querySelectorAll<HTMLElement>('.message') || []).find(element => element.dataset.messageId === messageId)
-    if (!stream || !message) return false
-    const targetTop = Math.max(0, message.offsetTop - 20)
-    const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
-    stream.scrollTop = Math.min(targetTop, maxScrollTop)
-    showScrollToBottom.value = maxScrollTop - stream.scrollTop > 2
+    if (disposed || request !== bottomScrollRequest) return
+    updateReplySpace()
+    const message = Array.from(contentRef.value?.querySelectorAll<HTMLElement>('.message') || []).find(element => element.dataset.messageId === messageId)
+    if (message) writeScrollTop(Math.max(0, message.offsetTop - 20))
+    updateBottomButton()
     scheduleQuickNavigationUpdate()
-    return targetTop <= maxScrollTop
   }
 
   function quickNavigationSegmentFromPointer(event: PointerEvent) {
@@ -131,10 +186,14 @@ export function useHarnessNavigation(options: {
   function useQuickNavigationPosition(progress: number) {
     const stream = streamRef.value
     if (!stream) return
-    cancelAutoScroll(); bottomScrollRequest += 1; latestMessageIdToPosition = undefined; scrollFollowLocked = true; stickToBottom.value = false
+    pauseFollowing()
     const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
     const target = Math.round(Math.min(1, Math.max(0, progress)) * maxScrollTop)
-    stream.scrollTop = target; showScrollToBottom.value = target < maxScrollTop - 2; scheduleQuickNavigationUpdate()
+    writeScrollTop(target)
+    followLatest.value = maxScrollTop - target <= 32
+    userScrolling = !followLatest.value
+    updateBottomButton()
+    scheduleQuickNavigationUpdate()
   }
 
   function updateQuickNavigationHover(event: PointerEvent) {
@@ -149,19 +208,88 @@ export function useHarnessNavigation(options: {
   function endQuickNavigation(event: PointerEvent) { if (quickNavigationPointerId !== event.pointerId) return; const element = event.currentTarget as HTMLElement; if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId); quickNavigationPointerId = undefined }
   function quickNavigationProgressFromPointer(event: PointerEvent, element: HTMLElement) { const bounds = element.getBoundingClientRect(); if (bounds.height) useQuickNavigationPosition((event.clientY - bounds.top) / bounds.height) }
   function handleQuickNavigationKeydown(event: KeyboardEvent) { const stream = streamRef.value; if (!stream) return; const maxScrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight); const step = Math.max(48, stream.clientHeight * .15); if (event.key === 'Home') useQuickNavigationPosition(0); else if (event.key === 'End') useQuickNavigationPosition(1); else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') useQuickNavigationPosition((stream.scrollTop - step) / Math.max(1, maxScrollTop)); else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') useQuickNavigationPosition((stream.scrollTop + step) / Math.max(1, maxScrollTop)); else if (event.key === 'PageUp') useQuickNavigationPosition((stream.scrollTop - stream.clientHeight) / Math.max(1, maxScrollTop)); else if (event.key === 'PageDown') useQuickNavigationPosition((stream.scrollTop + stream.clientHeight) / Math.max(1, maxScrollTop)); else return; event.preventDefault() }
-  function cancelAutoScroll() { if (autoScrollTimer !== undefined) window.clearTimeout(autoScrollTimer); autoScrollTimer = undefined }
   function handleUserWheel(event: WheelEvent) {
-    const element = streamRef.value
-    if (!element || !options.messages.value.length || event.deltaY >= 0 || element.scrollHeight - element.clientHeight <= 2) return
-    cancelAutoScroll(); scrollFollowLocked = true; stickToBottom.value = false; showScrollToBottom.value = true
+    if (!event.deltaY) return
+    markUserScrollIntent()
   }
-  function scheduleAutoScroll() { if (options.running.value || options.rendering.value || scrollFollowLocked || !stickToBottom.value || autoScrollTimer !== undefined) return; autoScrollTimer = window.setTimeout(() => { autoScrollTimer = undefined; const element = streamRef.value; if (!element || options.running.value || options.rendering.value || scrollFollowLocked || !stickToBottom.value) return; const distance = element.scrollHeight - element.scrollTop - element.clientHeight; if (distance > 0) element.scrollBy({ top: distance, behavior: 'smooth' }) }, 72) }
-  async function scrollToBottom() { cancelAutoScroll(); scrollFollowLocked = false; stickToBottom.value = true; await nextTick(); streamRef.value?.scrollTo({ top: streamRef.value.scrollHeight, behavior: 'smooth' }); showScrollToBottom.value = false; scheduleQuickNavigationUpdate() }
-  async function snapSessionToBottom() { const request = ++bottomScrollRequest; await nextTick(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); if (request !== bottomScrollRequest) return; const element = streamRef.value; if (!element) return; element.scrollTop = element.scrollHeight; requestAnimationFrame(() => { if (request === bottomScrollRequest && streamRef.value) { streamRef.value.scrollTop = streamRef.value.scrollHeight; scrollFollowLocked = false; stickToBottom.value = true; handleStreamScroll() } }) }
-  function reset() { cancelAutoScroll(); quickNavigationResizeObserver?.disconnect(); hoveredQuickNavigationId.value = undefined; latestMessageIdToPosition = undefined; scrollFollowLocked = false; stickToBottom.value = true; showScrollToBottom.value = false }
-  function positionPendingMessage() { if (latestMessageIdToPosition && positionLatestMessageToTop(latestMessageIdToPosition)) latestMessageIdToPosition = undefined }
-  function mount() { quickNavigationResizeObserver = new ResizeObserver(scheduleQuickNavigationUpdate); void nextTick().then(scheduleQuickNavigationUpdate) }
-  function dispose() { cancelAutoScroll(); if (quickNavigationFrame !== undefined) window.cancelAnimationFrame(quickNavigationFrame); quickNavigationResizeObserver?.disconnect(); bottomScrollRequest += 1 }
+
+  function handleStreamPointerDown(event: PointerEvent) {
+    const stream = streamRef.value
+    if (!stream) return
+    const bounds = stream.getBoundingClientRect()
+    if (event.pointerType === 'touch' || event.clientX >= bounds.left + stream.clientWidth) markUserScrollIntent()
+  }
+
+  function handleStreamKeydown(event: KeyboardEvent) {
+    if ((event.target as HTMLElement).closest('input, textarea, button, summary, a, [contenteditable="true"]')) return
+    if (['ArrowUp', 'PageUp', 'Home', 'ArrowDown', 'PageDown', 'End', ' '].includes(event.key)) markUserScrollIntent()
+  }
+
+  function scheduleAutoScroll() {
+    if (disposed || layoutFrame !== undefined) return
+    const request = bottomScrollRequest
+    layoutFrame = window.requestAnimationFrame(() => {
+      layoutFrame = undefined
+      if (disposed || request !== bottomScrollRequest) return
+      updateReplySpace()
+      const last = options.messages.value[options.messages.value.length - 1]
+      // 新提问仅定位一次；等正文出现后才开始跟随，长提问不会立即被跳过。
+      if (followLatest.value && (!reserveLatestTurn || (last?.role === 'assistant' && last.content))) {
+        const stream = streamRef.value
+        if (stream) writeScrollTop(Math.max(0, stream.scrollHeight - stream.clientHeight))
+      }
+      updateBottomButton()
+      scheduleQuickNavigationUpdate()
+    })
+  }
+
+  async function scrollToBottom() {
+    cancelAutoScroll()
+    const request = ++bottomScrollRequest
+    followLatest.value = true
+    userScrolling = false
+    await nextTick()
+    if (disposed || request !== bottomScrollRequest) return
+    updateReplySpace()
+    if (streamRef.value) writeScrollTop(streamRef.value.scrollHeight)
+    updateBottomButton()
+    scheduleQuickNavigationUpdate()
+  }
+
+  async function snapSessionToBottom() {
+    const request = ++bottomScrollRequest
+    await nextTick()
+    if (disposed || request !== bottomScrollRequest) return
+    followLatest.value = true
+    userScrolling = false
+    scheduleAutoScroll()
+  }
+
+  function reset() {
+    cancelAutoScroll()
+    bottomScrollRequest++
+    reserveLatestTurn = false
+    userScrolling = false
+    followLatest.value = true
+    lastScrollTop = 0
+    if (spacerRef.value) spacerRef.value.style.height = '0px'
+    hoveredQuickNavigationId.value = undefined
+    showScrollToBottom.value = false
+  }
+
+  function mount() {
+    quickNavigationResizeObserver = new ResizeObserver(scheduleAutoScroll)
+    if (streamRef.value) quickNavigationResizeObserver.observe(streamRef.value)
+    if (contentRef.value) quickNavigationResizeObserver.observe(contentRef.value)
+    scheduleAutoScroll()
+  }
+  function dispose() {
+    disposed = true
+    cancelAutoScroll()
+    if (quickNavigationFrame !== undefined) window.cancelAnimationFrame(quickNavigationFrame)
+    quickNavigationResizeObserver?.disconnect()
+    bottomScrollRequest++
+  }
   onBeforeUnmount(dispose)
-  return { streamRef, quickNavigationRef, showScrollToBottom, stickToBottom, quickNavigationSegments, quickNavigationScrollTop, quickNavigationMaxScrollTop, hoveredQuickNavigationId, showQuickNavigation, quickNavigationPercent, hoveredQuickNavigationSegment, quickNavigationPreviewStyle, handleStreamScroll, handleUserWheel, scrollLatestMessageToTop, scheduleQuickNavigationUpdate, updateQuickNavigation, updateQuickNavigationHover, clearQuickNavigationHover, beginQuickNavigation, moveQuickNavigation, endQuickNavigation, handleQuickNavigationKeydown, scrollToBottom, snapSessionToBottom, scheduleAutoScroll, reset, positionPendingMessage, mount }
+  return { streamRef, contentRef, spacerRef, quickNavigationRef, showScrollToBottom, followLatest, quickNavigationSegments, quickNavigationScrollTop, quickNavigationMaxScrollTop, hoveredQuickNavigationId, showQuickNavigation, quickNavigationPercent, hoveredQuickNavigationSegment, quickNavigationPreviewStyle, handleStreamScroll, handleUserWheel, handleStreamPointerDown, handleStreamKeydown, scrollLatestMessageToTop, scheduleQuickNavigationUpdate, updateQuickNavigation, updateQuickNavigationHover, clearQuickNavigationHover, beginQuickNavigation, moveQuickNavigation, endQuickNavigation, handleQuickNavigationKeydown, scrollToBottom, snapSessionToBottom, scheduleAutoScroll, reset, mount }
 }
