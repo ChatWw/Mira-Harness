@@ -142,6 +142,7 @@ const layoutRoute: RouteRecordRaw = {
   children: [
     { path: '/workspace/chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false, noPageTransition: true } },
     { path: '/workspace/chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false, noPageTransition: true } },
+    ...(import.meta.env.DEV ? [{ path: '/workspace/harness-prototype', name: 'HarnessReactPrototype', component: () => import('@/pages/frontend/harness/prototype/index.vue'), meta: { title: 'Harness React 原型', showPageHeader: false, noPageTransition: true } }] : []),
     { path: '/workspace/projects', name: 'HarnessProjects', component: () => import('@/pages/frontend/harness/projects/index.vue'), meta: { title: '项目', noPageTransition: true } },
     { path: '/workspace/history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '查看全部对话', noPageTransition: true } },
     { path: '/workspace/usage', name: 'HarnessUsage', component: () => import('@/pages/frontend/harness/usage/index.vue'), meta: { title: '用量与成本', noPageTransition: true } },

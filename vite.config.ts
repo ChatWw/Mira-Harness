@@ -10,6 +10,13 @@ export default defineConfig({
   plugins: [vue({ template: { compilerOptions: { isCustomElement: tag => tag.startsWith('l-') } } })],
   server: {
     port: 9000,
+    strictPort: true,
+    proxy: {
+      '/harness-prototype': {
+        target: 'http://127.0.0.1:9001',
+        changeOrigin: true,
+      },
+    },
   },
   resolve: {
     alias: {
