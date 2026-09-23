@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createHarnessEventPublisher } from '../electron/harnessEventPublisher'
+import { createHarnessEventPublisher } from '../electron/services/harnessEventPublisher'
 
 describe('harness event publisher', () => {
   it('adds stable run metadata and resets sequence after idle', () => {

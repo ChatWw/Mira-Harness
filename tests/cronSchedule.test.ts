@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextCronOccurrences, validateCronExpression } from '../electron/cronSchedule'
+import { nextCronOccurrences, validateCronExpression } from '../electron/services/cronSchedule'
 
 describe('cronSchedule', () => {
   it('calculates future local-time occurrences for five-part cron expressions', () => {

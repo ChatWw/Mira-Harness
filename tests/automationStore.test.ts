@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { AutomationStore } from '../electron/automationStore'
+import { AutomationStore } from '../electron/storage/automationStore'
 
 function createStore() {
   const database = new Database(':memory:')

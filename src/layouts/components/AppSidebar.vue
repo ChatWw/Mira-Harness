@@ -111,7 +111,7 @@ import miraArt from '@/asset/Mira-art.svg'
 import miraLogo from '@/asset/mira-logo.png'
 import { useAppStore } from '@/stores/app'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
-import { applications, runtimeNavigation } from '@/config/runtime'
+import { applications, findRuntimeMicroApp, runtimeNavigation } from '@/config/runtime'
 import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
 import { useThemeStore } from '@/stores/theme'
@@ -146,7 +146,10 @@ watch(
 )
 
 const currentRoute = computed(() => route.path)
-const currentAppCode = computed(() => getAppCodeFromPath(route.path))
+const currentAppCode = computed(() => {
+  const code = getAppCodeFromPath(route.path)
+  return findRuntimeMicroApp(code)?.code || code
+})
 const selectedAppName = computed(() => applications.value.find(app => app.code === currentAppCode.value)?.name || 'Mira')
 const applicationMenus = computed(() => runtimeNavigation.mainMenus.filter(item => item.target?.type === 'component'))
 function iframeTree(items: MenuItem[]): MenuItem[] { return items.flatMap(item => { if (item.target?.type === 'iframe') return [{ ...item, children: item.children ? iframeTree(item.children) : undefined }]; const children = item.children ? iframeTree(item.children) : []; return children.length ? [{ ...item, children }] : [] }) }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { HarnessRunCoordinator } from '../electron/harnessRunCoordinator'
+import { HarnessRunCoordinator } from '../electron/services/harnessRunCoordinator'
 
 function setup() {
   const database = { harness: { getSession: vi.fn(() => ({ projectId: 'project-1' })), setActiveRun: vi.fn() } }

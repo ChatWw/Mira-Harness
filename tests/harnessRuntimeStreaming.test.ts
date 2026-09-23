@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Agent } from '@earendil-works/pi-agent-core'
-import { HarnessRuntime } from '../electron/harnessRuntime'
+import { HarnessRuntime } from '../electron/services/harnessRuntime'
 
 afterEach(() => vi.restoreAllMocks())
 

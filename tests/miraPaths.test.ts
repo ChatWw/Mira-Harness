@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { MiraPaths } from '../electron/miraPaths'
+import { MiraPaths } from '../electron/storage/miraPaths'
 
 describe('MiraPaths', () => {
   it('derives the macOS hidden data directory from a home directory', () => {

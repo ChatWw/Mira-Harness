@@ -4,9 +4,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { HarnessStore } from '../electron/harnessStore'
-import { PlatformDatabase } from '../electron/database'
-import { MiraPaths } from '../electron/miraPaths'
+import { HarnessStore } from '../electron/storage/harnessStore'
+import { PlatformDatabase } from '../electron/storage/database'
+import { MiraPaths } from '../electron/storage/miraPaths'
 import { shouldGenerateAutoTitle } from '../src/config/harness'
 
 function createStore() {

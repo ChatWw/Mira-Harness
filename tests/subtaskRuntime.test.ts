@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ProjectTaskLock } from '../electron/projectTaskLock'
-import { MAX_SUBTASK_REPORT_CHARS, SUBTASK_ROLE_TOOLS, boundedSubtaskReport, subtaskMayMutate } from '../electron/subtaskRuntime'
+import { ProjectTaskLock } from '../electron/services/projectTaskLock'
+import { MAX_SUBTASK_REPORT_CHARS, SUBTASK_ROLE_TOOLS, boundedSubtaskReport, subtaskMayMutate } from '../electron/services/subtaskRuntime'
 
 describe('subtask runtime policy', () => {
   it('keeps every role inside its fixed tool allowlist', () => {

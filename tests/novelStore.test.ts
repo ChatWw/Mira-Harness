@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createNovelProject, EMPTY_NOVEL_MODEL_PROFILES, toNovelProjectSummary } from '../src/config/novel'
-import { PlatformDatabase } from '../electron/database'
-import { MiraPaths } from '../electron/miraPaths'
-import { NovelStore } from '../electron/novelStore'
+import { PlatformDatabase } from '../electron/storage/database'
+import { MiraPaths } from '../electron/storage/miraPaths'
+import { NovelStore } from '../electron/storage/novelStore'
 import { AI_NOVEL_MENU } from '../src/config/menus'
 
 function createStore() {

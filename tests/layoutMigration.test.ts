@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { PlatformDatabase } from '../electron/database'
+import { PlatformDatabase } from '../electron/storage/database'
 
 const directories: string[] = []
 

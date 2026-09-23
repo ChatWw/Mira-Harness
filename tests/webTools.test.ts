@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createWebCitationContext, createWebFetchTool, createWebSearchTool } from '../electron/webTools'
+import { createWebCitationContext, createWebFetchTool, createWebSearchTool } from '../electron/adapters/webTools'
 
 function response(body: string, contentType = 'text/html', url = '') {
   const value = new Response(body, { status: 200, headers: { 'content-type': contentType } })

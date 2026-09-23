@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { finalizeAssistantCitations, HarnessRuntime, runPromptSuffix, sourcesFromWebToolResult } from '../electron/harnessRuntime'
+import { finalizeAssistantCitations, HarnessRuntime, runPromptSuffix, sourcesFromWebToolResult } from '../electron/services/harnessRuntime'
 
 function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default', globalDefaultMode: 'default' | 'auto-approve' | 'full' = 'default') {
   const sender = { isDestroyed: () => false, send: vi.fn() }

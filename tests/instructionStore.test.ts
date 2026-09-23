@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
-import { InstructionStore } from '../electron/instructionStore'
-import { MiraPaths } from '../electron/miraPaths'
+import { InstructionStore } from '../electron/storage/instructionStore'
+import { MiraPaths } from '../electron/storage/miraPaths'
 
 describe('InstructionStore', () => {
   it('loads global, parent, and more specific override instructions in order', () => {

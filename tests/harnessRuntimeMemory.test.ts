@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PlatformDatabase } from '../electron/database'
-import { HarnessRuntime, parseMemoryExtraction } from '../electron/harnessRuntime'
+import { PlatformDatabase } from '../electron/storage/database'
+import { HarnessRuntime, parseMemoryExtraction } from '../electron/services/harnessRuntime'
 
 const roots: string[] = []
 

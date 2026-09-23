@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ModelConfigStore } from '../electron/modelConfigStore'
-import { MiraPaths } from '../electron/miraPaths'
+import { ModelConfigStore } from '../electron/storage/modelConfigStore'
+import { MiraPaths } from '../electron/storage/miraPaths'
 
 const tempDirectories: string[] = []
 const model = (id: string, reasoning = false) => ({ id, enabled: true, reasoning, contextWindow: 64000 })

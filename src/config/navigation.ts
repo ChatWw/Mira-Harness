@@ -1,6 +1,7 @@
 import type { Router } from 'vue-router'
 import type { MenuItem, MicroApp } from '@/types'
 import { resolveHttpUrl, resolveIframePolicy } from './iframe'
+import { canonicalMicroAppCode, LEGACY_MICRO_APP_CODE_ALIASES } from './microApps'
 import { applications, findRuntimeMicroApp, microMenus, runtimeNavigation } from './runtime'
 
 export interface ResolvedNavigation {
@@ -59,7 +60,8 @@ export function isWorkspacePath(path: string) {
 }
 
 export function getMenusForApp(appCode: string) {
-  return appCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || []
+  const canonicalCode = canonicalMicroAppCode(appCode)
+  return canonicalCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || microMenus.value[canonicalCode] || []
 }
 
 export function getVisibleMenusForPath(path: string) {
@@ -97,17 +99,21 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 }
 
 export function getApplicationEntryPath(code: string) {
-  const menus = code === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || []
+  const canonicalCode = canonicalMicroAppCode(code)
+  const menus = canonicalCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || microMenus.value[canonicalCode] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
-    || (code === 'main' ? '/workspace/chat' : `/micro/${code}`)
+    || (canonicalCode === 'main' ? '/workspace/chat' : `/micro/${canonicalCode}`)
 }
 
 export function getMicroAppChildPath(app: MicroApp, platformPath: string) {
   const menu = findMenuByPath(app.menus || [], platformPath)
   if (menu?.target?.type === 'microapp') return menu.target.childPath
 
-  const prefix = `/micro/${app.code}`
-  return platformPath.startsWith(prefix) ? platformPath.slice(prefix.length) : ''
+  const codes = [app.code, ...Object.entries(LEGACY_MICRO_APP_CODE_ALIASES)
+    .filter(([, canonicalCode]) => canonicalCode === app.code)
+    .map(([legacyCode]) => legacyCode)]
+  const prefix = codes.map(code => `/micro/${code}`).find(value => platformPath === value || platformPath.startsWith(`${value}/`))
+  return prefix ? platformPath.slice(prefix.length) : ''
 }
 
 export function resolveMicroAppEntryUrl(app: MicroApp, platformPath: string, entry: string) {

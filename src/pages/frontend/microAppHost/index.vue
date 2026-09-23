@@ -11,8 +11,20 @@
       </el-result>
 
       <template v-else-if="app && entryUrl">
+        <FirstPartyFrame
+          v-if="firstPartyManifest && platformApi"
+          :key="app.code"
+          :url="firstPartyEntryUrl"
+          :title="app.name"
+          :manifest="firstPartyManifest"
+          :api="platformApi"
+          :context="platformContext"
+          :route="childRoute"
+          :navigate="navigateFirstParty"
+          @error="message => error = message"
+        />
         <WujieVue
-          v-if="app.integrationMode === 'wujie' && runtime"
+          v-else-if="app.integrationMode === 'wujie' && runtime"
           :key="app.code"
           class="micro-app-frame"
           width="100%"
@@ -48,14 +60,17 @@ import PageContainer from '@/components/PageContainer/index.vue'
 import { findRuntimeMicroApp } from '@/config/runtime'
 import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolveNavigation, resolvePlatformPathForChild } from '@/config/navigation'
 import { getPlatformApi } from '@/platform'
+import { resolveFirstPartyAppManifest } from '@/config/firstPartyApps'
 import { useThemeStore } from '@/stores/theme'
 import type { MicroApp, PlatformContext, PlatformNavigatePayload, WujieRuntimeConfig } from '@/types'
 import EmbeddedWebFrame from '../components/EmbeddedWebFrame.vue'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
+import FirstPartyFrame from './FirstPartyFrame.vue'
 
 const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
+const platformApi = getPlatformApi()
 const app = ref<MicroApp>()
 const runtime = ref<WujieRuntimeConfig>()
 const entryUrl = ref('')
@@ -68,20 +83,25 @@ const pageTitle = computed(() => navigation.value.menu?.title || app.value?.name
 const pageDescription = computed(() => navigation.value.menu?.description ?? app.value?.description ?? '正在加载微应用配置')
 const showPageHeader = computed(() => navigation.value.menu?.showPageHeader !== false)
 const childRoute = computed(() => app.value ? getMicroAppChildPath(app.value, route.path) : '')
+const firstPartyManifest = computed(() => app.value ? resolveFirstPartyAppManifest(app.value) : undefined)
+const firstPartyEntryUrl = computed(() => firstPartyManifest.value ? new URL(firstPartyManifest.value.entry.path, entryRootUrl.value).href : '')
 
-const childProps = computed(() => {
-  const context: PlatformContext = Object.freeze({
+const platformContext = computed<PlatformContext>(() => Object.freeze({
     version: 1,
     theme: themeStore.themeMode,
     language: navigator.language,
     user: Object.freeze({ id: 'platform', name: 'Mira' }),
-  })
-  return Object.freeze({
-    platformContext: context,
+  }))
+
+const childProps = computed(() => Object.freeze({
+    platformContext: platformContext.value,
     platformRoute: childRoute.value,
     navigate: (path: string) => handleChildNavigate({ appCode: app.value?.code || '', path }),
-  })
-})
+  }))
+
+function navigateFirstParty(path: string) {
+  if (app.value) void router.push(resolvePlatformPathForChild(app.value, path))
+}
 
 function handleWujieError() {
   error.value = 'Wujie 子应用加载失败，请检查入口、静态资源基路径或应用准入配置'

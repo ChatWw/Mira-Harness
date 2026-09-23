@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AutomationScheduler } from '../electron/automationScheduler'
+import { AutomationScheduler } from '../electron/services/automationScheduler'
 
 function task(overrides: Record<string, unknown> = {}) {
   return { id: 'task-1', name: '任务', projectId: 'project-1', trigger: { type: 'cron', expression: '0 9 * * *' }, target: { type: 'new-session' }, prompt: '执行', model: { providerId: 'provider-1', modelId: 'model-1' }, permissionMode: 'default', enabled: true, createdAt: 1, updatedAt: 1, ...overrides } as any

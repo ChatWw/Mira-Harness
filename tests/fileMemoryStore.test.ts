@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { classifyMemoryContent, FileMemoryStore } from '../electron/fileMemoryStore'
-import { MiraPaths } from '../electron/miraPaths'
+import { classifyMemoryContent, FileMemoryStore } from '../electron/storage/fileMemoryStore'
+import { MiraPaths } from '../electron/storage/miraPaths'
 
 const roots: string[] = []
 

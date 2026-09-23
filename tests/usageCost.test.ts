@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateUsageCost, normalizePricing } from '../electron/usageCost'
+import { calculateUsageCost, normalizePricing } from '../electron/services/usageCost'
 
 describe('usage cost', () => {
   it('calculates every token category from per-million pricing', () => {

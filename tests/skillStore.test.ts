@@ -2,8 +2,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MiraPaths } from '../electron/miraPaths'
-import { parseSkill, SkillStore } from '../electron/skillStore'
+import { MiraPaths } from '../electron/storage/miraPaths'
+import { parseSkill, SkillStore } from '../electron/storage/skillStore'
 
 const directories: string[] = []
 afterEach(() => directories.splice(0).forEach(directory => rmSync(directory, { recursive: true, force: true })))
