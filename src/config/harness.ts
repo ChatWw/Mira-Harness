@@ -386,6 +386,11 @@ export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'titl
   planStatus?: HarnessPlanSessionStatus
 }
 
+export type HarnessSessionOrderScope =
+  | { type: 'pinned' }
+  | { type: 'recent' }
+  | { type: 'project', projectId: string }
+
 export type HarnessHistoryRange = 'all' | 'today' | 'week' | 'month'
 export type HarnessHistorySort = 'updated-desc' | 'created-desc' | 'title-asc'
 export type HarnessHistoryArchiveView = 'visible' | 'archived'

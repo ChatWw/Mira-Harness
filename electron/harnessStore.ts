@@ -28,6 +28,7 @@ import {
   type HarnessUserAnswer,
   type HarnessRunSummary,
   type HarnessSession,
+  type HarnessSessionOrderScope,
   type HarnessSource,
   type HarnessSessionSummary,
   type HarnessTrashEntry,
@@ -40,8 +41,8 @@ import {
 import { atomicMove } from './miraDataMigration'
 import { MiraPaths } from './miraPaths'
 
-type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, created_at: number, updated_at: number, last_session_at: number | null }
-type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, path: string, working_directory: string | null, created_at: number, updated_at: number }
+type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
+type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
 const MAX_FILE_REFERENCES = 12
@@ -289,10 +290,28 @@ export class HarnessStore {
     }
   }
 
+  private sessionOrderWhere(scope: HarnessSessionOrderScope) {
+    if (!scope || typeof scope !== 'object' || !['pinned', 'recent', 'project'].includes(scope.type)) throw new Error('会话排序范围无效')
+    if (scope.type === 'pinned') return { where: 'pinned = 1 AND archived_at IS NULL', parameters: [] as string[] }
+    if (scope.type === 'recent') return { where: 'pinned = 0 AND project_id IS NULL AND archived_at IS NULL', parameters: [] as string[] }
+    if (!scope.projectId) throw new Error('项目排序范围无效')
+    this.getProject(scope.projectId)
+    return { where: 'pinned = 0 AND project_id = ? AND archived_at IS NULL', parameters: [scope.projectId] }
+  }
+
+  private promoteSessionOrder(id: string) {
+    const row = this.database.prepare('SELECT project_id, pinned, archived_at FROM harness_sessions WHERE id = ?').get(id) as Pick<SessionRow, 'project_id' | 'pinned' | 'archived_at'> | undefined
+    if (!row || row.archived_at) return
+    const scope: HarnessSessionOrderScope = row.pinned ? { type: 'pinned' } : row.project_id ? { type: 'project', projectId: row.project_id } : { type: 'recent' }
+    const { where, parameters } = this.sessionOrderWhere(scope)
+    const maximum = (this.database.prepare(`SELECT COALESCE(MAX(sort_order), 0) AS value FROM harness_sessions WHERE ${where}`).get(...parameters) as { value: number }).value
+    this.database.prepare('UPDATE harness_sessions SET sort_order = ? WHERE id = ?').run(maximum + 1, id)
+  }
+
   listProjects(): HarnessProject[] {
     const counts = this.database.prepare('SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL GROUP BY project_id').all() as Array<{ project_id: string, count: number }>
     const countMap = new Map(counts.map(row => [row.project_id, row.count]))
-    return (this.database.prepare('SELECT * FROM harness_projects ORDER BY COALESCE(last_session_at, updated_at) DESC').all() as ProjectRow[]).map(row => {
+    return (this.database.prepare('SELECT * FROM harness_projects ORDER BY sort_order DESC, created_at DESC').all() as ProjectRow[]).map(row => {
       const directoryExists = existsSync(row.directory)
       return {
         id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -300,6 +319,15 @@ export class HarnessStore {
         defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
       }
     })
+  }
+
+  reorderProjects(ids: string[]) {
+    const orderedIds = [...new Set((Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && id))]
+    const existingIds = (this.database.prepare('SELECT id FROM harness_projects').all() as Array<{ id: string }>).map(row => row.id)
+    if (orderedIds.length !== existingIds.length || existingIds.some(id => !orderedIds.includes(id))) throw new Error('项目排序列表无效')
+    const update = this.database.prepare('UPDATE harness_projects SET sort_order = ? WHERE id = ?')
+    this.database.transaction(() => orderedIds.forEach((id, index) => update.run(orderedIds.length - index, id)))()
+    return this.listProjects()
   }
 
   getProject(id: string): HarnessProject {
@@ -360,7 +388,8 @@ export class HarnessStore {
     if (existing) return this.getProject(existing.id)
     const id = randomUUID(); const createdAt = now()
     const displayName = name?.trim() || canonical.split(sep).filter(Boolean).pop() || '未命名项目'
-    this.database.prepare('INSERT INTO harness_projects(id, name, icon, directory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, displayName, selectedIcon, canonical, createdAt, createdAt)
+    const sortOrder = (this.database.prepare('SELECT COALESCE(MAX(sort_order), 0) AS value FROM harness_projects').get() as { value: number }).value + 1
+    this.database.prepare('INSERT INTO harness_projects(id, name, icon, directory, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, displayName, selectedIcon, canonical, sortOrder, createdAt, createdAt)
     return this.getProject(id)
   }
 
@@ -386,17 +415,29 @@ export class HarnessStore {
       version: 1, id: createSessionId(), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory || this.paths.workspace,
       permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false, delegationEnabled: true,
     }
-    return this.saveSession(session)
+    const saved = this.saveSession(session)
+    this.promoteSessionOrder(saved.id)
+    return saved
   }
 
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
-      WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
+      WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
       planStatus: this.planStatus(this.getSession(row.id)) }))
+  }
+
+  reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) {
+    const { where, parameters } = this.sessionOrderWhere(scope)
+    const orderedIds = [...new Set((Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && id))]
+    const existingIds = (this.database.prepare(`SELECT id FROM harness_sessions WHERE ${where}`).all(...parameters) as Array<{ id: string }>).map(row => row.id)
+    if (orderedIds.length !== existingIds.length || existingIds.some(id => !orderedIds.includes(id))) throw new Error('会话排序列表无效')
+    const update = this.database.prepare('UPDATE harness_sessions SET sort_order = ? WHERE id = ?')
+    this.database.transaction(() => orderedIds.forEach((id, index) => update.run(orderedIds.length - index, id)))()
+    return this.listSessions()
   }
 
   queryHistory(query: HarnessHistoryQuery = {}, providerKeys = new Map<string, string>()): HarnessHistoryPage {
@@ -528,7 +569,9 @@ export class HarnessStore {
   setPinned(id: string, pinned: boolean) {
     const session = this.getSession(id)
     session.pinned = Boolean(pinned)
-    return this.saveSession(session)
+    const saved = this.saveSession(session)
+    this.promoteSessionOrder(id)
+    return saved
   }
 
   setUnread(id: string, unread: boolean) {
@@ -544,6 +587,7 @@ export class HarnessStore {
     session.projectId = project.id
     session.workingDirectory = project.directory
     const saved = this.saveSession(session)
+    if (!saved.pinned) this.promoteSessionOrder(id)
     if (previousProjectId && previousProjectId !== project.id) {
       this.database.prepare(`UPDATE harness_projects SET last_session_at = (
         SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id
@@ -591,14 +635,20 @@ export class HarnessStore {
 
   restoreSessions(ids: string[]) {
     const sessions = [...new Set(ids.filter(id => typeof id === 'string' && id))].map(id => this.getSession(id))
-    return sessions.map(session => this.saveSession({ ...session, archivedAt: undefined }))
+    return sessions.map(session => {
+      const saved = this.saveSession({ ...session, archivedAt: undefined })
+      this.promoteSessionOrder(saved.id)
+      return saved
+    })
   }
 
   addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false) {
     const session = this.getSession(id)
     session.messages.push({ id: randomUUID(), role, content, ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), createdAt: now() })
     if (!internal && role === 'user' && session.titleSource === 'auto' && session.title === '新对话') session.title = titleFor(content)
-    return this.saveSession(session)
+    const saved = this.saveSession(session)
+    if (!internal && role === 'user') this.promoteSessionOrder(id)
+    return saved
   }
 
   appendAssistantDelta(id: string, content: string) {

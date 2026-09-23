@@ -7,9 +7,9 @@
     <template v-if="!collapsed">
       <section v-if="pinnedSessions.length" class="workspace-group workspace-group--pinned">
         <div class="workspace-group__label">置顶</div>
-        <div class="workspace-group__items workspace-group__items--pinned">
-          <div v-for="session in pinnedSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="取消置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`取消置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin-off" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div>
-        </div>
+        <Draggable :model-value="pinnedSessions" item-key="id" class="workspace-group__items workspace-group__items--pinned" handle=".workspace-item--session" :group="fixedDragGroup('pinned')" :animation="150" ghost-class="workspace-sortable-ghost" chosen-class="workspace-sortable-chosen" drag-class="workspace-sortable-drag" @end="reorderSessionList({ type: 'pinned' }, $event)">
+          <template #item="{ element: session }"><div class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="取消置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`取消置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin-off" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div></template>
+        </Draggable>
       </section>
 
       <section class="workspace-group">
@@ -17,21 +17,19 @@
           <button type="button" class="workspace-group__toggle" :aria-expanded="projectsExpanded" @click="toggleProjects"><span>项目</span><AppIcon class="workspace-group__chevron" :name="projectsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
           <div class="workspace-group__actions"><el-popover v-model:visible="projectActionsVisible" trigger="click" placement="right-start" :width="214" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="项目操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="openProjectManagement"><AppIcon name="FolderOpened" /><span>项目管理</span></button></div></el-popover><el-tooltip content="创建项目" placement="right"><button type="button" class="workspace-group__tool" aria-label="创建项目" @click="openProjectDialog"><AppIcon name="Plus" /></button></el-tooltip></div>
         </div>
-        <div v-if="projectsExpanded" class="workspace-group__items workspace-group__items--projects">
-          <div v-for="project in visibleProjects" :key="project.id" class="workspace-project">
+        <Draggable v-if="projectsExpanded" :model-value="visibleProjects" item-key="id" class="workspace-group__items workspace-group__items--projects" handle=".workspace-project__toggle" :group="fixedDragGroup('projects')" :animation="150" ghost-class="workspace-sortable-ghost" chosen-class="workspace-sortable-chosen" drag-class="workspace-sortable-drag" @end="reorderProjectList($event)">
+          <template #item="{ element: project }"><div class="workspace-project">
             <div class="workspace-project__header">
               <button type="button" class="workspace-project__toggle" :aria-expanded="isProjectExpanded(project.id)" :title="project.directory" @click="toggleProject(project.id)"><AppIcon :name="project.icon" /><span>{{ project.name }}</span></button>
               <div class="workspace-project__actions"><el-popover trigger="click" placement="right-start" :width="190" popper-class="workspace-action-menu-popper" :visible="projectActionProjectId === project.id" @update:visible="setProjectActionVisible(project.id, $event)"><template #reference><button type="button" class="workspace-project__tool" :aria-label="`${project.name} 项目操作`"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="openProjectEditor(project)"><AppIcon name="tabler:settings" /><span>编辑项目</span></button><button type="button" @click="handleProjectCommand('open-directory', project.id)"><AppIcon name="FolderOpened" /><span>{{ projectDirectoryActionLabel }}</span></button><button type="button" class="is-danger" @click="handleProjectCommand('remove', project.id)"><AppIcon name="Delete" /><span>从列表中移除</span></button></div></el-popover><el-tooltip content="在项目中创建对话" placement="right"><button type="button" class="workspace-project__new" :aria-label="`在 ${project.name} 中创建对话`" @click="createProjectSession(project.id)"><AppIcon name="tabler:edit" /></button></el-tooltip></div>
             </div>
-            <div v-if="isProjectExpanded(project.id)" class="workspace-project__sessions">
-              <div v-for="session in visibleProjectSessions(project.id)" :key="session.id" class="workspace-session-row workspace-session-row--nested" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div>
-              <button v-if="hasMoreProjectSessions(project.id)" type="button" class="workspace-show-all workspace-show-all--nested" @click="expandProjectSessions(project.id)">展开显示</button>
-              <p v-if="!sessionsForProject(project.id).length" class="workspace-empty workspace-empty--nested">还没有对话</p>
-            </div>
-          </div>
-          <button v-if="store.projects.length > PROJECT_LIMIT && !showAllProjects" type="button" class="workspace-show-all workspace-show-all--projects" @click="showAllProjects = true">展开显示</button>
-          <p v-if="!store.projects.length" class="workspace-empty">还没有项目</p>
-        </div>
+            <Draggable v-if="isProjectExpanded(project.id)" :model-value="visibleProjectSessions(project.id)" item-key="id" class="workspace-project__sessions" handle=".workspace-item--session" :group="fixedDragGroup(`project-${project.id}`)" :animation="150" ghost-class="workspace-sortable-ghost" chosen-class="workspace-sortable-chosen" drag-class="workspace-sortable-drag" @end="reorderSessionList({ type: 'project', projectId: project.id }, $event)">
+              <template #item="{ element: session }"><div class="workspace-session-row workspace-session-row--nested" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div></template>
+              <template #footer><button v-if="hasMoreProjectSessions(project.id)" type="button" class="workspace-show-all workspace-show-all--nested" @click="expandProjectSessions(project.id)">展开显示</button><p v-if="!sessionsForProject(project.id).length" class="workspace-empty workspace-empty--nested">还没有对话</p></template>
+            </Draggable>
+          </div></template>
+          <template #footer><button v-if="store.projects.length > PROJECT_LIMIT && !showAllProjects" type="button" class="workspace-show-all workspace-show-all--projects" @click="showAllProjects = true">展开显示</button><p v-if="!store.projects.length" class="workspace-empty">还没有项目</p></template>
+        </Draggable>
       </section>
 
       <section class="workspace-group workspace-group--sessions">
@@ -39,11 +37,10 @@
           <button type="button" class="workspace-group__toggle" :aria-expanded="sessionsExpanded" @click="toggleRecentSessions"><span>最近对话</span><AppIcon class="workspace-group__chevron" :name="sessionsExpanded ? 'ArrowDown' : 'ArrowRight'" /></button>
           <div class="workspace-group__actions"><el-popover v-model:visible="historyActionsVisible" trigger="click" placement="right-start" :width="196" popper-class="workspace-action-menu-popper"><template #reference><button type="button" class="workspace-group__tool" aria-label="对话操作"><AppIcon name="MoreFilled" /></button></template><div class="workspace-action-menu"><button type="button" @click="openHistory"><AppIcon name="Clock" /><span>查看全部对话</span></button></div></el-popover></div>
         </div>
-        <div v-if="sessionsExpanded" class="workspace-group__items workspace-group__items--sessions">
-          <div v-for="session in visibleRecentSessions" :key="session.id" class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div>
-          <button v-if="recentSessions.length > RECENT_SESSION_LIMIT && !showAllSessions" type="button" class="workspace-show-all" @click="showAllSessions = true">展开显示</button>
-          <p v-if="!recentSessions.length" class="workspace-empty">还没有临时对话</p>
-        </div>
+        <Draggable v-if="sessionsExpanded" :model-value="visibleRecentSessions" item-key="id" class="workspace-group__items workspace-group__items--sessions" handle=".workspace-item--session" :group="fixedDragGroup('recent')" :animation="150" ghost-class="workspace-sortable-ghost" chosen-class="workspace-sortable-chosen" drag-class="workspace-sortable-drag" @end="reorderSessionList({ type: 'recent' }, $event)">
+          <template #item="{ element: session }"><div class="workspace-session-row" :class="{ active: session.id === store.activeSession?.id }" @contextmenu.prevent="openSessionContextMenu($event, session.id)"><button type="button" class="workspace-item workspace-item--session" @click="openSession(session.id)"><span v-session-title-overflow class="workspace-item__title"><span class="workspace-item__title-track">{{ session.title }}</span></span></button><span v-if="session.planStatus" class="workspace-session-row__status is-plan">{{ planStatusLabel(session.planStatus) }}</span><span v-else-if="store.pendingPermissionRequests[session.id]" class="workspace-session-row__status is-waiting"><AppIcon name="WarningFilled" /><span>等待审批</span></span><span v-else-if="store.runningSessionIds.includes(session.id)" class="workspace-session-row__status is-running"><AppLoadingIndicator :size="16" fallback-icon="lucide:loader-circle" /></span><span v-else-if="store.unreadSessionIds.includes(session.id)" class="workspace-session-row__status is-unread" /><div class="workspace-session-row__actions"><el-tooltip content="置顶" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`置顶 ${session.title}`" @click.stop="toggleSessionPinnedFromRow(session)"><AppIcon name="lucide:pin" /></button></el-tooltip><el-tooltip content="归档" placement="top" popper-class="workspace-session-action-tooltip"><button type="button" class="workspace-session-row__tool" :aria-label="`归档 ${session.title}`" @click.stop="archiveSessionFromRow(session.id)"><AppIcon name="lucide:archive" /></button></el-tooltip></div></div></template>
+          <template #footer><button v-if="recentSessions.length > RECENT_SESSION_LIMIT && !showAllSessions" type="button" class="workspace-show-all" @click="showAllSessions = true">展开显示</button><p v-if="!recentSessions.length" class="workspace-empty">还没有临时对话</p></template>
+        </Draggable>
       </section>
     </template>
 
@@ -106,8 +103,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import Draggable from 'vuedraggable'
 import { useRoute, useRouter } from 'vue-router'
-import { DEFAULT_PROJECT_ICON, OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessProject, type HarnessSession, type HarnessSessionSummary } from '@/config/harness'
+import { DEFAULT_PROJECT_ICON, OPEN_HARNESS_PROJECT_DIALOG_EVENT, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary } from '@/config/harness'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import { useHarnessStore } from '@/stores/harness'
 import FormIconPicker from '@/components/IconPicker/FormIconPicker.vue'
@@ -157,6 +155,7 @@ const projectActionsVisible = ref(false)
 const projectActionProjectId = ref<string>()
 const historyActionsVisible = ref(false)
 let groupStatesInitialized = false
+let knownSessionIds = new Set<string>()
 const sessionRenameVisible = ref(false)
 const sessionRenameId = ref('')
 const sessionRenameTitle = ref('')
@@ -342,6 +341,7 @@ async function refresh() {
   projectsExpanded.value = store.projects.length > 0
   expandedProjectIds.value = storedExpandedProjectIds().filter(id => store.projects.some(project => project.id === id))
   sessionsExpanded.value = recentSessions.value.length > 0
+  knownSessionIds = new Set(store.sessions.map(session => session.id))
   groupStatesInitialized = true
 }
 function storedExpandedProjectIds() {
@@ -391,8 +391,52 @@ function expandProjectSessions(projectId: string) {
   const total = sessionsForProject(projectId).length
   projectSessionVisibleCounts.value = { ...projectSessionVisibleCounts.value, [projectId]: current < PROJECT_SESSION_EXTENDED_LIMIT ? PROJECT_SESSION_EXTENDED_LIMIT : total }
 }
-async function createProjectSession(projectId: string) { const draft = store.startDraft(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
-async function openSession(id: string) { await router.push(`/workspace/chat/${id}`) }
+function fixedDragGroup(name: string) { return { name: `workspace-${name}`, pull: false, put: false } }
+function movedIds(items: Array<{ id: string }>, event: { oldIndex?: number, newIndex?: number }) {
+  const oldIndex = event.oldIndex
+  const newIndex = event.newIndex
+  if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) return undefined
+  const ids = items.map(item => item.id)
+  const [moved] = ids.splice(oldIndex, 1)
+  if (!moved) return undefined
+  ids.splice(newIndex, 0, moved)
+  return ids
+}
+async function reorderProjectList(event: { oldIndex?: number, newIndex?: number }) {
+  const ids = movedIds(store.projects, event)
+  if (!ids) return
+  try { await store.reorderProjects(ids) } catch (error) {
+    await store.refreshProjects()
+    ElMessage.error(error instanceof Error ? error.message : '项目排序失败')
+  }
+}
+function sessionListForScope(scope: HarnessSessionOrderScope) {
+  if (scope.type === 'pinned') return pinnedSessions.value
+  if (scope.type === 'recent') return recentSessions.value
+  return sessionsForProject(scope.projectId)
+}
+async function reorderSessionList(scope: HarnessSessionOrderScope, event: { oldIndex?: number, newIndex?: number }) {
+  const ids = movedIds(sessionListForScope(scope), event)
+  if (!ids) return
+  try { await store.reorderSessions(scope, ids) } catch (error) {
+    await store.refreshSessions()
+    ElMessage.error(error instanceof Error ? error.message : '对话排序失败')
+  }
+}
+function expandProjectForNewSession(projectId: string) {
+  projectsExpanded.value = true
+  if (store.projects.findIndex(project => project.id === projectId) >= PROJECT_LIMIT) showAllProjects.value = true
+  if (!expandedProjectIds.value.includes(projectId)) setExpandedProjectIds([...expandedProjectIds.value, projectId])
+  resetProjectSessions(projectId)
+}
+async function createProjectSession(projectId: string) { expandProjectForNewSession(projectId); const draft = store.startDraft(projectId); await router.push({ path: '/workspace/chat', query: { draft } }) }
+async function openSession(id: string) {
+  if (store.activeSession?.id === id) {
+    await store.markSessionRead(id).catch(() => undefined)
+    return
+  }
+  await router.push(`/workspace/chat/${id}`)
+}
 
 function showProjectDialog(onCreated?: (projectId: string) => void) { Object.assign(projectForm, { name: '', icon: DEFAULT_PROJECT_ICON, directory: '' }); projectCreatedCallback = onCreated; projectDialogVisible.value = true }
 function openProjectDialog() { showProjectDialog() }
@@ -482,6 +526,15 @@ watch(() => recentSessions.value.length, (count, previousCount) => {
   if (!count) { sessionsExpanded.value = false; showAllSessions.value = false }
   else if (!previousCount) sessionsExpanded.value = true
 })
+watch(() => store.sessions.map(session => `${session.id}:${session.projectId || ''}`), entries => {
+  const nextIds = new Set(entries.map(entry => entry.slice(0, entry.indexOf(':'))))
+  if (groupStatesInitialized) {
+    for (const session of store.sessions) {
+      if (!knownSessionIds.has(session.id) && session.projectId) expandProjectForNewSession(session.projectId)
+    }
+  }
+  knownSessionIds = nextIds
+})
 watch(projectDialogVisible, visible => { if (!visible) projectCreatedCallback = undefined })
 onMounted(() => { void refresh(); document.addEventListener('click', closeSessionContextMenu); window.addEventListener(OPEN_HARNESS_PROJECT_DIALOG_EVENT, handleProjectDialogRequest) })
 onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContextMenu); window.removeEventListener(OPEN_HARNESS_PROJECT_DIALOG_EVENT, handleProjectDialogRequest) })
@@ -507,6 +560,9 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeSessionContex
 .workspace-group__tool, .workspace-project__tool, .workspace-project__new, .workspace-session-row__tool { width: 28px; height: 28px; justify-content: center; border-radius: $radius-sm; color: var(--cp-text-tertiary); }
 .workspace-group__tool:hover, .workspace-project__tool:hover, .workspace-project__new:hover, .workspace-session-row__tool:hover { color: var(--cp-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-group__items { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 2px; }
+.workspace-sortable-ghost { opacity: .36; background: var(--cp-sidebar-menu-hover-bg); }
+.workspace-sortable-chosen { cursor: grabbing; }
+.workspace-sortable-drag { box-shadow: 0 8px 20px rgb(0 0 0 / 12%); }
 .workspace-project__header { min-height: 36px; border-radius: $radius-md;margin-bottom: 2px; }
 .workspace-project__header:hover, .workspace-session-row:hover { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-hover-bg); }
 .workspace-session-row.active { color: var(--cp-sidebar-menu-text); background: var(--cp-sidebar-menu-active-bg); }

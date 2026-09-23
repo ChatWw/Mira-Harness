@@ -145,6 +145,7 @@ export interface PlatformApi {
   setHarnessSkillEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSkill[]>
   testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
   listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
+  reorderHarnessProjects(ids: string[]): Promise<import('@/config/harness').HarnessProject[]>
   openHarnessProjectDirectory(id: string): Promise<string>
   selectHarnessProjectDirectory(): Promise<string | null>
   createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
@@ -169,6 +170,7 @@ export interface PlatformApi {
   checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
+  reorderHarnessSessions(scope: import('@/config/harness').HarnessSessionOrderScope, ids: string[]): Promise<import('@/config/harness').HarnessSessionSummary[]>
   queryHarnessHistory(query: import('@/config/harness').HarnessHistoryQuery): Promise<import('@/config/harness').HarnessHistoryPage>
   queryHarnessUsage(): Promise<import('@/config/harness').HarnessUsageStats>
   listAutomationTasks(): Promise<import('@/config/harness').AutomationTask[]>

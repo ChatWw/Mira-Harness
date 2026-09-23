@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPlatformApi } from '@/platform'
-import type { HarnessContextUsage, HarnessEvent, HarnessProject, HarnessProjectCreateInput, HarnessSession, HarnessSessionSummary, PermissionMode } from '@/config/harness'
+import type { HarnessContextUsage, HarnessEvent, HarnessProject, HarnessProjectCreateInput, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, PermissionMode } from '@/config/harness'
 import { createHarnessComposerState } from './harnessComposerState'
 import { createHarnessInteractionState } from './harnessInteractionState'
 import { createHarnessRunStateManager } from './harnessRunState'
@@ -62,6 +62,19 @@ export const useHarnessStore = defineStore('harness', () => {
     return project || undefined
   }
 
+  async function reorderProjects(ids: string[]) {
+    const api = getPlatformApi()
+    if (!api) return
+    projects.value = await api.reorderHarnessProjects([...ids])
+  }
+
+  async function reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) {
+    const api = getPlatformApi()
+    if (!api) return
+    sessions.value = await api.reorderHarnessSessions(scope, [...ids])
+    syncUnreadSessions(sessions.value)
+  }
+
   async function removeProject(id: string) {
     const api = getPlatformApi()
     if (!api) return
@@ -75,7 +88,7 @@ export const useHarnessStore = defineStore('harness', () => {
     runState.prepareSession(id)
     const api = getPlatformApi()
     activeSession.value = api ? await api.getHarnessSession(id) : undefined
-    if (activeSession.value?.unread && api) activeSession.value = await api.setHarnessSessionUnread(id, false)
+    if (activeSession.value?.unread) await markSessionRead(id)
     interactionState.syncSession(activeSession.value)
     runState.restoreSession(activeSession.value)
     return activeSession.value
@@ -133,6 +146,14 @@ export const useHarnessStore = defineStore('harness', () => {
     setRunStateUnread(id, unread)
     await refreshSessions()
     return session
+  }
+
+  async function markSessionRead(id: string) {
+    const unread = activeSession.value?.id === id && activeSession.value.unread
+      || sessions.value.some(session => session.id === id && session.unread)
+      || unreadSessionIds.value.includes(id)
+    if (!unread) return activeSession.value?.id === id ? activeSession.value : undefined
+    return setSessionUnread(id, false)
   }
 
   async function moveSession(id: string, projectId: string) {
@@ -210,6 +231,8 @@ export const useHarnessStore = defineStore('harness', () => {
     refreshSessions,
     refreshProjects,
     createProject,
+    reorderProjects,
+    reorderSessions,
     removeProject,
     openSession,
     createSession,
@@ -218,6 +241,7 @@ export const useHarnessStore = defineStore('harness', () => {
     setDelegationEnabled,
     setSessionPinned,
     setSessionUnread,
+    markSessionRead,
     moveSession,
     confirmPlan,
     continuePlan,

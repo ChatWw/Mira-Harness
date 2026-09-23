@@ -1,5 +1,5 @@
 <template>
-    <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }">
+    <main class="harness-page" :class="{ 'is-empty-session': !store.activeSession?.messages.length }" @pointerdown="markActiveSessionRead">
     <section class="conversation">
       <div v-if="!store.activeSession?.messages.length" class="conversation__empty-drag-region" aria-hidden="true" />
       <header v-if="store.activeSession?.messages.length" class="conversation__header">
@@ -173,6 +173,10 @@ function openProjectSettings() {
 }
 function focusComposer() { setStarterPrompt('请接着上次中止的位置继续回答。'); composerRef.value?.focus() }
 function setStarterPrompt(text: string) { void pageFacade.dispatchComposerAction({ type: "update-draft", patch: { text } }) }
+function markActiveSessionRead() {
+  const id = store.activeSession?.id
+  if (id) void store.markSessionRead(id).catch(() => undefined)
+}
 watch(() => [route.params.id, route.query.draft], () => {
   messageListRef.value?.reset()
   void reload()

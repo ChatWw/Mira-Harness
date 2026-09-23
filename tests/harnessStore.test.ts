@@ -13,8 +13,8 @@ function createStore() {
   const root = mkdtempSync(join(tmpdir(), 'mira-harness-store-'))
   const database = new Database(':memory:')
   database.exec(`
-    CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
+    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
   return { root, database, store: new HarnessStore(database, new MiraPaths(root)) }
@@ -93,6 +93,8 @@ describe('HarnessStore', () => {
 
     const database = new PlatformDatabase(root)
     expect(database.harness.getProject('legacy').icon).toBe('FolderOpened')
+    const columns = database.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
+    expect(columns.some(column => column.name === 'sort_order')).toBe(true)
     database.close()
     rmSync(root, { recursive: true, force: true })
   })
@@ -110,6 +112,7 @@ describe('HarnessStore', () => {
     const columns = database.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
     expect(columns.some(column => column.name === 'archived_at')).toBe(true)
     expect(columns.some(column => column.name === 'unread')).toBe(true)
+    expect(columns.some(column => column.name === 'sort_order')).toBe(true)
     database.close()
     rmSync(root, { recursive: true, force: true })
   })
@@ -130,6 +133,75 @@ describe('HarnessStore', () => {
     expect(moved).toMatchObject({ projectId: projectB.id, workingDirectory: directoryB, unread: true })
     expect(store.getSession(session.id)).toMatchObject({ projectId: projectB.id, workingDirectory: directoryB, unread: true })
     expect(store.listSessions()).toContainEqual(expect.objectContaining({ id: session.id, projectId: projectB.id, unread: true }))
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists independent project and in-column session ordering', () => {
+    const { root, database, store } = createStore()
+    const directoryA = join(root, 'ordered-project-a')
+    const directoryB = join(root, 'ordered-project-b')
+    mkdirSync(directoryA)
+    mkdirSync(directoryB)
+    const projectA = store.createProject(directoryA, '项目 A')
+    const projectB = store.createProject(directoryB, '项目 B')
+
+    expect(store.listProjects().map(project => project.id)).toEqual([projectB.id, projectA.id])
+    store.reorderProjects([projectA.id, projectB.id])
+
+    const first = store.createSession(projectB.id)
+    const second = store.createSession(projectB.id)
+    expect(store.listSessions().filter(session => session.projectId === projectB.id).map(session => session.id)).toEqual([second.id, first.id])
+
+    store.reorderSessions({ type: 'project', projectId: projectB.id }, [first.id, second.id])
+    expect(store.listSessions().filter(session => session.projectId === projectB.id).map(session => session.id)).toEqual([first.id, second.id])
+
+    store.renameSession(second.id, '只改标题不提升')
+    expect(store.listSessions().filter(session => session.projectId === projectB.id).map(session => session.id)).toEqual([first.id, second.id])
+
+    store.addMessage(second.id, 'user', '继续对话后回到顶部')
+    expect(store.listSessions().filter(session => session.projectId === projectB.id).map(session => session.id)).toEqual([second.id, first.id])
+    expect(store.listProjects().map(project => project.id)).toEqual([projectA.id, projectB.id])
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('persists recent and pinned ordering until a user message promotes the session', () => {
+    const { root, database, store } = createStore()
+    const first = store.createSession()
+    const second = store.createSession()
+
+    store.reorderSessions({ type: 'recent' }, [first.id, second.id])
+    expect(store.listSessions().filter(session => !session.pinned && !session.projectId).map(session => session.id)).toEqual([first.id, second.id])
+    store.addMessage(second.id, 'user', '继续最近对话')
+    expect(store.listSessions().filter(session => !session.pinned && !session.projectId).map(session => session.id)).toEqual([second.id, first.id])
+
+    store.setPinned(first.id, true)
+    store.setPinned(second.id, true)
+    store.reorderSessions({ type: 'pinned' }, [first.id, second.id])
+    expect(store.listSessions().filter(session => session.pinned).map(session => session.id)).toEqual([first.id, second.id])
+    store.addMessage(second.id, 'user', '继续置顶对话')
+    expect(store.listSessions().filter(session => session.pinned).map(session => session.id)).toEqual([second.id, first.id])
+
+    database.close()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('rejects cross-column session ordering and promotes sessions entering a new column', () => {
+    const { root, database, store } = createStore()
+    const directory = join(root, 'ordered-project')
+    mkdirSync(directory)
+    const project = store.createProject(directory, '项目')
+    const recent = store.createSession()
+    const projectSession = store.createSession(project.id)
+
+    expect(() => store.reorderSessions({ type: 'recent' }, [recent.id, projectSession.id])).toThrow('会话排序列表无效')
+    store.setPinned(projectSession.id, true)
+    expect(store.listSessions().filter(session => session.pinned).map(session => session.id)).toEqual([projectSession.id])
+    store.setPinned(projectSession.id, false)
+    expect(store.listSessions().filter(session => session.projectId === project.id && !session.pinned).map(session => session.id)).toEqual([projectSession.id])
 
     database.close()
     rmSync(root, { recursive: true, force: true })
