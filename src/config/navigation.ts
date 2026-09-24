@@ -100,9 +100,10 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 
 export function getApplicationEntryPath(code: string) {
   const canonicalCode = canonicalMicroAppCode(code)
-  const menus = canonicalCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[code] || microMenus.value[canonicalCode] || []
+  if (canonicalCode === 'main') return '/workspace/chat'
+  const menus = microMenus.value[code] || microMenus.value[canonicalCode] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
-    || (canonicalCode === 'main' ? '/workspace/chat' : `/micro/${canonicalCode}`)
+    || `/micro/${canonicalCode}`
 }
 
 export function getMicroAppChildPath(app: MicroApp, platformPath: string) {

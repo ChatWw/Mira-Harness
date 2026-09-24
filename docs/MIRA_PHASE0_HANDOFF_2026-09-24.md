@@ -23,7 +23,7 @@
 - `Mira-Novel-Studio` 目前只有同级空目录，后续独立 Git 仓库维护；本仓库保留接入配置，迁出前不删除旧 `/novel`。
 - `Mira-Vision` 目前只有同级空目录，不开发业务工程，不创建应用中心条目或构建工程；宿主侧仍只规划禁用的接入配置。
 - 设置方向已收敛为基础能力、平台能力、模型与应用绑定、应用中心、应用专属、关于；只保留白天/黑夜主题，删除布局样式、主题色、自由微应用录入、菜单管理和多页签等无效能力的后续计划。
-- React 与开源 Agent UI 仍是评估项。候选结论是：保留 Mira 运行时和数据语义，优先用真实任务对照 Vue 改造与 React + `assistant-ui` primitives；不直接 Fork 完整 Agent 产品。
+- 2026-09-24 已确定 Harness 主应用 UI 使用 React；保留 Electron 侧运行时和数据语义，开源 React 组件仅作为具体控件的候选，不直接 Fork 完整 Agent 产品。当前生产页仍是 Vue，React/Wujie 演示原型尚未接入真实任务。
 
 ### 2.2 代码切片
 
@@ -48,7 +48,7 @@
 1. **没有真实 Novel Studio 包。** 没有独立仓库、静态发布包、可信来源、安装回退或版本兼容流程；`firstPartyAppManifests` 仍为空。
 2. **旧作品、模型和打包版未完成验收。** 不得直接操作真实 `~/.mira`；不得因为拆目录删除旧小说 UI、SQLite 表或用户数据。
 3. **授权边界尚未接入真实子应用。** 当前 grant/session 已有主进程和 frame 测试，但没有真实外部包来验证连接协议、应用 SDK 和卸载恢复。
-4. **React 正式迁移尚未批准。** 当前 React/Wujie 页面是 disposable spike，只能证明挂载可行。
+4. **React 方向已确定，实现尚未完成。** 当前 React/Wujie 页面是演示原型，只能证明挂载可行；不能替换生产 Harness，也不能把全量 preload 暴露给子应用。
 
 ## 3.1 2026-09-24 阶段 1A 第一批进展
 
@@ -142,6 +142,91 @@
 - 有可用测试模型后继续完整任务闭环；否则安排具备物理鼠标能力的桌面验收。
 - 打包安装版、跨应用切换、真实旧数据和 Novel Studio 仍未进入本批。
 
+## 3.5 2026-09-24 阶段 1A mock 任务联调
+
+### 已完成
+
+- 在 `/tmp/mira-harness-taskchain.Fwmpyg` 隔离目录配置本地 OpenAI 兼容 SSE mock，没有触碰真实 `~/.mira` 或密钥。
+- 首次发送创建会话并显示失败：免密 Provider 被底层客户端报 `No API key for provider: mira-openai`；修复 Harness 与记忆保存共用的模型注册，免密模式只使用固定 SDK 占位 key。
+- 重启开发态 Electron 后在原失败会话重试，页面显示 mock 回复，持久化消息状态为 `completed`，工作面板显示“最近任务已完成”；页面重载后回复和完成标记仍可见，完成态截图已检查。
+- 新增免密与有密钥模式的 Provider 注册回归测试。
+
+### 验证
+
+- 针对性 Vitest 27 项；全量 `npm test` 为 63 个文件、267 项通过；`npx vue-tsc --noEmit`、`npm run build`、`npx electron-vite build`、`git diff --check` 通过。
+- 本次只证明开发态 Electron 中的发送、失败重试、mock SSE 回复、完成展示及会话持久化。DevTools 点击/输入是模拟操作，物理鼠标未验收。
+- 真实模型、工具、权限/计划确认、文件成果、停止恢复、打包版、Windows、真实旧数据和跨应用切换仍待验收。
+
+### 下一步
+
+- 从本节和 PRD 的 mock 联调记录继续；优先准备隔离测试模型和无敏感数据的项目，逐项验证工具、确认、成果及停止恢复。
+- 没有真实模型时不把 mock 成功写成完整任务闭环，另行安排物理鼠标及打包版验收。
+
+## 3.6 2026-09-24 阶段 1A 脚本化任务链联调
+
+### 已完成
+
+- 使用 `/tmp/mira-harness-stage1a.Q4MlXY` 中的隔离项目和临时 OpenAI 兼容脚本，在开发态 Electron 中执行 `list_files`，会话保存成功的工具记录。
+- 写入审批分别测试拒绝与允许：拒绝时文件不存在；允许后写入 `stage1a-proof.txt`，消息显示“本次修改”，对比抽屉显示新增一行并已截图检查。
+- 计划提交后进入等待确认，点击执行后交互获批、计划完成；慢速流式回复在首段停止并保留内容，再从“继续回复”入口发送新消息，原停止记录和新完成消息均保留。
+- 页面重载后文件变更入口、停止记录及继续结果仍可见。本批未发现需要修复的业务源码问题。
+
+### 验证
+
+- 针对性 Vitest 5 个文件、73 项通过；`git diff --check` 通过。上一批的全量测试、类型检查和构建结果未在本批重复运行。
+- 仅验证开发态 Electron、DevTools 模拟输入和脚本化模型输出；不等同于真实模型决策、物理鼠标或打包版验收。临时 mock 脚本与隔离数据只在本机 `/tmp`，不随 Git 同步。
+- 真实模型、计划步骤实际执行、打包版、Windows、真实旧数据和跨应用切换仍待验收。
+
+### 下一步
+
+- 准备一个可用的隔离测试模型和无敏感数据项目，复跑真实模型工具、审批、计划步骤与成果；分别记录成功、失败和恢复。
+- 独立安排物理鼠标与打包版验收；没有真实模型前不宣布 D 模块 P1 或阶段 1A 全部完成。
+
+## 3.7 2026-09-24 React Harness 与两层 layout 决策
+
+### 已完成
+
+- 用户确定目标架构：Electron 承载底层能力与 Harness 执行/数据，Vue + Wujie 承载 Mira 外层窗口与统一设置，React 实现默认 Harness 主应用 UI。
+- 用户提供的空白 layout 图已澄清为整体窗口的两层结构：底层包含窗口控件、全局搜索等公共入口；中间纯白区域完整交给当前应用。应用是否使用侧栏、内部如何布局，由各应用自行决定。见 [`MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md`](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md)。
+- 平台方案与 PRD 已将 React 从评估候选改为目标路线；旧三栏不是新 React 工作台的约束。历史开源初筛仍可用于选组件，但不再做 Vue/React 二选一。
+
+### 剩余与验证
+
+- 本批仅核对源码、参考图和文档并记录设计决策；没有修改业务 UI、Electron 接口或应用数据，也未运行自动化测试或桌面验收。
+- React Harness 内部布局和关键状态尚待用户评审。React/Wujie 演示原型没有真实 Harness 能力；本节是当时的设计记录，Shell 导航归属以第 3.8 节的最新实现为准。第一方桥仍只覆盖有限能力，不得视为已迁移完成。
+- 旧 Vue Harness 保持生产可用；真实模型、物理鼠标、打包版和跨应用恢复等历史待验收项不因本次设计决策自动通过。
+
+### 下一步
+
+- 从两层 layout brief 出发，先提交 React Harness 工作台的可评审设计稿，覆盖空态、执行、计划/审批、文件成果、失败恢复；得到确认后再做业务 UI 代码。
+- 随后只做一条受控接入链：真实会话读取、任务提交和事件、审批、停止、成果及切换后恢复。先验证 Wujie 与受控授权通道能否共同满足身份和生命周期要求，不开放完整 `window.platform`。
+- 会话导航已移入迁移期的 Vue Harness 应用容器；接入 React 并验收后再评估旧 Vue UI 的下线。Novel Studio 和 Vision 不参加这一批。
+
+## 3.8 2026-09-24 Vue 两层 Shell 首轮实现记录
+
+### 已完成
+
+- Vue Shell 已按参考 layout 落地为“公共顶栏 + 应用显示画布”两层结构：公共层承载窗口拖拽/控件位置、Mira 标识、应用切换、全局搜索和设置；应用画布完整交给当前应用。
+- 壳层旧 `AppSidebar` 已移除。旧 Vue Harness 的会话、项目、历史、用量和自动化入口暂时由 `LegacyHarnessLayout` 承载，作为迁移期回退，不代表 Shell 规定 Harness 内部必须有侧栏。
+- 主应用入口固定为 `/workspace/chat`，应用切换到旧 `/novel`、设置进入/返回和 Wujie 全幅应用承载已接通。
+- 修复新画布尺寸下旧 Harness 空态绝对定位导致的内容重叠；空态与消息区使用稳定网格区域，输入区不再被覆盖。
+
+### 验证
+
+- `npx vue-tsc --noEmit`：通过。
+- `npx electron-vite build`：通过。
+- 隔离 `MIRA_TEST_HOME` 的开发态 Electron：1440×900 与 1024×680 均通过画布填充和空态间距检查；全局搜索、应用切换、设置返回均通过；浅色/深色截图已检查。
+
+### 剩余
+
+- React Harness 仍未接入生产任务链；当前 React 页面仍是演示原型，旧 Vue Harness 保留作为回退。
+- 真实 Novel Studio 包、Vision 工程、应用下载器、真实模型、物理鼠标、Windows 和打包安装版仍待验收。
+- 本批未修改用户数据、旧小说数据或 Electron 运行时协议。
+
+### 下一步
+
+- 下一次直接从 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 C 模块「阶段 1A 第四批记录」和 D 模块 P0/P1 开始，评审并实现 React Harness 应用内工作台，再通过受控桥接接入真实会话/任务事件；Shell 公共层不再继续扩展 Harness 专属导航。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
@@ -167,9 +252,9 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 ### 4.2 开工顺序
 
 1. 读 `AGENTS.md` 和本文第 3、5、6 节。
-2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的第三批与 Electron 首轮验收记录、D 模块 P0/P1，再读本文第 3.3、3.4 节。
-3. 检查 `src/pages/frontend/harness/` 的发送、确认、失败恢复与成果入口，以及对应 Harness 事件 reducer/store 与测试。
-4. 用隔离数据目录完成开发态 Electron 交互验收，再按可用的测试模型配置验证真实任务；不要把 React/Wujie 原型直接替换生产页面。
+2. 先读本文第 3.8 节和 [`MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md`](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md)，再读 PRD 的 C/D 模块 P0/P1；第 3.6 节是已有任务链证据，不再是当前唯一下一刀。
+3. 核对已落地的 Vue Shell `src/layouts/`、迁移期 Harness 页面/状态与 `prototypes/harness-react/`，评审 React 应用内设计稿。不要把演示原型直接替换生产页面。
+4. 设计确认后，先验证 Wujie + 受控授权桥的最小真实任务链，再做 React UI 接入；使用隔离数据目录，并将自动化、开发态 Electron、物理鼠标、真实模型和打包版分开记录。
 5. 第一方 Novel Studio 的授权边界和 SDK 契约保留在第 5 节及 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，此批不接入真实外部包。
 
 ## 5. 本次已完成：宿主绑定应用身份和生命周期
@@ -208,7 +293,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 - 不要马上创建或接入真实 `mira-novel-studio` 仓库。
 - 不要删除旧 `/novel`、`src/pages/frontend/aiNovel/`、小说 IPC、SQLite 表或迁移逻辑。
 - 不要做 SQLite 重写、真实用户数据迁移或不可恢复的双写。
-- 不要现在决定 React 全量替换，也不要把开源 Agent 产品整体 Fork 进来。
+- React UI 路线已定，但不要把演示原型直接替换生产页，也不要把开源 Agent 产品整体 Fork 进来；旧 Vue 页面在真实流程和桌面验收前保留回退。
 - 不要实现 Vision 业务、应用市场、远程下载器或安装脚本。
 - 不要用 `~/.mira` 做测试；使用 `MIRA_TEST_HOME` 或等价的临时测试目录。
 
@@ -237,4 +322,4 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 继续开发时可直接对 Codex 说：
 
-> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.3 节和 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 D 模块 P0/P1，核对工作区，不要重置现有改动。下一步使用隔离数据目录验证 Harness 的真实任务闭环：发送、工具、权限/计划确认、文件成果、失败/停止恢复；不要接入 Novel Studio、Vision 或 React 全量迁移，并分别报告自动化、构建、Electron 实机和真实模型结果。
+> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.8 节、`docs/MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md` 和 PRD 的 C/D 模块 P0/P1，核对工作区并保留未提交改动。Vue + Wujie 两层 Shell 首轮已经落地；下一步评审 React Harness 应用内设计，再验证 Wujie 受控桥的一条真实任务链。旧 Vue 生产页在验收前保留；Novel Studio、Vision 和应用下载器不参加本批。

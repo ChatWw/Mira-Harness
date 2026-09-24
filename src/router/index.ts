@@ -116,13 +116,20 @@ const layoutRoute: RouteRecordRaw = {
   redirect: '/workspace/chat',
   component: () => import('@/layouts/index.vue'),
   children: [
-    { path: '/workspace/chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false, noPageTransition: true } },
-    { path: '/workspace/chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false, noPageTransition: true } },
+    {
+      path: '/workspace',
+      component: () => import('@/pages/frontend/harness/LegacyHarnessLayout.vue'),
+      meta: { noPageTransition: true },
+      children: [
+        { path: 'chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false, noPageTransition: true } },
+        { path: 'chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false, noPageTransition: true } },
+        { path: 'projects', name: 'HarnessProjects', component: () => import('@/pages/frontend/harness/projects/index.vue'), meta: { title: '项目', noPageTransition: true } },
+        { path: 'history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '查看全部对话', noPageTransition: true } },
+        { path: 'usage', name: 'HarnessUsage', component: () => import('@/pages/frontend/harness/usage/index.vue'), meta: { title: '用量与成本', noPageTransition: true } },
+        { path: 'automations', name: 'HarnessAutomations', component: () => import('@/pages/frontend/harness/automations/index.vue'), meta: { title: '自动化', noPageTransition: true } },
+      ],
+    },
     ...(import.meta.env.DEV ? [{ path: '/workspace/harness-prototype', name: 'HarnessReactPrototype', component: () => import('@/pages/frontend/harness/prototype/index.vue'), meta: { title: 'Harness React 原型', showPageHeader: false, noPageTransition: true } }] : []),
-    { path: '/workspace/projects', name: 'HarnessProjects', component: () => import('@/pages/frontend/harness/projects/index.vue'), meta: { title: '项目', noPageTransition: true } },
-    { path: '/workspace/history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '查看全部对话', noPageTransition: true } },
-    { path: '/workspace/usage', name: 'HarnessUsage', component: () => import('@/pages/frontend/harness/usage/index.vue'), meta: { title: '用量与成本', noPageTransition: true } },
-    { path: '/workspace/automations', name: 'HarnessAutomations', component: () => import('@/pages/frontend/harness/automations/index.vue'), meta: { title: '自动化', noPageTransition: true } },
     {
       path: '/micro/:code/:pathMatch(.*)*',
       name: 'MicroAppHost',

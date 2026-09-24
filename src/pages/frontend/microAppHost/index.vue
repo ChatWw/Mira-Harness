@@ -1,8 +1,6 @@
 <template>
   <div class="micro-app-root">
-  <PageContainer :title="pageTitle" :description="pageDescription" :show-header="showPageHeader">
     <AppLoadingOverlay class="micro-app-loading" :active="loading" text="正在加载微应用…">
-    <el-card shadow="never" class="micro-app-host">
       <el-result v-if="error" icon="error" title="微应用无法加载" :sub-title="error">
         <template #extra>
           <el-button v-if="entryUrl" type="primary" @click="openInNewWindow">在新窗口打开</el-button>
@@ -46,9 +44,7 @@
           fill
         />
       </template>
-    </el-card>
     </AppLoadingOverlay>
-  </PageContainer>
   </div>
 </template>
 
@@ -56,9 +52,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WujieVue from 'wujie-vue3'
-import PageContainer from '@/components/PageContainer/index.vue'
 import { findRuntimeMicroApp } from '@/config/runtime'
-import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolveNavigation, resolvePlatformPathForChild } from '@/config/navigation'
+import { getMicroAppChildPath, resolveMicroAppEntryUrl, resolvePlatformPathForChild } from '@/config/navigation'
 import { getPlatformApi } from '@/platform'
 import { resolveFirstPartyAppManifest } from '@/config/firstPartyApps'
 import { useThemeStore } from '@/stores/theme'
@@ -78,10 +73,6 @@ const entryRootUrl = ref('')
 const loading = ref(true)
 const error = ref('')
 
-const navigation = computed(() => resolveNavigation(route.path))
-const pageTitle = computed(() => navigation.value.menu?.title || app.value?.name || '微应用')
-const pageDescription = computed(() => navigation.value.menu?.description ?? app.value?.description ?? '正在加载微应用配置')
-const showPageHeader = computed(() => navigation.value.menu?.showPageHeader !== false)
 const childRoute = computed(() => app.value ? getMicroAppChildPath(app.value, route.path) : '')
 const firstPartyManifest = computed(() => app.value ? resolveFirstPartyAppManifest(app.value) : undefined)
 const firstPartyEntryUrl = computed(() => firstPartyManifest.value ? new URL(firstPartyManifest.value.entry.path, entryRootUrl.value).href : '')
@@ -174,46 +165,13 @@ onBeforeUnmount(() => WujieVue.bus.$off('platform:navigate', handleChildNavigate
 </script>
 
 <style scoped lang="scss">
-.micro-app-root {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-
-  :deep(.page-container) {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-
-    .page-content {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-    }
-  }
-}
+.micro-app-root { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 
 .micro-app-loading {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.micro-app-host {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-
-  :deep(.el-card__body) {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
 }
 
 .micro-app-frame { display: block; width: 100%; flex: 1; min-height: 0; border: 0; }

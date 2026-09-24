@@ -3,6 +3,7 @@
 > 日期：2026-09-23；审计分支：`codex/mira-harness-first-slice`。
 > 性质：实施前决策记录；本轮未迁移源码、创建外部仓库、修改数据或验收原生 Electron。
 > 上位范围：[平台方案](./MIRA_PLATFORM_PLAN.md)与[实施 PRD](./MIRA_IMPLEMENTATION_PRD.md)。当前 `PRODUCT.md` 仍以小说创作为产品定位，和已确定的桌面 Harness 平台范围不一致；实施时须单独同步，不能用它覆盖本轮决策。
+> 2026-09-24 后续决策：React 已确定为默认 Harness UI 路线；本文件第 4 节的 Vue/React 对照是 2026-09-23 的历史初筛，不再代表当前待选方案。两层 layout 与当前下一步见 [阶段设计 brief](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md) 和 [交接文档](./MIRA_PHASE0_HANDOFF_2026-09-24.md)。
 
 ## 0. 文档入口与换电脑说明
 

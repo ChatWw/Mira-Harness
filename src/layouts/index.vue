@@ -1,478 +1,138 @@
 <template>
-  <el-watermark v-bind="watermarkProps" class="layout-watermark">
-    <div class="layout" :class="layoutClasses">
-      <div class="layout-workspace">
-        <div
-          v-if="showSidebar"
-          class="sidebar-host"
-          :class="{
-            'is-collapsed': appStore.sidebarCollapsed,
-            'is-flyout-visible': sidebarFlyoutVisible,
-          }"
-        >
-          <Transition name="sidebar-panel">
-            <AppSidebar
-              v-if="!appStore.sidebarCollapsed || sidebarFlyoutVisible"
-              :show-brand="true"
-              @mouseenter="handleSidebarMouseEnter"
-              @mouseleave="handleSidebarMouseLeave"
-              @flyout-menu-visibility-change="handleSidebarFlyoutMenuVisibilityChange"
-            />
-          </Transition>
-        </div>
-
-        <div class="main-container">
-          <AppMain />
-        </div>
+  <div class="mira-shell" :class="`mira-shell--${windowChrome}`">
+    <header class="mira-shell__bar">
+      <div class="mira-shell__identity">
+        <img :src="miraLogo" alt="" class="mira-shell__logo" />
+        <span class="mira-shell__brand">Mira</span>
+        <span class="mira-shell__separator" aria-hidden="true" />
+        <el-popover v-model:visible="appMenuVisible" trigger="click" placement="bottom-start" :width="220" :show-arrow="false" popper-class="mira-app-switcher-popper">
+          <template #reference>
+            <button type="button" class="mira-shell__app-switch" aria-label="选择应用" :aria-expanded="appMenuVisible">
+              <span>{{ currentAppName }}</span><AppIcon name="ArrowDown" />
+            </button>
+          </template>
+          <nav class="mira-app-switcher" aria-label="应用列表">
+            <button v-for="app in applications" :key="app.code" type="button" :class="{ 'is-current': currentAppCode === app.code }" @click="switchApp(app.code)">
+              <AppIcon :name="app.code === 'main' ? 'lucide:message-square-text' : app.icon || 'Grid'" />
+              <span>{{ app.code === 'main' ? 'Mira Harness' : app.name }}</span>
+              <AppIcon v-if="currentAppCode === app.code" name="Check" />
+            </button>
+            <button type="button" :class="{ 'is-current': currentAppCode === 'novel' }" @click="openLegacyNovel">
+              <AppIcon name="lucide:book-open" /><span>小说创作</span>
+              <AppIcon v-if="currentAppCode === 'novel'" name="Check" />
+            </button>
+          </nav>
+        </el-popover>
       </div>
-
-      <div v-if="windowChrome !== 'windows-overlay'" class="window-titlebar-drag-region" aria-hidden="true" />
-
-      <WindowsTitlebar
-        v-if="windowChrome === 'windows-overlay'"
-        :menu-left="showSidebar ? 60 : 20"
-      />
-
-      <div v-if="showSidebar" class="sidebar-window-controls">
-        <button
-          type="button"
-          class="sidebar-toggle"
-          :aria-label="appStore.sidebarCollapsed ? '显示侧边栏' : '收起侧边栏'"
-          @mouseenter="showSidebarFlyout"
-          @mouseleave="armSidebarFlyout"
-          @blur="scheduleSidebarFlyoutClose"
-          @click="toggleSidebar"
-        >
-          <AppIcon :name="appStore.sidebarCollapsed ? 'tabler:layout-sidebar-filled' : 'tabler:layout-sidebar'" />
-        </button>
-      </div>
-
-      <div v-if="windowChrome !== 'windows-overlay'" class="window-titlebar-actions">
+      <div class="mira-shell__actions">
         <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
-          <button type="button" class="titlebar-search" aria-label="全局搜索" @click="openSearch"><AppIcon name="Search" /></button>
+          <button type="button" class="mira-shell__icon-button" aria-label="全局搜索" @click="commandPaletteStore.open()"><AppIcon name="Search" /></button>
+        </el-tooltip>
+        <el-tooltip content="设置" placement="bottom">
+          <button type="button" class="mira-shell__icon-button" aria-label="设置" @click="openSettings"><AppIcon name="Setting" /></button>
         </el-tooltip>
       </div>
+    </header>
 
-      <SearchBar />
+    <WindowsTitlebar v-if="windowChrome === 'windows-overlay'" :show-search="false" :menu-left="16" />
+    <div class="mira-shell__stage">
+      <div class="mira-shell__canvas"><AppMain /></div>
     </div>
-  </el-watermark>
+    <SearchBar />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
-import { ElWatermark } from 'element-plus'
-import { useRoute } from 'vue-router'
-import { getVisibleMenus, resolveNavigation } from '@/config/navigation'
-import { useAppStore } from '@/stores/app'
-import { APP_NAME, useLayoutStore } from '@/stores/layout'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import miraLogo from '@/asset/mira-logo.png'
+import { applications, findRuntimeMicroApp } from '@/config/runtime'
+import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
-import AppSidebar from './components/AppSidebar.vue'
 import AppMain from './components/AppMain.vue'
 import WindowsTitlebar from './components/WindowsTitlebar.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
 
-const appStore = useAppStore()
-const layoutStore = useLayoutStore()
-const commandPaletteStore = useCommandPaletteStore()
 const route = useRoute()
+const router = useRouter()
+const commandPaletteStore = useCommandPaletteStore()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
-const navigation = computed(() => resolveNavigation(route.path))
-const sidebarFlyoutVisible = ref(false)
-const sidebarFlyoutArmed = ref(false)
-const sidebarPointerInside = ref(false)
-const sidebarFlyoutMenuVisible = ref(false)
-let sidebarFlyoutCloseTimer: number | undefined
-
-function showSidebarFlyout() {
-  if (!appStore.sidebarCollapsed || !sidebarFlyoutArmed.value) return
-  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
-  sidebarFlyoutVisible.value = true
-}
-
-function armSidebarFlyout() {
-  if (!appStore.sidebarCollapsed) return
-  sidebarFlyoutArmed.value = true
-  scheduleSidebarFlyoutClose()
-}
-
-function scheduleSidebarFlyoutClose() {
-  if (!appStore.sidebarCollapsed) return
-  if (sidebarPointerInside.value || sidebarFlyoutMenuVisible.value) return
-  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
-  sidebarFlyoutCloseTimer = window.setTimeout(() => {
-    if (!sidebarPointerInside.value && !sidebarFlyoutMenuVisible.value) {
-      sidebarFlyoutVisible.value = false
-    }
-  }, 140)
-}
-
-function handleSidebarMouseEnter() {
-  sidebarPointerInside.value = true
-  showSidebarFlyout()
-}
-
-function handleSidebarMouseLeave() {
-  sidebarPointerInside.value = false
-  scheduleSidebarFlyoutClose()
-}
-
-function handleSidebarFlyoutMenuVisibilityChange(visible: boolean) {
-  sidebarFlyoutMenuVisible.value = visible
-  if (visible) {
-    if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
-    return
-  }
-
-  scheduleSidebarFlyoutClose()
-}
-
-function toggleSidebar() {
-  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
-  sidebarFlyoutVisible.value = false
-  sidebarFlyoutArmed.value = false
-  sidebarPointerInside.value = false
-  sidebarFlyoutMenuVisible.value = false
-  appStore.toggleSidebar()
-}
-
-function openSearch() {
-  commandPaletteStore.open()
-}
-
-onBeforeUnmount(() => {
-  if (sidebarFlyoutCloseTimer) window.clearTimeout(sidebarFlyoutCloseTimer)
+const appMenuVisible = ref(false)
+const currentAppCode = computed(() => route.path === '/novel' ? 'novel' : getAppCodeFromPath(route.path))
+const currentAppName = computed(() => {
+  if (currentAppCode.value === 'novel') return '小说创作'
+  if (currentAppCode.value === 'main') return 'Mira Harness'
+  return findRuntimeMicroApp(currentAppCode.value)?.name || '应用'
 })
 
-const showSidebar = computed(() => {
-  if (navigation.value.area === 'main') return true
-  return getVisibleMenus(navigation.value.menus).length > 0
-})
-const watermarkProps = computed(() => {
-  return {
-    content: layoutStore.config.watermark
-      ? layoutStore.config.watermarkText.trim() || APP_NAME
-      : '',
-    font: { color: 'rgba(0, 0, 0, 0.12)', fontSize: 16 },
-    gap: [120, 100] as [number, number],
-    zIndex: 10,
-  }
-})
+function switchApp(code: string) {
+  appMenuVisible.value = false
+  void navigateToPath(router, getApplicationEntryPath(code))
+}
 
-const layoutClasses = computed(() => {
-  const classes = [
-    `layout--sidebar-style-${layoutStore.config.sidebarStyle}`,
-    `layout--${windowChrome}`,
-  ]
+function openLegacyNovel() {
+  appMenuVisible.value = false
+  void router.push('/novel')
+}
 
-  if (appStore.sidebarCollapsed) {
-    classes.push('sidebar-collapsed')
-  }
-
-  if (!showSidebar.value) {
-    classes.push('layout--without-workspace-menu')
-  }
-
-  return classes
-})
+function openSettings() {
+  void router.push({ path: '/settings/general', query: { from: route.fullPath } })
+}
 </script>
 
 <style scoped lang="scss">
-.layout-watermark {
-  display: block;
-  height: 100%;
-}
-
-.layout {
+.mira-shell {
+  --cp-titlebar-height: 48px;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100vh;
+  min-width: 0;
   overflow: hidden;
-  background: var(--cp-bg);
-  --cp-titlebar-height: 36px;
-  --cp-window-controls-inset: 0px;
-  --cp-mac-collapsed-safe-inset: 0px;
-
-  .layout-workspace {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    padding-top: var(--cp-titlebar-height);
-    overflow: hidden;
-  }
-
-  .sidebar-host {
-    width: 240px;
-    height: 100%;
-    flex: 0 0 240px;
-    position: relative;
-    z-index: 20;
-    overflow: hidden;
-    transition:
-      width var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1),
-      flex-basis var(--cp-animation-duration) cubic-bezier(0.16, 1, 0.3, 1);
-
-    &:not(.is-collapsed) :deep(.sidebar-window-chrome) {
-      display: none;
-    }
-
-    &.is-collapsed {
-      width: 0;
-      flex-basis: 0;
-      z-index: 100;
-      overflow: visible;
-
-      :deep(.app-sidebar) {
-        position: fixed;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 240px !important;
-        height: 100vh;
-        border: 0;
-        border-right: 1px solid var(--cp-layout-border);
-        border-radius: 0;
-        box-shadow: 12px 0 28px rgb(24 24 27 / 14%);
-      }
-
-    }
-  }
-
-  .sidebar-panel-enter-active,
-  .sidebar-panel-leave-active {
-    transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .sidebar-panel-enter-from,
-  .sidebar-panel-leave-to {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-
-  .sidebar-window-controls {
-    position: fixed;
-    z-index: 120;
-    top: 2px;
-    left: 20px;
-    display: grid;
-    width: 32px;
-    height: 32px;
-    place-items: center;
-    -webkit-app-region: no-drag !important;
-  }
-
-  .window-titlebar-drag-region {
-    position: fixed;
-    z-index: 100;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: var(--cp-titlebar-height);
-    -webkit-app-region: drag;
-  }
-
-  .window-titlebar-actions {
-    position: fixed;
-    z-index: 110;
-    top: 0;
-    right: 16px;
-    display: flex;
-    height: var(--cp-titlebar-height);
-    align-items: center;
-    gap: 8px;
-    -webkit-app-region: no-drag;
-  }
-
-  .titlebar-search {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    place-items: center;
-    border: 0;
-    border-radius: var(--cp-radius-md);
-    color: var(--cp-text-secondary);
-    background: transparent;
-    cursor: pointer;
-    font-size: 16px;
-
-    &:hover,
-    &:focus-visible {
-      color: var(--cp-text);
-      background: var(--cp-sidebar-menu-hover-bg);
-      outline: none;
-    }
-  }
-
-  .sidebar-toggle {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    font-size: 16px;
-    padding: 0;
-    place-items: center;
-    border: 0;
-    border-radius: var(--cp-radius-md);
-    color: var(--cp-text-secondary);
-    background: transparent;
-    cursor: pointer;
-    -webkit-app-region: no-drag !important;
-
-    &:hover,
-    &:focus-visible {
-      color: var(--cp-text);
-      background: var(--cp-sidebar-menu-hover-bg);
-      outline: none;
-    }
-  }
-
-  &--macos-overlay .sidebar-window-controls {
-    left: 92px;
-  }
-
-  .main-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-width: 0;
-  }
-
-  // ========== 布局模式 ==========
-
-  // 内嵌：侧栏融入窗口底色，Main 是唯一强调面板。
-  &--sidebar-style-embedded {
-    background: var(--cp-bg-elevated);
-
-    .layout-workspace {
-      background: var(--cp-bg-elevated);
-    }
-
-    .main-container {
-      margin: 0 12px 12px 0;
-      background: var(--cp-bg);
-      border: 1px solid var(--cp-layout-border);
-      border-radius: var(--cp-radius-xl);
-      box-shadow: 0 8px 24px rgb(24 24 27 / 5%);
-    }
-
-    :deep(.app-sidebar) {
-      background: var(--cp-bg-elevated);
-      border-color: var(--cp-layout-border);
-    }
-
-    :deep(.el-sub-menu .el-menu) {
-      background: transparent;
-    }
-
-    &.layout--without-workspace-menu .main-container {
-      margin-left: 12px;
-    }
-
-    &.sidebar-collapsed .main-container {
-      margin-left: 12px;
-    }
-
-  }
-
-  // 浮动：窗口底色包裹两块内缩面板，侧栏通过阴影强调悬浮层级。
-  &--sidebar-style-floating {
-    background: var(--cp-bg-elevated);
-
-    .layout-workspace {
-      background: var(--cp-bg-elevated);
-    }
-
-    .main-container {
-      margin: 0 12px 12px 0;
-      overflow: hidden;
-      background: var(--cp-bg);
-      border-radius: var(--cp-radius-xl);
-    }
-
-    .sidebar-host:not(.is-collapsed) {
-      width: 264px;
-      flex-basis: 264px;
-      padding: 0 12px 12px;
-      overflow: hidden;
-    }
-
-    .sidebar-host:not(.is-collapsed) :deep(.app-sidebar) {
-      height: 100%;
-      overflow: hidden;
-      background: var(--cp-bg);
-      border: 1px solid var(--cp-layout-border);
-      border-radius: var(--cp-radius-xl);
-      box-shadow: 0 8px 24px rgb(24 24 27 / 8%);
-    }
-
-    :deep(.el-sub-menu .el-menu) {
-      background: var(--cp-bg-elevated);
-    }
-
-    &.layout--without-workspace-menu .main-container,
-    &.sidebar-collapsed .main-container {
-      margin-left: 12px;
-    }
-
-  }
-
-  // 分栏：两栏组成一块内缩面板，内部只用分隔线划分区域。
-  &--sidebar-style-docked {
-    background: var(--cp-bg-elevated);
-
-    .layout-workspace {
-      padding-right: 12px;
-      padding-bottom: 12px;
-      padding-left: 12px;
-      background: var(--cp-bg-elevated);
-    }
-
-    .main-container {
-      overflow: hidden;
-      background: var(--cp-bg);
-      border-radius: 0 var(--cp-radius-xl) var(--cp-radius-xl) 0;
-    }
-
-    .sidebar-host:not(.is-collapsed) {
-      overflow: hidden;
-      background: var(--cp-bg);
-      border-radius: var(--cp-radius-xl) 0 0 var(--cp-radius-xl);
-    }
-
-    :deep(.app-sidebar) {
-      border-right: 1px solid var(--cp-layout-border);
-      background: transparent;
-    }
-
-    :deep(.el-sub-menu .el-menu) {
-      background: transparent;
-    }
-
-    &.layout--without-workspace-menu .main-container,
-    &.sidebar-collapsed .main-container {
-      border-radius: var(--cp-radius-xl);
-    }
-
-  }
-
-  // 收起态是跨布局悬浮层，必须使用不透明表面，避免主页面内容透出。
-  &.sidebar-collapsed .sidebar-host.is-collapsed :deep(.app-sidebar) {
-    z-index: 100;
-    background: var(--cp-sidebar-bg) !important;
-    border-color: var(--cp-layout-border);
-    box-shadow: 12px 0 28px rgb(24 24 27 / 14%);
-    isolation: isolate;
-  }
-
+  color: var(--cp-text);
+  background: var(--cp-bg-elevated);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .layout .sidebar-host,
-  .layout .sidebar-panel-enter-active,
-  .layout .sidebar-panel-leave-active {
-    transition: none;
-  }
+.mira-shell__bar {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px 0 92px;
+  -webkit-app-region: drag;
 }
 
+.mira-shell--standard .mira-shell__bar { padding-left: 16px; }
+.mira-shell--windows-overlay .mira-shell__bar { padding-left: 302px; padding-right: 148px; }
+
+.mira-shell__identity,
+.mira-shell__actions { display: flex; min-width: 0; align-items: center; -webkit-app-region: no-drag; }
+.mira-shell__identity { gap: 10px; }
+.mira-shell__actions { flex: 0 0 auto; gap: 4px; }
+.mira-shell__logo { width: 23px; height: 23px; object-fit: contain; }
+.mira-shell__brand { font-size: 13px; font-weight: 650; }
+.mira-shell__separator { width: 1px; height: 16px; margin: 0 2px; background: var(--cp-border); }
+.mira-shell__app-switch { display: flex; min-width: 0; max-width: 220px; height: 32px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 12px; }
+.mira-shell__app-switch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-shell__app-switch .app-icon { flex: 0 0 auto; font-size: 13px; }
+.mira-shell__icon-button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 16px; }
+.mira-shell__app-switch:hover,
+.mira-shell__app-switch:focus-visible,
+.mira-shell__icon-button:hover,
+.mira-shell__icon-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
+
+.mira-shell__stage { flex: 1; min-height: 0; padding: 0 12px 12px; }
+.mira-shell__canvas { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--cp-layout-border); border-radius: var(--cp-radius-md); background: var(--cp-bg); }
+</style>
+
+<style lang="scss">
+.mira-app-switcher-popper.el-popover { padding: 5px; border-color: var(--cp-border); background: var(--cp-bg-overlay); }
+.mira-app-switcher { display: flex; flex-direction: column; gap: 2px; }
+.mira-app-switcher button { display: flex; width: 100%; min-height: 34px; align-items: center; gap: 10px; padding: 5px 8px; border: 0; border-radius: var(--cp-radius-sm); color: var(--cp-text); background: transparent; font-size: 13px; text-align: left; }
+.mira-app-switcher button:hover,
+.mira-app-switcher button:focus-visible,
+.mira-app-switcher button.is-current { background: var(--cp-bg-hover); outline: none; }
+.mira-app-switcher button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-app-switcher button .app-icon { flex: 0 0 auto; font-size: 16px; }
 </style>

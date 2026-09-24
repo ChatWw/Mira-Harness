@@ -9,14 +9,20 @@ import {
 } from '../src/utils/windowChrome'
 
 describe('Windows title-bar chrome', () => {
-  it('keeps the sidebar toggle above and outside the draggable title-bar region', () => {
+  it('keeps the shell controls outside the draggable title-bar region', () => {
     const layoutSource = readFileSync(new URL('../src/layouts/index.vue', import.meta.url), 'utf8')
     const titlebarIndex = layoutSource.indexOf('<WindowsTitlebar')
-    const sidebarControlsIndex = layoutSource.indexOf('class="sidebar-window-controls"')
+    const shellBarIndex = layoutSource.indexOf('class="mira-shell__bar"')
+    const shellActionsIndex = layoutSource.indexOf('class="mira-shell__actions"')
 
     expect(titlebarIndex).toBeGreaterThan(-1)
-    expect(sidebarControlsIndex).toBeGreaterThan(titlebarIndex)
-    expect(layoutSource).toMatch(/\.sidebar-window-controls\s*\{[\s\S]*?z-index:\s*120;[\s\S]*?-webkit-app-region:\s*no-drag !important;/)
+    expect(shellBarIndex).toBeGreaterThan(-1)
+    expect(shellActionsIndex).toBeGreaterThan(shellBarIndex)
+    expect(layoutSource).toContain('class="mira-shell__canvas"')
+    expect(layoutSource).toMatch(/\.mira-shell__canvas\s*\{\s*display:\s*flex;/)
+    expect(layoutSource).not.toContain('<AppSidebar')
+    expect(layoutSource).toMatch(/\.mira-shell__identity,[\s\S]*?-webkit-app-region:\s*no-drag;/)
+    expect(layoutSource).toMatch(/\.mira-shell__actions\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/)
   })
 
   it('keeps the native overlay transparent in light and dark themes', () => {

@@ -1,5 +1,5 @@
 <template>
-  <main class="app-main" :class="{ 'app-main--workspace': isWorkspaceRoute, 'app-main--harness': isHarnessRoute }">
+  <main class="app-main" :class="{ 'app-main--workspace': isWorkspaceRoute, 'app-main--micro-app': isMicroAppRoute }">
     <router-view v-slot="{ Component }">
       <transition :name="transitionName" mode="out-in">
         <keep-alive :include="cachedRouteNames">
@@ -20,7 +20,7 @@ import { isWorkspacePath } from '@/config/navigation'
 const layoutStore = useLayoutStore()
 const route = useRoute()
 const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
-const isHarnessRoute = computed(() => route.path === '/workspace/chat' || route.path.startsWith('/workspace/chat/'))
+const isMicroAppRoute = computed(() => route.name === 'MicroAppHost')
 // 标记了 noPageTransition 的路由(如 Mira 工作台)不应用页面切换动画。
 const isNoTransitionRoute = computed(() => route.meta.noPageTransition === true)
 
@@ -57,7 +57,8 @@ const viewKey = computed(() => {
 
 }
 
-.app-main--harness {
+.app-main--workspace,
+.app-main--micro-app {
   padding: 0;
   overflow: hidden;
 }

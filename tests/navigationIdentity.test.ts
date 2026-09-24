@@ -5,6 +5,10 @@ import { runtimeNavigation } from '../src/config/runtime'
 import type { MenuItem, MicroApp } from '../src/types'
 
 describe('legacy micro-app navigation', () => {
+  it('opens Mira through the Harness entry rather than a legacy main menu', () => {
+    expect(getApplicationEntryPath('main')).toBe('/workspace/chat')
+  })
+
   it('uses canonical menus and entry paths for a legacy app code', () => {
     const menu: MenuItem = { id: 'novel-home', title: '首页', path: `/micro/${MIRA_NOVEL_STUDIO_CODE}`, type: 'menu', target: { type: 'microapp', childPath: '/' } }
     const app = { code: MIRA_NOVEL_STUDIO_CODE, menus: [menu] } as MicroApp

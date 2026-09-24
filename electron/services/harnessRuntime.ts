@@ -3,8 +3,7 @@ import { createSandboxedEnv, wrapHarnessTool } from './agentTools'
 import { createWebCitationContext, createWebFetchTool, createWebSearchTool } from '../adapters/webTools'
 import type { MemoryScope } from '../storage/fileMemoryStore'
 import type { McpManager } from '../adapters/mcpManager'
-import { Type, createModels, createProvider } from '@earendil-works/pi-ai'
-import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
+import { Type, createModels } from '@earendil-works/pi-ai'
 import { type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
@@ -34,6 +33,7 @@ import { HarnessPlanCoordinator } from './harnessPlanCoordinator'
 import { HarnessSubtaskCoordinator } from './harnessSubtaskCoordinator'
 import { HarnessMemoryCoordinator, parseMemoryExtraction } from './harnessMemoryCoordinator'
 import { HarnessRunCoordinator, type HarnessRunCompleteEvent, type HarnessRunOrigin } from './harnessRunCoordinator'
+import { createHarnessModelProvider } from './harnessModelProvider'
 
 export { parseMemoryExtraction }
 
@@ -685,17 +685,9 @@ export class HarnessRuntime {
     let models!: ReturnType<typeof createModels>
     let agent!: Agent
     try {
-      model = {
-        id: selection.modelId, name: selection.modelId, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
-        reasoning: modelConfig.reasoning, compat: modelConfig.reasoning ? { supportsReasoningEffort: true } : undefined,
-        input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: modelConfig.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
-      } as any
-      models = createModels()
-      models.setProvider(createProvider({
-        id: 'mira-openai', name: provider.name, baseUrl: provider.endpoint,
-        auth: { apiKey: { name: provider.name, resolve: async () => ({ auth: { apiKey } }) } },
-        models: [model], api: openAICompletionsApi(),
-      }) as any)
+      const configuredProvider = createHarnessModelProvider(provider, modelConfig, apiKey)
+      model = configuredProvider.model
+      models = configuredProvider.models
       session = await this.compactContext(sender, session, model, models, controller, modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publishActivities)
       const memory = options.planning ? { globalMemory: '', projectMemory: '', loaded: false } : this.memoryCoordinator.loadForRun(sender, sessionId, session, text, activities)
       const { globalMemory, projectMemory } = memory

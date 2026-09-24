@@ -28,6 +28,22 @@
 
       <HarnessMessageList ref="messageListRef" :messages="conversationMessages" :active-run="store.activeRun" :running="store.running" :rendering="store.rendering" :submitting="submissionInFlight" :entering-message-id="enteringMessageId" @entrance-end="clearMessageEntrance" @edit-and-rerun="saveMessageEdit" @rerun="rerun" @open-file-change="openFileChange" @open-work-panel="openWorkPanel" @continue="focusComposer" @stop-subtask="stopSubtask" />
 
+      <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
+        <div class="empty-state__hero">
+          <h1 class="empty-state__title">Mira</h1>
+          <p class="empty-state__subtitle">{{ hasConfiguredModels ? '今天想做什么？从一个想法开始，我陪你把它落地。' : '先在右下角选择模型，或前往模型设置完成配置。' }}</p>
+        </div>
+        <div class="empty-state__cards">
+          <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" :class="['starter-card', `starter-card--${prompt.tone}`]" :disabled="isComposerBusy" @click="setStarterPrompt(prompt.text)">
+            <span class="starter-card__icon"><AppIcon :name="prompt.icon" /></span>
+            <span class="starter-card__body">
+              <strong>{{ prompt.title }}</strong>
+              <small>{{ prompt.hint }}</small>
+            </span>
+          </button>
+        </div>
+      </div>
+
       <section v-if="permissionRequest" class="permission-request-card" aria-live="polite">
         <div class="permission-request-card__icon"><AppIcon name="WarningFilled" /></div>
         <div class="permission-request-card__content"><strong>{{ permissionRequest.title }}</strong><p>{{ permissionRequest.detail }}</p></div>
@@ -37,22 +53,6 @@
 
       <HarnessComposer ref="composerRef" v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :submitting="submissionInFlight" :dispatch="pageFacade.dispatchComposerAction" />
     </section>
-
-    <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
-      <div class="empty-state__hero">
-        <h1 class="empty-state__title">Mira</h1>
-        <p class="empty-state__subtitle">{{ hasConfiguredModels ? '今天想做什么？从一个想法开始，我陪你把它落地。' : '先在右下角选择模型，或前往模型设置完成配置。' }}</p>
-      </div>
-      <div class="empty-state__cards">
-        <button v-for="prompt in starterPrompts" :key="prompt.title" type="button" :class="['starter-card', `starter-card--${prompt.tone}`]" :disabled="isComposerBusy" @click="setStarterPrompt(prompt.text)">
-          <span class="starter-card__icon"><AppIcon :name="prompt.icon" /></span>
-          <span class="starter-card__body">
-            <strong>{{ prompt.title }}</strong>
-            <small>{{ prompt.hint }}</small>
-          </span>
-        </button>
-      </div>
-    </div>
 
     <aside v-if="store.activeSession?.messages.length" class="work-panel-host" :class="{ 'is-open': workPanelVisible }" aria-label="工作面板容器">
       <Transition name="work-panel">
@@ -213,12 +213,11 @@ onMounted(() => { void reload() })
 
 <style scoped lang="scss">
 .harness-page { height: 100%; min-height: 0; min-width: 0; display: flex; overflow: hidden; background: var(--cp-bg); position: relative; }
-.harness-page.is-empty-session { display: flex; flex-direction: column; }
-.harness-page.is-empty-session .conversation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; height: 100%; }
+.harness-page.is-empty-session .conversation { display: grid; grid-template-rows: minmax(0, 1fr) auto auto auto; min-height: 0; height: 100%; }
 .harness-page.is-empty-session .conversation { background: radial-gradient(ellipse 36% 25% at 50% 49%, rgb(226 218 245 / 42%) 0%, transparent 100%); }
 [data-theme='dark'] .harness-page.is-empty-session .conversation { background: radial-gradient(ellipse 36% 25% at 50% 49%, rgb(129 115 167 / 26%) 0%, transparent 100%); }
-.harness-page.is-empty-session .conversation__messages { flex: 1 1 auto; min-height: 0; }
-.harness-page.is-empty-session .composer-shell { flex: 0 0 auto; }
+.harness-page.is-empty-session .conversation__messages { grid-row: 1; grid-column: 1; }
+.harness-page.is-empty-session .empty-state { grid-row: 1; grid-column: 1; }
 .conversation { display: grid; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr) auto auto; position: relative; }
 .conversation__messages { position: relative; min-height: 0; overflow: hidden; }
 .conversation__header { position: relative; z-index: 101; display: flex; min-height: 52px; align-items: center; gap: $spacing-md; padding: 0 4px 0 8px; border-bottom: 1px solid color-mix(in srgb, var(--cp-border-light) 42%, transparent); -webkit-app-region: no-drag; }
@@ -228,7 +227,7 @@ onMounted(() => { void reload() })
 .conversation__identity { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 8px; }.conversation__title-button { max-width: min(360px, 40vw); overflow: hidden; padding: 4px 6px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: text; }.conversation__title-button:hover, .conversation__title-button:focus-visible { background: var(--cp-bg-hover); outline: none; }.conversation__title-input { width: min(180px, 40vw); height: 28px; box-sizing: border-box; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--cp-primary) 48%, var(--cp-border)); border-radius: $radius-sm; color: var(--cp-text); background: var(--cp-bg-elevated); font: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; outline: none; }.conversation__title-input:focus { border-color: var(--cp-primary); box-shadow: 0 0 0 2px var(--cp-primary-lighter); }.conversation__project-trigger { display: inline-flex; flex: 0 0 auto; }.conversation__project { position: relative; display: inline-grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__project::after { position: absolute; z-index: 2; top: calc(100% + 8px); left: 0; padding: 6px 10px; border-radius: 8px; color: var(--cp-bg); background: var(--cp-text); box-shadow: 0 8px 20px rgb(0 0 0 / 16%); content: attr(data-tooltip); font-size: 12px; line-height: 1.35; opacity: 0; pointer-events: none; transform: translateY(-2px); transition: opacity $transition-fast, transform $transition-fast; white-space: nowrap; }.conversation__project:hover, .conversation__project:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }.conversation__project:hover:not(.is-open)::after, .conversation__project:focus-visible:not(.is-open)::after { opacity: 1; transform: translateY(0); }.conversation__project .app-icon { font-size: 16px; }.conversation__header-drag { min-width: 24px; align-self: stretch; flex: 1 1 auto; -webkit-app-region: drag; }.conversation__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }.conversation__actions :deep(.el-tag) { max-width: 148px; overflow: hidden; color: var(--cp-text-secondary); text-overflow: ellipsis; white-space: nowrap; }.conversation__action-button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: $radius-sm; color: var(--cp-text-secondary); background: transparent; cursor: pointer; }.conversation__action-button:hover, .conversation__action-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
 .conversation-project-card { display: grid; gap: 8px; padding: 12px; }.conversation-project-card__title, .conversation-project-card__meta, .conversation-project-card__edit { display: flex; min-width: 0; align-items: center; gap: 9px; }.conversation-project-card__title { min-height: 28px; color: var(--cp-text); font-size: 14px; }.conversation-project-card__title .app-icon { flex: 0 0 auto; color: var(--cp-text-secondary); font-size: 18px; }.conversation-project-card__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conversation-project-card__meta { color: var(--cp-text-secondary); font-size: 12px; line-height: 1.45; }.conversation-project-card__meta .app-icon { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 16px; }.conversation-project-card__directory { padding-bottom: 10px; border-bottom: 1px solid var(--cp-border-light); }.conversation-project-card__directory span { min-width: 0; overflow-wrap: anywhere; }.conversation-project-card__edit { min-height: 32px; padding: 0 6px; border: 0; border-radius: $radius-sm; color: var(--cp-text); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }.conversation-project-card__edit:hover, .conversation-project-card__edit:focus-visible { background: var(--cp-bg-hover); outline: none; }.conversation-project-card__edit .app-icon { color: var(--cp-text-secondary); font-size: 16px; }
 :global(.conversation-project-popper.el-popover.el-popper) { max-width: calc(100vw - 32px); padding: 0; overflow: hidden; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg-overlay); box-shadow: 0 14px 30px rgb(0 0 0 / 12%); }
-.empty-state { position: absolute; inset: 0; z-index: 1; display: flex; width: min(100%, 760px); margin-right: auto; margin-left: auto; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
+.empty-state { position: relative; z-index: 1; display: flex; width: min(100%, 760px); min-height: 0; box-sizing: border-box; margin-right: auto; margin-left: auto; align-items: center; justify-content: center; flex-direction: column; gap: 28px; padding: 24px; color: var(--cp-text-tertiary); text-align: center; pointer-events: none; }
 .empty-state__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto; }
 .empty-state__title { margin: 0; color: var(--cp-text); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
 .empty-state__subtitle { margin: 0; max-width: 420px; color: var(--cp-text-secondary); font-size: 14px; line-height: 1.7; }
