@@ -4,12 +4,14 @@ import type { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import type { MicroApp } from '../../src/types'
 import { firstPartyAppManifests, validateFirstPartyAppManifest, type FirstPartyAppManifest } from '../../src/config/firstPartyApps'
 import type { ModelSelection } from '../../src/config/harness'
+import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
   localMicroAppServer: LocalMicroAppServer
   legacyNovelApiToken?: string
   firstPartyManifests?: readonly FirstPartyAppManifest[]
+  firstPartyGrantStore?: FirstPartyGrantStore
   fetchImpl?: typeof fetch
 }
 
@@ -18,7 +20,11 @@ function boundedString(value: unknown, field: string, maxLength: number) {
   return value
 }
 
-export function registerPlatformIpcHandlers({ database, localMicroAppServer, legacyNovelApiToken, firstPartyManifests = firstPartyAppManifests, fetchImpl = fetch }: PlatformIpcDependencies) {
+function requireMainFrame(event: { senderFrame?: { parent: unknown } }) {
+  if (event.senderFrame?.parent) throw new Error('第一方授权只能由宿主主页面申请')
+}
+
+export function registerPlatformIpcHandlers({ database, localMicroAppServer, legacyNovelApiToken, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -40,11 +46,26 @@ export function registerPlatformIpcHandlers({ database, localMicroAppServer, leg
   })
   ipcMain.handle('platform:resolve-local-microapp-url', (_event, appId: string) => localMicroAppServer.getEntryUrl(appId))
   ipcMain.handle('platform:get-novel-api-base-url', () => localMicroAppServer.getApiBaseUrl('novel'))
-  ipcMain.handle('platform:generate-first-party-text', async (_event, appId: string, role: 'authoring' | 'automation', prompt: string, selection: ModelSelection) => {
+  ipcMain.handle('platform:create-first-party-grant', (event, appId: string) => {
+    requireMainFrame(event)
+    appId = boundedString(appId, '应用 ID', 128)
     const manifest = firstPartyManifests.find(item => item.enabled && item.appId === appId)
     if (!manifest) throw new Error('第一方应用未登记或已停用')
     validateFirstPartyAppManifest(manifest)
-    if (!manifest.capabilities.includes('models:text.generate')) throw new Error('应用没有模型生成能力')
+    const grantId = firstPartyGrantStore.issue(manifest.appId, event.sender.id, manifest.capabilities)
+    if (typeof event.sender.once === 'function') event.sender.once('destroyed', () => firstPartyGrantStore.revokeForWebContents(event.sender.id))
+    return grantId
+  })
+  ipcMain.handle('platform:revoke-first-party-grant', (event, grantId: string) => {
+    requireMainFrame(event)
+    firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)
+  })
+  ipcMain.handle('platform:generate-first-party-text', async (event, grantId: string, role: 'authoring' | 'automation', prompt: string, selection: ModelSelection) => {
+    requireMainFrame(event)
+    const grant = firstPartyGrantStore.resolve(boundedString(grantId, '授权句柄', 128), event.sender.id)
+    const manifest = grant && firstPartyManifests.find(item => item.enabled && item.appId === grant.appId)
+    if (!grant || !manifest) throw new Error('第一方授权无效或应用已停用')
+    if (!manifest.capabilities.includes('models:text.generate') || !grant.capabilities.has('models:text.generate')) throw new Error('应用没有模型生成能力')
     if (role !== 'authoring' && role !== 'automation') throw new Error('模型职责无效')
     boundedString(prompt, '模型请求内容', 100_000)
     if (!selection || typeof selection !== 'object' || Array.isArray(selection)) throw new Error('模型选择无效')

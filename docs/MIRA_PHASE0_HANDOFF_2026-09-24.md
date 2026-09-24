@@ -7,7 +7,7 @@
 
 - 仓库：`ChatWw/Mira-Harness`，目录：`/Volumes/VrenDisk/project/core-platform`
 - 分支：`codex/mira-harness-first-slice`
-- 基线提交：包含 `c4537b9` 的当前分支最新提交（以远端 `HEAD` 为准）
+- 基线提交：以远端 `HEAD` 为准；本次授权边界、测试和文档更新会一起提交
 - 远端：`origin/codex/mira-harness-first-slice`
 - 本轮交接时工作区：干净，分支与远端同步
 - 当前范围：桌面 Electron；Vue + Wujie Shell；Mira-Harness 默认应用；Novel Studio 和 Vision 只做受控接入配置
@@ -30,6 +30,8 @@
 - 已增加第一方应用 manifest、校验和受控配置；`firstPartyAppManifests` 当前为空，因此真实外部应用尚未启用。
 - 已增加 `FirstPartyFrame.vue` 和 `firstPartyBridge.ts` 的隔离 iframe + `MessageChannel` 草稿。
 - 已增加模型能力的主进程 IPC 校验、Novel Studio 专属能力检查和本地 API token/grant 基础设施。
+- 已完成第一方 grant/session：授权句柄由主进程生成，绑定 `webContents`、应用能力快照和应用 ID；模型 IPC 不再接受 renderer 自报的 `appId`。
+- 已完成 iframe 会话生命周期控制：每次 load 建立新 grant，旧端口/授权在重载、URL/应用身份变化和卸载时关闭/撤销；异步加载竞态不会重新激活旧会话。
 - 已增加 `MIRA_TEST_HOME` 开发态隔离数据目录，避免用真实 `~/.mira` 做实验。
 - 已保留旧 IPC、Harness、旧 `/novel` 和现有数据路径，未做不可逆迁移。
 
@@ -41,11 +43,10 @@
 
 ## 3. 当前没有完成的事项
 
-1. **宿主绑定的应用身份未闭合。** `platform:generate-first-party-text` 目前仍接收 renderer 传入的 `appId`，只按 manifest 检查，尚未证明调用者就是宿主授予该身份的具体 frame。
-2. **iframe 生命周期未完成验证。** 首次加载、页面跳转、重复 `load`、卸载、route/context 更新与端口撤销还缺针对性测试。
-3. **没有真实 Novel Studio 包。** 没有独立仓库、静态发布包、可信来源、安装回退或版本兼容流程。
-4. **旧作品、模型和打包版未完成验收。** 不得直接操作真实 `~/.mira`；不得因为拆目录删除旧小说 UI、SQLite 表或用户数据。
-5. **React 正式迁移尚未批准。** 当前 React/Wujie 页面是 disposable spike，只能证明挂载可行。
+1. **没有真实 Novel Studio 包。** 没有独立仓库、静态发布包、可信来源、安装回退或版本兼容流程；`firstPartyAppManifests` 仍为空。
+2. **旧作品、模型和打包版未完成验收。** 不得直接操作真实 `~/.mira`；不得因为拆目录删除旧小说 UI、SQLite 表或用户数据。
+3. **授权边界尚未接入真实子应用。** 当前 grant/session 已有主进程和 frame 测试，但没有真实外部包来验证连接协议、应用 SDK 和卸载恢复。
+4. **React 正式迁移尚未批准。** 当前 React/Wujie 页面是 disposable spike，只能证明挂载可行。
 
 ## 4. 换电脑后的准确开始方式
 
@@ -80,38 +81,39 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
    - `src/platform/firstPartyBridge.ts`
    - `src/config/firstPartyApps.ts`
    - `electron/adapters/localMicroAppServer.ts`
-4. 为“宿主授予应用身份”设计最小 grant/session 契约，再补测试；通过后才改实现。
-5. 验证 iframe 生命周期和撤销；最后重新运行静态检查、单测和构建。
+4. 继续读 `electron/security/firstPartyGrant.ts`、`src/platform/firstPartySession.ts` 及对应测试，确认本次授权边界没有被后续改动绕开。
+5. 下一批再设计真实 Novel Studio 的静态包/SDK 契约；在独立项目和包出现前，不启用非空 manifest。
 
-## 5. 下一刀：宿主绑定应用身份和生命周期
+## 5. 本次已完成：宿主绑定应用身份和生命周期
 
-### 5.1 目标
+### 5.1 已达成目标
 
 让每个第一方 iframe 获得由宿主创建、与 `appId`、能力清单和生命周期绑定的授权会话。子应用不能通过请求参数自报另一个 `appId`，不能读取模型 API key，不能访问其他应用能力；frame 卸载、跳转或端口关闭后，旧授权必须失效。
 
-### 5.2 推荐最小实现方向
+### 5.2 当前实现
 
-- 宿主在创建受控 frame 时向主进程申请一次性或可撤销 grant，绑定 `appId`、允许能力、frame/session 标识和过期/撤销状态。
-- `MessagePort` 请求携带 grant 标识或由宿主 bridge 注入的会话凭据；主进程以服务端保存的授权状态为准，不信任 renderer 自报的 `appId`。
-- `platform:generate-first-party-text` 等 IPC 只接受已授权会话，并再次校验能力、参数和应用归属。
+- 宿主在创建受控 frame 时向主进程申请可撤销 grant，绑定 `appId`、允许能力和当前 `webContents`；能力在主进程保存快照。
+- `MessagePort` 的连接消息携带不透明 grant 句柄；renderer 的模型 IPC 只提交 grant，不再提交可伪造的 `appId`；主进程只允许宿主主 frame 创建、撤销和使用授权。
+- `platform:generate-first-party-text` 只接受授权会话，并再次校验当前 manifest、能力、参数和调用来源。
 - `FirstPartyFrame.vue` 在 URL/manifest/frame 变化、重复 `load`、卸载和错误时关闭旧端口并撤销 grant；route/context 只发送给当前有效端口。
+- `FirstPartyConnectionSession` 用 generation 防止异步 grant 在页面已切换后重新激活。
 - 保留现有旧 IPC 和内置 `/novel` 行为；本批不开放真实外部应用，不引入安装器。
 
-### 5.3 必须覆盖的用例
+### 5.3 已覆盖的用例
 
-- 合法 frame 使用允许能力成功。
-- 伪造 `appId`、缺少能力、未知 grant、过期 grant、撤销后调用均失败。
-- 一个应用的 grant 不能调用另一个应用的模型或 Novel 能力。
-- frame 跳转后旧 port/grant 失效，新页面必须重新完成受控连接。
-- route/context 更新不会发送到已关闭或旧页面的 port。
-- iframe 卸载后没有悬挂订阅、请求或端口。
+- 合法 grant 使用允许能力成功。
+- 伪造/未知 grant、错误 `webContents`、缺少能力、撤销后调用均失败。
+- 一个应用的 grant 不能被另一个 renderer 使用。
+- frame 重载或跳转后旧 port/grant 失效，新页面必须重新完成受控连接。
+- 异步 grant 返回晚于页面切换时不会激活旧页面。
+- iframe 卸载时端口关闭且授权撤销。
 
-### 5.4 本批完成标准
+### 5.4 本批验证结果
 
-- 相关单测覆盖以上伪造、拒绝、撤销和生命周期场景。
-- `git diff --check`、项目单测、`vue-tsc --noEmit`、`electron-vite build` 通过。
-- 仍能在隔离数据目录打开 Harness 和旧 `/novel`；未验证的原生平台、打包版、真实模型和真实作品明确标为待验收。
-- 提交并推送后，更新本文“当前基线”和“已有验证基线”，不要把规划写成完成。
+- 相关单测覆盖 grant 归属、伪造/拒绝、撤销和生命周期场景。
+- 本次已运行：全量 Vitest `244` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
+- 本次未重新运行：打包安装版、macOS/Windows 原生交互、真实模型、真实旧作品；这些仍标为待验收。
+- 本文与本次授权边界代码一起提交并推送；后续以远端 `HEAD` 为准。
 
 ## 6. 现在明确不要做的事
 
@@ -140,4 +142,4 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 换电脑后直接对 Codex 说：
 
-> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md` 和 `docs/MIRA_PHASE0_HANDOFF_2026-09-24.md`，核对工作区，不要重置现有改动。按本文第 5 节先实现宿主绑定的第一方应用 grant/session 和 `FirstPartyFrame.vue` 生命周期测试；保持旧 IPC、Harness 和 `/novel` 不变；完成后分别报告单测、类型、构建和 Electron 验证结果。
+> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md` 和 `docs/MIRA_PHASE0_HANDOFF_2026-09-24.md`，核对工作区，不要重置现有改动。确认本文第 5 节的 grant/session 和 `FirstPartyFrame.vue` 生命周期实现与测试保持通过；然后开始设计独立 Mira Novel Studio 的静态包、SDK 和受控接入契约，在真实包出现前不要启用非空 manifest；保持旧 IPC、Harness 和 `/novel` 不变，并分别报告单测、类型、构建和 Electron 验证结果。

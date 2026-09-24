@@ -38,8 +38,11 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
     getApiBaseUrl: vi.fn(id => `http://localhost/apps/${id}`),
   }
   registerPlatformIpcHandlers({ database, localMicroAppServer, ...options } as unknown as PlatformIpcDependencies)
-  const invoke = (channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender: {} }, ...args)
-  return { database, localMicroAppServer, snapshot, invoke }
+  const sender = { id: 1, once: vi.fn() }
+  const invoke = (channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender }, ...args)
+  const invokeAs = (id: number, channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender: { id, once: vi.fn() } }, ...args)
+  const invokeFromSubframe = (channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender, senderFrame: { parent: {} } }, ...args)
+  return { database, localMicroAppServer, snapshot, invoke, invokeAs, invokeFromSubframe }
 }
 
 describe('platform IPC registration', () => {
@@ -58,6 +61,8 @@ describe('platform IPC registration', () => {
       'platform:select-microapp-directory',
       'platform:resolve-local-microapp-url',
       'platform:get-novel-api-base-url',
+      'platform:create-first-party-grant',
+      'platform:revoke-first-party-grant',
       'platform:generate-first-party-text',
       'platform:import-snapshot',
       'platform:restore-defaults',
@@ -115,12 +120,24 @@ describe('platform IPC registration', () => {
     }
     const fetchImpl = vi.fn(async () => new Response('generated')) as unknown as typeof fetch
     const { invoke } = register({ legacyNovelApiToken: 'host-token', firstPartyManifests: [manifest], fetchImpl })
-    await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', 'write', { providerId: 'provider', modelId: 'model', apiKey: 'should-not-pass' })).resolves.toBe('generated')
+    const grant = await invoke('platform:create-first-party-grant', 'mira-novel-studio')
+    await expect(invoke('platform:generate-first-party-text', grant, 'authoring', 'write', { providerId: 'provider', modelId: 'model', apiKey: 'should-not-pass' })).resolves.toBe('generated')
     expect(fetchImpl).toHaveBeenCalledWith('http://localhost/apps/novel/authoring', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer host-token' },
       body: JSON.stringify({ prompt: 'write', selection: { providerId: 'provider', modelId: 'model' } }),
     })
+  })
+
+  it('does not allow an embedded frame to create or use a host grant', async () => {
+    const manifest: FirstPartyAppManifest = {
+      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
+      entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+      apiCompatibility: { major: 1 }, capabilities: ['models:text.generate'],
+    }
+    const { invokeFromSubframe } = register({ firstPartyManifests: [manifest] })
+    expect(() => invokeFromSubframe('platform:create-first-party-grant', 'mira-novel-studio')).toThrow('宿主主页面')
   })
 
   it('rejects unregistered apps, missing capabilities, and malformed model requests', async () => {
@@ -133,12 +150,14 @@ describe('platform IPC registration', () => {
     const fetchImpl = vi.fn(async () => new Response('generated')) as unknown as typeof fetch
     const { invoke } = register({ legacyNovelApiToken: 'host-token', firstPartyManifests: [manifest], fetchImpl })
     const selection = { providerId: 'provider', modelId: 'model' }
-    await expect(invoke('platform:generate-first-party-text', 'unknown', 'authoring', 'write', selection)).rejects.toThrow('未登记')
-    await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', 'write', selection)).rejects.toThrow('没有模型生成能力')
+    expect(() => invoke('platform:create-first-party-grant', 'unknown')).toThrow('未登记')
+    const grant = await invoke('platform:create-first-party-grant', 'mira-novel-studio')
+    await expect(invoke('platform:generate-first-party-text', grant, 'authoring', 'write', selection)).rejects.toThrow('没有模型生成能力')
     manifest.capabilities.push('models:text.generate')
-    await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'invalid', 'write', selection)).rejects.toThrow('模型职责无效')
-    await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', '', selection)).rejects.toThrow('模型请求内容 无效')
-    await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', 'write', { providerId: 'provider' })).rejects.toThrow('模型 ID 无效')
+    const enabledGrant = await invoke('platform:create-first-party-grant', 'mira-novel-studio')
+    await expect(invoke('platform:generate-first-party-text', enabledGrant, 'invalid', 'write', selection)).rejects.toThrow('模型职责无效')
+    await expect(invoke('platform:generate-first-party-text', enabledGrant, 'authoring', '', selection)).rejects.toThrow('模型请求内容 无效')
+    await expect(invoke('platform:generate-first-party-text', enabledGrant, 'authoring', 'write', { providerId: 'provider' })).rejects.toThrow('模型 ID 无效')
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
@@ -154,12 +173,17 @@ describe('platform IPC registration', () => {
         apiCompatibility: { major: 1 }, capabilities: ['models:text.generate'],
       }
       const token = server.issueApiToken('novel', ['models:text.generate'])
-      const { invoke } = register({ localMicroAppServer: server, legacyNovelApiToken: token, firstPartyManifests: [manifest] })
+      const { invoke, invokeAs } = register({ localMicroAppServer: server, legacyNovelApiToken: token, firstPartyManifests: [manifest] })
       const selection = { providerId: 'provider', modelId: 'model' }
-      await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', 'write', selection)).resolves.toBe('generated')
+      const grant = await invoke('platform:create-first-party-grant', 'mira-novel-studio')
+      await expect(invoke('platform:generate-first-party-text', grant, 'authoring', 'write', selection)).resolves.toBe('generated')
+      await expect(invokeAs(2, 'platform:generate-first-party-text', grant, 'authoring', 'write', selection)).rejects.toThrow('授权无效')
       expect(route).toHaveBeenCalledOnce()
+      invoke('platform:revoke-first-party-grant', grant)
+      await expect(invoke('platform:generate-first-party-text', grant, 'authoring', 'write', selection)).rejects.toThrow('授权无效')
       server.revokeApiToken(token)
-      await expect(invoke('platform:generate-first-party-text', 'mira-novel-studio', 'authoring', 'write', selection)).rejects.toThrow('403')
+      const replacementGrant = await invoke('platform:create-first-party-grant', 'mira-novel-studio')
+      await expect(invoke('platform:generate-first-party-text', replacementGrant, 'authoring', 'write', selection)).rejects.toThrow('403')
     } finally {
       await server.stop()
     }

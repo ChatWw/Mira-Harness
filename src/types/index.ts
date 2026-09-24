@@ -114,7 +114,9 @@ export interface PlatformApi {
   selectMicroAppDirectory(): Promise<string | null>
   resolveLocalMicroAppUrl(appId: string): Promise<string>
   getNovelApiBaseUrl(): Promise<string>
-  generateFirstPartyText(appId: string, role: import('@/config/novel').NovelModelRole, prompt: string, selection: import('@/config/harness').ModelSelection): Promise<string>
+  createFirstPartyGrant(appId: string): Promise<string>
+  revokeFirstPartyGrant(grantId: string): Promise<void>
+  generateFirstPartyText(grantId: string, role: import('@/config/novel').NovelModelRole, prompt: string, selection: import('@/config/harness').ModelSelection): Promise<string>
   testNovelModelConnection(role: import('@/config/novel').NovelModelRole, prompt?: string): Promise<{ ok: boolean; text: string }>
   listNovelProjects(): Promise<import('@/config/novel').NovelProjectSummary[]>
   getNovelProject(id: string): Promise<import('@/config/novel').NovelProjectDocument>

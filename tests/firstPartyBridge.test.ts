@@ -22,7 +22,7 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
     saveNovelProject: vi.fn(async project => project),
   } as unknown as PlatformApi
   const navigate = vi.fn()
-  const options = { manifest: { ...manifest, ...overrides }, api, context, route: '/chapter/1', navigate }
+  const options = { manifest: { ...manifest, ...overrides }, grantId: 'grant-for-novel', api, context, route: '/chapter/1', navigate }
   const request = (method: string, params?: unknown) => handleFirstPartyRequest(options, { type: 'mira:request', id: 'request-1', method, params })
   return { api, navigate, request }
 }
@@ -62,7 +62,7 @@ describe('first-party capability bridge', () => {
   it('sends only validated model selection fields to the host model channel', async () => {
     const entry = bridge()
     await expect(entry.request('models.generateText', { role: 'authoring', prompt: 'text', selection: { providerId: 'p', modelId: 'm', apiKey: 'injected' } })).resolves.toBe('generated')
-    expect(entry.api.generateFirstPartyText).toHaveBeenCalledWith('mira-novel-studio', 'authoring', 'text', { providerId: 'p', modelId: 'm' })
+    expect(entry.api.generateFirstPartyText).toHaveBeenCalledWith('grant-for-novel', 'authoring', 'text', { providerId: 'p', modelId: 'm' })
     await expect(entry.request('models.generateText', { role: 'authoring', prompt: 'text', selection: { providerId: 'p' } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   })
 })

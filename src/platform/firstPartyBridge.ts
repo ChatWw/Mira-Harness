@@ -37,12 +37,13 @@ export function isFirstPartyRequest(value: unknown): value is FirstPartyRequest 
 
 export async function handleFirstPartyRequest(options: {
   manifest: FirstPartyAppManifest
+  grantId: string
   api: PlatformApi
   context: PlatformContext
   route: string
   navigate: (path: string) => void
 }, request: FirstPartyRequest): Promise<unknown> {
-  const { manifest, api, context, route, navigate } = options
+  const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
   switch (request.method) {
     case 'context.get':
@@ -70,7 +71,7 @@ export async function handleFirstPartyRequest(options: {
         modelId: nonEmptyString(rawSelection.modelId, '模型 ID'),
       }
       try {
-        return await api.generateFirstPartyText(manifest.appId, role, prompt, selection)
+        return await api.generateFirstPartyText(grantId, role, prompt, selection)
       } catch (error) {
         throw new FirstPartyBridgeError('MODEL_REQUEST_FAILED', error instanceof Error ? error.message : '模型请求失败')
       }

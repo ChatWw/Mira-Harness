@@ -14,6 +14,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { PLATFORM_API_VERSION, type FirstPartyAppManifest } from '@/config/firstPartyApps'
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '@/platform/firstPartyBridge'
+import { FirstPartyConnectionSession } from '@/platform/firstPartySession'
 import type { PlatformApi, PlatformContext } from '@/types'
 
 const props = defineProps<{
@@ -28,47 +29,76 @@ const props = defineProps<{
 const emit = defineEmits<{ error: [message: string] }>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
-let loaded = false
+let disposed = false
+const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
 
-function connect() {
-  if (loaded) {
-    port?.close()
-    port = undefined
-    emit('error', '应用页面已离开受控入口')
-    return
-  }
+function invalidateConnection() { session.invalidate(); port = undefined }
+
+function send(message: unknown) {
+  try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
+}
+
+async function connect() {
+  const currentGeneration = session.begin()
+  port = undefined
   const target = frame.value?.contentWindow
   if (!target) return
-  loaded = true
   const channel = new MessageChannel()
-  port = channel.port1
-  port.onmessage = async event => {
+  let nextGrant: string
+  try {
+    nextGrant = await props.api.createFirstPartyGrant(props.manifest.appId)
+  } catch (error) {
+    channel.port1.close()
+    if (!disposed && session.isCurrent(currentGeneration)) emit('error', error instanceof Error ? error.message : '应用授权失败')
+    return
+  }
+  if (disposed || !session.isCurrent(currentGeneration) || target !== frame.value?.contentWindow) {
+    channel.port1.close()
+    void props.api.revokeFirstPartyGrant(nextGrant).catch(() => undefined)
+    return
+  }
+  const activePort = channel.port1
+  if (!session.activate(currentGeneration, nextGrant, activePort)) {
+    activePort.close()
+    void props.api.revokeFirstPartyGrant(nextGrant).catch(() => undefined)
+    return
+  }
+  port = activePort
+  activePort.onmessage = async event => {
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
     try {
       const value = await handleFirstPartyRequest({
         manifest: props.manifest,
+        grantId: nextGrant,
         api: props.api,
         context: props.context,
         route: props.route,
         navigate: props.navigate,
       }, request)
-      if (port === channel.port1) port.postMessage({ type: 'mira:response', id: request.id, ok: true, value })
+      if (session.isActive(nextGrant, activePort)) activePort.postMessage({ type: 'mira:response', id: request.id, ok: true, value })
     } catch (error) {
       const known = error instanceof FirstPartyBridgeError
-      if (port === channel.port1) port.postMessage({
+      if (session.isActive(nextGrant, activePort)) activePort.postMessage({
         type: 'mira:response', id: request.id, ok: false,
         error: { code: known ? error.code : 'PLATFORM_ERROR', message: known ? error.message : '平台调用失败' },
       })
     }
   }
-  port.start()
-  target.postMessage({ type: 'mira:connect', apiVersion: { ...PLATFORM_API_VERSION } }, '*', [channel.port2])
+  activePort.start()
+  try {
+    target.postMessage({ type: 'mira:connect', grantId: nextGrant, apiVersion: { ...PLATFORM_API_VERSION } }, '*', [channel.port2])
+  } catch (error) {
+    invalidateConnection()
+    if (!disposed) emit('error', error instanceof Error ? error.message : '应用连接失败')
+  }
 }
 
-watch(() => props.route, route => port?.postMessage({ type: 'mira:route', route }))
-watch(() => props.context, context => port?.postMessage({ type: 'mira:context', context }), { deep: true })
-onBeforeUnmount(() => { port?.close(); port = undefined })
+watch(() => props.url, invalidateConnection)
+watch(() => props.manifest.appId, invalidateConnection)
+watch(() => props.route, route => send({ type: 'mira:route', route }))
+watch(() => props.context, context => send({ type: 'mira:context', context }), { deep: true })
+onBeforeUnmount(() => { disposed = true; invalidateConnection() })
 </script>
 
 <style scoped>
