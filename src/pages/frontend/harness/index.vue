@@ -56,7 +56,7 @@
 
     <aside v-if="store.activeSession?.messages.length" class="work-panel-host" :class="{ 'is-open': workPanelVisible }" aria-label="工作面板容器">
       <Transition name="work-panel">
-        <HarnessSessionPanel v-if="workPanelVisible" :model-id="store.activeSession?.modelId" :permission-label="permissionLabel" :project-directory="selectedProject?.directory" :tool-calls="store.activeSession?.toolCalls || []" :active-run="workPanelRun" :running="store.running" :file-changes="latestFileChanges" @close="closeWorkPanel" @open-file-change="openFileChange" />
+        <HarnessSessionPanel v-if="workPanelVisible" :model-id="store.activeSession?.modelId" :permission-label="permissionLabel" :project-directory="selectedProject?.directory" :tool-calls="store.activeSession?.toolCalls || []" :active-run="workPanelRun" :run-status="workPanelStatus" :run-error="workPanelError" :file-changes="latestFileChanges" @close="closeWorkPanel" @open-file-change="openFileChange" />
       </Transition>
     </aside>
 
@@ -76,6 +76,7 @@ import HarnessComposer from './components/HarnessComposer.vue'
 import HarnessSessionPanel from './components/HarnessSessionPanel.vue'
 import HarnessFileChangeDrawer from './components/HarnessFileChangeDrawer.vue'
 import { useHarnessPageFacade } from './useHarnessPageFacade'
+import type { HarnessPanelRunStatus } from './panelPresentation'
 
 const route = useRoute()
 const store = useHarnessStore()
@@ -97,6 +98,16 @@ const conversationMessages = computed(() => (store.activeSession?.messages || []
 const latestCompletedMessage = computed(() => [...conversationMessages.value].reverse().find(message => message.run))
 const latestFileChanges = computed(() => latestCompletedMessage.value?.fileChanges || [])
 const workPanelRun = computed(() => store.activeRun || latestCompletedMessage.value?.run)
+const workPanelStatus = computed<HarnessPanelRunStatus>(() => {
+  if (store.running || store.rendering) return store.rendering ? 'rendering' : 'running'
+  const completedStatus = latestCompletedMessage.value?.run?.status
+  if (completedStatus) return completedStatus
+  if (store.publicRunState.status === 'failed') return 'failed'
+  if (store.publicRunState.status === 'rendering') return 'rendering'
+  if (store.publicRunState.status === 'running') return 'running'
+  return 'idle'
+})
+const workPanelError = computed(() => latestCompletedMessage.value?.run?.error || store.publicRunState.error)
 const providers = ref<ModelProviderSummary[]>([])
 const skills = ref<HarnessSkill[]>([])
 const mcpServers = ref<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>([])

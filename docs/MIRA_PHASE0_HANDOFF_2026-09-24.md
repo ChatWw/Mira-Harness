@@ -74,6 +74,32 @@
 - 下一批从 Harness 核心任务体验开始：空态、执行态、等待确认态、失败恢复和成果入口。
 - 下一次开工先读 `docs/MIRA_IMPLEMENTATION_PRD.md` 的「2026-09-24 阶段 1A 第一批记录」和 D 模块 P0/P1，再检查 `src/pages/frontend/harness/`、Harness 事件 reducer/store 及对应测试。
 
+## 3.2 2026-09-24 阶段 1A 第二批进展
+
+### 已完成
+
+- 新增 [`MIRA_HARNESS_UI_SLICE_2026-09-24.md`](./MIRA_HARNESS_UI_SLICE_2026-09-24.md)，定义工作面板状态契约。
+- 工作面板统一展示运行中、整理回复、失败、停止、完成和空闲六种状态；失败错误摘要和停止后的内容保留语义明确。
+- 当前运行状态与最近完成消息按优先级合并，避免主进程结束事件的 `idle` 覆盖失败/停止结果。
+- 保留现有审批、计划确认、工具详情、文件变更和重试入口；本批没有改执行器、IPC、Novel Studio 或 Vision。
+- 新增 `harnessPanelPresentation` 状态映射测试。
+
+### 验证
+
+- 针对性 Vitest：15 项通过。
+- 全量 Vitest：61 个测试文件、259 个测试通过。
+- `npx vue-tsc --noEmit`：通过。
+- `npm run build`：通过。
+- `npx electron-vite build`：通过。
+- `git diff --check`：通过。
+- 开发态 Electron 视觉/真实鼠标、真实模型和打包版：待验收；静态测试和构建不替代这些验收。
+
+### 剩余与下一步
+
+- 自动化测试和两种构建已完成；下一步做真实任务联调。
+- 下一次直接从 `src/pages/frontend/harness/index.vue`、`HarnessMessageItem.vue`、审批/计划组件和输入区开始，验证完整任务状态闭环。
+- React 正式迁移和 Novel Studio 接入继续保持冻结。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
