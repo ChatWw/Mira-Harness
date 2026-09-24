@@ -79,18 +79,18 @@ export async function handleFirstPartyRequest(options: {
     case 'novel.list':
       requireCapability(manifest, 'storage:novel-projects')
       if (manifest.appId !== 'mira-novel-studio') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能读取小说作品')
-      return api.listNovelProjects()
+      return api.listFirstPartyNovelProjects(grantId)
     case 'novel.get':
       requireCapability(manifest, 'storage:novel-projects')
       if (manifest.appId !== 'mira-novel-studio') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能读取小说作品')
-      return api.getNovelProject(nonEmptyString(record(request.params).id, '作品 ID'))
+      return api.getFirstPartyNovelProject(grantId, nonEmptyString(record(request.params).id, '作品 ID'))
     case 'novel.save': {
       requireCapability(manifest, 'storage:novel-projects')
       if (manifest.appId !== 'mira-novel-studio') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能保存小说作品')
       const project = record(record(request.params).project)
       if (project.version !== 1 || typeof project.title !== 'string') throw new FirstPartyBridgeError('INVALID_REQUEST', '小说作品格式无效')
       nonEmptyString(project.id, '作品 ID')
-      return api.saveNovelProject(project as unknown as NovelProjectDocument)
+      return api.saveFirstPartyNovelProject(grantId, project as unknown as NovelProjectDocument)
     }
     default:
       throw new FirstPartyBridgeError('UNKNOWN_METHOD', '平台方法不存在')

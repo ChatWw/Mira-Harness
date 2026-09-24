@@ -117,6 +117,9 @@ export interface PlatformApi {
   createFirstPartyGrant(appId: string): Promise<string>
   revokeFirstPartyGrant(grantId: string): Promise<void>
   generateFirstPartyText(grantId: string, role: import('@/config/novel').NovelModelRole, prompt: string, selection: import('@/config/harness').ModelSelection): Promise<string>
+  listFirstPartyNovelProjects(grantId: string): Promise<import('@/config/novel').NovelProjectSummary[]>
+  getFirstPartyNovelProject(grantId: string, id: string): Promise<import('@/config/novel').NovelProjectDocument>
+  saveFirstPartyNovelProject(grantId: string, project: import('@/config/novel').NovelProjectDocument): Promise<import('@/config/novel').NovelProjectDocument>
   testNovelModelConnection(role: import('@/config/novel').NovelModelRole, prompt?: string): Promise<{ ok: boolean; text: string }>
   listNovelProjects(): Promise<import('@/config/novel').NovelProjectSummary[]>
   getNovelProject(id: string): Promise<import('@/config/novel').NovelProjectDocument>

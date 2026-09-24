@@ -29,6 +29,11 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
     importSnapshot: vi.fn(() => snapshot),
     restoreDefaults: vi.fn(() => snapshot),
     exportSnapshot: vi.fn(() => 'snapshot-json'),
+    novels: {
+      listProjects: vi.fn(() => [{ id: 'project-1' }]),
+      getProject: vi.fn(id => ({ version: 1, id, title: 'Project' })),
+      saveProject: vi.fn(project => project),
+    },
   }
   const localMicroAppServer = {
     validateApps: vi.fn(),
@@ -64,6 +69,9 @@ describe('platform IPC registration', () => {
       'platform:create-first-party-grant',
       'platform:revoke-first-party-grant',
       'platform:generate-first-party-text',
+      'platform:first-party-list-novel-projects',
+      'platform:first-party-get-novel-project',
+      'platform:first-party-save-novel-project',
       'platform:import-snapshot',
       'platform:restore-defaults',
       'platform:export-snapshot',
@@ -138,6 +146,45 @@ describe('platform IPC registration', () => {
     }
     const { invokeFromSubframe } = register({ firstPartyManifests: [manifest] })
     expect(() => invokeFromSubframe('platform:create-first-party-grant', 'mira-novel-studio')).toThrow('宿主主页面')
+  })
+
+  it('keeps first-party novel storage behind the owning grant', () => {
+    const manifest: FirstPartyAppManifest = {
+      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
+      entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+      apiCompatibility: { major: 1 }, capabilities: ['storage:novel-projects'],
+    }
+    const { invoke, invokeAs, invokeFromSubframe, database } = register({ firstPartyManifests: [manifest] })
+    const grant = invoke('platform:create-first-party-grant', 'mira-novel-studio')
+    const project = { version: 1, id: 'project-1', title: 'Project' }
+    expect(invoke('platform:first-party-list-novel-projects', grant)).toEqual([{ id: 'project-1' }])
+    expect(invoke('platform:first-party-get-novel-project', grant, 'project-1')).toMatchObject(project)
+    expect(invoke('platform:first-party-save-novel-project', grant, project)).toBe(project)
+    expect(() => invokeAs(2, 'platform:first-party-list-novel-projects', grant)).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-list-novel-projects', grant)).toThrow('宿主主页面')
+    expect(() => invoke('platform:first-party-get-novel-project', grant, '')).toThrow('作品 ID 无效')
+    invoke('platform:revoke-first-party-grant', grant)
+    expect(() => invoke('platform:first-party-save-novel-project', grant, project)).toThrow('授权无效')
+    expect(database.novels.listProjects).toHaveBeenCalledOnce()
+    expect(database.novels.getProject).toHaveBeenCalledOnce()
+    expect(database.novels.saveProject).toHaveBeenCalledOnce()
+  })
+
+  it('denies novel storage to grants without the storage capability or novel identity', () => {
+    const base: FirstPartyAppManifest = {
+      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
+      entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+      apiCompatibility: { major: 1 }, capabilities: [],
+    }
+    const other = { ...base, appId: 'other-app', capabilities: ['storage:novel-projects'] as FirstPartyAppManifest['capabilities'] }
+    const { invoke, database } = register({ firstPartyManifests: [base, other] })
+    const noCapability = invoke('platform:create-first-party-grant', 'mira-novel-studio')
+    const otherApp = invoke('platform:create-first-party-grant', 'other-app')
+    expect(() => invoke('platform:first-party-list-novel-projects', noCapability)).toThrow('没有所需能力')
+    expect(() => invoke('platform:first-party-list-novel-projects', otherApp)).toThrow('授权无效')
+    expect(database.novels.listProjects).not.toHaveBeenCalled()
   })
 
   it('rejects unregistered apps, missing capabilities, and malformed model requests', async () => {

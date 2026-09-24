@@ -31,6 +31,7 @@
 - 已增加 `FirstPartyFrame.vue` 和 `firstPartyBridge.ts` 的隔离 iframe + `MessageChannel` 草稿。
 - 已增加模型能力的主进程 IPC 校验、Novel Studio 专属能力检查和本地 API token/grant 基础设施。
 - 已完成第一方 grant/session：授权句柄由主进程生成，绑定 `webContents`、应用能力快照和应用 ID；模型 IPC 不再接受 renderer 自报的 `appId`。
+- 第一方 `novel.list/get/save` 已改为独立的 grant 绑定 IPC；旧 `/novel` 使用的历史 IPC 保持不变。
 - 已完成 iframe 会话生命周期控制：每次 load 建立新 grant，旧端口/授权在重载、URL/应用身份变化和卸载时关闭/撤销；异步加载竞态不会重新激活旧会话。
 - 已增加 `MIRA_TEST_HOME` 开发态隔离数据目录，避免用真实 `~/.mira` 做实验。
 - 已保留旧 IPC、Harness、旧 `/novel` 和现有数据路径，未做不可逆迁移。
@@ -110,8 +111,8 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 ### 5.4 本批验证结果
 
-- 相关单测覆盖 grant 归属、伪造/拒绝、撤销和生命周期场景。
-- 本次已运行：全量 Vitest `245` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
+- 相关单测覆盖 grant 归属、伪造/拒绝、撤销、生命周期和第一方作品存储场景。
+- 本次已运行：全量 Vitest `248` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
 - 本次未重新运行：打包安装版、macOS/Windows 原生交互、真实模型、真实旧作品；这些仍标为待验收。
 - 本文与本次授权边界代码一起提交并推送；后续以远端 `HEAD` 为准。
 

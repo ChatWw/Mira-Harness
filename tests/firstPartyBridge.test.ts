@@ -20,6 +20,9 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
     generateFirstPartyText: vi.fn(async () => 'generated'),
     listNovelProjects: vi.fn(async () => []),
     saveNovelProject: vi.fn(async project => project),
+    listFirstPartyNovelProjects: vi.fn(async () => []),
+    getFirstPartyNovelProject: vi.fn(async () => ({ id: 'project-1' })),
+    saveFirstPartyNovelProject: vi.fn(async (_grantId, project) => project),
   } as unknown as PlatformApi
   const navigate = vi.fn()
   const options = { manifest: { ...manifest, ...overrides }, grantId: 'grant-for-novel', api, context, route: '/chapter/1', navigate }
@@ -43,7 +46,7 @@ describe('first-party capability bridge', () => {
 
     const other = bridge({ appId: 'other-app' })
     await expect(other.request('novel.list')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
-    expect(other.api.listNovelProjects).not.toHaveBeenCalled()
+    expect(other.api.listFirstPartyNovelProjects).not.toHaveBeenCalled()
   })
 
   it('confines navigation to app paths and rejects malformed projects', async () => {
@@ -56,7 +59,7 @@ describe('first-party capability bridge', () => {
     expect(entry.navigate).toHaveBeenCalledWith('/chapters/1')
 
     await expect(entry.request('novel.save', { project: { version: 1, title: 'Untitled' } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
-    expect(entry.api.saveNovelProject).not.toHaveBeenCalled()
+    expect(entry.api.saveFirstPartyNovelProject).not.toHaveBeenCalled()
   })
 
   it('sends only validated model selection fields to the host model channel', async () => {
@@ -64,5 +67,15 @@ describe('first-party capability bridge', () => {
     await expect(entry.request('models.generateText', { role: 'authoring', prompt: 'text', selection: { providerId: 'p', modelId: 'm', apiKey: 'injected' } })).resolves.toBe('generated')
     expect(entry.api.generateFirstPartyText).toHaveBeenCalledWith('grant-for-novel', 'authoring', 'text', { providerId: 'p', modelId: 'm' })
     await expect(entry.request('models.generateText', { role: 'authoring', prompt: 'text', selection: { providerId: 'p' } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
+
+  it('routes novel storage through the grant-bound host API', async () => {
+    const entry = bridge()
+    await expect(entry.request('novel.list')).resolves.toEqual([])
+    await expect(entry.request('novel.get', { id: 'project-1' })).resolves.toEqual({ id: 'project-1' })
+    await expect(entry.request('novel.save', { project: { version: 1, id: 'project-1', title: 'Untitled' } })).resolves.toMatchObject({ id: 'project-1' })
+    expect(entry.api.listFirstPartyNovelProjects).toHaveBeenCalledWith('grant-for-novel')
+    expect(entry.api.getFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', 'project-1')
+    expect(entry.api.saveFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', expect.objectContaining({ id: 'project-1' }))
   })
 })
