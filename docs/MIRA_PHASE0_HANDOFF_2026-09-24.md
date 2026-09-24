@@ -1,16 +1,17 @@
-# Mira 换电脑续作交接（2026-09-24）
+# Mira 续作交接（2026-09-24）
 
-> **回到另一台电脑后，先读本文。本文是当前实现状态和下一步工作的唯一续作入口。**
+> **继续本项目时先读本文。本文是当前实现状态和下一步工作的唯一续作入口。**
 > 产品边界和长期规划看 [`MIRA_PLATFORM_PLAN.md`](./MIRA_PLATFORM_PLAN.md)；模块关口和发布验收看 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md)；源码审计和开源 UI 对比看 [`MIRA_PHASE0_AUDIT.md`](./MIRA_PHASE0_AUDIT.md)。
 
 ## 1. 当前基线
 
-- 仓库：`ChatWw/Mira-Harness`，目录：`/Volumes/VrenDisk/project/core-platform`
+- 仓库：`ChatWw/Mira-Harness`，当前本机目录：`/Volumes/VrenDisk/project/Mira/Mira-Harness`
+- 同级目录：`../Mira-Novel-Studio`、`../Mira-Vision` 已创建但均为空，尚无独立 Git 仓库或应用工程；空目录不会随本仓库的 Git 同步。
 - 分支：`codex/mira-harness-first-slice`
-- 基线提交：以远端 `HEAD` 为准；本次授权边界、测试和文档更新会一起提交
+- 基线提交：`323b90d`；后续以远端 `HEAD` 为准
 - 远端：`origin/codex/mira-harness-first-slice`
-- 本轮交接时工作区：干净，分支与远端同步
-- 当前范围：桌面 Electron；Vue + Wujie Shell；Mira-Harness 默认应用；Novel Studio 和 Vision 只做受控接入配置
+- 开工时工作区：先运行 `git status --short --branch` 核对，不预设干净或与远端同步
+- 当前范围：桌面 Electron；Vue + Wujie Shell；Mira-Harness 默认应用；Novel Studio 受控接入骨架；Vision 仅规划预留
 
 不要从 `main`、`desktop-dev` 或旧聊天记录重新开始，也不要把 React/Wujie 演示原型当作生产 Harness。
 
@@ -19,8 +20,8 @@
 ### 2.1 规划和范围
 
 - 已明确本仓库最终只承载 Electron 平台、Vue Shell、Mira-Harness、统一设置和第一方应用接入配置。
-- `mira-novel-studio` 后续独立 Git 仓库维护；本仓库保留接入配置，迁出前不删除旧 `/novel`。
-- `mira-vision` 目前不开发，只保留禁用配置，不创建业务目录、应用中心条目或构建工程。
+- `Mira-Novel-Studio` 目前只有同级空目录，后续独立 Git 仓库维护；本仓库保留接入配置，迁出前不删除旧 `/novel`。
+- `Mira-Vision` 目前只有同级空目录，不开发业务工程，不创建应用中心条目或构建工程；宿主侧仍只规划禁用的接入配置。
 - 设置方向已收敛为基础能力、平台能力、模型与应用绑定、应用中心、应用专属、关于；只保留白天/黑夜主题，删除布局样式、主题色、自由微应用录入、菜单管理和多页签等无效能力的后续计划。
 - React 与开源 Agent UI 仍是评估项。候选结论是：保留 Mira 运行时和数据语义，优先用真实任务对照 Vue 改造与 React + `assistant-ui` primitives；不直接 Fork 完整 Agent 产品。
 
@@ -49,21 +50,21 @@
 3. **授权边界尚未接入真实子应用。** 当前 grant/session 已有主进程和 frame 测试，但没有真实外部包来验证连接协议、应用 SDK 和卸载恢复。
 4. **React 正式迁移尚未批准。** 当前 React/Wujie 页面是 disposable spike，只能证明挂载可行。
 
-## 4. 换电脑后的准确开始方式
+## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
 
 已存在本地仓库时，按顺序执行：
 
 ```bash
-cd /Volumes/VrenDisk/project/core-platform
+cd /Volumes/VrenDisk/project/Mira/Mira-Harness
 git status --short --branch
 git fetch origin codex/mira-harness-first-slice
 git switch codex/mira-harness-first-slice
 git merge --ff-only origin/codex/mira-harness-first-slice
 ```
 
-如果工作区有本地改动，先停下来逐项检查并保留；不要使用 `git reset --hard`、`git checkout --`、强制覆盖或在不清楚状态时直接 `git pull`。
+在另一台电脑上使用其实际克隆路径；克隆本仓库不会带出同级的两个空目录。如果工作区有本地改动，先停下来逐项检查并保留；不要使用 `git reset --hard`、`git checkout --`、强制覆盖或在不清楚状态时直接 `git pull`。
 
 尚未克隆时，先克隆仓库，再用：
 
@@ -114,7 +115,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 - 相关单测覆盖 grant 归属、伪造/拒绝、撤销、生命周期和第一方作品存储场景。
 - 本次已运行：全量 Vitest `248` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
 - 本次未重新运行：打包安装版、macOS/Windows 原生交互、真实模型、真实旧作品；这些仍标为待验收。
-- 本文与本次授权边界代码一起提交并推送；后续以远端 `HEAD` 为准。
+- 授权边界代码已在 `323b90d` 提交并推送；后续以实际分支和远端 `HEAD` 为准。
 
 ## 6. 现在明确不要做的事
 
@@ -127,7 +128,14 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 ## 7. 验收记录规则
 
-每次交接或提交都分开记录：
+每次阶段性功能完成、用户要求临时记录、交接或提交，都要在本文或对应阶段文档中留下日期化记录，至少包含：
+
+- 已完成：本批功能、文档、决策和提交范围。
+- 剩余：未完成事项、风险和明确的待验收项目。
+- 验证：实际运行的测试、类型检查、构建和桌面验收；未运行的不能写成通过。
+- 下一步：下一次直接阅读的文档章节、代码入口和开工目标。
+
+本节的验收分类用于区分证据边界：
 
 | 类别 | 能证明什么 | 不能证明什么 |
 | --- | --- | --- |
@@ -141,6 +149,6 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 ## 8. 一句话指令
 
-换电脑后直接对 Codex 说：
+继续开发时可直接对 Codex 说：
 
 > 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md` 和 `docs/MIRA_PHASE0_HANDOFF_2026-09-24.md`，核对工作区，不要重置现有改动。确认本文第 5 节的 grant/session 和 `FirstPartyFrame.vue` 生命周期实现与测试保持通过；然后开始设计独立 Mira Novel Studio 的静态包、SDK 和受控接入契约，在真实包出现前不要启用非空 manifest；保持旧 IPC、Harness 和 `/novel` 不变，并分别报告单测、类型、构建和 Electron 验证结果。

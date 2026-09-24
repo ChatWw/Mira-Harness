@@ -67,7 +67,7 @@ Harness Vue 页面 ──> Pinia store / 事件 reducer ──> preload IPC ─�
 | `novel_projects`、`novel_settings`、旧模型绑定、`/novel`、`ai-novel` 历史记录 | 用户数据/兼容状态，绝不随源码删除 | 记录旧样本，备份与事务化迁移/兼容读取；保留可重试旧入口，明确何时安全停用 |
 | `electron/novelApi.ts` | 过渡时仍由宿主代理；目标为平台受控模型能力而非小说专用公开端点 | 先补应用身份/权限契约，再迁调用方；不把密钥给外部子应用 |
 | `src/config/microApps.ts`、`platformValidation.ts`、`microAppHost/index.vue` | 主仓库受控应用清单/宿主 | Novel Studio 后续有启用配置；Vision 仅禁用保留，不能出现在应用中心；开发入口与生产安装清单隔离 |
-| 新的独立 `mira-novel-studio` Git 仓库与未来 `mira-vision` Git 仓库 | 与主仓库并列 | 本轮不创建；不要放入主仓库目录、submodule 或先造空业务工程 |
+| 未来独立的 `Mira-Novel-Studio` 与 `Mira-Vision` Git 仓库 | 与主仓库并列 | 同级空目录已预留，但尚未建仓或创建业务工程；不要放入主仓库目录或 submodule |
 
 暂定迁出顺序：**定身份/数据契约 → 独立小说工程构建 → 受控本地包加载 → 旧作品读写与模型调用 → 回退验收 → 移除主仓库旧 UI/领域实现**。Vision 不参加这条链。旧 SQLite 表是否保留为平台兼容层、何时转为应用命名空间存储，须用真实旧作品样本验证后决定；不能把“移动源码”和“移动数据”绑成一次不可恢复操作。
 
