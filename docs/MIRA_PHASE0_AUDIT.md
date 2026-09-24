@@ -102,6 +102,6 @@ Harness Vue 页面 ──> Pinia store / 事件 reducer ──> preload IPC ─�
 
 1. Novel Studio 的独立工程何时、放在哪里建立及由谁维护发布？在此之前不删除本仓库旧 UI。
 2. 旧 `novel_projects` 的长期所有权：平台保留受控兼容存储，还是迁往应用命名空间的通用持久化？两者均须保持旧作品可恢复；本轮未做不可逆选择。
-3. 第一方应用身份如何跨 Wujie/HTTP 与宿主安全绑定、避免通过 URL 或页面参数自报身份？未定前不能把本地小说模型代理开放为 SDK。
-4. 外部包的签名/可信发布来源、安装回退、版本兼容尚无实现；不能把手动选择目录当成正式应用中心。
+3. 第一方应用身份已通过主进程 grant、`webContents` 绑定和 iframe 生命周期撤销形成最小契约；真实外部包接入仍需按 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md) 验证。
+4. 外部包的签名/可信发布来源、安装回退、版本兼容尚无实现；不能把手动选择目录当成正式应用中心。SDK 和静态包字段已在契约草案中固定待实现范围。
 5. React vs Vue 的正式选择等待同一真实任务与原生 Electron 操作对照；当前原型只含演示数据。

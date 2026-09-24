@@ -82,7 +82,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
    - `src/config/firstPartyApps.ts`
    - `electron/adapters/localMicroAppServer.ts`
 4. 继续读 `electron/security/firstPartyGrant.ts`、`src/platform/firstPartySession.ts` 及对应测试，确认本次授权边界没有被后续改动绕开。
-5. 下一批再设计真实 Novel Studio 的静态包/SDK 契约；在独立项目和包出现前，不启用非空 manifest。
+5. 阅读 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，再设计真实 Novel Studio 的静态包/SDK；在独立项目和包出现前，不启用非空 manifest。
 
 ## 5. 本次已完成：宿主绑定应用身份和生命周期
 
