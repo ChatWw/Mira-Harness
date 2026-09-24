@@ -122,6 +122,26 @@
 - 下一次使用 `MIRA_TEST_HOME` 隔离目录启动开发态 Electron，从本节和 PRD 的第三批记录开始，逐项验证发送、工具、权限/计划确认、成果、失败/停止恢复；未配置测试模型时如实保留真实模型待验收。
 - React 正式迁移、Novel Studio 和 Vision 接入继续冻结。
 
+## 3.4 2026-09-24 阶段 1A 开发态 Electron 首轮验收
+
+### 已完成
+
+- 使用 `/tmp/mira-electron-acceptance.I17u8Y` 作为 `MIRA_TEST_HOME` 启动 Electron，确认进程使用隔离的 `.mira` 目录。
+- Harness 空态窗口正常加载；浅色/深色主题、设置收敛入口、模型选择器空态、项目选择器空态均已检查。
+- DevTools `Input.dispatchMouseEvent` 可触发项目选择器和快捷任务卡；快捷卡会填充输入框，无模型时发送按钮保持禁用。
+
+### 验证
+
+- 开发态 Electron 页面标题：`新对话 - Mira Harness`；页面地址：`http://127.0.0.1:9002/workspace/chat?draft=...`。
+- 已检查截图：隔离目录下的 Harness 浅色和深色首屏均渲染完整，无空白窗口或明显布局重叠。
+- 物理鼠标未验收；DevTools 输入事件属于模拟交互，不能替代操作系统级鼠标验收。
+- 无测试模型配置，本次未执行真实模型、工具、权限、计划或文件成果任务。
+
+### 剩余与下一步
+
+- 有可用测试模型后继续完整任务闭环；否则安排具备物理鼠标能力的桌面验收。
+- 打包安装版、跨应用切换、真实旧数据和 Novel Studio 仍未进入本批。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
@@ -147,7 +167,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 ### 4.2 开工顺序
 
 1. 读 `AGENTS.md` 和本文第 3、5、6 节。
-2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的阶段 1A 第三批记录和 D 模块 P0/P1，再读本文第 3.3 节。
+2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的第三批与 Electron 首轮验收记录、D 模块 P0/P1，再读本文第 3.3、3.4 节。
 3. 检查 `src/pages/frontend/harness/` 的发送、确认、失败恢复与成果入口，以及对应 Harness 事件 reducer/store 与测试。
 4. 用隔离数据目录完成开发态 Electron 交互验收，再按可用的测试模型配置验证真实任务；不要把 React/Wujie 原型直接替换生产页面。
 5. 第一方 Novel Studio 的授权边界和 SDK 契约保留在第 5 节及 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，此批不接入真实外部包。
