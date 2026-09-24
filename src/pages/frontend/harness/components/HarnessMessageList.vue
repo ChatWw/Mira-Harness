@@ -2,7 +2,7 @@
   <div class="conversation__messages">
     <div ref="streamRef" class="message-stream" tabindex="0" aria-label="对话消息" @scroll="handleStreamScroll" @wheel.passive="handleUserWheel" @pointerdown="handleStreamPointerDown" @keydown="handleStreamKeydown">
       <div ref="contentRef" class="message-stream__content">
-      <HarnessMessageItem v-for="(message, index) in displayedMessages" :key="messageKey(message)" :message="message" :active-run="activeRun" :active-run-elapsed="activeRunElapsed" :active-run-label="activeRunLabel" :streaming="isStreaming(message)" :entering="message.id === enteringMessageId" :busy="running || rendering" :last-message="index === displayedMessages.length - 1" @entrance-end="$emit('entrance-end', $event)" @edit-and-rerun="(item, content) => $emit('edit-and-rerun', item, content)" @rerun="$emit('rerun')" @open-file-change="$emit('open-file-change', $event)" @open-work-panel="$emit('open-work-panel')" @continue="$emit('continue')" @stop-subtask="$emit('stop-subtask', $event)" />
+      <HarnessMessageItem v-for="(message, index) in displayedMessages" :key="messageKey(message)" :message="message" :active-run="activeRun" :active-run-elapsed="activeRunElapsed" :active-run-label="activeRunLabel" :streaming="isStreaming(message)" :entering="message.id === enteringMessageId" :busy="running || rendering || Boolean(submitting)" :last-message="index === displayedMessages.length - 1" @entrance-end="$emit('entrance-end', $event)" @edit-and-rerun="(item, content) => $emit('edit-and-rerun', item, content)" @rerun="$emit('rerun')" @open-file-change="$emit('open-file-change', $event)" @open-work-panel="$emit('open-work-panel')" @continue="$emit('continue')" @stop-subtask="$emit('stop-subtask', $event)" />
       </div>
       <div ref="spacerRef" class="message-stream__spacer" aria-hidden="true" />
     </div>
@@ -24,7 +24,7 @@ import type { HarnessRunProgress as HarnessRunProgressState } from '@/stores/har
 import { useHarnessNavigation } from '../useHarnessNavigation'
 import HarnessMessageItem from './HarnessMessageItem.vue'
 
-const props = defineProps<{ messages: HarnessMessage[], activeRun?: HarnessRunProgressState, running: boolean, rendering: boolean, enteringMessageId?: string }>()
+const props = defineProps<{ messages: HarnessMessage[], activeRun?: HarnessRunProgressState, running: boolean, rendering: boolean, submitting?: boolean, enteringMessageId?: string }>()
 const emit = defineEmits<{ 'entrance-end': [id: string], 'edit-and-rerun': [message: HarnessMessage, content: string], rerun: [], 'open-file-change': [change: HarnessFileChange], 'open-work-panel': [], continue: [], 'stop-subtask': [id: string] }>()
 const clock = ref(Date.now())
 let elapsedTimer: number | undefined

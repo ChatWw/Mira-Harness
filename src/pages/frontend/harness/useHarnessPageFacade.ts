@@ -47,6 +47,7 @@ export function useHarnessPageFacade(options: {
   const router = useRouter()
   const store = useHarnessStore()
   const enteringMessageId = ref<string>()
+  const submissionInFlight = ref(false)
   const sessionId = computed(() => typeof route.params.id === 'string' ? route.params.id : undefined)
   const draftToken = computed(() => typeof route.query.draft === 'string' ? route.query.draft : undefined)
   const draftKey = computed(() => sessionId.value ? `session:${sessionId.value}` : (draftToken.value ? `draft:${draftToken.value}` : ''))
@@ -108,7 +109,8 @@ export function useHarnessPageFacade(options: {
   async function rerun() {
     const api = getPlatformApi()
     const session = store.activeSession
-    if (!api || !session || store.running || store.rendering) return
+    if (!api || !session || store.running || store.rendering || submissionInFlight.value) return
+    submissionInFlight.value = true
     const last = session.messages[session.messages.length - 1]
     if (last?.role === 'assistant') session.messages.pop()
     const question = session.messages[session.messages.length - 1]
@@ -117,20 +119,26 @@ export function useHarnessPageFacade(options: {
     try {
       await api.rerunHarness(session.id, selection ? { ...selection } : undefined)
     } catch (error) {
+      if (store.activeSession?.id === session.id) await store.openSession(session.id).catch(() => {
+        if (last?.role === 'assistant' && !session.messages.includes(last)) session.messages.push(last)
+      })
       ElMessage.error(error instanceof Error ? error.message : '重新生成失败')
+    } finally {
+      submissionInFlight.value = false
     }
   }
 
   async function editAndRerun(message: HarnessMessage, content: string) {
     const api = getPlatformApi()
     const session = store.activeSession
-    if (!api || !session || !content || store.running || store.rendering) return
+    if (!api || !session || !content || store.running || store.rendering || submissionInFlight.value) return
     const messageIndex = session.messages.findIndex(item => item.id === message.id)
     if (messageIndex < 0) return
     session.messages[messageIndex].content = content
     session.messages = session.messages.slice(0, messageIndex + 1)
     session.context = undefined
     options.scrollLatestMessageToTop(message.id)
+    submissionInFlight.value = true
     store.running = true
     try {
       const selection = composerDraft.value.modelSelection
@@ -140,6 +148,7 @@ export function useHarnessPageFacade(options: {
       ElMessage.error(error instanceof Error ? error.message : '重新生成失败')
     } finally {
       store.running = false
+      submissionInFlight.value = false
     }
   }
 
@@ -147,7 +156,7 @@ export function useHarnessPageFacade(options: {
     const plan = store.activePlan
     const activeId = store.activeSession?.id
     const selection = composerDraft.value.modelSelection
-    if (!plan || !activeId || !selection) return
+    if (!plan || !activeId || !selection || options.interactionSubmitting.value) return
     options.interactionSubmitting.value = true
     try {
       await store.confirmPlan(activeId, plan.id, { ...selection })
@@ -163,7 +172,7 @@ export function useHarnessPageFacade(options: {
     const interaction = store.activeInteraction
     const activeId = store.activeSession?.id
     const selection = composerDraft.value.modelSelection
-    if (!interaction || interaction.kind !== 'question' || !activeId || !selection) return
+    if (!interaction || interaction.kind !== 'question' || !activeId || !selection || options.interactionSubmitting.value) return
     options.interactionSubmitting.value = true
     try {
       await store.answerInteraction(activeId, interaction.id, answers.map(answer => ({ ...answer })), { ...selection })
@@ -177,7 +186,7 @@ export function useHarnessPageFacade(options: {
   async function cancelPlan() {
     const plan = store.activePlan
     const activeId = store.activeSession?.id
-    if (!plan || !activeId) return
+    if (!plan || !activeId || options.interactionSubmitting.value) return
     options.interactionSubmitting.value = true
     try {
       await store.cancelPlan(activeId, plan.id)
@@ -192,13 +201,14 @@ export function useHarnessPageFacade(options: {
   async function send(action: HarnessSendAction) {
     const api = getPlatformApi()
     const originKey = draftKey.value
-    if (!api || !originKey || !action.text || store.running || store.rendering) return
+    if (!api || !originKey || !action.text || store.running || store.rendering || submissionInFlight.value) return
     if (store.activeInteraction?.kind === 'question' && store.activeInteraction.status === 'waiting') {
       ElMessage.info('请先回答当前澄清问题。')
       return
     }
     const payload = createHarnessSendAction(action)
     let activeId = sessionId.value
+    submissionInFlight.value = true
     try {
       if (!activeId) {
         const session = await store.createSession(payload.projectId)
@@ -234,6 +244,7 @@ export function useHarnessPageFacade(options: {
       ElMessage.error(error instanceof Error ? error.message : '消息发送失败')
     } finally {
       store.running = false
+      submissionInFlight.value = false
     }
   }
 
@@ -351,6 +362,7 @@ export function useHarnessPageFacade(options: {
     isPersistedSession,
     composerDraft,
     enteringMessageId,
+    submissionInFlight,
     reload,
     respondPermission,
     rerun,

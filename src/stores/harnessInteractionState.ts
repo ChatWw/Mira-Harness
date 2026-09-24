@@ -50,13 +50,23 @@ export function createHarnessInteractionState(options: HarnessInteractionStateOp
   async function confirmPlan(sessionId: string, planId: string, selection?: ModelSelection) {
     const api = getPlatformApi(); if (!api) return
     options.setRunning(true)
-    await api.confirmHarnessPlan(sessionId, planId, selection ? { ...selection } : undefined)
+    try {
+      await api.confirmHarnessPlan(sessionId, planId, selection ? { ...selection } : undefined)
+    } catch (error) {
+      options.setRunning(false)
+      throw error
+    }
   }
 
   async function continuePlan(sessionId: string, planId: string, message: string, references: HarnessFileReference[] = [], selection?: ModelSelection) {
     const api = getPlatformApi(); if (!api) return
     options.setRunning(true)
-    await api.continueHarnessPlan(sessionId, planId, message, references.map(file => ({ path: file.path, name: file.name })), selection ? { ...selection } : undefined)
+    try {
+      await api.continueHarnessPlan(sessionId, planId, message, references.map(file => ({ path: file.path, name: file.name })), selection ? { ...selection } : undefined)
+    } catch (error) {
+      options.setRunning(false)
+      throw error
+    }
   }
 
   async function cancelPlan(sessionId: string, planId: string) {

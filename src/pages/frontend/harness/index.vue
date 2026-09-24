@@ -26,7 +26,7 @@
         </div>
       </header>
 
-      <HarnessMessageList ref="messageListRef" :messages="conversationMessages" :active-run="store.activeRun" :running="store.running" :rendering="store.rendering" :entering-message-id="enteringMessageId" @entrance-end="clearMessageEntrance" @edit-and-rerun="saveMessageEdit" @rerun="rerun" @open-file-change="openFileChange" @open-work-panel="openWorkPanel" @continue="focusComposer" @stop-subtask="stopSubtask" />
+      <HarnessMessageList ref="messageListRef" :messages="conversationMessages" :active-run="store.activeRun" :running="store.running" :rendering="store.rendering" :submitting="submissionInFlight" :entering-message-id="enteringMessageId" @entrance-end="clearMessageEntrance" @edit-and-rerun="saveMessageEdit" @rerun="rerun" @open-file-change="openFileChange" @open-work-panel="openWorkPanel" @continue="focusComposer" @stop-subtask="stopSubtask" />
 
       <section v-if="permissionRequest" class="permission-request-card" aria-live="polite">
         <div class="permission-request-card__icon"><AppIcon name="WarningFilled" /></div>
@@ -35,7 +35,7 @@
       </section>
       <section v-if="store.lastRunError?.sessionId === store.activeSession?.id && store.lastRunError && conversationMessages[conversationMessages.length - 1]?.run?.status !== 'failed'" class="run-error-card" role="alert"><AppIcon name="WarningFilled" /><div><strong>本次运行未完成</strong><p>{{ store.lastRunError.message }}</p></div><el-button size="small" :disabled="isComposerBusy" @click="rerun">重试</el-button></section>
 
-      <HarnessComposer ref="composerRef" v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :dispatch="pageFacade.dispatchComposerAction" />
+      <HarnessComposer ref="composerRef" v-model:plan-mode="planMode" :draft-key="draftKey" :is-persisted-session="isPersistedSession" :providers="providers" :skills="skills" :mcp-servers="mcpServers" :memory-enabled="memoryEnabled" :permission-config="permissionConfig" :interaction-submitting="interactionSubmitting" :submitting="submissionInFlight" :dispatch="pageFacade.dispatchComposerAction" />
     </section>
 
     <div v-if="!store.activeSession?.messages.length" class="empty-state" aria-hidden="false">
@@ -123,7 +123,7 @@ const pageFacade = useHarnessPageFacade({
   loadEnvironment,
   scrollLatestMessageToTop: messageId => { void messageListRef.value?.scrollLatestMessageToTop(messageId) },
 })
-const { draftKey, isPersistedSession, composerDraft, enteringMessageId, reload, respondPermission, rerun, editAndRerun: saveMessageEdit, stopSubtask, clearMessageEntrance } = pageFacade
+const { draftKey, isPersistedSession, composerDraft, enteringMessageId, submissionInFlight, reload, respondPermission, rerun, editAndRerun: saveMessageEdit, stopSubtask, clearMessageEntrance } = pageFacade
 const permissionRequest = computed(() => store.activeSession ? store.pendingPermissionRequests[store.activeSession.id] : undefined)
 const projectId = computed(() => store.activeSession?.projectId || composerDraft.value.projectId)
 const selectedProject = computed(() => store.projects.find(project => project.id === projectId.value))
@@ -134,7 +134,7 @@ const starterPrompts: Array<{ icon: string, title: string, hint: string, text: s
   { icon: 'Document', title: '总结一篇文章', hint: '粘贴链接或长文本，我来提炼要点', text: '帮我总结这篇文章的要点：', tone: 'purple' },
   { icon: 'Cpu', title: '写一段代码', hint: 'SQL、脚本、组件，描述需求即可', text: '帮我写一段代码：', tone: 'warning' },
 ]
-const isComposerBusy = computed(() => store.running || store.rendering)
+const isComposerBusy = computed(() => store.running || store.rendering || submissionInFlight.value)
 async function loadEnvironment() {
   const api = getPlatformApi()
   const [,, configured, permissions, configuredSkills, configuredMcpServers, savedMemoryEnabled] = await Promise.all([store.refreshSessions(), store.refreshProjects(), api?.listModelProviders() || [], api?.getHarnessPermissionConfig(), api?.listHarnessSkills() || [], api?.listMcpServers() || [], api?.getHarnessMemoryEnabled() || false])

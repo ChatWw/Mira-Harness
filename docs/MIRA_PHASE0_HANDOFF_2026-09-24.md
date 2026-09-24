@@ -100,6 +100,28 @@
 - 下一次直接从 `src/pages/frontend/harness/index.vue`、`HarnessMessageItem.vue`、审批/计划组件和输入区开始，验证完整任务状态闭环。
 - React 正式迁移和 Novel Studio 接入继续保持冻结。
 
+## 3.3 2026-09-24 阶段 1A 第三批进展
+
+### 已完成
+
+- Harness 页面增加提交期间的防重入状态，覆盖首次发送、重新生成和编辑重跑；输入区、消息按钮及错误卡同步反映忙碌状态。
+- 重试请求失败后重读持久化会话，保留此前的回复；发送失败恢复草稿和附件。
+- 计划确认/继续调用失败会清除 `running`，避免输入区永久锁住；计划确认、澄清问答和取消操作避免重复提交。
+- 新增 `tests/harnessSubmissionLifecycle.test.ts`，以真实 store 和模拟 IPC 验证请求生命周期。
+
+### 验证
+
+- 新增针对性测试：6 项通过；全量 Vitest：62 个测试文件、265 个测试通过。
+- `npx vue-tsc --noEmit`、`npm run build`、`npx electron-vite build`、`git diff --check`：通过。
+- 开发服务器 `http://127.0.0.1:9002/` 返回 200；这只证明页面服务可访问。
+- Electron 视觉与真实鼠标、真实模型工具链、文件成果打开、停止后继续、打包版：待验收。
+
+### 剩余与下一步
+
+- 本批是任务请求生命周期的代码收口，不是 D 模块 P1 或真实任务闭环全部完成。
+- 下一次使用 `MIRA_TEST_HOME` 隔离目录启动开发态 Electron，从本节和 PRD 的第三批记录开始，逐项验证发送、工具、权限/计划确认、成果、失败/停止恢复；未配置测试模型时如实保留真实模型待验收。
+- React 正式迁移、Novel Studio 和 Vision 接入继续冻结。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
@@ -125,9 +147,9 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 ### 4.2 开工顺序
 
 1. 读 `AGENTS.md` 和本文第 3、5、6 节。
-2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的阶段 1A 第一批记录和 D 模块 P0/P1，再读 [`MIRA_PHASE0_AUDIT.md`](./MIRA_PHASE0_AUDIT.md) 第 5、6 节。
-3. 检查 `src/pages/frontend/harness/` 的空态、执行态、确认态、失败恢复和成果入口，以及对应 Harness 事件 reducer/store 与测试。
-4. 先形成可评审的交互设计和状态契约，再实现一个真实任务切片；不要把 React/Wujie 原型直接替换生产页面。
+2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的阶段 1A 第三批记录和 D 模块 P0/P1，再读本文第 3.3 节。
+3. 检查 `src/pages/frontend/harness/` 的发送、确认、失败恢复与成果入口，以及对应 Harness 事件 reducer/store 与测试。
+4. 用隔离数据目录完成开发态 Electron 交互验收，再按可用的测试模型配置验证真实任务；不要把 React/Wujie 原型直接替换生产页面。
 5. 第一方 Novel Studio 的授权边界和 SDK 契约保留在第 5 节及 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，此批不接入真实外部包。
 
 ## 5. 本次已完成：宿主绑定应用身份和生命周期
@@ -195,4 +217,4 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 继续开发时可直接对 Codex 说：
 
-> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.1 节和 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 D 模块 P0/P1，核对工作区，不要重置现有改动。下一批从 Harness 空态、执行态、等待确认态、失败恢复和成果入口着手，先形成可评审的交互设计与状态契约，再改真实任务页面；不要接入 Novel Studio、Vision 或 React 全量迁移，并分别报告自动化、构建和 Electron 实机验证结果。
+> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.3 节和 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 D 模块 P0/P1，核对工作区，不要重置现有改动。下一步使用隔离数据目录验证 Harness 的真实任务闭环：发送、工具、权限/计划确认、文件成果、失败/停止恢复；不要接入 Novel Studio、Vision 或 React 全量迁移，并分别报告自动化、构建、Electron 实机和真实模型结果。
