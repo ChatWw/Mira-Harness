@@ -4,15 +4,17 @@
 > 性质：实施前决策记录；本轮未迁移源码、创建外部仓库、修改数据或验收原生 Electron。
 > 上位范围：[平台方案](./MIRA_PLATFORM_PLAN.md)与[实施 PRD](./MIRA_IMPLEMENTATION_PRD.md)。当前 `PRODUCT.md` 仍以小说创作为产品定位，和已确定的桌面 Harness 平台范围不一致；实施时须单独同步，不能用它覆盖本轮决策。
 
-## 0. 换电脑从这里开始
+## 0. 文档入口与换电脑说明
 
-**这份文件是唯一开工入口。**回到另一台电脑后先取 `origin/codex/mira-harness-first-slice`，不要从 `main` 或 `desktop-dev` 接着改；先运行 `git status`，若已有本地未提交改动，先检查并保留，不要覆盖。尚未克隆仓库则克隆 `ChatWw/Mira-Harness`，再获取该远端分支；若本地已有同名分支，先确认没有未提交改动，再做快进更新。不要在不清楚工作区状态时直接 `git pull`、重置或强推。
+**当前续作唯一入口是 [`MIRA_PHASE0_HANDOFF_2026-09-24.md`](./MIRA_PHASE0_HANDOFF_2026-09-24.md)。** 本文是实施前审计和决策依据，不再承担逐日交接职责。换电脑后的分支同步、当前提交、已完成切片、下一刀和验收命令，以交接文档为准。
+
+回到另一台电脑后先取 `origin/codex/mira-harness-first-slice`，不要从 `main` 或 `desktop-dev` 接着改；先运行 `git status`，若已有本地未提交改动，先检查并保留，不要覆盖。尚未克隆仓库则克隆 `ChatWw/Mira-Harness`，再获取该远端分支；若本地已有同名分支，先确认没有未提交改动，再做快进更新。不要在不清楚工作区状态时直接 `git pull`、重置或强推。
 
 在已经克隆的仓库中，安全的获取步骤是 `git status` → `git fetch origin codex/mira-harness-first-slice`。若本地没有这个分支，用 `git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-first-slice`；已有分支则先 `git switch codex/mira-harness-first-slice`，确认工作区状态后运行 `git merge --ff-only origin/codex/mira-harness-first-slice`。若 Git 报冲突或本地提交分叉，先停下核对，不强行覆盖。
 
 先读本文件第 2–3 节的现状和文件归属，再读第 4 节选型结论、第 5 节的第一刀。上位决策以 [平台方案](./MIRA_PLATFORM_PLAN.md) 为准；P0–P3 和后续批次看 [实施 PRD](./MIRA_IMPLEMENTATION_PRD.md)。当前阶段只批准下方的**首批切片**，不启动完整架构迁移。
 
-可直接交给下一轮 Codex 的开工描述：
+历史上的首批装配切片开工描述如下，仅用于解释已完成工作的范围，不是当前下一步：
 
 > 我在 `codex/mira-harness-first-slice` 继续 Mira。请先读 `AGENTS.md` 和 `docs/MIRA_PHASE0_AUDIT.md`，核对当前分支、远端与工作区。先按第 5 节第 1 步做一个无行为变化的 Electron 应用宿主装配/IPC 切片：保持现有 IPC 名称、参数、返回值、Harness 和旧 `/novel` 入口不变；先确定抽取边界与回归用例，再改代码。不要同时重构 React、迁出小说、改 SQLite、清理设置或开发安装器。不要用真实 `~/.mira` 用户数据做实验；需要运行 Electron 时使用隔离数据目录并分别报告静态检查与原生验收。已有 React/Wujie 页面是演示原型，不是真实 Harness 适配。
 
@@ -86,9 +88,9 @@ Harness Vue 页面 ──> Pinia store / 事件 reducer ──> preload IPC ─�
 
 按桌面“操作型”界面审查这条流程时，重点比较：空态是否给出清楚下一步、运行状态与工具详情是否分层、审批是否说明后果并可拒绝、成果是否可定位、失败/停止后是否知道如何恢复；夜间主题、键盘/输入法与焦点管理同样要查。不可把漂亮的聊天截图当作任务全流程设计证据。
 
-## 5. 第一批代码切片：先平台边界，再外部应用
+## 5. 第一批代码切片：先平台边界，再外部应用（装配切片已完成）
 
-阶段 0 完成后，建议第一刀限定为**无行为变化地拆出桌面应用宿主的装配/IPC 边界**，不同时做 UI 替换或数据迁移：
+阶段 0 原先建议的第一刀是**无行为变化地拆出桌面应用宿主的装配/IPC 边界**；该切片已在当前分支完成。当前续作请按交接文档第 5 节处理宿主绑定身份和 iframe 生命周期，不要重复执行下面的装配迁移：
 
 1. 从 `electron/main.ts` 梳理并抽出应用入口/本地资源服务相关的 IPC 注册与依赖注入；入口只装配服务。保持现有 IPC 名称、参数、返回值和 `/novel` 旧入口不变。先复用 `tests/platformManagement.test.ts`、`tests/menuManagement.test.ts`、`tests/novelStore.test.ts` 等既有回归，再补注册与错误路径的针对性用例；验证隔离数据环境的桌面开发版中 Harness 和旧小说仍可打开。**这一步不宣称应用已经安全隔离。**
 2. 基于这条边界设计第一方清单字段：应用 ID/历史别名、启用状态、受信任发布源、入口、Shell/API 兼容版本、能力白名单、开发态覆盖入口。先按现有数据格式确定兼容映射，再让 Novel Studio 有可加载的本地包；Vision 只能处于禁用保留状态。验证旧微应用快照和旧 `/novel` 链接不丢失。
