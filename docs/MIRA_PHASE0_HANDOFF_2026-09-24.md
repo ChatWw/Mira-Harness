@@ -111,7 +111,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 ### 5.4 本批验证结果
 
 - 相关单测覆盖 grant 归属、伪造/拒绝、撤销和生命周期场景。
-- 本次已运行：全量 Vitest `244` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
+- 本次已运行：全量 Vitest `245` 项通过；`vue-tsc --noEmit` 通过；`npm run build` 通过；`npx electron-vite build` 通过；`git diff --check` 通过。
 - 本次未重新运行：打包安装版、macOS/Windows 原生交互、真实模型、真实旧作品；这些仍标为待验收。
 - 本文与本次授权边界代码一起提交并推送；后续以远端 `HEAD` 为准。
 
