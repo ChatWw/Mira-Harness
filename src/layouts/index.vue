@@ -22,7 +22,6 @@
         </div>
 
         <div class="main-container">
-          <TabsBar v-if="!isWorkspaceRoute" />
           <AppMain />
         </div>
       </div>
@@ -63,12 +62,11 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElWatermark } from 'element-plus'
 import { useRoute } from 'vue-router'
-import { getVisibleMenus, isWorkspacePath, resolveNavigation } from '@/config/navigation'
+import { getVisibleMenus, resolveNavigation } from '@/config/navigation'
 import { useAppStore } from '@/stores/app'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 import AppSidebar from './components/AppSidebar.vue'
-import TabsBar from './components/TabsBar.vue'
 import AppMain from './components/AppMain.vue'
 import WindowsTitlebar from './components/WindowsTitlebar.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
@@ -79,7 +77,6 @@ const commandPaletteStore = useCommandPaletteStore()
 const route = useRoute()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const navigation = computed(() => resolveNavigation(route.path))
-const isWorkspaceRoute = computed(() => isWorkspacePath(route.path))
 const sidebarFlyoutVisible = ref(false)
 const sidebarFlyoutArmed = ref(false)
 const sidebarPointerInside = ref(false)

@@ -8,7 +8,7 @@
 - 仓库：`ChatWw/Mira-Harness`，当前本机目录：`/Volumes/VrenDisk/project/Mira/Mira-Harness`
 - 同级目录：`../Mira-Novel-Studio`、`../Mira-Vision` 已创建但均为空，尚无独立 Git 仓库或应用工程；空目录不会随本仓库的 Git 同步。
 - 分支：`codex/mira-harness-first-slice`
-- 基线提交：`323b90d`；后续以远端 `HEAD` 为准
+- 阶段 0 授权边界基线提交：`323b90d`；当前实现以本分支最新提交为准
 - 远端：`origin/codex/mira-harness-first-slice`
 - 开工时工作区：先运行 `git status --short --branch` 核对，不预设干净或与远端同步
 - 当前范围：桌面 Electron；Vue + Wujie Shell；Mira-Harness 默认应用；Novel Studio 受控接入骨架；Vision 仅规划预留
@@ -50,6 +50,30 @@
 3. **授权边界尚未接入真实子应用。** 当前 grant/session 已有主进程和 frame 测试，但没有真实外部包来验证连接协议、应用 SDK 和卸载恢复。
 4. **React 正式迁移尚未批准。** 当前 React/Wujie 页面是 disposable spike，只能证明挂载可行。
 
+## 3.1 2026-09-24 阶段 1A 第一批进展
+
+### 已完成
+
+- 主布局已移除多页签渲染，并删除对应组件与 store。
+- 设置侧栏已收敛为基础能力、平台能力、应用三组；加载效果、图标库、菜单管理和自由微应用管理不再作为设置入口。
+- 旧系统设置地址仍保留兼容重定向，统一回到 `/settings/general`。
+- 外观页只保留浅色/深色；历史 `system` 主题和非默认主题色在启动时归一化，不删除旧偏好字段。
+- 新增设置收敛与旧主题偏好归一化回归测试。
+
+### 验证
+
+- `npm test`：60 个测试文件、252 个测试通过。
+- `npx vue-tsc --noEmit`：通过。
+- `npm run build`：通过。
+- `git diff --check`：通过。
+- `npx electron-vite build`：通过；开发态 Electron 视觉/真实鼠标交互、打包版、真实模型和真实旧数据：待验收。
+
+### 剩余与下一步
+
+- 本批已完成 Electron 构建与 diff 复核；后续续作仍须先核对实际工作区状态。
+- 下一批从 Harness 核心任务体验开始：空态、执行态、等待确认态、失败恢复和成果入口。
+- 下一次开工先读 `docs/MIRA_IMPLEMENTATION_PRD.md` 的「2026-09-24 阶段 1A 第一批记录」和 D 模块 P0/P1，再检查 `src/pages/frontend/harness/`、Harness 事件 reducer/store 及对应测试。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
@@ -75,16 +99,10 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 ### 4.2 开工顺序
 
 1. 读 `AGENTS.md` 和本文第 3、5、6 节。
-2. 读 [`MIRA_PHASE0_AUDIT.md`](./MIRA_PHASE0_AUDIT.md) 第 2、5、6 节，确认真实文件边界和安全风险。
-3. 只检查以下文件，不要先接真实 Novel Studio：
-   - `electron/ipc/platformIpc.ts`
-   - `electron/services/platformServices.ts`
-   - `src/pages/frontend/microAppHost/FirstPartyFrame.vue`
-   - `src/platform/firstPartyBridge.ts`
-   - `src/config/firstPartyApps.ts`
-   - `electron/adapters/localMicroAppServer.ts`
-4. 继续读 `electron/security/firstPartyGrant.ts`、`src/platform/firstPartySession.ts` 及对应测试，确认本次授权边界没有被后续改动绕开。
-5. 阅读 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，再设计真实 Novel Studio 的静态包/SDK；在独立项目和包出现前，不启用非空 manifest。
+2. 读 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md) 的阶段 1A 第一批记录和 D 模块 P0/P1，再读 [`MIRA_PHASE0_AUDIT.md`](./MIRA_PHASE0_AUDIT.md) 第 5、6 节。
+3. 检查 `src/pages/frontend/harness/` 的空态、执行态、确认态、失败恢复和成果入口，以及对应 Harness 事件 reducer/store 与测试。
+4. 先形成可评审的交互设计和状态契约，再实现一个真实任务切片；不要把 React/Wujie 原型直接替换生产页面。
+5. 第一方 Novel Studio 的授权边界和 SDK 契约保留在第 5 节及 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，此批不接入真实外部包。
 
 ## 5. 本次已完成：宿主绑定应用身份和生命周期
 
@@ -151,4 +169,4 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 继续开发时可直接对 Codex 说：
 
-> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md` 和 `docs/MIRA_PHASE0_HANDOFF_2026-09-24.md`，核对工作区，不要重置现有改动。确认本文第 5 节的 grant/session 和 `FirstPartyFrame.vue` 生命周期实现与测试保持通过；然后开始设计独立 Mira Novel Studio 的静态包、SDK 和受控接入契约，在真实包出现前不要启用非空 manifest；保持旧 IPC、Harness 和 `/novel` 不变，并分别报告单测、类型、构建和 Electron 验证结果。
+> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.1 节和 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 D 模块 P0/P1，核对工作区，不要重置现有改动。下一批从 Harness 空态、执行态、等待确认态、失败恢复和成果入口着手，先形成可评审的交互设计与状态契约，再改真实任务页面；不要接入 Novel Studio、Vision 或 React 全量迁移，并分别报告自动化、构建和 Electron 实机验证结果。

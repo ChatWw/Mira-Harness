@@ -39,31 +39,27 @@ type SettingsNavItem = {
 
 const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
   {
-    label: '通用',
+    label: '基础能力',
     items: [
       { key: 'general', label: '常规', icon: 'Operation', path: '/settings/general' },
       { key: 'appearance', label: '外观', icon: 'Brush', path: '/settings/appearance' },
       { key: 'personalization', label: '个性化', icon: 'lucide:donut', path: '/settings/personalization' },
       { key: 'shortcuts', label: '键盘快捷键', icon: 'lucide:keyboard', path: '/settings/keyboard-shortcuts' },
-      { key: 'loading-effects', label: '加载效果', icon: 'Loading', path: '/settings/loading-effects' },
     ],
   },
   {
-    label: '功能',
+    label: '平台能力',
     items: [
-      { key: 'icon-library', label: '图标库', icon: 'Pointer', path: '/settings/icon-library' },
       { key: 'model-config', label: '模型', icon: 'Connection', path: '/settings/model-config' },
       { key: 'mcp', label: 'MCP 服务', icon: 'lucide:plug', path: '/settings/mcp' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
       { key: 'git', label: 'Git', icon: 'tabler:git-branch', path: '/settings/git' },
+      { key: 'backup-preferences', label: '备份与偏好', icon: 'Files', path: '/settings/backup-preferences' },
     ],
   },
   {
-    label: '系统',
+    label: '应用',
     items: [
-      { key: 'menu-management', label: '菜单管理', icon: 'Menu', path: '/settings/menu-management' },
-      { key: 'micro-app-management', label: '微应用管理', icon: 'lucide:app-window-mac', path: '/settings/micro-apps' },
-      { key: 'backup-preferences', label: '备份与偏好', icon: 'Files', path: '/settings/backup-preferences' },
       { key: 'about', label: '关于', icon: 'InfoFilled', path: '/settings/about' },
     ],
   },

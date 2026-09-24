@@ -67,30 +67,6 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '关于' },
   },
   {
-    path: '/settings/loading-effects',
-    name: 'SettingsLoadingEffects',
-    component: () => import('@/pages/backend/loadingEffect/index.vue'),
-    meta: { title: '加载效果' },
-  },
-  {
-    path: '/settings/icon-library',
-    name: 'SettingsIconLibrary',
-    component: () => import('@/pages/backend/iconLibrary/index.vue'),
-    meta: { title: '图标库' },
-  },
-  {
-    path: '/settings/menu-management',
-    name: 'SettingsMenuManagement',
-    component: () => import('@/pages/backend/menuManagement/index.vue'),
-    meta: { title: '菜单管理' },
-  },
-  {
-    path: '/settings/micro-apps',
-    name: 'SettingsMicroApps',
-    component: () => import('@/pages/backend/microAppManagement/index.vue'),
-    meta: { title: '微应用管理' },
-  },
-  {
     path: '/settings/backup-preferences',
     name: 'SettingsBackupPreferences',
     component: () => import('@/pages/backend/backupPreferences/index.vue'),
@@ -104,19 +80,19 @@ const staticRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/system/components/loading',
-    redirect: '/settings/loading-effects',
+    redirect: '/settings/general',
   },
   {
     path: '/system/components/icon-selector',
-    redirect: '/settings/icon-library',
+    redirect: '/settings/general',
   },
   {
     path: '/system/menus',
-    redirect: '/settings/menu-management',
+    redirect: '/settings/general',
   },
   {
     path: '/system/micro-apps',
-    redirect: '/settings/micro-apps',
+    redirect: '/settings/general',
   },
   {
     path: '/system/backup-preferences',

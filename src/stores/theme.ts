@@ -33,20 +33,31 @@ function isThemePreference(value: unknown): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system'
 }
 
+function normalizeThemePreference(preference: ThemePreference): ThemeMode {
+  return preference === 'system' ? resolveThemeMode('system') : preference
+}
+
 export const useThemeStore = defineStore('theme', () => {
   const storedThemePreference = getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY))
+  const normalizedStoredThemePreference = isThemePreference(storedThemePreference)
+    ? normalizeThemePreference(storedThemePreference)
+    : DEFAULT_THEME_MODE
   const themePreference = ref<ThemePreference>(
-    isThemePreference(storedThemePreference) ? storedThemePreference : DEFAULT_THEME_MODE
+    normalizedStoredThemePreference
   )
-  const themeMode = ref<ThemeMode>(resolveThemeMode(themePreference.value))
+  const themeMode = ref<ThemeMode>(normalizedStoredThemePreference)
   const presetColors = PRESET_COLORS
   localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
   const storedPresetId = getPreference('primaryPreset', localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY))
-  const primaryPresetId = ref(
-    presetColors.some(preset => preset.id === storedPresetId)
-      ? storedPresetId!
-      : DEFAULT_PRIMARY_PRESET_ID
-  )
+  const primaryPresetId = ref(DEFAULT_PRIMARY_PRESET_ID)
+  if (storedThemePreference === 'system') {
+    localStorage.setItem(THEME_STORAGE_KEY, normalizedStoredThemePreference)
+    savePreference('themeMode', normalizedStoredThemePreference)
+  }
+  if (storedPresetId !== null && storedPresetId !== DEFAULT_PRIMARY_PRESET_ID) {
+    localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, DEFAULT_PRIMARY_PRESET_ID)
+    savePreference('primaryPreset', DEFAULT_PRIMARY_PRESET_ID)
+  }
   const activePreset = computed(
     () => presetColors.find(preset => preset.id === primaryPresetId.value) || presetColors[0]
   )
@@ -164,12 +175,13 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function setThemePreference(preference: ThemePreference, syncNativeChrome = true) {
-    const nextMode = resolveThemeMode(preference)
-    if (themePreference.value === preference && themeMode.value === nextMode) return
+    const normalizedPreference = normalizeThemePreference(preference)
+    const nextMode = normalizedPreference
+    if (themePreference.value === normalizedPreference && themeMode.value === nextMode) return
 
-    themePreference.value = preference
-    localStorage.setItem(THEME_STORAGE_KEY, preference)
-    savePreference('themeMode', preference)
+    themePreference.value = normalizedPreference
+    localStorage.setItem(THEME_STORAGE_KEY, normalizedPreference)
+    savePreference('themeMode', normalizedPreference)
     if (themeMode.value === nextMode) return
     themeMode.value = nextMode
     applyTheme(syncNativeChrome)
