@@ -29,16 +29,23 @@ const props = defineProps<{
 const emit = defineEmits<{ error: [message: string] }>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
+let unsubscribeHarness: (() => void) | undefined
 let disposed = false
+let connectedOnce = false
 const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
 
-function invalidateConnection() { session.invalidate(); port = undefined }
+function invalidateConnection() { unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined }
 
 function send(message: unknown) {
   try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
 }
 
 async function connect() {
+  if (connectedOnce) {
+    invalidateConnection()
+    emit('error', '应用页面已重新导航，授权已撤销。请从平台重试加载。')
+    return
+  }
   const currentGeneration = session.begin()
   port = undefined
   const target = frame.value?.contentWindow
@@ -48,22 +55,31 @@ async function connect() {
   try {
     nextGrant = await props.api.createFirstPartyGrant(props.manifest.appId)
   } catch (error) {
+    connectedOnce = false
     channel.port1.close()
     if (!disposed && session.isCurrent(currentGeneration)) emit('error', error instanceof Error ? error.message : '应用授权失败')
     return
   }
   if (disposed || !session.isCurrent(currentGeneration) || target !== frame.value?.contentWindow) {
+    connectedOnce = false
     channel.port1.close()
     void props.api.revokeFirstPartyGrant(nextGrant).catch(() => undefined)
     return
   }
   const activePort = channel.port1
   if (!session.activate(currentGeneration, nextGrant, activePort)) {
+    connectedOnce = false
     activePort.close()
     void props.api.revokeFirstPartyGrant(nextGrant).catch(() => undefined)
     return
   }
   port = activePort
+  connectedOnce = true
+  if (props.manifest.appId === 'mira-harness' && props.manifest.capabilities.includes('harness:workbench')) {
+    unsubscribeHarness = props.api.onHarnessEvent(event => {
+      if (session.isActive(nextGrant, activePort)) send({ type: 'mira:harness-event', event })
+    })
+  }
   activePort.onmessage = async event => {
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
@@ -88,13 +104,14 @@ async function connect() {
   activePort.start()
   try {
     target.postMessage({ type: 'mira:connect', grantId: nextGrant, apiVersion: { ...PLATFORM_API_VERSION } }, '*', [channel.port2])
+    send({ type: 'mira:context', context: props.context })
   } catch (error) {
     invalidateConnection()
     if (!disposed) emit('error', error instanceof Error ? error.message : '应用连接失败')
   }
 }
 
-watch(() => props.url, invalidateConnection)
+watch(() => props.url, () => { invalidateConnection(); connectedOnce = false })
 watch(() => props.manifest.appId, invalidateConnection)
 watch(() => props.route, route => send({ type: 'mira:route', route }))
 watch(() => props.context, context => send({ type: 'mira:context', context }), { deep: true })

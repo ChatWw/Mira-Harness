@@ -10,6 +10,7 @@
       <div class="legacy-harness-layout__scroll">
         <WorkspaceNavigation :collapsed="false" />
         <nav class="legacy-harness-layout__links" aria-label="Harness 其他页面">
+          <router-link to="/workspace/harness-react"><AppIcon name="lucide:panels-top-left" />新版工作台</router-link>
           <router-link to="/workspace/usage"><AppIcon name="lucide:chart-no-axes-column" />用量与成本</router-link>
         </nav>
       </div>

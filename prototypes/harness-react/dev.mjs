@@ -7,13 +7,13 @@ import { context } from 'esbuild'
 const directory = dirname(fileURLToPath(import.meta.url))
 const output = resolve(directory, '../../dist/harness-react-prototype')
 const bundler = await context({
-  entryPoints: [resolve(directory, 'src/main.tsx')],
+  entryPoints: { main: resolve(directory, 'src/main.tsx'), pilot: resolve(directory, 'src/pilot-main.tsx') },
   bundle: true,
   format: 'iife',
   platform: 'browser',
   target: ['chrome110'],
   jsx: 'automatic',
-  outfile: resolve(output, 'main.js'),
+  outdir: output,
   sourcemap: 'inline',
   logLevel: 'info',
 })
@@ -24,6 +24,9 @@ const paths = {
   '/harness-prototype/': { file: resolve(directory, 'index.html'), type: 'text/html; charset=utf-8' },
   '/harness-prototype/main.js': { file: resolve(output, 'main.js'), type: 'text/javascript; charset=utf-8' },
   '/harness-prototype/main.css': { file: resolve(output, 'main.css'), type: 'text/css; charset=utf-8' },
+  '/harness-prototype/pilot/': { file: resolve(directory, 'pilot.html'), type: 'text/html; charset=utf-8' },
+  '/harness-prototype/pilot.js': { file: resolve(output, 'pilot.js'), type: 'text/javascript; charset=utf-8' },
+  '/harness-prototype/pilot.css': { file: resolve(output, 'pilot.css'), type: 'text/css; charset=utf-8' },
 }
 const server = createServer(async (request, response) => {
   const asset = paths[request.url || '']

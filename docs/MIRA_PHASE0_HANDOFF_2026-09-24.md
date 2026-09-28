@@ -1,6 +1,6 @@
 # Mira 续作交接（2026-09-24）
 
-> **继续本项目时先读本文。本文是当前实现状态和下一步工作的唯一续作入口。**
+> **继续本项目时先读本文。本文是当前实现状态和下一步工作的唯一续作入口。最近更新：2026-09-28。**
 > 产品边界和长期规划看 [`MIRA_PLATFORM_PLAN.md`](./MIRA_PLATFORM_PLAN.md)；模块关口和发布验收看 [`MIRA_IMPLEMENTATION_PRD.md`](./MIRA_IMPLEMENTATION_PRD.md)；源码审计和开源 UI 对比看 [`MIRA_PHASE0_AUDIT.md`](./MIRA_PHASE0_AUDIT.md)。
 
 ## 1. 当前基线
@@ -227,6 +227,22 @@
 
 - 下一次直接从 `docs/MIRA_IMPLEMENTATION_PRD.md` 的 C 模块「阶段 1A 第四批记录」和 D 模块 P0/P1 开始，评审并实现 React Harness 应用内工作台，再通过受控桥接接入真实会话/任务事件；Shell 公共层不再继续扩展 Harness 专属导航。
 
+## 3.9 2026-09-28 开源 React UI 选型记录
+
+### 已完成
+
+- 复核 GitHub 当前仓库元数据、许可证、包声明与 `assistant-ui` 自定义运行时文档；对照 Mira 的会话、执行、审批、成果和 Wujie 边界。
+- 选 `assistant-ui` 的 React 线程/输入原语和 `ExternalStoreRuntime` 作为**首个接入试验**，不引入其后端；AionUi、Goose、Harnss 仅作交互参照。具体比较、复用边界和失败条件见 [`MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md`](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md) 第 9 节。
+
+### 验证与剩余
+
+- 本批只有源码/文档级选型，未安装或运行候选，未修改 UI/运行时代码；没有自动化或 Electron 验收可宣称。
+- `assistant-ui` 在 Wujie 内的流式消息、中文输入法、焦点、订阅清理和复杂节点投影仍待隔离试验。旧 Vue Harness 保持生产回退；真实模型、物理鼠标、Windows、打包版和真实 Novel Studio 包仍待验收。
+
+### 下一步
+
+- 从设计文档第 9 节的放行试验开始：锁定候选版本并核对许可，建立受控宿主适配，验证一条隔离任务链；只有关键语义和恢复通过后才扩大 React UI 迁移。
+
 ## 4. 继续开发的准确开始方式
 
 ### 4.1 同步代码
@@ -322,4 +338,120 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 继续开发时可直接对 Codex 说：
 
-> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 3.8 节、`docs/MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md` 和 PRD 的 C/D 模块 P0/P1，核对工作区并保留未提交改动。Vue + Wujie 两层 Shell 首轮已经落地；下一步评审 React Harness 应用内设计，再验证 Wujie 受控桥的一条真实任务链。旧 Vue 生产页在验收前保留；Novel Studio、Vision 和应用下载器不参加本批。
+> 继续 `codex/mira-harness-first-slice`。先读 `AGENTS.md`、本文第 13 节、`docs/MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md` 第 14 节和 PRD 的 D 模块 P0/P1，核对工作区并保留未提交改动。开发态脚本流程及流式长会话已验证；下一步核对实体键盘/中文输入法和真实模型任务，再评审生产授权与 React 资源打包。不要直接替换旧 Vue 生产页。Novel Studio、Vision 和应用下载器不参加本批。
+
+## 9. 2026-09-28 React Harness 接入试验交接
+
+**已完成**：`@assistant-ui/react@0.15.22` 锁定；开发态 `/workspace/harness-pilot` 由 `src/pages/frontend/harness/pilot/index.vue` 承载 React/Wujie，有限宿主方法来自 Electron `PlatformApi`；`prototypes/harness-react/src/pilot-state.ts` 管理会话、事件和卸载，`pilot-workbench.tsx` 使用 assistant-ui 原语。Electron Vite 同源代理开发资源至 9001，原演示与 `/workspace/chat` 保持不变。本批没有提交或推送。
+
+**验证**：全量 Vitest 64 文件 271 项、`npx tsc -p prototypes/harness-react/tsconfig.json`、`npx vue-tsc --noEmit`、`npm run build`、`npx electron-vite build` 和 `git diff --check` 通过；Electron 开发服务启动，pilot 与原演示的 HTML/JS 经同源代理 HTTP 200。测试只证明代码路径和资源可达，未证明真实模型、权限与文件写入、macOS/Windows 窗口交互或打包版。
+
+**当时剩余（恢复和 diff 已在第 10 节解决）**：隔离 Electron 桌面任务链、审批拒绝、停止/失败恢复和计划/澄清仍待验收。开发态 Wujie props 不是生产安全授权边界。
+
+**下一次开工入口**：运行 `npm run prototype:harness`，在桌面开发版打开 `/workspace/harness-pilot`；从 `pilot-state.ts` 的事件和快照一致性及 `pilot-workbench.tsx` 的 Harness 专属 UI 继续。真实验收通过后，再设计生产第一方授权和逐步替换 `/workspace/chat` 的迁移关口。
+
+## 10. 2026-09-28 React pilot 任务链与恢复交接
+
+**已完成**：`HarnessPermissionPolicy` 增加按会话查询仍在等待的请求，经 Runtime/IPC/preload 只读暴露给 pilot；React 打开会话时恢复审批，活动/工具记录与持久化文件 diff 在工作区可见。修复 `assistant-ui` 对用户消息错误传递 `status` 导致的发送后卸载；增加消息投影回归测试。生产 `/workspace/chat`、旧数据和原演示未替换。
+
+**验证**：全量 Vitest 65 文件 276 项、React/Vue 类型检查、Web/Electron 构建和 `git diff --check` 通过。隔离 Electron + 本地脚本模型完成 React 发送、流式回复、审批出现、切离返回恢复、允许写入、文件落盘、工具 `write/ok`、完成态和 diff 预览。浅色 1440×900、1024×680 与 Shell 同步深色页面截图已检查；没有使用真实模型或真实用户目录。开发者工具点击/输入不是物理鼠标验收。
+
+**剩余**：pilot 的拒绝审批、停止/失败恢复、计划和多选澄清仍需真实桌面链路验证；当前成果仅预览已记录 diff，没有任意文件打开能力。生产第一方授权、真实模型、物理鼠标、打包安装版、Windows 和真实旧数据均待验收；不得据此删除旧 Vue Harness。
+
+**下一次开工入口**：先读 `prototypes/harness-react/src/pilot-state.ts`、`pilot-workbench.tsx` 与 `tests/harnessReactPilot.test.ts`，在隔离 `MIRA_TEST_HOME` 下用本地脚本模型补拒绝/停止/计划/澄清四类状态；之后再设计生产级第一方 grant 和旧页迁移门槛。不要把 `/tmp` 中的测试模型或文件加入仓库。
+
+## 11. 2026-09-28 React pilot 流程入口补齐
+
+**已完成**：新任务必须明确选择个人工作区或现有项目；项目目录不可用时禁止创建，发送不再隐式创建个人会话。页面在发送前展示会话实际工作目录；切换会话恢复其模型选择，旧模型不可用时不沿用别的会话模型。输入区增加直接执行/先出计划；计划确认前显示步骤与风险，澄清支持单选、多选及自定义答案。拒绝审批、停止、失败工具与最近运行结果的状态呈现已补齐；生产 `/workspace/chat` 未改。
+
+**验证**：全量 Vitest 65 文件 281 项、React/Vue 类型检查、Web/Electron 构建通过；定向控制器测试覆盖项目归属、拒绝后重新打开、计划标志、停止后再次发送和多选答案传递。以上是自动化和构建证据，本批尚未重新运行隔离 Electron 的拒绝/停止/计划/澄清桌面链路，也未确认拒绝后的文件实际不存在。
+
+**剩余/下一步**：用新的隔离 `MIRA_TEST_HOME` 和本地脚本模型，在 `/workspace/harness-pilot` 逐项检查“选择项目目录 → 拒绝写入 → 文件不存在 → 重新进入保留失败记录”、停止后继续、计划确认和多选澄清。再检查浅/深色及 1024×680 布局，评审生产第一方授权桥和 React 资源打包；这些通过前不切换默认 Harness UI。真实模型、物理鼠标、打包版、Windows 与旧数据仍待验收。
+
+## 12. 2026-09-28 React pilot 隔离桌面流程复核
+
+**已完成**：在隔离 `MIRA_TEST_HOME=/tmp/mira-pilot-verify-CDOHSj` 的开发态 Electron 中，用本地脚本模型从 React pilot 操作并验证项目目录选择、拒绝写入且目标文件不存在、停止后继续、模型 500 失败后继续、多选澄清、计划确认，以及审批切离旧工作台再返回后允许写入。持久化会话和测试项目文件复核了这些结果；批准的文件仅落在 `pilot-project` 中。修复 pilot 顶部状态与工作区状态可能不一致的问题：完成会话中有失败操作时显示“部分操作未完成”，失败运行不显示“就绪”。补了卸载/重挂载恢复待确认计划的控制器回归测试。
+
+**本轮验证**：1440×900、1024×680 的浅色/深色开发态 Electron 截图均已检查，无横向溢出或输入区遮挡；全量 Vitest 65 文件 283 项、React/Vue 类型检查、Web/Electron 构建及 `git diff --check` 通过。此前的页面输入与点击由开发者工具驱动，截图和文件结果不等于物理鼠标、真实模型或打包版验收。测试脚本、截图和临时数据留在 `/tmp`，不进入仓库。
+
+**剩余**：开发态 Wujie props 仍非生产第一方授权；React 资源尚未作为生产包内应用交付。中文输入法、焦点/滚动、真实模型、实体鼠标、打包 macOS、Windows 和旧用户数据仍无本批验收证据；文件成果目前只预览记录的 diff，不能任意打开文件。旧 `/workspace/chat` 保留，不删除旧 Vue Harness。
+
+**下次从这里开始**：先读本节和设计文档第 13 节，核对当前工作区；接着评审 React 生产级身份/能力授权与资源打包边界，在隔离目录补中文输入法、焦点和长会话滚动的桌面验收。通过后再讨论默认入口切换和回退步骤，不能把开发态 pilot 直接当生产应用。
+
+## 13. 2026-09-28 流式回复与长会话验收
+
+**发现与修复**：隔离 Electron 的宿主在 5 秒内发出 29 条 `message-delta`，React 控制器及 `assistant-ui` 运行时均持有持续增长的正文，但运行中的消息内容原语只显示占位，停止后才出现完整文本。pilot 现在仅对当前流式消息显示控制器文本；历史与终态消息仍由 `assistant-ui` 渲染，终态以 Electron 持久化快照替换，不维护第二份结果。
+
+**验证**：开发态 Electron 中完整重载页面后，流式消息 DOM 从 24 字增长到 173 字；上滚到长会话顶部后继续接收增量，`scrollTop` 保持 0；停止后消息数不增加、正文保留。CDP 中文组合输入时按 Enter 未提前提交，组合结束后通过发送按钮可以提交；补齐键码与文本参数后，CDP 普通 Enter 也正常新增用户消息。上述模拟不等于实体输入法与物理键盘验收。全量 Vitest 65 文件 284 项、React/Vue 类型检查、Web/Electron 构建及 `git diff --check` 通过；仍使用 `/tmp` 的脚本模型和隔离数据。
+
+**剩余/下一步**：首次 CDP Enter 未发送是注入参数不足；正确参数下已发送。CDP Shift+Enter 未提交但也未生成换行，尚不能区分原生按键默认行为与注入差异；需用实体键盘和中文输入法复核发送、换行、组合提交及焦点。真实模型、生产授权、包内 React 资源、打包 macOS、Windows 与旧用户数据也仍待验收。旧 `/workspace/chat` 不切换；先按本节复核输入，再处理生产边界。
+
+## 14. 2026-09-28 React pilot 打开会话工作目录
+
+**已完成**：React 工作区增加“在文件管理器中打开”。子应用只传当前持久化会话 ID，经 Vue 开发态宿主桥调用既有 `openHarnessSessionProject(id, 'file-manager')`；目录仍由 Electron 主进程从会话/项目记录解析，不接受前端传入任意路径。无工作目录时按钮禁用，打开中禁止重复触发，系统打开失败会显示错误；切换会话后，旧操作的异步结果不会覆盖新会话状态。
+
+**验证**：控制器新增成功、失败、无会话、重复点击和切换会话回归；全量 Vitest 65 文件 287 项、React/Vue 类型检查、Web/Electron 构建通过。当前运行着开发态 Electron 和 React 资源服务，但本批没有取得该按钮的实体点击与 Finder 打开证据。未检测到运行中的 Ollama/LM Studio，也未安装 `ollama`；不能把脚本模型流程算作真实模型验收。
+
+**剩余/下次从这里开始**：先在隔离数据的开发态 Electron 中实际点击按钮，确认打开的是会话绑定目录且错误可见；再用实体键盘/中文输入法复核 Enter、Shift+Enter、组合输入与焦点，并取得真实模型完整任务证据。之后仍须审查生产第一方授权、React 包内资源、打包 macOS、Windows 和旧数据回退，才能讨论默认页面切换。生产 `/workspace/chat` 保持旧 Vue 页面。
+
+## 15. 2026-09-28 隔离桌面目录入口复核
+
+**已完成**：在当前开发态 Electron 的 `/workspace/harness-pilot` 中，使用已绑定隔离会话，通过开发者协议触发 React 工作区按钮的 DOM `click()`；Finder 窗口目标核对为 `/private/tmp/mira-pilot-verify-CDOHSj/pilot-project/`。目标目录中的 `approved-proof.txt` 仍为此前批准任务产生的隔离文件。主进程仍按会话 ID 解析目录，未使用 React 提供的路径。
+
+**验证边界**：随后复核 CDP 鼠标坐标输入：Wujie 按钮收到点击，宿主记录到当前会话 ID，Electron 调用返回空错误字符串，Finder 再次打开同一隔离目录。首次坐标注入未得到 Finder 窗口，复核时已成功；临时观测钩子通过页面重载清除。开发态 CDP 指针与 Finder 结果仍不能替代实体鼠标验收。对 `https://api.deepseek.com/v1/models` 的只读探测返回 HTTP 401，8080 端口为其他项目的 Atlas 前端，不是模型服务；当前仍无可用真实模型证据。未修改仓库密钥或用户真实数据。
+
+**剩余/下次从这里开始**：需要在 Mira 隔离配置中提供有效的本地或远程模型入口，再跑真实发送、流式回复、工具审批、停止/继续、计划、澄清和成果任务。之后补实体鼠标/中文输入法、生产授权、包内资源及打包版验收；生产 `/workspace/chat` 继续保留。
+
+## 16. 2026-09-28 Shift+Enter 注入复核
+
+在隔离开发态 Electron 的 React 输入区，CDP 先输入 `A`，再发送带 Shift 修饰的 Enter `keyDown`、`char` 与 `keyUp`。输入事件记录出现 `insertLineBreak`，草稿变为 `A\n`，用户消息数保持不变；随后已清空草稿。第 13 节中“CDP Shift+Enter 未生成换行”是缺少字符事件的注入限制，并非已证实的 React 输入缺陷。此结论仅覆盖 CDP，实体键盘、中文输入法组合结束与焦点仍待验收。真实模型凭据探测 401 的状态不变。
+
+## 17. 2026-09-28 真实模型任务闭环
+
+**已完成**：使用隔离 `/tmp/mira-pilot-verify-CDOHSj` 配置中的真实 DeepSeek 提供商和 `deepseek-flash`，从 React pilot 完成以下桌面任务：
+
+- 发送短消息：收到真实模型流式回复；重载并重新进入会话后，模型选择、完成态和回复从 Electron 持久化记录恢复。
+- 文件写入：模型先尝试绝对路径并被项目沙箱拒绝；经第二次审批改用项目内相对路径成功执行 `write`、`read`、`list_files`。`real-model-proof.txt` 实际落在隔离项目目录，40 字节；审批前文件不存在。
+- 停止后继续：真实模型长回复流式到约 65 行时停止，运行记录为 `stopped`；同一会话再次发送后产生第二条完成回复，旧消息没有重复。
+- 计划与澄清：真实模型调用 `ask_user`，回答后调用 `present_plan`；从 React 确认只读计划后，模型读取两个文件并汇总，文件 SHA-256 和时间戳前后一致，没有修改文件。
+- 多选 UI：补充 `ask_user` 结构化 schema 和提示后，真实模型明确传 `multiSelect: true`，React 将三个候选渲染为 checkbox；选择两个文件并提交的交互已验证。
+
+**代码修正**：`ask_user` 不再把问题参数声明为任意 JSON；问题、选项、`multiSelect` 和 `allowCustom` 均有结构化 schema，保留旧字符串输入的服务端兼容归一化，并补了多选回归测试。计划模式若正常结束却没有待确认交互，Electron 会提醒模型再调用一次 `ask_user` 或 `present_plan`；仍不提交则标记运行失败并明确提示，不再伪装为已完成。全量 Vitest 65 文件 290 项、React/Vue 类型检查、Web/Electron 构建与 `git diff --check` 通过。
+
+**残余风险**：同一真实模型在另一轮澄清回答后只输出了计划文字，没有再次调用 `present_plan`，因此没有生成可确认的计划卡片；运行时收敛保护已补自动化测试，但尚未用真实模型复跑该特定分支。实体键盘/中文输入法、物理鼠标、打包 macOS/Windows、生产第一方授权和包内 React 资源仍未验收。真实提供商凭据已从隔离配置删除，正式用户配置未修改。
+
+**当前结论**：React Harness 的核心真实任务链路已达到“可继续做生产边界评审”的证据强度，但尚未达到“可切换默认生产入口”的放行条件；`/workspace/chat` 继续保留。
+
+**下次从这里开始**：先检查本节与当前未提交工作区；在隔离实例中复跑“澄清后模型只输出计划文字”的真实模型场景，确认运行时提醒确实生成 `present_plan` 或明确失败。之后安排实体键盘、中文输入法和物理鼠标验收，再做第一方授权与 React 包内资源评审。切换生产入口仍未授权。
+
+## 18. 2026-09-28 计划提醒后的正文一致性
+
+**已完成**：上一轮真实 DeepSeek 复跑已观察到提醒分支创建持久化 `plan-review`，但首轮流式正文仍声称“不调用任何工具”，与待确认卡片矛盾。本轮仅在“首轮未创建交互、提醒后创建交互”的分支，将最终助手正文归一为对应的澄清或计划状态文案；正常计划回复保持原文。没有确认或执行旧会话中的待确认计划。
+
+**验证**：新增矛盾正文回归；全量 Vitest 65 文件 291 项、React/Vue 类型检查、Web/Electron 构建和 `git diff --check` 通过。重启隔离开发态 Electron 后，本地脚本模型先流式返回“本轮不调用任何工具”，第二轮调用 `present_plan`；持久化会话 `618ad1cd-0bc5-4ec5-807c-55b5b1be6c2f` 的最终正文为“方案已整理，请确认是否开始执行”，状态为 `completed`、交互为 `plan-review/waiting`。React 页面显示同一正文与计划卡片，不再显示矛盾文字。此轮是脚本模型的桌面验证，不是修复后再次用真实模型跑该分支。
+
+**隔离与下一步**：临时真实 DeepSeek 和本轮脚本提供商均已通过平台 API 从 `/tmp/mira-pilot-verify-CDOHSj/.mira/config/models.json` 删除；正式用户模型配置未修改，生产 `/workspace/chat` 保持旧 Vue。重载复核时 `9001` React 开发资源服务已退出，Wujie 画布为空；重新运行 `node prototypes/harness-react/dev.mjs` 并重载后，同一会话的计划、正文和等待状态恢复。开发态必须同时保持 Electron Vite 与 React 资源服务运行，这不是打包资源验收。核心真实模型任务链已有第 17 节证据，但实体键盘/中文输入法、物理鼠标、生产第一方授权、React 包内资源、打包 macOS/Windows 仍未验收。下一批从实体输入与生产授权/资源交付检查开始，不能据此切换默认入口。
+
+## 19. 2026-09-28 输入事件边界复核
+
+**浏览器事件证据**：在隔离 React pilot 的新会话中模拟中文组合输入，`compositionstart`/`insertCompositionText`/`compositionend` 后输入值保留为“你”；带 `isComposing` 的 Enter 没有产生用户消息。随后 Shift+Enter 产生换行，输入值为“你\n”，用户消息数仍为 0。该结果与 pilot 输入区的发送/换行约定一致。
+
+**原生设备边界**：本机通过 macOS `System Events` 激活 Electron 后，辅助功能权限返回错误 `-25211`（osascript 不允许辅助访问），因此本轮没有实体键盘、中文输入法或物理鼠标证据。不能将上述 CDP/浏览器事件复核升级为原生设备验收；需要在授予辅助功能权限的开发机上补做。生产授权、React 包内资源、打包 macOS/Windows 也仍未验收。
+
+## 20. 2026-09-28 修复后真实模型复跑
+
+**已完成**：在全新隔离目录中只读复制正式 DeepSeek 配置（未修改或输出正式密钥），用真实 `deepseek-flash` 从 React pilot 宿主 API 完成一条完整链路：只读探索 `list_files/read` → `ask_user` 澄清 → 用户回答 → `present_plan` → 计划确认 → 只读执行。确认后的执行提示已补充“确认动作已经完成、按步骤执行、不要再次请求确认”的约束；真实模型执行时触发了用户允许的只读 `bash` 命令，并返回实际文件分析，而不是再次展示待确认方案。
+
+**结果证据**：会话 `e1754d38-32aa-49d8-b070-75c21516af80` 最终状态为 `completed`，计划为 `completed`，工具 `list_files/read/bash` 均为 `ok`，React 页面显示完整差异结论、`最近任务已完成` 和无文件变更。`alpha.txt` SHA-256 为 `b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060`、大小 6、mtime `1790583080589.215`；`beta.txt` SHA-256 为 `f2c82decdd7181cf98945929a62598db7e6b477e11f6e0eb0ae97020eff151ad`、大小 5、mtime `1790583080589.2798`，执行前后完全一致。临时目录、复制的模型配置和进程均已清除。
+
+**代码与验证**：`executingPlanSection` 明确确认后的执行语义，并新增提示回归；针对性测试 23 项通过。完整测试、类型检查和构建需以本节之后的最终命令结果为准。实体键盘/中文输入法、物理鼠标、生产第一方授权、React 包内资源、打包 macOS/Windows 仍未验收，生产 `/workspace/chat` 继续保留。
+
+## 21. 2026-09-28 生产 React 接入与 UI 方案 A
+
+**已完成**：`mira-harness` 已登记为内置第一方应用，新增 `harness:workbench` 能力；React 生产入口 `/workspace/harness-react` 使用 `FirstPartyFrame + MessageChannel + grant`，通过受控 RPC 调用 Harness。React 资源由 `npm run harness:build` 输出到 `dist/harness-react-app`，Electron 开发/打包分别解析项目目录与 `process.resourcesPath/harness-react-app`；旧 `/workspace/chat` 保留回退，旧页面提供新版入口。React 工作台改为任务线程主区、会话抽屉和工作区面板按需展开，方案 A 已确认。
+
+**验证**：294 项 Vitest（含内置资源服务和 Harness 授权拒绝回归）、React/Vue 类型检查、Electron Vite 构建、React 静态资源构建、`git diff --check` 和 Impeccable 静态检测通过。未签名 macOS ARM64 目录包已生成，`Contents/Resources/harness-react-app` 内的 HTML/JS/CSS 均存在；打包应用尚未启动，Windows、原生输入和真实模型仍未验收。
+
+**下次从这里开始**：在隔离目录运行 `npm run harness:build` 和 Electron 开发版，打开 `/workspace/harness-react`，确认资源由本地服务加载；随后做 macOS 打包资源路径、grant 撤销/重载和双入口回退验收。上述通过后再进行完整 UI 截图验收，最后评审是否切换根入口。旧 `/workspace/chat` 在此之前不得删除。
+
+**本轮继续验证**：隔离 `MIRA_TEST_HOME=/tmp/mira-react-stage.M7Dsnv` 的 Electron 开发实例中，正式入口 iframe 从本地微应用服务加载 HTML/JS/CSS，React 页面显示任务空态，受控 RPC 成功创建个人工作区会话，工作目录落在隔离 `.mira/workspace`。从新版返回旧 Vue、再从旧版进入新版均成功。CDP 截图检查了开发实例的浅色宽窗口；会话抽屉两个图标重叠已修正。尝试的 1024×680 CDP 截图未对应当前 React 画面，因此不能算窄窗口视觉验收。macOS ARM64 未签名目录包已重新生成，包内 `app.js` 与最新构建产物一致；打包应用本身仍未启动。

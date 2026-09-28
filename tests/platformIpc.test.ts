@@ -72,6 +72,7 @@ describe('platform IPC registration', () => {
       'platform:first-party-list-novel-projects',
       'platform:first-party-get-novel-project',
       'platform:first-party-save-novel-project',
+      'platform:first-party-harness',
       'platform:import-snapshot',
       'platform:restore-defaults',
       'platform:export-snapshot',
@@ -185,6 +186,27 @@ describe('platform IPC registration', () => {
     expect(() => invoke('platform:first-party-list-novel-projects', noCapability)).toThrow('没有所需能力')
     expect(() => invoke('platform:first-party-list-novel-projects', otherApp)).toThrow('授权无效')
     expect(database.novels.listProjects).not.toHaveBeenCalled()
+  })
+
+  it('confines Harness calls to the owning renderer and an active workbench grant', () => {
+    const manifest: FirstPartyAppManifest = {
+      appId: 'mira-harness', legacyIds: [], enabled: true,
+      trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
+      entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+      apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
+    }
+    const harnessRuntime = { abort: vi.fn() }
+    const { invoke, invokeAs, invokeFromSubframe } = register({ firstPartyManifests: [manifest], harnessRuntime } as Partial<PlatformIpcDependencies>)
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness')
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toThrow('宿主主页面')
+    expect(() => invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: '' })).toThrow('会话 ID无效')
+    expect(harnessRuntime.abort).not.toHaveBeenCalled()
+    expect(invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toBeUndefined()
+    expect(harnessRuntime.abort).toHaveBeenCalledWith('s')
+    invoke('platform:revoke-first-party-grant', grant)
+    expect(() => invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toThrow('授权无效')
+    expect(harnessRuntime.abort).toHaveBeenCalledTimes(1)
   })
 
   it('rejects unregistered apps, missing capabilities, and malformed model requests', async () => {

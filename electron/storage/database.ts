@@ -6,7 +6,7 @@ import {
   mainMenus as defaultsMenus,
   PROTECTED_MAIN_MENU_IDS,
 } from '../../src/config/menus'
-import { microApps as defaultMicroApps } from '../../src/config/microApps'
+import { microApps as defaultMicroApps, withBuiltInMicroApps } from '../../src/config/microApps'
 import { NovelStore } from './novelStore'
 import { HarnessStore } from './harnessStore'
 import { ModelConfigStore } from './modelConfigStore'
@@ -286,10 +286,11 @@ export class PlatformDatabase {
     const mainMenus = this.database.prepare('SELECT payload FROM menus ORDER BY rowid').all().map((row: { payload: string }) => JSON.parse(row.payload)) as MenuItem[]
     const microApps = this.database.prepare('SELECT payload FROM micro_apps ORDER BY rowid').all().map((row: { payload: string }) => JSON.parse(row.payload)) as MicroApp[]
     const preferences = Object.fromEntries(this.database.prepare('SELECT key, value FROM preferences').all().map((row: { key: string; value: string }) => [row.key, JSON.parse(row.value)]))
-    return { mainMenus, microApps, preferences }
+    return { mainMenus, microApps: withBuiltInMicroApps(microApps), preferences }
   }
 
   private writeSnapshot(snapshot: PlatformSnapshot) {
+    snapshot = { ...snapshot, microApps: withBuiltInMicroApps(snapshot.microApps) }
     validateSnapshot(snapshot)
     assertProtectedMenus(snapshot.mainMenus)
     const write = this.database.transaction(() => {

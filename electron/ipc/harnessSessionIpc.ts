@@ -85,6 +85,7 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:abort-run', (_event, sessionId: string) => harnessRuntime.abort(sessionId))
   ipcMain.handle('harness:stop-subtasks', (_event, sessionId: string, ids?: string[]) => harnessRuntime.stopSubtasks(sessionId, ids))
   ipcMain.handle('harness:respond-permission', (_event, requestId: string, allowed: boolean) => harnessRuntime.resolvePermission(requestId, Boolean(allowed)))
+  ipcMain.handle('harness:list-pending-permissions', (_event, sessionId: string) => harnessRuntime.listPendingPermissions(sessionId))
   ipcMain.handle('harness:list-trash', (_event, projectId?: string) => database.harness.listTrash(projectId))
   ipcMain.handle('harness:restore-trash', (_event, projectId: string, token: string) => database.harness.restoreTrash(projectId, token))
   ipcMain.handle('harness:python-status', () => pythonEnvironment.status())

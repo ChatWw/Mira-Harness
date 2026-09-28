@@ -210,6 +210,25 @@ describe('HarnessRuntime tool approval', () => {
     expect(result.terminate).toBe(true)
   })
 
+  it('preserves the explicit multi-select contract for planning questions', async () => {
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const activePlan = { id: 'plan-1', status: 'planning', request: '规划改动', understanding: '', steps: [], risks: [], createdAt: 1, updatedAt: 1 }
+    const database = {
+      memories: { enabled: () => false },
+      harness: {
+        getSession: () => ({ permissionMode: 'default', activePlan }),
+        getPermissionConfig: () => ({ dangerousCommands: [] }),
+        recordTool: vi.fn(), updateTool: vi.fn(), updatePlan: vi.fn(), setPendingInteraction: vi.fn(),
+      },
+    }
+    const runtime = new HarnessRuntime(database as any, { getTools: () => [] } as any)
+    const ask = (runtime as any).tools(sender, 'session-1', { planning: true }).tools.find((tool: any) => tool.name === 'ask_user')
+
+    await ask.execute('question-1', { questions: [{ question: '选择要核对的文件', options: [{ label: 'A' }, { label: 'B' }], multiSelect: true }] })
+
+    expect(database.harness.setPendingInteraction).toHaveBeenCalledWith('session-1', expect.objectContaining({ questions: [expect.objectContaining({ multiSelect: true, options: [{ label: 'A' }, { label: 'B' }] })] }))
+  })
+
   it('runs the planning agent with the persisted plan instead of the pre-plan session snapshot', async () => {
     const sender = { isDestroyed: () => false, send: vi.fn() }
     const existingSession = { id: 'session-1', messages: [{ role: 'user', content: '规划这项改动' }], permissionMode: 'default' }
@@ -243,6 +262,8 @@ describe('runPromptSuffix', () => {
     expect(runPromptSuffix({ origin: 'manual', planning: true })).not.toContain('## 已确认执行方案')
     expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('## 已确认执行方案')
     expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('统一口径')
+    expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('不要再次要求用户确认')
+    expect(runPromptSuffix({ origin: 'manual', activePlan: executingPlan })).toContain('按步骤执行')
     expect(runPromptSuffix({ origin: 'manual', planning: true, activePlan: { ...executingPlan, status: 'awaiting_confirmation' } })).toContain('## 当前处于计划模式')
   })
 

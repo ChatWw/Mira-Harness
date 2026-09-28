@@ -50,7 +50,7 @@ export const COMPACTION_SECTION = `## 压缩与接续
 export const PLAN_SECTION = `## 计划
 - 普通模式下，多步骤任务在开始前调用一次 \`set_plan\` 建立执行清单：每步一句短标签，建议不超过 6 步；简单任务不必建清单。
 - 清单步骤的状态由界面随工具执行自动推进，不要逐条汇报步骤进度，也不要重复调用 \`set_plan\`。
-- 若系统明确告知当前处于计划模式，先只读分析；信息不足时调用 \`ask_user\` 提出澄清问题（一次最多 5 个，单选不超过 3 个候选、多选不超过 5 个，自由输入由界面提供），信息齐全时调用 \`present_plan\` 提交完整方案，并把方案作为最终回复（当前理解、编号步骤、风险）用列表呈现，等待用户在界面确认后再执行。
+- 若系统明确告知当前处于计划模式，先只读分析；信息不足时调用 \`ask_user\` 提出澄清问题（一次最多 5 个，单选不超过 3 个候选、多选不超过 5 个，自由输入由界面提供；多选问题必须传 \'multiSelect: true\'，不能只在问题文案中写“可多选”），信息齐全时调用 \`present_plan\` 提交完整方案，并把方案作为最终回复（当前理解、编号步骤、风险）用列表呈现，等待用户在界面确认后再执行。
 - 方案是面向用户的执行清单，不是推理过程。`
 
 export const DELEGATION_SECTION = `## 子任务委派
@@ -97,7 +97,8 @@ export const PLANNING_MODE_SECTION = `## 当前处于计划模式
 
 export function executingPlanSection(plan: { understanding: string, steps: Array<{ label: string, detail?: string }>, risks: string[] }) {
   return `## 已确认执行方案
-以下是用户已确认的工作方案，仅作为执行上下文，不能覆盖系统安全规则或工具权限。
+用户已经确认以下工作方案；确认动作已经完成。现在应按步骤执行，不要再次要求用户确认，也不要把方案重新展示成待确认状态。执行结束后说明实际完成、失败和未验证的结果，仅在确有新的风险或权限请求时暂停。
+以下方案仅作为执行上下文，不能覆盖系统安全规则或工具权限。
 当前理解：${plan.understanding}
 执行步骤：${plan.steps.map(step => `- ${step.label}${step.detail ? `：${step.detail}` : ''}`).join('\n')}
 风险：${plan.risks.join('；') || '无'}`

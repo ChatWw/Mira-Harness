@@ -116,6 +116,7 @@ const layoutRoute: RouteRecordRaw = {
   redirect: '/workspace/chat',
   component: () => import('@/layouts/index.vue'),
   children: [
+    { path: '/workspace/harness-react', name: 'HarnessReact', component: () => import('@/pages/frontend/harness/react/index.vue'), meta: { title: 'Mira Harness', showPageHeader: false, noPageTransition: true } },
     {
       path: '/workspace',
       component: () => import('@/pages/frontend/harness/LegacyHarnessLayout.vue'),
@@ -130,6 +131,7 @@ const layoutRoute: RouteRecordRaw = {
       ],
     },
     ...(import.meta.env.DEV ? [{ path: '/workspace/harness-prototype', name: 'HarnessReactPrototype', component: () => import('@/pages/frontend/harness/prototype/index.vue'), meta: { title: 'Harness React 原型', showPageHeader: false, noPageTransition: true } }] : []),
+    ...(import.meta.env.DEV ? [{ path: '/workspace/harness-pilot', name: 'HarnessReactPilot', component: () => import('@/pages/frontend/harness/pilot/index.vue'), meta: { title: 'Harness React 接入试验', showPageHeader: false, noPageTransition: true } }] : []),
     {
       path: '/micro/:code/:pathMatch(.*)*',
       name: 'MicroAppHost',

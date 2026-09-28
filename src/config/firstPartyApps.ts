@@ -5,7 +5,7 @@ export type FirstPartyAppSource =
   | { type: 'builtin'; packagePath: string }
   | { type: 'github-release'; repository: string; releaseTag: string; sha256: string }
 
-export const FIRST_PARTY_CAPABILITIES = ['models:text.generate', 'storage:novel-projects'] as const
+export const FIRST_PARTY_CAPABILITIES = ['models:text.generate', 'storage:novel-projects', 'harness:workbench'] as const
 export type FirstPartyCapability = typeof FIRST_PARTY_CAPABILITIES[number]
 export const PLATFORM_API_VERSION = { major: 1, minor: 0 } as const
 
@@ -25,7 +25,16 @@ const APP_ID_PATTERN = /^[a-z][a-z0-9-]*$/
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 const CAPABILITY_SET = new Set<string>(FIRST_PARTY_CAPABILITIES)
 
-export const firstPartyAppManifests: readonly FirstPartyAppManifest[] = []
+export const firstPartyAppManifests: readonly FirstPartyAppManifest[] = [{
+  appId: 'mira-harness',
+  legacyIds: [],
+  enabled: true,
+  trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
+  entry: { path: 'index.html' },
+  shellCompatibility: { minVersion: '0.0.10' },
+  apiCompatibility: { major: 1 },
+  capabilities: ['harness:workbench'],
+}]
 
 function assertNonEmpty(value: string, field: string) {
   if (!value.trim()) throw new Error(`${field} 不能为空`)

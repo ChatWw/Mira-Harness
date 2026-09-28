@@ -12,7 +12,7 @@
       v-else
       class="harness-prototype-host__frame"
       :name="PROTOTYPE_NAME"
-      url="http://127.0.0.1:9000/harness-prototype/"
+      :url="prototypeUrl"
       width="100%"
       height="100%"
       :alive="false"
@@ -31,6 +31,7 @@ import { useThemeStore } from '@/stores/theme'
 
 const themeStore = useThemeStore()
 const PROTOTYPE_NAME = 'mira-harness-react-prototype'
+const prototypeUrl = `${window.location.origin}/harness-prototype/`
 const error = ref('')
 const childProps = computed(() => ({ theme: themeStore.themeMode }))
 function syncTheme() { WujieVue.bus.$emit('mira:harness-prototype-theme', themeStore.themeMode) }

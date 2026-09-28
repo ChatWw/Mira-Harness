@@ -120,6 +120,7 @@ export interface PlatformApi {
   listFirstPartyNovelProjects(grantId: string): Promise<import('@/config/novel').NovelProjectSummary[]>
   getFirstPartyNovelProject(grantId: string, id: string): Promise<import('@/config/novel').NovelProjectDocument>
   saveFirstPartyNovelProject(grantId: string, project: import('@/config/novel').NovelProjectDocument): Promise<import('@/config/novel').NovelProjectDocument>
+  invokeFirstPartyHarness(grantId: string, method: string, params?: unknown): Promise<unknown>
   testNovelModelConnection(role: import('@/config/novel').NovelModelRole, prompt?: string): Promise<{ ok: boolean; text: string }>
   listNovelProjects(): Promise<import('@/config/novel').NovelProjectSummary[]>
   getNovelProject(id: string): Promise<import('@/config/novel').NovelProjectDocument>
@@ -228,6 +229,7 @@ export interface PlatformApi {
   restoreHarnessTrash(projectId: string, token: string): Promise<void>
   onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
   respondHarnessPermission(requestId: string, allowed: boolean): Promise<void>
+  listPendingHarnessPermissions(sessionId: string): Promise<import('@/config/harness').HarnessPermissionRequest[]>
   getPythonStatus(): Promise<{ ready: boolean, path: string, version: string, bundled: boolean }>
   pythonExec(script: string, args?: string[]): Promise<{ stdout: string, stderr: string, code: number }>
   pythonInstallPackage(packageName: string): Promise<{ stdout: string, stderr: string, code: number }>

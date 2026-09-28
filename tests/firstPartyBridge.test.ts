@@ -23,6 +23,7 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
     listFirstPartyNovelProjects: vi.fn(async () => []),
     getFirstPartyNovelProject: vi.fn(async () => ({ id: 'project-1' })),
     saveFirstPartyNovelProject: vi.fn(async (_grantId, project) => project),
+    invokeFirstPartyHarness: vi.fn(async (_grantId, method) => ({ method })),
   } as unknown as PlatformApi
   const navigate = vi.fn()
   const options = { manifest: { ...manifest, ...overrides }, grantId: 'grant-for-novel', api, context, route: '/chapter/1', navigate }
@@ -77,5 +78,13 @@ describe('first-party capability bridge', () => {
     expect(entry.api.listFirstPartyNovelProjects).toHaveBeenCalledWith('grant-for-novel')
     expect(entry.api.getFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', 'project-1')
     expect(entry.api.saveFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', expect.objectContaining({ id: 'project-1' }))
+  })
+
+  it('routes only the validated Harness surface through the owning grant', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.sessions.list')).resolves.toEqual({ method: 'sessions.list' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenCalledWith('grant-for-novel', 'sessions.list', {})
+    await expect(entry.request('harness.message.run', { sessionId: 's', text: 'run', planning: false, selection: { providerId: 'p', modelId: 'm' }, extra: 'ignored' })).resolves.toEqual({ method: 'message.run' })
+    await expect(entry.request('harness.message.run', { sessionId: 's', text: 'run', planning: false, selection: { providerId: 'p' } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   })
 })

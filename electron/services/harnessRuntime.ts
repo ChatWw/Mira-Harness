@@ -419,6 +419,10 @@ export class HarnessRuntime {
     this.permissionPolicy.resolve(requestId, allowed)
   }
 
+  listPendingPermissions(sessionId: string) {
+    return this.permissionPolicy.listPending(sessionId)
+  }
+
   respondMemoryConfirmation(requestId: string, approved: boolean) {
     this.memoryCoordinator.respondConfirmation(requestId, approved)
   }
@@ -752,6 +756,7 @@ export class HarnessRuntime {
     }
     let output = ''
     let pendingAssistantDelta = ''
+    let planningInteractionCanonical = false
     const sources: HarnessSource[] = []
     let assistantPersistTimer: ReturnType<typeof setTimeout> | undefined
     let assistantFinalized = false
@@ -809,6 +814,13 @@ export class HarnessRuntime {
     })
     try {
       await agent.prompt(text)
+      if (options.planning && !controller.signal.aborted && !agent.state.errorMessage && this.database.harness.getSession(sessionId).pendingInteraction?.status !== 'waiting') {
+        await agent.prompt('系统提醒：当前仍处于计划模式。请调用 ask_user 提出必要澄清，或调用 present_plan 提交可确认的完整方案；不要只在普通回复中写问题或计划。')
+        planningInteractionCanonical = this.database.harness.getSession(sessionId).pendingInteraction?.status === 'waiting'
+        if (!controller.signal.aborted && this.database.harness.getSession(sessionId).pendingInteraction?.status !== 'waiting') {
+          throw new Error('模型未提交可确认的计划或澄清问题，请重新描述任务后重试')
+        }
+      }
       if (controller.signal.aborted) throw new Error('回复已停止')
       // A parent is not allowed to leave child work behind. If it did not
       // converge itself, wait and give it one explicit convergence turn.
@@ -827,6 +839,11 @@ export class HarnessRuntime {
           this.emit(sender, { sessionId, type: 'message-delta', payload: { delta } })
         }
         output = finalText
+      }
+      if (planningInteractionCanonical) {
+        output = this.database.harness.getSession(sessionId).pendingInteraction?.kind === 'question'
+          ? '我需要先确认几个关键信息。'
+          : '方案已整理，请确认是否开始执行。'
       }
       if (!output && options.planning && this.database.harness.getSession(sessionId).pendingInteraction?.status === 'waiting') {
         output = this.database.harness.getSession(sessionId).pendingInteraction?.kind === 'question' ? '我需要先确认几个关键信息。' : '方案已整理，请确认是否开始执行。'

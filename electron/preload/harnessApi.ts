@@ -74,6 +74,7 @@ export const harnessApi = {
     return () => ipcRenderer.removeListener('harness:event', handler)
   },
   respondHarnessPermission: (requestId: string, allowed: boolean) => ipcRenderer.invoke('harness:respond-permission', requestId, allowed),
+  listPendingHarnessPermissions: (sessionId: string) => ipcRenderer.invoke('harness:list-pending-permissions', sessionId),
   getPythonStatus: () => ipcRenderer.invoke('harness:python-status'),
   pythonExec: (script: string, args: string[] = []) => ipcRenderer.invoke('harness:python-exec', script, args),
   pythonInstallPackage: (packageName: string) => ipcRenderer.invoke('harness:python-install-package', packageName),

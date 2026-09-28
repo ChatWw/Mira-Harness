@@ -9,6 +9,8 @@ import { AutomationScheduler } from './automationScheduler'
 import type { MiraPaths } from '../storage/miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from '../storage/miraDataMigration'
 import type { HarnessEvent } from '../../src/config/harness'
+import { app } from 'electron'
+import { join, resolve } from 'node:path'
 
 const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 
@@ -54,6 +56,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   automationScheduler.start()
   const pythonEnvironment = new PythonEnvironment()
   const localMicroAppServer = new LocalMicroAppServer({
+    builtinRoots: { 'harness-react-app': app.isPackaged ? join(process.resourcesPath, 'harness-react-app') : resolve(app.getAppPath(), 'dist/harness-react-app') },
     apiHandlers: new Map([['novel', { capability: 'models:text.generate', handle: createNovelApiHandler(database) }]]),
   })
   const preferences = database.getSnapshot().preferences

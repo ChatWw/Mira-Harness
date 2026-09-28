@@ -13,6 +13,7 @@ export const platformApi = {
   listFirstPartyNovelProjects: (grantId: string) => ipcRenderer.invoke('platform:first-party-list-novel-projects', grantId),
   getFirstPartyNovelProject: (grantId: string, id: string) => ipcRenderer.invoke('platform:first-party-get-novel-project', grantId, id),
   saveFirstPartyNovelProject: (grantId: string, project: unknown) => ipcRenderer.invoke('platform:first-party-save-novel-project', grantId, project),
+  invokeFirstPartyHarness: (grantId: string, method: string, params?: unknown) => ipcRenderer.invoke('platform:first-party-harness', grantId, method, params),
   exportSnapshot: () => ipcRenderer.invoke('platform:export-snapshot'),
   importSnapshot: (snapshot: string) => ipcRenderer.invoke('platform:import-snapshot', snapshot),
   restoreDefaults: () => ipcRenderer.invoke('platform:restore-defaults'),

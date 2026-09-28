@@ -90,7 +90,7 @@ describe('platform database migration', () => {
     legacy.close()
 
     const database = new PlatformDatabase(directory)
-    expect(database.getSnapshot().microApps).toEqual([])
+    expect(database.getSnapshot().microApps.map(app => app.code)).toEqual(['mira-harness'])
     expect(database.getSnapshot().mainMenus.map(menu => menu.id)).toEqual([AI_NOVEL_MENU.id])
     expect(database.novels.listProjects()).toEqual([])
     database.close()

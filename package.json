@@ -18,6 +18,10 @@
     "preview": "vite preview",
     "desktop:dev": "electron-vite dev",
     "prototype:harness": "node scripts/dev-harness-prototype.mjs",
+    "harness:build": "node scripts/build-harness-react.mjs",
+    "predesktop:dev": "npm run harness:build",
+    "predesktop:build": "npm run harness:build",
+    "predesktop:build:win": "npm run harness:build",
     "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64",
     "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3 --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
   },
@@ -50,6 +54,11 @@
     ],
     "extraResources": [
       {
+        "from": "dist/harness-react-app",
+        "to": "harness-react-app",
+        "filter": ["**/*"]
+      },
+      {
         "from": "resources/python",
         "to": "python",
         "filter": [
@@ -59,6 +68,7 @@
     ]
   },
   "dependencies": {
+    "@assistant-ui/react": "0.15.22",
     "@earendil-works/pi-agent-core": "^0.84.1",
     "@earendil-works/pi-ai": "^0.84.1",
     "@element-plus/icons-vue": "^2.3.2",

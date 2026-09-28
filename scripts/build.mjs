@@ -6,6 +6,7 @@ const startedAtNanoseconds = process.hrtime.bigint()
 
 execFileSync('vue-tsc', { stdio: 'inherit' })
 execFileSync('vite', ['build'], { stdio: 'inherit' })
+execFileSync(process.execPath, ['scripts/build-harness-react.mjs'], { stdio: 'inherit' })
 
 writeBuildLog({
   startedAt,

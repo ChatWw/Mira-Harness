@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
-import type { HarnessEvent, PermissionMode } from '../../src/config/harness'
+import type { HarnessEvent, HarnessPermissionRequest, PermissionMode } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 
 export type ToolRisk = 'read' | 'write' | 'command' | 'mcp'
@@ -14,7 +14,7 @@ export type ToolDescriptor = {
 type PublishEvent = (sender: WebContents | undefined, event: HarnessEvent) => unknown
 
 export class HarnessPermissionPolicy {
-  private readonly pending = new Map<string, { resolve: (allowed: boolean) => void, timer: ReturnType<typeof setTimeout> }>()
+  private readonly pending = new Map<string, { request: HarnessPermissionRequest, resolve: (allowed: boolean) => void, timer: ReturnType<typeof setTimeout> }>()
 
   constructor(private readonly database: PlatformDatabase, private readonly publish: PublishEvent) {}
 
@@ -32,7 +32,7 @@ export class HarnessPermissionPolicy {
         this.publish(sender, { sessionId, type: 'error', payload: { message: '权限确认超时，已取消该操作。' } })
         resolve(false)
       }, 5 * 60 * 1000)
-      this.pending.set(requestId, { resolve, timer })
+      this.pending.set(requestId, { request: { requestId, sessionId, title, detail }, resolve, timer })
       this.publish(sender, { sessionId, type: 'permission-request', payload: { requestId, title, detail } })
     })
   }
@@ -43,6 +43,10 @@ export class HarnessPermissionPolicy {
     clearTimeout(entry.timer)
     this.pending.delete(requestId)
     entry.resolve(allowed)
+  }
+
+  listPending(sessionId: string): HarnessPermissionRequest[] {
+    return [...this.pending.values()].map(entry => entry.request).filter(request => request.sessionId === sessionId)
   }
 
   async preflight(sender: WebContents | undefined, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown, automation = false, permissionMode?: PermissionMode) {

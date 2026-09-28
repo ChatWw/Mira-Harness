@@ -2,6 +2,7 @@ import { PLATFORM_API_VERSION, type FirstPartyAppManifest } from '@/config/first
 import type { ModelSelection } from '@/config/harness'
 import type { NovelProjectDocument } from '@/config/novel'
 import type { PlatformApi, PlatformContext } from '@/types'
+import { parseFirstPartyHarnessCall } from './firstPartyHarness'
 
 export interface FirstPartyRequest {
   type: 'mira:request'
@@ -45,6 +46,15 @@ export async function handleFirstPartyRequest(options: {
 }, request: FirstPartyRequest): Promise<unknown> {
   const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
+  if (request.method.startsWith('harness.')) {
+    requireCapability(manifest, 'harness:workbench')
+    if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能使用 Harness 工作台')
+    let call: ReturnType<typeof parseFirstPartyHarnessCall>
+    try { call = parseFirstPartyHarnessCall(request.method.slice('harness.'.length), request.params) }
+    catch (error) { throw new FirstPartyBridgeError('INVALID_REQUEST', error instanceof Error ? error.message : 'Harness 请求无效') }
+    const { method, ...params } = call
+    return api.invokeFirstPartyHarness(grantId, method, params)
+  }
   switch (request.method) {
     case 'context.get':
       return { ...context, appId: manifest.appId, apiVersion: { ...PLATFORM_API_VERSION }, capabilities: [...manifest.capabilities], route }

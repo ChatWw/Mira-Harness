@@ -512,6 +512,13 @@ export interface HarnessEvent {
   payload: Record<string, unknown>
 }
 
+export interface HarnessPermissionRequest {
+  requestId: string
+  sessionId: string
+  title: string
+  detail: string
+}
+
 export interface ModelProviderInput {
   id?: string
   providerKey?: ModelProviderKey

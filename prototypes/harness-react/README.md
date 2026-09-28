@@ -11,9 +11,17 @@
 
 ## 启动
 
-在仓库根目录运行 `npm run prototype:harness`，然后在开发版中打开 `/workspace/harness-prototype`。脚本同时启动 Electron 开发版和本地 React 资源服务（端口 9001）；如果已经有开发版占用端口 9000，请先关闭旧实例。
+在仓库根目录运行 `npm run prototype:harness`，然后在开发版中打开 `/workspace/harness-prototype`。脚本同时启动 Electron 开发版和本地 React 资源服务（端口 9001）；Electron 渲染器使用其实际开发端口并通过同源代理加载 React 资源。若端口已被旧开发实例占用，请先确认当前运行的是哪个实例。
 
 React 的 TSX/CSS 被 esbuild 监听并打成经典脚本，提供给 Wujie。修改原型文件后需要重新进入原型路由或手动刷新；这条链路不宣称具备 Vite HMR。现有 Vue Harness 仍在 `/workspace/chat`，顶部可以随时切回。
+
+## 2026-09-28 真实数据接入试验
+
+开发态 `/workspace/harness-pilot` 使用 `@assistant-ui/react@0.15.22` 的 `ExternalStoreRuntime`、线程、消息和输入原语。Vue 宿主通过 Wujie props 只传递本试验所需的 Harness 方法；Electron 仍持有会话和运行时。Electron Vite 将 `/harness-prototype` 同源代理到本地 9001 资源服务，因此 `npm run prototype:harness` 可同时打开原演示与 pilot。测试时应先设置隔离的 `MIRA_TEST_HOME`，不得写入真实用户数据。
+
+当前覆盖会话列表/快照、新任务、模型选择、发送、流式文本、权限确认、计划确认、澄清回答和停止；终态重新读取持久化快照，卸载取消事件订阅。2026-09-28 在隔离 Electron 中用本地脚本模型验证了发送、切离再返回后的权限恢复、允许写入、文件 diff 和工具记录。拒绝审批、停止/失败恢复、完整多选澄清、真实模型和物理鼠标仍待验收。此开发态 props 接口不是生产级第一方 grant，也未替换 `/workspace/chat`。
+
+同日补充：创建任务需先选择个人工作区或项目，发送前核对页面所示目录；输入区可切换“直接执行 / 先出计划”，计划与多选澄清已接入宿主方法。自动化与构建已通过，拒绝写入、停止、计划和多选的完整桌面复验仍按交接文档第 11 节执行。
 
 单独检查原型类型：`npx tsc -p prototypes/harness-react/tsconfig.json`。主项目检查：`npx vue-tsc --noEmit`、`npm test -- --run`、`npm run build`。
 

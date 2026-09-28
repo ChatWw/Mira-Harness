@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
 import type { PlatformDatabase } from '../storage/database'
 import type { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import type { MicroApp } from '../../src/types'
@@ -6,9 +6,12 @@ import { firstPartyAppManifests, validateFirstPartyAppManifest, type FirstPartyA
 import type { ModelSelection } from '../../src/config/harness'
 import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
+import { parseFirstPartyHarnessCall } from '../../src/platform/firstPartyHarness'
+import type { HarnessRuntime } from '../services/harnessRuntime'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
+  harnessRuntime?: HarnessRuntime
   localMicroAppServer: LocalMicroAppServer
   legacyNovelApiToken?: string
   firstPartyManifests?: readonly FirstPartyAppManifest[]
@@ -37,7 +40,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, localMicroAppServer, legacyNovelApiToken, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -101,6 +104,30 @@ export function registerPlatformIpcHandlers({ database, localMicroAppServer, leg
   ipcMain.handle('platform:first-party-save-novel-project', (event, grantId: string, project: NovelProjectDocument) => {
     resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'storage:novel-projects')
     return database.novels.saveProject(project)
+  })
+  ipcMain.handle('platform:first-party-harness', (event, grantId: string, method: string, params: unknown) => {
+    resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+    if (!harnessRuntime) throw new Error('Harness 服务不可用')
+    const call = parseFirstPartyHarnessCall(method, params)
+    switch (call.method) {
+      case 'sessions.list': return database.harness.listSessions()
+      case 'projects.list': return database.harness.listProjects()
+      case 'providers.list': return database.models.list()
+      case 'session.get': return database.harness.getSession(call.id)
+      case 'session.create': return database.harness.createSession(call.projectId)
+      case 'permissions.pending': return harnessRuntime.listPendingPermissions(call.sessionId)
+      case 'permission.respond': return harnessRuntime.resolvePermission(call.requestId, call.allowed)
+      case 'run.abort': return harnessRuntime.abort(call.sessionId)
+      case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, [], call.selection, call.planning)
+      case 'plan.confirm': return harnessRuntime.confirmPlan(event.sender, call.sessionId, call.planId, call.selection)
+      case 'interaction.answer': return harnessRuntime.answerInteraction(event.sender, call.sessionId, call.interactionId, call.answers, call.selection)
+      case 'project.open': {
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        return shell.openPath(directory)
+      }
+    }
   })
   ipcMain.handle('platform:import-snapshot', (_event, snapshot: string) => {
     const next = database.importSnapshot(snapshot)

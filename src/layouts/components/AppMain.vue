@@ -1,7 +1,8 @@
 <template>
   <main class="app-main" :class="{ 'app-main--workspace': isWorkspaceRoute, 'app-main--micro-app': isMicroAppRoute }">
     <router-view v-slot="{ Component }">
-      <transition :name="transitionName" mode="out-in">
+      <component v-if="isNoTransitionRoute" :is="Component" :key="viewKey" />
+      <transition v-else :name="transitionName" mode="out-in">
         <keep-alive :include="cachedRouteNames">
           <component :is="Component" :key="viewKey" />
         </keep-alive>
@@ -31,7 +32,7 @@ const transitionName = computed(() => {
 // 同一微应用的子路由只通知宿主切换，仅显式刷新时重建 Wujie 实例。
 // 无动画路由固定 key：工作台内部自行 watch 路由参数加载内容，切对话等场景不重建组件。
 const viewKey = computed(() => {
-  if (isNoTransitionRoute.value) return 'no-transition'
+  if (isNoTransitionRoute.value) return route.name === 'HarnessChat' || route.name === 'HarnessSession' ? 'harness-chat' : `no-transition:${String(route.name || route.path)}`
   if (route.name === 'MicroAppHost') return `micro:${String(route.params.code)}:${String(route.query._t || '')}`
   if (route.meta.keepAlive === true) return `page:${route.path}:${String(route.query._t || '')}`
   return route.fullPath

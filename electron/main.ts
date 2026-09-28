@@ -36,7 +36,7 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
-  registerPlatformIpcHandlers({ database: services.database, localMicroAppServer: services.localMicroAppServer, legacyNovelApiToken: services.legacyNovelApiToken })
+  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, localMicroAppServer: services.localMicroAppServer, legacyNovelApiToken: services.legacyNovelApiToken })
   registerNovelIpcHandlers({ database: services.database })
   registerAutomationIpcHandlers({ database: services.database, automationScheduler: services.automationScheduler, cleanupExpiredTrash: services.cleanupExpiredTrash })
   registerMcpIpcHandlers({ mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager })
