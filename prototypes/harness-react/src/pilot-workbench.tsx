@@ -1,8 +1,8 @@
 import { createContext, createElement, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
 import { AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
-import { Activity, ArrowUp, Check, CircleAlert, FileCode2, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, ArrowUp, Check, CircleAlert, FileCode2, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, RotateCw, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
 import { isModelProviderAvailable, type HarnessFileChange, type HarnessMessage, type HarnessPendingInteraction, type HarnessRunActivity, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelSelection, type ToolCallRecord } from '../../../src/config/harness'
-import { getPilotTaskState, PilotController, projectPilotMessage, shouldRenderPilotStream } from './pilot-state'
+import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from './pilot-state'
 
 function UserMessage() { return <MessagePrimitive.Root className="pilot-message pilot-message--user"><span className="pilot-message__role">你</span><MessagePrimitive.Content /></MessagePrimitive.Root> }
 const StreamMessageContext = createContext<HarnessMessage | undefined>(undefined)
@@ -44,14 +44,17 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const streamMessage = lastMessage?.role === 'assistant' && lastMessage.id.startsWith('stream-') ? lastMessage : undefined
   const latestRun = [...state.messages].reverse().find(message => message.run)?.run
   const taskState = getPilotTaskState(state)
+  const taskTone = getPilotTaskTone(taskState)
+  const isExecuting = taskTone === 'running'
   const activities = state.session?.activeRun?.activities || [...state.messages].reverse().find(message => message.run)?.run?.activities || []
   const changes = state.messages.flatMap(message => (message.fileChanges || []).map(change => ({ ...change, key: `${message.id}:${change.toolCallId}` })))
   const selectedChange = changes.find(change => change.key === selectedChangeId)
   const project = state.projects.find(item => item.id === state.session?.projectId)
   const newProject = state.projects.find(item => newTarget === `project:${item.id}`)
+  const hasSession = Boolean(state.session)
   useEffect(() => {
-    if (state.session?.id) setWorkspaceOpen(true)
-  }, [state.session?.id])
+    if (hasSession) setWorkspaceOpen(true)
+  }, [hasSession])
 
   async function createTask() {
     if (!newTarget || creating) return
@@ -68,7 +71,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     setResponding(false)
   }
 
-  return <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`}>
+  return <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} data-task-state={taskTone}>
     {sessionsOpen && <aside className="pilot-nav pilot-drawer" aria-label="会话">
       <div className="pilot-nav__head"><strong>会话</strong><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={() => setNewTaskOpen(!newTaskOpen)}><Plus size={17} /></button></div>
       <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={() => setSessionsOpen(false)}><X size={15} /></button>
@@ -76,9 +79,9 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
       <div className="pilot-nav__list">{state.sessions.map(session => <button key={session.id} type="button" className={session.id === state.session?.id ? 'is-active' : ''} onClick={() => void controller.open(session.id)}><span>{session.title || '新任务'}</span><small>{session.projectName || '个人工作区'} · {session.status === 'failed' ? '失败' : session.status === 'completed' ? '已完成' : '进行中'}</small></button>)}</div>
     </aside>}
     <main className="pilot-main">
-      <header className="pilot-heading"><div className="pilot-heading__leading"><button type="button" className="pilot-heading__icon" aria-label="打开会话" aria-pressed={sessionsOpen} onClick={() => { setSessionsOpen(!sessionsOpen); if (!sessionsOpen) setWorkspaceOpen(false) }}><Menu size={17} /></button><div><small>{project?.name || '个人工作区'} / Harness</small><h1>{state.session?.title || '今天要研究、整理或完成什么？'}</h1><span className="pilot-heading__path" title={state.session?.workingDirectory}>{state.session?.workingDirectory || '新任务将在选定工作区中运行'}</span></div></div><div className="pilot-heading__actions"><div className="pilot-heading__state">{state.running ? <><LoaderCircle size={15} className="pilot-spin" />执行中</> : taskState === '执行失败' || taskState === '部分操作未完成' ? <><CircleAlert size={15} />{taskState}</> : state.session ? <><Check size={15} />就绪</> : '尚未选择任务'}</div><button type="button" className="pilot-heading__icon" aria-label="打开工作区" aria-pressed={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button></div></header>
+      <header className="pilot-heading"><div className="pilot-heading__leading"><button type="button" className="pilot-heading__icon" aria-label="打开会话" aria-pressed={sessionsOpen} onClick={() => { setSessionsOpen(!sessionsOpen); if (!sessionsOpen) setWorkspaceOpen(false) }}><Menu size={17} /></button><div><small>{project?.name || '个人工作区'} / Harness</small><h1>{state.session?.title || '今天要研究、整理或完成什么？'}</h1><span className="pilot-heading__path" title={state.session?.workingDirectory}>{state.session?.workingDirectory || '新任务将在选定工作区中运行'}</span></div></div><div className="pilot-heading__actions"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /><button type="button" className="pilot-heading__icon" aria-label="打开工作区" aria-pressed={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button></div></header>
       <div className={`pilot-thread-stage${state.session ? ' pilot-thread-stage--summary' : ''}`}>
-        {state.session && <TaskSummary taskState={taskState} running={state.running} activities={activities} changes={changes.length} onOpenWorkspace={() => { setWorkspaceOpen(true); setSessionsOpen(false); setWorkspaceTab('overview') }} />}
+        {state.session && <TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => { setWorkspaceOpen(true); setSessionsOpen(false); setWorkspaceTab('overview') }} />}
       {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
       {state.permission && <section className="pilot-action" aria-label="权限确认"><ShieldCheck size={19} /><div><strong>{state.permission.title}</strong><p>{state.permission.detail}</p><div className="pilot-action__buttons"><button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button><button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button></div></div></section>}
       {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} />}
@@ -96,7 +99,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
         {([['overview', Activity, '概览'], ['files', FileCode2, '文件'], ['changes', GitCompare, '变更'], ['terminal', TerminalSquare, '终端'], ['browser', Globe2, '浏览器']] as const).map(([id, Icon, label]) => <button key={id} type="button" className={workspaceTab === id ? 'is-active' : ''} aria-pressed={workspaceTab === id} onClick={() => setWorkspaceTab(id)}><Icon size={15} /><span>{label}</span>{id === 'changes' && changes.length > 0 && <em>{changes.length}</em>}</button>)}
       </nav>
       <div className="pilot-inspector__body">
-        {workspaceTab === 'overview' && <OverviewPanel taskState={taskState} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} />}
+        {workspaceTab === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} />}
         {workspaceTab === 'files' && <FilesPanel key={state.session?.id || 'empty'} controller={controller} directory={state.session?.workingDirectory || project?.directory} onOpenDirectory={() => void controller.openProjectDirectory()} opening={state.openingProjectDirectory} />}
         {workspaceTab === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={setSelectedChangeId} />}
         {workspaceTab === 'terminal' && <TerminalPanel controller={controller} sessionId={state.session?.id} />}
@@ -106,14 +109,20 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   </div>
 }
 
-function TaskSummary({ taskState, running, activities, changes, onOpenWorkspace }: { taskState: string; running: boolean; activities: HarnessRunActivity[]; changes: number; onOpenWorkspace: () => void }) {
-  const [expanded, setExpanded] = useState(false)
-  const current = activities.find(activity => activity.status === 'running')
-  return <aside className={`pilot-summary${expanded ? ' is-expanded' : ''}`} aria-label="任务摘要"><button type="button" className="pilot-summary__toggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="pilot-summary__signal"><span className={running ? 'is-running' : 'is-idle'} />{running ? '正在执行' : taskState}</span><strong>{current?.label || (changes ? `${changes} 个文件有变更` : '任务上下文')}</strong></button>{expanded && <div className="pilot-summary__details"><span>{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span><button type="button" onClick={onOpenWorkspace}>查看工作区 <PanelRight size={14} /></button></div>}</aside>
+function TaskStateBadge({ taskState, taskTone, running, hasSession }: { taskState: string; taskTone: PilotTaskTone; running: boolean; hasSession: boolean }) {
+  const label = running ? '执行中' : taskState === '等待下一步' ? (hasSession ? '就绪' : '尚未选择任务') : taskState
+  const showAlert = taskTone === 'waiting' || taskTone === 'partial' || taskTone === 'failed'
+  return <div className={`pilot-heading__state pilot-heading__state--${taskTone}`} aria-live="polite">{running && <LoaderCircle size={15} className="pilot-spin" />}{showAlert && <CircleAlert size={15} />}{taskTone === 'completed' && <Check size={15} />}{taskTone === 'stopped' && <Square size={13} />}{label}</div>
 }
 
-function OverviewPanel({ taskState, latestRun, activities, tools }: { taskState: string; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[] }) {
-  return <div className="pilot-panel-stack"><section className="pilot-panel-hero"><span className="pilot-panel-kicker">当前任务</span><strong>{taskState}</strong>{latestRun?.error && <p className="pilot-tool__error">{latestRun.error}</p>}</section><PanelSection title="执行活动"><div className="pilot-activity-list">{activities.length ? activities.map(activity => <div className="pilot-activity" key={activity.id}><span className={`pilot-status-dot pilot-status-dot--${activity.status}`} /><div><strong>{activity.label}</strong>{activity.detail && <small>{activity.detail}</small>}</div><small>{activity.status === 'completed' ? '已完成' : activity.status === 'running' ? '执行中' : activity.status === 'failed' ? '失败' : '待执行'}</small></div>) : <p>暂无活动</p>}</div></PanelSection><PanelSection title="工具记录">{tools.length ? tools.map(tool => <details className="pilot-tool" key={tool.id}><summary><span>{tool.tool}</span><small>{tool.status === 'ok' ? '已完成' : tool.status === 'running' ? '执行中' : tool.status === 'failed' ? '失败' : '待确认'}</small></summary>{tool.target && <p>{tool.target}</p>}{tool.error && <p className="pilot-tool__error">{tool.error}</p>}{tool.diff && <pre>{tool.diff}</pre>}</details>) : <p>暂无工具记录</p>}</PanelSection></div>
+function TaskSummary({ taskState, taskTone, running, activities, changes, onOpenWorkspace }: { taskState: string; taskTone: PilotTaskTone; running: boolean; activities: HarnessRunActivity[]; changes: number; onOpenWorkspace: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const current = activities.find(activity => activity.status === 'running')
+  return <aside className={`pilot-summary pilot-summary--${taskTone}${expanded ? ' is-expanded' : ''}`} aria-label="任务摘要"><button type="button" className="pilot-summary__toggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="pilot-summary__signal"><span className={`pilot-summary__dot pilot-summary__dot--${taskTone}`} />{running ? '正在执行' : taskState}</span><strong>{current?.label || (changes ? `${changes} 个文件有变更` : '任务上下文')}</strong></button>{expanded && <div className="pilot-summary__details"><span>{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span><button type="button" onClick={onOpenWorkspace}>查看工作区 <PanelRight size={14} /></button></div>}</aside>
+}
+
+function OverviewPanel({ taskState, taskTone, latestRun, activities, tools }: { taskState: string; taskTone: PilotTaskTone; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[] }) {
+  return <div className="pilot-panel-stack"><section className={`pilot-panel-hero pilot-panel-hero--${taskTone}`}><span className="pilot-panel-kicker">当前任务</span><strong>{taskState}</strong>{latestRun?.error && <p className="pilot-tool__error">{latestRun.error}</p>}</section><PanelSection title="执行活动"><div className="pilot-activity-list">{activities.length ? activities.map(activity => <div className="pilot-activity" key={activity.id}><span className={`pilot-status-dot pilot-status-dot--${activity.status}`} /><div><strong>{activity.label}</strong>{activity.detail && <small>{activity.detail}</small>}</div><small>{activity.status === 'completed' ? '已完成' : activity.status === 'running' ? '执行中' : activity.status === 'failed' ? '失败' : '待执行'}</small></div>) : <p>暂无活动</p>}</div></PanelSection><PanelSection title="工具记录">{tools.length ? tools.map(tool => <details className="pilot-tool" key={tool.id}><summary><span>{tool.tool}</span><small>{tool.status === 'ok' ? '已完成' : tool.status === 'running' ? '执行中' : tool.status === 'failed' ? '失败' : '待确认'}</small></summary>{tool.target && <p>{tool.target}</p>}{tool.error && <p className="pilot-tool__error">{tool.error}</p>}{tool.diff && <pre>{tool.diff}</pre>}</details>) : <p>暂无工具记录</p>}</PanelSection></div>
 }
 
 type HarnessRunSummaryLike = { error?: string }
@@ -185,7 +194,7 @@ function CapabilityPanel({ icon, title, detail }: { icon: ReactNode; title: stri
   return <div className="pilot-capability"><div className="pilot-capability__icon">{icon}</div><strong>{title}</strong><p>{detail}</p><span className="pilot-capability__status">宿主适配待接入</span></div>
 }
 
-type EmbeddedWebview = HTMLElement & { goBack(): void; goForward(): void; reload(): void; openDevTools(): void }
+type EmbeddedWebview = HTMLElement & { getWebContentsId?(): number; goBack?(): void; goForward?(): void; reload?(): void }
 
 function TerminalPanel({ controller, sessionId }: { controller: PilotController; sessionId?: string }) {
   const [terminalId, setTerminalId] = useState('')
@@ -232,6 +241,13 @@ function BrowserPanel({ controller, sessionId }: { controller: PilotController; 
   const [error, setError] = useState('')
   const webviewRef = useRef<EmbeddedWebview | null>(null)
   useEffect(() => {
+    if (!url) return
+    const timeout = window.setTimeout(() => {
+      if (!webviewRef.current?.getWebContentsId?.()) setError('工作区浏览器暂不可用，网页没有打开。')
+    }, 1500)
+    return () => window.clearTimeout(timeout)
+  }, [url])
+  useEffect(() => {
     const webview = webviewRef.current
     if (!webview) return
     const handleNavigate = (event: Event & { url?: string; preventDefault: () => void }) => {
@@ -251,7 +267,7 @@ function BrowserPanel({ controller, sessionId }: { controller: PilotController; 
     try { setError(''); setUrl(await controller.navigateBrowser(value)) }
     catch (cause) { setError(cause instanceof Error ? cause.message : '浏览器地址无效') }
   }
-  return <div className="pilot-browser"><form className="pilot-browser__toolbar" onSubmit={event => void navigate(event)}><button type="button" onClick={() => webviewRef.current?.goBack()} disabled={!url} aria-label="后退">‹</button><button type="button" onClick={() => webviewRef.current?.goForward()} disabled={!url} aria-label="前进">›</button><button type="button" onClick={() => webviewRef.current?.reload()} disabled={!url} aria-label="刷新">↻</button><input value={address} onChange={event => setAddress(event.target.value)} placeholder="输入网址 https://…" aria-label="浏览器地址" /><button type="submit" disabled={!sessionId || !address.trim()}>打开</button></form>{error && <p className="pilot-file-error" role="alert">{error}</p>}{url ? createElement('webview', { ref: (node: EmbeddedWebview | null) => { webviewRef.current = node }, src: url, partition: 'persist:mira-harness-browser', allowpopups: false, className: 'pilot-browser__view' }) : <EmptyPanel icon={<Globe2 size={20} />} text={sessionId ? '输入网址开始浏览' : '尚未选择任务'} />}</div>
+  return <div className="pilot-browser"><form className="pilot-browser__toolbar" onSubmit={event => void navigate(event)}><button type="button" onClick={() => webviewRef.current?.goBack?.()} disabled={!url || Boolean(error)} aria-label="后退" title="后退"><ArrowLeft size={14} /></button><button type="button" onClick={() => webviewRef.current?.goForward?.()} disabled={!url || Boolean(error)} aria-label="前进" title="前进"><ArrowRight size={14} /></button><button type="button" onClick={() => webviewRef.current?.reload?.()} disabled={!url || Boolean(error)} aria-label="刷新" title="刷新"><RotateCw size={14} /></button><input value={address} onChange={event => setAddress(event.target.value)} placeholder="输入网址 https://…" aria-label="浏览器地址" /><button type="submit" disabled={!sessionId || !address.trim()}>打开</button></form>{error && <p className="pilot-file-error" role="alert">{error}</p>}{url ? createElement('webview', { ref: (node: EmbeddedWebview | null) => { webviewRef.current = node }, src: url, partition: 'persist:mira-harness-browser', allowpopups: false, className: 'pilot-browser__view' }) : <EmptyPanel icon={<Globe2 size={20} />} text={sessionId ? '输入网址开始浏览' : '尚未选择任务'} />}</div>
 }
 
 function EmptyPanel({ icon, text }: { icon: ReactNode; text: string }) {

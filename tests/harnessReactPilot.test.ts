@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HarnessEvent, HarnessSession } from '../src/config/harness'
-import { getPilotTaskState, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../prototypes/harness-react/src/pilot-state'
+import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../prototypes/harness-react/src/pilot-state'
 
 function session(id: string, content = ''): HarnessSession {
   return { version: 1, id, title: id, permissionMode: 'default', messages: content ? [{ id: `${id}-answer`, role: 'assistant', content, createdAt: 1 }] : [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
@@ -46,10 +46,26 @@ describe('React Harness pilot controller', () => {
     expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [{ id: 'answer', role: 'assistant', content: '', createdAt: 1, run: { status: 'failed', startedAt: 1, completedAt: 3, durationMs: 2, activities: [] } }], session: completed, running: false })).toBe('执行失败')
   })
 
+  it('shows user confirmation before a still-running task', () => {
+    const waiting = { ...session('a'), pendingInteraction: { id: 'review', kind: 'plan-review' as const, status: 'waiting' as const, planId: 'plan', createdAt: 1 } }
+    expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [], session: waiting, running: true })).toBe('等待确认')
+    expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [], session: session('a'), running: true, permission: { sessionId: 'a', requestId: 'permission', title: '写入', detail: 'file.md' } })).toBe('等待确认')
+  })
+
   it('renders the controlled stream for both the optimistic and authoritative assistant node', () => {
     expect(shouldRenderPilotStream('optimistic', true, 'stream-1')).toBe(true)
     expect(shouldRenderPilotStream('stream-1', false, 'stream-1')).toBe(true)
     expect(shouldRenderPilotStream('other', false, 'stream-1')).toBe(false)
+  })
+
+  it('maps task states to stable visual tones', () => {
+    expect(getPilotTaskTone('正在执行')).toBe('running')
+    expect(getPilotTaskTone('等待确认')).toBe('waiting')
+    expect(getPilotTaskTone('最近任务已完成')).toBe('completed')
+    expect(getPilotTaskTone('部分操作未完成')).toBe('partial')
+    expect(getPilotTaskTone('执行失败')).toBe('failed')
+    expect(getPilotTaskTone('已停止，可继续发送')).toBe('stopped')
+    expect(getPilotTaskTone('等待下一步')).toBe('idle')
   })
 
   it('releases the old event subscription and restores a pending plan after remount', async () => {

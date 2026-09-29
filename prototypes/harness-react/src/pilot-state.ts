@@ -50,13 +50,25 @@ export function getPilotTaskState(state: PilotState) {
   const latestRun = [...state.messages].reverse().find(message => message.run)?.run
   const failedTool = state.session?.toolCalls.some(tool => tool.status === 'failed' && (!latestRun || tool.createdAt >= latestRun.startedAt))
   const failedActivity = latestRun?.activities.some(activity => activity.status === 'failed')
+  if (state.permission || state.session?.pendingInteraction?.status === 'waiting') return '等待确认'
   if (state.running) return '正在执行'
-  if (state.session?.pendingInteraction?.status === 'waiting') return '等待确认'
   if (state.session?.status === 'failed' || latestRun?.status === 'failed') return '执行失败'
   if (latestRun?.status === 'stopped') return '已停止，可继续发送'
   if (failedActivity || failedTool) return '部分操作未完成'
   if (state.session?.status === 'completed') return '最近任务已完成'
   return state.session ? '等待下一步' : '尚未开始'
+}
+
+export type PilotTaskTone = 'idle' | 'running' | 'waiting' | 'completed' | 'partial' | 'failed' | 'stopped'
+
+export function getPilotTaskTone(taskState: string): PilotTaskTone {
+  if (taskState === '正在执行') return 'running'
+  if (taskState === '等待确认') return 'waiting'
+  if (taskState === '最近任务已完成') return 'completed'
+  if (taskState === '部分操作未完成') return 'partial'
+  if (taskState === '执行失败') return 'failed'
+  if (taskState === '已停止，可继续发送') return 'stopped'
+  return 'idle'
 }
 
 export function shouldRenderPilotStream(messageId: string, isOptimistic: boolean, streamId?: string) {
