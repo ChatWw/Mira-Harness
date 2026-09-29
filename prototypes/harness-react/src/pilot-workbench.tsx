@@ -18,9 +18,9 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
   // The task workspace is part of the Harness reading flow, not a secondary
-  // destination. Keep it visible for an active task and let the user collapse
-  // it when the conversation needs the full canvas.
-  const [workspaceOpen, setWorkspaceOpen] = useState(true)
+  // destination. Open it when a task becomes active, while keeping the empty
+  // state focused on task creation.
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'files' | 'changes' | 'terminal' | 'browser'>('overview')
   const [newTarget, setNewTarget] = useState('')
   const [creating, setCreating] = useState(false)
@@ -49,6 +49,9 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const selectedChange = changes.find(change => change.key === selectedChangeId)
   const project = state.projects.find(item => item.id === state.session?.projectId)
   const newProject = state.projects.find(item => newTarget === `project:${item.id}`)
+  useEffect(() => {
+    if (state.session?.id) setWorkspaceOpen(true)
+  }, [state.session?.id])
 
   async function createTask() {
     if (!newTarget || creating) return
