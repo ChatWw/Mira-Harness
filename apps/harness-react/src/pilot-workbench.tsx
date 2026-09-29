@@ -31,11 +31,8 @@ function UserMessage() {
     <UserMessageEditor original={original} content={original?.content || ''} onCancel={() => setEditing(false)} onConfirm={async next => { setEditing(false); await controller.editAndRerun(id, next) }} />
   </MessagePrimitive.Root>
   return <MessagePrimitive.Root className="pilot-message pilot-message--user">
-    <span className="pilot-message__role">你</span>
-    <MessagePrimitive.Content />
-    {!running && <span className="pilot-message__toolbar pilot-message__toolbar--inline">
-      <button type="button" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>
-    </span>}
+    <div className="pilot-message__bubble"><MessagePrimitive.Content /></div>
+    {!running && <button type="button" className="pilot-message__edit" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}
   </MessagePrimitive.Root>
 }
 

@@ -69,13 +69,13 @@
 .pilot-workspace-resize:hover::after, .pilot-workspace-resize:active::after { left: 2px; width: 3px; background: var(--accent); }
 .pilot-workspace-resize:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .pilot-workspace-resize:focus-visible::after { left: 2px; width: 3px; background: var(--accent); }
-.pilot-heading { display: flex; min-height: 76px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 30px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, var(--soft)); }
+.pilot-heading { display: flex; min-height: 62px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 18px; padding: 11px 30px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, var(--soft)); }
 .pilot-heading__leading, .pilot-heading__actions { display: flex; min-width: 0; align-items: center; gap: 12px; }
 .pilot-heading__leading > div { min-width: 0; }
 .pilot-heading__icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: color-mix(in srgb, var(--surface) 90%, var(--soft)); transition: color .16s ease, border-color .16s ease, background .16s ease; }
 .pilot-heading__icon:hover, .pilot-heading__icon[aria-pressed='true'] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
 .pilot-heading small { color: var(--muted); font-size: 11px; }
-.pilot-heading h1 { overflow: hidden; max-width: 50ch; margin: 5px 0 0; font-size: 18px; font-weight: 680; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-heading h1 { overflow: hidden; max-width: 50ch; margin: 3px 0 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-heading__path { display: block; overflow: hidden; max-width: 50ch; margin-top: 5px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-heading__state { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 11px; }
 .pilot-heading__state--running { color: #9a6700; border-color: color-mix(in srgb, #c68a18 35%, var(--border)); background: color-mix(in srgb, #c68a18 7%, var(--surface)); }

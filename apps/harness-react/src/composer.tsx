@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CircleAlert, LoaderCircle, Paperclip, Plus, Send, Square } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { ArrowUp, CircleAlert, LoaderCircle, Paperclip, Plus, Square } from 'lucide-react'
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessFileReference, type ModelSelection, type PermissionMode } from '../../../src/config/harness'
 import type { PilotController } from './pilot-state'
 
@@ -27,6 +27,7 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
   const [skills, setSkills] = useState<Array<{ id: string; name: string }>>([])
   const [mcpServers, setMcpServers] = useState<Array<{ id: string; name: string; enabled: boolean }>>([])
   const [slashIndex, setSlashIndex] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const draft = sessionId ? drafts[sessionId] ?? '' : ''
   const slashActive = draft.startsWith('/') && !draft.includes(' ')
   const slashQuery = slashActive ? draft.slice(1).toLowerCase() : ''
@@ -44,6 +45,12 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
     if (panel === 'skills' && !skills.length) void controller.listSkills().then(list => setSkills((list as Array<{ id: string; name: string; enabled?: boolean }>).filter(skill => skill.enabled !== false).map(({ id, name }) => ({ id, name })))).catch(() => setSkills([]))
     if (panel === 'mcp' && !mcpServers.length) void controller.listMcp().then(list => setMcpServers(list.filter(server => server.enabled))).catch(() => setMcpServers([]))
   }, [controller, panel, skills.length, mcpServers.length])
+  useEffect(() => {
+    const element = textareaRef.current
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${Math.min(200, element.scrollHeight)}px`
+  }, [draft])
 
   const usage: HarnessContextUsage | undefined = state.session?.context?.usage
   const usageRatio = usage && usage.contextWindow ? Math.min(1, usage.usedTokens / usage.contextWindow) : 0
@@ -84,32 +91,6 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
   }
 
   return <div className="pilot-composer">
-    <div className="pilot-composer__settings">
-      <label htmlFor="pilot-model">模型</label>
-      <select id="pilot-model" value={state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''} onChange={event => {
-        const [providerId, modelId] = event.target.value.split(':')
-        if (providerId && modelId) controller.select({ providerId, modelId } satisfies ModelSelection)
-      }}>
-        <option value="" disabled>{choices(state).length ? '选择模型' : '请先在设置中配置模型'}</option>
-        {choices(state).map(choice => <option key={`${choice.providerId}:${choice.modelId}`} value={`${choice.providerId}:${choice.modelId}`}>{choice.label}</option>)}
-      </select>
-      <div className="pilot-perm">
-        <select aria-label="权限档位" value={state.session?.permissionMode || 'default'} onChange={event => {
-          const mode = event.target.value as PermissionMode
-          if (mode === 'full') setPanel('perm-confirm')
-          else { setPanel('none'); if (state.session) void controller.setSessionPermission(state.session.id, mode) }
-        }}>
-          {(Object.keys(PERMISSION_LABELS) as PermissionMode[]).map(mode => <option key={mode} value={mode}>{PERMISSION_LABELS[mode]}</option>)}
-        </select>
-      </div>
-      {usage && usageRatio > 0 && <span className={`pilot-context-ring${usageRatio >= .95 ? ' pilot-context-ring--critical' : usageRatio >= .8 ? ' pilot-context-ring--warning' : ''}`} title={`上下文 ${Math.round(usageRatio * 100)}%（${usage.usedTokens} / ${usage.contextWindow} tokens，${usage.source === 'reported' ? '实测' : '估算'}）`}>
-        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" opacity=".18" strokeWidth="2.4" /><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeDasharray={`${usageRatio * 50.3} 50.3`} transform="rotate(-90 10 10)" strokeLinecap="round" /></svg>
-      </span>}
-      <div className="pilot-mode" role="group" aria-label="执行模式">
-        <button type="button" className={!planning ? 'is-active' : ''} aria-pressed={!planning} onClick={() => setPlanning(false)}>直接执行</button>
-        <button type="button" className={planning ? 'is-active' : ''} aria-pressed={planning} onClick={() => setPlanning(true)}>先出计划</button>
-      </div>
-    </div>
     {panel === 'perm-confirm' && <div className="pilot-composer__panel" role="alert">
       <p><CircleAlert size={14} /> 完全访问将跳过所有工具确认（危险命令仍被拦截）。仅对当前会话生效。</p>
       <div className="pilot-composer__panel-actions">
@@ -138,21 +119,40 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
         <strong>{command.label}</strong><small>{command.hint}</small>
       </button>)}
     </div>}
-    {references.length > 0 && <div className="pilot-composer__references">{references.map(reference => <span key={reference.path} className="pilot-composer__chip" title={reference.path}><Paperclip size={11} />{reference.name}<button type="button" aria-label={`移除 ${reference.name}`} onClick={() => setReferences(previous => previous.filter(item => item.path !== reference.path))}>×</button></span>)}</div>}
     <form className="pilot-composer__form" onSubmit={event => void submit(event)}>
-      <textarea value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" />
-      {state.session && <div className="pilot-composer__starters">{STARTERS.map(starter => <button key={starter.title} type="button" onClick={() => setDraft(starter.prompt)}>{starter.title}</button>)}</div>}
-      <div className="pilot-composer__actions">
-        <span className="pilot-composer__hint">{state.running ? '任务执行中' : state.session ? 'Enter 发送，Shift+Enter 换行' : '先选择工作区'}</span>
-        <span className="pilot-composer__buttons">
-          <button type="button" className="pilot-composer__plus" title="引用文件" aria-label="引用文件" disabled={!state.session} onClick={() => void selectFiles()}><Plus size={16} /></button>
-          {state.running
-            ? <button type="button" className="pilot-composer__send" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={16} /></button>
-            : <button type="submit" className="pilot-composer__send" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><Send size={16} /></button>}
-        </span>
+      <textarea ref={textareaRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" />
+      {references.length > 0 && <div className="pilot-composer__references">{references.map(reference => <span key={reference.path} className="pilot-composer__chip" title={reference.path}><Paperclip size={11} />{reference.name}<button type="button" aria-label={`移除 ${reference.name}`} onClick={() => setReferences(previous => previous.filter(item => item.path !== reference.path))}>×</button></span>)}</div>}
+      {state.session && !draft.trim() && !state.running && <div className="pilot-composer__starters">{STARTERS.map(starter => <button key={starter.title} type="button" onClick={() => setDraft(starter.prompt)}>{starter.title}</button>)}</div>}
+      <div className="pilot-composer__bar">
+        <div className="pilot-composer__tools">
+          <button type="button" className="pilot-tool-icon" title="引用文件" aria-label="引用文件" disabled={!state.session} onClick={() => void selectFiles()}><Plus size={16} /></button>
+          <select className="pilot-chip-select" aria-label="模型" value={state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''} onChange={event => {
+            const [providerId, modelId] = event.target.value.split(':')
+            if (providerId && modelId) controller.select({ providerId, modelId } satisfies ModelSelection)
+          }}>
+            <option value="" disabled>{choices(state).length ? '选择模型' : '请先配置模型'}</option>
+            {choices(state).map(choice => <option key={`${choice.providerId}:${choice.modelId}`} value={`${choice.providerId}:${choice.modelId}`}>{choice.label}</option>)}
+          </select>
+          <select className="pilot-chip-select" aria-label="权限档位" value={state.session?.permissionMode || 'default'} onChange={event => {
+            const mode = event.target.value as PermissionMode
+            if (mode === 'full') setPanel('perm-confirm')
+            else { setPanel('none'); if (state.session) void controller.setSessionPermission(state.session.id, mode) }
+          }}>
+            {(Object.keys(PERMISSION_LABELS) as PermissionMode[]).map(mode => <option key={mode} value={mode}>{PERMISSION_LABELS[mode]}</option>)}
+          </select>
+          {usage && usageRatio > 0 && <span className={`pilot-context-ring${usageRatio >= .95 ? ' pilot-context-ring--critical' : usageRatio >= .8 ? ' pilot-context-ring--warning' : ''}`} title={`上下文 ${Math.round(usageRatio * 100)}%（${usage.usedTokens} / ${usage.contextWindow} tokens，${usage.source === 'reported' ? '实测' : '估算'}）`}>
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" opacity=".18" strokeWidth="2.4" /><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeDasharray={`${usageRatio * 50.3} 50.3`} transform="rotate(-90 10 10)" strokeLinecap="round" /></svg>
+          </span>}
+          <div className="pilot-mode" role="group" aria-label="执行模式">
+            <button type="button" className={!planning ? 'is-active' : ''} aria-pressed={!planning} onClick={() => setPlanning(false)}>直接执行</button>
+            <button type="button" className={planning ? 'is-active' : ''} aria-pressed={planning} onClick={() => setPlanning(true)}>先出计划</button>
+          </div>
+        </div>
+        {state.running
+          ? <button type="button" className="pilot-composer__send" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={15} /></button>
+          : <button type="submit" className="pilot-composer__send" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><ArrowUp size={17} /></button>}
       </div>
     </form>
-    {state.running && <p className="pilot-composer__running"><LoaderCircle size={12} className="pilot-spin" /> Mira 正在处理，可随时停止</p>}
   </div>
 }
 
