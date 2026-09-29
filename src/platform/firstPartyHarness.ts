@@ -1,4 +1,4 @@
-import { isPermissionMode, type HarnessFileReference, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '@/config/harness'
+import { isPermissionMode, type HarnessFileReference, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
