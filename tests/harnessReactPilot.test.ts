@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HarnessEvent, HarnessSession } from '../src/config/harness'
-import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../prototypes/harness-react/src/pilot-state'
+import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../apps/harness-react/src/pilot-state'
 
 function session(id: string, content = ''): HarnessSession {
   return { version: 1, id, title: id, permissionMode: 'default', messages: content ? [{ id: `${id}-answer`, role: 'assistant', content, createdAt: 1 }] : [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
@@ -288,5 +288,27 @@ describe('React Harness pilot controller', () => {
     expect(unsubscribe).toHaveBeenCalledOnce()
     emit('message-delta', { delta: 'late' })
     expect(controller.getSnapshot().messages).toEqual([])
+  })
+
+  it('restores the last model selection from host preferences and saves new picks', async () => {
+    const store = new Map<string, unknown>([['model-selection', { providerId: 'provider', modelId: 'model' }]])
+    const { host } = fixture()
+    const preferenceHost = {
+      ...host,
+      getPreference: vi.fn(async (key: string) => store.get(key) ?? null),
+      setPreference: vi.fn(async (key: string, value: unknown) => { store.set(key, value) }),
+    }
+    const persisted = new PilotController(preferenceHost)
+    await persisted.start()
+    expect(persisted.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model' })
+
+    persisted.select({ providerId: 'provider', modelId: 'model-2' })
+    expect(preferenceHost.setPreference).toHaveBeenCalledWith('model-selection', { providerId: 'provider', modelId: 'model-2' })
+
+    store.set('model-selection', { providerId: 'ghost', modelId: 'ghost' })
+    const fallback = new PilotController(preferenceHost)
+    await fallback.start()
+    expect(fallback.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model' })
+    fallback.dispose()
   })
 })

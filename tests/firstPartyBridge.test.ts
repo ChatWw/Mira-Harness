@@ -24,6 +24,8 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
     getFirstPartyNovelProject: vi.fn(async () => ({ id: 'project-1' })),
     saveFirstPartyNovelProject: vi.fn(async (_grantId, project) => project),
     invokeFirstPartyHarness: vi.fn(async (_grantId, method) => ({ method })),
+    getSnapshot: vi.fn(async () => ({ mainMenus: [], microApps: [], preferences: { 'first-party.mira-novel-studio.draft': { text: 'hi' } } })),
+    savePreference: vi.fn(async (_key: string, _value: unknown) => undefined),
   } as unknown as PlatformApi
   const navigate = vi.fn()
   const options = { manifest: { ...manifest, ...overrides }, grantId: 'grant-for-novel', api, context, route: '/chapter/1', navigate }
@@ -78,6 +80,17 @@ describe('first-party capability bridge', () => {
     expect(entry.api.listFirstPartyNovelProjects).toHaveBeenCalledWith('grant-for-novel')
     expect(entry.api.getFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', 'project-1')
     expect(entry.api.saveFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', expect.objectContaining({ id: 'project-1' }))
+  })
+
+  it('namespaces app preferences away from shell preference keys', async () => {
+    const entry = bridge()
+    await expect(entry.request('preferences.get', { key: 'draft' })).resolves.toEqual({ text: 'hi' })
+    await expect(entry.request('preferences.get', { key: 'missing' })).resolves.toBeNull()
+    await expect(entry.request('preferences.set', { key: 'draft', value: { text: 'next' } })).resolves.toBeNull()
+    expect(entry.api.savePreference).toHaveBeenCalledWith('first-party.mira-novel-studio.draft', { text: 'next' })
+    await expect(entry.request('preferences.set', { key: '../escape', value: 1 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(entry.api.savePreference).toHaveBeenCalledTimes(1)
+    await expect(entry.request('preferences.set', { key: 'big', value: 'x'.repeat(262_145) })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   })
 
   it('routes only the validated Harness surface through the owning grant', async () => {

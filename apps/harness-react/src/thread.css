@@ -1,0 +1,55 @@
+/* Task thread: message list, empty state, composer and the blocking
+   interaction cards (permission / plan / clarification / error). */
+.pilot-thread { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.pilot-thread__viewport { min-height: 0; flex: 1; overflow: auto; scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
+.pilot-thread__messages { max-width: 860px; margin: 0 auto; padding: 30px 42px 44px; }
+.pilot-message { margin: 0 0 24px; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pilot-message--user { padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--soft); box-shadow: 0 2px 8px rgba(27, 55, 60, .035); }
+.pilot-message__role { display: block; margin-bottom: 7px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .02em; }
+.pilot-empty { padding: 112px 0; text-align: center; }
+.pilot-empty strong { font-size: 20px; letter-spacing: -.02em; }
+.pilot-empty p { max-width: 42ch; margin: 10px auto 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.pilot-empty button { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; padding: 9px 15px; border: 0; border-radius: 9px; color: var(--on-accent, #fff); background: var(--accent); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 20%, transparent); font-size: 12px; }
+.pilot-empty button:hover { background: var(--accent-strong); }
+.pilot-composer { width: min(100%, 860px); margin: 0 auto; padding: 0 42px 24px; }
+.pilot-composer__settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pilot-composer__settings > label { color: var(--muted); font-size: 11px; }
+.pilot-composer select { min-width: 0; max-width: 300px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--surface); font-size: 11px; }
+.pilot-mode { display: flex; gap: 2px; margin-left: auto; padding: 2px; border: 1px solid var(--border); border-radius: 6px; }
+.pilot-mode button { padding: 4px 8px; border: 0; border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; }
+.pilot-mode button.is-active { color: var(--text); background: var(--hover); }
+.pilot-composer__form { display: block; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-soft); transition: border-color .18s ease, box-shadow .18s ease; }
+.pilot-composer__form:focus-within { border-color: color-mix(in srgb, var(--accent) 65%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), var(--shadow-soft); }
+.pilot-composer__form textarea { display: block; width: 100%; min-height: 64px; max-height: 180px; resize: vertical; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 13px; }
+.pilot-composer__actions { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.pilot-composer__actions button { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 9px; color: var(--on-accent, #fff); background: var(--accent); transition: background .18s ease, transform .18s ease; }
+.pilot-composer__actions button:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); }
+.pilot-composer__actions button:disabled { cursor: not-allowed; opacity: .4; }
+.pilot-action, .pilot-error { display: flex; gap: 10px; margin: 12px 28px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 4px 12px rgba(26, 54, 59, .04); font-size: 12px; }
+.pilot-action { background: var(--warning); }
+.pilot-action > div { min-width: 0; }
+.pilot-action p { margin: 5px 0 0; overflow-wrap: anywhere; color: var(--muted); white-space: pre-wrap; }
+.pilot-action__buttons { display: flex; gap: 8px; margin-top: 11px; }
+.pilot-action__buttons button { min-height: 32px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); }
+.pilot-action__buttons button:last-child { color: var(--on-accent, #fff); border-color: var(--accent); background: var(--accent); }
+.pilot-action__buttons button:disabled { opacity: .5; }
+.pilot-error { color: #b33f39; }
+.pilot-plan-steps { margin: 12px 0; padding-left: 20px; }
+.pilot-plan-steps li { margin-bottom: 8px; }
+.pilot-plan-steps li strong, .pilot-plan-steps li span { display: block; }
+.pilot-plan-steps li span { color: var(--muted); }
+.pilot-question { min-width: 0; margin-top: 12px; padding: 0; border: 0; }
+.pilot-question legend { font-weight: 650; }
+.pilot-question label { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; }
+.pilot-question label input { margin: 2px 0 0; accent-color: var(--accent); }
+.pilot-question label small { display: block; color: var(--muted); }
+.pilot-question textarea { display: block; width: 100%; min-height: 54px; margin-top: 9px; padding: 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--surface); resize: vertical; }
+.pilot-thread-link { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; color: var(--accent); background: var(--surface); font-size: 11px; }
+.pilot-thread-link:hover { background: var(--hover); }
+.pilot-thread-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pilot-spin { animation: pilot-spin 1s linear infinite; }
+@keyframes pilot-spin { to { transform: rotate(360deg); } }
+@media (max-width: 860px) {
+  .pilot-thread__messages, .pilot-composer { padding-left: 20px; padding-right: 20px; }
+  .pilot-action, .pilot-error { margin-left: 18px; margin-right: 18px; }
+}

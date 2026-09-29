@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { context } from 'esbuild'
 
 const directory = dirname(fileURLToPath(import.meta.url))
-const output = resolve(directory, '../../dist/harness-react-prototype')
+const output = resolve(directory, '../../dist/harness-react-dev')
 const bundler = await context({
   entryPoints: { main: resolve(directory, 'src/main.tsx'), pilot: resolve(directory, 'src/pilot-main.tsx') },
   bundle: true,
@@ -21,12 +21,12 @@ await bundler.rebuild()
 await bundler.watch()
 
 const paths = {
-  '/harness-prototype/': { file: resolve(directory, 'index.html'), type: 'text/html; charset=utf-8' },
-  '/harness-prototype/main.js': { file: resolve(output, 'main.js'), type: 'text/javascript; charset=utf-8' },
-  '/harness-prototype/main.css': { file: resolve(output, 'main.css'), type: 'text/css; charset=utf-8' },
-  '/harness-prototype/pilot/': { file: resolve(directory, 'pilot.html'), type: 'text/html; charset=utf-8' },
-  '/harness-prototype/pilot.js': { file: resolve(output, 'pilot.js'), type: 'text/javascript; charset=utf-8' },
-  '/harness-prototype/pilot.css': { file: resolve(output, 'pilot.css'), type: 'text/css; charset=utf-8' },
+  '/harness-react-dev/': { file: resolve(directory, 'index.html'), type: 'text/html; charset=utf-8' },
+  '/harness-react-dev/main.js': { file: resolve(output, 'main.js'), type: 'text/javascript; charset=utf-8' },
+  '/harness-react-dev/main.css': { file: resolve(output, 'main.css'), type: 'text/css; charset=utf-8' },
+  '/harness-react-dev/pilot/': { file: resolve(directory, 'pilot.html'), type: 'text/html; charset=utf-8' },
+  '/harness-react-dev/pilot.js': { file: resolve(output, 'pilot.js'), type: 'text/javascript; charset=utf-8' },
+  '/harness-react-dev/pilot.css': { file: resolve(output, 'pilot.css'), type: 'text/css; charset=utf-8' },
 }
 const server = createServer(async (request, response) => {
   const asset = paths[request.url || '']
@@ -34,9 +34,9 @@ const server = createServer(async (request, response) => {
   try {
     response.writeHead(200, { 'Content-Type': asset.type, 'Cache-Control': 'no-store' })
     response.end(await readFile(asset.file))
-  } catch { response.writeHead(503); response.end('Prototype is rebuilding') }
+  } catch { response.writeHead(503); response.end('Harness React dev bundle is rebuilding') }
 })
-server.listen(9001, '127.0.0.1', () => console.log('Harness React prototype: http://127.0.0.1:9001/harness-prototype/'))
+server.listen(9001, '127.0.0.1', () => console.log('Harness React dev server: http://127.0.0.1:9001/harness-react-dev/'))
 async function close() { server.close(); await bundler.dispose() }
 process.once('SIGINT', () => { void close() })
 process.once('SIGTERM', () => { void close() })

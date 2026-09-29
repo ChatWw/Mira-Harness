@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 
 const processes = [
   spawn('npm', ['run', 'desktop:dev'], { stdio: 'inherit' }),
-  spawn(process.execPath, ['prototypes/harness-react/dev.mjs'], { stdio: 'inherit' }),
+  spawn(process.execPath, ['apps/harness-react/dev.mjs'], { stdio: 'inherit' }),
 ]
 
 let closing = false

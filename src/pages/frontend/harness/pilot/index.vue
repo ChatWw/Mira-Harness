@@ -2,7 +2,7 @@
   <main class="pilot-host">
     <header class="pilot-host__bar"><span>Harness · React 接入试验</span><router-link to="/workspace/chat">返回现有工作台</router-link></header>
     <div v-if="!host" class="pilot-host__notice" role="alert">此试验仅在 Mira 桌面端可用。</div>
-    <WujieVue v-else class="pilot-host__frame" :name="PILOT_NAME" :url="pilotUrl" width="100%" height="100%" :alive="false" :sync="false" :props="childProps" :after-mount="syncTheme" @load-error="error = 'React 试验服务未启动，请使用 npm run prototype:harness'" />
+    <WujieVue v-else class="pilot-host__frame" :name="PILOT_NAME" :url="pilotUrl" width="100%" height="100%" :alive="false" :sync="false" :props="childProps" :after-mount="syncTheme" @load-error="error = 'React 开发服务未启动，请使用 npm run harness:dev'" />
     <div v-if="error" class="pilot-host__notice" role="alert">{{ error }}</div>
   </main>
 </template>
@@ -15,7 +15,7 @@ import { getPlatformApi } from '@/platform'
 import { useThemeStore } from '@/stores/theme'
 
 const PILOT_NAME = 'mira-harness-react-pilot'
-const pilotUrl = `${window.location.origin}/harness-prototype/pilot/`
+const pilotUrl = `${window.location.origin}/harness-react-dev/pilot/`
 const api = getPlatformApi()
 const host = api && {
   listSessions: () => api.listHarnessSessions(),
@@ -31,11 +31,13 @@ const host = api && {
   abortRun: (id: string) => api.abortHarnessRun(id),
   confirmPlan: (id: string, planId: string, selection: import('@/config/harness').ModelSelection) => api.confirmHarnessPlan(id, planId, selection),
   answerInteraction: (id: string, interactionId: string, answers: import('@/config/harness').HarnessUserAnswer[], selection: import('@/config/harness').ModelSelection) => api.answerHarnessInteraction(id, interactionId, answers, selection),
+  getPreference: async (key: string) => (await api.getSnapshot()).preferences[key] ?? null,
+  setPreference: (key: string, value: unknown) => api.savePreference(key, value),
 }
 const themeStore = useThemeStore()
 const error = ref('')
-const childProps = computed(() => ({ theme: themeStore.themeMode, host }))
-function syncTheme() { WujieVue.bus.$emit('mira:harness-pilot-theme', themeStore.themeMode) }
+const childProps = computed(() => ({ theme: { theme: themeStore.themeMode, primaryColor: themeStore.primaryColor, onPrimary: themeStore.onPrimaryColor }, host }))
+function syncTheme() { WujieVue.bus.$emit('mira:harness-pilot-theme', { theme: themeStore.themeMode, primaryColor: themeStore.primaryColor, onPrimary: themeStore.onPrimaryColor }) }
 watch(() => themeStore.themeMode, syncTheme)
 onBeforeRouteLeave(() => { WujieVue.bus.$emit('mira:harness-pilot-leave') })
 </script>

@@ -269,7 +269,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 1. 读 `AGENTS.md` 和本文第 3、5、6 节。
 2. 先读本文第 3.8 节和 [`MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md`](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md)，再读 PRD 的 C/D 模块 P0/P1；第 3.6 节是已有任务链证据，不再是当前唯一下一刀。
-3. 核对已落地的 Vue Shell `src/layouts/`、迁移期 Harness 页面/状态与 `prototypes/harness-react/`，评审 React 应用内设计稿。不要把演示原型直接替换生产页面。
+3. 核对已落地的 Vue Shell `src/layouts/`、迁移期 Harness 页面/状态与 `apps/harness-react/`，评审 React 应用内设计稿。不要把演示原型直接替换生产页面。
 4. 设计确认后，先验证 Wujie + 受控授权桥的最小真实任务链，再做 React UI 接入；使用隔离数据目录，并将自动化、开发态 Electron、物理鼠标、真实模型和打包版分开记录。
 5. 第一方 Novel Studio 的授权边界和 SDK 契约保留在第 5 节及 [`MIRA_FIRST_PARTY_SDK_CONTRACT.md`](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，此批不接入真实外部包。
 
@@ -342,13 +342,13 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 ## 9. 2026-09-28 React Harness 接入试验交接
 
-**已完成**：`@assistant-ui/react@0.15.22` 锁定；开发态 `/workspace/harness-pilot` 由 `src/pages/frontend/harness/pilot/index.vue` 承载 React/Wujie，有限宿主方法来自 Electron `PlatformApi`；`prototypes/harness-react/src/pilot-state.ts` 管理会话、事件和卸载，`pilot-workbench.tsx` 使用 assistant-ui 原语。Electron Vite 同源代理开发资源至 9001，原演示与 `/workspace/chat` 保持不变。本批没有提交或推送。
+**已完成**：`@assistant-ui/react@0.15.22` 锁定；开发态 `/workspace/harness-pilot` 由 `src/pages/frontend/harness/pilot/index.vue` 承载 React/Wujie，有限宿主方法来自 Electron `PlatformApi`；`apps/harness-react/src/pilot-state.ts` 管理会话、事件和卸载，`pilot-workbench.tsx` 使用 assistant-ui 原语。Electron Vite 同源代理开发资源至 9001，原演示与 `/workspace/chat` 保持不变。本批没有提交或推送。
 
-**验证**：全量 Vitest 64 文件 271 项、`npx tsc -p prototypes/harness-react/tsconfig.json`、`npx vue-tsc --noEmit`、`npm run build`、`npx electron-vite build` 和 `git diff --check` 通过；Electron 开发服务启动，pilot 与原演示的 HTML/JS 经同源代理 HTTP 200。测试只证明代码路径和资源可达，未证明真实模型、权限与文件写入、macOS/Windows 窗口交互或打包版。
+**验证**：全量 Vitest 64 文件 271 项、`npx tsc -p apps/harness-react/tsconfig.json`、`npx vue-tsc --noEmit`、`npm run build`、`npx electron-vite build` 和 `git diff --check` 通过；Electron 开发服务启动，pilot 与原演示的 HTML/JS 经同源代理 HTTP 200。测试只证明代码路径和资源可达，未证明真实模型、权限与文件写入、macOS/Windows 窗口交互或打包版。
 
 **当时剩余（恢复和 diff 已在第 10 节解决）**：隔离 Electron 桌面任务链、审批拒绝、停止/失败恢复和计划/澄清仍待验收。开发态 Wujie props 不是生产安全授权边界。
 
-**下一次开工入口**：运行 `npm run prototype:harness`，在桌面开发版打开 `/workspace/harness-pilot`；从 `pilot-state.ts` 的事件和快照一致性及 `pilot-workbench.tsx` 的 Harness 专属 UI 继续。真实验收通过后，再设计生产第一方授权和逐步替换 `/workspace/chat` 的迁移关口。
+**下一次开工入口**：运行 `npm run harness:dev`，在桌面开发版打开 `/workspace/harness-pilot`；从 `pilot-state.ts` 的事件和快照一致性及 `pilot-workbench.tsx` 的 Harness 专属 UI 继续。真实验收通过后，再设计生产第一方授权和逐步替换 `/workspace/chat` 的迁移关口。
 
 ## 10. 2026-09-28 React pilot 任务链与恢复交接
 
@@ -358,7 +358,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 **剩余**：pilot 的拒绝审批、停止/失败恢复、计划和多选澄清仍需真实桌面链路验证；当前成果仅预览已记录 diff，没有任意文件打开能力。生产第一方授权、真实模型、物理鼠标、打包安装版、Windows 和真实旧数据均待验收；不得据此删除旧 Vue Harness。
 
-**下一次开工入口**：先读 `prototypes/harness-react/src/pilot-state.ts`、`pilot-workbench.tsx` 与 `tests/harnessReactPilot.test.ts`，在隔离 `MIRA_TEST_HOME` 下用本地脚本模型补拒绝/停止/计划/澄清四类状态；之后再设计生产级第一方 grant 和旧页迁移门槛。不要把 `/tmp` 中的测试模型或文件加入仓库。
+**下一次开工入口**：先读 `apps/harness-react/src/pilot-state.ts`、`pilot-workbench.tsx` 与 `tests/harnessReactPilot.test.ts`，在隔离 `MIRA_TEST_HOME` 下用本地脚本模型补拒绝/停止/计划/澄清四类状态；之后再设计生产级第一方 grant 和旧页迁移门槛。不要把 `/tmp` 中的测试模型或文件加入仓库。
 
 ## 11. 2026-09-28 React pilot 流程入口补齐
 
@@ -430,7 +430,7 @@ git switch --track -c codex/mira-harness-first-slice origin/codex/mira-harness-f
 
 **验证**：新增矛盾正文回归；全量 Vitest 65 文件 291 项、React/Vue 类型检查、Web/Electron 构建和 `git diff --check` 通过。重启隔离开发态 Electron 后，本地脚本模型先流式返回“本轮不调用任何工具”，第二轮调用 `present_plan`；持久化会话 `618ad1cd-0bc5-4ec5-807c-55b5b1be6c2f` 的最终正文为“方案已整理，请确认是否开始执行”，状态为 `completed`、交互为 `plan-review/waiting`。React 页面显示同一正文与计划卡片，不再显示矛盾文字。此轮是脚本模型的桌面验证，不是修复后再次用真实模型跑该分支。
 
-**隔离与下一步**：临时真实 DeepSeek 和本轮脚本提供商均已通过平台 API 从 `/tmp/mira-pilot-verify-CDOHSj/.mira/config/models.json` 删除；正式用户模型配置未修改，生产 `/workspace/chat` 保持旧 Vue。重载复核时 `9001` React 开发资源服务已退出，Wujie 画布为空；重新运行 `node prototypes/harness-react/dev.mjs` 并重载后，同一会话的计划、正文和等待状态恢复。开发态必须同时保持 Electron Vite 与 React 资源服务运行，这不是打包资源验收。核心真实模型任务链已有第 17 节证据，但实体键盘/中文输入法、物理鼠标、生产第一方授权、React 包内资源、打包 macOS/Windows 仍未验收。下一批从实体输入与生产授权/资源交付检查开始，不能据此切换默认入口。
+**隔离与下一步**：临时真实 DeepSeek 和本轮脚本提供商均已通过平台 API 从 `/tmp/mira-pilot-verify-CDOHSj/.mira/config/models.json` 删除；正式用户模型配置未修改，生产 `/workspace/chat` 保持旧 Vue。重载复核时 `9001` React 开发资源服务已退出，Wujie 画布为空；重新运行 `node apps/harness-react/dev.mjs` 并重载后，同一会话的计划、正文和等待状态恢复。开发态必须同时保持 Electron Vite 与 React 资源服务运行，这不是打包资源验收。核心真实模型任务链已有第 17 节证据，但实体键盘/中文输入法、物理鼠标、生产第一方授权、React 包内资源、打包 macOS/Windows 仍未验收。下一批从实体输入与生产授权/资源交付检查开始，不能据此切换默认入口。
 
 ## 19. 2026-09-28 输入事件边界复核
 

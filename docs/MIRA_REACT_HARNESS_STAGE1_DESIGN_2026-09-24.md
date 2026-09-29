@@ -251,7 +251,7 @@ React UI 通过受控适配层读取已有 Electron Harness API；不直接读�
 
 ## 10. 2026-09-28 开发态接入试验进展
 
-**已完成**：安装并锁定 `@assistant-ui/react@0.15.22`；增加独立 `/workspace/harness-pilot` 路由与 Wujie 子应用入口；Vue 宿主只传递会话、模型、任务、事件、停止及交互确认方法。React 用 `ExternalStoreRuntime`、Thread/Message/Composer 原语展示消息和输入；Mira 自有会话导航、模型选择、权限/计划/澄清区。事件 delta 临时投影，终态重新读取 Electron 持久化快照；切会话忽略旧请求，卸载取消事件订阅。原演示 `/workspace/harness-prototype` 和生产 `/workspace/chat` 均保留。
+**已完成**：安装并锁定 `@assistant-ui/react@0.15.22`；增加独立 `/workspace/harness-pilot` 路由与 Wujie 子应用入口；Vue 宿主只传递会话、模型、任务、事件、停止及交互确认方法。React 用 `ExternalStoreRuntime`、Thread/Message/Composer 原语展示消息和输入；Mira 自有会话导航、模型选择、权限/计划/澄清区。事件 delta 临时投影，终态重新读取 Electron 持久化快照；切会话忽略旧请求，卸载取消事件订阅。原演示 `/workspace/harness-react-dev` 和生产 `/workspace/chat` 均保留。
 
 **验证**：控制器 3 项针对性测试覆盖流式与终态快照、权限等待宿主调用、切会话/卸载；全量 Vitest 64 文件 271 项通过；React TypeScript、`vue-tsc`、Web 和 Electron 构建通过；开发资源服务经 Electron 同源代理返回 pilot HTML/JS。未验证真实模型、原生 Electron 交互、打包版、真实权限事件和成果打开。
 

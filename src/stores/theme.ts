@@ -62,6 +62,11 @@ export const useThemeStore = defineStore('theme', () => {
     () => presetColors.find(preset => preset.id === primaryPresetId.value) || presetColors[0]
   )
   const primaryColor = computed(() => activePreset.value[themeMode.value])
+  const onPrimaryColor = computed(() =>
+    themeMode.value === 'light'
+      ? activePreset.value.lightContrast || '#ffffff'
+      : activePreset.value.darkContrast || '#ffffff'
+  )
 
   // 在 store 创建时初始化主题
   applyTheme()
@@ -320,6 +325,7 @@ export const useThemeStore = defineStore('theme', () => {
     themeMode,
     themePreference,
     primaryColor,
+    onPrimaryColor,
     primaryPresetId,
     presetColors,
     toggleThemeMode,

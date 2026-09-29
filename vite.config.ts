@@ -12,7 +12,7 @@ export default defineConfig({
     port: 9000,
     strictPort: true,
     proxy: {
-      '/harness-prototype': {
+      '/harness-react-dev': {
         target: 'http://127.0.0.1:9001',
         changeOrigin: true,
       },

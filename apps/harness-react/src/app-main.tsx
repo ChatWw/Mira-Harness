@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { PilotController } from './pilot-state'
 import { PilotWorkbench } from './pilot-workbench'
 import { FirstPartyHarnessHost } from './first-party-host'
+import { applyHostTheme, type HostThemeContext } from './theme'
 import './pilot.css'
 
 const container = document.getElementById('root')!
@@ -15,9 +16,8 @@ window.addEventListener('message', event => {
   connected = true
   const host = new FirstPartyHarnessHost(event.ports[0])
   const controller = new PilotController(host)
-  const setTheme = (theme: unknown) => { container.dataset.theme = theme === 'dark' ? 'dark' : 'light' }
   event.ports[0].addEventListener('message', message => {
-    if (message.data?.type === 'mira:context') setTheme(message.data.context?.theme)
+    if (message.data?.type === 'mira:context') applyHostTheme(container, (message.data.context ?? {}) as HostThemeContext)
   })
   root.render(<React.StrictMode><PilotWorkbench controller={controller} /></React.StrictMode>)
   void controller.start()

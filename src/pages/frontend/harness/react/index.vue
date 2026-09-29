@@ -18,7 +18,7 @@ const api = getPlatformApi()
 const router = useRouter()
 const theme = useThemeStore()
 const manifest = firstPartyAppManifests.find(item => item.appId === 'mira-harness')!
-const context = computed(() => ({ version: 1 as const, theme: theme.themeMode, language: navigator.language, user: { id: 'platform', name: 'Mira' } }))
+const context = computed(() => ({ version: 1 as const, theme: theme.themeMode, language: navigator.language, primaryColor: theme.primaryColor, onPrimary: theme.onPrimaryColor, user: { id: 'platform', name: 'Mira' } }))
 const url = ref('')
 const error = ref('')
 function navigate(path: string) { void router.push(path === '/workspace/chat' ? path : '/workspace/harness-react') }

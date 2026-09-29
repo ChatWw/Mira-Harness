@@ -39,6 +39,10 @@ export interface PlatformContext {
   theme: ThemeMode
   language: string
   tenantId?: string
+  /** 当前主题预设主色（随浅色/深色模式解析），供子应用对齐强调色。 */
+  primaryColor?: string
+  /** 主色之上的前景对比色（按钮文字等）。 */
+  onPrimary?: string
   user: {
     id: string
     name: string

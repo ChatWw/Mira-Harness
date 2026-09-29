@@ -102,6 +102,23 @@ export async function handleFirstPartyRequest(options: {
       nonEmptyString(project.id, '作品 ID')
       return api.saveFirstPartyNovelProject(grantId, project as unknown as NovelProjectDocument)
     }
+    case 'preferences.get': {
+      const key = nonEmptyString(record(request.params).key, '偏好键名')
+      const snapshot = await api.getSnapshot()
+      const value = snapshot.preferences[`first-party.${manifest.appId}.${key}`]
+      return value === undefined ? null : value
+    }
+    case 'preferences.set': {
+      const params = record(request.params)
+      const key = nonEmptyString(params.key, '偏好键名')
+      if (!/^[\w.-]+$/.test(key)) throw new FirstPartyBridgeError('INVALID_REQUEST', '偏好键名无效')
+      const value = params.value === undefined ? null : params.value
+      let serialized: string
+      try { serialized = JSON.stringify(value) } catch { throw new FirstPartyBridgeError('INVALID_REQUEST', '偏好值无法序列化') }
+      if (serialized.length > 262_144) throw new FirstPartyBridgeError('INVALID_REQUEST', '偏好值过大')
+      await api.savePreference(`first-party.${manifest.appId}.${key}`, JSON.parse(serialized))
+      return null
+    }
     default:
       throw new FirstPartyBridgeError('UNKNOWN_METHOD', '平台方法不存在')
   }

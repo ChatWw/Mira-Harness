@@ -27,6 +27,9 @@ export interface PilotHost {
   setBrowserBounds(id: string, bounds: HarnessBrowserBounds): Promise<void>
   controlBrowser(id: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close'): Promise<void>
   onBrowserEvent(listener: (event: PilotBrowserEvent) => void): () => void
+  /** 宿主偏好读写（第一方命名空间）；开发态宿主可以缺省。 */
+  getPreference?(key: string): Promise<unknown>
+  setPreference?(key: string, value: unknown): Promise<void>
 }
 
 export interface PilotState {
@@ -108,8 +111,10 @@ export class PilotController {
       if (this.disposed) return
       const available = providers.flatMap(provider => isModelProviderAvailable(provider)
         ? provider.models.filter(model => model.enabled).map(model => ({ providerId: provider.id, modelId: model.id })) : [])
-      this.defaultSelection = available[0]
-      this.update({ sessions, projects, providers, selection: available[0] })
+      const storedSelection = await this.readPreference<ModelSelection>('model-selection')
+      this.defaultSelection = storedSelection && available.some(item => item.providerId === storedSelection.providerId && item.modelId === storedSelection.modelId)
+        ? storedSelection : available[0]
+      this.update({ sessions, projects, providers, selection: this.defaultSelection })
       if (sessions[0]) await this.open(sessions[0].id)
     } catch (error) { this.fail(error) }
   }
@@ -137,7 +142,17 @@ export class PilotController {
       return this.state.session?.id === session.id
     } catch (error) { this.fail(error); return false }
   }
-  select(selection: ModelSelection) { this.update({ selection }) }
+  select(selection: ModelSelection) {
+    this.update({ selection })
+    this.writePreference('model-selection', selection)
+  }
+  private readPreference<T>(key: string): Promise<T | null> {
+    if (!this.host.getPreference) return Promise.resolve(null)
+    return this.host.getPreference(key).then(value => (value ?? null) as T | null).catch(() => null)
+  }
+  private writePreference(key: string, value: unknown) {
+    void this.host.setPreference?.(key, value).catch(() => undefined)
+  }
   async send(text: string, planning = false) {
     const selection = this.state.selection
     if (!text.trim() || !selection || this.state.running || this.state.permission || this.state.session?.pendingInteraction?.status === 'waiting') return

@@ -6,7 +6,7 @@
     </header>
     <div v-if="error" class="harness-prototype-host__error" role="alert">
       <strong>原型子应用未能加载</strong>
-      <p>{{ error }}。请使用 <code>npm run prototype:harness</code> 同时启动桌面壳与 React 开发服务。</p>
+      <p>{{ error }}。请使用 <code>npm run harness:dev</code> 同时启动桌面壳与 React 开发服务。</p>
     </div>
     <WujieVue
       v-else
@@ -31,10 +31,10 @@ import { useThemeStore } from '@/stores/theme'
 
 const themeStore = useThemeStore()
 const PROTOTYPE_NAME = 'mira-harness-react-prototype'
-const prototypeUrl = `${window.location.origin}/harness-prototype/`
+const prototypeUrl = `${window.location.origin}/harness-react-dev/`
 const error = ref('')
-const childProps = computed(() => ({ theme: themeStore.themeMode }))
-function syncTheme() { WujieVue.bus.$emit('mira:harness-prototype-theme', themeStore.themeMode) }
+const childProps = computed(() => ({ theme: { theme: themeStore.themeMode, primaryColor: themeStore.primaryColor, onPrimary: themeStore.onPrimaryColor } }))
+function syncTheme() { WujieVue.bus.$emit('mira:harness-prototype-theme', { theme: themeStore.themeMode, primaryColor: themeStore.primaryColor, onPrimary: themeStore.onPrimaryColor }) }
 watch(() => themeStore.themeMode, syncTheme)
 onBeforeUnmount(() => WujieVue.destroyApp(PROTOTYPE_NAME))
 </script>

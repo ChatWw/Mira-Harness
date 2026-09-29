@@ -18,7 +18,7 @@
     "preview": "vite preview",
     "postinstall": "node scripts/prepare-node-pty.mjs",
     "desktop:dev": "electron-vite dev",
-    "prototype:harness": "node scripts/dev-harness-prototype.mjs",
+    "harness:dev": "node scripts/dev-harness-react.mjs",
     "harness:build": "node scripts/build-harness-react.mjs",
     "predesktop:dev": "npm run harness:build",
     "predesktop:build": "npm run harness:build",

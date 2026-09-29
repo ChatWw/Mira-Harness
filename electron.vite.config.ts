@@ -11,7 +11,7 @@ export default defineConfig({
   preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: resolve(__dirname, 'electron/preload.ts') } } },
   renderer: {
     root: __dirname,
-    server: { proxy: { '/harness-prototype': { target: 'http://127.0.0.1:9001', changeOrigin: true } } },
+    server: { proxy: { '/harness-react-dev': { target: 'http://127.0.0.1:9001', changeOrigin: true } } },
     define: { __MIRA_VERSION__: JSON.stringify(appVersion) },
     plugins: [vuePlugin],
     resolve: { alias: { '@': resolve(__dirname, 'src'), '@styles': resolve(__dirname, 'src/styles') } },

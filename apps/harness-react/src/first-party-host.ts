@@ -29,13 +29,17 @@ export class FirstPartyHarnessHost implements PilotHost {
     port.start()
   }
 
-  private call<T>(method: string, params?: unknown): Promise<T> {
+  private request<T>(method: string, params?: unknown): Promise<T> {
     const id = String(++this.sequence)
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: value => resolve(value as T), reject })
-      try { this.port.postMessage({ type: 'mira:request', id, method: `harness.${method}`, params }) }
+      try { this.port.postMessage({ type: 'mira:request', id, method, params }) }
       catch (error) { this.pending.delete(id); reject(error) }
     })
+  }
+
+  private call<T>(method: string, params?: unknown): Promise<T> {
+    return this.request<T>(`harness.${method}`, params)
   }
 
   listSessions = () => this.call<HarnessSessionSummary[]>('sessions.list')
@@ -61,6 +65,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   controlBrowser = (sessionId: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') => this.call<void>('browser.control', { sessionId, action })
   onEvent = (listener: (event: HarnessEvent) => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => { this.browserListeners.add(listener); return () => { this.browserListeners.delete(listener) } }
+  getPreference = (key: string) => this.request<unknown>('preferences.get', { key })
+  setPreference = (key: string, value: unknown) => this.request<void>('preferences.set', { key, value })
 
   close() {
     this.port.close()

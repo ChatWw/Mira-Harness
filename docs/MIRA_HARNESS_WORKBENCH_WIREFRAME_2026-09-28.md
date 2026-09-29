@@ -6,9 +6,9 @@
 
 2026-09-29 用户提供的 Mira 桌面截图显示：外层 Shell 含窗口控制、应用切换、搜索和设置；内层仍有 Harness 标题/旧工作台返回入口，任务线程与右侧工作区常驻并排。右侧“概览”在简单会话中占据较大空白，左侧线程和输入区因此被压窄。这是现状证据，不作为视觉目标或功能验收截图。
 
-可审阅的独立结构原型是 [`prototypes/harness-react/design-review.html`](../prototypes/harness-react/design-review.html)，可直接用桌面浏览器打开。顶部切换空态、执行中、待审批、已完成和失败恢复；会话从左侧覆盖抽屉打开；右侧工作区按需展开，默认只有任务活动，其他内容由加号打开。终端和浏览器均为演示内容，不调用模型或修改文件。
+可审阅的独立结构原型是 [`apps/harness-react/design-review.html`](../apps/harness-react/design-review.html)，可直接用桌面浏览器打开。顶部切换空态、执行中、待审批、已完成和失败恢复；会话从左侧覆盖抽屉打开；右侧工作区按需展开，默认只有任务活动，其他内容由加号打开。终端和浏览器均为演示内容，不调用模型或修改文件。
 
-固定桌面审阅图（Chrome 1440×900）：[执行中 + 文件面板](../prototypes/harness-react/design-review-running.png)、[待审批 + 活动面板](../prototypes/harness-react/design-review-approval.png)。两图展示的是同一结构在不同任务状态下的关系，不是高保真视觉稿。
+固定桌面审阅图（Chrome 1440×900）：[执行中 + 文件面板](../apps/harness-react/design-review-running.png)、[待审批 + 活动面板](../apps/harness-react/design-review-approval.png)。两图展示的是同一结构在不同任务状态下的关系，不是高保真视觉稿。
 
 2026-09-29 验证：Chrome 桌面 1440×900 下，空态摘要隐藏、工作区默认收起且页面无横向溢出；执行中可打开终端标签，终端明确显示示意标记；关闭文件标签后回到任务活动，文件重新出现在加号菜单；键盘调整工作区宽度从 592px 到 612px；会话抽屉选择已完成会话后状态随之切换。脚本语法与 `git diff --check` 通过。这是原型交互验证，不代表 Electron 正式 UI、真实终端/浏览器或模型链路验收。
 
@@ -58,7 +58,7 @@ Mira Shell：应用切换                                  全局搜索  设置
 | BrowserUseSidePaneContent | 浏览器 Tab | Electron `<webview>`、地址校验和导航控制已接入 |
 | ConversationFileSummaryPanel | 变更面板 | 已接现有持久化变更与 Diff 预览 |
 
-本轮实现入口：`prototypes/harness-react/src/pilot-workbench.tsx` 与 `prototypes/harness-react/src/pilot.css`。文件、终端和浏览器均通过第一方授权桥进入 Electron；终端进程按 renderer/session 归属回收，浏览器仅允许 http(s) 地址。
+本轮实现入口：`apps/harness-react/src/pilot-workbench.tsx` 与 `apps/harness-react/src/pilot.css`。文件、终端和浏览器均通过第一方授权桥进入 Electron；终端进程按 renderer/session 归属回收，浏览器仅允许 http(s) 地址。
 
 ## 原型状态
 
@@ -147,6 +147,6 @@ Mira Shell：应用切换                                  全局搜索  设置
 
 - 完成：用户确认工作台结构后，React Harness 进入正式高保真实现。主线程、悬浮任务摘要、任务输入区与右侧工作区完成统一视觉层；右侧概览、文件、变更、终端、浏览器面板统一语义色、间距、边框、焦点态和深色主题。会话列表仍是覆盖式抽屉，工作区支持拖拽调宽，窄桌面保持覆盖面板，不改变主线程阅读顺序。
 - 交互补齐：会话项选中后自动关闭抽屉；会话/工作区入口补充 `aria-controls` 与展开语义；工作区分隔线支持键盘左右调整并暴露 32%–54% 范围；工作区和会话抽屉具备稳定标识，方便自动化验收和辅助技术定位。
-- 验证：`npm run harness:build`、`npx tsc -p prototypes/harness-react/tsconfig.json --noEmit`、Harness/第一方/浏览器定向测试 26 项、`git diff --check` 均通过。隔离 `MIRA_TEST_HOME` 的开发 Electron 已启动并加载当前资源；本轮没有将未形成可靠输出的 CDP 截图脚本记为截图验收。
+- 验证：`npm run harness:build`、`npx tsc -p apps/harness-react/tsconfig.json --noEmit`、Harness/第一方/浏览器定向测试 26 项、`git diff --check` 均通过。隔离 `MIRA_TEST_HOME` 的开发 Electron 已启动并加载当前资源；本轮没有将未形成可靠输出的 CDP 截图脚本记为截图验收。
 - 剩余：未改变 Electron/Vue 能力协议；安装包、Windows、真实模型任务链路、xterm.js 全键盘终端、文件写回/编辑器和 BrowserView/CDP 仍未验收。高保真阶段只收敛 React 视觉与交互，不切换旧 Vue 回退入口。
 - 下一次入口：在隔离开发 Electron 中补齐执行中、待审批、完成、失败及浅色/深色/窄窗口截图矩阵；随后进入安装包终端 ABI、浏览器网络导航与窗口销毁回收验收。

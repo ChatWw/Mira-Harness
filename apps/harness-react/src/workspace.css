@@ -1,0 +1,127 @@
+/* Workspace side pane: tabs, task overview, files, changes, tools, terminal
+   and the hosted browser. */
+.pilot-inspector { display: flex; min-height: 0; flex-direction: column; border-left: 1px solid var(--border); background: var(--soft); }
+.pilot-inspector.is-collapsed { display: none; }
+.pilot-inspector__head { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; background: var(--surface); }
+.pilot-inspector__head > div { display: grid; min-width: 0; gap: 3px; }
+.pilot-inspector__head strong, .pilot-inspector__head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-inspector__head small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.pilot-inspector__head button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
+.pilot-inspector__head button:hover { color: var(--text); background: var(--hover); }
+.pilot-inspector section { padding: 17px 19px; border-bottom: 1px solid var(--border); }
+.pilot-inspector h2 { margin: 0 0 12px; font-size: 11px; font-weight: 650; }
+.pilot-inspector p, .pilot-activity small { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.pilot-path { overflow-wrap: anywhere; }
+.pilot-open-directory { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 0; border: 0; color: var(--accent); background: transparent; font-size: 11px; }
+.pilot-open-directory:disabled { cursor: not-allowed; opacity: .45; }
+.pilot-side-tabs { display: flex; height: 45px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pilot-side-tabs__list { display: flex; min-width: 0; flex: 1; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+.pilot-side-tabs__list::-webkit-scrollbar { display: none; }
+.pilot-side-tab { display: flex; min-width: 72px; max-width: 126px; height: 31px; align-items: center; border-radius: 5px; color: var(--muted); }
+.pilot-side-tab:hover, .pilot-side-tab.is-active { background: var(--hover); }
+.pilot-side-tab.is-active { color: var(--text); }
+.pilot-side-tab.is-active .pilot-side-tab__select { font-weight: 600; }
+.pilot-side-tab__select { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 5px; padding: 0 7px; border: 0; color: inherit; background: transparent; text-align: left; font-size: 11px; }
+.pilot-side-tab__select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-side-tab__select svg { flex: 0 0 auto; }
+.pilot-side-tab__select em { padding: 1px 4px; border-radius: 4px; color: var(--accent); background: var(--surface); font-size: 9px; font-style: normal; }
+.pilot-side-tab__close, .pilot-side-tabs__dismiss { display: grid; width: 22px; height: 26px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; }
+.pilot-side-tab__close:hover, .pilot-side-tabs__dismiss:hover { color: var(--text); background: var(--hover); }
+.pilot-side-tabs__menu { position: relative; flex: 0 0 auto; }
+.pilot-side-tabs__menu summary { display: grid; width: 26px; height: 28px; place-items: center; border-radius: 4px; color: var(--muted); cursor: pointer; list-style: none; }
+.pilot-side-tabs__menu summary::-webkit-details-marker { display: none; }
+.pilot-side-tabs__menu summary:hover, .pilot-side-tabs__menu[open] summary { color: var(--text); background: var(--hover); }
+.pilot-side-tabs__options { position: absolute; z-index: 6; top: 34px; right: 0; width: 154px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow-soft); }
+.pilot-side-tabs__options button { display: flex; width: 100%; align-items: center; gap: 9px; padding: 7px 8px; border: 0; border-radius: 4px; color: var(--text); background: transparent; text-align: left; font-size: 11px; }
+.pilot-side-tabs__options button:hover { background: var(--hover); }
+.pilot-side-tab button:focus-visible, .pilot-side-tabs__menu summary:focus-visible, .pilot-side-tabs__options button:focus-visible, .pilot-side-tabs__dismiss:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.pilot-inspector__body { min-height: 0; flex: 1; overflow: hidden; background: var(--soft); }
+.pilot-panel-view { display: none; min-height: 0; height: 100%; overflow: auto; }
+.pilot-panel-view.is-active { display: block; }
+.pilot-panel-stack { display: grid; gap: 0; }
+.pilot-panel-hero { display: grid; gap: 7px; padding: 21px 22px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pilot-panel-kicker { color: var(--muted); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.pilot-panel-hero strong { font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
+.pilot-panel-hero p { margin: 0; font-size: 11px; }
+.pilot-panel-hero--running, .pilot-panel-hero--waiting, .pilot-panel-hero--partial { background: color-mix(in srgb, #c68a18 4%, var(--surface)); }
+.pilot-panel-hero--completed { background: color-mix(in srgb, var(--success) 4%, var(--surface)); }
+.pilot-panel-hero--failed { background: color-mix(in srgb, #b33f39 5%, var(--surface)); }
+.pilot-inspector .pilot-panel-section { padding: 19px 22px; border-bottom: 1px solid var(--border); background: var(--soft); }
+.pilot-panel-section h2 { margin: 0 0 14px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.pilot-activity-list { display: grid; gap: 14px; }
+.pilot-activity { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; align-items: start; gap: 8px; margin: 0; font-size: 11px; }
+.pilot-activity > div { display: grid; gap: 3px; min-width: 0; }
+.pilot-activity strong { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-activity small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-status-dot { width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--muted); }
+.pilot-status-dot--running { background: #c68a18; }
+.pilot-status-dot--completed { background: #2f9a79; }
+.pilot-status-dot--failed { background: #b33f39; }
+.pilot-panel-toolbar { display: grid; gap: 12px; padding: 19px 22px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pilot-panel-toolbar > div { display: grid; gap: 4px; min-width: 0; }
+.pilot-panel-toolbar strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-panel-toolbar span { overflow: hidden; color: var(--muted); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-inline-button { display: inline-flex; width: max-content; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--surface); font-size: 10px; }
+.pilot-inline-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pilot-inline-button:disabled { cursor: not-allowed; opacity: .45; }
+.pilot-change { display: flex; width: 100%; min-width: 0; min-height: 38px; align-items: center; gap: 7px; padding: 9px 7px; border: 0; border-top: 1px solid var(--border); border-radius: 7px; color: var(--text); background: transparent; text-align: left; }
+.pilot-change span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-change:hover, .pilot-change.is-selected { color: var(--accent); background: var(--hover); }
+.pilot-change small { flex: 0 0 auto; margin-left: auto; color: var(--muted); font-size: 9px; }
+.pilot-diff { margin-top: 9px; }
+.pilot-diff strong { display: block; overflow-wrap: anywhere; font-size: 11px; }
+.pilot-diff pre, .pilot-tool pre { max-height: 230px; overflow: auto; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--surface); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pilot-tool { padding: 9px 0; border-top: 1px solid var(--border); font-size: 11px; }
+.pilot-tool summary { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; }
+.pilot-tool summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-tool summary small { flex: 0 0 auto; color: var(--muted); }
+.pilot-tool p { margin-top: 7px; overflow-wrap: anywhere; }
+.pilot-tool__error { color: #b33f39 !important; }
+.pilot-file-tree { display: grid; gap: 2px; align-content: start; padding: 14px 22px; font-size: 11px; }
+.pilot-file-tree > div { display: flex; align-items: center; gap: 7px; padding: 8px 7px; border-radius: 5px; }
+.pilot-file-tree > div:hover { background: var(--hover); }
+.pilot-tree-root { display: flex; align-items: center; gap: 7px; padding: 7px 6px; color: var(--text); font-weight: 650; }
+.pilot-tree-row { display: flex; width: 100%; min-width: 0; align-items: center; gap: 7px; padding-top: 8px; padding-right: 6px; padding-bottom: 8px; border: 0; border-radius: 5px; color: var(--text); background: transparent; text-align: left; font-size: 12px; }
+.pilot-tree-row:hover, .pilot-tree-row.is-selected { color: var(--accent); background: var(--hover); }
+.pilot-tree-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-tree-loading { padding: 5px 6px; color: var(--muted); font-size: 10px; }
+.pilot-file-tree__child { margin-left: 17px; color: var(--muted); }
+.pilot-file-error { margin: 0 18px 12px; padding: 8px 9px; border: 1px solid color-mix(in srgb, #b33f39 25%, var(--border)); border-radius: 5px; color: #b33f39; background: color-mix(in srgb, #b33f39 6%, var(--surface)); font-size: 10px; line-height: 1.5; }
+.pilot-file-preview { margin: 0 22px 20px; }
+.pilot-file-preview strong { display: block; overflow: hidden; margin-bottom: 7px; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-file-preview pre { max-height: 320px; margin: 0; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); font: 10px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pilot-file-preview__empty { display: grid; min-height: 150px; place-items: center; color: var(--muted); font-size: 11px; }
+.pilot-files { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--surface); }
+.pilot-files__content { display: flex; min-height: 0; flex: 1; }
+.pilot-files .pilot-file-tree { width: min(38%, 190px); flex: 0 0 auto; overflow: auto; padding: 9px 7px; border-right: 1px solid var(--border); }
+.pilot-files .pilot-file-preview { min-width: 0; flex: 1; overflow: auto; margin: 0; padding: 12px; }
+.pilot-files .pilot-file-preview strong { display: block; overflow: hidden; margin-bottom: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-files .pilot-file-preview pre { max-height: none; padding: 0; border: 0; background: transparent; white-space: pre; overflow-wrap: normal; }
+.pilot-files .pilot-panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; }
+.pilot-files .pilot-panel-toolbar > div { min-width: 0; flex: 1; }
+.pilot-files .pilot-panel-toolbar .pilot-inline-button { flex: 0 0 auto; margin: 0; }
+.pilot-capability { display: grid; justify-items: center; gap: 9px; padding: 62px 24px; text-align: center; }
+.pilot-capability__icon { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--border); border-radius: 12px; color: var(--accent); background: var(--soft); }
+.pilot-capability strong { font-size: 14px; }
+.pilot-capability p { max-width: 26ch; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.pilot-capability__status { padding: 4px 7px; border-radius: 4px; color: var(--muted); background: var(--soft); font-size: 9px; }
+.pilot-empty-panel { display: grid; justify-items: center; gap: 8px; padding: 62px 18px; color: var(--muted); text-align: center; font-size: 11px; }
+.pilot-terminal { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--term-bg); color: var(--term-fg); }
+.pilot-terminal__head { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--term-border); color: var(--term-head); font-size: 10px; }
+.pilot-terminal__head small { color: var(--term-muted); }
+.pilot-terminal__output { min-height: 0; flex: 1; overflow: auto; margin: 0; padding: 16px; color: var(--term-output); font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pilot-terminal .pilot-file-error, .pilot-browser .pilot-file-error { flex: 0 0 auto; margin: 8px 12px; }
+.pilot-terminal__input { display: flex; min-height: 46px; align-items: center; gap: 7px; padding: 10px 15px; border-top: 1px solid var(--term-border); color: var(--term-accent); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.pilot-terminal__input input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--term-fg); background: transparent; font: inherit; }
+.pilot-terminal__input input::placeholder { color: var(--term-placeholder); }
+.pilot-browser { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--surface); color: var(--text); }
+.pilot-browser__toolbar { display: flex; align-items: center; gap: 5px; padding: 10px; border-bottom: 1px solid var(--border); background: var(--soft); }
+.pilot-browser__toolbar button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); background: var(--surface); font-size: 15px; line-height: 1; }
+.pilot-browser__toolbar button[type='submit'] { width: auto; min-width: 38px; padding: 0 9px; font-size: 11px; white-space: nowrap; }
+.pilot-browser__toolbar button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.pilot-browser__toolbar button:disabled { cursor: not-allowed; opacity: .4; }
+.pilot-browser__toolbar input { min-width: 0; flex: 1; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--surface); font-size: 11px; }
+.pilot-browser__view { display: block; width: 100%; min-height: 0; flex: 1; border: 0; }
+@media (max-width: 860px) {
+  .pilot-summary { right: 20px; width: min(320px, calc(100% - 40px)); }
+}
