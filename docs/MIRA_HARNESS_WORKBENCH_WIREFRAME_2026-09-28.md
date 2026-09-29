@@ -67,12 +67,19 @@ Mira Shell：应用切换                                  全局搜索  设置
 - 完成：按 ZCode 的工作台结构重绘 React pilot；增加悬浮任务摘要、右侧五类工作区 Tab、文件树/变更/终端/浏览器面板入口。
 - 完成：保留已有会话、模型、消息、审批、计划、活动和 Diff 数据接线；文件面板已通过第一方 files.list/read 读取会话项目目录，并支持文本预览、目录展开、越界与符号链接边界校验。
 - 验证：定向测试 37 项通过；全量测试 67 个文件/298 项通过；React 资源构建、React TypeScript、Vue TypeScript 与 diff 检查通过。
-- 剩余：用户确认新版信息架构；浏览器仍是 `<webview>` 适配，不是 ZCode 的 BrowserView/远程 CDP 体系；文件写入/编辑器、高保真视觉和打包版验收仍未完成。
-- 下次入口：先阅读本节和“ZCode 结构映射”，再验证打包 Electron 中 node-pty ABI、webview 网络导航和窗口销毁回收，随后进入高保真视觉。
+- 历史记录：用户确认新版信息架构；浏览器仍是 `<webview>` 适配，不是 ZCode 的 BrowserView/远程 CDP 体系；文件写入/编辑器和打包版验收仍未完成。
+- 历史入口：先阅读本节和“ZCode 结构映射”，再验证打包 Electron 中 node-pty ABI、webview 网络导航和窗口销毁回收，随后进入高保真视觉。
 
 ## 2026-09-29 截图对齐记录
 
 - 完成：React Harness 活动任务默认打开右侧工作区；概览首屏按“当前任务—执行活动—工具记录”呈现，右侧五个 Tab、悬浮任务摘要和关闭入口保持不变。
-- 验证：React 资源构建、React TypeScript、Harness/第一方/IPC 定向测试 34 项及 diff 检查通过；开发 Electron 可启动并加载新资源。
+- 验证：React 资源构建、React TypeScript、Harness/第一方/IPC 定向测试 34 项及 diff 检查通过；随后全量 Vitest 为 68 个测试文件、300 项通过；开发 Electron 可启动并加载新资源。
 - 剩余：这次只校准呈现默认值和面板层级，尚未进入最终色彩、字体、动效和组件替换；终端/浏览器打包运行、xterm.js 和 BrowserView/CDP 仍待验收。
 - 下次入口：以本节和用户截图为基准制作高保真 React 设计稿；同时在打包 Electron 中验证终端 node-pty、浏览器 webview 和窗口销毁回收。
+
+## 2026-09-29 高保真首轮记录
+
+- 完成：以用户截图为视觉基准完成 React Harness 首轮高保真校准。主线程、悬浮摘要、任务输入区和右侧工作区形成清晰层级；右侧概览、文件、变更、终端、浏览器 Tab 统一了尺寸、间距、边框、状态色、焦点和深色主题。
+- 验证：React 资源构建、React TypeScript、布局检测、Harness React 定向测试 17 项和 diff 检查通过。
+- 剩余：尚未使用真实活动会话完成浅/深色截图回归；打包 Electron 的终端 ABI、浏览器网络加载、窗口销毁回收、xterm.js 全键盘交互和 BrowserView/CDP 仍未完成。
+- 下次入口：先用真实任务快照验收四种任务状态的截图和窄窗口适配，再进入打包版能力验收；不重新改变已确认的信息架构。
