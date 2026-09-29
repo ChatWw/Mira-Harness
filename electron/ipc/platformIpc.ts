@@ -162,7 +162,12 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'browser.navigate': {
         database.harness.getSession(call.sessionId)
-        return call.url
+        return { sessionId: call.sessionId, url: call.url, bounds: call.bounds }
+      }
+      case 'browser.bounds':
+      case 'browser.control': {
+        database.harness.getSession(call.sessionId)
+        return call
       }
       case 'project.open': {
         const session = database.harness.getSession(call.sessionId)

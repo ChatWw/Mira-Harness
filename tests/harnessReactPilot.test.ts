@@ -31,6 +31,9 @@ function fixture() {
     resizeTerminal: vi.fn(async () => undefined),
     closeTerminal: vi.fn(async () => undefined),
     navigateBrowser: vi.fn(async (_id, url) => url),
+    setBrowserBounds: vi.fn(async () => undefined),
+    controlBrowser: vi.fn(async () => undefined),
+    onBrowserEvent: vi.fn(() => () => undefined),
   }
   const controller = new PilotController(host)
   const emit = (type: HarnessEvent['type'], payload: Record<string, unknown>, sessionId = 'a') => listener?.({ sessionId, type, payload })

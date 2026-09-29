@@ -1,4 +1,7 @@
 import { isModelProviderAvailable, type HarnessEvent, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection } from '../../../src/config/harness'
+import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
+
+export interface PilotBrowserEvent { sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string }
 
 export interface PilotHost {
   listSessions(): Promise<HarnessSessionSummary[]>
@@ -20,7 +23,10 @@ export interface PilotHost {
   writeTerminal(id: string, terminalId: string, data: string): Promise<void>
   resizeTerminal(id: string, terminalId: string, columns: number, rows: number): Promise<void>
   closeTerminal(id: string, terminalId: string): Promise<void>
-  navigateBrowser(id: string, url: string): Promise<string>
+  navigateBrowser(id: string, url: string, bounds: HarnessBrowserBounds): Promise<string>
+  setBrowserBounds(id: string, bounds: HarnessBrowserBounds): Promise<void>
+  controlBrowser(id: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close'): Promise<void>
+  onBrowserEvent(listener: (event: PilotBrowserEvent) => void): () => void
 }
 
 export interface PilotState {
@@ -215,11 +221,21 @@ export class PilotController {
     return this.host.closeTerminal(id, terminalId)
   }
   closeTerminalFor(sessionId: string, terminalId: string) { return this.host.closeTerminal(sessionId, terminalId) }
-  navigateBrowser(url: string) {
+  navigateBrowser(url: string, bounds: HarnessBrowserBounds) {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
-    return this.host.navigateBrowser(id, url)
+    return this.host.navigateBrowser(id, url, bounds)
   }
+  setBrowserBounds(bounds: HarnessBrowserBounds) {
+    const id = this.state.session?.id
+    return id ? this.host.setBrowserBounds(id, bounds) : Promise.resolve()
+  }
+  controlBrowser(action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') {
+    const id = this.state.session?.id
+    return id ? this.host.controlBrowser(id, action) : Promise.resolve()
+  }
+  closeBrowserFor(id: string) { return this.host.controlBrowser(id, 'close') }
+  onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => this.host.onBrowserEvent(listener)
   onTerminalEvent = (listener: (event: HarnessEvent) => void) => { this.terminalListeners.add(listener); return () => { this.terminalListeners.delete(listener) } }
   private refreshList = async () => {
     const sessions = await this.host.listSessions()

@@ -31,6 +31,18 @@ function browserUrl(value: unknown) {
   return parsed.href
 }
 
+export interface HarnessBrowserBounds { x: number; y: number; width: number; height: number }
+
+function browserBounds(value: unknown): HarnessBrowserBounds {
+  const bounds = fields(value)
+  const dimension = (field: keyof HarnessBrowserBounds, min: number) => {
+    const result = bounds[field]
+    if (typeof result !== 'number' || !Number.isFinite(result) || result < min || result > 10_000) throw new Error('浏览器视图位置无效')
+    return Math.round(result)
+  }
+  return { x: dimension('x', 0), y: dimension('y', 0), width: dimension('width', 16), height: dimension('height', 16) }
+}
+
 function terminalDimension(value: unknown, name: string) {
   if (!Number.isInteger(value) || (value as number) < 2 || (value as number) > 500) throw new Error(`${name}无效`)
   return value as number
@@ -43,7 +55,12 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'files.list':
     case 'files.read':
       return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, method === 'files.list') } as const
-    case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), url: browserUrl(params.url) } as const
+    case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), url: browserUrl(params.url), bounds: browserBounds(params.bounds) } as const
+    case 'browser.bounds': return { method, sessionId: string(params.sessionId, '会话 ID'), bounds: browserBounds(params.bounds) } as const
+    case 'browser.control': {
+      if (!['back', 'forward', 'reload', 'hide', 'show', 'close'].includes(String(params.action))) throw new Error('浏览器操作无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), action: params.action as 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close' } as const
+    }
     case 'terminal.open': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     case 'terminal.write': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), data: string(params.data, '终端输入', 100_000) } as const
     case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const

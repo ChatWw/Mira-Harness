@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { shouldBlockReloadShortcut } from '../windowShortcuts'
 import { isTrustedShellNavigation } from '../security/shellNavigation'
 import { shouldAuthorizeLegacyNovelApiRequest } from '../security/legacyNovelApiAuth'
+import { HOSTED_BROWSER_PARTITION, isAllowedHostedBrowserUrl } from '../security/hostedBrowser'
 
 export interface WindowManagerOptions {
   getCloseWindowBehavior: () => 'background' | 'quit'
@@ -114,6 +115,23 @@ export function createMainWindow(options: WindowManagerOptions) {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
+  })
+  window.webContents.on('will-attach-webview', (event, preferences, params) => {
+    if (params.partition !== HOSTED_BROWSER_PARTITION || !isAllowedHostedBrowserUrl(params.src)) {
+      event.preventDefault()
+      return
+    }
+    delete preferences.preload
+    preferences.nodeIntegration = false
+    preferences.contextIsolation = true
+    preferences.sandbox = true
+    preferences.webSecurity = true
+  })
+  window.webContents.on('did-attach-webview', (_event, guest) => {
+    guest.setWindowOpenHandler(() => ({ action: 'deny' }))
+    guest.on('will-navigate', event => { if (!isAllowedHostedBrowserUrl(event.url)) event.preventDefault() })
+    guest.on('will-redirect', event => { if (!isAllowedHostedBrowserUrl(event.url)) event.preventDefault() })
+    guest.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   })
   const rendererPath = join(__dirname, '../renderer/index.html')
   const shellUrl = process.env.ELECTRON_RENDERER_URL || pathToFileURL(rendererPath).href

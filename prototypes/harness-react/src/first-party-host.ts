@@ -1,16 +1,22 @@
 import type { HarnessEvent, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, ModelProviderSummary, ModelSelection } from '../../../src/config/harness'
-import type { PilotHost } from './pilot-state'
+import type { PilotBrowserEvent, PilotHost } from './pilot-state'
+import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
 
 export class FirstPartyHarnessHost implements PilotHost {
   private sequence = 0
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
+  private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
 
   constructor(private port: MessagePort) {
     port.onmessage = message => {
       const data = message.data
       if (data?.type === 'mira:harness-event') {
         this.listeners.forEach(listener => listener(data.event as HarnessEvent))
+        return
+      }
+      if (data?.type === 'mira:browser-event') {
+        this.browserListeners.forEach(listener => listener(data.event as PilotBrowserEvent))
         return
       }
       if (data?.type !== 'mira:response' || typeof data.id !== 'string') return
@@ -50,13 +56,17 @@ export class FirstPartyHarnessHost implements PilotHost {
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
   resizeTerminal = (sessionId: string, terminalId: string, columns: number, rows: number) => this.call<void>('terminal.resize', { sessionId, terminalId, columns, rows })
   closeTerminal = (sessionId: string, terminalId: string) => this.call<void>('terminal.close', { sessionId, terminalId })
-  navigateBrowser = (sessionId: string, url: string) => this.call<string>('browser.navigate', { sessionId, url })
+  navigateBrowser = (sessionId: string, url: string, bounds: HarnessBrowserBounds) => this.call<string>('browser.navigate', { sessionId, url, bounds })
+  setBrowserBounds = (sessionId: string, bounds: HarnessBrowserBounds) => this.call<void>('browser.bounds', { sessionId, bounds })
+  controlBrowser = (sessionId: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') => this.call<void>('browser.control', { sessionId, action })
   onEvent = (listener: (event: HarnessEvent) => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
+  onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => { this.browserListeners.add(listener); return () => { this.browserListeners.delete(listener) } }
 
   close() {
     this.port.close()
     this.pending.forEach(request => request.reject(new Error('Harness 连接已关闭')))
     this.pending.clear()
     this.listeners.clear()
+    this.browserListeners.clear()
   }
 }
