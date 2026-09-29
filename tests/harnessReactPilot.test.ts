@@ -24,6 +24,13 @@ function fixture() {
     abortRun: vi.fn(async () => undefined),
     confirmPlan: vi.fn(async () => undefined),
     answerInteraction: vi.fn(async () => undefined),
+    listFiles: vi.fn(async (_id, path) => ({ path, entries: [] })),
+    readFile: vi.fn(async (_id, path) => ({ path, content: '' })),
+    openTerminal: vi.fn(async id => ({ terminalId: 'terminal-1', sessionId: id, cwd: '/tmp' })),
+    writeTerminal: vi.fn(async () => undefined),
+    resizeTerminal: vi.fn(async () => undefined),
+    closeTerminal: vi.fn(async () => undefined),
+    navigateBrowser: vi.fn(async (_id, url) => url),
   }
   const controller = new PilotController(host)
   const emit = (type: HarnessEvent['type'], payload: Record<string, unknown>, sessionId = 'a') => listener?.({ sessionId, type, payload })

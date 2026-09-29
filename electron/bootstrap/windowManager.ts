@@ -104,7 +104,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     frame: !isWindows,
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
     ...(isMac ? { trafficLightPosition: { x: 24, y: 12 } } : {}),
-    webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
+    webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true },
   })
   window.on('close', event => {
     if (options.isQuitting() || options.getCloseWindowBehavior() === 'quit') return

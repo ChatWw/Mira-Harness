@@ -284,6 +284,12 @@ export function normalizePlanSteps(steps: unknown): HarnessPlanStep[] {
     }))
 }
 
+export interface HarnessWorkspaceFileEntry {
+  name: string
+  path: string
+  type: 'directory' | 'file'
+}
+
 export interface HarnessFileChange {
   toolCallId: string
   tool: 'edit' | 'write' | 'delete'
@@ -508,7 +514,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit'
   payload: Record<string, unknown>
 }
 

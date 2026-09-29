@@ -22,8 +22,8 @@
     "predesktop:dev": "npm run harness:build",
     "predesktop:build": "npm run harness:build",
     "predesktop:build:win": "npm run harness:build",
-    "desktop:build": "electron-vite build && electron-builder --mac dmg --arm64",
-    "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3 --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
+    "desktop:build": "electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty && electron-builder --mac dmg --arm64",
+    "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
   },
   "main": "out/main/main.js",
   "build": {
@@ -56,7 +56,9 @@
       {
         "from": "dist/harness-react-app",
         "to": "harness-react-app",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "resources/python",
@@ -88,6 +90,7 @@
     "lucide-react": "^0.468.0",
     "lucide-vue-next": "^0.468.0",
     "markdown-it": "^15.0.0",
+    "node-pty": "^1.1.0",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.28.2",

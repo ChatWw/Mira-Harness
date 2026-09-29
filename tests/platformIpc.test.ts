@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { PlatformIpcDependencies } from '../electron/ipc/platformIpc'
 import { LocalMicroAppServer } from '../electron/adapters/localMicroAppServer'
 import type { FirstPartyAppManifest } from '../src/config/firstPartyApps'
@@ -33,6 +36,13 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
       listProjects: vi.fn(() => [{ id: 'project-1' }]),
       getProject: vi.fn(id => ({ version: 1, id, title: 'Project' })),
       saveProject: vi.fn(project => project),
+    },
+    harness: {
+      listSessions: vi.fn(() => []),
+      listProjects: vi.fn(() => []),
+      getSession: vi.fn((id: string) => ({ id, projectId: 'project', workingDirectory: undefined })),
+      createSession: vi.fn(() => ({ id: 'session-1' })),
+      getProject: vi.fn(() => ({ id: 'project', directory: process.cwd() })),
     },
   }
   const localMicroAppServer = {
@@ -207,6 +217,28 @@ describe('platform IPC registration', () => {
     invoke('platform:revoke-first-party-grant', grant)
     expect(() => invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toThrow('授权无效')
     expect(harnessRuntime.abort).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves files only from the active session project directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-platform-files-'))
+    try {
+      await writeFile(join(root, 'README.md'), '# Mira\n')
+      const manifest: FirstPartyAppManifest = {
+        appId: 'mira-harness', legacyIds: [], enabled: true,
+        trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
+        entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+        apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
+      }
+      const registered = register({ firstPartyManifests: [manifest], harnessRuntime: {} as PlatformIpcDependencies['harnessRuntime'] })
+      vi.mocked(registered.database.harness.getProject).mockReturnValue({ id: 'project', directory: root } as never)
+      const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.list', { sessionId: 'session-1', path: '' })).resolves.toMatchObject({ path: '', entries: [{ name: 'README.md', type: 'file' }] })
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.read', { sessionId: 'session-1', path: 'README.md' })).resolves.toEqual({ path: 'README.md', content: '# Mira\n' })
+      expect(registered.database.harness.getSession).toHaveBeenCalledWith('session-1')
+      expect(registered.database.harness.getProject).toHaveBeenCalledWith('project')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('rejects unregistered apps, missing capabilities, and malformed model requests', async () => {

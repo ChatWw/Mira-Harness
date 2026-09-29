@@ -8,6 +8,8 @@ import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 import { parseFirstPartyHarnessCall } from '../../src/platform/firstPartyHarness'
 import type { HarnessRuntime } from '../services/harnessRuntime'
+import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile } from '../services/harnessWorkspaceFiles'
+import type { HarnessTerminalSessions } from '../services/harnessTerminalSessions'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
@@ -17,6 +19,7 @@ export interface PlatformIpcDependencies {
   firstPartyManifests?: readonly FirstPartyAppManifest[]
   firstPartyGrantStore?: FirstPartyGrantStore
   fetchImpl?: typeof fetch
+  terminalSessions?: HarnessTerminalSessions
 }
 
 function boundedString(value: unknown, field: string, maxLength: number) {
@@ -40,7 +43,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -75,6 +78,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
   ipcMain.handle('platform:revoke-first-party-grant', (event, grantId: string) => {
     requireMainFrame(event)
     firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)
+    terminalSessions?.closeForWebContents(event.sender.id)
   })
   ipcMain.handle('platform:generate-first-party-text', async (event, grantId: string, role: 'authoring' | 'automation', prompt: string, selection: ModelSelection) => {
     const { grant, manifest } = resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'models:text.generate')
@@ -121,6 +125,45 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, [], call.selection, call.planning)
       case 'plan.confirm': return harnessRuntime.confirmPlan(event.sender, call.sessionId, call.planId, call.selection)
       case 'interaction.answer': return harnessRuntime.answerInteraction(event.sender, call.sessionId, call.interactionId, call.answers, call.selection)
+      case 'files.list': {
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        return listHarnessWorkspaceFiles(directory, call.path)
+      }
+      case 'files.read': {
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        return readHarnessWorkspaceFile(directory, call.path)
+      }
+      case 'terminal.open': {
+        if (!terminalSessions) throw new Error('终端服务不可用')
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        if (typeof event.sender.once === 'function') event.sender.once('destroyed', () => terminalSessions.closeForWebContents(event.sender.id))
+        return terminalSessions.open(event.sender, call.sessionId, directory)
+      }
+      case 'terminal.write': {
+        if (!terminalSessions) throw new Error('终端服务不可用')
+        terminalSessions.write(event.sender, call.sessionId, call.terminalId, call.data)
+        return undefined
+      }
+      case 'terminal.resize': {
+        if (!terminalSessions) throw new Error('终端服务不可用')
+        terminalSessions.resize(event.sender, call.sessionId, call.terminalId, call.columns, call.rows)
+        return undefined
+      }
+      case 'terminal.close': {
+        if (!terminalSessions) throw new Error('终端服务不可用')
+        terminalSessions.close(event.sender, call.sessionId, call.terminalId)
+        return undefined
+      }
+      case 'browser.navigate': {
+        database.harness.getSession(call.sessionId)
+        return call.url
+      }
       case 'project.open': {
         const session = database.harness.getSession(call.sessionId)
         const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory

@@ -1,4 +1,4 @@
-import { isModelProviderAvailable, type HarnessEvent, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionSummary, type HarnessUserAnswer, type ModelProviderSummary, type ModelSelection } from '../../../src/config/harness'
+import { isModelProviderAvailable, type HarnessEvent, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection } from '../../../src/config/harness'
 
 export interface PilotHost {
   listSessions(): Promise<HarnessSessionSummary[]>
@@ -14,6 +14,13 @@ export interface PilotHost {
   abortRun(id: string): Promise<void>
   confirmPlan(id: string, planId: string, selection: ModelSelection): Promise<unknown>
   answerInteraction(id: string, interactionId: string, answers: HarnessUserAnswer[], selection: ModelSelection): Promise<unknown>
+  listFiles(id: string, path: string): Promise<{ path: string; entries: HarnessWorkspaceFileEntry[] }>
+  readFile(id: string, path: string): Promise<{ path: string; content: string }>
+  openTerminal(id: string): Promise<{ terminalId: string; sessionId: string; cwd: string }>
+  writeTerminal(id: string, terminalId: string, data: string): Promise<void>
+  resizeTerminal(id: string, terminalId: string, columns: number, rows: number): Promise<void>
+  closeTerminal(id: string, terminalId: string): Promise<void>
+  navigateBrowser(id: string, url: string): Promise<string>
 }
 
 export interface PilotState {
@@ -59,6 +66,7 @@ export function shouldRenderPilotStream(messageId: string, isOptimistic: boolean
 export class PilotController {
   private state: PilotState = { sessions: [], projects: [], providers: [], messages: [], running: false }
   private listeners = new Set<() => void>()
+  private terminalListeners = new Set<(event: HarnessEvent) => void>()
   private unsubscribe?: () => void
   private generation = 0
   private snapshotVersion = 0
@@ -164,6 +172,43 @@ export class PilotController {
     try { await this.host.answerInteraction(session.id, session.pendingInteraction.id, answers, selection); await this.refreshSession(session.id, this.generation) }
     catch (error) { this.fail(error) }
   }
+  listFiles(path = '') {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.listFiles(id, path)
+  }
+  readFile(path: string) {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.readFile(id, path)
+  }
+  openTerminal() {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.openTerminal(id)
+  }
+  writeTerminal(terminalId: string, data: string) {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.writeTerminal(id, terminalId, data)
+  }
+  resizeTerminal(terminalId: string, columns: number, rows: number) {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.resizeTerminal(id, terminalId, columns, rows)
+  }
+  closeTerminal(terminalId: string) {
+    const id = this.state.session?.id
+    if (!id) return Promise.resolve()
+    return this.host.closeTerminal(id, terminalId)
+  }
+  closeTerminalFor(sessionId: string, terminalId: string) { return this.host.closeTerminal(sessionId, terminalId) }
+  navigateBrowser(url: string) {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.host.navigateBrowser(id, url)
+  }
+  onTerminalEvent = (listener: (event: HarnessEvent) => void) => { this.terminalListeners.add(listener); return () => { this.terminalListeners.delete(listener) } }
   private refreshList = async () => {
     const sessions = await this.host.listSessions()
     this.update({ sessions })
@@ -178,6 +223,10 @@ export class PilotController {
     } catch (error) { if (generation === this.generation) this.fail(error) }
   }
   private handleEvent = (event: HarnessEvent) => {
+    if (event.type === 'terminal-output' || event.type === 'terminal-exit') {
+      this.terminalListeners.forEach(listener => listener(event))
+      return
+    }
     if (event.type === 'status' || event.type === 'title-updated') void this.refreshList().catch(error => this.fail(error))
     if (event.sessionId !== this.activeSessionId) return
     const generation = this.generation
@@ -203,5 +252,5 @@ export class PilotController {
     }
   }
   private fail(error: unknown) { this.update({ error: error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : '操作失败' }) }
-  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.unsubscribe?.(); this.unsubscribe = undefined; this.listeners.clear() }
+  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.listeners.clear() }
 }

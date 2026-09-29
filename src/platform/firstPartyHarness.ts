@@ -15,10 +15,39 @@ function selection(value: unknown): ModelSelection {
   return { providerId: string(input.providerId, '供应商 ID'), modelId: string(input.modelId, '模型 ID') }
 }
 
+function workspacePath(value: unknown, allowEmpty = false) {
+  if (allowEmpty && value === '') return ''
+  if (typeof value !== 'string' || !value.trim() || value.length > 2048 || value.includes('\\') || value.startsWith('/') || value.split('/').some(segment => segment === '..')) {
+    throw new Error('路径无效')
+  }
+  return value
+}
+
+function browserUrl(value: unknown) {
+  if (typeof value !== 'string' || !value.trim() || value.length > 4096) throw new Error('浏览器地址无效')
+  let parsed: URL
+  try { parsed = new URL(value) } catch { throw new Error('浏览器地址无效') }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('浏览器只允许 http(s) 地址')
+  return parsed.href
+}
+
+function terminalDimension(value: unknown, name: string) {
+  if (!Number.isInteger(value) || (value as number) < 2 || (value as number) > 500) throw new Error(`${name}无效`)
+  return value as number
+}
+
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
   if (method === 'sessions.list' || method === 'projects.list' || method === 'providers.list') return { method } as const
   const params = fields(raw)
   switch (method) {
+    case 'files.list':
+    case 'files.read':
+      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, method === 'files.list') } as const
+    case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), url: browserUrl(params.url) } as const
+    case 'terminal.open': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'terminal.write': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), data: string(params.data, '终端输入', 100_000) } as const
+    case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const
+    case 'terminal.close': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID') } as const
     case 'session.get': return { method, id: string(params.id, '会话 ID') } as const
     case 'session.create': return { method, projectId: params.projectId === undefined ? undefined : string(params.projectId, '项目 ID') } as const
     case 'permissions.pending': return { method, sessionId: string(params.sessionId, '会话 ID') } as const

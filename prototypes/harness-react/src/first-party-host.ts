@@ -1,4 +1,4 @@
-import type { HarnessEvent, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionSummary, HarnessUserAnswer, ModelProviderSummary, ModelSelection } from '../../../src/config/harness'
+import type { HarnessEvent, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, ModelProviderSummary, ModelSelection } from '../../../src/config/harness'
 import type { PilotHost } from './pilot-state'
 
 export class FirstPartyHarnessHost implements PilotHost {
@@ -44,6 +44,13 @@ export class FirstPartyHarnessHost implements PilotHost {
   abortRun = (sessionId: string) => this.call<void>('run.abort', { sessionId })
   confirmPlan = (sessionId: string, planId: string, selection: ModelSelection) => this.call<unknown>('plan.confirm', { sessionId, planId, selection })
   answerInteraction = (sessionId: string, interactionId: string, answers: HarnessUserAnswer[], selection: ModelSelection) => this.call<unknown>('interaction.answer', { sessionId, interactionId, answers, selection })
+  listFiles = (sessionId: string, path: string) => this.call<{ path: string; entries: HarnessWorkspaceFileEntry[] }>('files.list', { sessionId, path })
+  readFile = (sessionId: string, path: string) => this.call<{ path: string; content: string }>('files.read', { sessionId, path })
+  openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
+  writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
+  resizeTerminal = (sessionId: string, terminalId: string, columns: number, rows: number) => this.call<void>('terminal.resize', { sessionId, terminalId, columns, rows })
+  closeTerminal = (sessionId: string, terminalId: string) => this.call<void>('terminal.close', { sessionId, terminalId })
+  navigateBrowser = (sessionId: string, url: string) => this.call<string>('browser.navigate', { sessionId, url })
   onEvent = (listener: (event: HarnessEvent) => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
 
   close() {
