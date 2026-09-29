@@ -109,7 +109,8 @@
 .pilot-terminal { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--term-bg); color: var(--term-fg); }
 .pilot-terminal__head { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--term-border); color: var(--term-head); font-size: 10px; }
 .pilot-terminal__head small { color: var(--term-muted); }
-.pilot-terminal__output { min-height: 0; flex: 1; overflow: auto; margin: 0; padding: 16px; color: var(--term-output); font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pilot-terminal__host { min-height: 0; flex: 1; overflow: hidden; padding: 6px 4px 8px 10px; }
+.pilot-terminal .xterm { height: 100%; }
 .pilot-terminal .pilot-file-error, .pilot-browser .pilot-file-error { flex: 0 0 auto; margin: 8px 12px; }
 .pilot-terminal__input { display: flex; min-height: 46px; align-items: center; gap: 7px; padding: 10px 15px; border-top: 1px solid var(--term-border); color: var(--term-accent); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .pilot-terminal__input input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--term-fg); background: transparent; font: inherit; }
@@ -122,6 +123,9 @@
 .pilot-browser__toolbar button:disabled { cursor: not-allowed; opacity: .4; }
 .pilot-browser__toolbar input { min-width: 0; flex: 1; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--surface); font-size: 11px; }
 .pilot-browser__view { display: block; width: 100%; min-height: 0; flex: 1; border: 0; }
+.pilot-browser__loading { position: relative; height: 2px; overflow: hidden; background: var(--border); }
+.pilot-browser__loading::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: pilot-browser-loading 1.1s ease-in-out infinite; }
+@keyframes pilot-browser-loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 @media (max-width: 860px) {
   .pilot-summary { right: 20px; width: min(320px, calc(100% - 40px)); }
 }

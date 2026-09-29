@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 import { Activity, ArrowLeft, ArrowRight, Check, CircleAlert, FileCode2, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, RotateCw, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
 import { type HarnessFileChange, type HarnessMessage, type HarnessPendingInteraction, type HarnessRunActivity, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ToolCallRecord } from '../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
@@ -181,7 +184,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
           {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} />}
           {tab.id === 'files' && <FilesPanel key={state.session?.id || 'empty'} controller={controller} directory={state.session?.workingDirectory || project?.directory} onOpenDirectory={() => void controller.openProjectDirectory()} onSelectFile={path => setWorkspaceTabLabel('files', path.split(/[\\/]/).pop() || '文件')} opening={state.openingProjectDirectory} />}
           {tab.id === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { setSelectedChangeId(id); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
-          {tab.id === 'terminal' && <TerminalPanel controller={controller} sessionId={state.session?.id} />}
+          {tab.id === 'terminal' && <TerminalPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'terminal'} />}
           {tab.id === 'browser' && <BrowserPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'browser'} />}
         </div>)}
       </div>
@@ -299,43 +302,72 @@ function CapabilityPanel({ icon, title, detail }: { icon: ReactNode; title: stri
   return <div className="pilot-capability"><div className="pilot-capability__icon">{icon}</div><strong>{title}</strong><p>{detail}</p><span className="pilot-capability__status">宿主适配待接入</span></div>
 }
 
-function TerminalPanel({ controller, sessionId }: { controller: PilotController; sessionId?: string }) {
-  const [terminalId, setTerminalId] = useState('')
-  const [output, setOutput] = useState('')
-  const [input, setInput] = useState('')
-  const [error, setError] = useState('')
+function TerminalPanel({ controller, sessionId, active }: { controller: PilotController; sessionId?: string; active: boolean }) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const termRef = useRef<Terminal | undefined>(undefined)
+  const fitRef = useRef<FitAddon | undefined>(undefined)
   const terminalIdRef = useRef('')
+  const [connected, setConnected] = useState(false)
+  const [error, setError] = useState('')
   useEffect(() => {
-    if (!sessionId) return
+    const container = hostRef.current
+    if (!sessionId || !container) return
     let active = true
+    const term = new Terminal({
+      fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+      fontSize: 12,
+      lineHeight: 1.4,
+      cursorBlink: true,
+      allowProposedApi: true,
+      scrollback: 5000,
+      theme: { background: '#14191b', foreground: '#e8eeee', cursor: '#73d1c0', selectionBackground: '#31474a' },
+    })
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    termRef.current = term
+    fitRef.current = fit
+    term.open(container)
+    term.onData(data => { if (terminalIdRef.current) void controller.writeTerminal(terminalIdRef.current, data).catch(() => undefined) })
     const unsubscribe = controller.onTerminalEvent(event => {
       if (event.sessionId !== sessionId || event.payload.terminalId !== terminalIdRef.current) return
-      if (event.type === 'terminal-output') {
-        const data = typeof event.payload.data === 'string' ? event.payload.data : ''
-        setOutput(previous => (previous + data).slice(-200_000))
-      } else setError(`终端已退出（代码 ${String(event.payload.exitCode ?? '?')}）`)
+      if (event.type === 'terminal-output') term.write(typeof event.payload.data === 'string' ? event.payload.data : '')
+      else { term.write(`\r\n\x1b[31m终端已退出（代码 ${String(event.payload.exitCode ?? '?')}）\x1b[0m\r\n`); setError(`终端已退出（代码 ${String(event.payload.exitCode ?? '?')}）`) }
     })
+    const observer = new ResizeObserver(() => {
+      if (!active || !fitRef.current) return
+      try {
+        fitRef.current.fit()
+        if (terminalIdRef.current) void controller.resizeTerminal(terminalIdRef.current, term.cols, term.rows).catch(() => undefined)
+      } catch { /* 容器不可见时 fit 会抛错，忽略 */ }
+    })
+    observer.observe(container)
     void controller.openTerminal().then(result => {
       if (!active) return void controller.closeTerminalFor(sessionId, result.terminalId)
       terminalIdRef.current = result.terminalId
-      setTerminalId(result.terminalId)
+      term.clear()
+      try { fit.fit() } catch { /* 隐藏容器内跳过首次 fit */ }
+      void controller.resizeTerminal(result.terminalId, term.cols, term.rows).catch(() => undefined)
+      setConnected(true)
     }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : '终端启动失败') })
     return () => {
       active = false
       unsubscribe()
+      observer.disconnect()
       const current = terminalIdRef.current
       terminalIdRef.current = ''
       if (current) void controller.closeTerminalFor(sessionId, current)
+      term.dispose()
+      termRef.current = undefined
+      fitRef.current = undefined
+      setConnected(false)
+      setError('')
     }
   }, [controller, sessionId])
-  async function submit() {
-    if (!terminalId || !input) return
-    const text = input
-    setInput('')
-    try { await controller.writeTerminal(terminalId, `${text}\n`) }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '终端输入失败') }
-  }
-  return <div className="pilot-terminal"><div className="pilot-terminal__head"><span>{terminalId ? '已连接' : '正在连接…'}</span><small>{sessionId ? '会话工作目录' : '尚未选择任务'}</small></div><pre className="pilot-terminal__output">{output || (error ? '' : '等待终端输出…')}</pre>{error && <p className="pilot-file-error" role="alert">{error}</p>}<form className="pilot-terminal__input" onSubmit={event => { event.preventDefault(); void submit() }}><span>›</span><input value={input} disabled={!terminalId} onChange={event => setInput(event.target.value)} placeholder="输入命令，按 Enter 执行" aria-label="终端输入" /></form></div>
+  useEffect(() => {
+    if (!active || !fitRef.current) return
+    try { fitRef.current.fit() } catch { /* 容器尚未布局时忽略 */ }
+  }, [active])
+  return <div className="pilot-terminal"><div className="pilot-terminal__head"><span>{error ? '已退出' : connected ? '已连接' : '正在连接…'}</span><small>{sessionId ? '会话工作目录 · PTY' : '尚未选择任务'}</small></div><div ref={hostRef} className="pilot-terminal__host" />{error && <p className="pilot-file-error" role="alert">{error}</p>}</div>
 }
 
 function BrowserPanel({ controller, sessionId, active }: { controller: PilotController; sessionId?: string; active: boolean }) {
@@ -387,7 +419,7 @@ function BrowserPanel({ controller, sessionId, active }: { controller: PilotCont
     catch (cause) { setLoading(false); setError(cause instanceof Error ? cause.message : '浏览器地址无效') }
   }
   const control = (action: 'back' | 'forward' | 'reload') => { void controller.controlBrowser(action).catch(cause => setError(cause instanceof Error ? cause.message : '浏览器操作失败')) }
-  return <div className="pilot-browser"><form className="pilot-browser__toolbar" onSubmit={event => void navigate(event)}><button type="button" onClick={() => control('back')} disabled={!canGoBack} aria-label="后退" title="后退"><ArrowLeft size={14} /></button><button type="button" onClick={() => control('forward')} disabled={!canGoForward} aria-label="前进" title="前进"><ArrowRight size={14} /></button><button type="button" onClick={() => control('reload')} disabled={!url} aria-label="刷新" title="刷新"><RotateCw size={14} /></button><input value={address} onChange={event => setAddress(event.target.value)} placeholder="输入网址 https://…" aria-label="浏览器地址" /><button type="submit" disabled={!sessionId || !address.trim() || loading}>打开</button></form>{error && <p className="pilot-file-error" role="alert">{error}</p>}<div ref={viewportRef} className="pilot-browser__view">{!url && <EmptyPanel icon={<Globe2 size={20} />} text={sessionId ? '输入网址开始浏览' : '尚未选择任务'} />}</div></div>
+  return <div className="pilot-browser"><form className="pilot-browser__toolbar" onSubmit={event => void navigate(event)}><button type="button" onClick={() => control('back')} disabled={!canGoBack} aria-label="后退" title="后退"><ArrowLeft size={14} /></button><button type="button" onClick={() => control('forward')} disabled={!canGoForward} aria-label="前进" title="前进"><ArrowRight size={14} /></button><button type="button" onClick={() => control('reload')} disabled={!url} aria-label="刷新" title="刷新"><RotateCw size={14} /></button><input value={address} onChange={event => setAddress(event.target.value)} placeholder="输入网址 https://…" aria-label="浏览器地址" /><button type="submit" disabled={!sessionId || !address.trim() || loading}>{loading ? '打开中…' : '打开'}</button></form>{loading && <div className="pilot-browser__loading" aria-hidden="true" />}{error && <p className="pilot-file-error" role="alert">{error}</p>}<div ref={viewportRef} className="pilot-browser__view">{!url && <EmptyPanel icon={<Globe2 size={20} />} text={sessionId ? '输入网址开始浏览' : '尚未选择任务'} />}</div></div>
 }
 
 function EmptyPanel({ icon, text }: { icon: ReactNode; text: string }) {
