@@ -3,7 +3,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { PilotController, type PilotHost } from './pilot-state'
 import { PilotWorkbench } from './pilot-workbench'
 import { applyHostTheme, type HostThemeContext } from './theme'
-import './pilot.css'
 
 type PilotWindow = Window & {
   __POWERED_BY_WUJIE__?: boolean

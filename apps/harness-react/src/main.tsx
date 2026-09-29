@@ -2,7 +2,6 @@ import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { Workbench } from './workbench'
 import { applyHostTheme, type HostThemeContext } from './theme'
-import './style.css'
 
 type WujieBus = { $on: (event: string, handler: (context: HostThemeContext) => void) => void; $off: (event: string, handler: (context: HostThemeContext) => void) => void }
 type PrototypeWindow = Window & {

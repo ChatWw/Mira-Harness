@@ -4,7 +4,6 @@ import { PilotController } from './pilot-state'
 import { PilotWorkbench } from './pilot-workbench'
 import { FirstPartyHarnessHost } from './first-party-host'
 import { applyHostTheme, type HostThemeContext } from './theme'
-import './pilot.css'
 
 const container = document.getElementById('root')!
 const root = createRoot(container)

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, CircleAlert, LoaderCircle, Paperclip, Plus, Square } from 'lucide-react'
+import { ArrowUp, CircleAlert, Paperclip, Plus, Square } from 'lucide-react'
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessFileReference, type ModelSelection, type PermissionMode } from '../../../src/config/harness'
 import type { PilotController } from './pilot-state'
+import { cn } from './lib/utils'
 
 const PERMISSION_LABELS: Record<PermissionMode, string> = { default: '逐次确认', 'auto-approve': '自动审核', full: '完全访问' }
 const STARTERS = [
@@ -90,67 +91,71 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
     setReferences([])
   }
 
-  return <div className="pilot-composer">
-    {panel === 'perm-confirm' && <div className="pilot-composer__panel" role="alert">
-      <p><CircleAlert size={14} /> 完全访问将跳过所有工具确认（危险命令仍被拦截）。仅对当前会话生效。</p>
-      <div className="pilot-composer__panel-actions">
-        <button type="button" onClick={() => setPanel('none')}>取消</button>
-        <button type="button" className="is-primary" onClick={() => { if (state.session) void controller.setSessionPermission(state.session.id, 'full'); setPanel('none') }}>确认完全访问</button>
+  return <div className="mx-auto w-full max-w-[760px] px-8 pb-5">
+    {panel === 'perm-confirm' && <div className="mb-2 grid gap-2 rounded-xl border border-border bg-background-alt px-3.5 py-2.5 text-ui-sm" role="alert">
+      <p className="m-0 flex items-center gap-1.5 text-foreground-subtle"><CircleAlert size={14} /> 完全访问将跳过所有工具确认（危险命令仍被拦截）。仅对当前会话生效。</p>
+      <div className="flex justify-end gap-2">
+        <button type="button" className="rounded-lg border border-border bg-card px-3 py-1 text-ui-sm text-foreground hover:bg-hover" onClick={() => setPanel('none')}>取消</button>
+        <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1 text-ui-sm text-on-accent" onClick={() => { if (state.session) void controller.setSessionPermission(state.session.id, 'full'); setPanel('none') }}>确认完全访问</button>
       </div>
     </div>}
-    {panel === 'skills' && <div className="pilot-composer__panel">
-      <strong>Skill（当前会话）</strong>
-      <div className="pilot-composer__options">{skills.map(skill => <label key={skill.id}><input type="checkbox" checked={activeSkillIds.includes(skill.id)} onChange={() => {
-        const next = activeSkillIds.includes(skill.id) ? activeSkillIds.filter(id => id !== skill.id) : [...activeSkillIds, skill.id]
-        setActiveSkillIds(next)
-        if (state.session) void controller.setSessionSkills(state.session.id, next)
-      }} />{skill.name}</label>)}{!skills.length && <p className="pilot-nav__hint">暂无可用 Skill</p>}</div>
+    {panel === 'skills' && <div className="mb-2 grid gap-2 rounded-xl border border-border bg-background-alt px-3.5 py-2.5 text-ui-sm">
+      <strong className="text-ui-sm">Skill（当前会话）</strong>
+      <div className="flex flex-wrap gap-1.5">{skills.map(skill => <label key={skill.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-ui-sm">
+        <input type="checkbox" checked={activeSkillIds.includes(skill.id)} onChange={() => {
+          const next = activeSkillIds.includes(skill.id) ? activeSkillIds.filter(id => id !== skill.id) : [...activeSkillIds, skill.id]
+          setActiveSkillIds(next)
+          if (state.session) void controller.setSessionSkills(state.session.id, next)
+        }} />{skill.name}
+      </label>)}{!skills.length && <p className="m-0 text-ui-xs text-foreground-subtle">暂无可用 Skill</p>}</div>
     </div>}
-    {panel === 'mcp' && <div className="pilot-composer__panel">
-      <strong>MCP 服务（当前会话）</strong>
-      <div className="pilot-composer__options">{mcpServers.map(server => <label key={server.id}><input type="checkbox" checked={activeMcpIds.includes(server.id)} onChange={() => {
-        const next = activeMcpIds.includes(server.id) ? activeMcpIds.filter(id => id !== server.id) : [...activeMcpIds, server.id]
-        setActiveMcpIds(next)
-        if (state.session) void controller.setSessionMcpServers(state.session.id, next)
-      }} />{server.name}</label>)}{!mcpServers.length && <p className="pilot-nav__hint">暂无已启用的 MCP 服务</p>}</div>
+    {panel === 'mcp' && <div className="mb-2 grid gap-2 rounded-xl border border-border bg-background-alt px-3.5 py-2.5 text-ui-sm">
+      <strong className="text-ui-sm">MCP 服务（当前会话）</strong>
+      <div className="flex flex-wrap gap-1.5">{mcpServers.map(server => <label key={server.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-ui-sm">
+        <input type="checkbox" checked={activeMcpIds.includes(server.id)} onChange={() => {
+          const next = activeMcpIds.includes(server.id) ? activeMcpIds.filter(id => id !== server.id) : [...activeMcpIds, server.id]
+          setActiveMcpIds(next)
+          if (state.session) void controller.setSessionMcpServers(state.session.id, next)
+        }} />{server.name}
+      </label>)}{!mcpServers.length && <p className="m-0 text-ui-xs text-foreground-subtle">暂无已启用的 MCP 服务</p>}</div>
     </div>}
-    {slashActive && slashCommands.length > 0 && <div className="pilot-composer__slash" role="listbox" aria-label="斜杠命令">
-      {slashCommands.map((command, index) => <button key={command.id} type="button" role="option" aria-selected={index === slashIndex} className={index === slashIndex ? 'is-active' : ''} onMouseEnter={() => setSlashIndex(index)} onClick={() => void runSlash(command.id)}>
-        <strong>{command.label}</strong><small>{command.hint}</small>
+    {slashActive && slashCommands.length > 0 && <div className="mb-2 grid gap-0.5 rounded-xl border border-border bg-card p-1.5 shadow-soft" role="listbox" aria-label="斜杠命令">
+      {slashCommands.map((command, index) => <button key={command.id} type="button" role="option" aria-selected={index === slashIndex} className={cn('grid gap-0.5 rounded-lg px-2.5 py-1.5 text-left', index === slashIndex ? 'bg-hover' : '')} onMouseEnter={() => setSlashIndex(index)} onClick={() => void runSlash(command.id)}>
+        <strong className="text-ui-sm font-medium">{command.label}</strong><small className="text-ui-xs text-foreground-subtle">{command.hint}</small>
       </button>)}
     </div>}
-    <form className="pilot-composer__form" onSubmit={event => void submit(event)}>
-      <textarea ref={textareaRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" />
-      {references.length > 0 && <div className="pilot-composer__references">{references.map(reference => <span key={reference.path} className="pilot-composer__chip" title={reference.path}><Paperclip size={11} />{reference.name}<button type="button" aria-label={`移除 ${reference.name}`} onClick={() => setReferences(previous => previous.filter(item => item.path !== reference.path))}>×</button></span>)}</div>}
-      {state.session && !draft.trim() && !state.running && <div className="pilot-composer__starters">{STARTERS.map(starter => <button key={starter.title} type="button" onClick={() => setDraft(starter.prompt)}>{starter.title}</button>)}</div>}
-      <div className="pilot-composer__bar">
-        <div className="pilot-composer__tools">
-          <button type="button" className="pilot-tool-icon" title="引用文件" aria-label="引用文件" disabled={!state.session} onClick={() => void selectFiles()}><Plus size={16} /></button>
-          <select className="pilot-chip-select" aria-label="模型" value={state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''} onChange={event => {
+    <form className="block rounded-2xl border border-border bg-card px-3 pb-2 pt-2.5 shadow-soft transition-colors focus-within:border-brand/50" onSubmit={event => void submit(event)}>
+      <textarea ref={textareaRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" className="block max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1 text-ui-base leading-relaxed text-foreground outline-none placeholder:text-foreground-subtlest" />
+      {references.length > 0 && <div className="flex flex-wrap gap-1.5 px-1 pt-1.5">{references.map(reference => <span key={reference.path} className="inline-flex max-w-[260px] items-center gap-1.5 rounded-full bg-background-alt px-2 py-0.5 text-ui-xs" title={reference.path}><Paperclip size={11} /><span className="truncate">{reference.name}</span><button type="button" aria-label={`移除 ${reference.name}`} className="grid size-3.5 place-items-center rounded-full text-foreground-subtle hover:bg-hover hover:text-red-400" onClick={() => setReferences(previous => previous.filter(item => item.path !== reference.path))}>×</button></span>)}</div>}
+      {state.session && !draft.trim() && !state.running && <div className="flex flex-wrap gap-1.5 px-1 pt-2">{STARTERS.map(starter => <button key={starter.title} type="button" className="rounded-full bg-background-alt px-3 py-1 text-ui-xs text-foreground-subtle hover:text-brand" onClick={() => setDraft(starter.prompt)}>{starter.title}</button>)}</div>}
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
+          <button type="button" className="flex size-7 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-brand" title="引用文件" aria-label="引用文件" disabled={!state.session} onClick={() => void selectFiles()}><Plus size={16} /></button>
+          <select className="max-w-[200px] cursor-pointer rounded-lg border-0 bg-transparent px-1.5 py-1 text-ui-sm text-foreground-subtle hover:bg-hover hover:text-foreground focus:outline-none" aria-label="模型" value={state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''} onChange={event => {
             const [providerId, modelId] = event.target.value.split(':')
             if (providerId && modelId) controller.select({ providerId, modelId } satisfies ModelSelection)
           }}>
             <option value="" disabled>{choices(state).length ? '选择模型' : '请先配置模型'}</option>
             {choices(state).map(choice => <option key={`${choice.providerId}:${choice.modelId}`} value={`${choice.providerId}:${choice.modelId}`}>{choice.label}</option>)}
           </select>
-          <select className="pilot-chip-select" aria-label="权限档位" value={state.session?.permissionMode || 'default'} onChange={event => {
+          <select className="cursor-pointer rounded-lg border-0 bg-transparent px-1.5 py-1 text-ui-sm text-foreground-subtle hover:bg-hover hover:text-foreground focus:outline-none" aria-label="权限档位" value={state.session?.permissionMode || 'default'} onChange={event => {
             const mode = event.target.value as PermissionMode
             if (mode === 'full') setPanel('perm-confirm')
             else { setPanel('none'); if (state.session) void controller.setSessionPermission(state.session.id, mode) }
           }}>
             {(Object.keys(PERMISSION_LABELS) as PermissionMode[]).map(mode => <option key={mode} value={mode}>{PERMISSION_LABELS[mode]}</option>)}
           </select>
-          {usage && usageRatio > 0 && <span className={`pilot-context-ring${usageRatio >= .95 ? ' pilot-context-ring--critical' : usageRatio >= .8 ? ' pilot-context-ring--warning' : ''}`} title={`上下文 ${Math.round(usageRatio * 100)}%（${usage.usedTokens} / ${usage.contextWindow} tokens，${usage.source === 'reported' ? '实测' : '估算'}）`}>
-            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" opacity=".18" strokeWidth="2.4" /><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeDasharray={`${usageRatio * 50.3} 50.3`} transform="rotate(-90 10 10)" strokeLinecap="round" /></svg>
+          {usage && usageRatio > 0 && <span className={cn('mx-0.5 inline-flex', usageRatio >= .95 ? 'text-red-400' : usageRatio >= .8 ? 'text-amber-400' : 'text-emerald-400')} title={`上下文 ${Math.round(usageRatio * 100)}%（${usage.usedTokens} / ${usage.contextWindow} tokens，${usage.source === 'reported' ? '实测' : '估算'}）`}>
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" opacity=".2" strokeWidth="2.4" /><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeDasharray={`${usageRatio * 50.3} 50.3`} transform="rotate(-90 10 10)" strokeLinecap="round" /></svg>
           </span>}
-          <div className="pilot-mode" role="group" aria-label="执行模式">
-            <button type="button" className={!planning ? 'is-active' : ''} aria-pressed={!planning} onClick={() => setPlanning(false)}>直接执行</button>
-            <button type="button" className={planning ? 'is-active' : ''} aria-pressed={planning} onClick={() => setPlanning(true)}>先出计划</button>
+          <div className="ml-1 flex gap-px rounded-lg bg-hover p-0.5" role="group" aria-label="执行模式">
+            <button type="button" className={cn('rounded-md px-2.5 py-0.5 text-ui-xs', !planning ? 'bg-card text-foreground shadow-sm' : 'text-foreground-subtle')} aria-pressed={!planning} onClick={() => setPlanning(false)}>直接执行</button>
+            <button type="button" className={cn('rounded-md px-2.5 py-0.5 text-ui-xs', planning ? 'bg-card text-foreground shadow-sm' : 'text-foreground-subtle')} aria-pressed={planning} onClick={() => setPlanning(true)}>先出计划</button>
           </div>
         </div>
         {state.running
-          ? <button type="button" className="pilot-composer__send" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={15} /></button>
-          : <button type="submit" className="pilot-composer__send" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><ArrowUp size={17} /></button>}
+          ? <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand text-on-accent transition-transform hover:-translate-y-px" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={14} /></button>
+          : <button type="submit" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand text-on-accent transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-35" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><ArrowUp size={17} /></button>}
       </div>
     </form>
   </div>

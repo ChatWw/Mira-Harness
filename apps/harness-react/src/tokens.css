@@ -1,34 +1,17 @@
-/* Mira Harness workbench tokens: single source for surfaces, text, accent and
-   the fixed-dark terminal palette. Component rules live in layout/thread/workspace. */
+/* Mira 旧手写 CSS 的基础层。调色板已迁移到 ZCode 令牌体系
+   （styles/zcode-tokens.css，经 app.css 桥接为 --accent/--surface 等），
+   深浅色由宿主在 <html> 上切换 .dark 类驱动。 */
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-#root {
-  --surface: #fff; --soft: #f4f7f7; --hover: #eaf1f2;
-  --text: #172225; --muted: #69787d; --border: #dfe7e8;
-  --accent: #0b8492; --accent-strong: #086b77; --focus: #078da2; --on-accent: #fff;
-  --warning: #fff7df; --success: #2b977a; --app-bg: #f4f6f6;
-  --shadow-soft: 0 12px 28px rgba(26, 54, 59, .08);
-  /* Fixed-dark terminal chrome, identical in both themes. */
-  --term-bg: #14191b; --term-fg: #e8eeee; --term-muted: #819092; --term-border: #30383a;
-  --term-head: #c5d0d1; --term-output: #d9e4e2; --term-accent: #73d1c0; --term-placeholder: #718081;
-  color: var(--text); color-scheme: light; background: var(--app-bg);
-}
-#root[data-theme='dark'] {
-  --surface: #202628; --soft: #293234; --hover: #344043;
-  --text: #f0f5f5; --muted: #a7b6b9; --border: #3e4b4e;
-  --accent: #71d2dc; --accent-strong: #93e1e8; --focus: #85dbe2;
-  --warning: #3c3526; --success: #5bc09f; --app-bg: #1a2022;
-  --shadow-soft: 0 12px 28px rgba(0, 0, 0, .24);
-  color-scheme: dark;
-}
-/* Dark-theme status text needs lighter amber/red than the shared state colors. */
-#root[data-theme='dark'] .pilot-heading__state--running,
-#root[data-theme='dark'] .pilot-heading__state--waiting,
-#root[data-theme='dark'] .pilot-heading__state--partial { color: #e8b959; }
-#root[data-theme='dark'] .pilot-heading__state--failed,
-#root[data-theme='dark'] .pilot-tool__error { color: #f18880 !important; }
-#root[data-theme='dark'] .pilot-file-error { color: #f18880; }
+
+/* 深色下的状态文字需要更亮的琥珀/红（浅色用共享值）。 */
+.dark .pilot-heading__state--running,
+.dark .pilot-heading__state--waiting,
+.dark .pilot-heading__state--partial { color: #e8b959; }
+.dark .pilot-heading__state--failed,
+.dark .pilot-tool__error { color: #f18880 !important; }
+.dark .pilot-file-error { color: #f18880; }

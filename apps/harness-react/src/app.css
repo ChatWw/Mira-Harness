@@ -1,0 +1,40 @@
+@import "tailwindcss";
+/* 深浅色由宿主在 <html> 上切换 .dark 类（与 ZCode 相同的机制）。 */
+@custom-variant dark (&:where(.dark, .dark *));
+@source "./**/*.{ts,tsx}";
+@source "../../node_modules/streamdown/dist/*.js"; /* streamdown 运行时类名 */
+@import "./styles/zcode-tokens.css";
+@import "@xterm/xterm/css/xterm.css";
+@import "./pilot.css";
+@import "./style.css";
+
+/* Mira 侧桥接：宿主主题（primaryColor）写入 --color-brand，
+   旧手写 CSS 的语义别名统一映射到 ZCode 令牌，迁移期共存。 */
+@theme inline {
+  --color-on-accent: var(--on-accent, #fff);
+}
+:root {
+  --ui-font-size: 13px;
+}
+#root {
+  --accent: var(--color-brand);
+  --accent-strong: var(--color-brand);
+  --focus: var(--color-brand);
+  --on-accent: var(--color-brand-foreground, #fff);
+  --surface: var(--color-card);
+  --soft: var(--color-background-alt);
+  --hover: var(--color-hover);
+  --text: var(--color-foreground);
+  --muted: var(--color-foreground-subtle);
+  --border: var(--color-border);
+  --app-bg: var(--color-background);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --shadow-soft: 0 4px 16px color-mix(in oklab, black 8%, transparent);
+  color: var(--text);
+  background: var(--app-bg);
+}
+.dark #root {
+  --shadow-soft: 0 4px 16px color-mix(in oklab, black 30%, transparent);
+  --on-accent: #0a0a0a;
+}
