@@ -4,6 +4,7 @@ import { Activity, ArrowLeft, ArrowRight, ArrowUp, Check, CircleAlert, FileCode2
 import { isModelProviderAvailable, type HarnessFileChange, type HarnessMessage, type HarnessPendingInteraction, type HarnessRunActivity, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelSelection, type ToolCallRecord } from '../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from './pilot-state'
+import { SessionDrawer } from './session-drawer'
 
 type WorkspaceTabId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser'
 type WorkspaceTab = { id: WorkspaceTabId; label: string }
@@ -26,8 +27,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const [workspaceWidth, setWorkspaceWidth] = useState(42)
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>('overview')
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>(workspaceTabDefaults)
-  const [newTarget, setNewTarget] = useState('')
-  const [creating, setCreating] = useState(false)
   const [responding, setResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [selectedChangeId, setSelectedChangeId] = useState<string>()
@@ -53,7 +52,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const activities = state.session?.activeRun?.activities || [...state.messages].reverse().find(message => message.run)?.run?.activities || []
   const changes = state.messages.flatMap(message => (message.fileChanges || []).map(change => ({ ...change, key: `${message.id}:${change.toolCallId}` })))
   const project = state.projects.find(item => item.id === state.session?.projectId)
-  const newProject = state.projects.find(item => newTarget === `project:${item.id}`)
   const hasTaskProgress = state.messages.length > 0 || activities.length > 0 || Boolean(state.permission) || interaction?.status === 'waiting'
   useEffect(() => {
     setWorkspaceOpen(false)
@@ -81,14 +79,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
 
   function setWorkspaceTabLabel(id: WorkspaceTabId, label: string) {
     setWorkspaceTabs(previous => previous.map(tab => tab.id === id ? { ...tab, label } : tab))
-  }
-
-  async function createTask() {
-    if (!newTarget || creating) return
-    setCreating(true)
-    const created = await controller.create(newTarget === 'personal' ? undefined : newTarget.slice('project:'.length))
-    setCreating(false)
-    if (created) { setNewTaskOpen(false); setNewTarget('') }
   }
 
   async function respondPermission(allowed: boolean) {
@@ -119,12 +109,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   }
 
   return <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} style={{ '--pilot-workspace-width': `${workspaceWidth}%` } as CSSProperties} data-task-state={taskTone}>
-    {sessionsOpen && <aside id="pilot-sessions" className="pilot-nav pilot-drawer" aria-label="会话">
-      <div className="pilot-nav__head"><strong>会话</strong><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={() => setNewTaskOpen(!newTaskOpen)}><Plus size={17} /></button></div>
-      <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={() => setSessionsOpen(false)}><X size={15} /></button>
-      {newTaskOpen && <div className="pilot-new-task"><label htmlFor="pilot-task-target">任务工作区</label><select id="pilot-task-target" value={newTarget} onChange={event => setNewTarget(event.target.value)}><option value="">选择工作区</option><option value="personal">个人工作区</option>{state.projects.map(item => <option key={item.id} value={`project:${item.id}`} disabled={!item.directoryExists}>{item.name}{item.directoryExists ? '' : '（目录不可用）'}</option>)}</select>{newProject && <p title={newProject.directory}>{newProject.directory}</p>}{newTarget === 'personal' && <p>创建后请核对实际工作目录再发送任务。</p>}<button type="button" disabled={!newTarget || creating} onClick={() => void createTask()}>{creating ? '创建中…' : '创建任务'}</button></div>}
-      <div className="pilot-nav__list">{state.sessions.map(session => <button key={session.id} type="button" className={session.id === state.session?.id ? 'is-active' : ''} onClick={() => { setSessionsOpen(false); void controller.open(session.id) }}><span>{session.title || '新任务'}</span><small>{session.projectName || '个人工作区'} · {session.status === 'failed' ? '失败' : session.status === 'completed' ? '已完成' : '进行中'}</small></button>)}</div>
-    </aside>}
+    {sessionsOpen && <SessionDrawer state={state} controller={controller} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />}
     <main className="pilot-main">
       <header className="pilot-heading"><div className="pilot-heading__leading"><button type="button" className="pilot-heading__icon" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}><Menu size={17} /></button><div><small>{project?.name || '个人工作区'} / Harness</small><h1>{state.session?.title || '今天要研究、整理或完成什么？'}</h1><span className="pilot-heading__path" title={state.session?.workingDirectory}>{state.session?.workingDirectory || '新任务将在选定工作区中运行'}</span></div></div><div className="pilot-heading__actions"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /><button type="button" className="pilot-heading__icon" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button></div></header>
       <div className={`pilot-thread-stage${hasTaskProgress ? ' pilot-thread-stage--summary' : ''}`}>

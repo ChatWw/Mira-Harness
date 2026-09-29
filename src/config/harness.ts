@@ -1,4 +1,8 @@
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
+
+export function isPermissionMode(value: unknown): value is PermissionMode {
+  return value === 'default' || value === 'auto-approve' || value === 'full'
+}
 export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
 export type HarnessTitleSource = 'auto' | 'manual'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'

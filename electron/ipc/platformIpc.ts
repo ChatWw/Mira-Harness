@@ -1,6 +1,8 @@
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { spawn } from 'node:child_process'
 import type { PlatformDatabase } from '../storage/database'
 import type { LocalMicroAppServer } from '../adapters/localMicroAppServer'
+import type { McpConfigStore } from '../storage/mcpConfigStore'
 import type { MicroApp } from '../../src/types'
 import { firstPartyAppManifests, validateFirstPartyAppManifest, type FirstPartyAppManifest } from '../../src/config/firstPartyApps'
 import type { ModelSelection } from '../../src/config/harness'
@@ -20,6 +22,7 @@ export interface PlatformIpcDependencies {
   firstPartyGrantStore?: FirstPartyGrantStore
   fetchImpl?: typeof fetch
   terminalSessions?: HarnessTerminalSessions
+  mcpConfigStore?: McpConfigStore
 }
 
 function boundedString(value: unknown, field: string, maxLength: number) {
@@ -43,7 +46,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, mcpConfigStore, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -119,11 +122,43 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'providers.list': return database.models.list()
       case 'session.get': return database.harness.getSession(call.id)
       case 'session.create': return database.harness.createSession(call.projectId)
+      case 'session.rename': return database.harness.renameSession(call.id, call.title)
+      case 'session.set-pinned': return database.harness.setPinned(call.id, call.pinned)
+      case 'session.set-unread': return database.harness.setUnread(call.id, call.unread)
+      case 'session.archive': return database.harness.archiveSessions([call.id])
+      case 'session.delete': return database.harness.deleteSession(call.id)
+      case 'session.move': return database.harness.moveSession(call.id, call.projectId)
+      case 'session.reorder': return database.harness.reorderSessions(call.scope, call.ids)
+      case 'session.set-permission': return database.harness.setPermission(call.id, call.mode)
+      case 'session.set-skills': {
+        const selected = database.skills.resolve(call.skillIds)
+        if (selected.length !== new Set(call.skillIds).size) throw new Error('只能选择已启用且有效的 Skill')
+        return database.harness.setActiveSkills(call.id, selected.map(skill => skill.id))
+      }
+      case 'session.set-mcp-servers': {
+        if (!mcpConfigStore) throw new Error('MCP 服务不可用')
+        const enabledIds = new Set(mcpConfigStore.list().filter(server => server.enabled).map(server => server.id))
+        if (call.serverIds.some(serverId => !enabledIds.has(serverId))) throw new Error('只能选择已启用的 MCP 服务')
+        return database.harness.setActiveMcpServers(call.id, call.serverIds)
+      }
+      case 'session.set-delegation': return database.harness.setDelegationEnabled(call.id, call.enabled)
+      case 'projects.reorder': return database.harness.reorderProjects(call.ids)
+      case 'skills.list': return database.skills.list()
+      case 'git.branches': return database.harness.listGitBranches(call.projectId)
+      case 'git.checkout': return database.harness.checkoutGitBranch(call.projectId, call.branch)
+      case 'git.create-branch': return database.harness.createAndCheckoutGitBranch(call.projectId, call.branch)
       case 'permissions.pending': return harnessRuntime.listPendingPermissions(call.sessionId)
       case 'permission.respond': return harnessRuntime.resolvePermission(call.requestId, call.allowed)
+      case 'memory.respond': return harnessRuntime.respondMemoryConfirmation(call.requestId, call.approved)
+      case 'memory.save': return harnessRuntime.saveProjectMemory(event.sender, call.sessionId, call.selection)
+      case 'subtask.stop': return harnessRuntime.stopSubtasks(call.sessionId, call.subtaskId ? [call.subtaskId] : undefined)
       case 'run.abort': return harnessRuntime.abort(call.sessionId)
-      case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, [], call.selection, call.planning)
+      case 'run.rerun': return harnessRuntime.rerun(event.sender, call.sessionId, call.selection)
+      case 'run.edit-rerun': return harnessRuntime.editAndRerun(event.sender, call.sessionId, call.messageId, call.content, call.selection)
+      case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, call.references, call.selection, call.planning)
       case 'plan.confirm': return harnessRuntime.confirmPlan(event.sender, call.sessionId, call.planId, call.selection)
+      case 'plan.cancel': return harnessRuntime.cancelPlan(event.sender, call.sessionId, call.planId)
+      case 'plan.continue': return harnessRuntime.continuePlan(event.sender, call.sessionId, call.planId, call.message, call.references, call.selection)
       case 'interaction.answer': return harnessRuntime.answerInteraction(event.sender, call.sessionId, call.interactionId, call.answers, call.selection)
       case 'files.list': {
         const session = database.harness.getSession(call.sessionId)
@@ -173,7 +208,19 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         const session = database.harness.getSession(call.sessionId)
         const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
         if (!directory) throw new Error('该会话没有可用工作目录')
-        return shell.openPath(directory)
+        if (call.target === 'file-manager') return shell.openPath(directory)
+        if (process.platform === 'darwin') {
+          const terminal = spawn('open', ['-a', 'Terminal', directory], { detached: true, stdio: 'ignore' })
+          terminal.unref()
+          return ''
+        }
+        if (process.platform === 'win32') {
+          const command = `cd /d "${directory.replace(/"/g, '""')}"`
+          const terminal = spawn('cmd.exe', ['/d', '/c', 'start', '', 'cmd.exe', '/K', command], { detached: true, stdio: 'ignore', windowsHide: true })
+          terminal.unref()
+          return ''
+        }
+        throw new Error('当前系统不支持从 Mira 打开终端')
       }
     }
   })

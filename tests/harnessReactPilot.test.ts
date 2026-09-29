@@ -290,6 +290,71 @@ describe('React Harness pilot controller', () => {
     expect(controller.getSnapshot().messages).toEqual([])
   })
 
+  it('tracks cross-session running, unread and pending-permission badges', async () => {
+    const { controller, emit } = fixture()
+    await controller.start()
+    emit('status', { state: 'running' }, 'b')
+    expect(controller.getSnapshot().runningSessionIds).toEqual(['b'])
+    emit('permission-request', { requestId: 'perm-b', title: '写入', detail: 'file.md' }, 'b')
+    expect(controller.getSnapshot().pendingPermissions['b']).toMatchObject({ requestId: 'perm-b' })
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    emit('status', { state: 'completed' }, 'b')
+    expect(controller.getSnapshot().runningSessionIds).toEqual([])
+    expect(controller.getSnapshot().unreadSessionIds).toEqual(['b'])
+    expect(controller.getSnapshot().pendingPermissions['b']).toBeUndefined()
+    emit('status', { state: 'failed' }, 'a')
+    expect(controller.getSnapshot().unreadSessionIds).toEqual(['b'])
+    controller.dispose()
+  })
+
+  it('marks a session read when it is opened and notifies the host', async () => {
+    const { controller, host, snapshots } = fixture()
+    const list = host.listSessions as ReturnType<typeof vi.fn>
+    list.mockResolvedValue([{ ...session('b'), unread: true }, session('a')])
+    snapshots.set('b', { ...session('b'), unread: true })
+    const setSessionUnread = vi.fn(async () => undefined)
+    Object.assign(host, { setSessionUnread })
+    await controller.start()
+    await controller.open('b')
+    expect(setSessionUnread).toHaveBeenCalledWith('b', false)
+    expect(controller.getSnapshot().unreadSessionIds).not.toContain('b')
+    controller.dispose()
+  })
+
+  it('renames a session through the host and refreshes the list', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    const renameSession = vi.fn(async () => undefined)
+    Object.assign(host, { renameSession })
+    await controller.renameSession('a', '新标题')
+    expect(renameSession).toHaveBeenCalledWith('a', '新标题')
+    expect(controller.getSnapshot().error).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('deletes the active session and falls back to the next remaining session', async () => {
+    const { controller, host, snapshots } = fixture()
+    await controller.start()
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    const deleteSession = vi.fn(async () => undefined)
+    Object.assign(host, { deleteSession })
+    snapshots.delete('a')
+    const list = host.listSessions as ReturnType<typeof vi.fn>
+    list.mockResolvedValue([session('b')])
+    await controller.deleteSession('a')
+    expect(deleteSession).toHaveBeenCalledWith('a')
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    controller.dispose()
+  })
+
+  it('reports host operations that are unavailable instead of throwing', async () => {
+    const { controller } = fixture()
+    await controller.start()
+    await controller.renameSession('a', '标题')
+    expect(controller.getSnapshot().error).toBe('当前宿主不支持该操作')
+    controller.dispose()
+  })
+
   it('restores the last model selection from host preferences and saves new picks', async () => {
     const store = new Map<string, unknown>([['model-selection', { providerId: 'provider', modelId: 'model' }]])
     const { host } = fixture()

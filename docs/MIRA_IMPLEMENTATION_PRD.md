@@ -34,6 +34,7 @@
 | 2026-09-29 | 复核用户补充的 Mira 现状截图，确认 Shell 与 Harness 画布边界，以及常驻右侧概览挤压线程的问题；提供独立结构原型 `apps/harness-react/design-review.html`，修正空态摘要和状态标签误显，补齐窗口控制示意、工作区宽度和标签关闭交互。 | Chrome 1440×900 验证空态、执行中终端标签、文件标签关闭后重新打开、会话切换及键盘调整宽度；原型中的模型、终端、浏览器均为演示，交互方案仍待用户确认，不继续默认入口切换。 |
 | 2026-09-29 | 审计 ZCode 侧面板组件与 Mira 已有 React 依赖：继续使用 `@assistant-ui/react`、`lucide-react`；ZCode 整体 Side Pane 与内部服务强耦合，高保真只借鉴交互并按需选 Radix 原语。 | 组件策略已记录在工作台原型文档；布局确认前不引入依赖、不复制 ZCode 源码、不改正式 UI。 |
 | 2026-09-29 | React 迁移阶段 0（收编与地基）：`prototypes/harness-react` 转正为 `apps/harness-react`（构建/测试/文档/开发路由全部同步）；pilot.css 拆分为 tokens/layout/thread/workspace 四文件并合并覆盖层死样式，终端深色改令牌；`mira:context` 增 `primaryColor`/`onPrimary`，React 经 `applyHostTheme` 对齐壳层主色与深浅切换；第一方桥新增 `preferences.get/set`（按 appId 命名空间隔离），pilot 上次模型选择改走宿主偏好持久化。 | 已通过：`npm test`（69 文件 305 用例）、`npx tsc -p apps/harness-react/tsconfig.json`、`npm run build`、`git diff --check`。开发态 Electron 视觉复验（深浅×主色切换）与打包版仍待验收。 |
+| 2026-09-29 | React 迁移阶段 1（桥扩容 + 会话抽屉完整对齐）：第一方 Harness 白名单扩容至 40+ 方法（会话重命名/置顶/未读/归档/删除/移动/排序、会话权限/Skill/MCP/委派配置、Git 分支三操作、记忆确认与保存、子任务停止、重跑/编辑重跑、计划取消/继续、message.run 支持文件引用、project.open 支持终端目标），主进程逐项分发并带参数校验；pilot-state 增加跨会话徽标缓存（运行中/未读/挂起审批），打开会话自动清除未读；会话抽屉重建为完整对齐 Vue 侧边栏：置顶/项目/最近三组、项目折叠经偏好持久化、四类徽标优先级（计划>审批>运行>未读）、右键菜单全套（重命名/置顶/已读/归档/删除确认/移动/复制/打开方式）、行内置顶归档快捷操作、dnd-kit 组内拖拽排序（禁止跨组）、行内重命名（42 字上限）。 | 已通过：`npm test`（70 文件 314 用例）、`npx vue-tsc --noEmit`、`npx tsc -p apps/harness-react/tsconfig.json`、`npm run build`、`git diff --check`。抽屉的桌面视觉与物理鼠标拖拽复验、打包版、真实模型链路仍待验收。 |
 
 本文继续作为第一阶段的任务规划文档。每次模块边界、交付关口或验收结论发生变化时，先更新本节和对应模块，再开始下一批代码改动。
 
