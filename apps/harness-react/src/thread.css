@@ -3,8 +3,7 @@
    消息/composer/运行轨迹本体已迁移到 Tailwind 组件类（ZCode 令牌）。 */
 .pilot-thread { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .pilot-thread__viewport { min-height: 0; flex: 1; overflow: auto; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
-.pilot-thread__messages { max-width: 760px; margin: 0 auto; padding: 28px 32px 36px; }
-.message-row { margin: 0 0 22px; }
+.message-row { margin: 0; }
 
 /* 完成态 markdown（引用角标 + 代码复制按钮保留在静态管线）。 */
 .pilot-markdown { overflow-wrap: anywhere; }

@@ -91,7 +91,7 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
     setReferences([])
   }
 
-  return <div className="mx-auto w-full max-w-[760px] px-8 pb-5">
+  return <div className="w-full">
     {panel === 'perm-confirm' && <div className="mb-2 grid gap-2 rounded-xl border border-border bg-background-alt px-3.5 py-2.5 text-ui-sm" role="alert">
       <p className="m-0 flex items-center gap-1.5 text-foreground-subtle"><CircleAlert size={14} /> 完全访问将跳过所有工具确认（危险命令仍被拦截）。仅对当前会话生效。</p>
       <div className="flex justify-end gap-2">
@@ -124,12 +124,12 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
         <strong className="text-ui-sm font-medium">{command.label}</strong><small className="text-ui-xs text-foreground-subtle">{command.hint}</small>
       </button>)}
     </div>}
-    <form className="block rounded-2xl border border-border bg-card px-3 pb-2 pt-2.5 shadow-soft transition-colors focus-within:border-brand/50" onSubmit={event => void submit(event)}>
-      <textarea ref={textareaRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" className="block max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1 text-ui-base leading-relaxed text-foreground outline-none placeholder:text-foreground-subtlest" />
+    <form className="relative block rounded-2xl border border-input-border bg-input p-3 transition-colors hover:border-input-border-hover focus-within:border-input-border-focused focus-within:bg-input-focused" onSubmit={event => void submit(event)}>
+      <textarea ref={textareaRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (slashActive && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) { onSlashKeyDown(event); return } if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} placeholder={state.session ? '描述你的任务…（输入 / 使用命令）' : '先从左侧创建任务'} aria-label="任务内容" className="block max-h-40 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-1 text-ui-base leading-5 text-foreground outline-none placeholder:text-foreground-subtlest" />
       {references.length > 0 && <div className="flex flex-wrap gap-1.5 px-1 pt-1.5">{references.map(reference => <span key={reference.path} className="inline-flex max-w-[260px] items-center gap-1.5 rounded-full bg-background-alt px-2 py-0.5 text-ui-xs" title={reference.path}><Paperclip size={11} /><span className="truncate">{reference.name}</span><button type="button" aria-label={`移除 ${reference.name}`} className="grid size-3.5 place-items-center rounded-full text-foreground-subtle hover:bg-hover hover:text-red-400" onClick={() => setReferences(previous => previous.filter(item => item.path !== reference.path))}>×</button></span>)}</div>}
       {state.session && !draft.trim() && !state.running && <div className="flex flex-wrap gap-1.5 px-1 pt-2">{STARTERS.map(starter => <button key={starter.title} type="button" className="rounded-full bg-background-alt px-3 py-1 text-ui-xs text-foreground-subtle hover:text-brand" onClick={() => setDraft(starter.prompt)}>{starter.title}</button>)}</div>}
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
+      <div className="mt-1 flex items-end gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <button type="button" className="flex size-7 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-brand" title="引用文件" aria-label="引用文件" disabled={!state.session} onClick={() => void selectFiles()}><Plus size={16} /></button>
           <select className="max-w-[200px] cursor-pointer rounded-lg border-0 bg-transparent px-1.5 py-1 text-ui-sm text-foreground-subtle hover:bg-hover hover:text-foreground focus:outline-none" aria-label="模型" value={state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''} onChange={event => {
             const [providerId, modelId] = event.target.value.split(':')
@@ -154,8 +154,8 @@ export function HarnessComposer({ state, controller, planning, setPlanning }: {
           </div>
         </div>
         {state.running
-          ? <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand text-on-accent transition-transform hover:-translate-y-px" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={14} /></button>
-          : <button type="submit" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand text-on-accent transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-35" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><ArrowUp size={17} /></button>}
+          ? <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-foreground-inverse transition-transform hover:-translate-y-px" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={14} /></button>
+          : <button type="submit" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-foreground-inverse transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-35" title="发送任务" aria-label="发送任务" disabled={sendingBlocked || !draft.trim()}><ArrowUp size={16} /></button>}
       </div>
     </form>
   </div>

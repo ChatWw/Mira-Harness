@@ -5,7 +5,7 @@
 .pilot-workbench--sessions { grid-template-columns: minmax(0, 1fr); }
 .pilot-workbench--workspace, .pilot-workbench--sessions.pilot-workbench--workspace { grid-template-columns: minmax(0, 1fr) 8px minmax(360px, var(--pilot-workspace-width)); }
 .pilot-nav, .pilot-inspector { min-width: 0; overflow: auto; background: var(--soft); }
-.pilot-nav { position: absolute; z-index: 5; top: 0; bottom: 0; left: 0; width: 250px; padding-top: 6px; border-right: 1px solid var(--border); box-shadow: 12px 0 30px rgba(0, 0, 0, .1); }
+.pilot-nav { position: absolute; z-index: 5; top: 0; bottom: 0; left: 0; width: 264px; padding-top: 6px; border-right: 1px solid var(--border); box-shadow: 12px 0 30px rgba(0, 0, 0, .1); }
 .pilot-drawer__close { position: absolute; top: 13px; right: 14px; display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
 .pilot-drawer__close:hover { color: var(--text); background: var(--hover); }
 .pilot-nav__head { display: flex; height: 58px; align-items: center; justify-content: space-between; padding: 0 48px 0 20px; font-size: 14px; }

@@ -12,6 +12,7 @@ import { RunProgressCard } from './run-progress'
 import { EditIcon, FileChangesCard, UserMessageEditor } from './message-parts'
 import { HarnessComposer } from './composer'
 import { Copy } from 'lucide-react'
+import { cn } from './lib/utils'
 
 type WorkspaceTabId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser'
 type WorkspaceTab = { id: WorkspaceTabId; label: string }
@@ -30,9 +31,9 @@ function UserMessage() {
   if (editing) return <MessagePrimitive.Root className="message-row flex w-full flex-col items-end gap-1">
     <div className="w-full"><UserMessageEditor original={original} content={original?.content || ''} onCancel={() => setEditing(false)} onConfirm={async next => { setEditing(false); await controller.editAndRerun(id, next) }} /></div>
   </MessagePrimitive.Root>
-  return <MessagePrimitive.Root className="message-row group flex w-full flex-col items-end gap-1">
-    <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-background-alt px-4 py-2.5 text-ui-base leading-relaxed text-foreground"><MessagePrimitive.Content /></div>
-    {!running && <button type="button" className="mr-1 flex size-6 items-center justify-center rounded-md text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}
+  return <MessagePrimitive.Root className="message-row group/user-row mt-7 flex w-full flex-col items-end first:mt-0">
+    <div className="flex max-w-full flex-col rounded-xl rounded-tr-xs border border-border bg-surface px-4 py-3 text-ui-base text-foreground @min-[624px]/conversation:max-w-xl"><MessagePrimitive.Content /></div>
+    {!running && <button type="button" className="mt-1 mr-1 flex size-6 items-center justify-center rounded-md text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-foreground group-hover/user-row:opacity-100 focus-visible:opacity-100" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}
   </MessagePrimitive.Root>
 }
 
@@ -46,16 +47,15 @@ function AssistantMessage() {
   const streaming = shouldRenderPilotStream(id, isOptimistic === true, stream?.id)
   const content = streaming ? (stream?.content ?? '') : (original?.content ?? '')
   const changes: HarnessFileChange[] = original?.fileChanges || []
-  return <MessagePrimitive.Root className="message-row group flex w-full min-w-0 flex-col gap-2">
-    <span className="text-ui-sm font-semibold text-foreground-subtle">Mira</span>
-    {content ? <MessageMarkdown content={content} sources={original?.sources} streaming={streaming} /> : null}
+  return <MessagePrimitive.Root className="message-row group/assistant-row w-full min-w-0">
+    <MessageMarkdown content={content} sources={original?.sources} streaming={streaming} />
     {changes.length > 0 && <FileChangesCard changes={changes} onOpen={openChangesTab} />}
     {original?.run && <RunProgressCard run={original.run} running={streaming} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
-    {!streaming && content && <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-      {original?.createdAt ? <span className="text-ui-xs text-foreground-subtlest">{formatClock(original.createdAt)}</span> : null}
-      {formatUsage(original) && <span className="text-ui-xs text-foreground-subtlest">{formatUsage(original)}</span>}
-      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="复制回复" title="复制" onClick={() => { void navigator.clipboard.writeText(content).catch(() => undefined) }}><Copy size={13} /></button>
-      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="重新生成" title="重新生成" onClick={() => void controller.rerun()}><RotateCw size={13} /></button>
+    {!streaming && content && <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover/assistant-row:opacity-100 group-focus-within:opacity-100">
+      {original?.createdAt ? <span className="text-ui-sm text-foreground-subtlest">{formatClock(original.createdAt)}</span> : null}
+      {formatUsage(original) && <span className="text-ui-sm text-foreground-subtlest">{formatUsage(original)}</span>}
+      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="复制回复" title="复制" onClick={() => { void navigator.clipboard.writeText(content).catch(() => undefined) }}><Copy size={14} /></button>
+      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="重新生成" title="重新生成" onClick={() => void controller.rerun()}><RotateCw size={14} /></button>
     </div>}
   </MessagePrimitive.Root>
 }
@@ -172,20 +172,48 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     <MessageLookupContext.Provider value={messageById}>
     <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} style={{ '--pilot-workspace-width': `${workspaceWidth}%` } as CSSProperties} data-task-state={taskTone}>
     {sessionsOpen && <SessionDrawer state={state} controller={controller} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />}
-    <main className="pilot-main">
-      <header className="pilot-heading"><div className="pilot-heading__leading"><button type="button" className="pilot-heading__icon" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}><Menu size={17} /></button><div><small>{project?.name || '个人工作区'} / Harness</small><h1>{state.session?.title || '今天要研究、整理或完成什么？'}</h1><span className="pilot-heading__path" title={state.session?.workingDirectory}>{state.session?.workingDirectory || '新任务将在选定工作区中运行'}</span></div></div><div className="pilot-heading__actions"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /><button type="button" className="pilot-heading__icon" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button></div></header>
-      <div className={`pilot-thread-stage${hasTaskProgress ? ' pilot-thread-stage--summary' : ''}`}>
-        {hasTaskProgress && <TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} />}
-      {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
-      {state.permission && <section className="pilot-action" aria-label="权限确认"><ShieldCheck size={19} /><div><strong>{state.permission.title}</strong><p>{state.permission.detail}</p><div className="pilot-action__buttons"><button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button><button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button></div></div></section>}
-      {state.memoryConfirmation && <section className="pilot-action" aria-label="记忆确认"><ShieldCheck size={19} /><div><strong>保存到长期记忆</strong><p>{state.memoryConfirmation.content}</p><div className="pilot-action__buttons"><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(false)}>不保存</button><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(true)}>保存</button></div></div></section>}
-      {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />}
-      <AssistantRuntimeProvider runtime={runtime}>
-        <StreamMessageContext.Provider value={streamMessage}><ThreadPrimitive.Root className="pilot-thread">
-          <ThreadPrimitive.Viewport className="pilot-thread__viewport"><div className="pilot-thread__messages">{!state.messages.length && <div className="pilot-empty"><strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong><p>{state.session ? '描述你要研究、整理或处理的内容，也可以从下方示例开始。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>{!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}</div>}<ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />{changes.length > 0 && <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}><GitCompare size={15} />查看 {changes.length} 个文件变更 <ArrowRight size={14} /></button>}</div></ThreadPrimitive.Viewport>
-          <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
-        </ThreadPrimitive.Root></StreamMessageContext.Provider>
-      </AssistantRuntimeProvider>
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+      <header className="relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/50 p-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}><Menu size={17} /></button>
+          <div className="min-w-0">
+            <small className="block truncate text-ui-xs text-foreground-subtlest">{project?.name || '个人工作区'} / Harness</small>
+            <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground">{state.session?.title || '今天要研究、整理或完成什么？'}</h1>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} />
+          <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button>
+        </div>
+      </header>
+      <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
+        {hasTaskProgress && <div className="pointer-events-none absolute right-4 top-0 z-20 pt-4"><TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} /></div>}
+        <AssistantRuntimeProvider runtime={runtime}>
+          <StreamMessageContext.Provider value={streamMessage}>
+            <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
+              <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+                <div className="flex min-h-full flex-col">
+                  <div className="relative w-full flex-1">
+                    <div className="flex w-full flex-col gap-5 px-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl mx-auto" style={{ overflowAnchor: 'none' }}>
+                      {!state.messages.length && <div className="pilot-empty"><strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong><p>{state.session ? '描述你要研究、整理或处理的内容，也可以从下方示例开始。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>{!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}</div>}
+                      <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+                      {changes.length > 0 && <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}><GitCompare size={14} />查看 {changes.length} 个文件变更 <ArrowRight size={13} /></button>}
+                    </div>
+                  </div>
+                  <div className="sticky bottom-0 z-20 flex w-full justify-center">
+                    <div className="relative z-10 mx-auto w-full px-4 pb-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl">
+                      {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
+                      {state.permission && <section className="pilot-action" aria-label="权限确认"><ShieldCheck size={19} /><div><strong>{state.permission.title}</strong><p>{state.permission.detail}</p><div className="pilot-action__buttons"><button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button><button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button></div></div></section>}
+                      {state.memoryConfirmation && <section className="pilot-action" aria-label="记忆确认"><ShieldCheck size={19} /><div><strong>保存到长期记忆</strong><p>{state.memoryConfirmation.content}</p><div className="pilot-action__buttons"><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(false)}>不保存</button><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(true)}>保存</button></div></div></section>}
+                      {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />}
+                      <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
+                    </div>
+                  </div>
+                </div>
+              </ThreadPrimitive.Viewport>
+            </ThreadPrimitive.Root>
+          </StreamMessageContext.Provider>
+        </AssistantRuntimeProvider>
       </div>
     </main>
     {workspaceOpen && <div className="pilot-workspace-resize" role="separator" tabIndex={0} aria-label="调整工作区宽度" aria-orientation="vertical" aria-valuemin={32} aria-valuemax={54} aria-valuenow={workspaceWidth} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWorkspaceWidth(value => Math.min(54, Math.max(32, value + (event.key === 'ArrowLeft' ? 2 : -2)))) } }} onPointerDown={resizeWorkspace} />}
@@ -232,14 +260,27 @@ function WorkspaceTabs({ tabs, active, changes, onOpen, onActivate, onClose }: {
 
 function TaskStateBadge({ taskState, taskTone, running, hasSession }: { taskState: string; taskTone: PilotTaskTone; running: boolean; hasSession: boolean }) {
   const label = running ? '执行中' : taskState === '等待下一步' ? (hasSession ? '就绪' : '尚未选择任务') : taskState
-  const showAlert = taskTone === 'waiting' || taskTone === 'partial' || taskTone === 'failed'
-  return <div className={`pilot-heading__state pilot-heading__state--${taskTone}`} aria-live="polite">{running && <LoaderCircle size={15} className="pilot-spin" />}{showAlert && <CircleAlert size={15} />}{taskTone === 'completed' && <Check size={15} />}{taskTone === 'stopped' && <Square size={13} />}{label}</div>
+  const tone = taskTone === 'failed' ? 'text-red-400' : taskTone === 'running' || taskTone === 'waiting' || taskTone === 'partial' ? 'text-amber-400' : taskTone === 'completed' ? 'text-emerald-400' : 'text-foreground-subtle'
+  return <div className={cn('inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-ui-xs', tone)} aria-live="polite">{running && <LoaderCircle size={13} className="animate-spin" />}{showAlert(taskTone) && <CircleAlert size={13} />}{taskTone === 'completed' && <Check size={13} />}{taskTone === 'stopped' && <Square size={12} />}{label}</div>
 }
+
+function showAlert(taskTone: PilotTaskTone) { return taskTone === 'waiting' || taskTone === 'partial' || taskTone === 'failed' }
 
 function TaskSummary({ taskState, taskTone, running, activities, changes, onOpenWorkspace }: { taskState: string; taskTone: PilotTaskTone; running: boolean; activities: HarnessRunActivity[]; changes: number; onOpenWorkspace: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const current = activities.find(activity => activity.status === 'running')
-  return <aside className={`pilot-summary pilot-summary--${taskTone}${expanded ? ' is-expanded' : ''}`} aria-label="任务摘要"><button type="button" className="pilot-summary__toggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="pilot-summary__signal"><span className={`pilot-summary__dot pilot-summary__dot--${taskTone}`} />{running ? '正在执行' : taskState}</span><strong>{current?.label || (changes ? `${changes} 个文件有变更` : '任务上下文')}</strong></button>{expanded && <div className="pilot-summary__details"><span>{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span><button type="button" onClick={onOpenWorkspace}>查看工作区 <PanelRight size={14} /></button></div>}</aside>
+  const dotTone = taskTone === 'running' || taskTone === 'waiting' || taskTone === 'partial' ? 'bg-amber-400' : taskTone === 'completed' ? 'bg-emerald-400' : taskTone === 'failed' ? 'bg-red-400' : 'bg-foreground-subtlest'
+  return <aside className="pointer-events-auto w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-popover-border bg-popover text-foreground shadow-md" aria-label="任务摘要">
+    <button type="button" className="flex min-h-9 w-full items-center gap-2 px-3 text-left hover:bg-hover" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+      <span className={cn('size-2 shrink-0 rounded-full', dotTone)} />
+      <span className="shrink-0 text-ui-sm text-foreground-subtle">{running ? '正在执行' : taskState}</span>
+      <strong className="min-w-0 truncate text-ui-sm font-medium">{current?.label || (changes ? `${changes} 个文件有变更` : '任务上下文')}</strong>
+    </button>
+    {expanded && <div className="grid gap-2 px-3 pb-3 text-ui-sm text-foreground-subtle">
+      <span className="min-w-0 break-all">{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span>
+      <button type="button" className="inline-flex w-max items-center gap-1.5 text-brand hover:underline" onClick={onOpenWorkspace}>查看工作区 <PanelRight size={13} /></button>
+    </div>}
+  </aside>
 }
 
 function OverviewPanel({ taskState, taskTone, latestRun, activities, tools }: { taskState: string; taskTone: PilotTaskTone; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[] }) {
