@@ -87,6 +87,8 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
   if (method === 'sessions.list' || method === 'projects.list' || method === 'providers.list' || method === 'skills.list') return { method } as const
   const params = fields(raw)
   switch (method) {
+    case 'mcp.list': return { method } as const
+    case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     case 'files.list':
     case 'files.read':
       return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, method === 'files.list') } as const

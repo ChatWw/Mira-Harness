@@ -1,4 +1,4 @@
-import { isModelProviderAvailable, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../src/config/harness'
+import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
 
 export interface PilotBrowserEvent { sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string }
@@ -44,6 +44,8 @@ export interface PilotHost {
   setSessionMcpServers?(id: string, serverIds: string[]): Promise<void>
   setSessionDelegation?(id: string, enabled: boolean): Promise<void>
   listSkills?(): Promise<unknown[]>
+  listMcp?(): Promise<Array<{ id: string; name: string; enabled: boolean }>>
+  selectFiles?(id: string): Promise<HarnessFileReference[]>
   listGitBranches?(projectId: string): Promise<unknown>
   checkoutGitBranch?(projectId: string, branch: string): Promise<void>
   createGitBranch?(projectId: string, branch: string): Promise<void>
@@ -71,6 +73,8 @@ export interface PilotState {
   runningSessionIds: string[]
   unreadSessionIds: string[]
   pendingPermissions: Record<string, HarnessPermissionRequest>
+  /** 当前会话待确认的记忆保存（敏感信息需用户确认）。 */
+  memoryConfirmation?: { requestId: string; candidateId?: string; content: string }
 }
 
 export function projectPilotMessage(message: HarnessMessage) {
@@ -192,7 +196,7 @@ export class PilotController {
   private writePreference(key: string, value: unknown) {
     void this.host.setPreference?.(key, value).catch(() => undefined)
   }
-  async send(text: string, planning = false) {
+  async send(text: string, planning = false, references: HarnessFileReference[] = []) {
     const selection = this.state.selection
     if (!text.trim() || !selection || this.state.running || this.state.permission || this.state.session?.pendingInteraction?.status === 'waiting') return
     const session = this.state.session
@@ -200,7 +204,7 @@ export class PilotController {
     const generation = this.generation
     this.update({ running: true, error: undefined, messages: [...this.state.messages, { id: `pending-${Date.now()}`, role: 'user', content: text.trim(), createdAt: Date.now() }] })
     try {
-      await this.host.runMessage(session.id, text.trim(), selection, planning)
+      await this.host.runMessage(session.id, text.trim(), selection, planning, references)
       await this.refreshSession(session.id, generation)
     } catch (error) {
       if (generation === this.generation) { this.fail(error); await this.refreshSession(session.id, generation) }
@@ -273,15 +277,26 @@ export class PilotController {
   moveSession(id: string, projectId: string) { return this.run(async () => { await this.require('moveSession')(id, projectId); await this.refreshList() }) }
   reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) { return this.run(async () => { await this.require('reorderSessions')(scope, ids); await this.refreshList() }) }
   reorderProjects(ids: string[]) { return this.run(async () => { await this.require('reorderProjects')(ids); await this.refreshList() }) }
-  setSessionPermission(id: string, mode: PermissionMode) { return this.run(async () => { await this.require('setSessionPermission')(id, mode); await this.refreshList() }) }
-  setSessionSkills(id: string, skillIds: string[]) { return this.require('setSessionSkills')(id, skillIds) }
-  setSessionMcpServers(id: string, serverIds: string[]) { return this.require('setSessionMcpServers')(id, serverIds) }
-  setSessionDelegation(id: string, enabled: boolean) { return this.require('setSessionDelegation')(id, enabled) }
+  setSessionPermission(id: string, mode: PermissionMode) { return this.run(async () => { await this.require('setSessionPermission')(id, mode); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
+  setSessionSkills(id: string, skillIds: string[]) { return this.run(async () => { await this.require('setSessionSkills')(id, skillIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
+  setSessionMcpServers(id: string, serverIds: string[]) { return this.run(async () => { await this.require('setSessionMcpServers')(id, serverIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
+  setSessionDelegation(id: string, enabled: boolean) { return this.run(async () => { await this.require('setSessionDelegation')(id, enabled); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   listSkills() { return this.require('listSkills')() }
+  listMcp() { return this.require('listMcp')() }
+  selectFiles() {
+    const id = this.state.session?.id
+    if (!id) return Promise.reject(new Error('尚未选择任务'))
+    return this.require('selectFiles')(id)
+  }
   listGitBranches(projectId: string) { return this.require('listGitBranches')(projectId) }
   checkoutGitBranch(projectId: string, branch: string) { return this.require('checkoutGitBranch')(projectId, branch) }
   createGitBranch(projectId: string, branch: string) { return this.require('createGitBranch')(projectId, branch) }
-  respondMemory(requestId: string, approved: boolean) { return this.require('respondMemory')(requestId, approved) }
+  respondMemory(requestId: string, approved: boolean) {
+    return this.run(async () => {
+      await this.require('respondMemory')(requestId, approved)
+      if (this.state.memoryConfirmation?.requestId === requestId) this.update({ memoryConfirmation: undefined })
+    })
+  }
   saveMemory() {
     const { session, selection } = this.state
     if (!session || !selection) return Promise.reject(new Error('尚未选择任务或模型'))
@@ -390,6 +405,20 @@ export class PilotController {
       this.permissionRevision++
       if (event.sessionId === this.activeSessionId) this.update({ permission: request, pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: request } })
       else this.update({ pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: request } })
+      return
+    }
+    if (event.type === 'memory-status' && event.sessionId === this.activeSessionId) {
+      const payload = event.payload as { status?: string; requestId?: string; candidateId?: string; content?: string }
+      if (payload.status === 'needs_confirmation' && payload.requestId) this.update({ memoryConfirmation: { requestId: payload.requestId, candidateId: payload.candidateId, content: String(payload.content || '') } })
+      else if (this.state.memoryConfirmation?.requestId === payload.requestId) this.update({ memoryConfirmation: undefined })
+      return
+    }
+    if (event.type === 'context-usage' && event.sessionId === this.activeSessionId && this.state.session) {
+      const usage = event.payload.usage as HarnessContextUsage | undefined
+      if (usage && typeof usage.usedTokens === 'number') {
+        const session = { ...this.state.session, context: { ...this.state.session.context, usage } }
+        this.update({ session })
+      }
       return
     }
     if (event.sessionId !== this.activeSessionId) return

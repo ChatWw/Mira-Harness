@@ -80,6 +80,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   setSessionMcpServers = (id: string, serverIds: string[]) => this.call<void>('session.set-mcp-servers', { id, serverIds })
   setSessionDelegation = (id: string, enabled: boolean) => this.call<void>('session.set-delegation', { id, enabled })
   listSkills = () => this.call<unknown[]>('skills.list')
+  listMcp = () => this.call<Array<{ id: string; name: string; enabled: boolean }>>('mcp.list')
+  selectFiles = (sessionId: string) => this.call<HarnessFileReference[]>('files.select', { sessionId })
   listGitBranches = (projectId: string) => this.call<unknown>('git.branches', { projectId })
   checkoutGitBranch = (projectId: string, branch: string) => this.call<void>('git.checkout', { projectId, branch })
   createGitBranch = (projectId: string, branch: string) => this.call<void>('git.create-branch', { projectId, branch })

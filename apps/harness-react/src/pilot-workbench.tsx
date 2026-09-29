@@ -1,22 +1,58 @@
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
-import { Activity, ArrowLeft, ArrowRight, ArrowUp, Check, CircleAlert, FileCode2, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, RotateCw, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
-import { isModelProviderAvailable, type HarnessFileChange, type HarnessMessage, type HarnessPendingInteraction, type HarnessRunActivity, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelSelection, type ToolCallRecord } from '../../../src/config/harness'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
+import { Activity, ArrowLeft, ArrowRight, Check, CircleAlert, FileCode2, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, RotateCw, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
+import { type HarnessFileChange, type HarnessMessage, type HarnessPendingInteraction, type HarnessRunActivity, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ToolCallRecord } from '../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from './pilot-state'
 import { SessionDrawer } from './session-drawer'
+import { MarkdownContent } from './markdown'
+import { RunProgressCard } from './run-progress'
+import { AssistantToolbar, EditIcon, FileChangesCard, UserMessageEditor } from './message-parts'
+import { HarnessComposer } from './composer'
 
 type WorkspaceTabId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser'
 type WorkspaceTab = { id: WorkspaceTabId; label: string }
 const workspaceTabDefaults: WorkspaceTab[] = [{ id: 'overview', label: '任务活动' }]
 
-function UserMessage() { return <MessagePrimitive.Root className="pilot-message pilot-message--user"><span className="pilot-message__role">你</span><MessagePrimitive.Content /></MessagePrimitive.Root> }
 const StreamMessageContext = createContext<HarnessMessage | undefined>(undefined)
+const MessageLookupContext = createContext<Map<string, HarnessMessage>>(new Map())
+const WorkbenchContext = createContext<{ controller: PilotController; openChangesTab: () => void; running: boolean }>({ controller: undefined as unknown as PilotController, openChangesTab: () => undefined, running: false })
+
+function UserMessage() {
+  const id = useAuiState(state => state.message.id)
+  const messageById = useContext(MessageLookupContext)
+  const { controller, running } = useContext(WorkbenchContext)
+  const original = messageById.get(id)
+  const [editing, setEditing] = useState(false)
+  if (editing) return <MessagePrimitive.Root className="pilot-message pilot-message--user">
+    <UserMessageEditor original={original} content={original?.content || ''} onCancel={() => setEditing(false)} onConfirm={async next => { setEditing(false); await controller.editAndRerun(id, next) }} />
+  </MessagePrimitive.Root>
+  return <MessagePrimitive.Root className="pilot-message pilot-message--user">
+    <span className="pilot-message__role">你</span>
+    <MessagePrimitive.Content />
+    {!running && <span className="pilot-message__toolbar pilot-message__toolbar--inline">
+      <button type="button" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>
+    </span>}
+  </MessagePrimitive.Root>
+}
+
 function AssistantMessage() {
   const id = useAuiState(state => state.message.id)
   const isOptimistic = useAuiState(state => state.message.metadata.isOptimistic)
+  const messageById = useContext(MessageLookupContext)
   const stream = useContext(StreamMessageContext)
-  return <MessagePrimitive.Root className="pilot-message pilot-message--assistant"><span className="pilot-message__role">Mira</span>{shouldRenderPilotStream(id, isOptimistic === true, stream?.id) ? <p>{stream?.content}</p> : <MessagePrimitive.Content />}</MessagePrimitive.Root>
+  const { controller, openChangesTab } = useContext(WorkbenchContext)
+  const original = messageById.get(id)
+  const streaming = shouldRenderPilotStream(id, isOptimistic === true, stream?.id)
+  const content = streaming ? (stream?.content ?? '') : (original?.content ?? '')
+  const changes: HarnessFileChange[] = original?.fileChanges || []
+  return <MessagePrimitive.Root className="pilot-message pilot-message--assistant">
+    <span className="pilot-message__role">Mira</span>
+    <MarkdownContent content={content} sources={original?.sources} />
+    {changes.length > 0 && <FileChangesCard changes={changes} onOpen={openChangesTab} />}
+    {original?.run && <RunProgressCard run={original.run} running={streaming} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
+    {!streaming && content && <AssistantToolbar message={original} onRerun={() => controller.rerun()} />}
+  </MessagePrimitive.Root>
 }
 
 export function PilotWorkbench({ controller }: { controller: PilotController }) {
@@ -28,6 +64,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>('overview')
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>(workspaceTabDefaults)
   const [responding, setResponding] = useState(false)
+  const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [selectedChangeId, setSelectedChangeId] = useState<string>()
   useEffect(() => { if (sessionsOpen && !state.session) setNewTaskOpen(true) }, [sessionsOpen, state.session])
@@ -39,9 +76,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     onNew: async message => { await controller.send(message.content.filter(part => part.type === 'text').map(part => part.text).join(''), planning) },
     onCancel: async () => controller.stop(),
   })
-  const choices = state.providers.flatMap(provider => isModelProviderAvailable(provider)
-    ? provider.models.filter(model => model.enabled).map(model => ({ providerId: provider.id, modelId: model.id, label: `${provider.name} / ${model.id}` })) : [])
-  const selectionValue = state.selection ? `${state.selection.providerId}:${state.selection.modelId}` : ''
   const interaction = state.session?.pendingInteraction
   const lastMessage = state.messages[state.messages.length - 1]
   const streamMessage = lastMessage?.role === 'assistant' && lastMessage.id.startsWith('stream-') ? lastMessage : undefined
@@ -88,6 +122,14 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     setResponding(false)
   }
 
+  async function respondMemory(approved: boolean) {
+    const confirmation = state.memoryConfirmation
+    if (!confirmation || memoryResponding) return
+    setMemoryResponding(true)
+    await controller.respondMemory(confirmation.requestId, approved)
+    setMemoryResponding(false)
+  }
+
   function resizeWorkspace(event: ReactPointerEvent<HTMLDivElement>) {
     if (!workspaceOpen || event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -108,7 +150,11 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     window.addEventListener('pointercancel', onEnd, { once: true })
   }
 
-  return <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} style={{ '--pilot-workspace-width': `${workspaceWidth}%` } as CSSProperties} data-task-state={taskTone}>
+  const messageById = useMemo(() => new Map(state.messages.map(message => [message.id, message])), [state.messages])
+  const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), running: state.running }), [controller, state.running, workspaceTabs.length])
+  return <WorkbenchContext.Provider value={workbenchValue}>
+    <MessageLookupContext.Provider value={messageById}>
+    <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} style={{ '--pilot-workspace-width': `${workspaceWidth}%` } as CSSProperties} data-task-state={taskTone}>
     {sessionsOpen && <SessionDrawer state={state} controller={controller} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />}
     <main className="pilot-main">
       <header className="pilot-heading"><div className="pilot-heading__leading"><button type="button" className="pilot-heading__icon" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}><Menu size={17} /></button><div><small>{project?.name || '个人工作区'} / Harness</small><h1>{state.session?.title || '今天要研究、整理或完成什么？'}</h1><span className="pilot-heading__path" title={state.session?.workingDirectory}>{state.session?.workingDirectory || '新任务将在选定工作区中运行'}</span></div></div><div className="pilot-heading__actions"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /><button type="button" className="pilot-heading__icon" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button></div></header>
@@ -116,11 +162,12 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
         {hasTaskProgress && <TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} />}
       {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
       {state.permission && <section className="pilot-action" aria-label="权限确认"><ShieldCheck size={19} /><div><strong>{state.permission.title}</strong><p>{state.permission.detail}</p><div className="pilot-action__buttons"><button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button><button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button></div></div></section>}
-      {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} />}
+      {state.memoryConfirmation && <section className="pilot-action" aria-label="记忆确认"><ShieldCheck size={19} /><div><strong>保存到长期记忆</strong><p>{state.memoryConfirmation.content}</p><div className="pilot-action__buttons"><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(false)}>不保存</button><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(true)}>保存</button></div></div></section>}
+      {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />}
       <AssistantRuntimeProvider runtime={runtime}>
         <StreamMessageContext.Provider value={streamMessage}><ThreadPrimitive.Root className="pilot-thread">
-          <ThreadPrimitive.Viewport className="pilot-thread__viewport"><div className="pilot-thread__messages">{!state.messages.length && <div className="pilot-empty"><strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong><p>{state.session ? '描述你要研究、整理或处理的内容。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>{!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}</div>}<ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />{changes.length > 0 && <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}><GitCompare size={15} />查看 {changes.length} 个文件变更 <ArrowRight size={14} /></button>}</div></ThreadPrimitive.Viewport>
-          <div className="pilot-composer"><div className="pilot-composer__settings"><label htmlFor="pilot-model">模型</label><select id="pilot-model" value={selectionValue} onChange={event => { const choice = choices.find(item => `${item.providerId}:${item.modelId}` === event.target.value); if (choice) controller.select({ providerId: choice.providerId, modelId: choice.modelId } satisfies ModelSelection) }}><option value="" disabled>{choices.length ? '选择模型' : '请先在设置中配置模型'}</option>{choices.map(choice => <option key={`${choice.providerId}:${choice.modelId}`} value={`${choice.providerId}:${choice.modelId}`}>{choice.label}</option>)}</select><div className="pilot-mode" role="group" aria-label="执行模式"><button type="button" className={!planning ? 'is-active' : ''} aria-pressed={!planning} onClick={() => setPlanning(false)}>直接执行</button><button type="button" className={planning ? 'is-active' : ''} aria-pressed={planning} onClick={() => setPlanning(true)}>先出计划</button></div></div><ComposerPrimitive.Root className="pilot-composer__form"><ComposerPrimitive.Input placeholder={state.session ? '描述你的任务…' : '先从左侧创建任务'} aria-label="任务内容" /><div className="pilot-composer__actions"><span>{state.running ? '任务执行中' : state.session ? 'Enter 发送，Shift+Enter 换行' : '先选择工作区'}</span>{state.running ? <button type="button" title="停止任务" aria-label="停止任务" onClick={() => void controller.stop()}><Square size={16} /></button> : <ComposerPrimitive.Send title="发送任务" aria-label="发送任务"><ArrowUp size={18} /></ComposerPrimitive.Send>}</div></ComposerPrimitive.Root></div>
+          <ThreadPrimitive.Viewport className="pilot-thread__viewport"><div className="pilot-thread__messages">{!state.messages.length && <div className="pilot-empty"><strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong><p>{state.session ? '描述你要研究、整理或处理的内容，也可以从下方示例开始。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>{!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}</div>}<ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />{changes.length > 0 && <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}><GitCompare size={15} />查看 {changes.length} 个文件变更 <ArrowRight size={14} /></button>}</div></ThreadPrimitive.Viewport>
+          <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
         </ThreadPrimitive.Root></StreamMessageContext.Provider>
       </AssistantRuntimeProvider>
       </div>
@@ -139,7 +186,9 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
         </div>)}
       </div>
     </aside>
-  </div>
+    </div>
+    </MessageLookupContext.Provider>
+  </WorkbenchContext.Provider>
 }
 
 function workspaceTabLabel(id: WorkspaceTabId) {
@@ -349,14 +398,37 @@ function ChangePreview({ change }: { change: HarnessFileChange }) {
   return <div className="pilot-diff" aria-label="文件变更预览"><strong>{change.tool === 'delete' ? '删除' : change.tool === 'write' ? '写入' : '编辑'} · {change.path}</strong><pre>{change.diff || '此变更没有可显示的 diff。'}</pre></div>
 }
 
-function Interaction({ interaction, plan, selectionReady, onConfirm, onAnswer }: { interaction: HarnessPendingInteraction; plan?: import('../../../src/config/harness').HarnessPlan; selectionReady: boolean; onConfirm: () => Promise<void>; onAnswer: (answers: HarnessUserAnswer[]) => Promise<void> }) {
+function Interaction({ interaction, plan, selectionReady, onConfirm, onAnswer, onCancel }: { interaction: HarnessPendingInteraction; plan?: import('../../../src/config/harness').HarnessPlan; selectionReady: boolean; onConfirm: () => Promise<void>; onAnswer: (answers: HarnessUserAnswer[]) => Promise<void>; onCancel?: () => Promise<void> }) {
+  const [submitting, setSubmitting] = useState(false)
+  if (interaction.kind === 'plan-review') return <section className="pilot-action"><ShieldCheck size={19} /><div><strong>方案已生成 · {plan?.steps.length ?? 0} 步</strong>{plan ? <><p>{plan.understanding}</p><ol className="pilot-plan-steps">{plan.steps.map((step, index) => <li key={index}><strong>{step.label}</strong>{step.detail && <span>{step.detail}</span>}</li>)}</ol>{plan.risks.length > 0 && <p>风险：{plan.risks.join('；')}</p>}</> : <p>计划内容未加载，暂不能确认。</p>}<div className="pilot-action__buttons"><button type="button" disabled={!selectionReady || submitting} onClick={() => { setSubmitting(true); void onCancel?.().finally(() => setSubmitting(false)) }}>取消方案</button><button type="button" disabled={!plan || !selectionReady || submitting} onClick={() => { setSubmitting(true); void onConfirm().finally(() => setSubmitting(false)) }}>确认并执行</button></div></div></section>
+  return <ClarificationWizard interaction={interaction} selectionReady={selectionReady} onAnswer={onAnswer} />
+}
+
+function ClarificationWizard({ interaction, selectionReady, onAnswer }: { interaction: Extract<HarnessPendingInteraction, { kind: 'question' }>; selectionReady: boolean; onAnswer: (answers: HarnessUserAnswer[]) => Promise<void> }) {
+  const questions = interaction.questions
+  const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, HarnessUserAnswer>>({})
   const [submitting, setSubmitting] = useState(false)
-  if (interaction.kind === 'plan-review') return <section className="pilot-action"><ShieldCheck size={19} /><div><strong>计划等待确认</strong>{plan ? <><p>{plan.understanding}</p><ol className="pilot-plan-steps">{plan.steps.map((step, index) => <li key={index}><strong>{step.label}</strong>{step.detail && <span>{step.detail}</span>}</li>)}</ol>{plan.risks.length > 0 && <p>风险：{plan.risks.join('；')}</p>}</> : <p>计划内容未加载，暂不能确认。</p>}<div className="pilot-action__buttons"><button type="button" disabled={!plan || !selectionReady || submitting} onClick={() => { setSubmitting(true); void onConfirm().finally(() => setSubmitting(false)) }}>确认并执行</button></div></div></section>
-  const complete = interaction.questions.every(question => Boolean(answers[question.id]?.selected.length || answers[question.id]?.custom?.trim()))
-  return <section className="pilot-action"><ShieldCheck size={19} /><div><strong>需要补充信息</strong>{interaction.questions.map(question => {
-    const current = answers[question.id] || { id: question.id, selected: [] }
-    const update = (next: HarnessUserAnswer) => setAnswers(previous => ({ ...previous, [question.id]: next }))
-    return <fieldset className="pilot-question" key={question.id}><legend>{question.question}</legend>{question.context && <p>{question.context}</p>}{question.options?.map(option => <label key={option.label}><input type={question.multiSelect ? 'checkbox' : 'radio'} name={question.id} checked={current.selected.includes(option.label)} onChange={() => update({ ...current, selected: question.multiSelect ? current.selected.includes(option.label) ? current.selected.filter(item => item !== option.label) : [...current.selected, option.label] : [option.label] })} /><span>{option.label}{option.description && <small>{option.description}</small>}</span></label>)}{question.allowCustom !== false && <textarea aria-label={`${question.question}的自定义回答`} placeholder="补充回答" value={current.custom || ''} onChange={event => update({ ...current, custom: event.target.value })} />}</fieldset>
-  })}<div className="pilot-action__buttons"><button type="button" disabled={!complete || !selectionReady || submitting} onClick={() => { setSubmitting(true); void onAnswer(interaction.questions.map(question => answers[question.id] || { id: question.id, selected: [] })).finally(() => setSubmitting(false)) }}>提交回答</button></div></div></section>
+  const question = questions[step]
+  if (!question) return null
+  const current = answers[question.id] || { id: question.id, selected: [] }
+  const update = (next: HarnessUserAnswer) => setAnswers(previous => ({ ...previous, [question.id]: next }))
+  const answered = (item: HarnessUserAnswer) => Boolean(item.selected.length || item.custom?.trim())
+  const complete = questions.every(item => answered(answers[item.id] || { id: item.id, selected: [] }))
+  const isLast = step === questions.length - 1
+  function advance(next: HarnessUserAnswer | undefined) {
+    if (next) update(next)
+    if (!isLast) setStep(value => Math.min(value + 1, questions.length - 1))
+  }
+  return <section className="pilot-action" aria-label="澄清问题"><div className="pilot-wizard">
+    <header className="pilot-wizard__head"><strong>{question.header || '需要补充信息'}</strong><small>第 {step + 1} / {questions.length} 题</small></header>
+    {questions.length > 1 && <div className="pilot-wizard__progress" aria-hidden="true">{questions.map((item, index) => <span key={item.id} className={index === step ? 'is-current' : answered(answers[item.id] || { id: item.id, selected: [] }) ? 'is-done' : ''} />)}</div>}
+    <fieldset className="pilot-question"><legend>{question.question}</legend>{question.context && <p>{question.context}</p>}{question.options?.map(option => <label key={option.label}><input type={question.multiSelect ? 'checkbox' : 'radio'} name={question.id} checked={current.selected.includes(option.label)} onChange={() => update({ ...current, selected: question.multiSelect ? current.selected.includes(option.label) ? current.selected.filter(item => item !== option.label) : [...current.selected, option.label] : [option.label] })} /><span>{option.label}{option.description && <small>{option.description}</small>}</span></label>)}{question.allowCustom !== false && <textarea aria-label={`${question.question}的自定义回答`} placeholder="补充回答（可与选项同时填写）" value={current.custom || ''} onChange={event => update({ ...current, custom: event.target.value })} />}</fieldset>
+    <div className="pilot-wizard__nav">
+      <button type="button" disabled={step === 0} onClick={() => setStep(value => Math.max(0, value - 1))}>上一题</button>
+      {!isLast && <button type="button" onClick={() => advance(undefined)}>下一题</button>}
+      {!answered(current) && question.allowCustom !== false && <button type="button" onClick={() => advance({ id: question.id, selected: [] })}>跳过本题</button>}
+      {isLast && <button type="button" className="pilot-wizard__submit" disabled={!complete || !selectionReady || submitting} onClick={() => { setSubmitting(true); void onAnswer(questions.map(item => answers[item.id] || { id: item.id, selected: [] })).finally(() => setSubmitting(false)) }}>{submitting ? '提交中…' : complete ? '提交回答' : '还有问题未回答'}</button>}
+    </div>
+  </div></section>
 }

@@ -144,6 +144,23 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'session.set-delegation': return database.harness.setDelegationEnabled(call.id, call.enabled)
       case 'projects.reorder': return database.harness.reorderProjects(call.ids)
       case 'skills.list': return database.skills.list()
+      case 'mcp.list': {
+        if (!mcpConfigStore) throw new Error('MCP 服务不可用')
+        // 仅暴露工作台需要的字段：名称、启用状态与工具数量，不透出启动命令等配置。
+        return mcpConfigStore.list().map(server => ({ id: server.id, name: server.name, enabled: server.enabled }))
+      }
+      case 'files.select': {
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const options = { defaultPath: directory, properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>, title: '选择引用文件' }
+        return (async () => {
+          const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+          if (result.canceled || !session.projectId) return []
+          return database.harness.selectFileReferences(session.projectId, result.filePaths)
+        })()
+      }
       case 'git.branches': return database.harness.listGitBranches(call.projectId)
       case 'git.checkout': return database.harness.checkoutGitBranch(call.projectId, call.branch)
       case 'git.create-branch': return database.harness.createAndCheckoutGitBranch(call.projectId, call.branch)
