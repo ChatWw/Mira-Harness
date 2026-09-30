@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -74,7 +74,8 @@ function formatUsage(message?: HarnessMessage) {
 export function PilotWorkbench({ controller }: { controller: PilotController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
-  const [sessionsOpen, setSessionsOpen] = useState(false)
+  const [sessionsOpen, setSessionsOpen] = useState(true)
+  const [sessionsWidth, setSessionsWidth] = useState(264)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceWidth, setWorkspaceWidth] = useState(42)
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>('overview')
@@ -105,7 +106,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const hasTaskProgress = state.messages.length > 0 || activities.length > 0 || Boolean(state.permission) || interaction?.status === 'waiting'
   useEffect(() => {
     setWorkspaceOpen(false)
-    setSessionsOpen(false)
     setWorkspaceTabs(workspaceTabDefaults)
     setWorkspaceTab('overview')
     setSelectedChangeId(undefined)
@@ -117,7 +117,6 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
       : [...previous, { id, label: label || workspaceTabLabel(id) }])
     setWorkspaceTab(id)
     setWorkspaceOpen(true)
-    setSessionsOpen(false)
   }
 
   function closeWorkspaceTab(id: WorkspaceTabId) {
@@ -146,6 +145,24 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
     setMemoryResponding(false)
   }
 
+  function resizeSessions(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!sessionsOpen || event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const startX = event.clientX
+    const startWidth = sessionsWidth
+    const onMove = (move: PointerEvent) => {
+      setSessionsWidth(Math.min(420, Math.max(220, startWidth + (move.clientX - startX))))
+    }
+    const onEnd = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onEnd)
+      window.removeEventListener('pointercancel', onEnd)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd, { once: true })
+    window.addEventListener('pointercancel', onEnd, { once: true })
+  }
+
   function resizeWorkspace(event: ReactPointerEvent<HTMLDivElement>) {
     if (!workspaceOpen || event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -170,8 +187,11 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
   const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), running: state.running }), [controller, state.running, workspaceTabs.length])
   return <WorkbenchContext.Provider value={workbenchValue}>
     <MessageLookupContext.Provider value={messageById}>
-    <div className={`pilot-workbench${sessionsOpen ? ' pilot-workbench--sessions' : ''}${workspaceOpen ? ' pilot-workbench--workspace' : ''}`} style={{ '--pilot-workspace-width': `${workspaceWidth}%` } as CSSProperties} data-task-state={taskTone}>
-    {sessionsOpen && <SessionDrawer state={state} controller={controller} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />}
+    <div className="pilot-workbench" data-task-state={taskTone}>
+    {sessionsOpen && <>
+      <SessionDrawer state={state} controller={controller} width={sessionsWidth} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />
+      <div className="pilot-sessions-resize" role="separator" tabIndex={0} aria-label="调整侧边栏宽度" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={420} aria-valuenow={sessionsWidth} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setSessionsWidth(value => Math.min(420, Math.max(220, value + (event.key === 'ArrowLeft' ? -16 : 16)))) } }} onPointerDown={resizeSessions} />
+    </>}
     <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
       <header className="relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/50 p-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -183,7 +203,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} />
-          <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => { setWorkspaceOpen(!workspaceOpen); if (!workspaceOpen) setSessionsOpen(false) }}><PanelRight size={17} /></button>
+          <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen(!workspaceOpen)}><PanelRight size={17} /></button>
         </div>
       </header>
       <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
@@ -217,7 +237,7 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
       </div>
     </main>
     {workspaceOpen && <div className="pilot-workspace-resize" role="separator" tabIndex={0} aria-label="调整工作区宽度" aria-orientation="vertical" aria-valuemin={32} aria-valuemax={54} aria-valuenow={workspaceWidth} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWorkspaceWidth(value => Math.min(54, Math.max(32, value + (event.key === 'ArrowLeft' ? 2 : -2)))) } }} onPointerDown={resizeWorkspace} />}
-    <aside id="pilot-workspace" className={`pilot-inspector pilot-drawer${workspaceOpen ? '' : ' is-collapsed'}`} aria-label="工作区" aria-hidden={!workspaceOpen}>
+    {workspaceOpen && <aside id="pilot-workspace" className="pilot-inspector" style={{ width: `${workspaceWidth}%` }} aria-label="工作区">
       <div className="pilot-inspector__head"><div><strong>工作区</strong><small>{project?.name || '个人工作区'} · {taskState}</small></div><button type="button" title="关闭工作区" aria-label="关闭工作区" onClick={() => setWorkspaceOpen(false)}><X size={16} /></button></div>
       <WorkspaceTabs tabs={workspaceTabs} active={workspaceTab} changes={changes.length} onOpen={openWorkspaceTab} onActivate={setWorkspaceTab} onClose={closeWorkspaceTab} />
       <div className="pilot-inspector__body">

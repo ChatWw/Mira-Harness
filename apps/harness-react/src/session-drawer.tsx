@@ -17,12 +17,13 @@ type GroupId = 'pinned' | 'recent' | `project:${string}`
 export interface SessionDrawerProps {
   state: ReturnType<PilotController['getSnapshot']>
   controller: PilotController
+  width: number
   newTaskOpen: boolean
   onToggleNewTask: () => void
   onClose: () => void
 }
 
-export function SessionDrawer({ state, controller, newTaskOpen, onToggleNewTask, onClose }: SessionDrawerProps) {
+export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleNewTask, onClose }: SessionDrawerProps) {
   const [newTarget, setNewTarget] = useState('')
   const [creating, setCreating] = useState(false)
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
@@ -102,13 +103,13 @@ export function SessionDrawer({ state, controller, newTaskOpen, onToggleNewTask,
     renaming: renamingId === session.id,
     onRename: (title: string) => void renameSession(session.id, title),
     onCancelRename: () => setRenamingId(''),
-    onOpen: () => { onClose(); void controller.open(session.id) },
+    onOpen: () => { void controller.open(session.id) },
     onMenu: (event: React.MouseEvent) => { event.preventDefault(); setMenu({ sessionId: session.id, x: event.clientX, y: event.clientY }) },
   })
   const visibleProjects = showAllProjects ? model.projects : model.projects.slice(0, PROJECT_LIMIT)
   const noSessions = model.pinned.length === 0 && model.recent.length === 0 && model.projects.every(entry => entry.sessions.length === 0)
 
-  return <aside id="pilot-sessions" className="pilot-nav pilot-drawer" aria-label="会话">
+  return <aside id="pilot-sessions" className="pilot-nav" style={{ width }} aria-label="会话">
     <div className="pilot-nav__head"><strong>会话</strong><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={onToggleNewTask}><Plus size={17} /></button></div>
     <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={onClose}><X size={15} /></button>
     {newTaskOpen && <div className="pilot-new-task"><label htmlFor="pilot-task-target">任务工作区</label><select id="pilot-task-target" value={newTarget} onChange={event => setNewTarget(event.target.value)}><option value="">选择工作区</option><option value="personal">个人工作区</option>{state.projects.map(item => <option key={item.id} value={`project:${item.id}`} disabled={!item.directoryExists}>{item.name}{item.directoryExists ? '' : '（目录不可用）'}</option>)}</select>{newProject && <p title={newProject.directory}>{newProject.directory}</p>}{newTarget === 'personal' && <p>创建后请核对实际工作目录再发送任务。</p>}<button type="button" disabled={!newTarget || creating} onClick={() => void createTask()}>{creating ? '创建中…' : '创建任务'}</button></div>}
