@@ -185,74 +185,158 @@ export function PilotWorkbench({ controller }: { controller: PilotController }) 
 
   const messageById = useMemo(() => new Map(state.messages.map(message => [message.id, message])), [state.messages])
   const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), running: state.running }), [controller, state.running, workspaceTabs.length])
-  return <WorkbenchContext.Provider value={workbenchValue}>
-    <MessageLookupContext.Provider value={messageById}>
-    <div className="pilot-workbench" data-task-state={taskTone}>
-    {sessionsOpen && <>
-      <SessionDrawer state={state} controller={controller} width={sessionsWidth} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />
-      <div className="pilot-sessions-resize" role="separator" tabIndex={0} aria-label="调整侧边栏宽度" aria-orientation="vertical" aria-valuemin={220} aria-valuemax={420} aria-valuenow={sessionsWidth} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setSessionsWidth(value => Math.min(420, Math.max(220, value + (event.key === 'ArrowLeft' ? -16 : 16)))) } }} onPointerDown={resizeSessions} />
-    </>}
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-      <header className="relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/50 p-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}><Menu size={17} /></button>
-          <div className="min-w-0">
-            <small className="block truncate text-ui-xs text-foreground-subtlest">{project?.name || '个人工作区'} / Harness</small>
-            <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground">{state.session?.title || '今天要研究、整理或完成什么？'}</h1>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} />
-          <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen(!workspaceOpen)}><PanelRight size={17} /></button>
-        </div>
-      </header>
-      <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
-        {hasTaskProgress && <div className="pointer-events-none absolute right-4 top-0 z-20 pt-4"><TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} /></div>}
-        <AssistantRuntimeProvider runtime={runtime}>
-          <StreamMessageContext.Provider value={streamMessage}>
-            <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
-              <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
-                <div className="flex min-h-full flex-col">
-                  <div className="relative w-full flex-1">
-                    <div className="flex w-full flex-col gap-5 px-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl mx-auto" style={{ overflowAnchor: 'none' }}>
-                      {!state.messages.length && <div className="pilot-empty"><strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong><p>{state.session ? '描述你要研究、整理或处理的内容，也可以从下方示例开始。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>{!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}</div>}
-                      <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-                      {changes.length > 0 && <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}><GitCompare size={14} />查看 {changes.length} 个文件变更 <ArrowRight size={13} /></button>}
-                    </div>
-                  </div>
-                  <div className="sticky bottom-0 z-20 flex w-full justify-center">
-                    <div className="relative z-10 mx-auto w-full px-4 pb-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl">
-                      {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
-                      {state.permission && <section className="pilot-action" aria-label="权限确认"><ShieldCheck size={19} /><div><strong>{state.permission.title}</strong><p>{state.permission.detail}</p><div className="pilot-action__buttons"><button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button><button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button></div></div></section>}
-                      {state.memoryConfirmation && <section className="pilot-action" aria-label="记忆确认"><ShieldCheck size={19} /><div><strong>保存到长期记忆</strong><p>{state.memoryConfirmation.content}</p><div className="pilot-action__buttons"><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(false)}>不保存</button><button type="button" disabled={memoryResponding} onClick={() => void respondMemory(true)}>保存</button></div></div></section>}
-                      {interaction?.status === 'waiting' && <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />}
-                      <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
-                    </div>
-                  </div>
+  return (
+    <WorkbenchContext.Provider value={workbenchValue}>
+      <MessageLookupContext.Provider value={messageById}>
+        <div className="pilot-workbench" data-task-state={taskTone}>
+          {sessionsOpen && (
+            <>
+              <SessionDrawer state={state} controller={controller} width={sessionsWidth} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />
+              <div
+                className="pilot-sessions-resize"
+                role="separator"
+                tabIndex={0}
+                aria-label="调整侧边栏宽度"
+                aria-orientation="vertical"
+                aria-valuemin={220}
+                aria-valuemax={420}
+                aria-valuenow={sessionsWidth}
+                onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setSessionsWidth(value => Math.min(420, Math.max(220, value + (event.key === 'ArrowLeft' ? -16 : 16)))) } }}
+                onPointerDown={resizeSessions}
+              />
+            </>
+          )}
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+            <header className="relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/50 p-2">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}>
+                  <Menu size={17} />
+                </button>
+                <div className="min-w-0">
+                  <small className="block truncate text-ui-xs text-foreground-subtlest">{project?.name || '个人工作区'} / Harness</small>
+                  <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground">{state.session?.title || '今天要研究、整理或完成什么？'}</h1>
                 </div>
-              </ThreadPrimitive.Viewport>
-            </ThreadPrimitive.Root>
-          </StreamMessageContext.Provider>
-        </AssistantRuntimeProvider>
-      </div>
-    </main>
-    {workspaceOpen && <div className="pilot-workspace-resize" role="separator" tabIndex={0} aria-label="调整工作区宽度" aria-orientation="vertical" aria-valuemin={32} aria-valuemax={54} aria-valuenow={workspaceWidth} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWorkspaceWidth(value => Math.min(54, Math.max(32, value + (event.key === 'ArrowLeft' ? 2 : -2)))) } }} onPointerDown={resizeWorkspace} />}
-    {workspaceOpen && <aside id="pilot-workspace" className="pilot-inspector" style={{ width: `${workspaceWidth}%` }} aria-label="工作区">
-      <div className="pilot-inspector__head"><div><strong>工作区</strong><small>{project?.name || '个人工作区'} · {taskState}</small></div><button type="button" title="关闭工作区" aria-label="关闭工作区" onClick={() => setWorkspaceOpen(false)}><X size={16} /></button></div>
-      <WorkspaceTabs tabs={workspaceTabs} active={workspaceTab} changes={changes.length} onOpen={openWorkspaceTab} onActivate={setWorkspaceTab} onClose={closeWorkspaceTab} />
-      <div className="pilot-inspector__body">
-        {workspaceTabs.map(tab => <div key={tab.id} className={`pilot-panel-view${workspaceTab === tab.id ? ' is-active' : ''}`} aria-hidden={workspaceTab !== tab.id}>
-          {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} />}
-          {tab.id === 'files' && <FilesPanel key={state.session?.id || 'empty'} controller={controller} directory={state.session?.workingDirectory || project?.directory} onOpenDirectory={() => void controller.openProjectDirectory()} onSelectFile={path => setWorkspaceTabLabel('files', path.split(/[\\/]/).pop() || '文件')} opening={state.openingProjectDirectory} />}
-          {tab.id === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { setSelectedChangeId(id); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
-          {tab.id === 'terminal' && <TerminalPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'terminal'} />}
-          {tab.id === 'browser' && <BrowserPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'browser'} />}
-        </div>)}
-      </div>
-    </aside>
-    </div>
-    </MessageLookupContext.Provider>
-  </WorkbenchContext.Provider>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} />
+                <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen(!workspaceOpen)}>
+                  <PanelRight size={17} />
+                </button>
+              </div>
+            </header>
+            <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
+              {hasTaskProgress && (
+                <div className="pointer-events-none absolute right-4 top-0 z-20 pt-4">
+                  <TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} />
+                </div>
+              )}
+              <AssistantRuntimeProvider runtime={runtime}>
+                <StreamMessageContext.Provider value={streamMessage}>
+                  <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
+                    <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+                      <div className="flex min-h-full flex-col">
+                        <div className="relative w-full flex-1">
+                          <div className="mx-auto flex w-full flex-col gap-5 px-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl" style={{ overflowAnchor: 'none' }}>
+                            {!state.messages.length && (
+                              <div className="pilot-empty">
+                                <strong>{state.session ? '从一个任务开始' : '先选择任务工作区'}</strong>
+                                <p>{state.session ? '描述你要研究、整理或处理的内容，也可以从下方示例开始。' : '新任务可以放在个人工作区，也可以关联已有项目。'}</p>
+                                {!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />创建任务</button>}
+                              </div>
+                            )}
+                            <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+                            {changes.length > 0 && (
+                              <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
+                                <GitCompare size={14} />查看 {changes.length} 个文件变更 <ArrowRight size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="sticky bottom-0 z-20 flex w-full justify-center">
+                          <div className="relative z-10 mx-auto w-full px-4 pb-4 @min-[864px]/conversation:w-[calc(100%-6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%-24rem)] @min-[1280px]/conversation:max-w-6xl">
+                            {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
+                            {state.permission && (
+                              <section className="pilot-action" aria-label="权限确认">
+                                <ShieldCheck size={19} />
+                                <div>
+                                  <strong>{state.permission.title}</strong>
+                                  <p>{state.permission.detail}</p>
+                                  <div className="pilot-action__buttons">
+                                    <button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button>
+                                    <button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button>
+                                  </div>
+                                </div>
+                              </section>
+                            )}
+                            {state.memoryConfirmation && (
+                              <section className="pilot-action" aria-label="记忆确认">
+                                <ShieldCheck size={19} />
+                                <div>
+                                  <strong>保存到长期记忆</strong>
+                                  <p>{state.memoryConfirmation.content}</p>
+                                  <div className="pilot-action__buttons">
+                                    <button type="button" disabled={memoryResponding} onClick={() => void respondMemory(false)}>不保存</button>
+                                    <button type="button" disabled={memoryResponding} onClick={() => void respondMemory(true)}>保存</button>
+                                  </div>
+                                </div>
+                              </section>
+                            )}
+                            {interaction?.status === 'waiting' && (
+                              <Interaction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />
+                            )}
+                            <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
+                          </div>
+                        </div>
+                      </div>
+                    </ThreadPrimitive.Viewport>
+                  </ThreadPrimitive.Root>
+                </StreamMessageContext.Provider>
+              </AssistantRuntimeProvider>
+            </div>
+          </main>
+          {workspaceOpen && (
+            <div
+              className="pilot-workspace-resize"
+              role="separator"
+              tabIndex={0}
+              aria-label="调整工作区宽度"
+              aria-orientation="vertical"
+              aria-valuemin={32}
+              aria-valuemax={54}
+              aria-valuenow={workspaceWidth}
+              onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWorkspaceWidth(value => Math.min(54, Math.max(32, value + (event.key === 'ArrowLeft' ? 2 : -2)))) } }}
+              onPointerDown={resizeWorkspace}
+            />
+          )}
+          {workspaceOpen && (
+            <aside id="pilot-workspace" className="pilot-inspector" style={{ width: `${workspaceWidth}%` }} aria-label="工作区">
+              <div className="pilot-inspector__head">
+                <div>
+                  <strong>工作区</strong>
+                  <small>{project?.name || '个人工作区'} · {taskState}</small>
+                </div>
+                <button type="button" title="关闭工作区" aria-label="关闭工作区" onClick={() => setWorkspaceOpen(false)}>
+                  <X size={16} />
+                </button>
+              </div>
+              <WorkspaceTabs tabs={workspaceTabs} active={workspaceTab} changes={changes.length} onOpen={openWorkspaceTab} onActivate={setWorkspaceTab} onClose={closeWorkspaceTab} />
+              <div className="pilot-inspector__body">
+                {workspaceTabs.map(tab => (
+                  <div key={tab.id} className={`pilot-panel-view${workspaceTab === tab.id ? ' is-active' : ''}`} aria-hidden={workspaceTab !== tab.id}>
+                    {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} />}
+                    {tab.id === 'files' && <FilesPanel key={state.session?.id || 'empty'} controller={controller} directory={state.session?.workingDirectory || project?.directory} onOpenDirectory={() => void controller.openProjectDirectory()} onSelectFile={path => setWorkspaceTabLabel('files', path.split(/[\\/]/).pop() || '文件')} opening={state.openingProjectDirectory} />}
+                    {tab.id === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { setSelectedChangeId(id); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
+                    {tab.id === 'terminal' && <TerminalPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'terminal'} />}
+                    {tab.id === 'browser' && <BrowserPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'browser'} />}
+                  </div>
+                ))}
+              </div>
+            </aside>
+          )}
+        </div>
+      </MessageLookupContext.Provider>
+    </WorkbenchContext.Provider>
+  )
 }
 
 function workspaceTabLabel(id: WorkspaceTabId) {
