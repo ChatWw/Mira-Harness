@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process'
 const directory = dirname(fileURLToPath(import.meta.url))
 const output = resolve(directory, '../../dist/harness-react-dev')
 const bundler = await context({
-  entryPoints: { main: resolve(directory, 'src/main.tsx'), pilot: resolve(directory, 'src/pilot-main.tsx') },
+  entryPoints: { main: resolve(directory, 'src/app/main.tsx'), pilot: resolve(directory, 'src/app/pilot-main.tsx') },
   bundle: true,
   format: 'iife',
   platform: 'browser',
@@ -23,7 +23,7 @@ await bundler.watch()
 
 // Tailwind v4 watch：与 esbuild 并行编译 app.css（令牌 + 手写层 + 组件类）。
 const tailwind = spawn(resolve(directory, '../../node_modules/.bin/tailwindcss'), [
-  '-i', resolve(directory, 'src/app.css'),
+  '-i', resolve(directory, 'src/styles/app.css'),
   '-o', resolve(output, 'app.css'),
   '--watch',
 ], { stdio: 'inherit' })

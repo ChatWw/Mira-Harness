@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HarnessProject, HarnessSession, HarnessSessionSummary } from '../src/config/harness'
-import { groupSessions, sessionBadge, sessionMarkdown } from '../apps/harness-react/src/session-groups'
+import { groupSessions, sessionBadge, sessionMarkdown, splitSessionQueues } from '../apps/harness-react/src/components/session/session-groups'
 
 function summary(id: string, overrides: Partial<HarnessSessionSummary> = {}): HarnessSessionSummary {
   return { id, title: `会话 ${id}`, projectId: undefined, permissionMode: 'default', createdAt: 1, updatedAt: 1, status: 'active', pinned: false, unread: false, ...overrides }
@@ -24,7 +24,25 @@ describe('session drawer grouping', () => {
     expect(model.pinned.map(item => item.id)).toEqual(['s1', 's4'])
     expect(model.projects.map(entry => entry.project.id)).toEqual(['b', 'a'])
     expect(model.projects[0].sessions.map(item => item.id)).toEqual(['s2', 's5'])
+    expect(model.projects[1].sessions).toEqual([])
     expect(model.recent.map(item => item.id)).toEqual(['s3', 's6'])
+  })
+
+  it('shows attention and running sessions once without changing the saved project grouping', () => {
+    const model = groupSessions([
+      summary('pinned', { pinned: true }),
+      summary('review', { projectId: 'a', planStatus: 'awaiting_confirmation' }),
+      summary('running', { projectId: 'a' }),
+      summary('failed', { status: 'failed' }),
+      summary('history', { projectId: 'a' }),
+    ], [project('a')])
+    const queues = splitSessionQueues(model, ['running', 'review', 'pinned'], ['review'])
+    expect(queues.pinned.map(item => item.id)).toEqual(['pinned'])
+    expect(queues.attention.map(item => item.id)).toEqual(['review', 'failed'])
+    expect(queues.running.map(item => item.id)).toEqual(['running'])
+    expect(queues.projects[0].sessions.map(item => item.id)).toEqual(['history'])
+    expect(queues.recent).toEqual([])
+    expect(model.projects[0].sessions.map(item => item.id)).toEqual(['review', 'running', 'history'])
   })
 
   it('applies the badge priority plan > permission > running > unread', () => {

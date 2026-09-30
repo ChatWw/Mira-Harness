@@ -1,0 +1,37 @@
+.harness-composer { box-shadow: 0 12px 34px color-mix(in srgb, #10252a 10%, transparent); }
+.harness-composer textarea { min-height: 72px; }
+.harness-composer__scope { display: flex; min-width: 0; align-items: center; gap: 6px; margin: 0 2px 8px; color: var(--muted); font-size: 11px; }
+.harness-composer__scope svg { flex: none; color: var(--accent); }
+.harness-composer__scope strong { overflow: hidden; max-width: 20ch; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__scope small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__footer { min-height: 32px; }
+.harness-composer__controls { flex-wrap: wrap; row-gap: 5px; }
+.harness-composer__select { min-width: 0; max-width: 184px; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__select--permission { max-width: 110px; }
+.harness-composer__menu-trigger { display: inline-flex; max-width: 185px; min-width: 0; height: 28px; align-items: center; gap: 5px; padding: 0 7px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 12px; white-space: nowrap; }
+.harness-composer__menu-trigger--permission { max-width: 120px; }
+.harness-composer__menu-trigger--advanced { max-width: 128px; }
+.harness-composer__menu-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__menu-trigger svg { flex: none; }
+.harness-composer__menu-trigger:hover, .harness-composer__menu-trigger[data-state='open'] { color: var(--text); background: var(--hover); }
+.harness-composer__menu-trigger:disabled { cursor: not-allowed; opacity: .5; }
+.harness-composer__menu { z-index: 70; max-height: min(360px, 60vh); min-width: 184px; max-width: min(340px, calc(100vw - 24px)); overflow: auto; padding: 5px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--surface); box-shadow: var(--shadow-soft); }
+.harness-composer__menu-item { display: flex; min-height: 32px; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 5px; outline: 0; font-size: 12px; cursor: pointer; }
+.harness-composer__menu-item[data-highlighted] { background: var(--hover); }
+.harness-composer__menu-item > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__menu-item > span:last-child { display: grid; gap: 2px; }
+.harness-composer__menu-item > span:last-child small { overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__menu-label { padding: 5px 8px 4px; color: var(--muted); font-size: 10px; font-weight: 650; }
+.harness-composer__menu-separator { height: 1px; margin: 5px 0; background: var(--border); }
+.harness-composer__mcp-icon { display: grid !important; width: 14px; height: 14px; place-items: center; border: 1px solid currentColor; border-radius: 3px; color: var(--accent); font-size: 9px; font-weight: 700; }
+.harness-composer__menu-indicator { display: grid; width: 15px; flex: none; place-items: center; color: var(--accent); }
+.harness-composer__menu-empty { display: block; padding: 7px; color: var(--muted); font-size: 12px; }
+.harness-composer__mode { flex: 0 0 auto; white-space: nowrap; }
+.harness-composer__mode button { min-width: 68px; white-space: nowrap; word-break: keep-all; writing-mode: horizontal-tb; }
+.harness-composer__send { flex: 0 0 auto; }
+@media (max-width: 620px) {
+  .harness-composer__footer { align-items: stretch; }
+  .harness-composer__controls { width: 100%; }
+  .harness-composer__send { margin-left: auto; }
+  .harness-composer__select { max-width: 150px; }
+}

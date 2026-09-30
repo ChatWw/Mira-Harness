@@ -14,7 +14,7 @@ const scenes: { id: Scene; label: string }[] = [
   { id: 'error', label: '失败恢复' },
 ]
 
-export function Workbench() {
+export function PrototypeWorkbench() {
   const [scene, setScene] = useState<Scene>('empty')
   const [draft, setDraft] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)

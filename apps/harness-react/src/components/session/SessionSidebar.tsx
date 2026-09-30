@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Archive, ChevronRight, Copy, FolderOpen, GripVertical, LoaderCircle, MoreVertical, Pencil, Pin, PinOff, Plus, TerminalSquare, Trash2, X } from 'lucide-react'
-import type { HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary } from '../../../src/config/harness'
-import type { PilotController } from './pilot-state'
-import { groupSessions, sessionBadge, sessionMarkdown } from './session-groups'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { Archive, ChevronRight, Copy, FolderOpen, GripVertical, LoaderCircle, MoreVertical, Pencil, Pin, PinOff, Plus, Search, TerminalSquare, Trash2, X } from 'lucide-react'
+import type { HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary } from '../../../../../src/config/harness'
+import type { PilotController } from '../../state/pilot-state'
+import { groupSessions, sessionBadge, sessionMarkdown, splitSessionQueues } from './session-groups'
 
 const PROJECT_LIMIT = 6
 const PROJECT_SESSION_LIMIT = 5
@@ -18,35 +18,40 @@ export interface SessionDrawerProps {
   state: ReturnType<PilotController['getSnapshot']>
   controller: PilotController
   width: number
+  modal?: boolean
   newTaskOpen: boolean
   onToggleNewTask: () => void
   onClose: () => void
 }
 
-export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleNewTask, onClose }: SessionDrawerProps) {
+export function SessionSidebar({ state, controller, width, modal, newTaskOpen, onToggleNewTask, onClose }: SessionDrawerProps) {
   const [newTarget, setNewTarget] = useState('')
   const [creating, setCreating] = useState(false)
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [showAllRecent, setShowAllRecent] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [extendedGroups, setExtendedGroups] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState('')
   const [menu, setMenu] = useState<{ sessionId: string; x: number; y: number }>()
-  const loadedPreference = useRef(false)
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false)
+  const activeProjectId = state.session?.projectId
 
   useEffect(() => {
-    if (loadedPreference.current) return
-    loadedPreference.current = true
+    let cancelled = false
     void controller.getPreference(EXPANDED_PROJECTS_KEY).then(value => {
+      if (cancelled) return
       const ids = (value as DrawerPreference | null)?.expandedProjectIds
-      if (Array.isArray(ids)) setExpandedProjectIds(ids.filter(id => typeof id === 'string'))
-    })
+      if (Array.isArray(ids)) setExpandedProjectIds(previous => [...new Set([...ids.filter(id => typeof id === 'string'), ...previous])])
+    }).then(() => { if (!cancelled) setPreferenceLoaded(true) }).catch(() => undefined)
+    return () => { cancelled = true }
   }, [controller])
   useEffect(() => {
+    if (!preferenceLoaded) return
     void controller.setPreference(EXPANDED_PROJECTS_KEY, { expandedProjectIds })
-  }, [controller, expandedProjectIds])
+  }, [controller, expandedProjectIds, preferenceLoaded])
   // 活动会话所在的项目组自动展开，避免切项目后找不到当前会话。
-  const activeProjectId = state.session?.projectId
   useEffect(() => {
     if (!activeProjectId) return
     setExpandedProjectIds(previous => previous.includes(activeProjectId) ? previous : [...previous, activeProjectId])
@@ -54,9 +59,10 @@ export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleN
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const model = useMemo(() => groupSessions(state.sessions, state.projects), [state.sessions, state.projects])
+  const queues = useMemo(() => splitSessionQueues(model, state.runningSessionIds, Object.keys(state.pendingPermissions)), [model, state.runningSessionIds, state.pendingPermissions])
   const groupOf = (id: string): GroupId | undefined => {
     if (model.pinned.some(item => item.id === id)) return 'pinned'
     if (model.recent.some(item => item.id === id)) return 'recent'
@@ -69,6 +75,7 @@ export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleN
     return model.projects.find(entry => `project:${entry.project.id}` === group)?.sessions.map(item => item.id) || []
   }
   function handleDragEnd(event: DragEndEvent) {
+    if (search.trim()) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const group = groupOf(String(active.id))
@@ -106,22 +113,42 @@ export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleN
     onOpen: () => { void controller.open(session.id) },
     onMenu: (event: React.MouseEvent) => { event.preventDefault(); setMenu({ sessionId: session.id, x: event.clientX, y: event.clientY }) },
   })
-  const visibleProjects = showAllProjects ? model.projects : model.projects.slice(0, PROJECT_LIMIT)
+  const visibleProjects = showAllProjects ? queues.projects : queues.projects.slice(0, PROJECT_LIMIT)
+  const currentProject = activeProjectId ? state.projects.find(project => project.id === activeProjectId) : undefined
   const noSessions = model.pinned.length === 0 && model.recent.length === 0 && model.projects.every(entry => entry.sessions.length === 0)
+  const query = search.trim().toLocaleLowerCase()
+  const matches = (session: HarnessSessionSummary) => !query || `${session.title} ${session.projectName || ''}`.toLocaleLowerCase().includes(query)
+  const pinned = model.pinned.filter(matches)
+  const projects = visibleProjects.map(entry => ({ ...entry, sessions: entry.sessions.filter(matches) })).filter(entry => !query || entry.sessions.length > 0 || entry.project.name.toLocaleLowerCase().includes(query))
+  const recent = queues.recent.filter(matches)
+  const attention = queues.attention.filter(matches)
+  const running = queues.running.filter(matches)
 
-  return <aside id="pilot-sessions" className="pilot-nav" style={{ width }} aria-label="会话">
-    <div className="pilot-nav__head"><strong>会话</strong><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={onToggleNewTask}><Plus size={17} /></button></div>
+  return <aside id="pilot-sessions" className="pilot-nav" style={{ width }} role={modal ? 'dialog' : undefined} aria-modal={modal || undefined} aria-label="会话">
+    <div className="pilot-nav__head"><strong>会话</strong><span className="pilot-nav__head-actions"><button type="button" title="搜索会话" aria-label="搜索会话" aria-expanded={searchOpen} onClick={() => { setSearchOpen(value => !value); setSearch('') }}><Search size={16} /></button><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={onToggleNewTask}><Plus size={17} /></button></span></div>
     <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={onClose}><X size={15} /></button>
+    {searchOpen && <div className="pilot-nav__search"><Search size={14} /><input autoFocus value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { setSearch(''); setSearchOpen(false) } }} placeholder="搜索任务或项目" aria-label="搜索任务或项目" /><button type="button" title="清除搜索" aria-label="清除搜索" onClick={() => setSearch('')}><X size={13} /></button></div>}
+    <div className="pilot-nav__scope" title={currentProject?.directory || '个人工作区'}>
+      <span className="pilot-nav__scope-icon"><FolderOpen size={14} /></span>
+      <span><small>当前工作区</small><strong>{currentProject?.name || '个人工作区'}</strong></span>
+      <span className="pilot-nav__scope-state" aria-label={state.session ? '已选择任务' : '等待选择任务'}>{state.session ? '当前' : '待选'}</span>
+    </div>
     {newTaskOpen && <div className="pilot-new-task"><label htmlFor="pilot-task-target">任务工作区</label><select id="pilot-task-target" value={newTarget} onChange={event => setNewTarget(event.target.value)}><option value="">选择工作区</option><option value="personal">个人工作区</option>{state.projects.map(item => <option key={item.id} value={`project:${item.id}`} disabled={!item.directoryExists}>{item.name}{item.directoryExists ? '' : '（目录不可用）'}</option>)}</select>{newProject && <p title={newProject.directory}>{newProject.directory}</p>}{newTarget === 'personal' && <p>创建后请核对实际工作目录再发送任务。</p>}<button type="button" disabled={!newTarget || creating} onClick={() => void createTask()}>{creating ? '创建中…' : '创建任务'}</button></div>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <div className="pilot-nav__list">
-        {model.pinned.length > 0 && <GroupSection title="置顶" count={model.pinned.length}>
-          <SortableGroup ids={model.pinned.map(item => item.id)}>
-            {model.pinned.map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
+        {pinned.length > 0 && <GroupSection title="置顶" count={pinned.length}>
+          <SortableGroup ids={pinned.map(item => item.id)}>
+            {pinned.map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
           </SortableGroup>
         </GroupSection>}
-        {model.projects.length > 0 && <GroupSection title={`项目 · ${state.projects.length}`} count={undefined}>
-          {visibleProjects.map(({ project, sessions }) => {
+        {attention.length > 0 && <GroupSection title="需要处理" count={attention.length}>
+          {attention.map(session => <SessionRow key={session.id} {...rowProps(session)} sortable={false} />)}
+        </GroupSection>}
+        {running.length > 0 && <GroupSection title="运行中" count={running.length}>
+          {running.map(session => <SessionRow key={session.id} {...rowProps(session)} sortable={false} />)}
+        </GroupSection>}
+        {projects.length > 0 && <GroupSection title={`项目 · ${state.projects.length}`} count={undefined}>
+          {[...projects].sort((left, right) => Number(right.project.id === activeProjectId) - Number(left.project.id === activeProjectId)).map(({ project, sessions }) => {
             const collapsed = !expandedProjectIds.includes(project.id)
             const showAll = Boolean(extendedGroups[project.id])
             return <GroupSection key={project.id} title={project.name} count={sessions.length} collapsed={collapsed} onToggle={() => toggleProject(project.id)} nested>
@@ -133,13 +160,14 @@ export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleN
           })}
           {model.projects.length > PROJECT_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setShowAllProjects(!showAllProjects)}>{showAllProjects ? '收起项目' : `显示全部 ${state.projects.length} 个项目`}</button>}
         </GroupSection>}
-        {model.recent.length > 0 && <GroupSection title="最近对话" count={model.recent.length}>
-          <SortableGroup ids={model.recent.map(item => item.id)}>
-            {(showAllRecent ? model.recent : model.recent.slice(0, RECENT_LIMIT)).map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
+        {recent.length > 0 && <GroupSection title="最近对话" count={recent.length}>
+          <SortableGroup ids={recent.map(item => item.id)}>
+            {(showAllRecent ? recent : recent.slice(0, RECENT_LIMIT)).map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
           </SortableGroup>
-          {model.recent.length > RECENT_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setShowAllRecent(!showAllRecent)}>{showAllRecent ? '收起' : '显示更多'}</button>}
+          {recent.length > RECENT_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setShowAllRecent(!showAllRecent)}>{showAllRecent ? '收起' : '显示更多'}</button>}
         </GroupSection>}
-        {noSessions && <p className="pilot-nav__hint">还没有会话，点击右上角 + 创建</p>}
+        {query && !pinned.length && !attention.length && !running.length && !projects.length && !recent.length && <p className="pilot-nav__hint">没有匹配的任务</p>}
+        {!query && noSessions && <p className="pilot-nav__hint">还没有会话，点击右上角 + 创建</p>}
       </div>
     </DndContext>
     {menu && state.sessions.some(item => item.id === menu.sessionId) && <SessionContextMenu
@@ -154,6 +182,8 @@ export function SessionDrawer({ state, controller, width, newTaskOpen, onToggleN
     />}
   </aside>
 }
+
+export const SessionDrawer = SessionSidebar
 
 async function copyText(value: string) {
   try { await navigator.clipboard.writeText(value) }
@@ -180,19 +210,20 @@ function SortableGroup({ ids, children }: { ids: string[]; children: ReactNode }
   return <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
 }
 
-function SessionRow({ session, state, controller, active, nested, renaming, onRename, onCancelRename, onOpen, onMenu }: {
+function SessionRow({ session, state, controller, active, nested, sortable = true, renaming, onRename, onCancelRename, onOpen, onMenu }: {
   session: HarnessSessionSummary
   state: ReturnType<PilotController['getSnapshot']>
   controller: PilotController
   active: boolean
   nested?: boolean
+  sortable?: boolean
   renaming: boolean
   onRename: (title: string) => void
   onCancelRename: () => void
   onOpen: () => void
   onMenu: (event: React.MouseEvent) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id, disabled: renaming })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id, disabled: renaming || !sortable })
   const [title, setTitle] = useState(session.title)
   useEffect(() => { if (!renaming) setTitle(session.title) }, [renaming, session.title])
   const badge = sessionBadge(session, {
@@ -205,7 +236,7 @@ function SessionRow({ session, state, controller, active, nested, renaming, onRe
       <input autoFocus value={title} maxLength={42} aria-label="会话标题" onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') onCancelRename() }} />
       <button type="submit" aria-label="保存标题">保存</button>
     </form> : <div className={`pilot-session-row__main${active ? ' is-active' : ''}`}>
-      <button type="button" className="pilot-session-row__grip" aria-label={`拖拽排序 ${session.title}`} {...attributes} {...listeners}><GripVertical size={13} /></button>
+      {sortable ? <button type="button" className="pilot-session-row__grip" aria-label={`拖拽排序 ${session.title}`} {...attributes} {...listeners}><GripVertical size={13} /></button> : <span className="pilot-session-row__grip" aria-hidden="true" />}
       <button type="button" className="pilot-session-row__open" onClick={onOpen} onContextMenu={onMenu} title={session.title}>
         <span>{session.title || '新任务'}</span>
         <small>{session.projectName || '个人工作区'}</small>

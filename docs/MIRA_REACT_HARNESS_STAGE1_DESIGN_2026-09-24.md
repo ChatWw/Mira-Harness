@@ -312,3 +312,31 @@ CDP 的 Shift+Enter 注入补齐 `char` 事件后，React 输入草稿从 `A` �
 ## 21. 2026-09-28 修复后真实模型执行复核
 
 真实 DeepSeek `deepseek-flash` 在全新隔离目录中完成澄清、计划确认和只读执行。执行提示补充已确认方案的明确语义后，模型不再输出“请确认后我再执行”，而是执行读取和用户允许的只读命令并返回差异结论；计划和会话均为完成态，React 页面状态为“最近任务已完成”，文件哈希和修改时间不变。隔离配置和目录已清理。原生输入设备、生产授权、包内资源和打包版仍未验收。
+
+## 22. 2026-09-30 ZCode 对齐后的交互收口
+
+**已完成**：按 ZCode 的工作台交互实现收口新版 React Harness。桌面窗口保留会话栏、线程和工作区三栏；860px 以下会话与工作区改为互斥浮层。会话项目展开偏好增加加载完成门槛，避免初始空数组覆盖持久化值；会话键盘拖拽采用 `sortableKeyboardCoordinates`；会话关闭按钮补齐局部定位上下文。终端建立握手前缓存输出并在绑定 terminal ID 后回放；浏览器导航增加会话代次校验，过期导航完成后主动关闭旧会话。React 构建产物同时带 `apps/harness-react/NOTICE.md`，保留 ZCode Apache-2.0 派生声明。
+
+**验证**：`npx tsc -p apps/harness-react/tsconfig.json --noEmit` 通过；全量 Vitest 70 个文件、315 项测试通过；`npm run harness:build` 通过并确认 `dist/harness-react-app/NOTICE.md` 存在；`git diff --check` 通过。Impeccable 仍提示两个可拖宽边界的 width transition 和 Markdown blockquote 的 3px 左边框，这些属于视觉性能与样式收口项，不影响本轮交互修复。
+
+**剩余**：还需要在 Electron 打包版完成桌面三栏、860px 窄窗口互斥、终端首段输出、浏览器切会话、键盘排序和深浅色截图验收；之后再进行高保真视觉调整。当前没有切换旧 Vue `/workspace/chat` 的默认入口。
+
+## 23. 2026-09-30 Harness 工作台 UI 重整（第二批完成，完整规格待续）
+
+**输入与结论**：用户提供的实际截图显示 Composer 模式文字被挤成竖排、主线程与右侧面板大量留白、入口层级不清；现有版仅能跑通功能，不能作为正式视觉验收结果。交互目标、信息架构、状态矩阵及目录边界已写入 [MIRA_HARNESS_WORKBENCH_INTERACTION_SPEC_2026-09-30.md](./MIRA_HARNESS_WORKBENCH_INTERACTION_SPEC_2026-09-30.md)。参考 Codex/ZCode 的任务主线与可持续侧边面板，复用现有 assistant-ui、dnd-kit、xterm、lucide 和 ZCode 派生令牌；没有引入完整 ZCode 运行时或新协议。
+
+**本轮已实现**：React 源码从单层平铺迁至 `app/components/interactions/session/workbench/workspace/platform/state/hooks/lib/styles`；生产、Pilot、演示入口及 build/dev/test 路径同步。Composer 模式保持横向，中文组合输入 Enter 不误发，发送失败尝试恢复草稿；模型和权限改为 Radix Dropdown Menu，自动审核/完全访问仍需二次确认。会话侧栏可搜索，并把置顶、需要处理、运行中、项目、最近任务去重分组。右侧活动面板增加待确认返回和失败重跑入口；文件树增加已加载文件筛选、刷新、复制；变更面板增加增删统计和行号。计划审核新增修改要求，澄清向导的跳过选项可完成提交。
+
+**会话级工具与窄窗**：工作区 tab、选中变更和浏览器 URL 按会话保存到第一方 preference；隐藏面板或切换会话不卸载已打开的终端，PTY 调用显式绑定所属会话。终端面板支持多个实例、重命名、重启和关闭；浏览器因 Shell 当前只有一个原生 WebView，切会话关闭旧视图，回到会话时按保存 URL 重建，不保留原生历史栈。<=1180px 侧栏/工作区是互斥浮层，支持遮罩、Esc、初始与返回焦点、Tab 焦点约束。
+
+**验证**：`npx tsc -p apps/harness-react/tsconfig.json --noEmit`、`npm test`（72 文件/321 项）、`npm run harness:build`、`npx electron-vite build`、`git diff --check` 通过。Electron 自带 Chromium 加载生产 React HTML 和模拟授权宿主，在 1440x900、1024x900、820x900 截图确认页面非空、浅/深色渲染、紧凑浮层和模型菜单可见，DOM `scrollWidth === viewport`；模拟宿主统计两个终端打开后隐藏/重开面板仍为 2 次 open/0 次 close，主动关闭一个才有 1 次 close。这是模拟宿主的渲染与生命周期检查，不是打包版、真实 PTY 输入或真实模型验收。
+
+**剩余与下次入口**：交互规格中的部分高阶体验尚未完成：文件树搜索只筛选已加载节点，未做全目录搜索；变更尚未按 run 分组或折叠大段上下文；活动面板缺运行时长、工具错误复制；浏览器恢复只保留 URL；任务线程的长会话自动滚动和状态矩阵需要真实桌面复验。`HarnessWorkbench.tsx` 仍约 600 行，后续可把文件/变更/浏览器面板继续拆入 `components/workspace`。下次先在隔离开发 Electron 中逐项验证运行中、待审批、失败、完成四态及真实文件、终端和浏览器，再做 macOS 打包版与 Windows 验收；在此之前不替换旧 Vue `/workspace/chat` 默认入口。
+
+## 24. 2026-09-30 首屏任务起点与配置层级改造
+
+**已完成**：根据 ZCode/Codex 对比评审，首屏空态改为 Mira 任务起点（`pilot-launchpad`），任务说明与 Composer 处于同一垂直区域；有任务历史时继续使用底部固定 Composer。侧栏增加当前工作区 scope 摘要，并将当前项目置顶。Composer 显式展示任务范围、项目名和目录；模型保留紧凑选择，权限、Skill、MCP 收进基于 Radix Dropdown Menu 的“高级设置”，权限档位增加读写风险说明，原有二次确认和宿主调用不变。右侧面板标题改为“任务工作区”，同步展示当前项目、任务名和实时状态。
+
+**验证**：`npx tsc -p apps/harness-react/tsconfig.json --noEmit`、`npm test`（72 个测试文件/321 项）、`npm run harness:build`、`npx electron-vite build`、`git diff --check` 全部通过；短暂启动 React 资源服务后，`/harness-react-dev/`、`pilot/` 和 `app.css` 均返回 200。未把静态构建或资源可达性当作视觉完成，真实 Electron 截图需下一轮补做。
+
+**下一步**：启动隔离 Electron 做 1440px、1024px、820px 的真实截图与窄窗交互复验；再处理工作区常驻上下文、运行态摘要和侧栏平台级入口。此轮复用现有 Radix、assistant-ui、lucide 与 ZCode 派生 token，没有复制 ZCode 业务命名或运行时实现。

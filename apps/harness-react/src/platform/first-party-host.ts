@@ -1,6 +1,6 @@
-import type { HarnessEvent, HarnessFileReference, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../src/config/harness'
-import type { PilotBrowserEvent, PilotHost } from './pilot-state'
-import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
+import type { HarnessEvent, HarnessFileReference, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
+import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
+import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
 
 export class FirstPartyHarnessHost implements PilotHost {
   private sequence = 0

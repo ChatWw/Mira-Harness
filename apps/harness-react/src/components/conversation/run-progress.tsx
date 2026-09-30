@@ -1,6 +1,6 @@
 import { Check, ChevronDown, CircleAlert, LoaderCircle, Square } from 'lucide-react'
-import type { HarnessRunActivity, HarnessRunSummary, HarnessSubtask } from '../../../src/config/harness'
-import { cn } from './lib/utils'
+import type { HarnessRunActivity, HarnessRunSummary, HarnessSubtask } from '../../../../../src/config/harness'
+import { cn } from '../../lib/utils'
 
 const ROLE_LABELS: Record<HarnessSubtask['role'], string> = { explorer: '探索', reviewer: '审查', tester: '测试', implementer: '实现' }
 const SUBTASK_STATUS: Partial<Record<HarnessSubtask['status'], string>> = {

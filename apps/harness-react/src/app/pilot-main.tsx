@@ -1,8 +1,8 @@
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { PilotController, type PilotHost } from './pilot-state'
-import { PilotWorkbench } from './pilot-workbench'
-import { applyHostTheme, type HostThemeContext } from './theme'
+import { PilotController, type PilotHost } from '../state/pilot-state'
+import { HarnessWorkbench } from '../components/workbench/HarnessWorkbench'
+import { applyHostTheme, type HostThemeContext } from '../platform/theme'
 
 type PilotWindow = Window & {
   __POWERED_BY_WUJIE__?: boolean
@@ -27,7 +27,7 @@ function mount() {
   const host = child.$wujie?.props?.host
   if (host) {
     controller = new PilotController(host)
-    root.render(<React.StrictMode><PilotWorkbench controller={controller} /></React.StrictMode>)
+    root.render(<React.StrictMode><HarnessWorkbench controller={controller} /></React.StrictMode>)
     void controller.start()
     child.$wujie?.bus.$on('mira:harness-pilot-theme', onThemeContext)
     child.$wujie?.bus.$on('mira:harness-pilot-leave', unmount)

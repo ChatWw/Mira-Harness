@@ -1,7 +1,7 @@
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Workbench } from './workbench'
-import { applyHostTheme, type HostThemeContext } from './theme'
+import { PrototypeWorkbench } from '../components/workbench/PrototypeWorkbench'
+import { applyHostTheme, type HostThemeContext } from '../platform/theme'
 
 type WujieBus = { $on: (event: string, handler: (context: HostThemeContext) => void) => void; $off: (event: string, handler: (context: HostThemeContext) => void) => void }
 type PrototypeWindow = Window & {
@@ -22,7 +22,7 @@ function mount() {
   if (!container || root) return
   applyHostTheme(container, childWindow.$wujie?.props?.theme || { theme: 'light' })
   root = createRoot(container)
-  root.render(<React.StrictMode><Workbench /></React.StrictMode>)
+  root.render(<React.StrictMode><PrototypeWorkbench /></React.StrictMode>)
   if (childWindow.$wujie && !subscribed) {
     childWindow.$wujie.bus.$on('mira:harness-prototype-theme', onThemeContext)
     subscribed = true

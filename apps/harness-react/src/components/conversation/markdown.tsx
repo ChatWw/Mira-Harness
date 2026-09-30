@@ -4,8 +4,8 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { Streamdown } from 'streamdown'
 import type { BundledTheme } from 'shiki'
-import type { HarnessSource } from '../../../src/config/harness'
-import { installHarnessCitations, renderHarnessMarkdown } from '../../../src/utils/harnessCitations'
+import type { HarnessSource } from '../../../../../src/config/harness'
+import { installHarnessCitations, renderHarnessMarkdown } from '../../../../../src/utils/harnessCitations'
 
 // 流式管线与 ZCode 相同：streamdown（CJK 断行 + shiki 代码高亮）。
 // 完成态走 markdown-it：承载引用角标（harnessCitations）与代码复制按钮。

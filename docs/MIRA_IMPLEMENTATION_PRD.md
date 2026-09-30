@@ -1,7 +1,7 @@
 # Mira 第一阶段开发实施文档（模块化 PRD）
 
-> 初版日期：2026-09-23；最近更新：2026-09-29
-> 状态：阶段 1A 脚本化任务链联调和 Vue + Wujie 两层 Shell 首轮实现已完成；React Harness 开发态受控接入试验已实现，生产替换、真实模型任务和 P0–P3 整体验收未完成。
+> 初版日期：2026-09-23；最近更新：2026-09-30
+> 状态：阶段 1A 脚本化任务链、Vue + Wujie Shell 和 React Harness 第一方接入已实现；真实模型的部分任务链已有隔离验证。新工作台 UI 仍在按交互规格实施，生产默认替换与 P0–P3 整体验收未完成。
 > 依据：[MIRA_PLATFORM_PLAN.md](./MIRA_PLATFORM_PLAN.md)，以该文档的产品边界与待定决策为准。  
 > 适用范围：当前 `Mira/Mira-Harness` 的 Electron 桌面产品；第一阶段本仓库开发 Mira-Harness，并接入后续独立维护的 Mira Novel Studio。
 > 用途：回答“改哪几个大模块、各模块按什么顺序做到可交付”；具体接口和页面交互在对应批次落地前再细化。
@@ -40,6 +40,8 @@
 | 2026-09-29 | React 迁移阶段 3（终端与工作面板打磨）：终端面板升级为 xterm.js 全键盘 PTY（@xterm/xterm + addon-fit，主题沿用终端令牌；输出/输入/退格/方向键全部走 node-pty 数据流，ResizeObserver 自适应并接通既有 terminal.resize 通道，卸载/切会话回收进程），替换原受控文本输入；浏览器面板补加载进度条与「打开中…」状态；确认工作区标签实例生命周期符合定稿（切标签保留终端/浏览器实例，关闭标签才回收）；确认悬浮任务摘要仅在存在任务进展时出现（符合 wireframe 裁决）。 | 已通过：`npm test`（70 文件 315 用例）、`npx tsc -p apps/harness-react/tsconfig.json`、`npm run build`、`git diff --check`。xterm 键盘/中文输入/打包版 node-pty ABI、浏览器真实导航仍属阶段 4 验收清单。 |
 | 2026-09-30 | 用户反馈阶段 2 结果「只是把原型样式平移、未参照主流 Agent UI」；按 ChatGPT/Claude/ZCode 的消息区语言重做视觉层（功能与协议不变）：用户消息改为右对齐紧凑气泡（最大 78% 宽、圆角 16/4、hover 出编辑钮、去掉角色标签）；助手消息去卡片化为无框正文（角色名弱化为 muted 小标签，hover 出工具栏，时间/用量收进 hover）；运行轨迹对齐主流密度——运行中是一条轻量 live 行（spinner+当前活动），结束折叠为「✓ 已完成 N 项操作 · 用时」单行摘要（失败/停止变体红/灰），点开才展开计划/活动/子任务/用量；Composer 重构为单张浮动卡片——textarea 自适应增高（上限 200px）、模型/权限改为无边框 chip 选择器、引用 chip 与 starter 收入卡内、全部控件进底栏（＋图标、双 chip、用量环、模式分段、右上圆形发送/停止），移除独立设置行与「Enter 发送」提示文案；消息列宽 860→760px、标题栏 76→62px、变更卡/线程链接去边框化、修复状态点样式与 workspace 重复定义。 | 已通过：`npx tsc -p apps/harness-react/tsconfig.json`、`npm run harness:build`、`npm test`（70 文件 315 用例）、`npx electron-vite build`（此前遗漏项）。视觉保真待用户在桌面版复核后才计入截图矩阵验收。 |
 | 2026-09-30 | 用户明确要求整页（侧边栏/对话/工作区）按开源组件重做、可参照本机 ZCode 源码（Apache-2.0）；确认 `/Volumes/VrenDisk/project/ZCode` 为 Apache-2.0 后正式引入其设计体系：①完整拷贝 `packages/ui/src/styles.css` 的 `@theme` 字号刻度（text-ui-* 基于 --ui-font-size）与全套 light/dark `--color-*` 令牌（324 行）；②React 工作台接入 Tailwind v4（@tailwindcss/cli 编译，esbuild 只出 JS，dev 加 watch；.dark 类挂 `<html>` 驱动深浅，宿主 primaryColor 映射 --color-brand）；③流式 markdown 换用 streamdown（cjk + shiki code 插件，与 ZCode 同管线），完成态保留 markdown-it（引用角标/代码复制）；④消息行/运行轨迹/Composer/工具栏重写为 Tailwind 组件（沿用 ZCode ai-elements 的结构与类名模式），旧手写层保留在抽屉/工作区面板并以令牌别名过渡；⑤新增 NOTICE.md 记录 Apache-2.0 来源。 | 已通过：`npx tsc -p apps/harness-react/tsconfig.json`、`npm run harness:build`、`npm test`（70 文件 315 用例）、`npm run build`、`npx electron-vite build`、`git diff --check`。抽屉与工作区面板的 Tailwind 化、streamdown 流式/深浅/主色在桌面版的复核属下一批。 |
+| 2026-09-30 | 根据用户实际截图重定完整 Harness 工作台交互规格，React 目录按 app/components/platform/state/styles/lib 分层；首批修复 Composer 挤压、会话侧栏搜索/重复项、任务摘要留白、工作区工具直达和窄窗互斥浮层。 | 这只是 UI 第一批：模拟 Electron 截图与静态/单元检查有证据；多终端、浏览器会话恢复、审批/失败工作区动作、深色及真实桌面状态矩阵仍待实施/验收。旧 Vue 回退保留。 |
+| 2026-09-30 | Harness 工作台 UI 第二批：会话级工作区偏好和终端生命周期、多终端管理、待处理/运行中队列、Radix 模型/权限菜单、文件筛选/刷新、变更行号/统计、计划修改、窄窗焦点约束；目录补 `workspace/interactions/hooks`。 | 代码与模拟宿主阶段完成：72 文件/321 项测试、React/Electron 构建及 1440/1024/820 浅深色截图通过；模拟宿主验证双终端隐藏/重开不回收。真实模型、打包版 PTY/WebView、运行/审批/失败状态矩阵和 Windows 未验收，默认入口仍为旧 Vue。 |
 
 本文继续作为第一阶段的任务规划文档。每次模块边界、交付关口或验收结论发生变化时，先更新本节和对应模块，再开始下一批代码改动。
 

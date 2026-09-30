@@ -1,9 +1,9 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { PilotController } from './pilot-state'
-import { PilotWorkbench } from './pilot-workbench'
-import { FirstPartyHarnessHost } from './first-party-host'
-import { applyHostTheme, type HostThemeContext } from './theme'
+import { PilotController } from '../state/pilot-state'
+import { HarnessWorkbench } from '../components/workbench/HarnessWorkbench'
+import { FirstPartyHarnessHost } from '../platform/first-party-host'
+import { applyHostTheme, type HostThemeContext } from '../platform/theme'
 
 const container = document.getElementById('root')!
 const root = createRoot(container)
@@ -18,7 +18,7 @@ window.addEventListener('message', event => {
   event.ports[0].addEventListener('message', message => {
     if (message.data?.type === 'mira:context') applyHostTheme(container, (message.data.context ?? {}) as HostThemeContext)
   })
-  root.render(<React.StrictMode><PilotWorkbench controller={controller} /></React.StrictMode>)
+  root.render(<React.StrictMode><HarnessWorkbench controller={controller} /></React.StrictMode>)
   void controller.start()
   window.addEventListener('pagehide', () => { controller.dispose(); host.close() }, { once: true })
 })

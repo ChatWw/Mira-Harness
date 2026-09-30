@@ -1,4 +1,4 @@
-import type { HarnessProject, HarnessSession, HarnessSessionSummary } from '../../../src/config/harness'
+import type { HarnessProject, HarnessSession, HarnessSessionSummary } from '../../../../../src/config/harness'
 
 export interface SessionGroupModel {
   pinned: HarnessSessionSummary[]
@@ -6,12 +6,34 @@ export interface SessionGroupModel {
   recent: HarnessSessionSummary[]
 }
 
+export interface SessionQueueModel extends SessionGroupModel {
+  attention: HarnessSessionSummary[]
+  running: HarnessSessionSummary[]
+}
+
 /** 会话三组划分：置顶 / 项目（保持项目顺序）/ 最近（无项目且未置顶）。 */
 export function groupSessions(sessions: HarnessSessionSummary[], projects: HarnessProject[]): SessionGroupModel {
   const pinned = sessions.filter(session => session.pinned)
-  const projectsGroups = projects.map(project => ({ project, sessions: sessions.filter(session => session.projectId === project.id) }))
+  const projectsGroups = projects.map(project => ({ project, sessions: sessions.filter(session => !session.pinned && session.projectId === project.id) }))
   const recent = sessions.filter(session => !session.pinned && !projects.some(project => project.id === session.projectId))
   return { pinned, projects: projectsGroups, recent }
+}
+
+export function splitSessionQueues(model: SessionGroupModel, runningIds: string[], pendingIds: string[]): SessionQueueModel {
+  const pending = new Set(pendingIds)
+  const running = new Set(runningIds)
+  const candidates = [...model.projects.flatMap(group => group.sessions), ...model.recent]
+  const attention = candidates.filter(session => pending.has(session.id) || session.status === 'failed' || session.planStatus === 'needs_input' || session.planStatus === 'awaiting_confirmation')
+  const attentionIds = new Set(attention.map(session => session.id))
+  const active = candidates.filter(session => !attentionIds.has(session.id) && (running.has(session.id) || session.planStatus === 'executing'))
+  const prioritizedIds = new Set([...attentionIds, ...active.map(session => session.id)])
+  return {
+    pinned: model.pinned,
+    attention,
+    running: active,
+    projects: model.projects.map(group => ({ ...group, sessions: group.sessions.filter(session => !prioritizedIds.has(session.id)) })),
+    recent: model.recent.filter(session => !prioritizedIds.has(session.id)),
+  }
 }
 
 export function planStatusLabel(status: NonNullable<HarnessSessionSummary['planStatus']>) {

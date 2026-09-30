@@ -6,6 +6,8 @@
 .pilot-inspector__head > div { display: grid; min-width: 0; gap: 3px; }
 .pilot-inspector__head strong, .pilot-inspector__head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-inspector__head small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.pilot-inspector__state { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.pilot-inspector__state > div { max-width: 128px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-inspector__head button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
 .pilot-inspector__head button:hover { color: var(--text); background: var(--hover); }
 .pilot-inspector section { padding: 17px 19px; border-bottom: 1px solid var(--border); }
@@ -100,6 +102,25 @@
 .pilot-files .pilot-panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; }
 .pilot-files .pilot-panel-toolbar > div { min-width: 0; flex: 1; }
 .pilot-files .pilot-panel-toolbar .pilot-inline-button { flex: 0 0 auto; margin: 0; }
+.pilot-file-actions { display: flex !important; flex: 0 0 auto !important; align-items: center; gap: 5px !important; }
+.pilot-file-search { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; margin: 8px 12px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); }
+.pilot-file-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 11px; }
+.pilot-file-preview__head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.pilot-file-preview__head strong { min-width: 0; }
+.pilot-file-preview__head button { display: grid; width: 25px; height: 25px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 5px; color: var(--muted); background: transparent; }
+.pilot-file-preview__head button:hover { color: var(--text); background: var(--hover); }
+.pilot-file-error button { margin-left: 5px; border: 0; color: inherit; background: transparent; text-decoration: underline; cursor: pointer; }
+.pilot-diff-stats { display: flex; gap: 10px; margin-bottom: 8px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.pilot-diff-stats span:first-child { color: var(--success); }
+.pilot-diff-stats span:last-child { color: #b33f39; }
+.pilot-diff__lines { max-height: 420px; overflow: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.pilot-diff__line { display: grid; grid-template-columns: 32px 32px minmax(max-content, 1fr); min-height: 19px; }
+.pilot-diff__line > span { padding: 1px 4px; color: var(--muted); text-align: right; user-select: none; }
+.pilot-diff__line code { padding: 1px 6px; white-space: pre; }
+.pilot-diff__line--added { background: color-mix(in srgb, var(--success) 10%, var(--surface)); }
+.pilot-diff__line--removed { background: color-mix(in srgb, #b33f39 9%, var(--surface)); }
+.pilot-diff__line--header { color: var(--muted); background: var(--soft); }
+.pilot-plan-revision { display: block; width: 100%; min-height: 70px; margin: 10px 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; resize: vertical; }
 .pilot-capability { display: grid; justify-items: center; gap: 9px; padding: 62px 24px; text-align: center; }
 .pilot-capability__icon { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--border); border-radius: 12px; color: var(--accent); background: var(--soft); }
 .pilot-capability strong { font-size: 14px; }
@@ -107,6 +128,18 @@
 .pilot-capability__status { padding: 4px 7px; border-radius: 4px; color: var(--muted); background: var(--soft); font-size: 9px; }
 .pilot-empty-panel { display: grid; justify-items: center; gap: 8px; padding: 62px 18px; color: var(--muted); text-align: center; font-size: 11px; }
 .pilot-terminal { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--term-bg); color: var(--term-fg); }
+.pilot-terminal__tabs { display: flex; min-height: 36px; flex: 0 0 auto; align-items: center; gap: 3px; overflow-x: auto; padding: 3px 7px; border-bottom: 1px solid var(--term-border); scrollbar-width: thin; }
+.pilot-terminal__tab { display: flex; min-width: 78px; max-width: 150px; height: 27px; flex: 0 0 auto; align-items: center; border-radius: 5px; color: var(--term-muted); }
+.pilot-terminal__tab.is-active { color: var(--term-fg); background: color-mix(in srgb, var(--term-fg) 10%, var(--term-bg)); }
+.pilot-terminal__tab > button:first-child, .pilot-terminal__tab input { min-width: 0; flex: 1; overflow: hidden; padding: 4px 7px; border: 0; color: inherit; background: transparent; font-size: 11px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-terminal__tab input { outline: 1px solid var(--term-accent); }
+.pilot-terminal__tab > button:last-child, .pilot-terminal__add, .pilot-terminal__restart { display: grid; width: 23px; height: 23px; flex: none; place-items: center; border: 0; border-radius: 4px; color: var(--term-muted); background: transparent; }
+.pilot-terminal__tab > button:last-child:hover, .pilot-terminal__add:hover, .pilot-terminal__restart:hover { color: var(--term-fg); background: color-mix(in srgb, var(--term-fg) 12%, var(--term-bg)); }
+.pilot-terminal__restart { margin-left: auto; }
+.pilot-terminal__session { display: none; min-height: 0; flex: 1; flex-direction: column; }
+.pilot-terminal__session.is-active { display: flex; }
+.pilot-terminal__empty { display: grid; min-height: 0; flex: 1; place-content: center; gap: 10px; color: var(--term-muted); font-size: 11px; text-align: center; }
+.pilot-terminal__empty button { padding: 6px 9px; border: 1px solid var(--term-border); border-radius: 5px; color: var(--term-fg); background: transparent; }
 .pilot-terminal__head { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--term-border); color: var(--term-head); font-size: 10px; }
 .pilot-terminal__head small { color: var(--term-muted); }
 .pilot-terminal__host { min-height: 0; flex: 1; overflow: hidden; padding: 6px 4px 8px 10px; }
@@ -126,6 +159,19 @@
 .pilot-browser__loading { position: relative; height: 2px; overflow: hidden; background: var(--border); }
 .pilot-browser__loading::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: pilot-browser-loading 1.1s ease-in-out infinite; }
 @keyframes pilot-browser-loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
-@media (max-width: 860px) {
+.pilot-inspector { background: color-mix(in srgb, var(--soft) 76%, var(--surface)); }
+.pilot-inspector__head { min-height: 58px; padding: 0 16px; background: var(--surface); }
+.pilot-side-tabs { height: 48px; padding: 6px 9px; }
+.pilot-side-tab { min-width: 80px; }
+.pilot-side-tab.is-active { box-shadow: inset 0 -2px 0 var(--accent); }
+.pilot-panel-hero { padding: 24px 22px 22px; }
+.pilot-panel-hero strong { font-size: 20px; }
+.pilot-panel-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pilot-panel-shortcuts button { display: grid; min-width: 0; min-height: 58px; justify-items: center; align-content: center; gap: 5px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 10px; }
+.pilot-panel-shortcuts button:hover, .pilot-panel-shortcuts button:focus-visible { color: var(--accent); background: var(--hover); }
+.pilot-panel-shortcuts button span { white-space: nowrap; }
+.pilot-empty-panel { min-height: 220px; padding: 48px 24px; }
+@media (max-width: 1180px) {
   .pilot-summary { right: 20px; width: min(320px, calc(100% - 40px)); }
+  .pilot-inspector__head { min-height: 60px; }
 }

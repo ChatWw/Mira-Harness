@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HarnessEvent, HarnessSession } from '../src/config/harness'
-import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../apps/harness-react/src/pilot-state'
+import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
 
 function session(id: string, content = ''): HarnessSession {
   return { version: 1, id, title: id, permissionMode: 'default', messages: content ? [{ id: `${id}-answer`, role: 'assistant', content, createdAt: 1 }] : [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
@@ -84,6 +84,17 @@ describe('React Harness pilot controller', () => {
     expect(host.onEvent).toHaveBeenCalledTimes(2)
     remounted.dispose()
     expect(unsubscribe).toHaveBeenCalledTimes(2)
+  })
+
+  it('routes a background terminal through its owning session after switching tasks', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    await controller.open('b')
+    await controller.writeTerminalFor('a', 'terminal-a', 'pwd\n')
+    await controller.resizeTerminalFor('a', 'terminal-a', 80, 24)
+    expect(host.writeTerminal).toHaveBeenCalledWith('a', 'terminal-a', 'pwd\n')
+    expect(host.resizeTerminal).toHaveBeenCalledWith('a', 'terminal-a', 80, 24)
+    controller.dispose()
   })
 
   it('only projects status for assistant messages', () => {

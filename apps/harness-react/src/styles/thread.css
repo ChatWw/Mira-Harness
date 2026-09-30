@@ -43,11 +43,17 @@
 .pilot-citation__close { position: absolute; top: 6px; right: 8px; display: grid; width: 20px; height: 20px; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--color-foreground-subtle); background: transparent; font-size: 14px; }
 .pilot-citation__close:hover { color: var(--color-foreground); background: var(--color-hover); }
 
-.pilot-empty { padding: 96px 0; text-align: center; }
-.pilot-empty strong { font-size: 19px; letter-spacing: -.02em; color: var(--color-foreground); }
-.pilot-empty p { max-width: 42ch; margin: 10px auto 0; color: var(--color-foreground-subtle); font-size: 12px; line-height: 1.7; }
-.pilot-empty button { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; padding: 9px 15px; border: 0; border-radius: 9px; color: var(--on-accent, #fff); background: var(--color-brand); font-size: 12px; }
-.pilot-empty button:hover { filter: brightness(1.08); }
+.pilot-launchpad { display: grid; min-height: min(560px, 72vh); align-content: center; gap: 22px; padding: 36px 0 24px; }
+.pilot-launchpad__intro { display: grid; justify-items: center; gap: 10px; text-align: center; }
+.pilot-launchpad__mark { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid color-mix(in srgb, var(--color-brand) 35%, var(--color-border)); border-radius: 10px; color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 8%, var(--color-card)); font-size: 15px; font-weight: 700; }
+.pilot-launchpad__intro strong { color: var(--color-foreground); font-size: 23px; font-weight: 650; letter-spacing: -.025em; }
+.pilot-launchpad__intro p { max-width: 50ch; margin: 0; color: var(--color-foreground-subtle); font-size: 12px; line-height: 1.7; }
+.pilot-launchpad__intro button { display: inline-flex; align-items: center; gap: 7px; margin-top: 3px; padding: 9px 15px; border: 0; border-radius: 9px; color: var(--on-accent, #fff); background: var(--color-brand); font-size: 12px; }
+.pilot-launchpad__intro button:hover { filter: brightness(1.08); }
+@media (max-width: 620px) {
+  .pilot-launchpad { min-height: 0; padding: 42px 0 20px; }
+  .pilot-launchpad__intro strong { font-size: 19px; }
+}
 
 /* 阻断交互卡（权限 / 记忆 / 计划确认）。 */
 .pilot-action, .pilot-error { display: flex; gap: 10px; margin: 0 0 18px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #c68a18 30%, var(--color-border)); border-radius: 12px; background: var(--color-warning); font-size: 12px; }

@@ -1,9 +1,9 @@
 @import "tailwindcss";
 /* 深浅色由宿主在 <html> 上切换 .dark 类（与 ZCode 相同的机制）。 */
 @custom-variant dark (&:where(.dark, .dark *));
-@source "./**/*.{ts,tsx}";
-@source "../../node_modules/streamdown/dist/*.js"; /* streamdown 运行时类名 */
-@import "./styles/zcode-tokens.css";
+@source "../**/*.{ts,tsx}";
+@source "../../../../node_modules/streamdown/dist/*.js"; /* streamdown 运行时类名 */
+@import "./zcode-tokens.css";
 @import "@xterm/xterm/css/xterm.css";
 @import "./pilot.css";
 @import "./style.css";

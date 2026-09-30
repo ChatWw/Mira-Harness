@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, Copy, GitCompare, Pencil, RotateCw } from 'lucide-react'
-import type { HarnessFileChange, HarnessMessage } from '../../../src/config/harness'
+import type { HarnessFileChange, HarnessMessage } from '../../../../../src/config/harness'
 
 export function EditIcon() { return <Pencil size={13} /> }
 

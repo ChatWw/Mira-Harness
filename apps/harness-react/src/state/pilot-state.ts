@@ -1,5 +1,5 @@
-import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../src/config/harness'
-import type { HarnessBrowserBounds } from '../../../src/platform/firstPartyHarness'
+import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
+import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
 
 export interface PilotBrowserEvent { sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string }
 
@@ -346,18 +346,21 @@ export class PilotController {
   openTerminal() {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
-    return this.host.openTerminal(id)
+    return this.openTerminalFor(id)
   }
+  openTerminalFor(sessionId: string) { return this.host.openTerminal(sessionId) }
   writeTerminal(terminalId: string, data: string) {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
-    return this.host.writeTerminal(id, terminalId, data)
+    return this.writeTerminalFor(id, terminalId, data)
   }
+  writeTerminalFor(sessionId: string, terminalId: string, data: string) { return this.host.writeTerminal(sessionId, terminalId, data) }
   resizeTerminal(terminalId: string, columns: number, rows: number) {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
-    return this.host.resizeTerminal(id, terminalId, columns, rows)
+    return this.resizeTerminalFor(id, terminalId, columns, rows)
   }
+  resizeTerminalFor(sessionId: string, terminalId: string, columns: number, rows: number) { return this.host.resizeTerminal(sessionId, terminalId, columns, rows) }
   closeTerminal(terminalId: string) {
     const id = this.state.session?.id
     if (!id) return Promise.resolve()
