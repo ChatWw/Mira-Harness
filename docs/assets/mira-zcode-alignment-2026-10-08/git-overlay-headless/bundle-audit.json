@@ -1,0 +1,181 @@
+{
+  "auditTime": "2026-10-09T03:08:39.688Z",
+  "buildOptionsSource": "scripts/build-harness-react.mjs",
+  "html": [
+    "<script type=\"module\" src=\"./app.js\""
+  ],
+  "staticEntryClosure": {
+    "fileCount": 3,
+    "bytes": 2034793,
+    "gzipLevel9SumBytes": 612545
+  },
+  "staticClosureFiles": [
+    "app.js",
+    "chunks/chunk-HWO562AY.js",
+    "chunks/chunk-YEHCSWIG.js"
+  ],
+  "expectedReachableJS": {
+    "fileCount": 287,
+    "bytes": 9559034,
+    "gzipLevel9SumBytes": 1911110
+  },
+  "actualGraphClosure": {
+    "fileCount": 287,
+    "orphanMetafileOutputs": []
+  },
+  "allDiskJS": {
+    "fileCount": 287,
+    "bytes": 9559034,
+    "gzipLevel9SumBytes": 1911110
+  },
+  "memoryDiskComparison": {
+    "equalCount": 287,
+    "missing": [],
+    "mismatched": [],
+    "staleCount": 0,
+    "staleBytes": 0,
+    "staleGzipLevel9SumBytes": 0,
+    "staleExamples": []
+  },
+  "dynamicImports": {
+    "edges": 239,
+    "uniqueTargets": 239,
+    "missingOnDisk": [],
+    "missingInMetafile": [],
+    "otherDynamicEntries": [
+      {
+        "path": "chunks/github-light-JUBLJC3D.js",
+        "entryPoint": "node_modules/shiki/dist/themes/github-light.mjs"
+      },
+      {
+        "path": "chunks/github-dark-GPF4RBQH.js",
+        "entryPoint": "node_modules/shiki/dist/themes/github-dark.mjs"
+      },
+      {
+        "path": "chunks/highlighted-body-KPVGNVTW-N2VCRXMY.js",
+        "entryPoint": "node_modules/streamdown/dist/highlighted-body-KPVGNVTW.js"
+      },
+      {
+        "path": "chunks/mermaid-HWGCJPDP-CRLIYLG4.js",
+        "entryPoint": "node_modules/streamdown/dist/mermaid-HWGCJPDP.js"
+      }
+    ]
+  },
+  "shiki": {
+    "physicalGrammarModules": 253,
+    "physicalGrammarContributingModules": 253,
+    "publicLanguageIDs": 235,
+    "aliases": 97,
+    "aliasUniqueCount": 97,
+    "totalLanguageKeys": 332,
+    "unmappedKeys": [],
+    "publicIDsWithGrammarInput": 235,
+    "themeInputs": [
+      "node_modules/@shikijs/themes/dist/github-light.mjs",
+      "node_modules/@shikijs/themes/dist/github-dark.mjs"
+    ],
+    "themeContributingInputs": [
+      "node_modules/@shikijs/themes/dist/github-light.mjs",
+      "node_modules/@shikijs/themes/dist/github-dark.mjs"
+    ],
+    "forbiddenRuntimeInputs": [],
+    "javaScriptRegexConverterInputs": [
+      "node_modules/oniguruma-parser/dist/utils.js",
+      "node_modules/oniguruma-parser/dist/tokenizer/tokenize.js",
+      "node_modules/oniguruma-parser/dist/parser/node-utils.js",
+      "node_modules/oniguruma-parser/dist/parser/parse.js",
+      "node_modules/oniguruma-parser/dist/traverser/traverse.js",
+      "node_modules/oniguruma-to-es/dist/esm/index.js"
+    ],
+    "staticAttributedBytes": 146218,
+    "staleThemeArtifacts": []
+  },
+  "outputCounts": {
+    "metafileAllOutputs": 287,
+    "allDiskFiles": 297,
+    "allDiskWASM": []
+  },
+  "generatedCSS": [],
+  "staticSourceAttribution": [
+    {
+      "owner": "@xterm/xterm",
+      "bytesInOutput": 344721
+    },
+    {
+      "owner": "react-dom",
+      "bytesInOutput": 210071
+    },
+    {
+      "owner": "mira-harness-react",
+      "bytesInOutput": 187656
+    },
+    {
+      "owner": "parse5",
+      "bytesInOutput": 178622
+    },
+    {
+      "owner": "@assistant-ui/core",
+      "bytesInOutput": 173525
+    },
+    {
+      "owner": "markdown-it",
+      "bytesInOutput": 89015
+    },
+    {
+      "owner": "streamdown",
+      "bytesInOutput": 75468
+    },
+    {
+      "owner": "@shikijs/vscode-textmate",
+      "bytesInOutput": 42674
+    },
+    {
+      "owner": "marked",
+      "bytesInOutput": 41278
+    },
+    {
+      "owner": "@dnd-kit/core",
+      "bytesInOutput": 35447
+    },
+    {
+      "owner": "@assistant-ui/react",
+      "bytesInOutput": 32824
+    },
+    {
+      "owner": "@shikijs/core",
+      "bytesInOutput": 31264
+    },
+    {
+      "owner": "tailwind-merge",
+      "bytesInOutput": 27559
+    },
+    {
+      "owner": "micromark-core-commonmark",
+      "bytesInOutput": 27359
+    },
+    {
+      "owner": "oniguruma-to-es",
+      "bytesInOutput": 26653
+    },
+    {
+      "owner": "oniguruma-parser",
+      "bytesInOutput": 23983
+    },
+    {
+      "owner": "@tanstack/virtual-core",
+      "bytesInOutput": 23887
+    },
+    {
+      "owner": "assistant-stream",
+      "bytesInOutput": 23698
+    },
+    {
+      "owner": "@assistant-ui/tap",
+      "bytesInOutput": 20775
+    },
+    {
+      "owner": "shiki",
+      "bytesInOutput": 20216
+    }
+  ]
+}

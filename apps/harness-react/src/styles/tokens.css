@@ -1,9 +1,8 @@
-/* Mira 旧手写 CSS 的基础层。调色板已迁移到 ZCode 令牌体系
-   （styles/zcode-tokens.css，经 app.css 桥接为 --accent/--surface 等），
-   深浅色由宿主在 <html> 上切换 .dark 类驱动。 */
+/* Mira 元素基础层。mira-foundations.css 定义主题，
+   app.css 保留区域样式的兼容语义别名；宿主在 html 上切换 .dark。 */
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif; font-size: var(--mira-font-size); }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

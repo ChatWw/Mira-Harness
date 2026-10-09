@@ -4,6 +4,7 @@ import { PilotController } from '../state/pilot-state'
 import { HarnessWorkbench } from '../components/workbench/HarnessWorkbench'
 import { FirstPartyHarnessHost } from '../platform/first-party-host'
 import { applyHostTheme, type HostThemeContext } from '../platform/theme'
+import { miraCodeHighlightWorker } from '../lib/code-highlight-worker-client'
 
 const container = document.getElementById('root')!
 const root = createRoot(container)
@@ -15,12 +16,13 @@ window.addEventListener('message', event => {
   connected = true
   const host = new FirstPartyHarnessHost(event.ports[0])
   const controller = new PilotController(host)
+  host.onPrepareLeave(() => controller.flushBeforeNavigation())
   event.ports[0].addEventListener('message', message => {
     if (message.data?.type === 'mira:context') applyHostTheme(container, (message.data.context ?? {}) as HostThemeContext)
   })
   root.render(<React.StrictMode><HarnessWorkbench controller={controller} /></React.StrictMode>)
   void controller.start()
-  window.addEventListener('pagehide', () => { controller.dispose(); host.close() }, { once: true })
+  window.addEventListener('pagehide', () => { root.unmount(); miraCodeHighlightWorker.dispose(); controller.dispose(); host.close() }, { once: true })
 })
 
 setTimeout(() => { if (!connected) root.render(<p className="pilot-unavailable">请从 Mira 桌面版打开 Harness。</p>) }, 3000)

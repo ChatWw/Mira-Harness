@@ -1,0 +1,41 @@
+{
+  "url": "file:///Volumes/VrenDisk/project/Mira/Mira-Harness/out/renderer/index.html#/settings/file-search?from=/workspace/harness-react",
+  "timeOrigin": 1791522556381.7,
+  "projectDirectory": "/private/tmp/mira-native-ignore-aSLqrz/project",
+  "proxy": {
+    "rejected": true,
+    "error": "An object could not be cloned."
+  },
+  "plain": {
+    "source": "template",
+    "bytes": 460
+  },
+  "renderedEditor": {
+    "exists": true,
+    "disabled": false,
+    "matchesPlainDocument": true
+  },
+  "alerts": [],
+  "at": "2026-10-09T05:14:15.158Z",
+  "frontmost": {
+    "bundle": "com.apple.loginwindow",
+    "name": "loginwindow",
+    "pid": 616
+  },
+  "artifacts": [
+    {
+      "path": "out/main/main.js",
+      "sha256": "93970d1b74f06fc4ad083a9e06031a9cb137f5cbb6892555963b5a2eccef71e6"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    },
+    {
+      "path": "out/renderer/index.html",
+      "sha256": "f836b4060026714768f73a0714e50d96fd2cb651a2cfe19b7eb869d08183be58"
+    }
+  ],
+  "passed": true,
+  "scope": "Actual isolated Electron renderer, contextBridge/preload and read IPC; CDP read/probe and fixture setup, no native mouse/keyboard or screenshot acceptance. Foreground loginwindow prevents native UI testing."
+}

@@ -1,0 +1,172 @@
+{
+  "checks": [
+    {
+      "at": "2026-10-09T02:22:38.777Z",
+      "name": "result",
+      "passed": false,
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#app').contentFrame().locator('[data-file-tree-path=\"mira-transparent@2x.png\"]')\u001b[22m\n\n    at open (/private/tmp/mira-image-preview-headless.mjs:80:86)\n    at /private/tmp/mira-image-preview-headless.mjs:85:9",
+      "pageErrors": []
+    }
+  ],
+  "requests": [
+    {
+      "id": "1",
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T02:22:08.607Z"
+    },
+    {
+      "id": "2",
+      "method": "harness.projects.list",
+      "at": "2026-10-09T02:22:08.616Z"
+    },
+    {
+      "id": "3",
+      "method": "harness.providers.list",
+      "at": "2026-10-09T02:22:08.617Z"
+    },
+    {
+      "id": "4",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T02:22:08.643Z"
+    },
+    {
+      "id": "5",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      },
+      "at": "2026-10-09T02:22:08.644Z"
+    },
+    {
+      "id": "6",
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      },
+      "at": "2026-10-09T02:22:08.644Z"
+    },
+    {
+      "id": "7",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      },
+      "at": "2026-10-09T02:22:08.645Z"
+    },
+    {
+      "id": "9",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      },
+      "at": "2026-10-09T02:22:08.646Z"
+    },
+    {
+      "id": "8",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      },
+      "at": "2026-10-09T02:22:08.648Z"
+    },
+    {
+      "id": "10",
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      },
+      "at": "2026-10-09T02:22:08.651Z"
+    },
+    {
+      "id": "11",
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      },
+      "at": "2026-10-09T02:22:08.652Z"
+    },
+    {
+      "id": "14",
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "image-fixture"
+      },
+      "at": "2026-10-09T02:22:08.654Z"
+    },
+    {
+      "id": "13",
+      "method": "harness.session.get",
+      "params": {
+        "id": "image-fixture"
+      },
+      "at": "2026-10-09T02:22:08.655Z"
+    },
+    {
+      "id": "12",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T02:22:08.655Z"
+    },
+    {
+      "id": "15",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.image-fixture"
+      },
+      "at": "2026-10-09T02:22:08.655Z"
+    },
+    {
+      "id": "16",
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "image-fixture"
+      },
+      "at": "2026-10-09T02:22:08.676Z"
+    },
+    {
+      "id": "17",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "image-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T02:22:08.684Z"
+    },
+    {
+      "id": "18",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T02:22:08.905Z"
+    }
+  ],
+  "pageErrors": [],
+  "remoteRequests": []
+}

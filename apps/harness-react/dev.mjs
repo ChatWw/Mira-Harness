@@ -8,9 +8,15 @@ import { spawn } from 'node:child_process'
 const directory = dirname(fileURLToPath(import.meta.url))
 const output = resolve(directory, '../../dist/harness-react-dev')
 const bundler = await context({
-  entryPoints: { main: resolve(directory, 'src/app/main.tsx'), pilot: resolve(directory, 'src/app/pilot-main.tsx') },
+  entryPoints: {
+    main: resolve(directory, 'src/app/main.tsx'), pilot: resolve(directory, 'src/app/pilot-main.tsx'),
+    'mira-code-highlight.worker': resolve(directory, 'src/workers/mira-code-highlight.worker.ts'),
+  },
   bundle: true,
-  format: 'iife',
+  format: 'esm',
+  splitting: true,
+  chunkNames: 'chunks/[name]-[hash]',
+  define: { MIRA_HIGHLIGHT_WORKER_PATH: JSON.stringify('/harness-react-dev/mira-code-highlight.worker.js') },
   platform: 'browser',
   target: ['chrome110'],
   jsx: 'automatic',
@@ -36,10 +42,12 @@ const paths = {
   '/harness-react-dev/pilot.js': { file: resolve(output, 'pilot.js'), type: 'text/javascript; charset=utf-8' },
 }
 const server = createServer(async (request, response) => {
-  const asset = paths[request.url || '']
+  const path = new URL(request.url || '/', 'http://127.0.0.1').pathname
+  const dynamic = path.match(/^\/harness-react-dev\/(mira-code-highlight\.worker\.js|chunks\/[A-Za-z0-9_.-]+\.js)$/)
+  const asset = paths[path] || (dynamic ? { file: resolve(output, dynamic[1]), type: 'text/javascript; charset=utf-8' } : undefined)
   if (!asset) { response.writeHead(404); response.end('Not found'); return }
   try {
-    response.writeHead(200, { 'Content-Type': asset.type, 'Cache-Control': 'no-store' })
+    response.writeHead(200, { 'Content-Type': asset.type, 'Cache-Control': 'no-store', ...(request.headers.origin === 'null' ? { 'Access-Control-Allow-Origin': 'null' } : {}) })
     response.end(await readFile(asset.file))
   } catch { response.writeHead(503); response.end('Harness React dev bundle is rebuilding') }
 })

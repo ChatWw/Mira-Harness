@@ -6,7 +6,12 @@ function fields(value: unknown): Record<string, unknown> {
 }
 
 function string(value: unknown, name: string, max = 128) {
-  if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`${name}无效`)
+  if (typeof value !== 'string' || !value.trim() || value.length > max || value.includes('\0')) throw new Error(`${name}无效`)
+  return value
+}
+
+function terminalData(value: unknown) {
+  if (typeof value !== 'string' || !value.length || value.length > 100_000) throw new Error('终端输入无效')
   return value
 }
 
@@ -26,23 +31,41 @@ function idList(value: unknown, name: string, max = 64) {
 
 function selection(value: unknown): ModelSelection {
   const input = fields(value)
-  return { providerId: string(input.providerId, '供应商 ID'), modelId: string(input.modelId, '模型 ID') }
+  const thinkingLevel = input.thinkingLevel
+  if (thinkingLevel !== undefined && thinkingLevel !== 'off' && thinkingLevel !== 'low' && thinkingLevel !== 'medium' && thinkingLevel !== 'high') throw new Error('推理强度无效')
+  // Runtime 使用用户选择的推理档位；桥不能把它剥离后静默恢复为默认中档。
+  return { providerId: string(input.providerId, '供应商 ID'), modelId: string(input.modelId, '模型 ID'), ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }
 }
 
 function workspacePath(value: unknown, allowEmpty = false) {
   if (allowEmpty && value === '') return ''
-  if (typeof value !== 'string' || !value.trim() || value.length > 2048 || value.includes('\\') || value.startsWith('/') || value.split('/').some(segment => segment === '..')) {
+  const path = string(value, '路径', 2048)
+  if (path.includes('\\') || path.startsWith('/') || /^[a-z]:/i.test(path) || path.split('/').some(segment => segment === '..')) {
     throw new Error('路径无效')
   }
+  return path
+}
+
+function workspaceSearchQuery(value: unknown) {
+  if (typeof value !== 'string' || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) throw new Error('搜索关键词无效')
   return value
+}
+
+function fileReferencePath(value: unknown) {
+  const path = string(value, '引用文件路径', 2048)
+  const absolute = path.startsWith('/') || /^[a-z]:[\\/]/i.test(path) || /^\\\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$)/.test(path)
+  if (!absolute && (path.startsWith('\\') || /^[a-z]:/i.test(path) || path.split(/[\\/]/).some(segment => segment === '..'))) throw new Error('引用文件路径无效')
+  return path
 }
 
 function fileReferences(value: unknown): HarnessFileReference[] {
   if (value === undefined) return []
-  if (!Array.isArray(value) || value.length > 32) throw new Error('引用文件无效')
+  if (!Array.isArray(value)) throw new Error('引用文件无效')
+  if (value.length > 12) throw new Error('一次最多引用 12 个文件')
   return value.map(item => {
     const reference = fields(item)
-    return { path: workspacePath(reference.path), name: string(reference.name, '引用文件名', 512) }
+    // 系统选择器允许项目外文本文件；不能套用仅供工作区浏览的相对路径限制。
+    return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512) }
   })
 }
 
@@ -85,10 +108,43 @@ function permissionMode(value: unknown): PermissionMode {
 
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
   if (method === 'sessions.list' || method === 'projects.list' || method === 'providers.list' || method === 'skills.list') return { method } as const
+  if (method === 'editors.list') {
+    const params = raw === undefined ? {} : fields(raw)
+    return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
+  }
   const params = fields(raw)
   switch (method) {
     case 'mcp.list': return { method } as const
     case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'files.open-editor': {
+      const editorId = string(params.editorId, '打开方式', 128)
+      if (!/^mira-[a-z-]+$/.test(editorId)) throw new Error('打开方式无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, true), editorId } as const
+    }
+    case 'files.search':
+      return { method, sessionId: string(params.sessionId, '会话 ID'), query: workspaceSearchQuery(params.query), refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
+    case 'files.git-status': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'files.git-ignored': {
+      if (!Array.isArray(params.paths) || params.paths.length > 512) throw new Error('一次最多查询 512 个文件的 Git 忽略状态')
+      const paths = [...new Set(params.paths.map(path => {
+        const value = workspacePath(path)
+        if (/^[a-z][a-z\d+.-]*:/i.test(value)) throw new Error('路径无效')
+        return value
+      }))]
+      return { method, sessionId: string(params.sessionId, '会话 ID'), paths } as const
+    }
+    case 'files.watch': {
+      if (!Array.isArray(params.paths) || !params.paths.length || params.paths.length > 256) throw new Error('一次最多监听 256 个目录')
+      const paths = [...new Set(params.paths.map(path => workspacePath(path, true)))]
+      if (!paths.includes('') && paths.length === 256) throw new Error('一次最多监听 256 个目录')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), paths } as const
+    }
+    case 'files.unwatch': return { method, sessionId: string(params.sessionId, '会话 ID'), watchId: string(params.watchId, '监听 ID') } as const
+    case 'files.read-image': {
+      const path = workspacePath(params.path)
+      if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), path } as const
+    }
     case 'files.list':
     case 'files.read':
       return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, method === 'files.list') } as const
@@ -99,7 +155,8 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, sessionId: string(params.sessionId, '会话 ID'), action: params.action as 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close' } as const
     }
     case 'terminal.open': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
-    case 'terminal.write': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), data: string(params.data, '终端输入', 100_000) } as const
+    // PTY 数据流必须保留 Enter/Tab/空格和 Ctrl+Space 的 NUL，不能按普通文案裁剪或拒绝。
+    case 'terminal.write': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), data: terminalData(params.data) } as const
     case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const
     case 'terminal.close': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID') } as const
     case 'session.get': return { method, id: string(params.id, '会话 ID') } as const

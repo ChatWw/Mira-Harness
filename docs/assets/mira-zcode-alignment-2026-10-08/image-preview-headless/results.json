@@ -1,0 +1,1774 @@
+{
+  "checks": [
+    {
+      "at": "2026-10-09T02:36:31.167Z",
+      "name": "preview-cascade-isolation",
+      "padding": "0px",
+      "borderBottomWidth": "0px",
+      "panelWidth": 418,
+      "toolbarWidth": 418,
+      "toolbarHeight": 40,
+      "canvasPadding": "40px"
+    },
+    {
+      "at": "2026-10-09T02:36:31.550Z",
+      "name": "mira-image-light.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": false,
+      "selectedPath": "mira-transparent@2x.png",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:31.550Z",
+      "name": "bitmap-retina-and-text-actions",
+      "naturalWidth": 640,
+      "naturalHeight": 320,
+      "width": 320,
+      "height": 160,
+      "cssWidth": "320px",
+      "cssHeight": "160px"
+    },
+    {
+      "at": "2026-10-09T02:36:31.858Z",
+      "name": "mira-image-dark.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": true,
+      "selectedPath": "mira-transparent@2x.png",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:31.916Z",
+      "name": "bitmap-format-decoded",
+      "extension": "jpeg",
+      "naturalWidth": 64,
+      "naturalHeight": 32
+    },
+    {
+      "at": "2026-10-09T02:36:31.983Z",
+      "name": "bitmap-format-decoded",
+      "extension": "jpg",
+      "naturalWidth": 64,
+      "naturalHeight": 32
+    },
+    {
+      "at": "2026-10-09T02:36:32.050Z",
+      "name": "bitmap-format-decoded",
+      "extension": "webp",
+      "naturalWidth": 64,
+      "naturalHeight": 32
+    },
+    {
+      "at": "2026-10-09T02:36:32.115Z",
+      "name": "bitmap-format-decoded",
+      "extension": "gif",
+      "naturalWidth": 64,
+      "naturalHeight": 32
+    },
+    {
+      "at": "2026-10-09T02:36:32.181Z",
+      "name": "bitmap-format-decoded",
+      "extension": "avif",
+      "naturalWidth": 64,
+      "naturalHeight": 32
+    },
+    {
+      "at": "2026-10-09T02:36:32.251Z",
+      "name": "bitmap-format-decoded",
+      "extension": "ico",
+      "naturalWidth": 256,
+      "naturalHeight": 256
+    },
+    {
+      "at": "2026-10-09T02:36:32.317Z",
+      "name": "bitmap-format-decoded",
+      "extension": "bmp",
+      "naturalWidth": 150,
+      "naturalHeight": 57
+    },
+    {
+      "at": "2026-10-09T02:36:32.450Z",
+      "name": "large-image-fit",
+      "height": 721.875,
+      "width": 19.25,
+      "parentHeight": 802,
+      "parentWidth": 418
+    },
+    {
+      "at": "2026-10-09T02:36:32.514Z",
+      "name": "decode-error-cascade",
+      "color": "oklch(0.87 0 none)",
+      "bodyColor": "oklch(0.87 0 none)",
+      "fontSize": "13px"
+    },
+    {
+      "at": "2026-10-09T02:36:32.843Z",
+      "name": "mira-image-decode-error.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": true,
+      "alert": "图片无法解码，请检查文件是否损坏或格式是否受支持。重试",
+      "selectedPath": "mira-broken.png",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:32.908Z",
+      "name": "decode-error-retry",
+      "recovered": true
+    },
+    {
+      "at": "2026-10-09T02:36:33.300Z",
+      "name": "mira-svg-preview.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": true,
+      "selectedPath": "mira-svg.svg",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:33.698Z",
+      "name": "mira-svg-source.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": true,
+      "selectedPath": "mira-svg.svg",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:33.795Z",
+      "name": "svg-preview-source",
+      "switched": true
+    },
+    {
+      "at": "2026-10-09T02:36:33.969Z",
+      "name": "broken-svg-source",
+      "sourceAccessible": true,
+      "readableTextCanBeAdded": true
+    },
+    {
+      "at": "2026-10-09T02:36:34.034Z",
+      "name": "svg-isolated-image",
+      "remoteRequests": [],
+      "executed": false
+    },
+    {
+      "at": "2026-10-09T02:36:34.671Z",
+      "name": "hidden-watch-reload",
+      "before": 23,
+      "after": 24
+    },
+    {
+      "at": "2026-10-09T02:36:34.739Z",
+      "name": "read-error-cascade",
+      "color": "oklch(0.269 0 none)",
+      "bodyColor": "oklch(0.269 0 none)",
+      "fontSize": "13px"
+    },
+    {
+      "at": "2026-10-09T02:36:35.032Z",
+      "name": "mira-image-read-error.png",
+      "type": "headless-browser-fixture-not-native-electron",
+      "dark": false,
+      "alert": "文件或目录不存在重试",
+      "selectedPath": "mira-transparent@2x.png",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T02:36:35.090Z",
+      "name": "missing-bitmap-restored",
+      "restored": true
+    },
+    {
+      "at": "2026-10-09T02:36:35.090Z",
+      "name": "result",
+      "passed": true,
+      "browserVersion": "154.0.8037.99",
+      "project": "/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-image-headless-1w5yR5",
+      "pageErrors": [],
+      "desktopMouseKeyboard": false,
+      "electronGrant": "unit-tests-only",
+      "screenshots": "headless-fixture-only"
+    }
+  ],
+  "requests": [
+    {
+      "id": "1",
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T02:36:30.935Z"
+    },
+    {
+      "id": "2",
+      "method": "harness.projects.list",
+      "at": "2026-10-09T02:36:30.937Z"
+    },
+    {
+      "id": "3",
+      "method": "harness.providers.list",
+      "at": "2026-10-09T02:36:30.938Z"
+    },
+    {
+      "id": "4",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T02:36:30.964Z"
+    },
+    {
+      "id": "5",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      },
+      "at": "2026-10-09T02:36:30.964Z"
+    },
+    {
+      "id": "6",
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      },
+      "at": "2026-10-09T02:36:30.965Z"
+    },
+    {
+      "id": "7",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      },
+      "at": "2026-10-09T02:36:30.965Z"
+    },
+    {
+      "id": "9",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      },
+      "at": "2026-10-09T02:36:30.966Z"
+    },
+    {
+      "id": "8",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      },
+      "at": "2026-10-09T02:36:30.966Z"
+    },
+    {
+      "id": "10",
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      },
+      "at": "2026-10-09T02:36:30.972Z"
+    },
+    {
+      "id": "11",
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      },
+      "at": "2026-10-09T02:36:30.972Z"
+    },
+    {
+      "id": "12",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T02:36:30.975Z"
+    },
+    {
+      "id": "13",
+      "method": "harness.session.get",
+      "params": {
+        "id": "image-fixture"
+      },
+      "at": "2026-10-09T02:36:30.976Z"
+    },
+    {
+      "id": "14",
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "image-fixture"
+      },
+      "at": "2026-10-09T02:36:30.976Z"
+    },
+    {
+      "id": "15",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.image-fixture"
+      },
+      "at": "2026-10-09T02:36:30.977Z"
+    },
+    {
+      "id": "16",
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "image-fixture"
+      },
+      "at": "2026-10-09T02:36:30.995Z"
+    },
+    {
+      "id": "17",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "image-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T02:36:30.999Z"
+    },
+    {
+      "id": "18",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:31.067Z"
+    },
+    {
+      "id": "19",
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "image-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T02:36:31.067Z"
+    },
+    {
+      "id": "20",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:31.069Z"
+    },
+    {
+      "id": "21",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:31.139Z"
+    },
+    {
+      "id": "22",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-transparent@2x.png"
+      },
+      "at": "2026-10-09T02:36:31.139Z"
+    },
+    {
+      "id": "23",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              }
+            ],
+            "activeTab": "file:mira-transparent@2x.png",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-transparent@2x.png"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:31.141Z"
+    },
+    {
+      "id": "24",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:31.226Z"
+    },
+    {
+      "id": "25",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:31.394Z"
+    },
+    {
+      "id": "26",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-transparent@2x.png"
+      },
+      "at": "2026-10-09T02:36:31.395Z"
+    },
+    {
+      "id": "27",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:31.883Z"
+    },
+    {
+      "id": "28",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.jpeg"
+      },
+      "at": "2026-10-09T02:36:31.883Z"
+    },
+    {
+      "id": "29",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.jpeg"
+      },
+      "at": "2026-10-09T02:36:31.884Z"
+    },
+    {
+      "id": "30",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              }
+            ],
+            "activeTab": "file:mira-format.jpeg",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.jpeg"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:31.884Z"
+    },
+    {
+      "id": "31",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:31.951Z"
+    },
+    {
+      "id": "32",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.jpg"
+      },
+      "at": "2026-10-09T02:36:31.951Z"
+    },
+    {
+      "id": "33",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.jpg"
+      },
+      "at": "2026-10-09T02:36:31.952Z"
+    },
+    {
+      "id": "34",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              }
+            ],
+            "activeTab": "file:mira-format.jpg",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.jpg"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:31.952Z"
+    },
+    {
+      "id": "35",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.016Z"
+    },
+    {
+      "id": "36",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.webp"
+      },
+      "at": "2026-10-09T02:36:32.017Z"
+    },
+    {
+      "id": "37",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.webp"
+      },
+      "at": "2026-10-09T02:36:32.020Z"
+    },
+    {
+      "id": "38",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              }
+            ],
+            "activeTab": "file:mira-format.webp",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.webp"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.020Z"
+    },
+    {
+      "id": "39",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.083Z"
+    },
+    {
+      "id": "40",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.gif"
+      },
+      "at": "2026-10-09T02:36:32.083Z"
+    },
+    {
+      "id": "41",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.gif"
+      },
+      "at": "2026-10-09T02:36:32.084Z"
+    },
+    {
+      "id": "42",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              }
+            ],
+            "activeTab": "file:mira-format.gif",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.gif"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.084Z"
+    },
+    {
+      "id": "43",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.149Z"
+    },
+    {
+      "id": "44",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.avif"
+      },
+      "at": "2026-10-09T02:36:32.149Z"
+    },
+    {
+      "id": "45",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.avif"
+      },
+      "at": "2026-10-09T02:36:32.150Z"
+    },
+    {
+      "id": "46",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              }
+            ],
+            "activeTab": "file:mira-format.avif",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.avif"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.150Z"
+    },
+    {
+      "id": "47",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.216Z"
+    },
+    {
+      "id": "48",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.ico"
+      },
+      "at": "2026-10-09T02:36:32.216Z"
+    },
+    {
+      "id": "49",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.ico"
+      },
+      "at": "2026-10-09T02:36:32.217Z"
+    },
+    {
+      "id": "50",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              }
+            ],
+            "activeTab": "file:mira-format.ico",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.ico"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.217Z"
+    },
+    {
+      "id": "51",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.284Z"
+    },
+    {
+      "id": "52",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.bmp"
+      },
+      "at": "2026-10-09T02:36:32.284Z"
+    },
+    {
+      "id": "53",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-format.bmp"
+      },
+      "at": "2026-10-09T02:36:32.285Z"
+    },
+    {
+      "id": "54",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              }
+            ],
+            "activeTab": "file:mira-format.bmp",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-format.bmp"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.286Z"
+    },
+    {
+      "id": "55",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.350Z"
+    },
+    {
+      "id": "56",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-wide.png"
+      },
+      "at": "2026-10-09T02:36:32.350Z"
+    },
+    {
+      "id": "57",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-wide.png"
+      },
+      "at": "2026-10-09T02:36:32.352Z"
+    },
+    {
+      "id": "58",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              }
+            ],
+            "activeTab": "file:mira-wide.png",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-wide.png"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.352Z"
+    },
+    {
+      "id": "59",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.417Z"
+    },
+    {
+      "id": "60",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-tall.png"
+      },
+      "at": "2026-10-09T02:36:32.417Z"
+    },
+    {
+      "id": "61",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-tall.png"
+      },
+      "at": "2026-10-09T02:36:32.419Z"
+    },
+    {
+      "id": "62",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              }
+            ],
+            "activeTab": "file:mira-tall.png",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-tall.png"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.419Z"
+    },
+    {
+      "id": "63",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.483Z"
+    },
+    {
+      "id": "64",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-broken.png"
+      },
+      "at": "2026-10-09T02:36:32.483Z"
+    },
+    {
+      "id": "65",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-broken.png"
+      },
+      "at": "2026-10-09T02:36:32.484Z"
+    },
+    {
+      "id": "66",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              },
+              {
+                "id": "file:mira-broken.png",
+                "label": "mira-broken.png",
+                "path": "mira-broken.png"
+              }
+            ],
+            "activeTab": "file:mira-broken.png",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-broken.png"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.485Z"
+    },
+    {
+      "id": "67",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-broken.png"
+      },
+      "at": "2026-10-09T02:36:32.880Z"
+    },
+    {
+      "id": "68",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:32.950Z"
+    },
+    {
+      "id": "69",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-svg.svg"
+      },
+      "at": "2026-10-09T02:36:32.950Z"
+    },
+    {
+      "id": "70",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-svg.svg"
+      },
+      "at": "2026-10-09T02:36:32.952Z"
+    },
+    {
+      "id": "71",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              },
+              {
+                "id": "file:mira-broken.png",
+                "label": "mira-broken.png",
+                "path": "mira-broken.png"
+              },
+              {
+                "id": "file:mira-svg.svg",
+                "label": "mira-svg.svg",
+                "path": "mira-svg.svg"
+              }
+            ],
+            "activeTab": "file:mira-svg.svg",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-svg.svg"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:32.952Z"
+    },
+    {
+      "id": "72",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:33.833Z"
+    },
+    {
+      "id": "73",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-broken.svg"
+      },
+      "at": "2026-10-09T02:36:33.833Z"
+    },
+    {
+      "id": "74",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-broken.svg"
+      },
+      "at": "2026-10-09T02:36:33.834Z"
+    },
+    {
+      "id": "75",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              },
+              {
+                "id": "file:mira-broken.png",
+                "label": "mira-broken.png",
+                "path": "mira-broken.png"
+              },
+              {
+                "id": "file:mira-svg.svg",
+                "label": "mira-svg.svg",
+                "path": "mira-svg.svg"
+              },
+              {
+                "id": "file:mira-broken.svg",
+                "label": "mira-broken.svg",
+                "path": "mira-broken.svg"
+              }
+            ],
+            "activeTab": "file:mira-broken.svg",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-broken.svg"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:33.835Z"
+    },
+    {
+      "id": "76",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:34.000Z"
+    },
+    {
+      "id": "77",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-unsafe.svg"
+      },
+      "at": "2026-10-09T02:36:34.000Z"
+    },
+    {
+      "id": "78",
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-unsafe.svg"
+      },
+      "at": "2026-10-09T02:36:34.003Z"
+    },
+    {
+      "id": "79",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              },
+              {
+                "id": "file:mira-broken.png",
+                "label": "mira-broken.png",
+                "path": "mira-broken.png"
+              },
+              {
+                "id": "file:mira-svg.svg",
+                "label": "mira-svg.svg",
+                "path": "mira-svg.svg"
+              },
+              {
+                "id": "file:mira-broken.svg",
+                "label": "mira-broken.svg",
+                "path": "mira-broken.svg"
+              },
+              {
+                "id": "file:mira-unsafe.svg",
+                "label": "mira-unsafe.svg",
+                "path": "mira-unsafe.svg"
+              }
+            ],
+            "activeTab": "file:mira-unsafe.svg",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-unsafe.svg"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:34.003Z"
+    },
+    {
+      "id": "80",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:34.066Z"
+    },
+    {
+      "id": "81",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "image-fixture": {
+            "tabs": [
+              {
+                "id": "file:mira-transparent@2x.png",
+                "label": "mira-transparent@2x.png",
+                "path": "mira-transparent@2x.png"
+              },
+              {
+                "id": "file:mira-format.jpeg",
+                "label": "mira-format.jpeg",
+                "path": "mira-format.jpeg"
+              },
+              {
+                "id": "file:mira-format.jpg",
+                "label": "mira-format.jpg",
+                "path": "mira-format.jpg"
+              },
+              {
+                "id": "file:mira-format.webp",
+                "label": "mira-format.webp",
+                "path": "mira-format.webp"
+              },
+              {
+                "id": "file:mira-format.gif",
+                "label": "mira-format.gif",
+                "path": "mira-format.gif"
+              },
+              {
+                "id": "file:mira-format.avif",
+                "label": "mira-format.avif",
+                "path": "mira-format.avif"
+              },
+              {
+                "id": "file:mira-format.ico",
+                "label": "mira-format.ico",
+                "path": "mira-format.ico"
+              },
+              {
+                "id": "file:mira-format.bmp",
+                "label": "mira-format.bmp",
+                "path": "mira-format.bmp"
+              },
+              {
+                "id": "file:mira-wide.png",
+                "label": "mira-wide.png",
+                "path": "mira-wide.png"
+              },
+              {
+                "id": "file:mira-tall.png",
+                "label": "mira-tall.png",
+                "path": "mira-tall.png"
+              },
+              {
+                "id": "file:mira-broken.png",
+                "label": "mira-broken.png",
+                "path": "mira-broken.png"
+              },
+              {
+                "id": "file:mira-svg.svg",
+                "label": "mira-svg.svg",
+                "path": "mira-svg.svg"
+              },
+              {
+                "id": "file:mira-broken.svg",
+                "label": "mira-broken.svg",
+                "path": "mira-broken.svg"
+              },
+              {
+                "id": "file:mira-unsafe.svg",
+                "label": "mira-unsafe.svg",
+                "path": "mira-unsafe.svg"
+              }
+            ],
+            "activeTab": "file:mira-transparent@2x.png",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "mira-transparent@2x.png"
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:34.067Z"
+    },
+    {
+      "id": "82",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {
+            "image-fixture": [
+              {
+                "path": "mira-broken.svg",
+                "name": "mira-broken.svg"
+              }
+            ]
+          },
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T02:36:34.215Z"
+    },
+    {
+      "id": "83",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T02:36:34.433Z"
+    },
+    {
+      "id": "84",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-transparent@2x.png"
+      },
+      "at": "2026-10-09T02:36:34.605Z"
+    },
+    {
+      "id": "85",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-transparent@2x.png"
+      },
+      "at": "2026-10-09T02:36:34.713Z"
+    },
+    {
+      "id": "86",
+      "method": "harness.files.read-image",
+      "params": {
+        "sessionId": "image-fixture",
+        "path": "mira-transparent@2x.png"
+      },
+      "at": "2026-10-09T02:36:35.062Z"
+    }
+  ],
+  "pageErrors": [],
+  "remoteRequests": []
+}

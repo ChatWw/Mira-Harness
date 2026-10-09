@@ -1,37 +1,75 @@
-.harness-composer { box-shadow: 0 12px 34px color-mix(in srgb, #10252a 10%, transparent); }
-.harness-composer textarea { min-height: 72px; }
-.harness-composer__scope { display: flex; min-width: 0; align-items: center; gap: 6px; margin: 0 2px 8px; color: var(--muted); font-size: 11px; }
-.harness-composer__scope svg { flex: none; color: var(--accent); }
-.harness-composer__scope strong { overflow: hidden; max-width: 20ch; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.harness-composer__scope small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.harness-composer__footer { min-height: 32px; }
-.harness-composer__controls { flex-wrap: wrap; row-gap: 5px; }
-.harness-composer__select { min-width: 0; max-width: 184px; text-overflow: ellipsis; white-space: nowrap; }
-.harness-composer__select--permission { max-width: 110px; }
-.harness-composer__menu-trigger { display: inline-flex; max-width: 185px; min-width: 0; height: 28px; align-items: center; gap: 5px; padding: 0 7px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 12px; white-space: nowrap; }
-.harness-composer__menu-trigger--permission { max-width: 120px; }
-.harness-composer__menu-trigger--advanced { max-width: 128px; }
+.harness-composer-region { position: relative; width: 100%; min-width: 0; }
+.harness-composer__error { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; color: var(--color-destructive); background: var(--color-surface); font-size: var(--text-ui-sm); line-height: 20px; }
+.harness-composer__error > span { flex: 1; }
+.harness-composer__error > svg { flex: none; margin-top: 2px; }
+.harness-composer__error button { display: grid; width: 20px; height: 20px; place-items: center; padding: 0; border: 0; border-radius: 4px; color: inherit; background: transparent; }
+.harness-composer-region--draft .harness-composer__surface { border-radius: 16px; background: var(--color-surface); box-shadow: 0 12px 28px color-mix(in srgb, black 5%, transparent); }
+.harness-composer__surface { width: 100%; min-width: 0; }
+.harness-composer__project-strip { display: flex; min-width: 0; height: 40px; align-items: center; padding: 6px; }
+.harness-composer__project-trigger { display: inline-flex; max-width: 240px; min-width: 0; height: 28px; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-radius: 8px; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); }
+.harness-composer__project-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__project-trigger svg { flex: none; color: var(--color-foreground-subtle); }
+.harness-composer__project-trigger:hover, .harness-composer__project-trigger[data-state='open'] { background: var(--color-surface-hover); }
+.harness-composer__project-detach { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; }
+.harness-composer__project-detach:hover { background: var(--color-hover); }
+.harness-composer { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--color-input-border); border-radius: 16px; background: var(--color-input); transition: border-color 120ms ease-out; }
+.harness-composer:hover { border-color: var(--color-input-border-hover); }
+.harness-composer:focus-within { border-color: var(--color-input-border-focused); background: var(--color-input-focused); }
+.harness-composer textarea { display: block; width: 100%; min-height: 40px; max-height: 160px; resize: none; overflow-y: auto; padding: 0; border: 0; outline: 0; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); line-height: 20px; caret-color: var(--color-foreground); }
+.harness-composer textarea:focus-visible { outline: 0; }
+.harness-composer textarea::placeholder { color: var(--color-foreground-subtlest); }
+.harness-composer textarea::selection { color: var(--color-foreground); background: var(--color-selected); }
+.harness-composer__footer { display: flex; min-height: 28px; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.harness-composer__controls, .harness-composer__right-actions { display: flex; min-width: 0; align-items: center; gap: 4px; }
+.harness-composer__controls { flex: 1; }
+.harness-composer__right-actions { flex: none; gap: 8px; }
+.harness-composer__icon-button { display: grid; width: 28px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 8px; color: var(--color-foreground-subtle); background: transparent; }
+.harness-composer__icon-button:hover, .harness-composer__icon-button[data-state='open'] { color: var(--color-foreground); background: var(--color-hover); }
+.harness-composer__menu-trigger { display: inline-flex; max-width: 184px; min-width: 0; height: 28px; align-items: center; gap: 4px; padding: 0 8px; border: 0; border-radius: 8px; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); white-space: nowrap; }
 .harness-composer__menu-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .harness-composer__menu-trigger svg { flex: none; }
-.harness-composer__menu-trigger:hover, .harness-composer__menu-trigger[data-state='open'] { color: var(--text); background: var(--hover); }
-.harness-composer__menu-trigger:disabled { cursor: not-allowed; opacity: .5; }
-.harness-composer__menu { z-index: 70; max-height: min(360px, 60vh); min-width: 184px; max-width: min(340px, calc(100vw - 24px)); overflow: auto; padding: 5px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--surface); box-shadow: var(--shadow-soft); }
-.harness-composer__menu-item { display: flex; min-height: 32px; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 5px; outline: 0; font-size: 12px; cursor: pointer; }
-.harness-composer__menu-item[data-highlighted] { background: var(--hover); }
-.harness-composer__menu-item > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.harness-composer__menu-item > span:last-child { display: grid; gap: 2px; }
-.harness-composer__menu-item > span:last-child small { overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.harness-composer__menu-label { padding: 5px 8px 4px; color: var(--muted); font-size: 10px; font-weight: 650; }
-.harness-composer__menu-separator { height: 1px; margin: 5px 0; background: var(--border); }
-.harness-composer__mcp-icon { display: grid !important; width: 14px; height: 14px; place-items: center; border: 1px solid currentColor; border-radius: 3px; color: var(--accent); font-size: 9px; font-weight: 700; }
-.harness-composer__menu-indicator { display: grid; width: 15px; flex: none; place-items: center; color: var(--accent); }
-.harness-composer__menu-empty { display: block; padding: 7px; color: var(--muted); font-size: 12px; }
-.harness-composer__mode { flex: 0 0 auto; white-space: nowrap; }
-.harness-composer__mode button { min-width: 68px; white-space: nowrap; word-break: keep-all; writing-mode: horizontal-tb; }
-.harness-composer__send { flex: 0 0 auto; }
-@media (max-width: 620px) {
-  .harness-composer__footer { align-items: stretch; }
-  .harness-composer__controls { width: 100%; }
-  .harness-composer__send { margin-left: auto; }
-  .harness-composer__select { max-width: 150px; }
-}
+.harness-composer__menu-trigger:hover, .harness-composer__menu-trigger[data-state='open'] { background: var(--color-hover); }
+.harness-composer__menu-trigger--full { color: var(--color-warning); }
+.harness-composer__model-trigger { max-width: 192px; }
+.harness-composer__reasoning-trigger { flex: none; padding: 0 6px; }
+.harness-composer button:disabled { cursor: not-allowed; opacity: .45; }
+.harness-composer__menu { z-index: 80; display: flex; min-width: 184px; max-width: min(340px, calc(100vw - 24px)); max-height: min(360px, var(--radix-dropdown-menu-content-available-height, 60vh)); flex-direction: column; gap: 2px; overflow: auto; padding: 4px; border: 1px solid var(--color-popover-border); border-radius: 8px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); font-size: var(--text-ui-base); outline: 0; }
+.harness-composer__menu [role='group'] { display: flex; flex-direction: column; gap: 2px; }
+.harness-composer__mode-menu { width: 256px; }
+.harness-composer__project-menu, .harness-composer__model-menu { width: 288px; }
+.harness-composer__context-menu { width: 224px; }
+.harness-composer__reasoning-menu { min-width: 144px; }
+.harness-composer__tools-menu { min-width: 208px; }
+.harness-composer__menu-item { position: relative; display: flex; min-height: 28px; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; outline: 0; font-size: var(--text-ui-base); line-height: 20px; cursor: default; user-select: none; }
+.harness-composer__menu-item[data-highlighted] { color: var(--color-foreground); background: var(--color-menu-hover); }
+.harness-composer__menu-item[data-disabled] { pointer-events: none; color: var(--color-foreground-subtlest); }
+.harness-composer__menu-item > svg { flex: none; color: var(--color-foreground-subtle); }
+.harness-composer__menu-item > span:not(.harness-composer__check) { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.harness-composer__menu-item strong { overflow: hidden; font-size: var(--text-ui-base); font-weight: 400; text-overflow: ellipsis; }
+.harness-composer__menu-item small { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); font-weight: 400; line-height: 16px; }
+.harness-composer__mode-option { min-height: 52px; align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+.harness-composer__mode-option > svg { margin-top: 2px; }
+.harness-composer__check { display: grid; width: 16px; height: 20px; flex: none; margin-left: auto; place-items: center; color: var(--color-foreground-subtle); }
+.harness-composer__menu-label { padding: 6px 8px 4px; color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); font-weight: 500; }
+.harness-composer__menu-separator { height: 1px; flex: none; margin: 4px 0; background: var(--color-border); }
+.harness-composer__menu-empty { display: block; padding: 8px; color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
+.harness-composer__search { display: flex; height: 36px; flex: none; align-items: center; gap: 8px; margin: -4px -4px 4px; padding: 0 12px; border-bottom: 1px solid var(--color-border); color: var(--color-foreground-subtlest); }
+.harness-composer__search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); }
+.harness-composer__search input:focus-visible { outline: 0; }
+.harness-composer__search input::placeholder { color: var(--color-foreground-subtlest); }
+.harness-composer__plus-label { display: grid !important; width: 16px; flex: none !important; place-items: center; color: var(--color-foreground-subtle); }
+.harness-composer__send { display: grid; width: 28px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 8px; color: var(--color-primary-foreground); background: var(--color-primary); transition: opacity 120ms ease-out; }
+.harness-composer__send:hover { opacity: .8; }
+.harness-composer__send:disabled { opacity: .35; }
+.harness-composer__usage { padding: 0 4px; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); font-variant-numeric: tabular-nums; }
+.harness-composer__attachments { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; }
+.harness-composer__attachment { display: inline-flex; max-width: 260px; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; color: var(--color-foreground); background: var(--color-surface); font-size: var(--text-ui-sm); }
+.harness-composer__attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.harness-composer__attachment button { display: grid; width: 20px; height: 20px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--color-foreground-subtle); background: transparent; }
+.harness-composer__attachment button:hover { color: var(--color-foreground); background: var(--color-hover); }
+.harness-composer__slash-menu { position: absolute; right: 0; bottom: calc(100% + 4px); left: 0; z-index: 70; display: grid; gap: 2px; max-height: 320px; overflow-y: auto; padding: 4px; border: 1px solid var(--color-popover-border); border-radius: 8px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); }
+.harness-composer__slash-option { display: grid; gap: 2px; padding: 6px 8px; border: 0; border-radius: 6px; color: inherit; background: transparent; text-align: left; }
+.harness-composer__slash-option.is-selected { background: var(--color-menu-hover); }
+.harness-composer__slash-option strong { font-size: var(--text-ui-base); font-weight: 400; }
+.harness-composer__slash-option small { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
+@media (prefers-reduced-motion: reduce) { .harness-composer, .harness-composer__send { transition: none; } }

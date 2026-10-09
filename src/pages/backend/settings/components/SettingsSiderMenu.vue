@@ -54,6 +54,7 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
       { key: 'mcp', label: 'MCP 服务', icon: 'lucide:plug', path: '/settings/mcp' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
       { key: 'git', label: 'Git', icon: 'tabler:git-branch', path: '/settings/git' },
+      { key: 'file-search', label: '文件搜索', icon: 'lucide:folder-search', path: '/settings/file-search' },
       { key: 'backup-preferences', label: '备份与偏好', icon: 'Files', path: '/settings/backup-preferences' },
     ],
   },

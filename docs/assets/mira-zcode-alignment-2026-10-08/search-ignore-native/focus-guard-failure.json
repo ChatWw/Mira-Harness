@@ -1,0 +1,40 @@
+{
+  "startedAt": "2026-10-09T05:09:16.440Z",
+  "home": "/private/tmp/mira-native-ignore-aSLqrz",
+  "root": "/private/tmp/mira-native-ignore-aSLqrz/project",
+  "records": [
+    {
+      "name": "real-preload-template-does-not-write",
+      "at": "2026-10-09T05:09:16.973Z",
+      "projectId": "719e557a-110c-4576-ba2d-b695f5d66085",
+      "sessionId": "e2b03002-2aad-41ad-944e-5631a258aead",
+      "window": {
+        "kCGWindowAlpha": 1,
+        "kCGWindowBounds": {
+          "Height": 900,
+          "Width": 1440,
+          "X": 135,
+          "Y": 42
+        },
+        "kCGWindowIsOnscreen": true,
+        "kCGWindowLayer": 0,
+        "kCGWindowMemoryUsage": 2432,
+        "kCGWindowName": "文件搜索 - Mira Harness",
+        "kCGWindowNumber": 3298,
+        "kCGWindowOwnerName": "Electron",
+        "kCGWindowOwnerPID": 68977,
+        "kCGWindowSharingState": 1,
+        "kCGWindowStoreType": 1
+      },
+      "shell": {
+        "url": "file:///Volumes/VrenDisk/project/Mira/Mira-Harness/out/renderer/index.html#/settings/file-search?from=/workspace/harness-react",
+        "api": true,
+        "title": "Mira"
+      }
+    }
+  ],
+  "captures": [],
+  "passed": false,
+  "error": "AssertionError [ERR_ASSERTION]: Only operate on the isolated Mira foreground window\n\n616 !== 68977\n\n    at frontmost (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:41:10)\n    at capture (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:71:3)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:97:3",
+  "finishedAt": "2026-10-09T05:09:17.721Z"
+}

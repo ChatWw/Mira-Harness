@@ -1,0 +1,54 @@
+{
+  "startedAt": "2026-10-09T06:08:43.749Z",
+  "scope": "Real current React Markdown components in isolated headless Chromium. Deliberately delayed highlighter fixture, not production Worker performance, Electron, native input, user database or ZCode acceptance.",
+  "errors": [],
+  "passed": false,
+  "productionCssSha256": "36dace41282190a1faa747db3133c9bc67e2ce38fa4c5b53260259dbeb1a1b31",
+  "layoutStability": {
+    "raw": {
+      "state": "loading",
+      "bodyWidth": 1422,
+      "bodyHeight": 95.6875,
+      "preHeight": 61.6875,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 3
+    },
+    "ready": {
+      "state": "ready",
+      "bodyWidth": 1422,
+      "bodyHeight": 95.6875,
+      "preHeight": 61.6875,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 3
+    },
+    "unchanged": true,
+    "completeTailLinesPreserved": true
+  },
+  "outOfOrder": {
+    "earlierAborted": true,
+    "latestVisible": true,
+    "exactCopy": true,
+    "sourceIncludesTrailingNewlines": true
+  },
+  "incomplete": {
+    "visibleAndHighlightedBeforeCompletion": true
+  },
+  "streamingError": {
+    "completeEscapedSourcePreserved": true,
+    "retryStartedNewRequest": true,
+    "retryRecovered": true
+  },
+  "cleanup": {
+    "supersededAbortHasNoAlert": true,
+    "unmountedRequestAborted": true,
+    "lateUnmountFailureIgnored": true
+  },
+  "failure": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.citation-marker button')\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" aria-label=\"查看来源 1\" data-citation-index=\"1\">[1]</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-streaming-regression.mjs:154:49",
+  "finishedAt": "2026-10-09T06:09:15.903Z"
+}

@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-10-09T04:33:00.246Z",
+  "requests": 0,
+  "records": [],
+  "pageErrors": [],
+  "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('textbox', { name: '搜索忽略规则' }) to be visible\u001b[22m\n\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-headless/mira-search-ignore-headless.mjs:112:16"
+}

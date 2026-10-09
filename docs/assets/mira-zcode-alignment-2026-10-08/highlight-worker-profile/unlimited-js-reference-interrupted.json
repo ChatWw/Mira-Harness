@@ -1,0 +1,333 @@
+{
+  "startedAt": "2026-10-09T05:44:34.660Z",
+  "scope": "Isolated headless desktop Chromium profile of current source; Worker prototype only. No production source/build mutation, Electron, native input, user database or ZCode GUI acceptance.",
+  "errors": [],
+  "network": [
+    {
+      "path": "/stdin.js",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/stdin.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": null,
+      "headers": {},
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49686",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49686"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-UDPUNM6J.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-P64POOWM.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-CILON7YJ.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-6R3KEE7K.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-ZN4KE27R.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-4T7FALF3.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-PAE5DQWI.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-DULTPPVM.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    }
+  ],
+  "messages": [],
+  "passed": false,
+  "runtime": "154.0.8037.99",
+  "loaders": {
+    "sandboxAttribute": "allow-scripts allow-forms",
+    "opaque": {
+      "effectiveOrigin": "null",
+      "urlOrigin": "http://127.0.0.1:49686",
+      "iframe": true,
+      "directModule": {
+        "ready": false,
+        "error": "SecurityError",
+        "message": "Failed to construct 'Worker': Script at 'http://127.0.0.1:49686/worker.js' cannot be accessed from origin 'null'."
+      },
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      },
+      "moduleImport": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      },
+      "classicDynamicImport": {
+        "ready": true
+      }
+    },
+    "host": {
+      "effectiveOrigin": "http://127.0.0.1:49686",
+      "urlOrigin": "http://127.0.0.1:49686",
+      "iframe": false,
+      "directModule": {
+        "ready": true
+      },
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": true
+      },
+      "moduleImport": {
+        "ready": true
+      },
+      "classicDynamicImport": {
+        "ready": true
+      }
+    }
+  },
+  "loader": {
+    "ready": true,
+    "bootstrapType": "classic-blob-dynamic-import",
+    "effectiveOrigin": "null",
+    "urlOrigin": "http://127.0.0.1:49686",
+    "iframe": true
+  },
+  "cases": [
+    {
+      "name": "cold-typescript",
+      "unlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 53.79999999701977,
+        "maxTimerGapMs": 49.8999999910593,
+        "timerSamples": 12,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931"
+      },
+      "workerPrototype": {
+        "elapsedMs": 52.900000005960464,
+        "maxTimerGapMs": 6.299999997019768,
+        "timerSamples": 20,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "warm-typescript",
+      "unlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 1.1000000089406967,
+        "maxTimerGapMs": 6.399999991059303,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944"
+      },
+      "workerPrototype": {
+        "elapsedMs": 1.300000011920929,
+        "maxTimerGapMs": 6.4000000059604645,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "single-line-3000-statements",
+      "unlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 1042.5999999940395,
+        "maxTimerGapMs": 1042.699999988079,
+        "timerSamples": 11,
+        "longTasks": [
+          {
+            "start": 465.80000001192093,
+            "duration": 1042
+          }
+        ],
+        "codeCharacters": 135780,
+        "lineCount": 1,
+        "tokenCount": 78,
+        "themedTokens": 78,
+        "digest": "e66e0c3109f31e19ff97bb0c6da698e1d1f836ab918843a3c50f2eba4e08098c"
+      },
+      "workerPrototype": {
+        "elapsedMs": 1017.2999999970198,
+        "maxTimerGapMs": 6.299999997019768,
+        "timerSamples": 213,
+        "longTasks": [],
+        "codeCharacters": 135780,
+        "lineCount": 1,
+        "tokenCount": 77,
+        "themedTokens": 77,
+        "digest": "2da56612bcd12ce74f9897d580b9e2f5bf5df084eed9cb94224d7456f6759570",
+        "equal": false
+      },
+      "equal": false
+    }
+  ],
+  "error": "frame.evaluate: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --disable-updater-scheduler --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/playwright_chromiumdev_profile-I84k5Z --remote-debugging-pipe --no-startup-window\n<launched> pid=84098\n[pid=84098][err] Trying to load the allocator multiple times. This is *not* supported.\n[pid=84098][err] [84104:1880104:1009/134435.433919:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880153:1009/134435.434085:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880104:1009/134435.435361:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880153:1009/134435.435404:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880104:1009/134435.436053:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880153:1009/134435.436095:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880104:1009/134435.436499:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880153:1009/134435.436540:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880104:1009/134435.436622:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=84098][err] [84104:1880153:1009/134435.436658:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/mira-highlight-profile.mjs:141:34",
+  "finishedAt": "2026-10-09T05:46:42.194Z"
+}

@@ -41,6 +41,24 @@ function fixture() {
 }
 
 describe('React Harness pilot controller', () => {
+  it('keeps image reads scoped to their captured session after switching tasks', async () => {
+    const { controller, host } = fixture()
+    const image = { path: 'assets/mira.png', mediaType: 'image/png', dataBase64: 'aW1hZ2U=', byteLength: 5 }
+    host.readImage = vi.fn(async () => image)
+    await controller.start()
+    await controller.open('b')
+    await expect(controller.readImageFor('a', 'assets/mira.png')).resolves.toEqual(image)
+    expect(host.readImage).toHaveBeenCalledWith('a', 'assets/mira.png')
+    expect(host.readFile).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('reports a missing image-preview capability instead of falling back to binary text', async () => {
+    const { controller, host } = fixture()
+    await expect(controller.readImageFor('a', 'assets/mira.png')).rejects.toThrow('当前宿主不支持图片预览')
+    expect(host.readFile).not.toHaveBeenCalled()
+  })
+
   it('does not present a completed session with failed activity as fully successful', () => {
     const completed = session('a')
     completed.status = 'completed'
@@ -97,6 +115,51 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('routes file watch changes outside chat state and supports captured lifecycle and optional hosts', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    expect(controller.supportsWorkspaceWatch).toBe(false)
+    await expect(controller.watchFilesFor('a', [''])).rejects.toThrow('不支持文件自动刷新')
+    await expect(controller.unwatchFilesFor('a', 'old')).resolves.toBeUndefined()
+    host.watchFiles = vi.fn(async () => ({ watchId: 'watch-a' }))
+    host.unwatchFiles = vi.fn(async () => undefined)
+    expect(controller.supportsWorkspaceWatch).toBe(true)
+    await expect(controller.watchFilesFor('a', ['', 'src'])).resolves.toEqual({ watchId: 'watch-a' })
+    await controller.open('b')
+    const fileListener = vi.fn(), stateListener = vi.fn(), terminalListener = vi.fn()
+    controller.onWorkspaceFilesChanged(fileListener)
+    controller.onTerminalEvent(terminalListener)
+    controller.subscribe(stateListener)
+    const snapshot = controller.getSnapshot()
+    emit('workspace-files-changed', { grantId: 'grant', watchId: 'watch-a', directory: '/private/tmp/project', paths: ['src'] }, 'a')
+    expect(fileListener).toHaveBeenCalledWith({ sessionId: 'a', watchId: 'watch-a', directory: '/private/tmp/project', paths: ['src'] })
+    expect(controller.getSnapshot()).toBe(snapshot)
+    expect(stateListener).not.toHaveBeenCalled()
+    expect(terminalListener).not.toHaveBeenCalled()
+    emit('workspace-files-changed', { watchId: 9, directory: '/tmp', paths: [''] })
+    expect(fileListener).toHaveBeenCalledOnce()
+    await controller.unwatchFilesFor('a', 'watch-a')
+    expect(host.unwatchFiles).toHaveBeenCalledWith('a', 'watch-a')
+    controller.dispose()
+  })
+
+  it('keeps captured browser operations attached to their owning task after switching sessions', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    await controller.open('b')
+    const bounds = { x: 20, y: 40, width: 400, height: 500 }
+    await controller.navigateBrowserFor('a', 'https://example.com', bounds)
+    await controller.controlBrowserFor('a', 'hide')
+    await controller.setBrowserBoundsFor('a', bounds)
+    expect(host.navigateBrowser).toHaveBeenCalledWith('a', 'https://example.com', bounds)
+    expect(host.controlBrowser).toHaveBeenCalledWith('a', 'hide')
+    expect(host.setBrowserBounds).toHaveBeenCalledWith('a', bounds)
+    controller.newConversation()
+    await controller.closeBrowserFor('a')
+    expect(host.controlBrowser).toHaveBeenLastCalledWith('a', 'close')
+    controller.dispose()
+  })
+
   it('only projects status for assistant messages', () => {
     expect(projectPilotMessage({ id: 'user', role: 'user', content: 'hello', createdAt: 1 })).not.toHaveProperty('status')
     expect(projectPilotMessage({ id: 'stream-1', role: 'assistant', content: 'world', createdAt: 1 })).toMatchObject({ status: { type: 'running' } })
@@ -144,7 +207,7 @@ describe('React Harness pilot controller', () => {
     const empty = fixture()
     vi.mocked(empty.host.listSessions).mockResolvedValueOnce([])
     await empty.controller.start()
-    await empty.controller.send('不要自动创建')
+    expect(await empty.controller.send('不要自动创建')).toBe(false)
     expect(empty.host.createSession).not.toHaveBeenCalled()
     expect(empty.host.runMessage).not.toHaveBeenCalled()
     empty.controller.dispose()
@@ -236,13 +299,34 @@ describe('React Harness pilot controller', () => {
   it('passes plan mode to the host and can send again after a stopped run', async () => {
     const { controller, host, snapshots, emit } = fixture()
     await controller.start()
-    await controller.send('先计划', true)
+    expect(await controller.send('先计划', true)).toBe(true)
     expect(host.runMessage).toHaveBeenCalledWith('a', '先计划', { providerId: 'provider', modelId: 'model' }, true, [])
     snapshots.set('a', { ...session('a'), messages: [{ id: 'reply', role: 'assistant', content: '已停止', createdAt: 1, run: { status: 'stopped', startedAt: 1, completedAt: 2, durationMs: 1, activities: [] } }] })
     emit('status', { state: 'completed' })
     await vi.waitFor(() => expect(controller.getSnapshot().running).toBe(false))
     await controller.send('继续处理')
     expect(host.runMessage).toHaveBeenLastCalledWith('a', '继续处理', { providerId: 'provider', modelId: 'model' }, false, [])
+    controller.dispose()
+  })
+
+  it.each([true, false])('returns the original send result (%s) without changing the newly selected task', async success => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let finishRun!: () => void
+    vi.mocked(host.runMessage).mockImplementationOnce(() => new Promise<void>((resolve, reject) => {
+      finishRun = () => { if (success) resolve(); else reject(new Error('A 发送失败')) }
+    }))
+    const sending = controller.send('A 的消息')
+    expect(controller.getSnapshot().running).toBe(true)
+    await controller.open('b')
+    emit('message-delta', { delta: 'B 的流消息' }, 'b')
+    emit('error', { message: 'B 自己的错误' }, 'b')
+    const currentTask = controller.getSnapshot()
+    finishRun()
+    expect(await sending).toBe(success)
+    expect(controller.getSnapshot()).toBe(currentTask)
+    expect(controller.getSnapshot()).toMatchObject({ session: { id: 'b' }, running: true, messages: [{ content: 'B 的流消息' }], error: 'B 自己的错误' })
+    expect(host.getSession).toHaveBeenLastCalledWith('b')
     controller.dispose()
   })
 
@@ -332,14 +416,124 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
-  it('renames a session through the host and refreshes the list', async () => {
-    const { controller, host } = fixture()
+  it('renames the active session and updates its header without replacing a stream', async () => {
+    const { controller, host, snapshots, emit } = fixture()
     await controller.start()
-    const renameSession = vi.fn(async () => undefined)
+    emit('message-delta', { delta: '正在处理' })
+    const renameSession = vi.fn(async (_id: string, title: string) => { snapshots.set('a', { ...snapshots.get('a')!, title }) })
     Object.assign(host, { renameSession })
     await controller.renameSession('a', '新标题')
     expect(renameSession).toHaveBeenCalledWith('a', '新标题')
     expect(controller.getSnapshot().error).toBeUndefined()
+    expect(controller.getSnapshot().session?.title).toBe('新标题')
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('正在处理')
+    controller.dispose()
+  })
+
+  it('refreshes the active project after moving a task', async () => {
+    const { controller, host, snapshots } = fixture()
+    await controller.start()
+    Object.assign(host, { moveSession: vi.fn(async (_id: string, projectId: string) => { snapshots.set('a', { ...snapshots.get('a')!, projectId, workingDirectory: '/tmp/next-project' }) }) })
+    await controller.moveSession('a', 'project')
+    expect(controller.getSnapshot().session).toMatchObject({ projectId: 'project', workingDirectory: '/tmp/next-project' })
+    controller.dispose()
+  })
+
+  it('returns to a draft without creating or stopping a task and ignores its late load', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    emit('memory-status', { status: 'needs_confirmation', requestId: 'mem-1', content: 'memory' })
+    let finishLoad: ((value: HarnessSession) => void) | undefined
+    ;(host.getSession as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<HarnessSession>(resolve => { finishLoad = resolve }))
+    const opening = controller.open('b')
+    controller.newConversation()
+    finishLoad!(session('b', 'late response'))
+    await opening
+    emit('message-delta', { delta: 'background response' })
+    expect(controller.getSnapshot()).toMatchObject({ session: undefined, messages: [], permission: undefined, memoryConfirmation: undefined, running: false })
+    expect(controller.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model' })
+    expect(host.createSession).not.toHaveBeenCalled()
+    expect(host.abortRun).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('does not open an older creation after the user starts another draft', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    let finishCreate: ((value: HarnessSession) => void) | undefined
+    ;(host.createSession as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<HarnessSession>(resolve => { finishCreate = resolve }))
+    const creating = controller.create()
+    controller.newConversation()
+    finishCreate!(session('b'))
+    expect(await creating).toBe(false)
+    expect(controller.getSnapshot().session).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('keeps a loading task separate from a new draft and refuses implicit creation', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    let finishLoad: ((value: HarnessSession) => void) | undefined
+    ;(host.getSession as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<HarnessSession>(resolve => { finishLoad = resolve }))
+    const opening = controller.open('b')
+    expect(controller.getSnapshot()).toMatchObject({ session: undefined, sessionLoading: true })
+    expect(await controller.create()).toBe(false)
+    expect(host.createSession).not.toHaveBeenCalled()
+    finishLoad!(session('b', 'existing task'))
+    await opening
+    expect(controller.getSnapshot()).toMatchObject({ session: { id: 'b' }, sessionLoading: false })
+    controller.newConversation()
+    expect(controller.getSnapshot()).toMatchObject({ session: undefined, sessionLoading: false })
+    controller.dispose()
+  })
+
+  it('clears loading on failure and ignores an older failure after switching tasks', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    ;(host.getSession as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('任务读取失败'))
+    await controller.open('b')
+    expect(controller.getSnapshot()).toMatchObject({ sessionLoading: false, error: '任务读取失败' })
+    let rejectLoad: ((error: Error) => void) | undefined
+    ;(host.getSession as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<HarnessSession>((_resolve, reject) => { rejectLoad = reject }))
+    const opening = controller.open('b')
+    controller.newConversation()
+    rejectLoad!(new Error('旧请求失败'))
+    await opening
+    expect(controller.getSnapshot()).toMatchObject({ session: undefined, sessionLoading: false, error: undefined })
+    controller.dispose()
+  })
+
+  it('navigates through the host and reports an unavailable navigation capability', async () => {
+    const { controller, host } = fixture()
+    await controller.navigate('/settings/mcp')
+    expect(controller.getSnapshot().error).toBe('当前宿主不支持该操作')
+    const navigate = vi.fn(async () => undefined)
+    Object.assign(host, { navigate })
+    await controller.navigate('/workspace/automations')
+    expect(navigate).toHaveBeenCalledWith('/workspace/automations')
+    controller.dispose()
+  })
+
+  it('prevents repeated regeneration and history edits while a run is pending', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let finishRun: (() => void) | undefined
+    const rerun = vi.fn(() => new Promise<void>(resolve => { finishRun = resolve }))
+    const editAndRerun = vi.fn(async () => undefined)
+    Object.assign(host, { rerun, editAndRerun })
+    const first = controller.rerun()
+    await controller.rerun()
+    await controller.editAndRerun('user-1', 'changed')
+    expect(rerun).toHaveBeenCalledOnce()
+    expect(editAndRerun).not.toHaveBeenCalled()
+    finishRun!()
+    await first
+    expect(controller.getSnapshot().running).toBe(false)
+    emit('permission-request', { requestId: 'write-confirmation', title: '写入文件', detail: 'result.md' })
+    await controller.rerun()
+    await controller.editAndRerun('user-1', 'changed')
+    expect(rerun).toHaveBeenCalledOnce()
+    expect(editAndRerun).not.toHaveBeenCalled()
     controller.dispose()
   })
 
@@ -355,6 +549,16 @@ describe('React Harness pilot controller', () => {
     await controller.deleteSession('a')
     expect(deleteSession).toHaveBeenCalledWith('a')
     expect(controller.getSnapshot().session?.id).toBe('b')
+    controller.dispose()
+  })
+
+  it('clears the current task after deleting the last session', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    Object.assign(host, { deleteSession: vi.fn(async () => undefined) })
+    ;(host.listSessions as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    await controller.deleteSession('a')
+    expect(controller.getSnapshot()).toMatchObject({ sessions: [], session: undefined, messages: [], permission: undefined, running: false })
     controller.dispose()
   })
 
@@ -386,7 +590,7 @@ describe('React Harness pilot controller', () => {
     const { host } = fixture()
     const preferenceHost = {
       ...host,
-      getPreference: vi.fn(async (key: string) => store.get(key) ?? null),
+      getPreference: vi.fn(async (key: string) => store.get(key)),
       setPreference: vi.fn(async (key: string, value: unknown) => { store.set(key, value) }),
     }
     const persisted = new PilotController(preferenceHost)
@@ -401,5 +605,166 @@ describe('React Harness pilot controller', () => {
     await fallback.start()
     expect(fallback.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model' })
     fallback.dispose()
+  })
+
+  it('keeps different per-session model and reasoning choices when switching A to B and back', async () => {
+    const { controller, host, snapshots } = fixture()
+    const providers = await host.listProviders()
+    providers[0].models.push({ id: 'model-2', enabled: true, reasoning: true, contextWindow: 1000 })
+    vi.mocked(host.listProviders).mockResolvedValue(providers)
+    for (const id of ['a', 'b']) snapshots.set(id, { ...session(id), modelProviderId: 'provider', modelId: 'model' })
+    await controller.start()
+    const selectionA = { providerId: 'provider', modelId: 'model-2', thinkingLevel: 'high' as const }
+    const selectionB = { providerId: 'provider', modelId: 'model', thinkingLevel: 'low' as const }
+    controller.select(selectionA)
+    await controller.open('b')
+    controller.select(selectionB)
+    await controller.open('a')
+    expect(controller.getSnapshot().selection).toEqual(selectionA)
+    await controller.open('b')
+    expect(controller.getSnapshot().selection).toEqual(selectionB)
+    controller.dispose()
+  })
+
+  it('restores per-session reasoning choices after restart and submits the restored level', async () => {
+    const { host, snapshots } = fixture()
+    for (const id of ['a', 'b']) snapshots.set(id, { ...session(id), modelProviderId: 'provider', modelId: 'model' })
+    const preferences = new Map<string, unknown>()
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => preferences.get(key)), setPreference: vi.fn(async (key: string, value: unknown) => { preferences.set(key, value) }) })
+    const selectionA = { providerId: 'provider', modelId: 'model', thinkingLevel: 'high' as const }
+    const selectionB = { providerId: 'provider', modelId: 'model', thinkingLevel: 'off' as const }
+    const first = new PilotController(host)
+    await first.start()
+    first.select(selectionA)
+    await first.open('b')
+    first.select(selectionB)
+    first.dispose()
+
+    const restored = new PilotController(host)
+    await restored.start()
+    expect(restored.getSnapshot()).toMatchObject({ session: { id: 'b' }, selection: selectionB })
+    await restored.open('a')
+    expect(restored.getSnapshot().selection).toEqual(selectionA)
+    await restored.send('恢复后继续')
+    expect(host.runMessage).toHaveBeenLastCalledWith('a', '恢复后继续', selectionA, false, [])
+    restored.dispose()
+  })
+
+  it('restores a matching legacy session model with the existing global reasoning preference', async () => {
+    const { host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), modelProviderId: 'provider', modelId: 'model' })
+    const selection = { providerId: 'provider', modelId: 'model', thinkingLevel: 'high' as const }
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => key === 'model-selection' ? selection : undefined) })
+    const controller = new PilotController(host)
+    await controller.start()
+    expect(controller.getSnapshot().selection).toEqual(selection)
+    controller.dispose()
+  })
+
+  it.each([
+    { providerId: 'missing', modelId: 'model', thinkingLevel: 'high' },
+    { providerId: 'provider', modelId: 'missing', thinkingLevel: 'high' },
+    { providerId: 'provider', modelId: 'model', thinkingLevel: 'xhigh' },
+    { providerId: 'provider', modelId: 'model', thinkingLevel: null },
+  ])('ignores unavailable or invalid persisted per-session selections: %j', async invalid => {
+    const { host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), modelProviderId: 'provider', modelId: 'model' })
+    const preferences = new Map<string, unknown>([['session-model-selection.a', invalid]])
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => preferences.get(key)), setPreference: vi.fn(async (key: string, value: unknown) => { preferences.set(key, value) }) })
+    const controller = new PilotController(host)
+    await controller.start()
+    expect(controller.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model' })
+    controller.dispose()
+  })
+
+  it('restores the selected non-first session after navigating away and remounting', async () => {
+    const { host } = fixture()
+    const preferences = new Map<string, unknown>()
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => preferences.get(key)), setPreference: vi.fn(async (key: string, value: unknown) => { preferences.set(key, value) }) })
+    const first = new PilotController(host)
+    await first.start()
+    await first.open('b')
+    first.dispose()
+    const restored = new PilotController(host)
+    await restored.start()
+    expect(restored.getSnapshot().session?.id).toBe('b')
+    expect(preferences.get('active-session')).toBe('b')
+    restored.dispose()
+  })
+
+  it('waits for draft persistence before invoking host navigation', async () => {
+    const { controller, host } = fixture()
+    const order: string[] = []
+    let finishSave: (() => void) | undefined
+    Object.assign(host, { navigate: vi.fn(async () => { order.push('navigate') }), setPreference: vi.fn(() => new Promise<void>(resolve => { finishSave = () => { order.push('saved'); resolve() } })) })
+    const unregister = controller.registerBeforeNavigation(() => controller.setPreference('composer-drafts', { drafts: { draft: '未发送文字' } }, true))
+    const navigating = controller.navigate('/settings/model-config')
+    expect(host.navigate).not.toHaveBeenCalled()
+    finishSave!()
+    await navigating
+    expect(order).toEqual(['saved', 'navigate'])
+    unregister()
+    controller.dispose()
+  })
+
+  it('keeps the workbench open if a required pre-navigation draft save fails', async () => {
+    const { controller, host } = fixture()
+    Object.assign(host, { navigate: vi.fn(async () => undefined), setPreference: vi.fn(async () => { throw new Error('草稿保存失败') }) })
+    const unregister = controller.registerBeforeNavigation(() => controller.setPreference('composer-drafts', {}, true))
+    await controller.navigate('/workspace/automations')
+    expect(host.navigate).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().error).toBe('草稿保存失败')
+    unregister()
+    controller.dispose()
+  })
+
+  it('unregisters disposed composer callbacks and preserves best-effort preference writes', async () => {
+    const { controller, host } = fixture()
+    const save = vi.fn(async () => { throw new Error('已卸载输入区不应调用') })
+    Object.assign(host, { navigate: vi.fn(async () => undefined), setPreference: vi.fn(async () => { throw new Error('存储不可用') }) })
+    const unregister = controller.registerBeforeNavigation(save)
+    unregister()
+    await controller.navigate('/settings/mcp')
+    expect(save).not.toHaveBeenCalled()
+    expect(host.navigate).toHaveBeenCalledWith('/settings/mcp')
+    await expect(controller.setPreference('workspace', {})).resolves.toBeUndefined()
+    await expect(controller.setPreference('composer-drafts', {}, true)).rejects.toThrow('存储不可用')
+    controller.dispose()
+  })
+
+  it('preserves an explicit new-task draft instead of reopening the first session', async () => {
+    const { host } = fixture()
+    const preferences = new Map<string, unknown>()
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => preferences.get(key)), setPreference: vi.fn(async (key: string, value: unknown) => { preferences.set(key, value) }) })
+    const first = new PilotController(host)
+    await first.start()
+    first.newConversation()
+    first.dispose()
+    expect(preferences.get('active-session')).toBeNull()
+    const restored = new PilotController(host)
+    await restored.start()
+    expect(restored.getSnapshot().session).toBeUndefined()
+    expect(restored.getSnapshot().sessions).toHaveLength(2)
+    restored.dispose()
+  })
+
+  it('falls back from a deleted stored selection and does not let startup restoration override a newer draft', async () => {
+    const { host } = fixture()
+    Object.assign(host, { getPreference: vi.fn(async (key: string) => key === 'active-session' ? 'deleted' : undefined), setPreference: vi.fn(async () => undefined) })
+    const fallback = new PilotController(host)
+    await fallback.start()
+    expect(fallback.getSnapshot().session?.id).toBe('a')
+    fallback.dispose()
+
+    let resolvePreference: ((value: string) => void) | undefined
+    ;(host.getPreference as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => key === 'active-session' ? new Promise(resolve => { resolvePreference = resolve }) : undefined)
+    const raced = new PilotController(host)
+    const starting = raced.start()
+    await vi.waitFor(() => expect(resolvePreference).toBeTypeOf('function'))
+    raced.newConversation()
+    resolvePreference!('b')
+    await starting
+    expect(raced.getSnapshot().session).toBeUndefined()
+    raced.dispose()
   })
 })

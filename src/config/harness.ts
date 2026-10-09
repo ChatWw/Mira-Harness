@@ -294,6 +294,52 @@ export interface HarnessWorkspaceFileEntry {
   type: 'directory' | 'file'
 }
 
+export interface HarnessWorkspaceImagePreview {
+  path: string
+  mediaType: string
+  dataBase64: string
+  byteLength: number
+}
+
+export interface HarnessWorkspaceFileSearchResult {
+  entries: HarnessWorkspaceFileEntry[]
+  truncated: boolean
+}
+
+export type HarnessWorkspaceSearchIgnoreTarget = { kind: 'project' | 'session'; id: string }
+export type HarnessWorkspaceSearchIgnoreTransform = 'sync-gitignore' | 'reset-defaults'
+export interface HarnessWorkspaceSearchIgnoreDocument {
+  content: string
+  source: 'file' | 'template'
+  revision: string
+}
+export const HARNESS_SEARCH_IGNORE_ERRORS = [
+  '工作目录已变化，请重新加载规则', '工作目录无效', '工作目录在操作期间发生变化，请重试',
+  '忽略规则文件不能是链接或特殊文件', '忽略规则文件超过 256 KiB', '忽略规则必须是 UTF-8 文本',
+  '忽略规则在操作期间发生变化，请重试', '忽略规则已被修改，请重新载入',
+  '忽略规则分区标记缺失或重复，请手动保留规则', '忽略规则变换无效',
+  '没有权限读取或保存忽略规则', '忽略规则操作失败，请重试',
+  '该工作区没有可用目录', '规则内容无效', '规则内容不能超过 256 KiB',
+  '规则版本无效', '搜索规则操作失败，请检查目录访问权限后重试',
+] as const
+
+export interface HarnessWorkspaceWatchResult { watchId: string }
+
+export type HarnessWorkspaceGitStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'ignored'
+export interface HarnessWorkspaceGitSnapshot {
+  available: boolean
+  entries: Array<{ path: string; status: Exclude<HarnessWorkspaceGitStatus, 'ignored'> }>
+}
+
+export interface HarnessWorkspaceFilesChangedPayload {
+  grantId: string
+  watchId: string
+  directory: string
+  /** Relative parent directories; an empty array requests a complete displayed-tree refresh. */
+  paths: string[]
+  error?: string
+}
+
 export interface HarnessFileChange {
   toolCallId: string
   tool: 'edit' | 'write' | 'delete'
@@ -518,7 +564,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed'
   payload: Record<string, unknown>
 }
 

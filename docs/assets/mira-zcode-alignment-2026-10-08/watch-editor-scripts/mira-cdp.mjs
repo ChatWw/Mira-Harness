@@ -1,0 +1,12 @@
+const targets = await (await fetch('http://127.0.0.1:9222/json/list')).json();
+const [kind, command, argument] = process.argv.slice(2);
+const target = targets.find(item => item.type === (kind || 'iframe'));
+if (!target) throw new Error('Target unavailable');
+const socket = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+const method = command === 'reload' ? 'Page.reload' : command === 'navigate' ? 'Page.navigate' : 'Runtime.evaluate';
+const params = command === 'reload' ? { ignoreCache: true } : command === 'navigate' ? { url: argument } : { expression: argument, awaitPromise: true, returnByValue: true };
+socket.send(JSON.stringify({ id: 1, method, params }));
+const response = await new Promise(resolve => { socket.onmessage = event => { const value = JSON.parse(event.data); if (value.id === 1) resolve(value); }; });
+console.log(JSON.stringify(response));
+socket.close();

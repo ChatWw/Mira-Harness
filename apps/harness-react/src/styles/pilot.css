@@ -1,6 +1,8 @@
 /* Entry stylesheet: tokens first, then area styles. */
 @import './tokens.css';
 @import './layout.css';
+@import './session.css';
+@import './workspace-launcher.css';
 @import './thread.css';
 @import './workspace.css';
 @import './composer.css';

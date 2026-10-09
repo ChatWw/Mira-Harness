@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { PrototypeWorkbench } from '../components/workbench/PrototypeWorkbench'
 import { applyHostTheme, type HostThemeContext } from '../platform/theme'
+import { miraCodeHighlightWorker } from '../lib/code-highlight-worker-client'
 
 type WujieBus = { $on: (event: string, handler: (context: HostThemeContext) => void) => void; $off: (event: string, handler: (context: HostThemeContext) => void) => void }
 type PrototypeWindow = Window & {
@@ -33,6 +34,7 @@ function unmount() {
   if (subscribed) childWindow.$wujie?.bus.$off('mira:harness-prototype-theme', onThemeContext)
   subscribed = false
   root?.unmount()
+  miraCodeHighlightWorker.dispose()
   root = undefined
 }
 

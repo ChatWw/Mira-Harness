@@ -1,0 +1,209 @@
+{
+  "startedAtUTC": "2026-10-08T08:53:57.167Z",
+  "completedAtUTC": "2026-10-08T08:53:57.561Z",
+  "completedAtShanghai": "2026-10-08 16:53:57",
+  "buildScript": "scripts/build-harness-react.mjs",
+  "options": {
+    "entryPoints": {
+      "app": "/Volumes/VrenDisk/project/Mira/Mira-Harness/apps/harness-react/src/app/app-main.tsx"
+    },
+    "bundle": true,
+    "format": "esm",
+    "splitting": true,
+    "chunkNames": "chunks/[name]-[hash]",
+    "platform": "browser",
+    "target": [
+      "chrome110"
+    ],
+    "jsx": "automatic",
+    "outdir": "/Volumes/VrenDisk/project/Mira/Mira-Harness/dist/harness-react-app",
+    "minify": true,
+    "metafile": true,
+    "logLevel": "info",
+    "write": false
+  },
+  "readOnly": true,
+  "note": "JS artifact size, integrity and license checks only. These are not startup, rendering, JIT or interactive performance timings.",
+  "outputModificationTimesUTC": {
+    "appJS": "2026-10-08T08:53:05.102Z",
+    "appCSS": "2026-10-08T08:13:39.505Z"
+  },
+  "staticEntryClosure": {
+    "files": 3,
+    "bytes": 2011179,
+    "individualGzip9SumBytes": 606377,
+    "missingPaths": []
+  },
+  "staticClosureFiles": [
+    {
+      "path": "app.js",
+      "bytes": 1484589,
+      "gzip9Bytes": 450655
+    },
+    {
+      "path": "chunks/chunk-HWO562AY.js",
+      "bytes": 525932,
+      "gzip9Bytes": 155340
+    },
+    {
+      "path": "chunks/chunk-YEHCSWIG.js",
+      "bytes": 658,
+      "gzip9Bytes": 382
+    }
+  ],
+  "allDiskJS": {
+    "files": 287,
+    "bytes": 9535420,
+    "individualGzip9SumBytes": 1904942,
+    "missingPaths": []
+  },
+  "allExpectedJS": {
+    "files": 287,
+    "bytes": 9535420,
+    "individualGzip9SumBytes": 1904942,
+    "missingPaths": []
+  },
+  "graphClosure": {
+    "files": 287,
+    "orphanExpectedOutputs": []
+  },
+  "sha256Comparison": {
+    "equalCount": 287,
+    "missing": [],
+    "mismatched": [],
+    "staleCount": 0,
+    "staleGeneratedChunks": 0,
+    "stalePaths": []
+  },
+  "importCompleteness": {
+    "staticEdges": 645,
+    "missingStaticTargets": [],
+    "dynamicEdges": 239,
+    "uniqueDynamicTargets": 239,
+    "missingDynamicDiskTargets": [],
+    "missingDynamicMetafileTargets": []
+  },
+  "licenses": {
+    "sourceFiles": 7,
+    "outputFiles": 7,
+    "matchingFiles": 7,
+    "missingOrDifferent": [],
+    "extraDistFiles": [],
+    "tanstack": [
+      {
+        "package": "@tanstack/react-virtual",
+        "version": "3.14.13",
+        "license": "MIT",
+        "dependencyVersion": "3.17.11",
+        "bytes": 1079,
+        "installedSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7",
+        "repositoryMatchesInstalled": true,
+        "distMatchesInstalled": true
+      },
+      {
+        "package": "@tanstack/virtual-core",
+        "version": "3.17.11",
+        "license": "MIT",
+        "dependencyVersion": null,
+        "bytes": 1079,
+        "installedSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7",
+        "repositoryMatchesInstalled": true,
+        "distMatchesInstalled": true
+      }
+    ],
+    "tanstackSourceAndDistPaths": [
+      {
+        "path": "tanstack/README.md",
+        "bytes": 1063,
+        "matching": true,
+        "sourceSHA256": "e0c49fdcc37b33571c84cbdab4786596f4fd1032e988d63b7b784a2889c8c264",
+        "distSHA256": "e0c49fdcc37b33571c84cbdab4786596f4fd1032e988d63b7b784a2889c8c264"
+      },
+      {
+        "path": "tanstack/react-virtual/LICENSE",
+        "bytes": 1079,
+        "matching": true,
+        "sourceSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7",
+        "distSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7"
+      },
+      {
+        "path": "tanstack/virtual-core/LICENSE",
+        "bytes": 1079,
+        "matching": true,
+        "sourceSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7",
+        "distSHA256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7"
+      }
+    ],
+    "noticeMatchesSource": true,
+    "noticeReferences": [
+      {
+        "path": "tanstack/react-virtual/LICENSE",
+        "present": true
+      },
+      {
+        "path": "tanstack/virtual-core/LICENSE",
+        "present": true
+      },
+      {
+        "path": "tanstack/README.md",
+        "present": true
+      }
+    ]
+  },
+  "appCSS": {
+    "bytes": 125300,
+    "gzip9Bytes": 22261,
+    "sha256": "110229b97e19ad9d982cc9b1d94892de33ea848d07673cfe0135b4aefa5fff34",
+    "rules": [
+      {
+        "selector": ".mira-file-drawer{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-drawer__tree{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-drawer__row{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-drawer__row.is-selected{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-preview{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-preview__toolbar{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-preview__markdown{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-source{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-source__rows{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-source__row{",
+        "present": true
+      },
+      {
+        "selector": ".mira-file-source.is-wrapped",
+        "present": true
+      },
+      {
+        "selector": ".dark .mira-file-source .shiki",
+        "present": true
+      }
+    ]
+  },
+  "htmlMatchesSource": true
+}

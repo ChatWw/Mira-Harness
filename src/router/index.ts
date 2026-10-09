@@ -31,6 +31,12 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: 'Git' },
   },
   {
+    path: '/settings/file-search',
+    name: 'SettingsFileSearch',
+    component: () => import('@/pages/backend/fileSearch/index.vue'),
+    meta: { title: '文件搜索' },
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/pages/backend/settings/index.vue'),

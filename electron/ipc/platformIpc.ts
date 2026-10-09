@@ -10,8 +10,11 @@ import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 import { parseFirstPartyHarnessCall } from '../../src/platform/firstPartyHarness'
 import type { HarnessRuntime } from '../services/harnessRuntime'
-import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile } from '../services/harnessWorkspaceFiles'
+import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile, readHarnessWorkspaceImage, searchHarnessWorkspaceFiles } from '../services/harnessWorkspaceFiles'
 import type { HarnessTerminalSessions } from '../services/harnessTerminalSessions'
+import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
+import { getInstalledHarnessEditors, openHarnessWorkspaceInEditor } from '../services/harnessWorkspaceEditors'
+import { readHarnessWorkspaceGit, readHarnessWorkspaceIgnored } from '../services/harnessWorkspaceGit'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
@@ -22,6 +25,7 @@ export interface PlatformIpcDependencies {
   firstPartyGrantStore?: FirstPartyGrantStore
   fetchImpl?: typeof fetch
   terminalSessions?: HarnessTerminalSessions
+  workspaceWatch?: HarnessWorkspaceWatch
   mcpConfigStore?: McpConfigStore
 }
 
@@ -46,7 +50,8 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, mcpConfigStore, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+  const firstPartyGrantOwners = new WeakSet<object>()
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
@@ -75,12 +80,30 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
     if (!manifest) throw new Error('第一方应用未登记或已停用')
     validateFirstPartyAppManifest(manifest)
     const grantId = firstPartyGrantStore.issue(manifest.appId, event.sender.id, manifest.capabilities)
-    if (typeof event.sender.once === 'function') event.sender.once('destroyed', () => firstPartyGrantStore.revokeForWebContents(event.sender.id))
+    // 主页面重载或崩溃仍会保留 WebContents；不能只等 destroyed 才回收旧授权和监听。
+    if (typeof event.sender.once === 'function' && !firstPartyGrantOwners.has(event.sender)) {
+      firstPartyGrantOwners.add(event.sender)
+      const cleanupOwner = () => {
+        firstPartyGrantStore.revokeForWebContents(event.sender.id)
+        terminalSessions?.closeForWebContents(event.sender.id)
+        workspaceWatch?.closeForWebContents(event.sender.id)
+      }
+      const handleNavigation = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
+        if (details.isMainFrame && !details.isSameDocument) cleanupOwner()
+      }
+      event.sender.on('did-start-navigation', handleNavigation)
+      event.sender.on('render-process-gone', cleanupOwner)
+      event.sender.once('destroyed', () => {
+        event.sender.removeListener('did-start-navigation', handleNavigation)
+        event.sender.removeListener('render-process-gone', cleanupOwner)
+        cleanupOwner()
+      })
+    }
     return grantId
   })
   ipcMain.handle('platform:revoke-first-party-grant', (event, grantId: string) => {
     requireMainFrame(event)
-    firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)
+    if (firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)) workspaceWatch?.closeForGrant(grantId, event.sender.id)
     terminalSessions?.closeForWebContents(event.sender.id)
   })
   ipcMain.handle('platform:generate-first-party-text', async (event, grantId: string, role: 'authoring' | 'automation', prompt: string, selection: ModelSelection) => {
@@ -120,14 +143,27 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'sessions.list': return database.harness.listSessions()
       case 'projects.list': return database.harness.listProjects()
       case 'providers.list': return database.models.list()
+      case 'editors.list': return getInstalledHarnessEditors(call.refresh)
       case 'session.get': return database.harness.getSession(call.id)
       case 'session.create': return database.harness.createSession(call.projectId)
       case 'session.rename': return database.harness.renameSession(call.id, call.title)
       case 'session.set-pinned': return database.harness.setPinned(call.id, call.pinned)
       case 'session.set-unread': return database.harness.setUnread(call.id, call.unread)
-      case 'session.archive': return database.harness.archiveSessions([call.id])
-      case 'session.delete': return database.harness.deleteSession(call.id)
-      case 'session.move': return database.harness.moveSession(call.id, call.projectId)
+      case 'session.archive': {
+        const sessions = database.harness.archiveSessions([call.id])
+        workspaceWatch?.closeForSession(call.id)
+        return sessions
+      }
+      case 'session.delete': {
+        const result = database.harness.deleteSession(call.id)
+        workspaceWatch?.closeForSession(call.id)
+        return result
+      }
+      case 'session.move': {
+        const result = database.harness.moveSession(call.id, call.projectId)
+        workspaceWatch?.closeForSession(call.id)
+        return result
+      }
       case 'session.reorder': return database.harness.reorderSessions(call.scope, call.ids)
       case 'session.set-permission': return database.harness.setPermission(call.id, call.mode)
       case 'session.set-skills': {
@@ -151,13 +187,14 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'files.select': {
         const session = database.harness.getSession(call.sessionId)
+        if (!session.projectId) throw new Error('请先选择项目，再引用项目文件')
         const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
         if (!directory) throw new Error('该会话没有可用工作目录')
         const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
         const options = { defaultPath: directory, properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>, title: '选择引用文件' }
         return (async () => {
           const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
-          if (result.canceled || !session.projectId) return []
+          if (result.canceled) return []
           return database.harness.selectFileReferences(session.projectId, result.filePaths)
         })()
       }
@@ -183,18 +220,73 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         if (!directory) throw new Error('该会话没有可用工作目录')
         return listHarnessWorkspaceFiles(directory, call.path)
       }
-      case 'files.read': {
+      case 'files.search': {
+        const resolveDirectory = () => {
+          const session = database.harness.getSession(call.sessionId)
+          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+          if (!directory) throw new Error('该会话没有可用工作目录')
+          return directory
+        }
+        const directory = resolveDirectory()
+        return searchHarnessWorkspaceFiles(directory, call.query, call.refresh, () => {
+          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+          if (event.sender.isDestroyed?.() || resolveDirectory() !== directory) throw new Error('工作目录已变化，请重新加载规则')
+        })
+      }
+      case 'files.git-status':
+      case 'files.git-ignored': {
+        const resolveDirectory = () => {
+          const session = database.harness.getSession(call.sessionId)
+          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+          if (!directory) throw new Error('该会话没有可用工作目录')
+          return directory
+        }
+        const directory = resolveDirectory()
+        return (call.method === 'files.git-status' ? readHarnessWorkspaceGit(directory) : readHarnessWorkspaceIgnored(directory, call.paths)).then(result => {
+          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+          if (resolveDirectory() !== directory) throw new Error('工作目录已变化，请重新打开文件工作区。')
+          return result
+        })
+      }
+      case 'files.open-editor': {
         const session = database.harness.getSession(call.sessionId)
         const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
         if (!directory) throw new Error('该会话没有可用工作目录')
-        return readHarnessWorkspaceFile(directory, call.path)
+        return openHarnessWorkspaceInEditor(directory, call.path, call.editorId)
+      }
+      case 'files.read':
+      case 'files.read-image': {
+        const session = database.harness.getSession(call.sessionId)
+        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        if (!directory) throw new Error('该会话没有可用工作目录')
+        return call.method === 'files.read-image' ? readHarnessWorkspaceImage(directory, call.path) : readHarnessWorkspaceFile(directory, call.path)
+      }
+      case 'files.watch': {
+        if (!workspaceWatch) throw new Error('文件变化监听不可用，请使用手动刷新。')
+        const resolveWorkspace = () => {
+          const session = database.harness.getSession(call.sessionId)
+          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+          if (!directory) throw new Error('该会话没有可用工作目录')
+          return directory
+        }
+        const originalDirectory = resolveWorkspace()
+        const isAuthorized = () => {
+          try {
+            resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+            return resolveWorkspace() === originalDirectory
+          } catch { return false }
+        }
+        return workspaceWatch.start(event.sender, grantId, call.sessionId, call.paths, resolveWorkspace, isAuthorized)
+      }
+      case 'files.unwatch': {
+        workspaceWatch?.stop(event.sender.id, grantId, call.sessionId, call.watchId)
+        return undefined
       }
       case 'terminal.open': {
         if (!terminalSessions) throw new Error('终端服务不可用')
         const session = database.harness.getSession(call.sessionId)
         const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
         if (!directory) throw new Error('该会话没有可用工作目录')
-        if (typeof event.sender.once === 'function') event.sender.once('destroyed', () => terminalSessions.closeForWebContents(event.sender.id))
         return terminalSessions.open(event.sender, call.sessionId, directory)
       }
       case 'terminal.write': {
@@ -216,9 +308,13 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         database.harness.getSession(call.sessionId)
         return { sessionId: call.sessionId, url: call.url, bounds: call.bounds }
       }
-      case 'browser.bounds':
-      case 'browser.control': {
+      case 'browser.bounds': {
         database.harness.getSession(call.sessionId)
+        return call
+      }
+      case 'browser.control': {
+        // A removed task must still be able to release its own hosted view.
+        if (call.action !== 'close' && call.action !== 'hide') database.harness.getSession(call.sessionId)
         return call
       }
       case 'project.open': {
@@ -243,11 +339,13 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
   })
   ipcMain.handle('platform:import-snapshot', (_event, snapshot: string) => {
     const next = database.importSnapshot(snapshot)
+    workspaceWatch?.closeInvalid()
     localMicroAppServer.setApps(next.microApps)
     return next
   })
   ipcMain.handle('platform:restore-defaults', () => {
     const next = database.restoreDefaults()
+    workspaceWatch?.closeInvalid()
     localMicroAppServer.setApps(next.microApps)
     return next
   })

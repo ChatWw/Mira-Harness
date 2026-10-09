@@ -1,13 +1,19 @@
 import Database from 'better-sqlite3'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import * as fs from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { HarnessStore } from '../electron/storage/harnessStore'
 import { PlatformDatabase } from '../electron/storage/database'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { shouldGenerateAutoTitle } from '../src/config/harness'
+
+vi.mock('node:fs', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return { ...actual, readFileSync: vi.fn(actual.readFileSync) }
+})
 
 function createStore() {
   const root = mkdtempSync(join(tmpdir(), 'mira-harness-store-'))
@@ -641,6 +647,59 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it.each(['text', 'attachments'])('keeps an unsent project session with persisted %s drafts after a database restart', kind => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-harness-draft-restart-'))
+    let database: PlatformDatabase | undefined
+    try {
+      database = new PlatformDatabase(root)
+      const directory = join(root, 'draft-project')
+      mkdirSync(directory)
+      const project = database.harness.createProject(directory, '草稿项目')
+      const retained = database.harness.createSession(project.id)
+      const blank = database.harness.createSession(project.id)
+      const preferenceKey = 'first-party.mira-harness.harness-react-composer-drafts'
+      const preference = {
+        drafts: kind === 'text' ? { [retained.id]: '  重启后继续编辑  ' } : {},
+        fileDrafts: kind === 'attachments' ? { [retained.id]: [{ path: '/tmp/selected.md', name: 'selected.md' }] } : {},
+      }
+      database.savePreference(preferenceKey, preference)
+      database.close(); database = undefined
+
+      database = new PlatformDatabase(root)
+      expect(database.harness.listSessions().map(session => session.id)).toEqual([retained.id])
+      expect(database.harness.getSession(retained.id)).toMatchObject({ projectId: project.id, messages: [] })
+      expect(existsSync(new MiraPaths(root).session(retained.id))).toBe(true)
+      expect(existsSync(new MiraPaths(root).session(blank.id))).toBe(false)
+      expect(database.getSnapshot().preferences[preferenceKey]).toEqual(preference)
+    } finally {
+      database?.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('still cleans truly empty sessions and does not recreate orphan composer drafts on restart', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-harness-empty-restart-'))
+    let database: PlatformDatabase | undefined
+    try {
+      database = new PlatformDatabase(root)
+      const blank = database.harness.createSession()
+      const cleared = database.harness.createSession()
+      const malformed = database.harness.createSession()
+      database.savePreference('first-party.mira-harness.harness-react-composer-drafts', {
+        drafts: { [cleared.id]: ' \n ', [malformed.id]: { text: 'not a draft' }, draft: '未绑定会话的输入', orphan: '已删除会话的输入' },
+        fileDrafts: { [cleared.id]: [], [malformed.id]: [null, { path: '', name: 'empty.md' }, { path: 'note.md', name: ' ' }], orphan: [{ path: '/tmp/orphan.md', name: 'orphan.md' }] },
+      })
+      database.close(); database = undefined
+
+      database = new PlatformDatabase(root)
+      expect(database.harness.listSessions()).toEqual([])
+      for (const id of [blank.id, cleared.id, malformed.id]) expect(existsSync(new MiraPaths(root).session(id))).toBe(false)
+    } finally {
+      database?.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('persists context summaries without removing visible conversation messages', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()
@@ -779,6 +838,123 @@ describe('HarnessStore', () => {
 
     database.close()
     rmSync(root, { recursive: true, force: true })
+  })
+
+  it('references personal-workspace relative text files without creating a project', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      mkdirSync(join(session.workingDirectory!, 'notes'), { recursive: true })
+      writeFileSync(join(session.workingDirectory!, 'notes', 'mira.md'), '个人资料')
+      expect(store.resolveMessageAttachments(session.id, [{ path: 'notes/mira.md', name: 'mira.md' }])).toEqual([
+        { path: 'notes/mira.md', name: 'mira.md', content: '个人资料' },
+      ])
+      expect(store.getSession(session.id).projectId).toBeUndefined()
+      expect(store.listProjects()).toEqual([])
+    } finally {
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects personal absolute references, traversal and links escaping the workspace', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      writeFileSync(join(root, 'external.md'), '不可引用')
+      symlinkSync(join(root, 'external.md'), join(session.workingDirectory!, 'escape.md'))
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: join(root, 'external.md'), name: 'external.md' }])).toThrow('个人工作区只能引用')
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: '../../external.md', name: 'external.md' }])).toThrow('路径不在项目目录内')
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'escape.md', name: 'escape.md' }])).toThrow('符号链接离开项目目录')
+    } finally {
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['personal', 'project'] as const)('accepts internal file links for a %s session and rejects escaped links', scope => {
+    const { root, database, store } = createStore()
+    try {
+      const projectDirectory = join(root, 'project')
+      if (scope === 'project') mkdirSync(projectDirectory)
+      const session = store.createSession(scope === 'project' ? store.createProject(projectDirectory).id : undefined)
+      writeFileSync(join(session.workingDirectory!, 'note.md'), '工作区文本')
+      writeFileSync(join(root, 'outside.md'), '外部文本')
+      symlinkSync(join(session.workingDirectory!, 'note.md'), join(session.workingDirectory!, 'inside.md'))
+      symlinkSync(join(root, 'outside.md'), join(session.workingDirectory!, 'outside.md'))
+      expect(store.resolveMessageAttachments(session.id, [{ path: 'inside.md', name: 'inside.md' }])).toEqual([
+        { path: 'inside.md', name: 'note.md', content: '工作区文本' },
+      ])
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'outside.md', name: 'outside.md' }])).toThrow('符号链接离开项目目录')
+    } finally {
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects oversized attachments before reading their contents', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const target = join(session.workingDirectory!, 'large.md')
+    writeFileSync(target, Buffer.alloc(256 * 1024 + 1, 65))
+    const reads = vi.spyOn(fs, 'readFileSync')
+    try {
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'large.md', name: 'large.md' }])).toThrow('引用文件过大')
+      expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(target))).toBe(false)
+    } finally {
+      reads.mockRestore()
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects attachment total overflow before reading the next file', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const references = Array.from({ length: 5 }, (_, index) => ({ path: `note-${index}.md`, name: `note-${index}.md` }))
+    for (const reference of references) writeFileSync(join(session.workingDirectory!, reference.path), Buffer.alloc(256 * 1024, 65))
+    const reads = vi.spyOn(fs, 'readFileSync')
+    try {
+      expect(() => store.resolveMessageAttachments(session.id, references)).toThrow('引用文件总大小超过限制')
+      expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(join(session.workingDirectory!, 'note-3.md')))).toBe(true)
+      expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(join(session.workingDirectory!, 'note-4.md')))).toBe(false)
+    } finally {
+      reads.mockRestore()
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rechecks attachment size after reading content that grew after stat', async () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const target = join(session.workingDirectory!, 'growing.md')
+    writeFileSync(target, 'initial')
+    const actualRead = (await vi.importActual<typeof import('node:fs')>('node:fs')).readFileSync
+    const resolved = realpathSync(target)
+    const reads = vi.spyOn(fs, 'readFileSync').mockImplementation(((path: fs.PathOrFileDescriptor, ...args: unknown[]) =>
+      String(path) === resolved ? Buffer.alloc(256 * 1024 + 1, 65) : Reflect.apply(actualRead, fs, [path, ...args])) as typeof fs.readFileSync)
+    try {
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'growing.md', name: 'growing.md' }])).toThrow('引用文件过大')
+    } finally {
+      reads.mockRestore()
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps personal attachment count and binary restrictions', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      writeFileSync(join(session.workingDirectory!, 'binary.dat'), Buffer.from([0, 1, 2]))
+      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])).toThrow('不支持引用二进制文件')
+      const references = Array.from({ length: 13 }, (_, index) => ({ path: `note-${index}.md`, name: `note-${index}.md` }))
+      expect(() => store.resolveMessageAttachments(session.id, references)).toThrow('一次最多引用 12 个文件')
+    } finally {
+      database.close()
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it('persists selected MCP services in the session file', () => {

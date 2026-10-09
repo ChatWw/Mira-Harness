@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-10-09T05:39:42.128Z",
+  "scope": "Isolated headless desktop Chromium profile of current source; Worker prototype only. No production source/build mutation, Electron, native input, user database or ZCode GUI acceptance.",
+  "errors": [],
+  "passed": false,
+  "runtime": "154.0.8037.99",
+  "error": "frame.evaluate: Error\n    at we.onerror (http://127.0.0.1:49513/stdin.js:152:41733)\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/mira-highlight-profile.mjs:105:31",
+  "finishedAt": "2026-10-09T05:39:43.998Z"
+}

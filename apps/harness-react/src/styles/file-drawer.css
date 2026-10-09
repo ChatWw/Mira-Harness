@@ -1,0 +1,52 @@
+/* Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
+   Mira adaptation of ZCode's 28px workspace file rows and 12px hierarchy spacing.
+   See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
+.mira-file-drawer { display: flex; min-width: 0; min-height: 0; height: 100%; flex-direction: column; color: var(--color-foreground); background: var(--color-sidebar); }
+.mira-file-drawer__back { flex: 0 0 auto; padding: 12px 8px 8px; }
+.mira-file-drawer__back button { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; text-align: left; font-size: 13px; }
+.mira-file-drawer__back button:hover { color: var(--color-foreground); background: var(--color-surface-hover); }
+.mira-file-drawer__search { display: flex; flex: 0 0 auto; height: 28px; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-foreground-subtle); background: var(--color-input); }
+.mira-file-drawer__search:focus-within { border-color: var(--color-input-border-focused); }
+.mira-file-drawer__search > svg { flex: 0 0 auto; }
+.mira-file-drawer__search input { flex: 1; width: 0; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; color: var(--color-foreground); background: transparent; font: inherit; font-size: 12px; caret-color: var(--color-foreground); }
+.mira-file-drawer__search input::placeholder { color: var(--color-foreground-subtle); }
+.mira-file-drawer__search button { display: grid; flex: 0 0 auto; width: 20px; height: 20px; place-items: center; padding: 0; border: 0; border-radius: 4px; color: inherit; background: transparent; }
+.mira-file-drawer__search button:hover { color: var(--color-foreground); background: var(--color-surface-hover); }
+.mira-file-drawer__header { display: flex; flex: 0 0 auto; min-width: 0; height: 36px; align-items: center; gap: 2px; padding: 0 8px 8px; }
+.mira-file-drawer__header h2 { flex: 1; min-width: 0; margin: 0; padding: 0 4px 0 10px; overflow: hidden; color: var(--color-foreground-subtle); font-size: 12px; font-weight: 500; line-height: 28px; text-overflow: ellipsis; white-space: nowrap; }
+.mira-file-drawer__icon, .mira-file-drawer__error button { display: grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; }
+.mira-file-drawer__icon:hover, .mira-file-drawer__error button:hover { color: var(--color-foreground); background: var(--color-surface-hover); }
+.mira-file-drawer__icon[aria-pressed="true"] { color: var(--color-foreground); background: var(--color-selected); }
+.mira-file-drawer button:disabled { opacity: .45; cursor: default; }
+.mira-file-drawer button:disabled:hover { background: transparent; }
+.mira-file-drawer__tree { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; padding: 0 8px 12px; outline: 0; }
+.mira-file-drawer__tree:focus-visible { outline: 1px solid var(--color-border-hover); outline-offset: -1px; }
+.mira-file-drawer__rows { position: relative; min-width: 0; }
+.mira-file-drawer__row { position: absolute; top: 0; left: 0; display: flex; width: 100%; min-width: 0; align-items: center; gap: 6px; padding-right: 8px; border: 1px solid transparent; border-radius: 6px; font-size: 12px; line-height: 26px; outline: 0; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out; }
+.mira-file-drawer__row:hover, .mira-file-drawer__row[data-state="open"] { background: var(--color-surface-hover); }
+.mira-file-drawer__row.is-selected { border-color: var(--color-input-border-focused); }
+.mira-file-drawer__row:focus-visible { border-color: var(--color-border-hover); background: var(--color-surface-hover); outline: 1px solid var(--color-input-border-focused); outline-offset: -1px; }
+.mira-file-drawer__row > svg { flex: 0 0 auto; color: var(--color-foreground-subtle); }
+.mira-file-drawer__chevron { display: grid; width: 12px; height: 16px; flex: 0 0 auto; place-items: center; color: var(--color-foreground-subtle); }
+.mira-file-drawer__chevron svg { transition: transform 120ms ease-out; }
+.mira-file-drawer__chevron .is-open { transform: rotate(90deg); }
+.mira-file-drawer__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-file-drawer [data-file-git-color="modified"] { --mira-file-git-color: var(--color-git-modified); }
+.mira-file-drawer [data-file-git-color="added"] { --mira-file-git-color: var(--color-git-added); }
+.mira-file-drawer [data-file-git-color="deleted"] { --mira-file-git-color: var(--color-git-deleted); }
+.mira-file-drawer [data-file-git-color="renamed"] { --mira-file-git-color: var(--color-git-renamed); }
+.mira-file-drawer [data-file-git-color="untracked"] { --mira-file-git-color: var(--color-git-untracked); }
+.mira-file-drawer [data-file-git-color="ignored"] { --mira-file-git-color: var(--color-git-ignored); }
+.mira-file-drawer__name[data-file-git-color], .mira-file-drawer__git-indicator { color: var(--mira-file-git-color); }
+.mira-file-drawer__git-indicator { display: inline-flex; width: 10px; height: 16px; flex: 0 0 auto; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; line-height: 1; }
+.mira-file-drawer__git-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: color-mix(in srgb, var(--mira-file-git-color) 60%, transparent); }
+.mira-file-drawer__row > .mira-file-drawer__warning { color: var(--color-warning); }
+.mira-file-drawer__empty { flex: 0 0 auto; color: var(--color-foreground-subtle); font-size: 10px; }
+.mira-file-drawer__state { display: flex; min-height: 28px; align-items: center; gap: 8px; padding: 0 10px; color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-file-drawer__state svg { flex: 0 0 auto; }
+.mira-file-drawer__error { display: flex; min-width: 0; align-items: flex-start; gap: 6px; margin: 0 8px 8px; padding: 4px 8px; color: color-mix(in srgb, var(--color-destructive) 85%, black); font-size: 12px; line-height: 20px; }
+.dark .mira-file-drawer__error { color: var(--color-destructive); }
+.mira-file-drawer__error > svg { flex: 0 0 auto; margin-top: 3px; }
+.mira-file-drawer__error > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.mira-file-drawer__error button { width: 22px; height: 22px; color: inherit; }
+@media (prefers-reduced-motion: reduce) { .mira-file-drawer__row, .mira-file-drawer__chevron svg { transition: none; } }

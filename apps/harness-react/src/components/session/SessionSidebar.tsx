@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Archive, ChevronRight, Copy, FolderOpen, GripVertical, LoaderCircle, MoreVertical, Pencil, Pin, PinOff, Plus, Search, TerminalSquare, Trash2, X } from 'lucide-react'
-import type { HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary } from '../../../../../src/config/harness'
+import { Archive, ArrowDownWideNarrow, Blocks, CalendarClock, Check, ChevronRight, CircleAlert, Copy, Folder, FolderOpen, GripVertical, Hash, LoaderCircle, MessageCirclePlus, MoreHorizontal, Pencil, Pin, PinOff, Search, TerminalSquare, Trash2, X } from 'lucide-react'
+import type { HarnessProject, HarnessSessionOrderScope, HarnessSessionSummary } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
 import { groupSessions, sessionBadge, sessionMarkdown, splitSessionQueues } from './session-groups'
 
 const PROJECT_LIMIT = 6
+const SESSION_LIMIT = 12
 const PROJECT_SESSION_LIMIT = 5
-const RECENT_LIMIT = 12
 const EXPANDED_PROJECTS_KEY = 'session-drawer'
-
-type DrawerPreference = { expandedProjectIds?: string[] }
+type DrawerPreference = { expandedProjectIds?: string[]; view?: 'group' | 'project' }
 type GroupId = 'pinned' | 'recent' | `project:${string}`
 
 export interface SessionDrawerProps {
@@ -19,296 +20,186 @@ export interface SessionDrawerProps {
   controller: PilotController
   width: number
   modal?: boolean
-  newTaskOpen: boolean
-  onToggleNewTask: () => void
+  newTaskOpen?: boolean
+  onToggleNewTask?: () => void
+  onNewConversation?: () => void
+  searchRequest?: number
   onClose: () => void
 }
 
-export function SessionSidebar({ state, controller, width, modal, newTaskOpen, onToggleNewTask, onClose }: SessionDrawerProps) {
-  const [newTarget, setNewTarget] = useState('')
-  const [creating, setCreating] = useState(false)
+/** Keep app shortcuts mounted with the workbench, including when its sidebar is closed. */
+export function useHarnessSessionShortcuts(onNewConversation: () => void, onSearch: () => void) {
+  const actions = useRef({ onNewConversation, onSearch })
+  actions.current = { onNewConversation, onSearch }
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.isComposing) return
+      const key = event.key.toLowerCase()
+      if (key !== 'n' && key !== 'k') return
+      event.preventDefault()
+      if (key === 'n') actions.current.onNewConversation()
+      else actions.current.onSearch()
+    }
+    window.addEventListener('keydown', onShortcut)
+    return () => window.removeEventListener('keydown', onShortcut)
+  }, [])
+}
+
+export function SessionSidebar({ state, controller, width, modal, onNewConversation, searchRequest, onClose }: SessionDrawerProps) {
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
+  const [view, setView] = useState<'group' | 'project'>('group')
+  const [sort, setSort] = useState<'manual' | 'updated'>('updated')
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [showAllRecent, setShowAllRecent] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [extendedGroups, setExtendedGroups] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState('')
-  const [menu, setMenu] = useState<{ sessionId: string; x: number; y: number }>()
   const [preferenceLoaded, setPreferenceLoaded] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
   const activeProjectId = state.session?.projectId
+  const commandKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl '
+  const newTask = () => { if (onNewConversation) onNewConversation(); else controller.newConversation() }
 
   useEffect(() => {
     let cancelled = false
     void controller.getPreference(EXPANDED_PROJECTS_KEY).then(value => {
       if (cancelled) return
-      const ids = (value as DrawerPreference | null)?.expandedProjectIds
-      if (Array.isArray(ids)) setExpandedProjectIds(previous => [...new Set([...ids.filter(id => typeof id === 'string'), ...previous])])
-    }).then(() => { if (!cancelled) setPreferenceLoaded(true) }).catch(() => undefined)
+      const saved = value as DrawerPreference | null
+      if (Array.isArray(saved?.expandedProjectIds)) setExpandedProjectIds(previous => [...new Set([...saved.expandedProjectIds!.filter(id => typeof id === 'string'), ...previous])])
+      if (saved?.view === 'group' || saved?.view === 'project') setView(saved.view)
+    }).catch(() => undefined).finally(() => { if (!cancelled) setPreferenceLoaded(true) })
     return () => { cancelled = true }
   }, [controller])
+  useEffect(() => { if (preferenceLoaded) void controller.setPreference(EXPANDED_PROJECTS_KEY, { expandedProjectIds, view }) }, [controller, expandedProjectIds, view, preferenceLoaded])
+  useEffect(() => { if (activeProjectId) setExpandedProjectIds(previous => previous.includes(activeProjectId) ? previous : [...previous, activeProjectId]) }, [activeProjectId])
   useEffect(() => {
-    if (!preferenceLoaded) return
-    void controller.setPreference(EXPANDED_PROJECTS_KEY, { expandedProjectIds })
-  }, [controller, expandedProjectIds, preferenceLoaded])
-  // 活动会话所在的项目组自动展开，避免切项目后找不到当前会话。
-  useEffect(() => {
-    if (!activeProjectId) return
-    setExpandedProjectIds(previous => previous.includes(activeProjectId) ? previous : [...previous, activeProjectId])
-  }, [activeProjectId])
+    if (!searchRequest) return
+    setSearchOpen(true)
+    searchRef.current?.focus()
+  }, [searchRequest])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const model = useMemo(() => groupSessions(state.sessions, state.projects), [state.sessions, state.projects])
   const queues = useMemo(() => splitSessionQueues(model, state.runningSessionIds, Object.keys(state.pendingPermissions)), [model, state.runningSessionIds, state.pendingPermissions])
+  const query = search.trim().toLocaleLowerCase()
+  const matches = (session: HarnessSessionSummary) => !query || `${session.title} ${session.projectName || ''}`.toLocaleLowerCase().includes(query)
+  const ordered = (sessions: HarnessSessionSummary[]) => sort === 'updated' ? [...sessions].sort((left, right) => right.updatedAt - left.updatedAt) : sessions
+  const pinned = ordered(model.pinned.filter(matches))
+  const attention = ordered(queues.attention.filter(matches))
+  const running = ordered(queues.running.filter(matches))
+  const recent = ordered([...queues.projects.flatMap(entry => entry.sessions), ...queues.recent].filter(matches))
+  const allProjects = queues.projects.map(entry => ({ ...entry, sessions: ordered(entry.sessions.filter(matches)) })).filter(entry => !query || entry.sessions.length > 0 || entry.project.name.toLocaleLowerCase().includes(query))
+  const projects = query || showAllProjects ? allProjects : allProjects.slice(0, PROJECT_LIMIT)
+  const sortable = sort === 'manual' && !query
   const groupOf = (id: string): GroupId | undefined => {
     if (model.pinned.some(item => item.id === id)) return 'pinned'
     if (model.recent.some(item => item.id === id)) return 'recent'
     const project = model.projects.find(entry => entry.sessions.some(item => item.id === id))
     return project ? `project:${project.project.id}` : undefined
   }
-  const idsOf = (group: GroupId) => {
-    if (group === 'pinned') return model.pinned.map(item => item.id)
-    if (group === 'recent') return model.recent.map(item => item.id)
-    return model.projects.find(entry => `project:${entry.project.id}` === group)?.sessions.map(item => item.id) || []
-  }
-  function handleDragEnd(event: DragEndEvent) {
-    if (search.trim()) return
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  const idsOf = (group: GroupId) => group === 'pinned' ? model.pinned.map(item => item.id) : group === 'recent' ? model.recent.map(item => item.id) : model.projects.find(entry => `project:${entry.project.id}` === group)?.sessions.map(item => item.id) || []
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!sortable || !over || active.id === over.id) return
     const group = groupOf(String(active.id))
     if (!group || group !== groupOf(String(over.id))) return
     const ids = idsOf(group)
-    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
     const scope: HarnessSessionOrderScope = group === 'pinned' ? { type: 'pinned' } : group === 'recent' ? { type: 'recent' } : { type: 'project', projectId: group.slice('project:'.length) }
-    void controller.reorderSessions(scope, next)
+    void controller.reorderSessions(scope, arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))))
   }
-
-  const toggleProject = (projectId: string) => {
-    setExpandedProjectIds(previous => previous.includes(projectId) ? previous.filter(id => id !== projectId) : [...previous, projectId])
-  }
-  const newProject = state.projects.find(item => newTarget === `project:${item.id}`)
-  async function createTask() {
-    if (!newTarget || creating) return
-    setCreating(true)
-    const created = await controller.create(newTarget === 'personal' ? undefined : newTarget.slice('project:'.length))
-    setCreating(false)
-    if (created) { onToggleNewTask(); setNewTarget('') }
-  }
-  async function renameSession(id: string, title: string) {
-    setRenamingId('')
-    if (!title.trim()) return
-    await controller.renameSession(id, title.trim().slice(0, 42))
-  }
-  const rowProps = (session: HarnessSessionSummary) => ({
-    session,
-    state,
-    controller,
-    active: session.id === state.session?.id,
-    renaming: renamingId === session.id,
-    onRename: (title: string) => void renameSession(session.id, title),
-    onCancelRename: () => setRenamingId(''),
-    onOpen: () => { void controller.open(session.id) },
-    onMenu: (event: React.MouseEvent) => { event.preventDefault(); setMenu({ sessionId: session.id, x: event.clientX, y: event.clientY }) },
-  })
-  const visibleProjects = showAllProjects ? queues.projects : queues.projects.slice(0, PROJECT_LIMIT)
-  const currentProject = activeProjectId ? state.projects.find(project => project.id === activeProjectId) : undefined
-  const noSessions = model.pinned.length === 0 && model.recent.length === 0 && model.projects.every(entry => entry.sessions.length === 0)
-  const query = search.trim().toLocaleLowerCase()
-  const matches = (session: HarnessSessionSummary) => !query || `${session.title} ${session.projectName || ''}`.toLocaleLowerCase().includes(query)
-  const pinned = model.pinned.filter(matches)
-  const projects = visibleProjects.map(entry => ({ ...entry, sessions: entry.sessions.filter(matches) })).filter(entry => !query || entry.sessions.length > 0 || entry.project.name.toLocaleLowerCase().includes(query))
-  const recent = queues.recent.filter(matches)
-  const attention = queues.attention.filter(matches)
-  const running = queues.running.filter(matches)
+  const rowProps = (session: HarnessSessionSummary) => ({ session, state, controller, sortable, active: session.id === state.session?.id, renaming: renamingId === session.id, onBeginRename: () => setRenamingId(session.id), onRename: (title: string) => { setRenamingId(''); if (title.trim()) void controller.renameSession(session.id, title.trim().slice(0, 42)) }, onCancelRename: () => setRenamingId(''), onOpen: () => { void controller.open(session.id); if (modal) onClose() } })
+  const renderRows = (sessions: HarnessSessionSummary[], limit = SESSION_LIMIT) => <SortableContext items={sessions.map(item => item.id)} strategy={verticalListSortingStrategy}>{sessions.slice(0, limit).map(session => <SessionRow key={session.id} {...rowProps(session)} />)}</SortableContext>
 
   return <aside id="pilot-sessions" className="pilot-nav" style={{ width }} role={modal ? 'dialog' : undefined} aria-modal={modal || undefined} aria-label="会话">
-    <div className="pilot-nav__head"><strong>会话</strong><span className="pilot-nav__head-actions"><button type="button" title="搜索会话" aria-label="搜索会话" aria-expanded={searchOpen} onClick={() => { setSearchOpen(value => !value); setSearch('') }}><Search size={16} /></button><button type="button" title="新任务" aria-label="新任务" aria-expanded={newTaskOpen} onClick={onToggleNewTask}><Plus size={17} /></button></span></div>
-    <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={onClose}><X size={15} /></button>
-    {searchOpen && <div className="pilot-nav__search"><Search size={14} /><input autoFocus value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { setSearch(''); setSearchOpen(false) } }} placeholder="搜索任务或项目" aria-label="搜索任务或项目" /><button type="button" title="清除搜索" aria-label="清除搜索" onClick={() => setSearch('')}><X size={13} /></button></div>}
-    <div className="pilot-nav__scope" title={currentProject?.directory || '个人工作区'}>
-      <span className="pilot-nav__scope-icon"><FolderOpen size={14} /></span>
-      <span><small>当前工作区</small><strong>{currentProject?.name || '个人工作区'}</strong></span>
-      <span className="pilot-nav__scope-state" aria-label={state.session ? '已选择任务' : '等待选择任务'}>{state.session ? '当前' : '待选'}</span>
+    {modal && <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={onClose}><X size={15} /></button>}
+    <nav className="mira-session-actions" aria-label="任务导航">
+      <button type="button" onClick={newTask} aria-label="新建任务"><MessageCirclePlus size={17} /><span>新建任务</span><kbd>{commandKey}N</kbd></button>
+      <button type="button" onClick={() => { setSearchOpen(value => !value); if (searchOpen) setSearch('') }} aria-label="搜索会话" aria-expanded={searchOpen}><Search size={17} /><span>搜索</span><kbd>{commandKey}K</kbd></button>
+      <button type="button" onClick={() => void controller.navigate('/workspace/automations')}><CalendarClock size={17} /><span>自动化</span></button>
+      <button type="button" onClick={() => void controller.navigate('/settings/mcp')}><Blocks size={17} /><span>工具与技能</span></button>
+    </nav>
+    {searchOpen && <div className="mira-session-search"><Search size={14} /><input ref={searchRef} autoFocus value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setSearch(''); setSearchOpen(false) } }} placeholder="搜索任务或项目" aria-label="搜索任务或项目" /><button type="button" title="关闭搜索" aria-label="关闭搜索" onClick={() => { setSearch(''); setSearchOpen(false) }}><X size={13} /></button></div>}
+    <div className="mira-session-toolbar">
+      <div className="mira-session-view" role="group" aria-label="任务视图"><button type="button" aria-pressed={view === 'group'} onClick={() => setView('group')}><Hash size={13} />分组</button><button type="button" aria-pressed={view === 'project'} onClick={() => setView('project')}><Folder size={13} />项目</button></div>
+      <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" title="任务排序" aria-label="任务排序"><ArrowDownWideNarrow size={15} /></button></DropdownMenu.Trigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content align="end" sideOffset={6} className="mira-session-menu">
+        <DropdownMenu.Label className="mira-session-menu__label">任务排序</DropdownMenu.Label><DropdownMenu.RadioGroup value={sort} onValueChange={value => setSort(value as typeof sort)}>{[{ id: 'updated', label: '最近更新' }, { id: 'manual', label: '手动排序' }].map(option => <DropdownMenu.RadioItem key={option.id} value={option.id} className="mira-session-menu__item"><span className="mira-session-menu__indicator"><DropdownMenu.ItemIndicator><Check size={13} /></DropdownMenu.ItemIndicator></span>{option.label}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup>
+      </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+      <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" title="归档当前任务" aria-label="归档当前任务"><Archive size={15} /></button></DropdownMenu.Trigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content align="end" sideOffset={6} className="mira-session-menu"><DropdownMenu.Item className="mira-session-menu__item" disabled={!state.session || state.running} onSelect={() => { if (state.session) void controller.archiveSession(state.session.id) }}><Archive size={14} />归档当前任务</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
     </div>
-    {newTaskOpen && <div className="pilot-new-task"><label htmlFor="pilot-task-target">任务工作区</label><select id="pilot-task-target" value={newTarget} onChange={event => setNewTarget(event.target.value)}><option value="">选择工作区</option><option value="personal">个人工作区</option>{state.projects.map(item => <option key={item.id} value={`project:${item.id}`} disabled={!item.directoryExists}>{item.name}{item.directoryExists ? '' : '（目录不可用）'}</option>)}</select>{newProject && <p title={newProject.directory}>{newProject.directory}</p>}{newTarget === 'personal' && <p>创建后请核对实际工作目录再发送任务。</p>}<button type="button" disabled={!newTarget || creating} onClick={() => void createTask()}>{creating ? '创建中…' : '创建任务'}</button></div>}
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="pilot-nav__list">
-        {pinned.length > 0 && <GroupSection title="置顶" count={pinned.length}>
-          <SortableGroup ids={pinned.map(item => item.id)}>
-            {pinned.map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
-          </SortableGroup>
-        </GroupSection>}
-        {attention.length > 0 && <GroupSection title="需要处理" count={attention.length}>
-          {attention.map(session => <SessionRow key={session.id} {...rowProps(session)} sortable={false} />)}
-        </GroupSection>}
-        {running.length > 0 && <GroupSection title="运行中" count={running.length}>
-          {running.map(session => <SessionRow key={session.id} {...rowProps(session)} sortable={false} />)}
-        </GroupSection>}
-        {projects.length > 0 && <GroupSection title={`项目 · ${state.projects.length}`} count={undefined}>
-          {[...projects].sort((left, right) => Number(right.project.id === activeProjectId) - Number(left.project.id === activeProjectId)).map(({ project, sessions }) => {
-            const collapsed = !expandedProjectIds.includes(project.id)
-            const showAll = Boolean(extendedGroups[project.id])
-            return <GroupSection key={project.id} title={project.name} count={sessions.length} collapsed={collapsed} onToggle={() => toggleProject(project.id)} nested>
-              {!collapsed && <SortableGroup ids={sessions.map(item => item.id)}>
-                {(showAll ? sessions : sessions.slice(0, PROJECT_SESSION_LIMIT)).map(session => <SessionRow key={session.id} nested {...rowProps(session)} />)}
-              </SortableGroup>}
-              {!collapsed && sessions.length > PROJECT_SESSION_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setExtendedGroups(previous => ({ ...previous, [project.id]: !previous[project.id] }))}>{showAll ? '收起会话' : `显示全部 ${sessions.length} 个会话`}</button>}
-            </GroupSection>
-          })}
-          {model.projects.length > PROJECT_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setShowAllProjects(!showAllProjects)}>{showAllProjects ? '收起项目' : `显示全部 ${state.projects.length} 个项目`}</button>}
-        </GroupSection>}
-        {recent.length > 0 && <GroupSection title="最近对话" count={recent.length}>
-          <SortableGroup ids={recent.map(item => item.id)}>
-            {(showAllRecent ? recent : recent.slice(0, RECENT_LIMIT)).map(session => <SessionRow key={session.id} {...rowProps(session)} />)}
-          </SortableGroup>
-          {recent.length > RECENT_LIMIT && <button type="button" className="pilot-nav__more" onClick={() => setShowAllRecent(!showAllRecent)}>{showAllRecent ? '收起' : '显示更多'}</button>}
-        </GroupSection>}
-        {query && !pinned.length && !attention.length && !running.length && !projects.length && !recent.length && <p className="pilot-nav__hint">没有匹配的任务</p>}
-        {!query && noSessions && <p className="pilot-nav__hint">还没有会话，点击右上角 + 创建</p>}
-      </div>
-    </DndContext>
-    {menu && state.sessions.some(item => item.id === menu.sessionId) && <SessionContextMenu
-      session={state.sessions.find(item => item.id === menu.sessionId)!}
-      projects={state.projects}
-      controller={controller}
-      onRename={() => { setRenamingId(menu.sessionId); setMenu(undefined) }}
-      onClose={() => setMenu(undefined)}
-      onCopy={value => void copyText(value)}
-      fileManagerLabel="Finder"
-      position={menu}
-    />}
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}><div className="mira-session-list">
+      {pinned.length > 0 && <GroupSection title="置顶" icon={<Pin size={12} />}>{renderRows(pinned, pinned.length)}</GroupSection>}
+      {attention.length > 0 && <GroupSection title="需要处理">{renderRows(attention, attention.length)}</GroupSection>}
+      {running.length > 0 && <GroupSection title="运行中">{renderRows(running, running.length)}</GroupSection>}
+      {view === 'group' ? <div role="group" aria-label="最近任务">{renderRows(recent, showAllRecent || query ? recent.length : SESSION_LIMIT)}{recent.length > SESSION_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllRecent(value => !value)}>{showAllRecent ? '收起' : '显示更多'}</button>}</div> : <>
+        {projects.map(({ project, sessions }) => {
+          const expanded = Boolean(query) || expandedProjectIds.includes(project.id)
+          const showAll = Boolean(extendedGroups[project.id])
+          return <GroupSection key={project.id} title={project.name} expanded={expanded} onToggle={() => setExpandedProjectIds(previous => previous.includes(project.id) ? previous.filter(id => id !== project.id) : [...previous, project.id])}>{expanded && <>{renderRows(sessions, showAll || query ? sessions.length : PROJECT_SESSION_LIMIT)}{!sessions.length && <p className="mira-session-hint">暂无任务</p>}{sessions.length > PROJECT_SESSION_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setExtendedGroups(previous => ({ ...previous, [project.id]: !previous[project.id] }))}>{showAll ? '收起' : `显示全部 ${sessions.length} 个任务`}</button>}</>}</GroupSection>
+        })}
+        {allProjects.length > PROJECT_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllProjects(value => !value)}>{showAllProjects ? '收起项目' : '显示更多项目'}</button>}
+        {queues.recent.filter(matches).length > 0 && <GroupSection title="个人工作区">{renderRows(ordered(queues.recent.filter(matches)), showAllRecent || query ? queues.recent.length : SESSION_LIMIT)}{queues.recent.length > SESSION_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllRecent(value => !value)}>{showAllRecent ? '收起' : '显示更多'}</button>}</GroupSection>}
+      </>}
+      {query && !pinned.length && !attention.length && !running.length && !recent.length && <p className="mira-session-hint">没有匹配的任务</p>}
+      {!query && !state.sessions.length && <p className="mira-session-hint">新建任务后，对话会显示在这里。</p>}
+    </div></DndContext>
   </aside>
 }
 
 export const SessionDrawer = SessionSidebar
 
-async function copyText(value: string) {
-  try { await navigator.clipboard.writeText(value) }
-  catch {
-    const area = document.createElement('textarea')
-    area.value = value
-    document.body.appendChild(area)
-    area.select()
-    try { document.execCommand('copy') } finally { area.remove() }
-  }
-}
+async function copyText(value: string) { try { await navigator.clipboard.writeText(value) } catch { const area = document.createElement('textarea'); area.value = value; document.body.appendChild(area); area.select(); try { document.execCommand('copy') } finally { area.remove() } } }
+function GroupSection({ title, icon, expanded, onToggle, children }: { title: string; icon?: ReactNode; expanded?: boolean; onToggle?: () => void; children: ReactNode }) { return <section className="mira-session-group">{onToggle ? <button type="button" className="mira-session-group__head" aria-expanded={expanded} onClick={onToggle}><ChevronRight size={12} className={expanded ? 'is-open' : ''} /><Folder size={13} /><span>{title}</span></button> : <div className="mira-session-group__head">{icon}<span>{title}</span></div>}{children}</section> }
+function relativeTime(value: number) { const minutes = Math.max(0, Math.floor((Date.now() - value) / 60_000)); return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes}分` : minutes < 1440 ? `${Math.floor(minutes / 60)}时` : `${Math.floor(minutes / 1440)}天` }
 
-function GroupSection({ title, count, collapsed, onToggle, nested, children }: { title: string; count?: number; collapsed?: boolean; onToggle?: () => void; nested?: boolean; children: ReactNode }) {
-  return <section className={`pilot-nav__group${nested ? ' pilot-nav__group--nested' : ''}`}>
-    <button type="button" className="pilot-nav__group-head" aria-expanded={collapsed === undefined ? undefined : !collapsed} onClick={onToggle}>
-      {onToggle && <ChevronRight size={13} className={`pilot-nav__chevron${collapsed ? '' : ' is-open'}`} />}
-      <span>{title}</span>{count !== undefined && <small>{count}</small>}
-    </button>
-    {children}
-  </section>
-}
-
-function SortableGroup({ ids, children }: { ids: string[]; children: ReactNode }) {
-  return <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
-}
-
-function SessionRow({ session, state, controller, active, nested, sortable = true, renaming, onRename, onCancelRename, onOpen, onMenu }: {
-  session: HarnessSessionSummary
-  state: ReturnType<PilotController['getSnapshot']>
-  controller: PilotController
-  active: boolean
-  nested?: boolean
-  sortable?: boolean
-  renaming: boolean
-  onRename: (title: string) => void
-  onCancelRename: () => void
-  onOpen: () => void
-  onMenu: (event: React.MouseEvent) => void
-}) {
+function SessionRow({ session, state, controller, active, sortable, renaming, onBeginRename, onRename, onCancelRename, onOpen }: { session: HarnessSessionSummary; state: ReturnType<PilotController['getSnapshot']>; controller: PilotController; active: boolean; sortable: boolean; renaming: boolean; onBeginRename: () => void; onRename: (title: string) => void; onCancelRename: () => void; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id, disabled: renaming || !sortable })
   const [title, setTitle] = useState(session.title)
-  useEffect(() => { if (!renaming) setTitle(session.title) }, [renaming, session.title])
-  const badge = sessionBadge(session, {
-    running: state.runningSessionIds.includes(session.id),
-    unread: state.unreadSessionIds.includes(session.id),
-    pending: Boolean(state.pendingPermissions[session.id]),
-  })
-  return <div ref={setNodeRef} className={`pilot-session-row${nested ? ' pilot-session-row--nested' : ''}${isDragging ? ' is-dragging' : ''}`} style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
-    {renaming ? <form className="pilot-session-row__rename" onSubmit={event => { event.preventDefault(); onRename(title) }}>
-      <input autoFocus value={title} maxLength={42} aria-label="会话标题" onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') onCancelRename() }} />
-      <button type="submit" aria-label="保存标题">保存</button>
-    </form> : <div className={`pilot-session-row__main${active ? ' is-active' : ''}`}>
-      {sortable ? <button type="button" className="pilot-session-row__grip" aria-label={`拖拽排序 ${session.title}`} {...attributes} {...listeners}><GripVertical size={13} /></button> : <span className="pilot-session-row__grip" aria-hidden="true" />}
-      <button type="button" className="pilot-session-row__open" onClick={onOpen} onContextMenu={onMenu} title={session.title}>
-        <span>{session.title || '新任务'}</span>
-        <small>{session.projectName || '个人工作区'}</small>
-      </button>
-      {badge && <span className={`pilot-session-badge pilot-session-badge--${badge.kind}`} title={badge.label}>{badge.kind === 'unread' ? null : badge.kind === 'running' ? <LoaderCircle size={12} className="pilot-spin" /> : badge.label}</span>}
-      <span className="pilot-session-row__tools">
-        <button type="button" aria-label={session.pinned ? `取消置顶 ${session.title}` : `置顶 ${session.title}`} title={session.pinned ? '取消置顶' : '置顶'} onClick={() => void controller.setSessionPinned(session.id, !session.pinned)}>{session.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
-        <button type="button" aria-label={`归档 ${session.title}`} title="归档" onClick={() => void controller.archiveSession(session.id)}><Archive size={13} /></button>
-      </span>
-    </div>}
-  </div>
-}
-
-function SessionContextMenu({ session, projects, controller, position, onRename, onClose, onCopy, fileManagerLabel }: {
-  session: HarnessSessionSummary
-  projects: HarnessProject[]
-  controller: PilotController
-  position: { x: number; y: number }
-  onRename: () => void
-  onClose: () => void
-  onCopy: (value: string) => void
-  fileManagerLabel: string
-}) {
-  const [submenu, setSubmenu] = useState<'move' | 'copy' | 'open' | 'confirm-delete'>()
   const [error, setError] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) onClose() }
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('keydown', onKeyDown) }
-  }, [onClose])
+  useEffect(() => { if (!renaming) setTitle(session.title) }, [renaming, session.title])
+  const badge = sessionBadge(session, { running: state.runningSessionIds.includes(session.id), unread: state.unreadSessionIds.includes(session.id), pending: Boolean(state.pendingPermissions[session.id]) })
   const run = (action: () => Promise<unknown>) => {
-    void (async () => {
-      const value = await action()
-      if (typeof value === 'string' && value) throw new Error(value)
-    })().then(onClose).catch(cause => setError(cause instanceof Error ? cause.message : '操作失败'))
+    setError('')
+    void action().then(value => { if (typeof value === 'string' && value) throw new Error(value) }).catch(cause => setError(cause instanceof Error ? cause.message : '操作失败，请重试'))
   }
-  const width = 208
-  const left = Math.max(8, Math.min(position.x, window.innerWidth - width - 8))
-  const top = Math.max(8, Math.min(position.y, window.innerHeight - 360))
-  const toggle = (next: typeof submenu) => setSubmenu(previous => previous === next ? undefined : next)
-  return <div ref={ref} className="pilot-context-menu" role="menu" style={{ left, top, width }}>
-    <MenuButton icon={<Pencil size={14} />} label="重命名" onClick={onRename} />
-    <MenuButton icon={session.pinned ? <PinOff size={14} /> : <Pin size={14} />} label={session.pinned ? '取消置顶' : '置顶'} onClick={() => run(() => controller.setSessionPinned(session.id, !session.pinned))} />
-    <MenuButton icon={null} label={session.unread ? '标记为已读' : '标记为未读'} onClick={() => run(() => controller.setSessionUnread(session.id, !session.unread))} />
-    <MenuButton icon={<FolderOpen size={14} />} label="移动到项目" submenu onClick={() => toggle('move')} />
-    {submenu === 'move' && <div className="pilot-context-menu__sub">{projects.map(project => <button key={project.id} type="button" role="menuitem" disabled={project.id === session.projectId} onClick={() => run(() => controller.moveSession(session.id, project.id))}>{project.name}</button>)}{projects.length === 0 && <p className="pilot-nav__hint">还没有项目</p>}</div>}
-    <MenuButton icon={<Archive size={14} />} label="归档" onClick={() => run(() => controller.archiveSession(session.id))} />
-    <MenuButton icon={<Copy size={14} />} label="复制" submenu onClick={() => toggle('copy')} />
-    {submenu === 'copy' && <div className="pilot-context-menu__sub">
-      <button type="button" role="menuitem" disabled={!session.workingDirectory} onClick={() => { onCopy(session.workingDirectory || ''); onClose() }}>工作目录</button>
-      <button type="button" role="menuitem" onClick={() => { onCopy(session.id); onClose() }}>会话 ID</button>
-      <button type="button" role="menuitem" onClick={() => run(async () => { await copyText(sessionMarkdown(await controller.getSession(session.id))) })}>复制为 Markdown</button>
-    </div>}
-    <MenuButton icon={<TerminalSquare size={14} />} label="打开方式" submenu onClick={() => toggle('open')} />
-    {submenu === 'open' && <div className="pilot-context-menu__sub">
-      <button type="button" role="menuitem" onClick={() => run(() => controller.openSessionProject(session.id, 'file-manager'))}>{fileManagerLabel}</button>
-      <button type="button" role="menuitem" onClick={() => run(() => controller.openSessionProject(session.id, 'terminal'))}>终端</button>
-    </div>}
-    <MenuButton icon={<Trash2 size={14} />} label="删除会话" danger submenu onClick={() => toggle('confirm-delete')} />
-    {submenu === 'confirm-delete' && <div className="pilot-context-menu__sub pilot-context-menu__sub--danger">
-      <p>删除「{session.title || '新任务'}」后无法恢复。</p>
-      <button type="button" role="menuitem" onClick={() => run(() => controller.deleteSession(session.id))}>确认删除</button>
-    </div>}
-    {error && <p className="pilot-context-menu__error" role="alert">{error}</p>}
-  </div>
+  const menuProps = { session, projects: state.projects, controller, onRename: onBeginRename, run }
+  return <ContextMenu.Root>
+    <ContextMenu.Trigger asChild disabled={renaming}>
+      <div ref={setNodeRef} className={`mira-session-row${active ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}`} style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
+        {renaming ? <form className="mira-session-rename" onSubmit={event => { event.preventDefault(); onRename(title) }}><input autoFocus value={title} maxLength={42} aria-label="会话标题" onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onCancelRename() } }} /><button type="submit" aria-label="保存标题"><Check size={14} /></button></form> : <>
+          {sortable && <button type="button" className="mira-session-row__grip" aria-label={`拖拽排序 ${session.title}`} {...attributes} {...listeners}><GripVertical size={12} /></button>}
+          <button type="button" className="mira-session-row__open" onClick={onOpen} aria-current={active ? 'page' : undefined} title={`${session.title}\n${session.workingDirectory || session.projectName || '个人工作区'}`}><span>{session.title || '新任务'}</span></button>
+          {badge && <span className={`mira-session-status mira-session-status--${badge.kind}`} title={badge.label} aria-label={badge.label}>{badge.kind === 'unread' ? <span /> : badge.kind === 'running' || badge.kind === 'plan' && session.planStatus === 'executing' ? <LoaderCircle size={12} className="pilot-spin" /> : <CircleAlert size={12} />}</span>}
+          {!badge && session.status === 'failed' && <CircleAlert size={12} className="mira-session-status--failed" aria-label="执行失败" />}
+          <time className="mira-session-row__time" dateTime={new Date(session.updatedAt).toISOString()} title={new Date(session.updatedAt).toLocaleString()}>{relativeTime(session.updatedAt)}</time>
+          <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="mira-session-row__more" title="任务操作" aria-label={`${session.title} 的操作`}><MoreHorizontal size={15} /></button></DropdownMenu.Trigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content align="start" sideOffset={4} className="mira-session-menu" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}><SessionMenuItems kind="dropdown" {...menuProps} /></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+        </>}
+        {error && <span className="mira-session-row__error" role="alert">{error}</span>}
+      </div>
+    </ContextMenu.Trigger>
+    <ContextMenu.Portal container={document.getElementById('root')}><ContextMenu.Content className="mira-session-menu" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}><SessionMenuItems kind="context" {...menuProps} /></ContextMenu.Content></ContextMenu.Portal>
+  </ContextMenu.Root>
 }
 
-function MenuButton({ icon, label, onClick, submenu, danger }: { icon: ReactNode; label: string; onClick: () => void; submenu?: boolean; danger?: boolean }) {
-  return <button type="button" role="menuitem" className={danger ? 'pilot-context-menu__danger' : ''} onClick={onClick}>
-    {icon}{label}{submenu && <ChevronRight size={13} className="pilot-context-menu__chevron" />}
-  </button>
+function SessionMenuItems({ kind = 'context', session, projects, controller, onRename, run }: { kind?: 'context' | 'dropdown'; session: HarnessSessionSummary; projects: HarnessProject[]; controller: PilotController; onRename: () => void; run: (action: () => Promise<unknown>) => void }) {
+  const Menu = kind === 'context' ? ContextMenu : DropdownMenu
+  const portal = document.getElementById('root')
+  return <>
+    <Menu.Item className="mira-session-menu__item" onSelect={onRename}><Pencil size={14} />重命名</Menu.Item>
+    <Menu.Item className="mira-session-menu__item" onSelect={() => run(() => controller.setSessionPinned(session.id, !session.pinned))}>{session.pinned ? <PinOff size={14} /> : <Pin size={14} />}{session.pinned ? '取消置顶' : '置顶'}</Menu.Item>
+    <Menu.Item className="mira-session-menu__item" onSelect={() => run(() => controller.setSessionUnread(session.id, !session.unread))}><Check size={14} />{session.unread ? '标记为已读' : '标记为未读'}</Menu.Item>
+    <Menu.Sub><Menu.SubTrigger className="mira-session-menu__item"><FolderOpen size={14} />移动到项目<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={portal}><Menu.SubContent className="mira-session-menu" sideOffset={3}>{projects.length ? projects.map(project => <Menu.Item key={project.id} className="mira-session-menu__item" disabled={project.id === session.projectId || !project.directoryExists} onSelect={() => run(() => controller.moveSession(session.id, project.id))}><Folder size={14} />{project.name}</Menu.Item>) : <Menu.Item className="mira-session-menu__item" disabled>暂无项目</Menu.Item>}</Menu.SubContent></Menu.Portal></Menu.Sub>
+    <Menu.Item className="mira-session-menu__item" onSelect={() => run(() => controller.archiveSession(session.id))}><Archive size={14} />归档</Menu.Item>
+    <Menu.Separator className="mira-session-menu__separator" />
+    <Menu.Sub><Menu.SubTrigger className="mira-session-menu__item"><Copy size={14} />复制<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={portal}><Menu.SubContent className="mira-session-menu" sideOffset={3}>
+      <Menu.Item className="mira-session-menu__item" disabled={!session.workingDirectory} onSelect={() => run(() => copyText(session.workingDirectory || ''))}>工作目录</Menu.Item>
+      <Menu.Item className="mira-session-menu__item" onSelect={() => run(() => copyText(session.id))}>会话 ID</Menu.Item>
+      <Menu.Item className="mira-session-menu__item" onSelect={() => run(async () => copyText(sessionMarkdown(await controller.getSession(session.id))))}>复制为 Markdown</Menu.Item>
+    </Menu.SubContent></Menu.Portal></Menu.Sub>
+    <Menu.Sub><Menu.SubTrigger className="mira-session-menu__item"><TerminalSquare size={14} />打开方式<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={portal}><Menu.SubContent className="mira-session-menu" sideOffset={3}>
+      <Menu.Item className="mira-session-menu__item" disabled={!session.workingDirectory} onSelect={() => run(() => controller.openSessionProject(session.id, 'file-manager'))}>文件管理器</Menu.Item>
+      <Menu.Item className="mira-session-menu__item" disabled={!session.workingDirectory} onSelect={() => run(() => controller.openSessionProject(session.id, 'terminal'))}>终端</Menu.Item>
+    </Menu.SubContent></Menu.Portal></Menu.Sub>
+    <Menu.Separator className="mira-session-menu__separator" />
+    <Menu.Sub><Menu.SubTrigger className="mira-session-menu__item mira-session-menu__item--danger"><Trash2 size={14} />删除会话<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={portal}><Menu.SubContent className="mira-session-menu" sideOffset={3}><Menu.Label className="mira-session-menu__label">删除后无法恢复</Menu.Label><Menu.Item className="mira-session-menu__item mira-session-menu__item--danger" onSelect={() => run(() => controller.deleteSession(session.id))}>确认删除「{session.title || '新任务'}」</Menu.Item></Menu.SubContent></Menu.Portal></Menu.Sub>
+  </>
 }

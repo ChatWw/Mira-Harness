@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-09T03:13:47.046Z",
+  "passed": true,
+  "licenseFiles": 7,
+  "noticeAndHtmlMatch": true,
+  "jsShaMatches": 287,
+  "dynamicTargets": 239,
+  "css": {
+    "bytes": 129455,
+    "gzip9": 22916,
+    "sha256": "b066218a995a9219c643bfbe5b1fb1440106632004ee40289e1f62a334be831f"
+  },
+  "manifestFiles": 10,
+  "boundaries": "headless React and unit tests, not native Electron or release"
+}

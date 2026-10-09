@@ -6,7 +6,10 @@ export function useModalFocusTrap(active: boolean, elementId: string) {
     const modal = document.getElementById(elementId)
     if (!modal) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return
+      if (event.defaultPrevented || event.key !== 'Tab') return
+      // Radix owns keyboard navigation while a portaled menu is open.
+      const openMenu = document.querySelector<HTMLElement>('[role="menu"][data-state="open"]')
+      if (openMenu?.getClientRects().length || document.activeElement?.closest('[role="menu"]')) return
       const focusable = [...modal.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')]
         .filter(element => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true')
       if (!focusable.length) { event.preventDefault(); modal.focus(); return }

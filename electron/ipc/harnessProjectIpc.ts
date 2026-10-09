@@ -4,15 +4,17 @@ import type { PlatformDatabase } from '../storage/database'
 import type { HarnessRuntime } from '../services/harnessRuntime'
 import type { AutomationScheduler } from '../services/automationScheduler'
 import type { MiraPaths } from '../storage/miraPaths'
+import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
 
 export interface HarnessProjectIpcDependencies {
   database: PlatformDatabase
   harnessRuntime: HarnessRuntime
   automationScheduler: AutomationScheduler
   miraPaths: MiraPaths
+  workspaceWatch?: HarnessWorkspaceWatch
 }
 
-export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, automationScheduler, miraPaths }: HarnessProjectIpcDependencies) {
+export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, automationScheduler, miraPaths, workspaceWatch }: HarnessProjectIpcDependencies) {
   ipcMain.handle('harness:list-skills', () => database.skills.list())
   ipcMain.handle('harness:get-skill-settings', () => database.skills.settings())
   ipcMain.handle('harness:save-skill-settings', (_event, settings: HarnessSkillSettings) => database.skills.saveSettings(settings))
@@ -38,6 +40,7 @@ export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, au
   ipcMain.handle('harness:delete-project', (_event, id: string) => {
     database.automations.listTasks().filter(task => task.projectId === id).forEach(task => database.automations.deleteTask(task.id))
     database.harness.deleteProject(id)
+    workspaceWatch?.closeInvalid()
     automationScheduler.reschedule()
   })
   ipcMain.handle('harness:get-global-instructions', () => database.instructions.readGlobal())

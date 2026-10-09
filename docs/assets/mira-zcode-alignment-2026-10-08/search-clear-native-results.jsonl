@@ -1,0 +1,5 @@
+{"phase":"first-clear","row":{"x":12,"y":794,"width":233,"height":28,"top":794,"right":245,"bottom":822,"left":12},"tree":{"x":4,"y":132,"width":264,"height":702,"top":132,"right":268,"bottom":834,"left":4},"scroll":5386,"visible":true}
+{"phase":"same-file-repeat-clear","row":{"x":12,"y":794,"width":233,"height":28,"top":794,"right":245,"bottom":822,"left":12},"tree":{"x":4,"y":132,"width":264,"height":702,"top":132,"right":268,"bottom":834,"left":4},"scroll":5386,"visible":true}
+{"phase":"same-file-escape-clear","row":{"x":12,"y":794,"width":233,"height":28,"top":794,"right":245,"bottom":822,"left":12},"tree":{"x":4,"y":132,"width":264,"height":702,"top":132,"right":268,"bottom":834,"left":4},"scroll":5386,"visible":true}
+{"phase":"same-file-delete-clear","row":{"x":12,"y":794,"width":233,"height":28,"top":794,"right":245,"bottom":822,"left":12},"tree":{"x":4,"y":132,"width":264,"height":702,"top":132,"right":268,"bottom":834,"left":4},"scroll":5386,"visible":true}
+{"phase":"cleanup","files":200}

@@ -1,0 +1,728 @@
+{
+  "startedAt": "2026-10-09T05:48:11.165Z",
+  "scope": "Isolated headless desktop Chromium profile of current source; Worker prototype only. No production source/build mutation, Electron, native input, user database or ZCode GUI acceptance.",
+  "errors": [],
+  "network": [
+    {
+      "path": "/stdin.js",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/stdin.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": null,
+      "headers": {},
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49867",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49867"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-UDPUNM6J.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-P64POOWM.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-CILON7YJ.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-6R3KEE7K.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-ZN4KE27R.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-4T7FALF3.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-PAE5DQWI.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-DULTPPVM.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/wasm-4Y3UGFKK.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/wasm-PMO7JPYD.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/vue-PDR4J7WK.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-AYRPSWZ3.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-3FGBQ6A6.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-XT4S6LNV.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-MLTQE63C.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-2NMMIZH5.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/vue-V7CM4IQA.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-IMF65GV4.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-QMBNLPXX.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-7JVVOP5G.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-M76IRM6L.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-F42MBDE2.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/python-T4L4K3IO.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-DCJRCM7E.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/python-YA6ALSG5.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-RZHQFWTF.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/shellscript-BSK7LAC7.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-E56XDXUN.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/shellscript-Q5FVMTDK.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-USFVWKD2.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/markdown-TDVCRWKC.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-ZD72CDNJ.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/markdown-HGRLGR6U.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-GFCNMZF6.mjs",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    }
+  ],
+  "messages": [],
+  "passed": true,
+  "runtime": "154.0.8037.99",
+  "loaders": {
+    "sandboxAttribute": "allow-scripts allow-forms",
+    "opaque": {
+      "effectiveOrigin": "null",
+      "urlOrigin": "http://127.0.0.1:49867",
+      "iframe": true,
+      "directModule": {
+        "ready": false,
+        "error": "SecurityError",
+        "message": "Failed to construct 'Worker': Script at 'http://127.0.0.1:49867/worker.js' cannot be accessed from origin 'null'."
+      },
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      },
+      "moduleImport": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      },
+      "classicDynamicImport": {
+        "ready": true
+      }
+    },
+    "host": {
+      "effectiveOrigin": "http://127.0.0.1:49867",
+      "urlOrigin": "http://127.0.0.1:49867",
+      "iframe": false,
+      "directModule": {
+        "ready": true
+      },
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": true
+      },
+      "moduleImport": {
+        "ready": true
+      },
+      "classicDynamicImport": {
+        "ready": true
+      }
+    }
+  },
+  "loader": {
+    "ready": true,
+    "bootstrapType": "classic-blob-dynamic-import",
+    "effectiveOrigin": "null",
+    "urlOrigin": "http://127.0.0.1:49867",
+    "iframe": true
+  },
+  "cases": [
+    {
+      "name": "cold-typescript",
+      "wasmUnlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 53,
+        "maxTimerGapMs": 53,
+        "timerSamples": 11,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931"
+      },
+      "workerPrototype": {
+        "elapsedMs": 51.900000005960464,
+        "maxTimerGapMs": 6.299999997019768,
+        "timerSamples": 20,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "warm-typescript",
+      "wasmUnlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 0.9000000059604645,
+        "maxTimerGapMs": 6.299999997019768,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944"
+      },
+      "workerPrototype": {
+        "elapsedMs": 1,
+        "maxTimerGapMs": 6.200000002980232,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "single-line-2100-statements",
+      "wasmUnlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 1019.0999999940395,
+        "maxTimerGapMs": 1019.3999999910593,
+        "timerSamples": 11,
+        "longTasks": [
+          {
+            "start": 467.90000000596046,
+            "duration": 1019
+          }
+        ],
+        "codeCharacters": 94380,
+        "lineCount": 1,
+        "tokenCount": 116,
+        "themedTokens": 116,
+        "digest": "f774d8adbb1670897a2bcc617f8f8912c3b4bbf85a67d301659721dac1122fe3"
+      },
+      "workerPrototype": {
+        "elapsedMs": 1026.2999999970198,
+        "maxTimerGapMs": 6.4000000059604645,
+        "timerSamples": 215,
+        "longTasks": [],
+        "codeCharacters": 94380,
+        "lineCount": 1,
+        "tokenCount": 116,
+        "themedTokens": 116,
+        "digest": "f774d8adbb1670897a2bcc617f8f8912c3b4bbf85a67d301659721dac1122fe3",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "single-line-2100-statements-wasm-unlimited-reference",
+      "wasmUnlimitedReference": true,
+      "baseline": {
+        "elapsedMs": 2196.7000000029802,
+        "maxTimerGapMs": 2177.5999999940395,
+        "timerSamples": 12,
+        "longTasks": [
+          {
+            "start": 2645.4000000059605,
+            "duration": 2175
+          }
+        ],
+        "codeCharacters": 94380,
+        "lineCount": 1,
+        "tokenCount": 27300,
+        "themedTokens": 27300,
+        "digest": "78f838c1a98e5b9dff480ac3568df1b4cc63d5cc607edbb0fced4456c4692897"
+      },
+      "workerPrototype": {
+        "elapsedMs": 2182.300000011921,
+        "maxTimerGapMs": 7.4000000059604645,
+        "timerSamples": 446,
+        "longTasks": [],
+        "codeCharacters": 94380,
+        "lineCount": 1,
+        "tokenCount": 27300,
+        "themedTokens": 27300,
+        "digest": "78f838c1a98e5b9dff480ac3568df1b4cc63d5cc607edbb0fced4456c4692897",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "file-preview-8001-lines",
+      "wasmUnlimitedReference": false,
+      "baseline": {
+        "elapsedMs": 685.0999999940395,
+        "maxTimerGapMs": 16.19999998807907,
+        "timerSamples": 102,
+        "longTasks": [],
+        "codeCharacters": 357780,
+        "lineCount": 8001,
+        "tokenCount": 104000,
+        "themedTokens": 104000,
+        "digest": "e66605626df420fe3b41ddf3e4e75aede721e91933d0c0adc265bb18f388272d"
+      },
+      "workerPrototype": {
+        "elapsedMs": 798.1000000089407,
+        "maxTimerGapMs": 28.799999997019768,
+        "timerSamples": 165,
+        "longTasks": [],
+        "codeCharacters": 357780,
+        "lineCount": 8001,
+        "tokenCount": 104000,
+        "themedTokens": 104000,
+        "digest": "e66605626df420fe3b41ddf3e4e75aede721e91933d0c0adc265bb18f388272d",
+        "equal": true
+      },
+      "equal": true
+    }
+  ],
+  "activeCase": "equivalence",
+  "growth": {
+    "baseline": {
+      "elapsedMs": 439.70000000298023,
+      "maxTimerGapMs": 439.70000000298023,
+      "timerSamples": 11,
+      "longTasks": [
+        {
+          "start": 11596.79999999702,
+          "duration": 439
+        }
+      ],
+      "codeCharacters": 45907,
+      "lineCount": 8704,
+      "tokenCount": 113152,
+      "themedTokens": 113152,
+      "digest": "c6a996c16b670d393c79997ada44780e100818029e8649f5d5086499d08c5f01"
+    },
+    "workerPrototype": {
+      "elapsedMs": 468.29999999701977,
+      "maxTimerGapMs": 8.700000002980232,
+      "timerSamples": 103,
+      "longTasks": [],
+      "codeCharacters": 45907,
+      "lineCount": 8704,
+      "tokenCount": 113152,
+      "themedTokens": 113152,
+      "digest": "c6a996c16b670d393c79997ada44780e100818029e8649f5d5086499d08c5f01"
+    },
+    "requests": 16,
+    "equal": true
+  },
+  "equivalence": [
+    {
+      "language": "typescript",
+      "file": true,
+      "characters": 56,
+      "lines": 6,
+      "digest": "7e39f0ab1ccd47aa2b0259ac4c46b2b81aa87e2e16c7fa8b6370b3a88c9a834b",
+      "equal": true
+    },
+    {
+      "language": "vue",
+      "file": true,
+      "characters": 115,
+      "lines": 9,
+      "digest": "77d1e76a285c42b2c1f597bb7a882054aa0edfbabeeb8d8d1ae2cee402563264",
+      "equal": true
+    },
+    {
+      "language": "python",
+      "file": true,
+      "characters": 32,
+      "lines": 4,
+      "digest": "0c3ee81e271b71f92d04b761d88826e3ce3882fa390bfb24e7dd25be4543735d",
+      "equal": true
+    },
+    {
+      "language": "shell",
+      "file": true,
+      "characters": 32,
+      "lines": 5,
+      "digest": "fefd04696fe576848ae817285b5806a2a592507ab33f49a6b7c1fca94e29b909",
+      "equal": true
+    },
+    {
+      "language": "markdown",
+      "file": true,
+      "characters": 61,
+      "lines": 8,
+      "digest": "3d872bdd2e8cb5e1655f4f260ad022e10e9ba4d5362f9b60bef028aceaf148a6",
+      "equal": true
+    },
+    {
+      "language": "json",
+      "file": true,
+      "characters": 35,
+      "lines": 4,
+      "digest": "943f0736a2dc24809de2ef5ac41d9a4c86774e67695e9f8c872a08ad475e0e46",
+      "equal": true
+    },
+    {
+      "language": " TS ",
+      "file": true,
+      "characters": 40,
+      "lines": 4,
+      "digest": "7a443310d38f9c1df67481c83c224e5942824d1e1d245829c3948fe4b5fcbdb4",
+      "equal": true
+    },
+    {
+      "language": "javascript",
+      "file": false,
+      "characters": 20,
+      "lines": 2,
+      "digest": "a403a5634959aabdfcacce4242596c67c309cbebb763b1b5c7d52fde7d478969",
+      "equal": true
+    },
+    {
+      "language": "mira-unknown",
+      "file": false,
+      "characters": 58,
+      "lines": 3,
+      "digest": "5abf96f59b8bb12e6da2836e57feb2977f0b61eddb59f8fc23f6116548889b11",
+      "equal": true
+    }
+  ],
+  "sources": [
+    {
+      "path": "apps/harness-react/src/lib/code-highlighter.ts",
+      "sha256": "caff84b3443d8b8e98decb1436823c52d81750e4992cce82a35a9cbf72339df1"
+    },
+    {
+      "path": "apps/harness-react/src/lib/file-preview-highlighter.ts",
+      "sha256": "c28359089d5cecef26cdf34a06bac545353754fa716431c7796c95ef18c347d0"
+    },
+    {
+      "path": "src/pages/frontend/microAppHost/FirstPartyFrame.vue",
+      "sha256": "8221204e33d1f2bf118c42392325a08e412e7e622b851861adc3a13d2f2fd48b"
+    },
+    {
+      "path": "electron/adapters/localMicroAppServer.ts",
+      "sha256": "9b840ae9c1c1af1dfbe1bc1de8fdc2031d2504e3d1540807fbe3f3637a28102b"
+    }
+  ],
+  "allCurrentDefaultCasesEqual": true,
+  "productionWorkerImplemented": false,
+  "measurementBoundary": "Timer gaps and Long Tasks around tokenizer/request completion only; not INP, real native input, React rendering, first paint, memory budget or production worker release. Default Shiki 500ms per-line budget can change long-line tokens between runs; wasm-unlimited-reference is explicitly a different engine diagnostic variant, not current production configuration or a direct speedup comparison.",
+  "finishedAt": "2026-10-09T05:48:24.778Z"
+}

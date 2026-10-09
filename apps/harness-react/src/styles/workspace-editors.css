@@ -1,0 +1,13 @@
+.mira-editor-button { display: flex; flex: 0 0 auto; height: 28px; border: 1px solid var(--mira-border); border-radius: 6px; background: var(--mira-panel); }
+.mira-editor-button button { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 26px; padding: 0; border: 0; color: var(--mira-foreground-subtle); background: transparent; cursor: pointer; }
+.mira-editor-button button:hover:not(:disabled) { color: var(--mira-foreground); background: var(--mira-hover); }
+.mira-editor-button button:disabled { opacity: .45; cursor: default; }
+.mira-editor-button button:focus-visible { outline: 2px solid var(--mira-foreground); outline-offset: 2px; }
+.mira-editor-button__open { width: 28px; border-radius: 5px 0 0 5px; }
+.mira-editor-button__open img { width: 20px; height: 20px; object-fit: contain; }
+.mira-editor-button__select { width: 20px; border-radius: 0 5px 5px 0; }
+.mira-editor-menu { min-width: 160px; max-width: min(280px, calc(100vw - 24px)); max-height: var(--radix-dropdown-menu-content-available-height, var(--radix-context-menu-content-available-height, calc(100vh - 24px))); overflow-y: auto; }
+.mira-editor-menu__item { min-height: 32px; }
+.mira-editor-menu__item img { width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
+.mira-editor-menu__item span:first-of-type { flex: 1; min-width: 0; }
+.mira-editor-menu__error { padding: 6px 8px; color: var(--mira-destructive); font-size: 12px; white-space: normal; overflow-wrap: anywhere; }

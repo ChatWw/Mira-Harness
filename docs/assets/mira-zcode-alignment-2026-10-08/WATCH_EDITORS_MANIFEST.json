@@ -1,0 +1,204 @@
+{
+  "generatedAtUTC": "2026-10-09T01:58:03.354Z",
+  "scope": "Watch/editor evidence files only; no runtime raster changes",
+  "files": [
+    {
+      "name": "mira-editor-open-error-native.png",
+      "bytes": 442607,
+      "sha256": "5140bc9662e189bdf55490e6a3921cf0ec6b8a18fa88ddd7a439a3d434044032",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:58.002Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editor-short-fixture-native.png",
+      "bytes": 441295,
+      "sha256": "0b2b3b3f382a2ed6708da239de5a0afa2851987d2e4be858d058adedc143b990",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:05.621Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editor-short-fixture-scrolled-native.png",
+      "bytes": 434511,
+      "sha256": "bce0c2c93a95c8ff7503d08a414b28ee43cf158990c984c6dc80a7cffdb78b79",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:06.693Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-boundaries-native-evidence-results.jsonl",
+      "bytes": 3806,
+      "sha256": "d623d78c163e26d573fdbd189eea4d8161674925e566301f7572426f32f6e21d",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:18.888Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-dark-capture-native-results.jsonl",
+      "bytes": 899,
+      "sha256": "496bd3a7e429d0347fc2b629fe1845b514fd10d1a93477eadd1ecfaf10e7c62e",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:26.119Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-dark-final-native.png",
+      "bytes": 455506,
+      "sha256": "0764dc57d539c3bb26faa56ead3bd449958a657d82f8f1c2a0732c7ec5d79b86",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:22.484Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-light-capture-native-results.jsonl",
+      "bytes": 905,
+      "sha256": "95b3ad3c16dac0e27297cb9cf8bdde508cc3b7d0595b3de936347d7d5653bc81",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:46.876Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-light-final-native.png",
+      "bytes": 441127,
+      "sha256": "e5c1b272e929dcee2f175a85f103d8d365d215b3bc6758140f5a4cd02f9abb01",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:15.280Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-editors-reload-native-final-results.jsonl",
+      "bytes": 3697,
+      "sha256": "964661ec44141c3622d90f1f46e4555c2cbbf96683647f42b767782efba16bc6",
+      "sourceModifiedAtUTC": "2026-10-09T01:48:05.064Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-open-with-dark-final-native.png",
+      "bytes": 460856,
+      "sha256": "d2d0eeb7bb883b1755e7ffdff298b642f9c4a6989bc936f4a45191ace161b9d4",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:25.252Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-open-with-light-final-native.png",
+      "bytes": 460983,
+      "sha256": "0c82357dd46e88ce8e96510186a1b8164983da44d2f20061e197e67395106ea0",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:18.019Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-open-with-short-fixture-scrolled-native.png",
+      "bytes": 436974,
+      "sha256": "bb01e3e4e33c38982561f7619802f325956fc22b5cdf7c476d03ad43ac0ce143",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:10.155Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-confirmation-bundle-audit.json",
+      "bytes": 5560,
+      "sha256": "7731ce1260417a9d0457e33423652c3c956c9952b800ea5268567b45976c292c",
+      "sourceModifiedAtUTC": "2026-10-09T01:46:08.399Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-confirmation-tests.log",
+      "bytes": 6619,
+      "sha256": "6ba16b042a365ff74a40ef4157848911e8d9ea04dc5f97165f5cf47c55e87397",
+      "sourceModifiedAtUTC": "2026-10-09T01:45:52.299Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-electron-build.log",
+      "bytes": 27354,
+      "sha256": "8b9cc4e71dc6b9d132a91b86e6db4c4c961f5bd847a8de68d6efd2c21b4240af",
+      "sourceModifiedAtUTC": "2026-10-09T01:46:13.141Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-native-final-results.jsonl",
+      "bytes": 3426,
+      "sha256": "057bcfece3317e5ff6c9337c7003f5e803c70707a2282cf7f13dfdb72b2827e7",
+      "sourceModifiedAtUTC": "2026-10-09T01:36:15.340Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-react-types.log",
+      "bytes": 296,
+      "sha256": "f3a9a08c92f34fb54ef6019d82d3f7a4f56988b6ad48d3dbdb84ce30d7f81a25",
+      "sourceModifiedAtUTC": "2026-10-09T01:46:04.051Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-vue-types.log",
+      "bytes": 296,
+      "sha256": "f3a9a08c92f34fb54ef6019d82d3f7a4f56988b6ad48d3dbdb84ce30d7f81a25",
+      "sourceModifiedAtUTC": "2026-10-09T01:46:05.200Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-permission-final-native-results.jsonl",
+      "bytes": 285,
+      "sha256": "163539b137df66f37e779d1b1055096fe083f683f227f5e18c2fb0eee46740bf",
+      "sourceModifiedAtUTC": "2026-10-09T01:53:06.694Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-permission-final-native.png",
+      "bytes": 467805,
+      "sha256": "29a6b5fe7327ba9e41ae99b832cbb159498111db6281cd750c67c1e168461529",
+      "sourceModifiedAtUTC": "2026-10-09T01:53:05.533Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-preview-dark-final-native.png",
+      "bytes": 444459,
+      "sha256": "3a54d4be5a3d20e8911eabc93f3602fef2e6a4be5ff580a400e72a0c08afad95",
+      "sourceModifiedAtUTC": "2026-10-09T01:51:26.043Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-preview-light-final-native.png",
+      "bytes": 420208,
+      "sha256": "7d006f173c3c126873d44b403baa3bd6982b19a0f148dda3c6b155b91d1dfb90",
+      "sourceModifiedAtUTC": "2026-10-09T01:52:18.741Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-zcode-editors-reference.png",
+      "bytes": 1018456,
+      "sha256": "cfa23106d027d3a52ab9ead2018f06be566f25137539ffab249d3ff5b30287cc",
+      "sourceModifiedAtUTC": "2026-10-08T09:08:52.255Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-zcode-file-open-with-reference.png",
+      "bytes": 768204,
+      "sha256": "49b07d4428ab56c610af8d359c6414a2ff748d35ed4cb8897760771857a56866",
+      "sourceModifiedAtUTC": "2026-10-08T09:09:24.763Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-final-tests-2026-10-09.log",
+      "bytes": 6714,
+      "sha256": "2194744e8ac1c05831364f3bd99551bc070d072b5071d3093ff20807fa7eff59",
+      "sourceModifiedAtUTC": "2026-10-09T02:08:48.385Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-final-react-build.log",
+      "bytes": 1812,
+      "sha256": "072c2d7dfdb398c7c294baea6616ed1e26a4be6655bb552eca3592da5304d179",
+      "sourceModifiedAtUTC": "2026-10-09T02:01:52.265Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-final-electron-build.log",
+      "bytes": 27353,
+      "sha256": "843d47615d36a3c4265aeed4cd4b112eaf7e5fb5c411228aae35eacb9d0709ae",
+      "sourceModifiedAtUTC": "2026-10-09T02:05:05.720Z",
+      "matchesTemporarySource": true
+    },
+    {
+      "name": "mira-watch-editors-final-bundle-audit-2026-10-09.json",
+      "bytes": 5560,
+      "sha256": "9e36ce7659f06fa5389e149d7021c4939f7fddb3bedcecd2fdba1d2cc5037a4f",
+      "sourceModifiedAtUTC": "2026-10-09T02:01:54.472Z",
+      "matchesTemporarySource": true
+    }
+  ],
+  "finalLogsAddedAtUTC": "2026-10-09T02:10:06.205Z",
+  "note": "Original image provenance comparisons were made at generatedAtUTC; later scratch images are excluded. Final logs added separately."
+}

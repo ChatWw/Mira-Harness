@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FirstPartyAppManifest } from '../src/config/firstPartyApps'
-import { handleFirstPartyRequest, isFirstPartyRequest } from '../src/platform/firstPartyBridge'
+import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import type { PlatformApi, PlatformContext } from '../src/types'
 
 const manifest: FirstPartyAppManifest = {
@@ -14,6 +14,36 @@ const manifest: FirstPartyAppManifest = {
   capabilities: ['models:text.generate', 'storage:novel-projects'],
 }
 const context: PlatformContext = { version: 1, theme: 'light', language: 'zh-CN', user: { id: 'platform', name: 'Mira' } }
+const harnessModelCalls = [
+  { method: 'message.run', params: { sessionId: 's', text: '任务', planning: false } },
+  { method: 'plan.continue', params: { sessionId: 's', planId: 'plan', message: '继续' } },
+  { method: 'plan.confirm', params: { sessionId: 's', planId: 'plan' } },
+  { method: 'interaction.answer', params: { sessionId: 's', interactionId: 'question', answers: [{ id: 'q', selected: ['选项'] }] } },
+  { method: 'memory.save', params: { sessionId: 's' } },
+  { method: 'run.rerun', params: { sessionId: 's' } },
+  { method: 'run.edit-rerun', params: { sessionId: 's', messageId: 'message', content: '更新内容' } },
+]
+const selectedFilePaths = ['/private/tmp/mira-ui-project-smoke.md', 'C:\\Users\\Mira\\notes.md', 'D:/工作/笔记.md', '\\\\server\\share\\notes.md']
+const fileReferenceCalls = [
+  ...harnessModelCalls.slice(0, 2).map(call => ({ ...call, params: { ...call.params, selection: { providerId: 'p', modelId: 'm' }, references: [{ path: '/private/client-contract.md', name: 'client-contract.md' }] } })),
+  { method: 'files.select', params: { sessionId: 's' } },
+]
+// These messages originate in HarnessStore's file resolution, and Electron prefixes IPC failures.
+const fileReferenceFailures = [
+  { source: '引用文件不存在：', recovery: '引用文件已不可读取，请重新选择文件后发送。' },
+  { source: '引用文件过大：', recovery: '引用文件超过大小限制，请选择较小的文本文件。' },
+  { source: '不支持引用二进制文件：', recovery: '无法引用二进制文件，请选择文本文件。' },
+]
+const workspaceFileFailures = [
+  { source: '文件或目录不存在', recovery: '文件或目录已不存在，请刷新文件列表后重试。' },
+  { source: '目标不是目录', recovery: '该路径不是目录，请刷新文件列表后重试。' },
+  { source: '目标不是文件', recovery: '该路径不是可预览的文件，请选择文本文件。' },
+  { source: '文件过大，暂不支持预览', recovery: '文件超过预览大小限制，请使用外部应用打开。' },
+  { source: '暂不支持预览二进制文件', recovery: '该文件不是可预览的文本文件，请使用外部应用打开。' },
+  { source: '路径无效', recovery: '文件路径无效，请刷新文件列表后重试。' },
+  { source: '路径不能离开工作目录', recovery: '无法读取工作目录以外的文件，请选择目录内的文件。' },
+  { source: '没有权限读取文件或目录', recovery: '没有权限读取该文件或目录，请检查系统访问权限后重试。' },
+]
 
 function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
   const api = {
@@ -153,5 +183,190 @@ describe('first-party capability bridge', () => {
     await expect(entry.request('harness.browser.control', { sessionId: 's', action: 'openDevTools' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(entry.request('harness.terminal.resize', { sessionId: 's', terminalId: 't', columns: 100, rows: 30 })).resolves.toEqual({ method: 'terminal.resize' })
     await expect(entry.request('harness.terminal.resize', { sessionId: 's', terminalId: 't', columns: 1, rows: 30 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
+
+  it('validates session-scoped Git status and exact ignored paths without forwarding filesystem or command controls', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.files.git-status', { sessionId: 's', root: '/private/injected', command: 'reset' })).resolves.toEqual({ method: 'files.git-status' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.git-status', { sessionId: 's' })
+    const paths = ['src/中文 file.ts', 'src/line\nbreak.ts', '-file', ':literal*', 'src/中文 file.ts']
+    await expect(entry.request('harness.files.git-ignored', { sessionId: 's', paths, root: '/private/injected' })).resolves.toEqual({ method: 'files.git-ignored' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.git-ignored', { sessionId: 's', paths: paths.slice(0, -1) })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
+    for (const paths of [undefined, null, {}, Array(513).fill('src/a'), [''], ['../secret'], ['/secret'], ['C:\\secret'], ['file:/secret'], ['bad\0path'], ['a'.repeat(2049)]]) {
+      await expect(entry.request('harness.files.git-ignored', { sessionId: 's', paths })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+    const denied = bridge({ appId: 'other-app', capabilities: ['harness:workbench'] })
+    await expect(denied.request('harness.files.git-status', { sessionId: 's' })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  })
+
+  it.each(['files.git-status', 'files.git-ignored'])('%s removes unknown Git stderr and path details', async method => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('fatal: private /Users/example/repo credential detail'))
+    await expect(entry.request(`harness.${method}`, { sessionId: 's', paths: ['src/a'] })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: 'Git 状态读取失败，请检查 Git 是否安装或稍后刷新重试。' })
+  })
+
+  it.each([
+    ['Git 未安装或不可用', 'Git 未安装或不可用，请安装 Git 后重试。'],
+    ['Git 输出超过 8 MiB 限制，请缩小工作目录', 'Git 输出超过 8 MiB 限制，请缩小工作目录后重试。'],
+    ['Git 状态读取超时，请重试', 'Git 状态读取超时，请重试。'],
+    ['Git 状态读取繁忙，请稍后重试', 'Git 状态读取繁忙，请稍后重试。'],
+    ['Git 元数据不能使用符号链接', 'Git 元数据不能使用符号链接，请选择正常的 Git 工作目录。'],
+    ['Git 状态读取失败，请重试', 'Git 状态读取失败，请重试。'],
+  ])('maps the safe Git recovery message %s for both readers', async (failure, recovery) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValue(new Error(`Error invoking remote method 'platform:first-party-harness': Error: ${failure}`))
+    for (const method of ['files.git-status', 'files.git-ignored']) {
+      await expect(entry.request(`harness.${method}`, { sessionId: 's', paths: ['src/a'] })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: recovery })
+    }
+  })
+
+  it('validates bounded workspace search requests and forwards only session-scoped search fields', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.files.search', { sessionId: 's', query: 'src/hwb', root: '/private/injected', refresh: true })).resolves.toEqual({ method: 'files.search' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.search', { sessionId: 's', query: 'src/hwb', refresh: true })
+    await expect(entry.request('harness.files.search', { sessionId: 's', query: '' })).resolves.toEqual({ method: 'files.search' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.search', { sessionId: 's', query: '', refresh: false })
+    await expect(entry.request('harness.files.search', { sessionId: 's', query: 'x'.repeat(256) })).resolves.toEqual({ method: 'files.search' })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
+    for (const query of [undefined, null, 42, ['src'], 'x'.repeat(257), 'src\0index', 'src\nindex', 'src\tindex']) {
+      await expect(entry.request('harness.files.search', { sessionId: 's', query })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    for (const refresh of [null, 'true', 1]) await expect(entry.request('harness.files.search', { sessionId: 's', query: 'src', refresh })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(entry.request('harness.files.search', { sessionId: '', query: 'src' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+    for (const overrides of [{ capabilities: [] }, { appId: 'other-app' }]) {
+      const denied = bridge(overrides)
+      await expect(denied.request('harness.files.search', { sessionId: 's', query: 'src' })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+      expect(denied.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+    }
+  })
+
+  it.each(['工作目录搜索未完成', 'private /Users/example/project I/O detail', "Error invoking remote method 'platform:first-party-harness': Error: private /Users/example/project I/O detail"])('sanitizes workspace search failures: %s', async source => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(source))
+    await expect(entry.request('harness.files.search', { sessionId: 's', query: 'src' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: '工作目录搜索未完成，请检查目录访问权限后重试。' })
+  })
+
+  it.each(harnessModelCalls)('$method preserves every supported reasoning level and strips untrusted model fields', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const thinkingLevel of ['off', 'low', 'medium', 'high', undefined]) {
+      const selection = { providerId: 'p', modelId: 'm', ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }
+      await expect(entry.request(`harness.${method}`, { ...params, selection: { ...selection, apiKey: 'injected', endpoint: 'https://injected.invalid' } })).resolves.toEqual({ method })
+      expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', method, expect.objectContaining({ selection }))
+    }
+  })
+
+  it.each(harnessModelCalls)('$method rejects invalid reasoning levels before invoking the host', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const thinkingLevel of ['minimal', 'xhigh', 'max', 'ultra', 'Medium', '', 'high\0', null, false, 1, ['high']]) {
+      await expect(entry.request(`harness.${method}`, { ...params, selection: { providerId: 'p', modelId: 'm', thinkingLevel } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    for (const selection of [{ providerId: 'p\0', modelId: 'm' }, { providerId: 'p', modelId: 'm\0' }]) {
+      await expect(entry.request(`harness.${method}`, { ...params, selection })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+  })
+
+  it.each(harnessModelCalls.slice(0, 2))('$method accepts native picker attachments without granting workspace browsing access', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const path of [...selectedFilePaths, 'docs/a.md', 'docs\\a.md']) {
+      const references = [{ path, name: 'notes.md', content: 'injected', extra: 'ignored' }]
+      await expect(entry.request(`harness.${method}`, { ...params, references, selection: { providerId: 'p', modelId: 'm' } })).resolves.toEqual({ method })
+      expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', method, expect.objectContaining({ references: [{ path, name: 'notes.md' }] }))
+    }
+  })
+
+  it.each(harnessModelCalls.slice(0, 2))('$method rejects malformed, traversing and oversized attachment requests', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const request = (references: unknown) => entry.request(`harness.${method}`, { ...params, references, selection: { providerId: 'p', modelId: 'm' } })
+    for (const path of ['', ' ', '../secret', 'docs/../secret', 'docs\\..\\secret', 'C:notes.md', '\\notes.md', '\\\\server', '/tmp/note\0.md', 'note\0.md', 'a'.repeat(2049), null, 42]) {
+      await expect(request([{ path, name: 'notes.md' }])).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    for (const references of [null, 'notes.md', [null], [{ path: 'note.md', name: 'a'.repeat(513) }], [{ path: 'note.md', name: 'note\0.md' }], ...[13, 33].map(length => Array.from({ length }, (_, index) => ({ path: `note-${index}.md`, name: 'note.md' })))]) {
+      await expect(request(references)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+    await expect(request(Array.from({ length: 12 }, (_, index) => ({ path: `note-${index}.md`, name: 'note.md' })))).resolves.toEqual({ method })
+  })
+
+  it.each(fileReferenceCalls.flatMap(call => fileReferenceFailures.flatMap(failure => [false, true].map(wrapped => ({ ...call, ...failure, wrapped })))))('$method sanitizes $source (Electron wrapper: $wrapped) into an actionable attachment error', async ({ method, params, source, recovery, wrapped }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const privatePath = '/Users/mira/private-project/client-contract.md'
+    const message = `${source}${privatePath}`
+    const error = new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${message}` : message)
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(error)
+
+    const result = await entry.request(`harness.${method}`, params).catch(error => error)
+    expect(result).toBeInstanceOf(FirstPartyBridgeError)
+    expect(result).toMatchObject({ code: 'FILE_REFERENCE_FAILED', message: recovery })
+    expect(result.message).not.toContain(privatePath)
+    expect(result.message).not.toContain('platform:first-party-harness')
+    expect(result.stack).not.toContain(privatePath)
+  })
+
+  it.each(fileReferenceCalls)('$method preserves unknown host failures for the frame error boundary', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const stackOnly = new Error('文件读取失败')
+    stackOnly.stack += '\n引用文件不存在：/private/client-contract.md'
+    for (const error of [new Error('模型请求失败：token=private'), 'host unavailable', { message: '引用文件不存在：/private/client-contract.md' }, stackOnly]) {
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(error)
+      await expect(entry.request(`harness.${method}`, params)).rejects.toBe(error)
+    }
+  })
+
+  it.each([
+    { method: 'sessions.list', params: {} },
+    { method: 'files.list', params: { sessionId: 's', path: 'src' } },
+    { method: 'files.read', params: { sessionId: 's', path: 'src/main.ts' } },
+    { method: 'terminal.write', params: { sessionId: 's', terminalId: 't', data: '\r' } },
+    { method: 'run.rerun', params: { sessionId: 's', selection: { providerId: 'p', modelId: 'm' } } },
+  ])('$method does not reinterpret file-like failures from unrelated host operations', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const { source } of fileReferenceFailures) {
+      const error = new Error(`Error invoking remote method 'platform:first-party-harness': Error: ${source}/private/client-contract.md`)
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(error)
+      await expect(entry.request(`harness.${method}`, params)).rejects.toBe(error)
+    }
+  })
+
+  it.each(['files.list', 'files.read'])('%s still rejects absolute paths, traversal and NUL', async method => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const path of [...selectedFilePaths, '../secret', 'docs/../secret', 'docs\\..\\secret', 'note\0.md']) {
+      await expect(entry.request(`harness.${method}`, { sessionId: 's', path })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+  })
+
+  it.each(['files.list', 'files.read'].flatMap(method => workspaceFileFailures.flatMap(failure => [false, true].map(wrapped => ({ method, ...failure, wrapped })))))('$method maps $source (Electron wrapper: $wrapped) to a safe workspace error', async ({ method, source, recovery, wrapped }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const message = wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${source}` : source
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(message))
+    await expect(entry.request(`harness.${method}`, { sessionId: 's', path: 'note.md' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: recovery })
+  })
+
+  it.each(['files.list', 'files.read'])('%s keeps unknown errors and path-bearing messages for the frame sanitizer', async method => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const stackOnly = new Error('private I/O failure')
+    stackOnly.stack += '\n文件或目录不存在'
+    for (const error of [new Error('模型请求失败：token=private'), new Error('文件或目录不存在：/private/note.md'), { message: '文件或目录不存在' }, '文件或目录不存在', stackOnly]) {
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(error)
+      await expect(entry.request(`harness.${method}`, { sessionId: 's', path: 'note.md' })).rejects.toBe(error)
+    }
+  })
+
+  it('forwards raw terminal control and whitespace input while keeping terminal IDs and input bounds validated', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const data of ['\0', '\r', '\n', '\t', ' ', '\u0003', '\u001b[A']) {
+      await expect(entry.request('harness.terminal.write', { sessionId: 's', terminalId: 't', data })).resolves.toEqual({ method: 'terminal.write' })
+      expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'terminal.write', { sessionId: 's', terminalId: 't', data })
+    }
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
+    for (const params of [{ sessionId: 's\0', terminalId: 't', data: '\0' }, { sessionId: 's', terminalId: 't\0', data: '\0' }, { sessionId: 's', terminalId: 't', data: '' }, { sessionId: 's', terminalId: 't', data: 'x'.repeat(100_001) }]) {
+      await expect(entry.request('harness.terminal.write', params)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    for (const data of [null, false, 42, ['raw']]) await expect(entry.request('harness.terminal.write', { sessionId: 's', terminalId: 't', data })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
   })
 })

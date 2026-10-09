@@ -5,15 +5,17 @@ import type { PlatformDatabase } from '../storage/database'
 import type { HarnessRuntime } from '../services/harnessRuntime'
 import type { McpConfigStore } from '../storage/mcpConfigStore'
 import type { PythonEnvironment } from '../adapters/pythonEnv'
+import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
 
 export interface HarnessSessionIpcDependencies {
   database: PlatformDatabase
   harnessRuntime: HarnessRuntime
   mcpConfigStore: McpConfigStore
   pythonEnvironment: PythonEnvironment
+  workspaceWatch?: HarnessWorkspaceWatch
 }
 
-export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mcpConfigStore, pythonEnvironment }: HarnessSessionIpcDependencies) {
+export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mcpConfigStore, pythonEnvironment, workspaceWatch }: HarnessSessionIpcDependencies) {
   ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
   ipcMain.handle('harness:query-history', (_event, query) => database.queryHarnessHistory(query))
   ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
@@ -38,12 +40,28 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:reorder-projects', (_event, ids: string[]) => database.harness.reorderProjects(ids))
   ipcMain.handle('harness:reorder-sessions', (_event, scope, ids: string[]) => database.harness.reorderSessions(scope, ids))
   ipcMain.handle('harness:set-unread', (_event, id: string, unread: boolean) => database.harness.setUnread(id, unread))
-  ipcMain.handle('harness:move-session', (_event, id: string, projectId: string) => database.harness.moveSession(id, projectId))
+  ipcMain.handle('harness:move-session', (_event, id: string, projectId: string) => {
+    const session = database.harness.moveSession(id, projectId)
+    workspaceWatch?.closeForSession(id)
+    return session
+  })
   ipcMain.handle('harness:rename-session', (_event, id: string, title: string) => database.harness.renameSession(id, title))
-  ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => database.harness.archiveSessions(ids))
+  ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => {
+    const sessions = database.harness.archiveSessions(ids)
+    ids.forEach(id => workspaceWatch?.closeForSession(id))
+    return sessions
+  })
   ipcMain.handle('harness:restore-sessions', (_event, ids: string[]) => database.harness.restoreSessions(ids))
-  ipcMain.handle('harness:delete-session', (_event, id: string) => database.harness.deleteSession(id))
-  ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => database.harness.deleteSessions(ids))
+  ipcMain.handle('harness:delete-session', (_event, id: string) => {
+    const result = database.harness.deleteSession(id)
+    workspaceWatch?.closeForSession(id)
+    return result
+  })
+  ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => {
+    const result = database.harness.deleteSessions(ids)
+    ids.forEach(id => workspaceWatch?.closeForSession(id))
+    return result
+  })
   ipcMain.handle('harness:open-session-project', (_event, id: string, target: 'file-manager' | 'terminal') => {
     const session = database.harness.getSession(id)
     const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
@@ -73,7 +91,10 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:attach-directory', async (event, sessionId: string) => {
     const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
     const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择工作目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择工作目录' })
-    return result.canceled ? null : database.harness.attachDirectory(sessionId, result.filePaths[0])
+    if (result.canceled) return null
+    const session = database.harness.attachDirectory(sessionId, result.filePaths[0])
+    workspaceWatch?.closeForSession(sessionId)
+    return session
   })
   ipcMain.handle('harness:run-message', (event, sessionId: string, message: string, references: HarnessFileReference[] = [], selection, planning = false) => harnessRuntime.runMessage(event.sender, sessionId, message, references, selection, Boolean(planning)))
   ipcMain.handle('harness:confirm-plan', (event, sessionId: string, planId: string, selection) => harnessRuntime.confirmPlan(event.sender, sessionId, planId, selection))

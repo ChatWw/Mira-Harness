@@ -196,6 +196,9 @@ export interface PlatformApi {
   abortAutomationRun(taskId: string): Promise<void>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
+  readHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
+  transformHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, transform: import('@/config/harness').HarnessWorkspaceSearchIgnoreTransform): Promise<{ content: string }>
+  writeHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, revision: string): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
   setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
   setHarnessActiveSkills(id: string, skillIds: string[]): Promise<import('@/config/harness').HarnessSession>
   setHarnessActiveMcpServers(id: string, serverIds: string[]): Promise<import('@/config/harness').HarnessSession>

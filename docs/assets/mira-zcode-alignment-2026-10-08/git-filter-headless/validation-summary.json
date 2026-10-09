@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-09",
+  "timezone": "Asia/Shanghai",
+  "kind": "Observed command outcomes, not raw logs",
+  "fullSuite": {
+    "command": "npx vitest run --maxWorkers=2",
+    "startedAtLocal": "2026-10-09 11:57:48",
+    "exitCode": 0,
+    "filesPassed": 96,
+    "testsPassed": 928,
+    "durationSeconds": 12.71,
+    "workers": 2
+  },
+  "focusedSuite": {
+    "command": "npx vitest run tests/harnessReactFileGit.test.ts tests/harnessReactFileDrawer.test.ts --maxWorkers=2",
+    "startedAtLocal": "2026-10-09 11:57:17",
+    "exitCode": 0,
+    "filesPassed": 2,
+    "testsPassed": 51
+  },
+  "refreshRegressionBeforeFix": {
+    "startedAtLocal": "2026-10-09 11:56:54",
+    "exitCode": 1,
+    "testsFailed": 2,
+    "testsPassed": 49,
+    "scope": "Retain last successful Git view during refresh; drawer rows remain mounted",
+    "sourceReverted": false,
+    "notWholeSliceRedGreen": true
+  },
+  "types": [
+    { "command": "npx tsc --noEmit -p apps/harness-react/tsconfig.json", "exitCode": 0 },
+    { "command": "npx vue-tsc --noEmit", "exitCode": 0 }
+  ],
+  "builds": [
+    { "command": "npm run harness:build", "exitCode": 0, "scope": "Final React source after refresh fix" },
+    { "command": "npx electron-vite build", "exitCode": 0, "scope": "Electron/Vue compilation; their sources unchanged by later React-only refresh fix" }
+  ],
+  "boundaries": "Two-worker regression and compilation only. Native Electron/Vue, physical input, actual grant, packaging, Windows and overall P0-P3 remain unaccepted."
+}

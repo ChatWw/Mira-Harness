@@ -9,14 +9,17 @@ import { registerMcpIpcHandlers } from './ipc/mcpIpc'
 import { registerModelIpcHandlers } from './ipc/modelIpc'
 import { registerHarnessProjectIpcHandlers } from './ipc/harnessProjectIpc'
 import { registerHarnessSessionIpcHandlers } from './ipc/harnessSessionIpc'
+import { registerHarnessWorkspaceIgnoreIpcHandlers } from './ipc/harnessWorkspaceIgnoreIpc'
 import { MiraPaths } from './storage/miraPaths'
 import { createMainWindow, destroyTray, setupApplicationMenu, setupDevelopmentDockIcon, setupWindowsTray, showMainWindow } from './bootstrap/windowManager'
 import { type HarnessEvent } from '../src/config/harness'
 import { HarnessTerminalSessions } from './services/harnessTerminalSessions'
+import { HarnessWorkspaceWatch } from './services/harnessWorkspaceWatch'
 
 let isQuitting = false
 let services: PlatformServices | undefined
 const terminalSessions = new HarnessTerminalSessions()
+const workspaceWatch = new HarnessWorkspaceWatch()
 const testHome = !app.isPackaged && process.env.MIRA_TEST_HOME ? resolve(process.env.MIRA_TEST_HOME) : undefined
 const legacyUserDataPath = testHome ? join(testHome, 'legacy-user-data') : app.getPath('userData')
 const miraPaths = new MiraPaths(testHome ?? app.getPath('home')).ensure()
@@ -38,13 +41,14 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
-  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, localMicroAppServer: services.localMicroAppServer, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, mcpConfigStore: services.mcpConfigStore })
+  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, localMicroAppServer: services.localMicroAppServer, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore })
   registerNovelIpcHandlers({ database: services.database })
   registerAutomationIpcHandlers({ database: services.database, automationScheduler: services.automationScheduler, cleanupExpiredTrash: services.cleanupExpiredTrash })
   registerMcpIpcHandlers({ mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager })
   registerModelIpcHandlers({ database: services.database })
-  registerHarnessProjectIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, automationScheduler: services.automationScheduler, miraPaths })
-  registerHarnessSessionIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, mcpConfigStore: services.mcpConfigStore, pythonEnvironment: services.pythonEnvironment })
+  registerHarnessProjectIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, automationScheduler: services.automationScheduler, miraPaths, workspaceWatch })
+  registerHarnessSessionIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, mcpConfigStore: services.mcpConfigStore, pythonEnvironment: services.pythonEnvironment, workspaceWatch })
+  registerHarnessWorkspaceIgnoreIpcHandlers(services.database)
   // Windows uses application-drawn controls, so theme transitions no longer touch native title-bar chrome.
   registerWindowIpcHandlers()
   setupApplicationMenu()
@@ -62,4 +66,5 @@ app.on('before-quit', () => {
   services?.automationScheduler.stop()
   void services?.localMicroAppServer.stop()
   terminalSessions.closeAll()
+  workspaceWatch.closeAll()
 })

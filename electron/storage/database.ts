@@ -81,7 +81,24 @@ export class PlatformDatabase {
     this.automations = new AutomationStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
-    this.harness.removeEmptySessions()
+    // 选择附件会先创建会话；未发送的持久草稿仍需通过原会话恢复，不能当作旧空白会话清理。
+    this.harness.removeEmptySessions(this.harnessDraftSessionIds())
+  }
+
+  private harnessDraftSessionIds(): ReadonlySet<string> {
+    const retained = new Set<string>()
+    const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.harness-react-composer-drafts') as { value: string } | undefined
+    let snapshot: { drafts?: unknown; fileDrafts?: unknown } | null
+    try { snapshot = JSON.parse(row?.value ?? 'null') } catch { return retained }
+    const entries = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : []
+    for (const [id, text] of entries(snapshot?.drafts)) {
+      if (id && typeof text === 'string' && text.trim()) retained.add(id)
+    }
+    for (const [id, files] of entries(snapshot?.fileDrafts)) {
+      if (id && Array.isArray(files) && files.some(file => file && typeof file === 'object' && !Array.isArray(file)
+        && typeof file.path === 'string' && file.path.trim() && typeof file.name === 'string' && file.name.trim())) retained.add(id)
+    }
+    return retained
   }
 
   private migrate() {

@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-09",
+  "kind": "Observed command outcomes recorded by the main agent; not raw stdout logs",
+  "repository": "/Volumes/VrenDisk/project/Mira/Mira-Harness",
+  "branch": "codex/mira-harness-first-slice",
+  "updatedLocal": "2026-10-09 13:32 Asia/Shanghai",
+  "status": "Authorization await gap and Vue proxy transport fixed; actual isolated Electron read bridge/DOM probe passed; final automated checks and current documentation consistency review passed; native input blocked by macOS loginwindow; whole goal not released",
+  "historicalCommands": [
+    { "command": "npx vitest run --maxWorkers=2", "startedLocal": "2026-10-09 12:38:20 Asia/Shanghai", "files": 100, "tests": 1027, "durationSeconds": 15.51, "exitCode": 0, "scope": "Before later authorization changes and failing regression; not current source release evidence" },
+    { "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-headless/mira-bundle-audit.mjs", "exitCode": 0, "auditTimestamp": "2026-10-09T04:38:55.569Z", "scope": "Historical React artifact audit; final audit rerun below" }
+  ],
+  "authorizationFixCommands": [
+    { "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t 'rejects revocation during awaited commit checks' --maxWorkers=2", "startedLocal": "2026-10-09 12:48:56 Asia/Shanghai", "filesFailed": 1, "testsFailed": 1, "testsSkipped": 28, "exitCode": 1, "scope": "Actual pre-fix regression: unauthorized write resolved replacement instead of rejecting" },
+    { "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts tests/harnessWorkspaceSearchIgnore.test.ts tests/harnessWorkspaceIgnoreIpc.test.ts tests/harnessSearchIgnoreEditor.test.ts tests/harnessWorkspaceFiles.test.ts --maxWorkers=2", "startedLocal": "2026-10-09 12:49:40 Asia/Shanghai", "files": 5, "tests": 160, "durationSeconds": 0.754, "exitCode": 0 },
+    { "command": "npx vitest run --maxWorkers=2", "startedLocal": "2026-10-09 12:51:08 Asia/Shanghai", "files": 100, "tests": 1035, "durationSeconds": 13.69, "exitCode": 0 },
+    { "command": "npx vue-tsc --noEmit", "exitCode": 0 },
+    { "command": "npx tsc --noEmit -p apps/harness-react/tsconfig.json", "exitCode": 0 },
+    { "command": "npm run harness:build", "exitCode": 0, "bundlerMilliseconds": 286, "tailwindMilliseconds": 106 },
+    { "command": "npx electron-vite build", "exitCode": 0, "mainModules": 66, "preloadModules": 8, "rendererModules": 2447, "rendererBuildSeconds": 5.95, "warnings": "Existing PURE annotation and static/dynamic icon-import warnings; no installable package created" },
+    { "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-headless/mira-search-ignore-headless.mjs", "exitCode": 0, "resultTimestamp": "2026-10-09T04:35:34.750Z", "requests": 15, "records": 11, "screenshots": 7, "pageErrors": [], "scope": "Retained pre-authorization-fix capture; actual unchanged Vue source and isolated helpers, HTTP fixture instead of preload/IPC; not rerun or native Electron" },
+    { "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-headless/mira-bundle-audit.mjs", "exitCode": 0, "auditTimestamp": "2026-10-09T04:51:47.447Z", "jsHashMatches": 287, "dynamicTargets": 239, "licenseCopies": 9 },
+    { "command": "git diff --check", "exitCode": 0 }
+  ],
+  "commands": [
+    { "command": "npx vitest run --maxWorkers=2", "startedLocal": "2026-10-09 13:21:45 Asia/Shanghai", "files": 100, "tests": 1036, "durationSeconds": 12.79, "exitCode": 0 },
+    { "command": "npx vue-tsc --noEmit", "exitCode": 0 },
+    { "command": "npx tsc --noEmit -p apps/harness-react/tsconfig.json", "exitCode": 0 },
+    { "command": "npm run harness:build", "exitCode": 0, "bundlerMilliseconds": 247, "tailwindMilliseconds": 106 },
+    { "command": "npx electron-vite build", "exitCode": 0, "mainModules": 66, "preloadModules": 8, "rendererModules": 2447, "rendererBuildSeconds": 5.40, "warnings": "Existing PURE annotation and static/dynamic icon-import warnings; no installable package created" },
+    { "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-headless/mira-bundle-audit.mjs", "exitCode": 0, "auditTimestamp": "2026-10-09T05:23:15.005Z", "jsHashMatches": 287, "dynamicTargets": 239, "licenseCopies": 9 },
+    { "command": "git diff --check", "exitCode": 0 }
+  ],
+  "electronBridgeProbe": {
+    "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-electron-bridge-probe.mjs",
+    "timestamp": "2026-10-09T05:14:15.158Z",
+    "passed": true,
+    "scope": "Retained actual compiled isolated Electron renderer/preload/contextBridge/read IPC and DOM probe; proxy rejected, plain read succeeds, editor matches real response. No native input/capture or save workflow. Not rerun in this continuation.",
+    "artifact": "../search-ignore-native/bridge-transport-results.json"
+  },
+  "nativeAttempt": {
+    "command": "node docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs /tmp/mira-native-ignore-aSLqrz",
+    "timestamp": "2026-10-09T05:21:44.528Z",
+    "exitCode": 1,
+    "status": "blocked",
+    "blockedBy": "macOS-loginwindow",
+    "actions": 0,
+    "captures": 0,
+    "scope": "Guard stopped before fixture creation or input; environment blocker, not a feature pass or failure",
+    "artifact": "../search-ignore-native/results.json"
+  },
+  "documentationReview": {
+    "updatedLocal": "2026-10-09 13:32 Asia/Shanghai",
+    "status": "current-documentation-pass",
+    "scope": "Independent read-only evidence/JSON consistency review and current phase-document paragraph spot checks; no native input, screenshots, probe rerun or whole-product release",
+    "documenterLocalLinksAndAnchors": 143,
+    "evidenceReviewerLocalLinks": 26,
+    "probeArtifactHashesMatchCurrentBuild": 3
+  },
+  "boundaries": "Actual Electron read bridge probe is distinct from HTTP fixture and native mouse/keyboard. Desktop locked; native full workflow/grant lifecycle, foreground ZCode parity, installable package, Windows, real model, startup performance and overall P0-P3 not released. No commit or push."
+}

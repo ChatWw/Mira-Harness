@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-10-09",
+  "kind": "headless-browser-fixture-not-native-electron",
+  "files": [
+    {
+      "path": "mira-image-light.png",
+      "sha256": "981c9a37d5ca18f9c96419d252fe9edcc96893d73fe23b9e121cda43512e13d2"
+    },
+    {
+      "path": "mira-image-dark.png",
+      "sha256": "330ec864f2c43ee4ac837e8532417aa858323c3fd0fb4d5cb1fdea46119286b8"
+    },
+    {
+      "path": "mira-image-decode-error.png",
+      "sha256": "f62be1deee81bb2048abf3f804189c2f894b9e07af9aa169a21a3d0ac922ac23"
+    },
+    {
+      "path": "mira-svg-preview.png",
+      "sha256": "2b41c20a939d69448832da8bb3320d49421d97a3ddd0a8595cfe5f8042623061"
+    },
+    {
+      "path": "mira-svg-source.png",
+      "sha256": "6b16f281dd06aa99fce1cd54a9dc4dd1b34a4a8fa30c32db2b4dbc4f662cb9cb"
+    },
+    {
+      "path": "mira-image-read-error.png",
+      "sha256": "a0f3aed855a659eabb51c64c19b95b53303a47b70cfde71aaf307180e45aae6a"
+    },
+    {
+      "path": "results.json",
+      "sha256": "8827f4dc9b7909b6db390882ef285480f3a3523dba9ab43680acfc9af1b3c523"
+    },
+    {
+      "path": "mira-image-preview-headless.mjs",
+      "sha256": "922d0aa636108ba46e0fa4e2710544617c0db4377425396843dfc877d75f58d8"
+    }
+  ]
+}

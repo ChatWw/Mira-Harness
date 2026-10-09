@@ -1,0 +1,284 @@
+{
+  "startedAt": "2026-10-09T05:41:37.419Z",
+  "scope": "Isolated headless desktop Chromium profile of current source; Worker prototype only. No production source/build mutation, Electron, native input, user database or ZCode GUI acceptance.",
+  "errors": [],
+  "network": [
+    {
+      "path": "/stdin.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/stdin.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-WOT6VMZA.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": null,
+      "headers": {},
+      "status": 200
+    },
+    {
+      "path": "/worker.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-JZXLCA2E.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-UDPUNM6J.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-P64POOWM.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-CILON7YJ.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-6R3KEE7K.js",
+      "origin": "null",
+      "headers": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-ZN4KE27R.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-4T7FALF3.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-PAE5DQWI.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-DULTPPVM.mjs",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-light-UDPUNM6J.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/github-dark-P64POOWM.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/typescript-CILON7YJ.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    },
+    {
+      "path": "/chunk-6R3KEE7K.js",
+      "origin": "http://127.0.0.1:49579",
+      "headers": {
+        "Access-Control-Allow-Origin": "http://127.0.0.1:49579"
+      },
+      "status": 200
+    }
+  ],
+  "messages": [
+    {
+      "type": "error",
+      "message": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "passed": false,
+  "runtime": "154.0.8037.99",
+  "loaders": {
+    "opaque": {
+      "origin": "http://127.0.0.1:49579",
+      "isolated": true,
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      },
+      "moduleImport": {
+        "ready": false,
+        "error": "worker-error",
+        "message": ""
+      }
+    },
+    "host": {
+      "origin": "http://127.0.0.1:49579",
+      "isolated": false,
+      "classicBlob": {
+        "ready": true
+      },
+      "moduleBlob": {
+        "ready": true
+      },
+      "moduleImport": {
+        "ready": true
+      }
+    }
+  },
+  "loader": {
+    "direct": {
+      "created": true
+    },
+    "blobModuleReady": true,
+    "origin": "http://127.0.0.1:49579",
+    "sandbox": false
+  },
+  "cases": [
+    {
+      "name": "cold-typescript",
+      "baseline": {
+        "elapsedMs": 58.70000000298023,
+        "maxTimerGapMs": 55.5,
+        "timerSamples": 12,
+        "longTasks": [
+          {
+            "start": 139.5,
+            "duration": 53
+          }
+        ],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931"
+      },
+      "workerPrototype": {
+        "elapsedMs": 54.29999999701977,
+        "maxTimerGapMs": 6.799999997019768,
+        "timerSamples": 21,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "bb676a7dd08266438de849bcddb84f9b69e269404f671d64a4a8e5785777e931",
+        "equal": true
+      },
+      "equal": true
+    },
+    {
+      "name": "warm-typescript",
+      "baseline": {
+        "elapsedMs": 1,
+        "maxTimerGapMs": 6.300000011920929,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944"
+      },
+      "workerPrototype": {
+        "elapsedMs": 1.2999999970197678,
+        "maxTimerGapMs": 6.300000011920929,
+        "timerSamples": 10,
+        "longTasks": [],
+        "codeCharacters": 47,
+        "lineCount": 2,
+        "tokenCount": 14,
+        "themedTokens": 14,
+        "digest": "12f4bb080712b0a327d31c5406a7d6e003a9b93337cc8e9036f9934f60059944",
+        "equal": true
+      },
+      "equal": true
+    }
+  ],
+  "error": "page.evaluate: Error: Worker token/style mismatch\n    at Object.prototype (http://127.0.0.1:49579/stdin.js:152:43522)\n    at async <anonymous>:337:30\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/mira-highlight-profile.mjs:136:40",
+  "finishedAt": "2026-10-09T05:41:42.221Z"
+}

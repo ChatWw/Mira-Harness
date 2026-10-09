@@ -1,0 +1,324 @@
+{
+  "checks": [
+    {
+      "at": "2026-10-09T03:56:49.005Z",
+      "name": "mira-menu-refresh-before-fix.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:56:49.009Z",
+      "name": "deleted-menu-during-refresh",
+      "deletedRowPresent": false,
+      "menuPresent": false,
+      "copiedDuringLoading": false,
+      "passed": false,
+      "statusHeldUntilAfterCopy": true,
+      "notification": "explicit-protocol-fixture-not-native-watch"
+    },
+    {
+      "at": "2026-10-09T03:56:49.010Z",
+      "name": "result",
+      "passed": false,
+      "mode": "deleted-menu-refresh-before-fix",
+      "error": "AssertionError [ERR_ASSERTION]: Headless interaction acceptance failures\n+ actual - expected\n\n+ [\n+   'deleted-menu-during-refresh'\n+ ]\n- []\n\n    at file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-file-filter-headless.mjs:359:10",
+      "pageErrors": []
+    }
+  ],
+  "requests": [
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:56:47.371Z"
+    },
+    {
+      "method": "harness.projects.list",
+      "at": "2026-10-09T03:56:47.372Z"
+    },
+    {
+      "method": "harness.providers.list",
+      "at": "2026-10-09T03:56:47.372Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:56:47.392Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      },
+      "at": "2026-10-09T03:56:47.392Z"
+    },
+    {
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      },
+      "at": "2026-10-09T03:56:47.393Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      },
+      "at": "2026-10-09T03:56:47.393Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      },
+      "at": "2026-10-09T03:56:47.394Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      },
+      "at": "2026-10-09T03:56:47.394Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      },
+      "at": "2026-10-09T03:56:47.400Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      },
+      "at": "2026-10-09T03:56:47.401Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:56:47.403Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.404Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.405Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.405Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.417Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:56:47.420Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:56:47.485Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.486Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T03:56:47.486Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:56:47.487Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:56:47.519Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:56:47.537Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T03:56:47.656Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:56:47.816Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:47.817Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:56:47.862Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:56:47.881Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:56:48.516Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:56:48.516Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:56:49.007Z"
+    }
+  ],
+  "pageErrors": [],
+  "interactionFailures": [
+    "deleted-menu-during-refresh"
+  ]
+}

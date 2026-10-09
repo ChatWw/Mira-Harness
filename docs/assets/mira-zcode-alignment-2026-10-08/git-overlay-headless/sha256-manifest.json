@@ -1,0 +1,62 @@
+[
+  {
+    "name": "mira-git-light.png",
+    "bytes": 62597,
+    "mtime": "2026-10-09T03:10:42.018Z",
+    "sha256": "9d49a494679f1dd5e29a516d6a815fd1e7f17350623d4717dd0ce48ddb9c2d38"
+  },
+  {
+    "name": "mira-git-dark.png",
+    "bytes": 62759,
+    "mtime": "2026-10-09T03:10:42.338Z",
+    "sha256": "dc9d2722e2b03c02a2821be402fe79f75409647a4770c01e0d8aef4be36a2e7f"
+  },
+  {
+    "name": "mira-git-light-error.png",
+    "bytes": 86036,
+    "mtime": "2026-10-09T03:10:44.671Z",
+    "sha256": "2c2b5804086bedd7bed13a976b0bcbe0f798d846b346551bc37900acd15ae2f4"
+  },
+  {
+    "name": "mira-git-dark-error.png",
+    "bytes": 86635,
+    "mtime": "2026-10-09T03:10:44.349Z",
+    "sha256": "8b444ed1925eda6f41cbca5a88f592a15d9f83d30b5bb2f976d42180e57f5635"
+  },
+  {
+    "name": "mira-git-nonrepo.png",
+    "bytes": 51401,
+    "mtime": "2026-10-09T03:10:45.658Z",
+    "sha256": "431c3ab6ee7241c07a9ce391666eca7ac59c3d18f7d198e98f353eca0657dccd"
+  },
+  {
+    "name": "mira-git-desktop-1710.png",
+    "bytes": 89051,
+    "mtime": "2026-10-09T03:10:46.181Z",
+    "sha256": "d097e27e3a13142c9d77c7af356977cceac5562fc294285097f4f3158a93e030"
+  },
+  {
+    "name": "mira-git-desktop-1280.png",
+    "bytes": 74901,
+    "mtime": "2026-10-09T03:10:46.526Z",
+    "sha256": "8c2d270cd48ef0628c16b84d327a82d8af30a8f5ae05c0f43ab5ac5b6affd189"
+  },
+  {
+    "name": "results.json",
+    "bytes": 45558,
+    "mtime": "2026-10-09T03:10:46.631Z",
+    "sha256": "70ec1ef66ef131df1a0d40c6f6b55fdc093dd7d1035af356020c49625cc3deb9"
+  },
+  {
+    "name": "mira-file-git-headless.mjs",
+    "bytes": 18375,
+    "mtime": "2026-10-09T03:10:38.810Z",
+    "sha256": "28018a442309a0daa2fbce71cc9ee574eb35ca84a5bf1d5ec23c168506e229d8"
+  },
+  {
+    "name": "mira-evidence-audit.mjs",
+    "bytes": 3212,
+    "mtime": "2026-10-09T03:13:46.942Z",
+    "sha256": "fcc7904b4564a6e2862344ef26b3817478db336d05296abe54c1fb5c8a9ce6ad"
+  }
+]

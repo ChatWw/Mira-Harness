@@ -15,6 +15,8 @@
 .pilot-markdown h3, .pilot-markdown h4 { font-size: 1.05em; }
 .pilot-markdown p { max-width: none; margin: 0 0 1em; white-space: normal; }
 .pilot-markdown ul, .pilot-markdown ol { margin: 0 0 1em; padding-left: 1.55em; }
+.pilot-markdown ul { list-style: disc; }
+.pilot-markdown ol { list-style: decimal; }
 .pilot-markdown li + li { margin-top: .25em; }
 .pilot-markdown blockquote { margin: 1em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--color-border); color: var(--color-foreground-subtle); }
 .pilot-markdown a { color: var(--color-brand); text-decoration: underline; text-underline-offset: 2px; }
@@ -27,7 +29,14 @@
 .pilot-markdown .markdown-code-copy:hover, .pilot-markdown .markdown-code-copy:focus-visible { border-color: var(--color-brand); color: var(--color-brand); outline: none; }
 .pilot-markdown .markdown-code-copy[data-copied='true'] { border-color: var(--color-success); color: var(--color-success); }
 .pilot-markdown pre { max-width: 100%; margin: 1em 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background-alt); }
-.pilot-markdown pre code { padding: 0; background: transparent; font-size: 12px; line-height: 1.65; }
+.pilot-markdown pre code { padding: 0; color: inherit; background: transparent; font-size: 12px; line-height: 1.65; }
+.dark .pilot-markdown .shiki, .dark .pilot-markdown .shiki span {
+  color: var(--shiki-dark, inherit) !important;
+  background-color: var(--shiki-dark-bg, transparent) !important;
+  font-style: var(--shiki-dark-font-style, inherit) !important;
+  font-weight: var(--shiki-dark-font-weight, inherit) !important;
+  text-decoration: var(--shiki-dark-text-decoration, inherit) !important;
+}
 .pilot-markdown table { width: max-content; max-width: 100%; margin: 1em 0; border-spacing: 0; border-collapse: separate; }
 .pilot-markdown th, .pilot-markdown td { min-width: 90px; padding: 7px 10px; border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); text-align: left; }
 .pilot-markdown th { color: var(--color-foreground-subtle); background: var(--color-background-alt); font-weight: 600; }

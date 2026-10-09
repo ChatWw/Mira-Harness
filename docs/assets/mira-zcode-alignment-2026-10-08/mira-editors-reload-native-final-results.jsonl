@@ -1,0 +1,18 @@
+{"phase":"scope","at":"2026-10-09T01:46:36.252Z","file":"/tmp/mira-ui-project.xsM04t/mira-watch-native-BuPTxi/nested/live.txt","path":"mira-watch-native-BuPTxi/nested/live.txt","timeOrigin":1791510151954.9,"url":"http://localhost:5173/workspace/harness-react","windows":[{"kCGWindowAlpha":1,"kCGWindowBounds":{"Height":900,"Width":1440,"X":135,"Y":42},"kCGWindowIsOnscreen":true,"kCGWindowLayer":0,"kCGWindowMemoryUsage":2432,"kCGWindowName":"Mira Harness - Mira Harness","kCGWindowNumber":2550,"kCGWindowOwnerName":"Electron","kCGWindowOwnerPID":41261,"kCGWindowSharingState":1,"kCGWindowStoreType":1}]}
+{"phase":"real-installed-icons","at":"2026-10-09T01:46:37.815Z","width":160,"names":["Finder","Trae"],"hashes":["0a769ed812f1e4910eec08a966c30cf121fa6c6dcd0703b304c7f848262c4bcc","5de5cd55ddebc43ad0491368fd49021d2381931bed821a1e7ae270c50c6d2438"]}
+{"phase":"header-selection-opens-and-saves","at":"2026-10-09T01:46:38.918Z","preferred":"mira-finder"}
+{"phase":"same-selected-editor-opens-again","at":"2026-10-09T01:46:41.066Z","passed":true}
+{"phase":"redetect-apps","at":"2026-10-09T01:46:43.233Z","passed":true}
+{"phase":"actual-textedit-save-auto-refresh","at":"2026-10-09T01:46:49.916Z","file":"/tmp/mira-ui-project.xsM04t/mira-watch-native-BuPTxi/nested/live.txt","afterAx":[{"AXRole":"AXWindow","AXTitle":"live.txt","depth":1,"position":[182,87],"size":[673,439]},{"AXRole":"AXTextArea","AXValue":"Mira actual TextEdit final save\n","depth":3,"position":[182,119],"size":[656,384]}],"preferred":"在 Finder 中打开"}
+{"phase":"preview-native-finder-reveal","at":"2026-10-09T01:46:51.017Z","passed":true}
+{"phase":"native-window-reload","at":"2026-10-09T01:46:58.463Z","iteration":1,"before":1791510151954.9,"after":1791510412146.7,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:05.682Z","iteration":2,"before":1791510412146.7,"after":1791510419620.5,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:13.153Z","iteration":3,"before":1791510419620.5,"after":1791510426932.3,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:20.764Z","iteration":4,"before":1791510426932.3,"after":1791510434305.9,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:28.349Z","iteration":5,"before":1791510434305.9,"after":1791510441924.2,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:35.807Z","iteration":6,"before":1791510441924.2,"after":1791510449508,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:42.781Z","iteration":7,"before":1791510449508,"after":1791510456939,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:50.006Z","iteration":8,"before":1791510456939,"after":1791510463923.7,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:47:57.486Z","iteration":9,"before":1791510463923.7,"after":1791510471146.9,"alerts":[]}
+{"phase":"native-window-reload","at":"2026-10-09T01:48:04.562Z","iteration":10,"before":1791510471146.9,"after":1791510478604.2,"alerts":[]}
+{"phase":"final","at":"2026-10-09T01:48:05.064Z","file":"/tmp/mira-ui-project.xsM04t/mira-watch-native-BuPTxi/nested/live.txt","tabs":["file:mira-watch-native-Lsb6Yw/nested/live.txt","file:mira-watch-native-Lsb6Yw/nested/hidden.txt","file:mira-watch-native-bvS17c/nested/live.txt","file:mira-watch-native-bvS17c/nested/hidden.txt","file:alpha/README.md","file:mira-watch-native-wGh34A/nested/live.txt","file:mira-watch-native-wGh34A/nested/hidden.txt","file:mira-watch-native-M8QOq5/nested/live.txt","file:mira-watch-native-M8QOq5/nested/hidden.txt","file:mira-watch-native-BuPTxi/nested/live.txt","file:mira-watch-native-BuPTxi/nested/hidden.txt"],"root":"/tmp/mira-ui-project.xsM04t"}

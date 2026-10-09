@@ -1,6 +1,6 @@
 /* Workspace side pane: tabs, task overview, files, changes, tools, terminal
    and the hosted browser. */
-.pilot-inspector { display: flex; min-height: 0; flex-direction: column; border-left: 1px solid var(--border); background: var(--soft); }
+.pilot-inspector { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--color-background); }
 .pilot-inspector.is-collapsed { display: none; }
 .pilot-inspector__head { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; background: var(--surface); }
 .pilot-inspector__head > div { display: grid; min-width: 0; gap: 3px; }
@@ -16,19 +16,29 @@
 .pilot-path { overflow-wrap: anywhere; }
 .pilot-open-directory { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 0; border: 0; color: var(--accent); background: transparent; font-size: 11px; }
 .pilot-open-directory:disabled { cursor: not-allowed; opacity: .45; }
-.pilot-side-tabs { display: flex; height: 45px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pilot-side-tabs { display: flex; height: 48px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 10px 8px; border-bottom: 1px solid var(--border); background: var(--color-background); }
 .pilot-side-tabs__list { display: flex; min-width: 0; flex: 1; gap: 3px; overflow-x: auto; scrollbar-width: none; }
 .pilot-side-tabs__list::-webkit-scrollbar { display: none; }
-.pilot-side-tab { display: flex; min-width: 72px; max-width: 126px; height: 31px; align-items: center; border-radius: 5px; color: var(--muted); }
+.pilot-side-tab { position: relative; display: flex; min-width: 60px; max-width: 156px; height: 28px; flex: 1 1 156px; align-items: center; border-radius: 8px; color: var(--muted); }
+.pilot-side-tab.is-dragging { z-index: 2; opacity: .85; background: var(--hover); box-shadow: var(--shadow-soft); }
 .pilot-side-tab:hover, .pilot-side-tab.is-active { background: var(--hover); }
-.pilot-side-tab.is-active { color: var(--text); }
+.pilot-side-tab.is-active { min-width: 128px; color: var(--text); }
 .pilot-side-tab.is-active .pilot-side-tab__select { font-weight: 600; }
-.pilot-side-tab__select { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 5px; padding: 0 7px; border: 0; color: inherit; background: transparent; text-align: left; font-size: 11px; }
-.pilot-side-tab__select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-side-tab__select { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 6px; padding: 0 7px; border: 0; color: inherit; background: transparent; text-align: left; font-size: 12px; cursor: default; touch-action: none; user-select: none; }
+.pilot-side-tab.is-dragging .pilot-side-tab__select { cursor: grabbing; }
+.pilot-side-tab__select span { overflow: hidden; white-space: nowrap; mask-image: linear-gradient(to right, black calc(100% - 6px), transparent); }
 .pilot-side-tab__select svg { flex: 0 0 auto; }
 .pilot-side-tab__select em { padding: 1px 4px; border-radius: 4px; color: var(--accent); background: var(--surface); font-size: 9px; font-style: normal; }
 .pilot-side-tab__close, .pilot-side-tabs__dismiss { display: grid; width: 22px; height: 26px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; }
 .pilot-side-tab__close:hover, .pilot-side-tabs__dismiss:hover { color: var(--text); background: var(--hover); }
+.pilot-side-tab__close { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); opacity: 0; pointer-events: none; }
+.pilot-side-tab:hover .pilot-side-tab__select, .pilot-side-tab.is-active .pilot-side-tab__select, .pilot-side-tab:focus-within .pilot-side-tab__select { padding-right: 27px; }
+.pilot-side-tab:hover .pilot-side-tab__close, .pilot-side-tab.is-active .pilot-side-tab__close, .pilot-side-tab:focus-within .pilot-side-tab__close { opacity: 1; pointer-events: auto; }
+.mira-workspace-add, .mira-workspace-overview { display: grid; width: 26px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
+.mira-workspace-add:hover, .mira-workspace-overview:hover, .mira-workspace-overview[data-state='open'] { color: var(--text); background: var(--hover); }
+.mira-workspace-add:focus-visible, .mira-workspace-overview:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mira-workspace-tab-menu { width: 240px; }
+.mira-workspace-tab-menu__title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-side-tabs__menu { position: relative; flex: 0 0 auto; }
 .pilot-side-tabs__menu summary { display: grid; width: 26px; height: 28px; place-items: center; border-radius: 4px; color: var(--muted); cursor: pointer; list-style: none; }
 .pilot-side-tabs__menu summary::-webkit-details-marker { display: none; }
@@ -37,7 +47,7 @@
 .pilot-side-tabs__options button { display: flex; width: 100%; align-items: center; gap: 9px; padding: 7px 8px; border: 0; border-radius: 4px; color: var(--text); background: transparent; text-align: left; font-size: 11px; }
 .pilot-side-tabs__options button:hover { background: var(--hover); }
 .pilot-side-tab button:focus-visible, .pilot-side-tabs__menu summary:focus-visible, .pilot-side-tabs__options button:focus-visible, .pilot-side-tabs__dismiss:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.pilot-inspector__body { min-height: 0; flex: 1; overflow: hidden; background: var(--soft); }
+.pilot-inspector__body { min-height: 0; flex: 1; overflow: hidden; background: var(--color-background); }
 .pilot-panel-view { display: none; min-height: 0; height: 100%; overflow: auto; }
 .pilot-panel-view.is-active { display: block; }
 .pilot-panel-stack { display: grid; gap: 0; }
@@ -83,6 +93,7 @@
 .pilot-file-tree > div { display: flex; align-items: center; gap: 7px; padding: 8px 7px; border-radius: 5px; }
 .pilot-file-tree > div:hover { background: var(--hover); }
 .pilot-tree-root { display: flex; align-items: center; gap: 7px; padding: 7px 6px; color: var(--text); font-weight: 650; }
+.pilot-tree-root span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pilot-tree-row { display: flex; width: 100%; min-width: 0; align-items: center; gap: 7px; padding-top: 8px; padding-right: 6px; padding-bottom: 8px; border: 0; border-radius: 5px; color: var(--text); background: transparent; text-align: left; font-size: 12px; }
 .pilot-tree-row:hover, .pilot-tree-row.is-selected { color: var(--accent); background: var(--hover); }
 .pilot-tree-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -159,13 +170,6 @@
 .pilot-browser__loading { position: relative; height: 2px; overflow: hidden; background: var(--border); }
 .pilot-browser__loading::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: pilot-browser-loading 1.1s ease-in-out infinite; }
 @keyframes pilot-browser-loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
-.pilot-inspector { background: color-mix(in srgb, var(--soft) 76%, var(--surface)); }
-.pilot-inspector__head { min-height: 58px; padding: 0 16px; background: var(--surface); }
-.pilot-side-tabs { height: 48px; padding: 6px 9px; }
-.pilot-side-tab { min-width: 80px; }
-.pilot-side-tab.is-active { box-shadow: inset 0 -2px 0 var(--accent); }
-.pilot-panel-hero { padding: 24px 22px 22px; }
-.pilot-panel-hero strong { font-size: 20px; }
 .pilot-panel-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .pilot-panel-shortcuts button { display: grid; min-width: 0; min-height: 58px; justify-items: center; align-content: center; gap: 5px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 10px; }
 .pilot-panel-shortcuts button:hover, .pilot-panel-shortcuts button:focus-visible { color: var(--accent); background: var(--hover); }

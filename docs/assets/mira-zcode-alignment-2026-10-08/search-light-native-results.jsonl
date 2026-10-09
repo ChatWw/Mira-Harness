@@ -1,0 +1,6 @@
+{"phase":"scope","origin":1791449358010.2,"url":"http://127.0.0.1:51625/apps/micro-mira-harness/index.html","title":"慢速：项目附件发送与切换验收第二轮","root":"/tmp/mira-ui-project.xsM04t"}
+{"phase":"file-open-query-preserved-clear-reveals","paths":["alpha","alpha/large-source.ts","alpha/README.md","alpha/source.ts","beta","beta/README.md","created-after-tree-open","created-after-tree-open/nested","created-after-tree-open/nested/mira-new-tree-file.md","unopened","unopened/deep","unopened/deep/mira-search-needle.md",".mira-file-smoke","empty.txt","extra.md","README.md","transient.md"]}
+{"phase":"directory-reveal","selected":"unopened/deep"}
+{"phase":"empty-keyboard-escape","passed":true}
+{"phase":"error-no-partial-results","error":"工作目录搜索未完成，请检查目录访问权限后重试。"}
+{"phase":"retry","paths":["unopened/deep/mira-search-needle.md"],"longTasks":[]}

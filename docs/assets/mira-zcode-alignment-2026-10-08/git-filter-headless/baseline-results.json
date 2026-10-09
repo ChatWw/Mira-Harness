@@ -1,0 +1,270 @@
+{
+  "checks": [
+    {
+      "at": "2026-10-09T03:51:35.296Z",
+      "name": "baseline-old-production.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:51:35.296Z",
+      "name": "baseline-confirmed-missing-capability",
+      "rootDeletedRowMissing": true,
+      "changedOnlyControlMissing": true,
+      "expectedFailure": true,
+      "sourceReverted": false
+    },
+    {
+      "at": "2026-10-09T03:51:35.296Z",
+      "name": "result",
+      "passed": true,
+      "mode": "old-production-baseline",
+      "browserVersion": "154.0.8037.99",
+      "pageErrors": [],
+      "desktopMouseKeyboard": false,
+      "electronGrant": "unit-tests-only",
+      "watch": "protocol-fixture-only",
+      "clipboard": "iframe-stub-only",
+      "projectsAreIsolated": true
+    }
+  ],
+  "requests": [
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:51:34.735Z"
+    },
+    {
+      "method": "harness.projects.list",
+      "at": "2026-10-09T03:51:34.736Z"
+    },
+    {
+      "method": "harness.providers.list",
+      "at": "2026-10-09T03:51:34.736Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:51:34.764Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      },
+      "at": "2026-10-09T03:51:34.765Z"
+    },
+    {
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      },
+      "at": "2026-10-09T03:51:34.765Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      },
+      "at": "2026-10-09T03:51:34.765Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      },
+      "at": "2026-10-09T03:51:34.766Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      },
+      "at": "2026-10-09T03:51:34.766Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      },
+      "at": "2026-10-09T03:51:34.777Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      },
+      "at": "2026-10-09T03:51:34.777Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:51:34.780Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:51:34.781Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:51:34.781Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.git-fixture"
+      },
+      "at": "2026-10-09T03:51:34.782Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "git-fixture"
+      },
+      "at": "2026-10-09T03:51:34.805Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:51:34.808Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:51:34.882Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:51:34.883Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T03:51:34.883Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:51:34.884Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:51:34.914Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T03:51:35.032Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:51:35.212Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:51:35.213Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:51:35.259Z"
+    }
+  ],
+  "pageErrors": []
+}

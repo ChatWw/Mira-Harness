@@ -1,0 +1,91 @@
+{
+  "startedAt": "2026-10-09T06:15:12.863Z",
+  "passed": false,
+  "checks": [
+    {
+      "name": "tests",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 10363,
+      "log": "tests.log"
+    },
+    {
+      "name": "react-types",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "apps/harness-react/tsconfig.json",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 1701,
+      "log": "react-types.log"
+    },
+    {
+      "name": "vue-types",
+      "command": [
+        "node",
+        "node_modules/vue-tsc/bin/vue-tsc.js",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 3479,
+      "log": "vue-types.log"
+    },
+    {
+      "name": "react-build",
+      "command": [
+        "node",
+        "scripts/build-harness-react.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 661,
+      "log": "react-build.log"
+    },
+    {
+      "name": "electron-build",
+      "command": [
+        "node",
+        "node_modules/electron-vite/bin/electron-vite.js",
+        "build"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 6421,
+      "log": "electron-build.log"
+    },
+    {
+      "name": "bundle-audit",
+      "command": [
+        "node",
+        "docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-bundle-audit.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 1142,
+      "log": "bundle-audit.log"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 35,
+      "log": "diff-check.log"
+    }
+  ],
+  "boundary": "Unit/core/transport/SSR tests, type checks, unpackaged build and fresh multi-root artifacts. Not Electron native UI, packaged/Windows, model execution or entire ZCode alignment acceptance.",
+  "testSummary": [
+    "Test Files  103 passed (103)",
+    "Tests  1075 passed (1075)",
+    "Duration  10.08s (transform 3.13s, setup 0ms, collect 11.05s, tests 30.03s, environment 12ms, prepare 5.28s)"
+  ],
+  "failure": "ENOENT: no such file or directory, open '/Volumes/VrenDisk/project/Mira/Mira-Harness/out/preload/index.js'",
+  "finishedAt": "2026-10-09T06:15:36.668Z"
+}

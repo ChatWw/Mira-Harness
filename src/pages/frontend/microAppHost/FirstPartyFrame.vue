@@ -6,6 +6,7 @@
       :src="url"
       :title="title"
       sandbox="allow-scripts allow-forms"
+      :allow="manifest.appId === 'mira-harness' && manifest.capabilities.includes('harness:workbench') ? 'clipboard-write *' : undefined"
       referrerpolicy="no-referrer"
       @load="connect"
     />
@@ -59,6 +60,13 @@ function invalidateConnection() { removeBrowser(); unsubscribeHarness?.(); unsub
 function send(message: unknown) {
   try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
 }
+
+function prepareLeave() {
+  const activePort = port
+  if (disposed || !activePort) return Promise.reject(new Error('Harness 连接尚未就绪，无法确认草稿保存'))
+  return session.prepareLeave(message => activePort.postMessage(message))
+}
+defineExpose({ prepareLeave })
 
 function browserState(error?: string) {
   if (!browser || !browserSessionId) return
@@ -159,10 +167,12 @@ async function connect() {
   connectedOnce = true
   if (props.manifest.appId === 'mira-harness' && props.manifest.capabilities.includes('harness:workbench')) {
     unsubscribeHarness = props.api.onHarnessEvent(event => {
-      if (session.isActive(nextGrant, activePort)) send({ type: 'mira:harness-event', event })
+      if (session.canForwardHarnessEvent(nextGrant, activePort, event)) send({ type: 'mira:harness-event', event })
     })
   }
   activePort.onmessage = async event => {
+    if (!session.isActive(nextGrant, activePort)) return
+    if (session.receiveLeaveReady(event.data)) return
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
     try {

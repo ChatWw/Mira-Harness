@@ -1,4 +1,4 @@
-import type { HarnessEvent, HarnessFileReference, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
+import type { HarnessEvent, HarnessFileReference, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
 import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
 
@@ -7,10 +7,20 @@ export class FirstPartyHarnessHost implements PilotHost {
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
   private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
+  private prepareLeave?: () => Promise<void>
+  private closed = false
 
   constructor(private port: MessagePort) {
     port.onmessage = message => {
       const data = message.data
+      if (data?.type === 'mira:prepare-leave' && typeof data.id === 'string') {
+        const id = data.id
+        void Promise.resolve().then(() => {
+          if (!this.prepareLeave || this.closed) throw new Error('Harness 尚未准备好保存草稿')
+          return this.prepareLeave()
+        }).then(() => this.replyLeave(id, true), error => this.replyLeave(id, false, error))
+        return
+      }
       if (data?.type === 'mira:harness-event') {
         this.listeners.forEach(listener => listener(data.event as HarnessEvent))
         return
@@ -42,6 +52,13 @@ export class FirstPartyHarnessHost implements PilotHost {
     return this.request<T>(`harness.${method}`, params)
   }
 
+  onPrepareLeave(callback: () => Promise<void>) { this.prepareLeave = callback }
+  private replyLeave(id: string, ok: boolean, error?: unknown) {
+    if (this.closed) return
+    try { this.port.postMessage({ type: 'mira:leave-ready', id, ok, ...(!ok ? { error: error instanceof Error ? error.message : '草稿保存失败' } : {}) }) }
+    catch { /* 宿主已离开，端口无法接收保存确认。 */ }
+  }
+
   listSessions = () => this.call<HarnessSessionSummary[]>('sessions.list')
   listProjects = () => this.call<HarnessProject[]>('projects.list')
   getSession = (id: string) => this.call<HarnessSession>('session.get', { id })
@@ -55,7 +72,15 @@ export class FirstPartyHarnessHost implements PilotHost {
   confirmPlan = (sessionId: string, planId: string, selection: ModelSelection) => this.call<unknown>('plan.confirm', { sessionId, planId, selection })
   answerInteraction = (sessionId: string, interactionId: string, answers: HarnessUserAnswer[], selection: ModelSelection) => this.call<unknown>('interaction.answer', { sessionId, interactionId, answers, selection })
   listFiles = (sessionId: string, path: string) => this.call<{ path: string; entries: HarnessWorkspaceFileEntry[] }>('files.list', { sessionId, path })
+  searchFiles = (sessionId: string, query: string, refresh = false) => this.call<HarnessWorkspaceFileSearchResult>('files.search', { sessionId, query, refresh })
+  getWorkspaceGit = (sessionId: string) => this.call<HarnessWorkspaceGitSnapshot>('files.git-status', { sessionId })
+  getWorkspaceIgnored = (sessionId: string, paths: string[]) => this.call<string[]>('files.git-ignored', { sessionId, paths })
+  watchFiles = (sessionId: string, paths: string[]) => this.call<{ watchId: string }>('files.watch', { sessionId, paths })
+  unwatchFiles = (sessionId: string, watchId: string) => this.call<void>('files.unwatch', { sessionId, watchId })
+  listEditors = (refresh = false) => this.call<Array<{ id: string; name: string; icon?: string }>>('editors.list', { refresh })
+  openFileInEditor = (sessionId: string, path: string, editorId: string) => this.call<void>('files.open-editor', { sessionId, path, editorId })
   readFile = (sessionId: string, path: string) => this.call<{ path: string; content: string }>('files.read', { sessionId, path })
+  readImage = (sessionId: string, path: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { sessionId, path })
   openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
   resizeTerminal = (sessionId: string, terminalId: string, columns: number, rows: number) => this.call<void>('terminal.resize', { sessionId, terminalId, columns, rows })
@@ -67,6 +92,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => { this.browserListeners.add(listener); return () => { this.browserListeners.delete(listener) } }
   getPreference = (key: string) => this.request<unknown>('preferences.get', { key })
   setPreference = (key: string, value: unknown) => this.request<void>('preferences.set', { key, value })
+  navigate = (path: string) => this.request<void>('navigation.open', { path })
   renameSession = (id: string, title: string) => this.call<void>('session.rename', { id, title })
   setSessionPinned = (id: string, pinned: boolean) => this.call<void>('session.set-pinned', { id, pinned })
   setSessionUnread = (id: string, unread: boolean) => this.call<void>('session.set-unread', { id, unread })
@@ -94,6 +120,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   continuePlan = (id: string, planId: string, message: string, references: HarnessFileReference[], selection: ModelSelection) => this.call<void>('plan.continue', { sessionId: id, planId, message, references, selection })
 
   close() {
+    this.closed = true
+    this.prepareLeave = undefined
     this.port.close()
     this.pending.forEach(request => request.reject(new Error('Harness 连接已关闭')))
     this.pending.clear()

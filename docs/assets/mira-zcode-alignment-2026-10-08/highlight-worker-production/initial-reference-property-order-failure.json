@@ -1,0 +1,155 @@
+{
+  "startedAt": "2026-10-09T06:10:45.150Z",
+  "passed": false,
+  "errors": [],
+  "network": [
+    {
+      "path": "/app.css",
+      "origin": null,
+      "cors": {},
+      "production": true
+    },
+    {
+      "path": "/fixture/stdin.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-R3KCNYHJ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-5TBO732O.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/wasm-CCL37T75.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/github-light-QPVPKULW.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/github-dark-ZNDPCU4E.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/typescript-TXJMM6NJ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-6R3KEE7K.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/mira-code-highlight.worker.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-4ZIV6YIA.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-ZZLKWTBH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-YEHCSWIG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/wasm-K24ZIFGG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-light-JUBLJC3D.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-dark-GPF4RBQH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/typescript-GKZB4FZZ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7YNZZQVT.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    }
+  ],
+  "boundary": "Isolated desktop headless Chrome, opaque iframe, real current React components/client and exact built production Worker. Independent WASM reference is fixture-only. Not native input, Electron preload/IPC, installed app, Windows, ZCode GUI, INP, process cold start or whole-goal acceptance.",
+  "runtime": "154.0.8037.99",
+  "sandbox": "allow-scripts allow-forms",
+  "effectiveOrigin": "null",
+  "failure": "frame.evaluate: Error: Token/style/offset mismatch: typescript\n    at Object.equivalence (http://127.0.0.1:51194/fixture/stdin.js:37:20232)\n    at async <anonymous>:337:30\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-worker-browser.mjs:98:36",
+  "finishedAt": "2026-10-09T06:10:46.518Z"
+}

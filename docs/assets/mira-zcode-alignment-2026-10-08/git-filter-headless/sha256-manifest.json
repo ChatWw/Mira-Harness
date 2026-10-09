@@ -1,0 +1,164 @@
+[
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/baseline-old-production.png",
+    "bytes": 44309,
+    "mtime": "2026-10-09T03:51:35.293Z",
+    "sha256": "4c4d3a566236387d3f84bf8c68eb595a3b78e84cdda909361bb732d984422655"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/baseline-results.json",
+    "bytes": 6029,
+    "mtime": "2026-10-09T03:51:35.366Z",
+    "sha256": "e17a5f5538ea18992540cdbdb257d32d8315bc6a2d07ee4b183b7e57b36f5885"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/bundle-audit.json",
+    "bytes": 4782,
+    "mtime": "2026-10-09T03:58:48.421Z",
+    "sha256": "95a972a93ddc43edcfd443cdc6c9a22dfa41dd33f5615eb8efff470ddecf6b84"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/finish-review.md",
+    "bytes": 10644,
+    "mtime": "2026-10-09T04:13:26.174Z",
+    "sha256": "34873af752e4dd2920dffbcae20984727a77ba63b2daceca94aede3e67c9d947"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/menu-refresh-before-fix.json",
+    "bytes": 7457,
+    "mtime": "2026-10-09T03:56:49.065Z",
+    "sha256": "4425584f1cf80dd75251f54ff75d86762c81dae5542b0fccf268ee30f3bdae73"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-bundle-audit.mjs",
+    "bytes": 10054,
+    "mtime": "2026-10-09T03:53:04.312Z",
+    "sha256": "8249fa56e2fdf9b817be0f4719433d1a6e8c538723db53d8ba1e5cb0170b0aad"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-changed-dark.png",
+    "bytes": 62577,
+    "mtime": "2026-10-09T03:58:32.346Z",
+    "sha256": "9897e1358d31b47bcabca019f9a75abded3d0bcf67689ba4fdc649d8e8c4dc72"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-changed-light.png",
+    "bytes": 62143,
+    "mtime": "2026-10-09T03:58:32.015Z",
+    "sha256": "e0ef4e65e5095f899c85f62ce34e6910a6b584c4e75b0212a48444af75f3d68d"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-deleted-context-light.png",
+    "bytes": 71438,
+    "mtime": "2026-10-09T03:58:30.405Z",
+    "sha256": "95a9935f993e5d312a6b2b00332c9e5d23b5df90f7952b6fdafcf6d51afc4554"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-evidence-audit.mjs",
+    "bytes": 4713,
+    "mtime": "2026-10-09T04:02:12.058Z",
+    "sha256": "156deb53decf9e8acdf4cbd7f78c485af23500545a7aab80b15052e21e320e32"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-file-filter-headless.mjs",
+    "bytes": 32279,
+    "mtime": "2026-10-09T03:57:51.452Z",
+    "sha256": "8123f84ad6212af8d36de75171d38ec2d60139d03bb96ba91e6fdd8a0e69b443"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-clean-empty.png",
+    "bytes": 52966,
+    "mtime": "2026-10-09T03:58:35.933Z",
+    "sha256": "0539038a1ea62a97b10d04b4f597baa1ecbb9a60ceaf07e6f79818e160e28f90"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-desktop-1280.png",
+    "bytes": 61449,
+    "mtime": "2026-10-09T03:58:37.269Z",
+    "sha256": "5c1420124c7b0a184306131eeeabcf4a02de011a56337944165c40a91f0d1602"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-desktop-1440.png",
+    "bytes": 64082,
+    "mtime": "2026-10-09T03:58:36.566Z",
+    "sha256": "d5a3edeaf52f0a539dd01ce6c6acff21899bd4fb88a1f438c348fb7deaa713b9"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-desktop-1710.png",
+    "bytes": 66001,
+    "mtime": "2026-10-09T03:58:36.937Z",
+    "sha256": "cc64ff06d8e06fb8eff742bafa83c54a72ede7cf6241f3f8483602b56ae7dccb"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-error-dark.png",
+    "bytes": 71732,
+    "mtime": "2026-10-09T03:58:34.496Z",
+    "sha256": "056f75f15c254239b741b6a4715096a47f6c6724580606655e44c49936fb4c35"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-filter-nonrepo.png",
+    "bytes": 52089,
+    "mtime": "2026-10-09T03:58:35.450Z",
+    "sha256": "92f2d62e97893f700a8117bb322d6d0d25245e0a9de10366eaaa0c0a1f6ff50c"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-menu-refresh-before-fix.png",
+    "bytes": 43968,
+    "mtime": "2026-10-09T03:56:49.004Z",
+    "sha256": "47c69408e8266b0346a9b13bf6a6ce9f085e421daff72826ec8c662bc67fb8fc"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-menu-refresh-confirmed.png",
+    "bytes": 71438,
+    "mtime": "2026-10-09T03:58:31.500Z",
+    "sha256": "95a9935f993e5d312a6b2b00332c9e5d23b5df90f7952b6fdafcf6d51afc4554"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/results.json",
+    "bytes": 63077,
+    "mtime": "2026-10-09T03:58:38.338Z",
+    "sha256": "e26d697e22c136e55b05126d0e5f504f6d4b6a632a355c23d12c981a78333175"
+  },
+  {
+    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/validation-summary.json",
+    "bytes": 1509,
+    "mtime": "2026-10-09T04:02:12.060Z",
+    "sha256": "4edcfa7046000cfec16b7d79e2d761ab91ca50d68d0fd313ad223d0c0a8f3183"
+  },
+  {
+    "path": "apps/harness-react/src/lib/file-git.ts",
+    "bytes": 9130,
+    "mtime": "2026-10-09T03:57:17.161Z",
+    "sha256": "9bea98951439dfb7097dc92e9bb05e55e0b41832387f2232c4b04288e495ddd6"
+  },
+  {
+    "path": "apps/harness-react/src/components/workspace/ProjectFileDrawer.tsx",
+    "bytes": 22911,
+    "mtime": "2026-10-09T03:40:45.507Z",
+    "sha256": "dbcac38ebc6e237c34a58603a169cf4363ca3f8f5d826989eff3bdc395b4fbd5"
+  },
+  {
+    "path": "apps/harness-react/src/styles/file-drawer.css",
+    "bytes": 6625,
+    "mtime": "2026-10-09T03:37:20.963Z",
+    "sha256": "a1f399471b8736d73eebc5ac82999f7f72d018a740c361656d1151bda2f5e65a"
+  },
+  {
+    "path": "tests/harnessReactFileGit.test.ts",
+    "bytes": 21764,
+    "mtime": "2026-10-09T03:56:11.080Z",
+    "sha256": "34d0760748206dbb9b5f4cd8d89e7bdce6c4d1cfd8be3ce565c28b17c66303ce"
+  },
+  {
+    "path": "tests/harnessReactFileDrawer.test.ts",
+    "bytes": 39269,
+    "mtime": "2026-10-09T03:56:53.792Z",
+    "sha256": "bbd3cc9efb7e05fa7afe8fc823caaae669b3b8b9144fe455365e415ed1c0b3e0"
+  },
+  {
+    "path": "third-party-licenses/zcode/ADAPTATIONS.md",
+    "bytes": 17234,
+    "mtime": "2026-10-09T03:51:03.569Z",
+    "sha256": "aea397593e45ad35031d60f2dc3c3b77c6678cf30a0aaaab6c3211bea29bf5ba"
+  }
+]

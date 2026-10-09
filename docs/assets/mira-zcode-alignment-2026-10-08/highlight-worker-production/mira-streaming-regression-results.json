@@ -1,0 +1,106 @@
+{
+  "startedAt": "2026-10-09T06:14:52.669Z",
+  "scope": "Real current React Markdown components in isolated headless Chromium. Deliberately delayed highlighter fixture, not production Worker performance, Electron, native input, user database or ZCode acceptance.",
+  "errors": [],
+  "passed": true,
+  "productionCssSha256": "411a46e3d69a7b20ea9aac796b181fffc26334d25b2f73177fdd1a3211ec6143",
+  "layoutStability": {
+    "raw": {
+      "state": "loading",
+      "bodyWidth": 1422,
+      "bodyHeight": 95.6875,
+      "preHeight": 61.6875,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 3
+    },
+    "ready": {
+      "state": "ready",
+      "bodyWidth": 1422,
+      "bodyHeight": 95.6875,
+      "preHeight": 61.6875,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 3
+    },
+    "unchanged": true,
+    "completeTailLinesPreserved": true
+  },
+  "outOfOrder": {
+    "earlierAborted": true,
+    "latestVisible": true,
+    "exactCopy": true,
+    "sourceIncludesTrailingNewlines": true
+  },
+  "incomplete": {
+    "visibleAndHighlightedBeforeCompletion": true
+  },
+  "streamingError": {
+    "completeEscapedSourcePreserved": true,
+    "retryStartedNewRequest": true,
+    "retryRecovered": true,
+    "codeBodyGeometryUnchangedAcrossFailureRetryAndTheme": true,
+    "raw": {
+      "state": "loading",
+      "bodyWidth": 1422,
+      "bodyHeight": 75.125,
+      "preHeight": 41.125,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 2
+    },
+    "failed": {
+      "state": "error",
+      "bodyWidth": 1422,
+      "bodyHeight": 75.125,
+      "preHeight": 41.125,
+      "textInset": 57,
+      "gutterWidth": "24px",
+      "gutterMargin": "16px",
+      "lineHeight": "20px",
+      "rows": 2
+    },
+    "lightFailure": {
+      "height": 24,
+      "color": "oklab(0.269 0 0 / 0.6)",
+      "lineHeight": "16px",
+      "codeColor": "oklch(0.269 0 none)"
+    },
+    "darkFailure": {
+      "height": 24,
+      "color": "oklab(0.87 0 0 / 0.6)",
+      "lineHeight": "16px",
+      "codeColor": "oklch(0.87 0 none)"
+    },
+    "lightReadyColor": "rgb(215, 58, 73)",
+    "darkReadyColor": "rgb(249, 117, 131)"
+  },
+  "cleanup": {
+    "supersededAbortHasNoAlert": true,
+    "unmountedRequestAborted": true,
+    "lateUnmountFailureIgnored": true
+  },
+  "staticError": {
+    "sourceAndExactCopyPreserved": true,
+    "citationClickable": true,
+    "citationGeometry": {
+      "height": 15.75,
+      "lineHeight": "15.75px"
+    },
+    "unknownCitationPlain": true,
+    "retryRecovered": true
+  },
+  "staticOutOfOrder": {
+    "oldRequestAborted": true,
+    "newestSourcePreserved": true
+  },
+  "requestCount": 13,
+  "unhandled": [],
+  "finishedAt": "2026-10-09T06:14:54.424Z"
+}

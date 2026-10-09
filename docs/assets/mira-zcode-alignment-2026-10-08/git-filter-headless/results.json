@@ -1,0 +1,2671 @@
+{
+  "checks": [
+    {
+      "at": "2026-10-09T03:58:29.947Z",
+      "name": "deleted-loaded-parent-overlay",
+      "rootDeletedVisible": true,
+      "nestedDeletedAfterParentLoaded": true,
+      "unloadedParentNotScanned": true,
+      "absentAncestorNotCreated": true
+    },
+    {
+      "at": "2026-10-09T03:58:30.408Z",
+      "name": "mira-deleted-context-light.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "root-deleted.md",
+      "changedOnly": "false",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:30.651Z",
+      "name": "deleted-safe-interactions",
+      "clickEnterSpaceReadDelta": 0,
+      "previewsAdded": 0,
+      "openDisabled": true,
+      "openWithDisabled": true,
+      "clipboard": "iframe-stub-only-no-native-clipboard",
+      "nonBitmapReferenceChipAddedAndRemoved": true,
+      "bitmapReferenceDisabled": true,
+      "editorFixture": "VS Code"
+    },
+    {
+      "at": "2026-10-09T03:58:31.501Z",
+      "name": "mira-menu-refresh-confirmed.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "root-deleted.md",
+      "changedOnly": "false",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:31.544Z",
+      "name": "deleted-menu-during-refresh",
+      "deletedRowPresent": true,
+      "menuPresent": true,
+      "copiedDuringLoading": true,
+      "passed": true,
+      "statusHeldUntilAfterCopy": true,
+      "notification": "explicit-protocol-fixture-not-native-watch"
+    },
+    {
+      "at": "2026-10-09T03:58:32.017Z",
+      "name": "mira-changed-light.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "src/modified.ts",
+      "changedOnly": "true",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:32.348Z",
+      "name": "mira-changed-dark.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": true,
+      "alerts": [],
+      "selectedPath": "src/modified.ts",
+      "changedOnly": "true",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:32.348Z",
+      "name": "changed-only-tree",
+      "cleanAndIgnoredExcluded": true,
+      "ancestorHierarchyPreserved": true,
+      "expansionAndSelectionRetained": true,
+      "accessibleRows": [
+        {
+          "path": "gone",
+          "level": 1,
+          "position": 1,
+          "siblings": 5,
+          "height": 28
+        },
+        {
+          "path": "gone/deleted.md",
+          "level": 2,
+          "position": 1,
+          "siblings": 1,
+          "height": 28
+        },
+        {
+          "path": "src",
+          "level": 1,
+          "position": 2,
+          "siblings": 5,
+          "height": 28
+        },
+        {
+          "path": "src/modified.ts",
+          "level": 2,
+          "position": 1,
+          "siblings": 4,
+          "height": 28
+        },
+        {
+          "path": "src/renamed.ts",
+          "level": 2,
+          "position": 2,
+          "siblings": 4,
+          "height": 28
+        },
+        {
+          "path": "src/staged.ts",
+          "level": 2,
+          "position": 3,
+          "siblings": 4,
+          "height": 28
+        },
+        {
+          "path": "src/untracked.ts",
+          "level": 2,
+          "position": 4,
+          "siblings": 4,
+          "height": 28
+        },
+        {
+          "path": "unloaded",
+          "level": 1,
+          "position": 3,
+          "siblings": 5,
+          "height": 28
+        },
+        {
+          "path": "unloaded/deleted.md",
+          "level": 2,
+          "position": 1,
+          "siblings": 1,
+          "height": 28
+        },
+        {
+          "path": "root-deleted.md",
+          "level": 1,
+          "position": 4,
+          "siblings": 5,
+          "height": 28
+        },
+        {
+          "path": "root-deleted.png",
+          "level": 1,
+          "position": 5,
+          "siblings": 5,
+          "height": 28
+        }
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:33.309Z",
+      "name": "search-and-changed-only",
+      "queryAndSelectionRetainedOnToggle": true,
+      "searchUsesDirectStatus": true,
+      "cleanSearchFiltered": true,
+      "deletedNamesNotIndexed": "upstream-matching-real-files-only-limit",
+      "expansionRetainedAfterSearch": true
+    },
+    {
+      "at": "2026-10-09T03:58:34.114Z",
+      "name": "watch-tree-focus",
+      "focusBeforeWatch": {
+        "path": "src/modified.ts",
+        "tag": "DIV"
+      },
+      "focusDuringWatch": {
+        "path": "src/modified.ts",
+        "tag": "DIV"
+      },
+      "focusAfterWatch": {
+        "path": "src/modified.ts",
+        "tag": "DIV"
+      },
+      "focusAfterArrow": {
+        "path": "src/renamed.ts",
+        "tag": "DIV"
+      },
+      "passed": true
+    },
+    {
+      "at": "2026-10-09T03:58:34.114Z",
+      "name": "refresh-retains-changed-only",
+      "manualRefresh": true,
+      "loadingKeepsFilterPressed": true,
+      "queryRetained": true,
+      "watchRefresh": "explicit-protocol-fixture-not-native-fs-watch",
+      "selectionAndExpandedRetained": true
+    },
+    {
+      "at": "2026-10-09T03:58:34.497Z",
+      "name": "mira-filter-error-dark.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": true,
+      "alerts": [
+        "Git 状态读取失败：Git 状态读取超时，请重试。"
+      ],
+      "selectedPath": "src/modified.ts",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:34.552Z",
+      "name": "failure-and-retry",
+      "ordinaryTreeRestoredOnFailure": true,
+      "errorIsSafeBridgeMapping": true,
+      "retryRestoresGitNotOldFilter": true
+    },
+    {
+      "at": "2026-10-09T03:58:35.451Z",
+      "name": "mira-filter-nonrepo.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": true,
+      "alerts": [],
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:35.934Z",
+      "name": "mira-filter-clean-empty.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": true,
+      "alerts": [],
+      "changedOnly": "true",
+      "threadPixel": [
+        22,
+        22,
+        22
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:36.071Z",
+      "name": "session-and-nonrepo",
+      "nonrepoNoFilterNoError": true,
+      "cleanRepoChangedEmptyState": true,
+      "sessionSwitchResetsFilter": true,
+      "staleOldSessionDiscarded": true
+    },
+    {
+      "at": "2026-10-09T03:58:36.156Z",
+      "name": "same-session-root-change",
+      "sessionIdUnchanged": true,
+      "directoryChangedToCleanFixture": true,
+      "filterReset": true,
+      "staleDeletedRowsRemoved": true
+    },
+    {
+      "at": "2026-10-09T03:58:36.567Z",
+      "name": "mira-filter-desktop-1440.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "src/modified.ts",
+      "changedOnly": "true",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:36.571Z",
+      "name": "desktop-viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "width": 264,
+      "right": 268,
+      "scrollWidth": 264,
+      "clientWidth": 264,
+      "iconBounds": [
+        {
+          "x": 142,
+          "right": 170,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 172,
+          "right": 200,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 202,
+          "right": 230,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 232,
+          "right": 260,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        }
+      ],
+      "canvas": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900,
+        "clientHeight": 900
+      }
+    },
+    {
+      "at": "2026-10-09T03:58:36.939Z",
+      "name": "mira-filter-desktop-1710.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "src/modified.ts",
+      "changedOnly": "true",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:36.945Z",
+      "name": "desktop-viewport",
+      "viewport": {
+        "width": 1710,
+        "height": 992
+      },
+      "width": 264,
+      "right": 268,
+      "scrollWidth": 264,
+      "clientWidth": 264,
+      "iconBounds": [
+        {
+          "x": 142,
+          "right": 170,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 172,
+          "right": 200,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 202,
+          "right": 230,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 232,
+          "right": 260,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        }
+      ],
+      "canvas": {
+        "scrollWidth": 1710,
+        "clientWidth": 1710,
+        "scrollHeight": 992,
+        "clientHeight": 992
+      }
+    },
+    {
+      "at": "2026-10-09T03:58:37.270Z",
+      "name": "mira-filter-desktop-1280.png",
+      "type": "headless-react-fixture-not-electron",
+      "dark": false,
+      "alerts": [],
+      "selectedPath": "src/modified.ts",
+      "changedOnly": "true",
+      "threadPixel": [
+        248,
+        248,
+        248
+      ]
+    },
+    {
+      "at": "2026-10-09T03:58:37.274Z",
+      "name": "desktop-viewport",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "width": 264,
+      "right": 268,
+      "scrollWidth": 264,
+      "clientWidth": 264,
+      "iconBounds": [
+        {
+          "x": 142,
+          "right": 170,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 172,
+          "right": 200,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 202,
+          "right": 230,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        },
+        {
+          "x": 232,
+          "right": 260,
+          "y": 96,
+          "height": 28,
+          "width": 28
+        }
+      ],
+      "canvas": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "scrollHeight": 800,
+        "clientHeight": 800
+      }
+    },
+    {
+      "at": "2026-10-09T03:58:38.258Z",
+      "name": "virtualization-retained",
+      "mountedRows": 50,
+      "noStatusPollOnScroll": true,
+      "ignoredBatchMaximum": 49
+    },
+    {
+      "at": "2026-10-09T03:58:38.258Z",
+      "name": "result",
+      "passed": true,
+      "mode": "new-production-verification",
+      "browserVersion": "154.0.8037.99",
+      "pageErrors": [],
+      "desktopMouseKeyboard": false,
+      "electronGrant": "unit-tests-only",
+      "watch": "protocol-fixture-only",
+      "clipboard": "iframe-stub-only",
+      "projectsAreIsolated": true
+    }
+  ],
+  "requests": [
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:58:28.924Z"
+    },
+    {
+      "method": "harness.projects.list",
+      "at": "2026-10-09T03:58:28.926Z"
+    },
+    {
+      "method": "harness.providers.list",
+      "at": "2026-10-09T03:58:28.926Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:58:28.951Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      },
+      "at": "2026-10-09T03:58:28.951Z"
+    },
+    {
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      },
+      "at": "2026-10-09T03:58:28.952Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      },
+      "at": "2026-10-09T03:58:28.952Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      },
+      "at": "2026-10-09T03:58:28.952Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      },
+      "at": "2026-10-09T03:58:28.953Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      },
+      "at": "2026-10-09T03:58:28.959Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      },
+      "at": "2026-10-09T03:58:28.960Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:28.962Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:28.964Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:28.964Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.git-fixture"
+      },
+      "at": "2026-10-09T03:58:28.965Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:28.986Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:28.990Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:29.064Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:29.065Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T03:58:29.065Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:29.066Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "src",
+          "unloaded",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.098Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.119Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:29.158Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:29.160Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:29.172Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "gone"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.172Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone/deleted.md",
+          "gone/keep.md"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.173Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:29.213Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:29.224Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:29.226Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:29.237Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "gone",
+          "unloaded"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.237Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "unloaded/deleted.md",
+          "unloaded/keep.md"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.237Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:29.290Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:29.291Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:29.303Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "gone",
+          "src",
+          "unloaded"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.303Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.304Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:29.614Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:29.614Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:29.614Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:29.620Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:29.625Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "gone/deleted.md",
+          "gone/keep.md",
+          "src",
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts",
+          "unloaded",
+          "unloaded/deleted.md",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:29.646Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:30.857Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:31.007Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:31.008Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "gone/deleted.md",
+          "gone/keep.md",
+          "src",
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts",
+          "unloaded",
+          "unloaded/deleted.md",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:31.553Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:31.579Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:31.579Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:31.580Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:31.588Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "src/modified",
+        "refresh": true
+      },
+      "at": "2026-10-09T03:58:32.478Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:32.558Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "src/clean",
+        "refresh": false
+      },
+      "at": "2026-10-09T03:58:32.752Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git/logs/refs/heads/main"
+        ]
+      },
+      "at": "2026-10-09T03:58:32.822Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "root-deleted",
+        "refresh": false
+      },
+      "at": "2026-10-09T03:58:32.981Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "src",
+        "refresh": false
+      },
+      "at": "2026-10-09T03:58:33.237Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "src/modified",
+        "refresh": false
+      },
+      "at": "2026-10-09T03:58:33.436Z"
+    },
+    {
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "git-fixture",
+        "query": "src/modified",
+        "refresh": true
+      },
+      "at": "2026-10-09T03:58:33.547Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:33.547Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:33.548Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:33.548Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:33.555Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:33.556Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "src/modified.ts"
+        ]
+      },
+      "at": "2026-10-09T03:58:33.610Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone",
+          "gone/deleted.md",
+          "src",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/untracked.ts",
+          "unloaded",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:33.635Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:33.939Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:33.939Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:33.940Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone",
+          "gone/deleted.md",
+          "src",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/untracked.ts",
+          "unloaded",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:34.000Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "src/watch-new.ts"
+        ]
+      },
+      "at": "2026-10-09T03:58:34.021Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:34.138Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:34.138Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:34.138Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:34.156Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:34.158Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:34.522Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "gone/keep.md",
+          "src",
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts",
+          "src/watch-new.ts",
+          "unloaded",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:34.546Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone/deleted.md",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:34.566Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:34.622Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:34.622Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:34.622Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:34.636Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:34.637Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:58:34.708Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:34.708Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "src"
+        ]
+      },
+      "at": "2026-10-09T03:58:34.708Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:34.709Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:34.720Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "plain-fixture"
+      },
+      "at": "2026-10-09T03:58:34.738Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "plain-fixture"
+      },
+      "at": "2026-10-09T03:58:34.738Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.plain-fixture"
+      },
+      "at": "2026-10-09T03:58:34.738Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:34.745Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "plain-fixture"
+      },
+      "at": "2026-10-09T03:58:34.753Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project",
+            "plain-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:34.756Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "plain-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:34.775Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "plain-fixture"
+      },
+      "at": "2026-10-09T03:58:34.775Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "plain-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T03:58:34.775Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:34.775Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "plain-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:35.092Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "plain-fixture"
+      },
+      "at": "2026-10-09T03:58:35.092Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:58:35.493Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "plain-fixture",
+        "watchId": "plain-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:35.494Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:35.494Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project",
+            "plain-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:35.503Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.523Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.523Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.523Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.536Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project",
+            "plain-project",
+            "clean-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:35.538Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "clean-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:35.558Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.558Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "clean-fixture",
+        "paths": [
+          ""
+        ]
+      },
+      "at": "2026-10-09T03:58:35.558Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          },
+          "clean-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:35.559Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "clean-fixture",
+        "paths": [
+          ".git",
+          "clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:35.579Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "clean-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:35.873Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "clean-fixture"
+      },
+      "at": "2026-10-09T03:58:35.873Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      },
+      "at": "2026-10-09T03:58:35.974Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "clean-fixture",
+        "watchId": "clean-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:35.974Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          },
+          "clean-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:35.974Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "git-project",
+            "plain-project",
+            "clean-project"
+          ],
+          "view": "group"
+        }
+      },
+      "at": "2026-10-09T03:58:35.985Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.005Z"
+    },
+    {
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.005Z"
+    },
+    {
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.006Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.018Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:36.020Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "src"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.020Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.042Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.042Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.042Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          },
+          "clean-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:36.042Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:36.054Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:36.054Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:36.055Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "gone",
+          "src",
+          "unloaded"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.056Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:36.056Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:36.056Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "gone/keep.md",
+          "src",
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts",
+          "src/watch-new.ts",
+          "unloaded",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.066Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone/deleted.md",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.084Z"
+    },
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:58:36.120Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.120Z"
+    },
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:58:36.122Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:36.124Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.124Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.124Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.124Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:36.124Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "src"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.125Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:36.128Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.145Z"
+    },
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:58:36.157Z"
+    },
+    {
+      "method": "harness.session.get",
+      "params": {
+        "id": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.157Z"
+    },
+    {
+      "method": "harness.sessions.list",
+      "at": "2026-10-09T03:58:36.159Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "src"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.160Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:36.163Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:36.164Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "gone",
+          "src",
+          "unloaded"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.164Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:36.165Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:36.165Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone",
+          "gone/keep.md",
+          "src",
+          "src/clean.ts",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/token.secret",
+          "src/untracked.ts",
+          "src/watch-new.ts",
+          "unloaded",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.181Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone/deleted.md",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.198Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:36.469Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:36.469Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:36.469Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:36.469Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:36.472Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:36.472Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "gone",
+          "gone/deleted.md",
+          "src",
+          "src/modified.ts",
+          "src/renamed.ts",
+          "src/staged.ts",
+          "src/untracked.ts",
+          "src/watch-new.ts",
+          "unloaded",
+          "unloaded/deleted.md",
+          "root-deleted.md",
+          "root-deleted.png"
+        ]
+      },
+      "at": "2026-10-09T03:58:36.490Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "cache",
+          "gone/keep.md",
+          "src/clean.ts",
+          "src/token.secret",
+          "unloaded/keep.md",
+          ".gitignore",
+          "root-clean.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:37.305Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "bulk"
+      },
+      "at": "2026-10-09T03:58:37.340Z"
+    },
+    {
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "git-fixture": {
+            "tabs": [
+              {
+                "id": "file:src/modified.ts",
+                "label": "modified.ts",
+                "path": "src/modified.ts"
+              }
+            ],
+            "activeTab": "file:src/modified.ts",
+            "fileTreeOpen": true,
+            "expandedFilePaths": [
+              "gone",
+              "unloaded",
+              "src",
+              "bulk"
+            ],
+            "browserUrl": "",
+            "recentClosedTabs": [],
+            "selectedFilePath": "src/modified.ts"
+          },
+          "plain-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          },
+          "clean-fixture": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      },
+      "at": "2026-10-09T03:58:37.342Z"
+    },
+    {
+      "method": "harness.files.unwatch",
+      "params": {
+        "sessionId": "git-fixture",
+        "watchId": "git-fixture-watch"
+      },
+      "at": "2026-10-09T03:58:37.355Z"
+    },
+    {
+      "method": "harness.files.watch",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "",
+          "bulk",
+          "gone",
+          "src",
+          "unloaded"
+        ]
+      },
+      "at": "2026-10-09T03:58:37.355Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "bulk/file-0000.txt",
+          "bulk/file-0001.txt",
+          "bulk/file-0002.txt",
+          "bulk/file-0003.txt",
+          "bulk/file-0004.txt",
+          "bulk/file-0005.txt",
+          "bulk/file-0006.txt",
+          "bulk/file-0007.txt",
+          "bulk/file-0008.txt",
+          "bulk/file-0009.txt",
+          "bulk/file-0010.txt",
+          "bulk/file-0011.txt",
+          "bulk/file-0012.txt",
+          "bulk/file-0013.txt",
+          "bulk/file-0014.txt",
+          "bulk/file-0015.txt",
+          "bulk/file-0016.txt",
+          "bulk/file-0017.txt",
+          "bulk/file-0018.txt",
+          "bulk/file-0019.txt",
+          "bulk/file-0020.txt",
+          "bulk/file-0021.txt",
+          "bulk/file-0022.txt",
+          "bulk/file-0023.txt",
+          "bulk/file-0024.txt",
+          "bulk/file-0025.txt",
+          "bulk/file-0026.txt",
+          "bulk/file-0027.txt",
+          "bulk/file-0028.txt",
+          "bulk/file-0029.txt",
+          "bulk/file-0030.txt",
+          "bulk/file-0031.txt",
+          "bulk/file-0032.txt",
+          "bulk/file-0033.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:37.356Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": ""
+      },
+      "at": "2026-10-09T03:58:37.667Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "bulk"
+      },
+      "at": "2026-10-09T03:58:37.667Z"
+    },
+    {
+      "method": "harness.files.git-status",
+      "params": {
+        "sessionId": "git-fixture"
+      },
+      "at": "2026-10-09T03:58:37.668Z"
+    },
+    {
+      "method": "harness.files.read",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src/modified.ts"
+      },
+      "at": "2026-10-09T03:58:37.675Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "gone"
+      },
+      "at": "2026-10-09T03:58:37.680Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "src"
+      },
+      "at": "2026-10-09T03:58:37.684Z"
+    },
+    {
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "git-fixture",
+        "path": "unloaded"
+      },
+      "at": "2026-10-09T03:58:37.689Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          ".git",
+          "bulk",
+          "bulk/file-0000.txt",
+          "bulk/file-0001.txt",
+          "bulk/file-0002.txt",
+          "bulk/file-0003.txt",
+          "bulk/file-0004.txt",
+          "bulk/file-0005.txt",
+          "bulk/file-0006.txt",
+          "bulk/file-0007.txt",
+          "bulk/file-0008.txt",
+          "bulk/file-0009.txt",
+          "bulk/file-0010.txt",
+          "bulk/file-0011.txt",
+          "bulk/file-0012.txt",
+          "bulk/file-0013.txt",
+          "bulk/file-0014.txt",
+          "bulk/file-0015.txt",
+          "bulk/file-0016.txt",
+          "bulk/file-0017.txt",
+          "bulk/file-0018.txt",
+          "bulk/file-0019.txt",
+          "bulk/file-0020.txt",
+          "bulk/file-0021.txt",
+          "bulk/file-0022.txt",
+          "bulk/file-0023.txt",
+          "bulk/file-0024.txt",
+          "bulk/file-0025.txt",
+          "bulk/file-0026.txt",
+          "bulk/file-0027.txt",
+          "bulk/file-0028.txt",
+          "bulk/file-0029.txt",
+          "bulk/file-0030.txt",
+          "bulk/file-0031.txt",
+          "bulk/file-0032.txt",
+          "bulk/file-0033.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:37.711Z"
+    },
+    {
+      "method": "harness.files.git-ignored",
+      "params": {
+        "sessionId": "git-fixture",
+        "paths": [
+          "bulk/file-0128.txt",
+          "bulk/file-0129.txt",
+          "bulk/file-0130.txt",
+          "bulk/file-0131.txt",
+          "bulk/file-0132.txt",
+          "bulk/file-0133.txt",
+          "bulk/file-0134.txt",
+          "bulk/file-0135.txt",
+          "bulk/file-0136.txt",
+          "bulk/file-0137.txt",
+          "bulk/file-0138.txt",
+          "bulk/file-0139.txt",
+          "bulk/file-0140.txt",
+          "bulk/file-0141.txt",
+          "bulk/file-0142.txt",
+          "bulk/file-0143.txt",
+          "bulk/file-0144.txt",
+          "bulk/file-0145.txt",
+          "bulk/file-0146.txt",
+          "bulk/file-0147.txt",
+          "bulk/file-0148.txt",
+          "bulk/file-0149.txt",
+          "bulk/file-0150.txt",
+          "bulk/file-0151.txt",
+          "bulk/file-0152.txt",
+          "bulk/file-0153.txt",
+          "bulk/file-0154.txt",
+          "bulk/file-0155.txt",
+          "bulk/file-0156.txt",
+          "bulk/file-0157.txt",
+          "bulk/file-0158.txt",
+          "bulk/file-0159.txt",
+          "bulk/file-0160.txt",
+          "bulk/file-0161.txt",
+          "bulk/file-0162.txt",
+          "bulk/file-0163.txt",
+          "bulk/file-0164.txt",
+          "bulk/file-0165.txt",
+          "bulk/file-0166.txt",
+          "bulk/file-0167.txt",
+          "bulk/file-0168.txt",
+          "bulk/file-0169.txt",
+          "bulk/file-0170.txt",
+          "bulk/file-0171.txt",
+          "bulk/file-0172.txt",
+          "bulk/file-0173.txt",
+          "bulk/file-0174.txt",
+          "bulk/file-0175.txt",
+          "bulk/file-0176.txt"
+        ]
+      },
+      "at": "2026-10-09T03:58:37.961Z"
+    }
+  ],
+  "pageErrors": [],
+  "interactionFailures": []
+}

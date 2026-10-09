@@ -1,25 +1,32 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Copy, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, PanelRight, Plus, RotateCw, Search, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
-import { type HarnessFileChange, type HarnessMessage, type HarnessRunActivity, type HarnessWorkspaceFileEntry, type ToolCallRecord } from '../../../../../src/config/harness'
+import { ArrowDown, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, CircleAlert, Copy, FileText, FolderOpen, GitCompare, Globe2, ListTree, LoaderCircle, Menu, PanelRight, Plus, RotateCw, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
+import { type HarnessFileChange, type HarnessMessage, type HarnessRunActivity, type ToolCallRecord } from '../../../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../../../src/platform/firstPartyHarness'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from '../../state/pilot-state'
-import { SessionSidebar } from '../session/SessionSidebar'
+import { SessionSidebar, useHarnessSessionShortcuts } from '../session/SessionSidebar'
 import { MessageMarkdown } from '../conversation/markdown'
 import { RunProgressCard } from '../conversation/run-progress'
 import { EditIcon, FileChangesCard, UserMessageEditor } from '../conversation/message-parts'
-import { HarnessComposer } from '../composer/HarnessComposer'
+import { HarnessComposer, type HarnessComposerHandle } from '../composer/HarnessComposer'
+import { WorkspaceLauncher } from '../workspace/WorkspaceLauncher'
 import { WorkspaceTabs } from '../workspace/WorkspaceTabs'
 import { TerminalPanel } from '../workspace/TerminalPanel'
+import { ProjectFileDrawer } from '../workspace/ProjectFileDrawer'
+import { FilePreviewPanel } from '../workspace/FilePreviewPanel'
+import { WorkspaceEditorButton } from '../workspace/WorkspaceEditorButton'
+import { useWorkspaceEditors } from '../../hooks/useWorkspaceEditors'
 import { TaskInteraction } from '../interactions/TaskInteraction'
 import { cn } from '../../lib/utils'
 import { parseDiff } from '../../lib/diff'
+import { useWorkspaceWatch, workspaceWatchPaths } from '../../lib/workspace-watch'
 import { useModalFocusTrap } from '../../hooks/useModalFocusTrap'
-import { closeWorkspaceTab as removeWorkspaceTab, createWorkspaceSession, labelWorkspaceTab, openWorkspaceTab as addWorkspaceTab, readWorkspaceSessions, workspaceTabLabel, type WorkspaceSessionState, type WorkspaceTabId } from '../../state/workspace-state'
+import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs as removeOtherWorkspaceTabs, closeWorkspaceTab as removeWorkspaceTab, createWorkspaceFileTab, createWorkspaceSession, labelWorkspaceTab, openWorkspaceTab as addWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, type WorkspaceResourceId, type WorkspaceSessionState, type WorkspaceTabId } from '../../state/workspace-state'
 
 const StreamMessageContext = createContext<HarnessMessage | undefined>(undefined)
 const MessageLookupContext = createContext<Map<string, HarnessMessage>>(new Map())
 const WorkbenchContext = createContext<{ controller: PilotController; openChangesTab: () => void; running: boolean }>({ controller: undefined as unknown as PilotController, openChangesTab: () => undefined, running: false })
+const WORKSPACE_PREFERENCE_KEY = 'harness-react-workspace'
 
 function UserMessage() {
   const id = useAuiState(state => state.message.id)
@@ -41,7 +48,7 @@ function AssistantMessage() {
   const isOptimistic = useAuiState(state => state.message.metadata.isOptimistic)
   const messageById = useContext(MessageLookupContext)
   const stream = useContext(StreamMessageContext)
-  const { controller, openChangesTab } = useContext(WorkbenchContext)
+  const { controller, openChangesTab, running } = useContext(WorkbenchContext)
   const original = messageById.get(id)
   const streaming = shouldRenderPilotStream(id, isOptimistic === true, stream?.id)
   const content = streaming ? (stream?.content ?? '') : (original?.content ?? '')
@@ -54,7 +61,7 @@ function AssistantMessage() {
       {original?.createdAt ? <span className="text-ui-sm text-foreground-subtlest">{formatClock(original.createdAt)}</span> : null}
       {formatUsage(original) && <span className="text-ui-sm text-foreground-subtlest">{formatUsage(original)}</span>}
       <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="复制回复" title="复制" onClick={() => { void navigator.clipboard.writeText(content).catch(() => undefined) }}><Copy size={14} /></button>
-      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="重新生成" title="重新生成" onClick={() => void controller.rerun()}><RotateCw size={14} /></button>
+      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground disabled:opacity-40" disabled={running} aria-label="重新生成" title="重新生成" onClick={() => void controller.rerun()}><RotateCw size={14} /></button>
     </div>}
   </MessagePrimitive.Root>
 }
@@ -72,32 +79,62 @@ function formatUsage(message?: HarnessMessage) {
 
 export function HarnessWorkbench({ controller }: { controller: PilotController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
-  const [newTaskOpen, setNewTaskOpen] = useState(false)
+  const editorAccess = useWorkspaceEditors(controller)
+  const [sessionSearchRequest, setSessionSearchRequest] = useState(0)
+  const [draftProjectId, setDraftProjectId] = useState<string>()
   const [sessionsOpen, setSessionsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 1180px)').matches)
   const [sessionsWidth, setSessionsWidth] = useState(264)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceMounted, setWorkspaceMounted] = useState(false)
   const [terminalStartedIds, setTerminalStartedIds] = useState<string[]>([])
   const [workspaceWidth, setWorkspaceWidth] = useState(420)
-  const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>({})
+  const [workspaceSessions, setWorkspaceSessionsState] = useState<Record<string, WorkspaceSessionState>>({})
   const [workspacePreferencesLoaded, setWorkspacePreferencesLoaded] = useState(false)
-  const lastSessionId = useRef<string | undefined>(undefined)
+  const [watchedTreeDirectories, setWatchedTreeDirectories] = useState<{ key: string; paths: string[] }>({ key: '', paths: [] })
+  const workspacePreferences = useMemo(() => ({
+    latest: {} as Record<string, WorkspaceSessionState>,
+    saved: undefined as Record<string, WorkspaceSessionState> | undefined,
+    ready: false, mounted: false,
+    loading: undefined as Promise<void> | undefined,
+    saving: undefined as Promise<void> | undefined,
+  }), [controller])
+  const composerRef = useRef<HarnessComposerHandle>(null)
+  const [preparingWorkspace, setPreparingWorkspace] = useState(false)
   const [responding, setResponding] = useState(false)
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [compactLayout, setCompactLayout] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1180px)').matches)
+  const newConversation = () => { controller.newConversation(); setWorkspaceOpen(false); setPlanning(false) }
+  useHarnessSessionShortcuts(newConversation, () => {
+    updateWorkspace(current => ({ ...current, fileTreeOpen: false }))
+    setSessionsOpen(true)
+    if (compactLayout) setWorkspaceOpen(false)
+    setSessionSearchRequest(value => value + 1)
+  })
   useModalFocusTrap(compactLayout && sessionsOpen, 'pilot-sessions')
   useModalFocusTrap(compactLayout && workspaceOpen, 'pilot-workspace')
   useEffect(() => {
+    workspacePreferences.mounted = true
+    void loadWorkspacePreferences().catch(error => controller.reportError(error))
+    return () => {
+      workspacePreferences.mounted = false
+      void persistWorkspace().catch(error => controller.reportError(error))
+    }
+  }, [controller, workspacePreferences])
+  useEffect(() => {
     let current = true
-    void controller.getPreference('harness-react-workspace').then(value => {
-      if (current) setWorkspaceSessions(previous => ({ ...readWorkspaceSessions(value), ...previous }))
-    }).finally(() => { if (current) setWorkspacePreferencesLoaded(true) })
+    void controller.getPreference('harness-react-pane-widths').then(value => {
+      if (!current || !value || typeof value !== 'object') return
+      const sizes = value as { sessions?: unknown; workspace?: unknown }
+      if (typeof sizes.sessions === 'number' && Number.isFinite(sizes.sessions)) setSessionsWidth(Math.min(420, Math.max(220, sizes.sessions)))
+      if (typeof sizes.workspace === 'number' && Number.isFinite(sizes.workspace)) setWorkspaceWidth(Math.min(640, Math.max(360, sizes.workspace)))
+    })
     return () => { current = false }
   }, [controller])
   useEffect(() => {
-    if (workspacePreferencesLoaded) void controller.setPreference('harness-react-workspace', workspaceSessions)
-  }, [controller, workspaceSessions, workspacePreferencesLoaded])
+    if (workspacePreferencesLoaded && workspacePreferences.ready) void persistWorkspace().catch(error => controller.reportError(error))
+  }, [controller, workspaceSessions, workspacePreferencesLoaded, workspacePreferences])
+  useEffect(() => controller.registerBeforeNavigation(persistWorkspace), [controller, workspacePreferences])
   useEffect(() => {
     const query = window.matchMedia('(max-width: 1180px)')
     const update = () => setCompactLayout(query.matches)
@@ -108,7 +145,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   useEffect(() => {
     if (!compactLayout || (!sessionsOpen && !workspaceOpen)) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('[role="menu"][data-state="open"]')) return
       setSessionsOpen(false)
       setWorkspaceOpen(false)
     }
@@ -146,32 +183,131 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const changes = state.messages.flatMap(message => (message.fileChanges || []).map(change => ({ ...change, key: `${message.id}:${change.toolCallId}` })))
   const project = state.projects.find(item => item.id === state.session?.projectId)
   const hasTaskProgress = state.messages.length > 0 || activities.length > 0 || Boolean(state.permission) || interaction?.status === 'waiting'
-  if (state.session?.id) lastSessionId.current = state.session.id
-  const workspaceSessionId = state.session?.id || lastSessionId.current
+  const workspaceSessionId = state.session?.id
   const workspace = workspaceSessionId ? workspaceSessions[workspaceSessionId] || createWorkspaceSession() : createWorkspaceSession()
   const workspaceTab = workspace.activeTab
   const workspaceTabs = workspace.tabs
   const selectedChangeId = workspace.selectedChangeId
+  const fileDirectory = project?.directory || state.session?.workingDirectory
+  const workspaceWatchKey = JSON.stringify([workspaceSessionId, fileDirectory])
+  const onWatchDirectoriesChange = useMemo(() => (paths: string[]) => setWatchedTreeDirectories(previous => previous.key === workspaceWatchKey && JSON.stringify(previous.paths) === JSON.stringify(paths) ? previous : { key: workspaceWatchKey, paths }), [workspaceWatchKey])
+  const watchedPaths = workspaceWatchPaths(watchedTreeDirectories.key === workspaceWatchKey ? watchedTreeDirectories.paths : [], workspaceTabs.flatMap(tab => tab.path ? [tab.path] : []), sessionsOpen && workspace.fileTreeOpen, workspaceOpen)
+  const workspaceWatch = useWorkspaceWatch(controller, workspaceSessionId, fileDirectory, watchedPaths)
   useEffect(() => {
-    setWorkspaceOpen(false)
-  }, [state.session?.id])
+    setTerminalStartedIds(previous => {
+      const live = new Set(state.sessions.map(session => session.id))
+      const next = previous.filter(id => live.has(id))
+      return next.length === previous.length ? previous : next
+    })
+  }, [state.sessions])
+  useEffect(() => {
+    if (!workspaceOpen || !workspaceSessionId || workspaceTab !== 'terminal') return
+    setTerminalStartedIds(previous => previous.includes(workspaceSessionId) ? previous : [...previous, workspaceSessionId])
+  }, [workspaceOpen, workspaceSessionId, workspaceTab])
+
+  function setWorkspaceSessions(update: (previous: Record<string, WorkspaceSessionState>) => Record<string, WorkspaceSessionState>) {
+    workspacePreferences.latest = update(workspacePreferences.latest)
+    setWorkspaceSessionsState(workspacePreferences.latest)
+  }
+
+  function loadWorkspacePreferences(): Promise<void> {
+    if (workspacePreferences.ready) return Promise.resolve()
+    if (workspacePreferences.loading) return workspacePreferences.loading
+    const loading = Promise.resolve().then(() => controller.getPreference(WORKSPACE_PREFERENCE_KEY)).then(value => {
+      const restored = readWorkspaceSessions(value)
+      workspacePreferences.saved = restored
+      // A local session edit or intentional clear wins over a late saved snapshot.
+      workspacePreferences.latest = Object.keys(workspacePreferences.latest).length ? { ...restored, ...workspacePreferences.latest } : restored
+      workspacePreferences.ready = true
+      if (workspacePreferences.mounted) {
+        setWorkspaceSessionsState(workspacePreferences.latest)
+        setWorkspacePreferencesLoaded(true)
+      }
+    }).finally(() => { if (workspacePreferences.loading === loading) workspacePreferences.loading = undefined })
+    workspacePreferences.loading = loading
+    return loading
+  }
+
+  async function persistWorkspace(): Promise<void> {
+    await loadWorkspacePreferences()
+    if (workspacePreferences.saving) {
+      await workspacePreferences.saving
+      if (workspacePreferences.latest !== workspacePreferences.saved) return persistWorkspace()
+      return
+    }
+    const saving = (async () => {
+      while (workspacePreferences.latest !== workspacePreferences.saved) {
+        const snapshot = workspacePreferences.latest
+        await controller.setPreference(WORKSPACE_PREFERENCE_KEY, snapshot, true)
+        workspacePreferences.saved = snapshot
+      }
+    })()
+    workspacePreferences.saving = saving
+    try { await saving } finally { if (workspacePreferences.saving === saving) workspacePreferences.saving = undefined }
+  }
 
   function updateWorkspace(update: (current: WorkspaceSessionState) => WorkspaceSessionState) {
     if (!workspaceSessionId) return
     setWorkspaceSessions(previous => ({ ...previous, [workspaceSessionId]: update(previous[workspaceSessionId] || createWorkspaceSession()) }))
   }
 
-  function openWorkspaceTab(id: WorkspaceTabId, label?: string) {
-    updateWorkspace(current => addWorkspaceTab(current, { id, label: label || workspaceTabLabel(id) }))
-    if (id === 'terminal' && workspaceSessionId) setTerminalStartedIds(previous => previous.includes(workspaceSessionId) ? previous : [...previous, workspaceSessionId])
+  async function openWorkspaceTab(id: WorkspaceResourceId, label?: string) {
+    if (preparingWorkspace || state.sessionLoading) return
+    let sessionId = workspaceSessionId
+    if (!sessionId) {
+      setPreparingWorkspace(true)
+      try { sessionId = await composerRef.current?.prepareSession() } finally { setPreparingWorkspace(false) }
+    }
+    if (!sessionId || controller.getSnapshot().session?.id !== sessionId) return
+    if (id === 'files') {
+      setWorkspaceSessions(previous => ({ ...previous, [sessionId]: { ...(previous[sessionId] || createWorkspaceSession()), fileTreeOpen: true } }))
+      setSessionsOpen(true)
+      if (compactLayout) setWorkspaceOpen(false)
+      return
+    }
+    setWorkspaceSessions(previous => ({ ...previous, [sessionId]: addWorkspaceTab(previous[sessionId] || createWorkspaceSession(), { id, label: label || workspaceTabLabel(id) }) }))
+    if (id === 'terminal') setTerminalStartedIds(previous => previous.includes(sessionId) ? previous : [...previous, sessionId])
     setWorkspaceMounted(true)
     setWorkspaceOpen(true)
     if (compactLayout) setSessionsOpen(false)
   }
 
+  function openFilePreview(path: string) {
+    if (!workspaceSessionId || state.sessionLoading) return
+    const tab = createWorkspaceFileTab(path)
+    updateWorkspace(current => ({ ...addWorkspaceTab(current, tab), selectedFilePath: path }))
+    setWorkspaceMounted(true)
+    setWorkspaceOpen(true)
+    if (compactLayout) setSessionsOpen(false)
+  }
+
+  function addFileToConversation(path: string) {
+    if (!workspaceSessionId) return
+    composerRef.current?.addFileReference(workspaceSessionId, path)
+    if (compactLayout) { setSessionsOpen(false); setWorkspaceOpen(false) }
+  }
+
+  function closeWorkspaceContents(update: (current: WorkspaceSessionState) => WorkspaceSessionState) {
+    const next = update(workspace)
+    updateWorkspace(update)
+    if (!workspaceSessionId) return
+    // 批量关闭也必须卸载终端来回收 PTY；相邻标签回退到终端时则启动其视图。
+    setTerminalStartedIds(previous => !next.tabs.some(tab => tab.id === 'terminal')
+      ? previous.filter(item => item !== workspaceSessionId)
+      : next.activeTab === 'terminal' && !previous.includes(workspaceSessionId) ? [...previous, workspaceSessionId] : previous)
+  }
+
   function closeWorkspaceTab(id: WorkspaceTabId) {
-    updateWorkspace(current => removeWorkspaceTab(current, id))
-    if (id === 'terminal' && workspaceSessionId) setTerminalStartedIds(previous => previous.filter(item => item !== workspaceSessionId))
+    closeWorkspaceContents(current => removeWorkspaceTab(current, id))
+  }
+
+  function reopenWorkspaceTab(id: WorkspaceTabId) {
+    if (!workspaceSessionId || !workspace.recentClosedTabs.some(tab => tab.id === id)) return
+    updateWorkspace(current => restoreWorkspaceTab(current, id))
+    if (id === 'terminal') setTerminalStartedIds(previous => previous.includes(workspaceSessionId) ? previous : [...previous, workspaceSessionId])
+    setWorkspaceMounted(true)
+    setWorkspaceOpen(true)
+    if (compactLayout) setSessionsOpen(false)
   }
 
   function setWorkspaceTabLabel(id: WorkspaceTabId, label: string) {
@@ -216,13 +352,16 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     event.currentTarget.setPointerCapture(event.pointerId)
     const startX = event.clientX
     const startWidth = sessionsWidth
+    let finalWidth = startWidth
     const onMove = (move: PointerEvent) => {
-      setSessionsWidth(Math.min(420, Math.max(220, startWidth + (move.clientX - startX))))
+      finalWidth = Math.min(420, Math.max(220, startWidth + (move.clientX - startX)))
+      setSessionsWidth(finalWidth)
     }
     const onEnd = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onEnd)
       window.removeEventListener('pointercancel', onEnd)
+      void controller.setPreference('harness-react-pane-widths', { sessions: finalWidth, workspace: workspaceWidth })
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onEnd, { once: true })
@@ -234,13 +373,16 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     event.currentTarget.setPointerCapture(event.pointerId)
     const startX = event.clientX
     const startWidth = workspaceWidth
+    let finalWidth = startWidth
     const onMove = (move: PointerEvent) => {
-      setWorkspaceWidth(Math.min(640, Math.max(360, startWidth + startX - move.clientX)))
+      finalWidth = Math.min(640, Math.max(360, startWidth + startX - move.clientX))
+      setWorkspaceWidth(finalWidth)
     }
     const onEnd = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onEnd)
       window.removeEventListener('pointercancel', onEnd)
+      void controller.setPreference('harness-react-pane-widths', { sessions: sessionsWidth, workspace: finalWidth })
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onEnd, { once: true })
@@ -256,7 +398,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           {compactLayout && (sessionsOpen || workspaceOpen) && <button type="button" className="pilot-pane-backdrop" aria-label="关闭侧边面板" onClick={() => { setSessionsOpen(false); setWorkspaceOpen(false) }} />}
           {sessionsOpen && (
             <>
-              <SessionSidebar state={state} controller={controller} width={sessionsWidth} modal={compactLayout} newTaskOpen={newTaskOpen} onToggleNewTask={() => setNewTaskOpen(!newTaskOpen)} onClose={() => setSessionsOpen(false)} />
+              {workspace.fileTreeOpen && workspaceSessionId ? <aside id="pilot-sessions" className="pilot-drawer" style={{ width: sessionsWidth }} aria-label="项目文件" role={compactLayout ? 'dialog' : undefined} aria-modal={compactLayout || undefined}><ProjectFileDrawer key={workspaceSessionId} controller={controller} sessionId={workspaceSessionId} directory={fileDirectory} selectedPath={workspace.selectedFilePath} expandedPaths={workspace.expandedFilePaths} onExpandedPathsChange={paths => updateWorkspace(current => ({ ...current, expandedFilePaths: paths }))} onOpenFile={openFilePreview} onAddFile={addFileToConversation} onBack={() => updateWorkspace(current => ({ ...current, fileTreeOpen: false }))} onOpenDirectory={() => void controller.openProjectDirectory()} openingDirectory={state.openingProjectDirectory} workspaceWatch={workspaceWatch} onWatchDirectoriesChange={onWatchDirectoriesChange} editors={editorAccess.editors} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} /></aside> : <SessionSidebar state={state} controller={controller} width={sessionsWidth} modal={compactLayout} searchRequest={sessionSearchRequest} onNewConversation={newConversation} onClose={() => setSessionsOpen(false)} />}
               <div
                 className="pilot-sessions-resize"
                 role="separator"
@@ -271,20 +413,22 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               />
             </>
           )}
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-            <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/50 p-2">
+          <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress}>
+            <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>
               <div className="harness-thread-header__leading flex min-w-0 flex-1 items-center gap-1.5">
                 <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" title="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={openSessions}>
                   <Menu size={17} />
                 </button>
-                <div className="min-w-0">
-                  <small className="block truncate text-ui-xs text-foreground-subtlest">{project?.name || '个人工作区'} / Harness</small>
+                {hasTaskProgress && <div className="flex min-w-0 items-center gap-2" title={project?.name || '个人工作区'}>
+                  <FolderOpen size={16} className="shrink-0 text-foreground-subtle" />
                   <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground" title={state.session?.title}>{state.session?.title || '今天要研究、整理或完成什么？'}</h1>
-                </div>
+                </div>}
               </div>
               <div className="harness-thread-header__actions flex shrink-0 items-center gap-1">
-                <span className="pilot-inspector__state"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /></span>
-                {state.session?.permissionMode && state.session.permissionMode !== 'default' && <span className="harness-permission-badge" title={state.session.permissionMode === 'full' ? '当前会话允许完全访问' : '当前会话自动审核工具调用'}><ShieldCheck size={13} />{state.session.permissionMode === 'full' ? '完全访问' : '自动审核'}</span>}
+                {hasTaskProgress && <span className="pilot-inspector__state"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /></span>}
+                <WorkspaceEditorButton editors={editorAccess.editors} selectedEditor={editorAccess.selectedEditor} disabled={!workspaceSessionId || !fileDirectory || Boolean(state.sessionLoading)} loading={editorAccess.loading} error={editorAccess.error} onRetry={editorAccess.retry} onOpen={async (editorId, remember) => { if (workspaceSessionId) await editorAccess.open(workspaceSessionId, '', editorId, remember).catch(cause => controller.reportError(cause)) }} />
+                <button type="button" className="mira-header-tool" aria-label="查看文件" title="查看文件" aria-expanded={workspace.fileTreeOpen && sessionsOpen} disabled={preparingWorkspace || state.sessionLoading} onClick={() => void openWorkspaceTab('files')}><ListTree size={16} /></button>
+                <button type="button" className="mira-header-tool" aria-label="打开终端" title="打开终端" disabled={preparingWorkspace || state.sessionLoading} onClick={() => void openWorkspaceTab('terminal')}><TerminalSquare size={16} /></button>
                 <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" title="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={openWorkspace}>
                   <PanelRight size={17} />
                 </button>
@@ -298,22 +442,15 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               )}
               <AssistantRuntimeProvider runtime={runtime}>
                 <StreamMessageContext.Provider value={streamMessage}>
-                  <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
-                    <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+                  <ThreadPrimitive.Root className="mira-conversation-root" data-draft={!hasTaskProgress}>
+                    {state.sessionLoading && <div className="mira-session-loading" role="status"><LoaderCircle size={18} className="animate-spin" />正在加载任务…</div>}
+                    {!hasTaskProgress && !state.sessionLoading && <div className="mira-task-start">
+                      <h2>{getMiraGreeting()}</h2>
+                    </div>}
+                    <ThreadPrimitive.Viewport className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasTaskProgress ? { display: 'none' } : undefined}>
                       <div className="flex min-h-full flex-col">
                         <div className="relative w-full flex-1">
-                          <div className={cn('mx-auto flex w-full max-w-[860px] flex-col gap-5 px-5', hasTaskProgress ? 'pt-20' : 'pt-8')} style={{ overflowAnchor: 'none' }}>
-                            {!hasTaskProgress && (
-                              <div className="pilot-launchpad">
-                                <div className="pilot-launchpad__intro">
-                                  <span className="pilot-launchpad__mark" aria-hidden="true">M</span>
-                                  <strong>{state.session ? '把下一件事交给 Mira' : '从一个任务开始'}</strong>
-                                  <p>{state.session ? '描述你要研究、整理或处理的内容，Mira 会在当前工作区持续跟进。' : '先选择个人工作区或项目，再提交一个任务。执行过程、文件和结果会留在同一条任务线上。'}</p>
-                                  {!state.session && <button type="button" onClick={() => { setSessionsOpen(true); setWorkspaceOpen(false); setNewTaskOpen(true) }}><Plus size={16} />选择任务工作区</button>}
-                                </div>
-                                <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />
-                              </div>
-                            )}
+                          <div className="mira-message-column mx-auto flex w-full flex-col gap-5 px-5 pt-16" style={{ overflowAnchor: 'none' }}>
                             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
                             {changes.length > 0 && (
                               <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
@@ -322,9 +459,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                             )}
                           </div>
                         </div>
-                        <div className="sticky bottom-0 z-20 flex w-full justify-center">
-                          <div className="relative z-10 mx-auto w-full max-w-[860px] px-5 pb-4">
-                            {state.error && <div className="pilot-error" role="alert"><CircleAlert size={16} />{state.error}</div>}
+                        <div className="flex w-full justify-center">
+                          <div className="mira-message-column relative mx-auto w-full px-5 pb-4">
                             {state.permission && (
                               <section className="pilot-action" aria-label="权限确认">
                                 <ShieldCheck size={19} />
@@ -354,11 +490,17 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                             {interaction?.status === 'waiting' && (
                               <TaskInteraction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan()} onRevise={value => controller.continuePlan(interaction.kind === 'plan-review' ? interaction.planId : '', value)} onAnswer={value => controller.answerQuestion(value)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} />
                             )}
-                            {hasTaskProgress && <HarnessComposer state={state} controller={controller} planning={planning} setPlanning={setPlanning} />}
                           </div>
                         </div>
                       </div>
                     </ThreadPrimitive.Viewport>
+                    <div className="mira-composer-region" data-draft={!hasTaskProgress}>
+                      <ThreadPrimitive.ScrollToBottom className="mira-scroll-latest" aria-label="回到底部" title="回到底部"><ArrowDown size={16} /></ThreadPrimitive.ScrollToBottom>
+                      <HarnessComposer ref={composerRef} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} />
+                      {!hasTaskProgress && <div className="mira-task-suggestions" aria-label="任务示例">
+                        {[{ icon: BookOpen, label: '整理资料', prompt: '请整理当前项目资料，先阅读目录和文档，再总结主要内容。' }, { icon: CircleAlert, label: '排查问题', prompt: '帮我分析当前项目，检查运行与构建配置，列出需要处理的问题。' }, { icon: FileText, label: '起草文档', prompt: '帮我写一份项目介绍，先分析已有资料，再给出文档草案。' }].map(({ icon: Icon, label, prompt }) => <button type="button" key={label} onClick={() => window.dispatchEvent(new CustomEvent('mira:compose-draft', { detail: prompt }))}><Icon size={15} />{label}</button>)}
+                      </div>}
+                    </div>
                   </ThreadPrimitive.Root>
                 </StreamMessageContext.Provider>
               </AssistantRuntimeProvider>
@@ -380,22 +522,13 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           )}
           {workspaceMounted && (
             <aside id="pilot-workspace" className={`pilot-inspector${workspaceOpen ? '' : ' is-collapsed'}`} style={{ width: workspaceWidth }} role={compactLayout && workspaceOpen ? 'dialog' : undefined} aria-modal={compactLayout && workspaceOpen || undefined} aria-label="工作区" aria-hidden={!workspaceOpen}>
-              <div className="pilot-inspector__head">
-                <div>
-                  <strong>任务工作区</strong>
-                  <small title={state.session?.workingDirectory || project?.directory}>{project?.name || '个人工作区'} · {state.session?.title || '未选择任务'}</small>
-                </div>
-                <TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} />
-                <button type="button" title="关闭工作区" aria-label="关闭工作区" onClick={() => setWorkspaceOpen(false)}>
-                  <X size={16} />
-                </button>
-              </div>
-              <WorkspaceTabs tabs={workspaceTabs} active={workspaceTab} changes={changes.length} onOpen={openWorkspaceTab} onActivate={id => { updateWorkspace(current => ({ ...current, activeTab: id })); if (id === 'terminal' && workspaceSessionId) setTerminalStartedIds(previous => previous.includes(workspaceSessionId) ? previous : [...previous, workspaceSessionId]) }} onClose={closeWorkspaceTab} />
+              <WorkspaceTabs tabs={workspaceTabs} active={workspaceTab} changes={changes.length} recentClosedTabs={workspace.recentClosedTabs} onOpen={openWorkspaceTab} onActivate={id => { updateWorkspace(current => ({ ...current, activeTab: id, selectedFilePath: current.tabs.find(tab => tab.id === id)?.path || current.selectedFilePath })); if (id === 'terminal' && workspaceSessionId) setTerminalStartedIds(previous => previous.includes(workspaceSessionId) ? previous : [...previous, workspaceSessionId]) }} onClose={closeWorkspaceTab} onCloseOthers={id => closeWorkspaceContents(current => removeOtherWorkspaceTabs(current, id))} onCloseAll={() => closeWorkspaceContents(closeAllWorkspaceTabs)} onReopen={reopenWorkspaceTab} onReorder={(dragged, target) => updateWorkspace(current => reorderWorkspaceTabs(current, dragged, target))} onDismiss={() => setWorkspaceOpen(false)} />
               <div className="pilot-inspector__body">
+                {workspaceTabs.length === 0 && <WorkspaceLauncher busy={preparingWorkspace || state.sessionLoading} onOpen={id => void openWorkspaceTab(id)} />}
                 {workspaceTabs.filter(tab => tab.id !== 'terminal').map(tab => (
                   <div key={`${workspaceSessionId || 'empty'}:${tab.id}`} className={`pilot-panel-view${workspaceTab === tab.id ? ' is-active' : ''}`} aria-hidden={workspaceTab !== tab.id}>
                     {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} pending={Boolean(state.permission || state.memoryConfirmation || interaction?.status === 'waiting')} canRerun={Boolean(state.session && state.selection && !state.running)} onReview={() => { setWorkspaceOpen(false); document.querySelector('.pilot-action')?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }} onRerun={() => void controller.rerun()} onOpenTab={openWorkspaceTab} />}
-                    {tab.id === 'files' && <FilesPanel key={state.session?.id || 'empty'} controller={controller} directory={state.session?.workingDirectory || project?.directory} onOpenDirectory={() => void controller.openProjectDirectory()} onSelectFile={path => setWorkspaceTabLabel('files', path.split(/[\\/]/).pop() || '文件')} opening={state.openingProjectDirectory} />}
+                    {tab.path && workspaceSessionId && <FilePreviewPanel controller={controller} sessionId={workspaceSessionId} path={tab.path} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id} onAddFile={addFileToConversation} workspaceWatch={workspaceWatch} selectedEditor={editorAccess.selectedEditor} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} />}
                     {tab.id === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { updateWorkspace(current => ({ ...current, selectedChangeId: id })); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
                     {tab.id === 'browser' && <BrowserPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'browser'} initialUrl={workspace.browserUrl} onUrlChange={url => updateWorkspace(current => ({ ...current, browserUrl: url }))} />}
                   </div>
@@ -420,6 +553,11 @@ function TaskStateBadge({ taskState, taskTone, running, hasSession }: { taskStat
 
 function showAlert(taskTone: PilotTaskTone) { return taskTone === 'waiting' || taskTone === 'partial' || taskTone === 'failed' }
 
+function getMiraGreeting() {
+  const hour = new Date().getHours()
+  return `${hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好'}，有什么想让 Mira 帮忙的吗？`
+}
+
 function TaskSummary({ taskState, taskTone, running, activities, changes, onOpenWorkspace }: { taskState: string; taskTone: PilotTaskTone; running: boolean; activities: HarnessRunActivity[]; changes: number; onOpenWorkspace: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const current = activities.find(activity => activity.status === 'running')
@@ -429,7 +567,7 @@ function TaskSummary({ taskState, taskTone, running, activities, changes, onOpen
     <button type="button" className="flex min-h-9 w-full items-center gap-2 px-3 text-left hover:bg-hover" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
       <span className={cn('size-2 shrink-0 rounded-full', dotTone)} />
       <span className="shrink-0 text-ui-sm text-foreground-subtle">{running ? '正在执行' : taskState}</span>
-      <strong className="min-w-0 truncate text-ui-sm font-medium">{current?.label || (activities.length ? `${completed}/${activities.length} 步 · ${changes} 个变更` : changes ? `${changes} 个文件有变更` : '任务上下文')}</strong>
+      <strong className="min-w-0 flex-1 truncate text-ui-sm font-medium">{current?.label || (activities.length ? `${completed}/${activities.length} 步 · ${changes} 个变更` : changes ? `${changes} 个文件有变更` : '任务上下文')}</strong><ChevronDown size={13} className={expanded ? 'rotate-180' : ''} />
     </button>
     {expanded && <div className="grid gap-2 px-3 pb-3 text-ui-sm text-foreground-subtle">
       <span className="min-w-0 break-all">{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span>
@@ -438,7 +576,7 @@ function TaskSummary({ taskState, taskTone, running, activities, changes, onOpen
   </aside>
 }
 
-function OverviewPanel({ taskState, taskTone, latestRun, activities, tools, pending, canRerun, onReview, onRerun, onOpenTab }: { taskState: string; taskTone: PilotTaskTone; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[]; pending: boolean; canRerun: boolean; onReview: () => void; onRerun: () => void; onOpenTab: (id: WorkspaceTabId) => void }) {
+function OverviewPanel({ taskState, taskTone, latestRun, activities, tools, pending, canRerun, onReview, onRerun, onOpenTab }: { taskState: string; taskTone: PilotTaskTone; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[]; pending: boolean; canRerun: boolean; onReview: () => void; onRerun: () => void; onOpenTab: (id: WorkspaceResourceId) => void }) {
   const shortcuts = [{ id: 'files', label: '文件', icon: FolderOpen }, { id: 'changes', label: '变更', icon: GitCompare }, { id: 'terminal', label: '终端', icon: TerminalSquare }, { id: 'browser', label: '浏览器', icon: Globe2 }] as const
   return <div className="pilot-panel-stack"><section className={`pilot-panel-hero pilot-panel-hero--${taskTone}`}><span className="pilot-panel-kicker">当前任务</span><strong>{taskState}</strong>{latestRun?.error && <p className="pilot-tool__error">{latestRun.error}</p>}{pending && <button type="button" className="pilot-inline-button" onClick={onReview}>返回对话处理确认 <ArrowLeft size={13} /></button>}{(taskTone === 'failed' || taskTone === 'partial') && <button type="button" className="pilot-inline-button" disabled={!canRerun} onClick={onRerun}>重新生成 <RotateCw size={13} /></button>}</section><div className="pilot-panel-shortcuts" role="group" aria-label="工作区工具">{shortcuts.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => onOpenTab(id)}><Icon size={16} /><span>{label}</span></button>)}</div><PanelSection title="执行活动"><div className="pilot-activity-list">{activities.length ? activities.map(activity => <div className="pilot-activity" key={activity.id}><span className={`pilot-status-dot pilot-status-dot--${activity.status}`} /><div><strong>{activity.label}</strong>{activity.detail && <small>{activity.detail}</small>}</div><small>{activity.status === 'completed' ? '已完成' : activity.status === 'running' ? '执行中' : activity.status === 'failed' ? '失败' : '待执行'}</small></div>) : <p>暂无活动</p>}</div></PanelSection><PanelSection title="工具记录">{tools.length ? tools.map(tool => <details className="pilot-tool" key={tool.id}><summary><span>{tool.tool}</span><small>{tool.status === 'ok' ? '已完成' : tool.status === 'running' ? '执行中' : tool.status === 'failed' ? '失败' : '待确认'}</small></summary>{tool.target && <p>{tool.target}</p>}{tool.error && <p className="pilot-tool__error">{tool.error}</p>}{tool.diff && <pre>{tool.diff}</pre>}</details>) : <p>暂无工具记录</p>}</PanelSection></div>
 }
@@ -449,76 +587,6 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
   return <section className="pilot-panel-section"><h2>{title}</h2>{children}</section>
 }
 
-function FilesPanel({ controller, directory, onOpenDirectory, onSelectFile, opening }: { controller: PilotController; directory?: string; onOpenDirectory: () => void; onSelectFile: (path: string) => void; opening?: boolean }) {
-  const root = directory?.split(/[\\/]/).filter(Boolean).pop() || '未关联项目'
-  const [entries, setEntries] = useState<Record<string, HarnessWorkspaceFileEntry[]>>({})
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['']))
-  const [loading, setLoading] = useState<Set<string>>(new Set())
-  const [selected, setSelected] = useState<{ path: string; content: string }>()
-  const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const requestId = useRef(0)
-  useEffect(() => {
-    if (!directory) return
-    let current = true
-    setError('')
-    setLoading(new Set(['']))
-    void controller.listFiles('').then(result => {
-      if (current) setEntries({ '': result.entries })
-    }).catch(cause => {
-      if (current) setError(cause instanceof Error ? cause.message : '文件列表加载失败')
-    }).finally(() => {
-      if (current) setLoading(new Set())
-    })
-    return () => { current = false; requestId.current++ }
-  }, [controller, directory])
-  async function refreshFiles() {
-    setError('')
-    setLoading(previous => new Set(previous).add(''))
-    try {
-      const result = await controller.listFiles('')
-      setEntries({ '': result.entries })
-      setExpanded(new Set(['']))
-      setSelected(undefined)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '文件列表刷新失败')
-    } finally {
-      setLoading(previous => { const next = new Set(previous); next.delete(''); return next })
-    }
-  }
-  async function toggleFolder(path: string) {
-    if (expanded.has(path)) {
-      setExpanded(previous => { const next = new Set(previous); next.delete(path); return next })
-      return
-    }
-    setExpanded(previous => new Set(previous).add(path))
-    if (entries[path] || loading.has(path)) return
-    setLoading(previous => new Set(previous).add(path))
-    try {
-      const result = await controller.listFiles(path)
-      setEntries(previous => ({ ...previous, [path]: result.entries }))
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '文件列表加载失败')
-    } finally {
-      setLoading(previous => { const next = new Set(previous); next.delete(path); return next })
-    }
-  }
-  async function openFile(path: string) {
-    const current = ++requestId.current
-    setSelected(undefined)
-    setError('')
-    try {
-      const result = await controller.readFile(path)
-      if (current === requestId.current) { setSelected(result); onSelectFile(path) }
-    } catch (cause) {
-      if (current === requestId.current) setError(cause instanceof Error ? cause.message : '文件预览失败')
-    }
-  }
-  function renderEntries(parent: string, depth: number): ReactNode {
-    return entries[parent]?.filter(entry => !search.trim() || entry.path.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) || entry.type === 'directory' && entries[entry.path]?.some(child => child.path.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))).map(entry => <div key={entry.path}><button type="button" className={selected?.path === entry.path ? 'pilot-tree-row is-selected' : 'pilot-tree-row'} style={{ paddingLeft: 12 + depth * 16 }} title={entry.path} onClick={() => entry.type === 'directory' ? void toggleFolder(entry.path) : void openFile(entry.path)}>{entry.type === 'directory' ? <FolderOpen size={14} /> : <FileText size={14} />}<span>{entry.name}</span></button>{entry.type === 'directory' && (expanded.has(entry.path) || Boolean(search.trim())) && <>{loading.has(entry.path) && <p className="pilot-tree-loading">正在加载…</p>}{renderEntries(entry.path, depth + 1)}</>}</div>)
-  }
-  return <div className="pilot-files"><div className="pilot-panel-toolbar"><div><strong>{root}</strong><span title={directory}>{directory || '创建任务后，项目文件会显示在这里'}</span></div><div className="pilot-file-actions"><button type="button" className="pilot-inline-button" disabled={!directory || loading.has('')} onClick={() => void refreshFiles()} aria-label="刷新文件列表" title="刷新文件列表"><RotateCw size={14} /></button><button type="button" className="pilot-inline-button" disabled={!directory || opening} onClick={onOpenDirectory}>{opening ? <LoaderCircle size={14} className="pilot-spin" /> : <FolderOpen size={14} />} 打开目录</button></div></div>{directory ? <><label className="pilot-file-search"><Search size={14} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="筛选已加载文件" aria-label="筛选已加载文件" /></label><div className="pilot-files__content"><div className="pilot-file-tree"><div className="pilot-tree-root"><FolderOpen size={15} /><span>{root}</span></div>{loading.has('') && <p className="pilot-tree-loading">正在加载…</p>}{renderEntries('', 0)}{entries['']?.length === 0 && <p className="pilot-tree-loading">目录为空</p>}</div><div className="pilot-file-preview">{selected ? <><div className="pilot-file-preview__head"><strong title={selected.path}>{selected.path}</strong><button type="button" title="复制文件内容" aria-label="复制文件内容" onClick={() => void navigator.clipboard.writeText(selected.content)}><Copy size={14} /></button></div><pre>{selected.content}</pre></> : <div className="pilot-file-preview__empty">选择文件查看内容</div>}</div></div>{error && <p className="pilot-file-error" role="alert">{error} <button type="button" onClick={() => void refreshFiles()}>重试</button></p>}</> : <EmptyPanel icon={<Search size={20} />} text="尚未选择工作目录" />}</div>
-}
 
 function ChangesPanel({ changes, selectedChangeId, onSelect }: { changes: Array<HarnessFileChange & { key: string }>; selectedChangeId?: string; onSelect: (id: string | undefined) => void }) {
   const totals = changes.reduce((count, change) => { const diff = parseDiff(change.diff || ''); return { added: count.added + diff.added, removed: count.removed + diff.removed } }, { added: 0, removed: 0 })
@@ -536,9 +604,14 @@ function BrowserPanel({ controller, sessionId, active, initialUrl, onUrlChange }
   const [loading, setLoading] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
+  const [overlayOpen, setOverlayOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const openedRef = useRef(false)
   const sessionEpochRef = useRef(0)
+  const navigationRevisionRef = useRef(0)
+  const liveRef = useRef({ sessionId, active, overlayOpen, onUrlChange })
+  liveRef.current = { sessionId, active, overlayOpen, onUrlChange }
+  const isCurrent = (epoch: number, id: string) => epoch === sessionEpochRef.current && liveRef.current.sessionId === id
   const bounds = (): HarnessBrowserBounds => {
     const rect = viewportRef.current?.getBoundingClientRect()
     return { x: Math.max(0, Math.round(rect?.left || 0)), y: Math.max(0, Math.round(rect?.top || 0)), width: Math.max(16, Math.round(rect?.width || 0)), height: Math.max(16, Math.round(rect?.height || 0)) }
@@ -549,56 +622,100 @@ function BrowserPanel({ controller, sessionId, active, initialUrl, onUrlChange }
     setUrl(initialUrl)
     setAddress(initialUrl)
     setError('')
+    setCanGoBack(false)
+    setCanGoForward(false)
+    setLoading(false)
     if (!sessionId) return
     const unsubscribe = controller.onBrowserEvent(event => {
-      if (event.sessionId !== sessionId) return
-      if (event.url) { setUrl(event.url); setAddress(event.url); onUrlChange(event.url) }
+      if (!isCurrent(epoch, sessionId) || event.sessionId !== sessionId) return
+      if (event.url) { setUrl(event.url); setAddress(event.url); liveRef.current.onUrlChange(event.url) }
       setCanGoBack(event.canGoBack)
       setCanGoForward(event.canGoForward)
       setLoading(event.loading)
       setError(event.error || '')
     })
-    return () => { sessionEpochRef.current++; unsubscribe(); if (openedRef.current) void controller.closeBrowserFor(sessionId) }
+    return () => { sessionEpochRef.current++; navigationRevisionRef.current++; unsubscribe(); if (openedRef.current) void controller.closeBrowserFor(sessionId).catch(() => undefined) }
   }, [controller, sessionId])
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root) return
+    const selector = '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]'
+    const update = () => setOverlayOpen([...root.querySelectorAll<HTMLElement>(selector)].some(element =>
+      element.getAttribute('data-state') !== 'closed' && element.getAttribute('aria-hidden') !== 'true'
+      && element.getClientRects().length > 0 && !element.contains(viewportRef.current)))
+    update()
+    const observer = new MutationObserver(records => {
+      // Streaming text is unrelated to overlay visibility; only inspect changed overlay subtrees.
+      if (records.some(record => record.type === 'attributes'
+        ? record.target instanceof Element && (record.target.matches(selector) || Boolean(record.target.querySelector(selector)))
+        : [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || Boolean(node.querySelector(selector)))))) update()
+    })
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['role', 'data-state', 'aria-hidden', 'hidden', 'style'] })
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     if (!active || !sessionId || !initialUrl || openedRef.current) return
     openedRef.current = true
     const epoch = sessionEpochRef.current
-    void controller.navigateBrowser(initialUrl, bounds()).then(result => {
-      if (epoch !== sessionEpochRef.current) return void controller.closeBrowserFor(sessionId)
+    const revision = ++navigationRevisionRef.current
+    setLoading(true)
+    void controller.navigateBrowserFor(sessionId, initialUrl, bounds()).then(result => {
+      if (!isCurrent(epoch, sessionId) || revision !== navigationRevisionRef.current) return
       setUrl(result)
-    }).catch(cause => { if (epoch === sessionEpochRef.current) { openedRef.current = false; setError(cause instanceof Error ? cause.message : '浏览器恢复失败') } })
+      if (!liveRef.current.active || liveRef.current.overlayOpen) void controller.controlBrowserFor(sessionId, 'hide').catch(() => undefined)
+    }).catch(cause => { if (isCurrent(epoch, sessionId) && revision === navigationRevisionRef.current) { setLoading(false); setError(cause instanceof Error ? cause.message : '浏览器恢复失败') } })
   }, [active, controller, initialUrl, sessionId])
   useEffect(() => {
-    if (!active || !url || !viewportRef.current) return
-    void controller.controlBrowser('show').then(() => controller.setBrowserBounds(bounds())).catch(cause => setError(cause instanceof Error ? cause.message : '浏览器视图调整失败'))
-    const update = () => { void controller.setBrowserBounds(bounds()).catch(cause => setError(cause instanceof Error ? cause.message : '浏览器视图调整失败')) }
+    if (!sessionId || !url) return
+    const epoch = sessionEpochRef.current
+    const visible = active && !overlayOpen
+    let current = true
+    void controller.controlBrowserFor(sessionId, visible ? 'show' : 'hide').then(() => {
+      if (current && isCurrent(epoch, sessionId) && visible && liveRef.current.active && !liveRef.current.overlayOpen) return controller.setBrowserBoundsFor(sessionId, bounds())
+    }).catch(cause => { if (current && isCurrent(epoch, sessionId)) setError(cause instanceof Error ? cause.message : '浏览器视图调整失败') })
+    return () => { current = false }
+  }, [active, overlayOpen, controller, sessionId, url])
+  useEffect(() => {
+    if (!active || overlayOpen || !sessionId || !url || !viewportRef.current) return
+    const epoch = sessionEpochRef.current
+    let frame: number | undefined
+    const update = () => {
+      if (frame !== undefined) return
+      frame = requestAnimationFrame(() => {
+        frame = undefined
+        if (!isCurrent(epoch, sessionId) || !liveRef.current.active || liveRef.current.overlayOpen) return
+        void controller.setBrowserBoundsFor(sessionId, bounds()).catch(cause => { if (isCurrent(epoch, sessionId)) setError(cause instanceof Error ? cause.message : '浏览器视图调整失败') })
+      })
+    }
     const observer = new ResizeObserver(update)
     observer.observe(viewportRef.current)
     window.addEventListener('resize', update)
-    return () => { observer.disconnect(); window.removeEventListener('resize', update) }
-  }, [active, controller, url])
-  useEffect(() => {
-    if (!active && url) void controller.controlBrowser('hide').catch(cause => setError(cause instanceof Error ? cause.message : '浏览器视图隐藏失败'))
-  }, [active, controller, url])
+    return () => { observer.disconnect(); window.removeEventListener('resize', update); if (frame !== undefined) cancelAnimationFrame(frame) }
+  }, [active, overlayOpen, controller, sessionId, url])
   async function navigate(event?: FormEvent) {
     event?.preventDefault()
     if (!sessionId || !address.trim()) return
     const value = /^https?:\/\//i.test(address.trim()) ? address.trim() : `https://${address.trim()}`
     const epoch = sessionEpochRef.current
     const requestSessionId = sessionId
+    const revision = ++navigationRevisionRef.current
     openedRef.current = true
     try {
       setError(''); setLoading(true)
-      const result = await controller.navigateBrowser(value, bounds())
-      if (epoch !== sessionEpochRef.current) { void controller.closeBrowserFor(requestSessionId); return }
+      const result = await controller.navigateBrowserFor(requestSessionId, value, bounds())
+      if (!isCurrent(epoch, requestSessionId) || revision !== navigationRevisionRef.current) return
       setUrl(result)
-      onUrlChange(result)
+      liveRef.current.onUrlChange(result)
+      if (!liveRef.current.active || liveRef.current.overlayOpen) void controller.controlBrowserFor(requestSessionId, 'hide').catch(() => undefined)
     } catch (cause) {
-      if (epoch === sessionEpochRef.current) { openedRef.current = false; setLoading(false); setError(cause instanceof Error ? cause.message : '浏览器地址无效') }
+      if (isCurrent(epoch, requestSessionId) && revision === navigationRevisionRef.current) { setLoading(false); setError(cause instanceof Error ? cause.message : '浏览器地址无效') }
     }
   }
-  const control = (action: 'back' | 'forward' | 'reload') => { void controller.controlBrowser(action).catch(cause => setError(cause instanceof Error ? cause.message : '浏览器操作失败')) }
+  const control = (action: 'back' | 'forward' | 'reload') => {
+    if (!sessionId) return
+    const epoch = sessionEpochRef.current
+    void controller.controlBrowserFor(sessionId, action).catch(cause => { if (isCurrent(epoch, sessionId)) setError(cause instanceof Error ? cause.message : '浏览器操作失败') })
+  }
   return <div className="pilot-browser"><form className="pilot-browser__toolbar" onSubmit={event => void navigate(event)}><button type="button" onClick={() => control('back')} disabled={!canGoBack} aria-label="后退" title="后退"><ArrowLeft size={14} /></button><button type="button" onClick={() => control('forward')} disabled={!canGoForward} aria-label="前进" title="前进"><ArrowRight size={14} /></button><button type="button" onClick={() => control('reload')} disabled={!url} aria-label="刷新" title="刷新"><RotateCw size={14} /></button><input value={address} onChange={event => setAddress(event.target.value)} placeholder="输入网址 https://…" aria-label="浏览器地址" /><button type="submit" disabled={!sessionId || !address.trim() || loading}>{loading ? '打开中…' : '打开'}</button></form>{loading && <div className="pilot-browser__loading" aria-hidden="true" />}{error && <p className="pilot-file-error" role="alert">{error}</p>}<div ref={viewportRef} className="pilot-browser__view">{!url && <EmptyPanel icon={<Globe2 size={20} />} text={sessionId ? '输入网址开始浏览' : '尚未选择任务'} />}</div></div>
 }
 

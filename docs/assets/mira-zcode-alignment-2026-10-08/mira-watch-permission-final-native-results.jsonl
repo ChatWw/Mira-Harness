@@ -1,0 +1,2 @@
+{"phase":"native-permission-error-region-capture","at":"2026-10-09T01:53:05.585Z","message":"文件自动刷新已停止：没有权限监听文件或目录，请检查系统访问权限后重试。"}
+{"phase":"permission-retry-restored","at":"2026-10-09T01:53:06.693Z","passed":true}

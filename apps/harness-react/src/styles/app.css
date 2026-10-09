@@ -1,47 +1,52 @@
 @import "tailwindcss";
-/* 深浅色由宿主在 <html> 上切换 .dark 类（与 ZCode 相同的机制）。 */
+/* 深浅色由宿主在 <html> 上切换 .dark 类。 */
 @custom-variant dark (&:where(.dark, .dark *));
 @source "../**/*.{ts,tsx}";
 @source "../../../../node_modules/streamdown/dist/*.js"; /* streamdown 运行时类名 */
-@import "./zcode-tokens.css";
+@import "./mira-foundations.css";
 @import "@xterm/xterm/css/xterm.css";
 @import "./pilot.css";
 @import "./style.css";
+@import "./file-drawer.css";
+@import "./file-preview.css";
+@import "./workspace-editors.css";
 
-/* Mira 侧桥接：宿主主题（primaryColor）写入 --color-brand，
-   旧手写 CSS 的语义别名统一映射到 ZCode 令牌，迁移期共存。 */
+/* Tailwind 组件与现有区域样式共享 Mira 的语义主题。 */
 @theme inline {
-  --color-on-accent: var(--on-accent, #fff);
-}
-:root {
-  --ui-font-size: 14px;
+  --color-on-accent: var(--mira-primary-foreground);
 }
 
-/* 全局滚动条：与 ZCode 相同（thumb 透明边 3px + 圆角，track 透明）。 */
+/* 全局滚动条：thumb 透明边 3px + 圆角，track 透明。 */
 * { scrollbar-width: auto; scrollbar-color: var(--color-border) transparent; }
 *::-webkit-scrollbar { width: 14px; height: 14px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { min-height: 32px; min-width: 32px; border: 3px solid transparent; border-radius: 9999px; background: var(--color-border); background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 #root {
-  --accent: var(--color-brand);
-  --accent-strong: var(--color-brand);
-  --focus: var(--color-brand);
-  --on-accent: var(--color-brand-foreground, #fff);
-  --surface: var(--color-card);
-  --soft: var(--color-background-alt);
-  --hover: var(--color-hover);
-  --text: var(--color-foreground);
-  --muted: var(--color-foreground-subtle);
-  --border: var(--color-border);
-  --app-bg: var(--color-background);
-  --success: var(--color-success);
-  --warning: var(--color-warning);
+  --accent: var(--mira-brand);
+  --accent-strong: var(--mira-brand);
+  --focus: var(--mira-brand);
+  --on-accent: var(--mira-primary-foreground);
+  --surface: var(--mira-card);
+  --soft: var(--mira-background-alt);
+  --hover: var(--mira-hover);
+  --text: var(--mira-foreground);
+  --muted: var(--mira-foreground-subtle);
+  --border: var(--mira-border);
+  --app-bg: var(--mira-background);
+  --success: var(--mira-success);
+  --warning: var(--mira-warning);
+  --term-bg: var(--color-terminal-bg);
+  --term-fg: var(--color-terminal-fg);
+  --term-accent: var(--color-terminal-cursor);
+  --term-muted: var(--color-foreground-subtle);
+  --term-head: var(--color-foreground-subtle);
+  --term-placeholder: var(--color-foreground-subtle);
+  --term-border: var(--color-border);
   --shadow-soft: 0 4px 16px color-mix(in oklab, black 8%, transparent);
   color: var(--text);
   background: var(--app-bg);
 }
 .dark #root {
   --shadow-soft: 0 4px 16px color-mix(in oklab, black 30%, transparent);
-  --on-accent: #0a0a0a;
 }

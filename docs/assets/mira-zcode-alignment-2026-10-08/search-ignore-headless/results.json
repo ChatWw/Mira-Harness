@@ -1,0 +1,206 @@
+{
+  "timestamp": "2026-10-09T04:35:34.750Z",
+  "validation": "headless Vue source + isolated real helpers; not native Electron",
+  "requests": 15,
+  "records": [
+    {
+      "step": "light-template-1440",
+      "layout": {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(113, 113, 122)",
+          "background": "rgb(255, 255, 255)"
+        },
+        "error": null,
+        "icons": 7
+      }
+    },
+    {
+      "step": "saved-rules-search-browse-preview",
+      "result": {
+        "entries": [
+          {
+            "name": "needle.md",
+            "path": "needle.md",
+            "type": "file"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "step": "draft-partitions-save-cache-invalidated",
+      "filtered": {
+        "entries": [
+          {
+            "name": "needle.log",
+            "path": "needle.log",
+            "type": "file"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "step": "light-save-error-1440",
+      "layout": {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(113, 113, 122)",
+          "background": "rgb(255, 255, 255)"
+        },
+        "error": {
+          "color": "color(srgb 0.726471 0.223529 0.226471)",
+          "background": "rgb(255, 255, 255)"
+        },
+        "icons": 7
+      }
+    },
+    {
+      "step": "dark-conflict-1440",
+      "layout": {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(183, 183, 191)",
+          "background": "rgb(41, 42, 46)"
+        },
+        "error": {
+          "color": "color(srgb 0.943137 0.440196 0.441176)",
+          "background": "rgb(32, 33, 36)"
+        },
+        "icons": 7
+      }
+    },
+    {
+      "step": "route-cancel-revert-save-failure-retry-external-conflict",
+      "passed": true
+    },
+    {
+      "step": "dark-load-error-1440",
+      "layout": {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": true,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(146, 146, 155)",
+          "background": "rgb(41, 42, 46)"
+        },
+        "error": {
+          "color": "color(srgb 0.943137 0.440196 0.441176)",
+          "background": "rgb(32, 33, 36)"
+        },
+        "icons": 7
+      }
+    },
+    {
+      "step": "dark-personal-template-1440",
+      "layout": {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(183, 183, 191)",
+          "background": "rgb(41, 42, 46)"
+        },
+        "error": null,
+        "icons": 7
+      }
+    },
+    {
+      "step": "dark-personal-template-1280",
+      "layout": {
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(183, 183, 191)",
+          "background": "rgb(41, 42, 46)"
+        },
+        "error": null,
+        "icons": 7
+      }
+    },
+    {
+      "step": "light-personal-template-1710",
+      "layout": {
+        "viewport": {
+          "width": 1710,
+          "height": 992
+        },
+        "documentOverflow": false,
+        "mainOverflow": false,
+        "editor": {
+          "width": 824,
+          "height": 330,
+          "disabled": false,
+          "fontSize": "12px",
+          "lineHeight": "20px",
+          "color": "rgb(113, 113, 122)",
+          "background": "rgb(255, 255, 255)"
+        },
+        "error": null,
+        "icons": 7
+      }
+    },
+    {
+      "step": "personal-root-isolated-load-retry-missing-markers-route-discard",
+      "passed": true
+    }
+  ],
+  "pageErrors": [],
+  "passed": true
+}

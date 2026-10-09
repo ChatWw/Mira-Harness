@@ -1,0 +1,10 @@
+{
+  "startedAt": "2026-10-09T05:05:08.516Z",
+  "home": "/private/tmp/mira-native-ignore-aSLqrz",
+  "root": "/private/tmp/mira-native-ignore-aSLqrz/project",
+  "records": [],
+  "captures": [],
+  "passed": false,
+  "error": "Error: Timed out: !!document.querySelector('.search-ignore__editor textarea:not(:disabled)')\n    at until (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:31:9)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:92:3",
+  "finishedAt": "2026-10-09T05:05:16.855Z"
+}

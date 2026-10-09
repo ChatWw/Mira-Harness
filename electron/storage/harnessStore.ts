@@ -147,13 +147,14 @@ export class HarnessStore {
     return target
   }
 
-  private projectFilePath(project: HarnessProject, filePath: string) {
+  private workspaceFilePath(directory: string, filePath: string) {
     if (!filePath || isAbsolute(filePath)) throw new Error('引用文件路径无效')
-    const candidate = this.ensureInside(project.directory, join(project.directory, filePath))
-    if (!existsSync(candidate) || !lstatSync(candidate).isFile()) throw new Error(`引用文件不存在：${filePath}`)
-    const root = realpathSync(project.directory)
+    const candidate = this.ensureInside(directory, join(directory, filePath))
+    if (!existsSync(candidate)) throw new Error(`引用文件不存在：${filePath}`)
+    const root = realpathSync(directory)
     const resolved = realpathSync(candidate)
     if (resolved !== root && !resolved.startsWith(`${root}${sep}`)) throw new Error('引用文件不能通过符号链接离开项目目录')
+    if (!statSync(resolved).isFile()) throw new Error(`引用文件不存在：${filePath}`)
     return resolved
   }
 
@@ -163,18 +164,25 @@ export class HarnessStore {
     return realpathSync(filePath)
   }
 
-  private attachmentFilePath(project: HarnessProject, filePath: string) {
-    return isAbsolute(filePath) ? this.externalFilePath(filePath) : this.projectFilePath(project, filePath)
+  private attachmentFilePath(directory: string, filePath: string, allowExternal: boolean) {
+    if (isAbsolute(filePath)) {
+      if (!allowExternal) throw new Error('个人工作区只能引用工作目录内的相对路径文件')
+      return this.externalFilePath(filePath)
+    }
+    return this.workspaceFilePath(directory, filePath)
   }
 
-  private resolveAttachments(project: HarnessProject, references: HarnessFileReference[]) {
+  private resolveAttachments(directory: string, references: HarnessFileReference[], allowExternal: boolean) {
     if (references.length > MAX_FILE_REFERENCES) throw new Error(`一次最多引用 ${MAX_FILE_REFERENCES} 个文件`)
     const uniquePaths = new Set<string>()
     let totalBytes = 0
     return references.map(reference => {
       if (!reference || typeof reference.path !== 'string' || uniquePaths.has(reference.path)) throw new Error('引用文件重复或无效')
       uniquePaths.add(reference.path)
-      const target = this.attachmentFilePath(project, reference.path)
+      const target = this.attachmentFilePath(directory, reference.path, allowExternal)
+      const size = statSync(target).size
+      if (size > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
+      if (totalBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
       const content = readFileSync(target)
       if (content.includes(0)) throw new Error(`不支持引用二进制文件：${reference.path}`)
       if (content.byteLength > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
@@ -843,7 +851,7 @@ export class HarnessStore {
       const candidate = resolve(filePath)
       const relativePath = relative(project.directory, candidate)
       if (relativePath && !relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath)) {
-        const target = this.projectFilePath(project, relativePath)
+        const target = this.workspaceFilePath(project.directory, relativePath)
         // 引用路径沿用“原始相对路径”（而非用 realpath 回算 relative），
         // 避免 macOS（/var → /private/var）与 Windows（符号链接 / junction / 盘符大小写）
         // 下 project.directory 与 realpath 前缀不一致，从而拼出 ../.. 逃逸路径。
@@ -853,21 +861,22 @@ export class HarnessStore {
       // attachmentFilePath → externalFilePath 再次 realpathSync，跨平台稳定且显示与来源一致。
       return { path: candidate, name: basename(candidate) }
     })
-    this.resolveAttachments(project, references)
+    this.resolveAttachments(project.directory, references, true)
     return references
   }
 
   resolveMessageAttachments(sessionId: string, references: HarnessFileReference[] = []): HarnessMessageAttachment[] {
     if (!references.length) return []
     const session = this.getSession(sessionId)
-    if (!session.projectId) throw new Error('请先选择项目后再引用文件')
-    const project = this.getProject(session.projectId)
-    return this.resolveAttachments(project, references)
+    const directory = session.projectId ? this.getProject(session.projectId).directory : session.workingDirectory
+    if (!directory) throw new Error('该会话没有可用工作目录')
+    return this.resolveAttachments(directory, references, Boolean(session.projectId))
   }
 
-  removeEmptySessions() {
+  removeEmptySessions(retainedIds: ReadonlySet<string> = new Set()) {
     const rows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
     const emptyIds = rows.flatMap(row => {
+      if (retainedIds.has(row.id)) return []
       try { return this.getSession(row.id).messages.some(message => message.role === 'user') ? [] : [row.id] } catch { return [] }
     })
     if (!emptyIds.length) return 0

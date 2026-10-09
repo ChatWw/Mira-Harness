@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { PilotController, type PilotHost } from '../state/pilot-state'
 import { HarnessWorkbench } from '../components/workbench/HarnessWorkbench'
 import { applyHostTheme, type HostThemeContext } from '../platform/theme'
+import { miraCodeHighlightWorker } from '../lib/code-highlight-worker-client'
 
 type PilotWindow = Window & {
   __POWERED_BY_WUJIE__?: boolean
@@ -40,6 +41,7 @@ function unmount() {
   controller?.dispose()
   controller = undefined
   root?.unmount()
+  miraCodeHighlightWorker.dispose()
   root = undefined
   containerRef = undefined
 }

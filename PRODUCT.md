@@ -4,7 +4,7 @@
 
 ## Platform
 
-adaptive
+desktop
 
 ## Users
 
@@ -24,7 +24,7 @@ Electron 持有桌面、模型、文件和 Harness 执行能力；Vue + Wujie �
 
 ## Capabilities and Constraints
 
-Harness 保留现有会话、计划、审批、工具、取消、恢复与成果语义；React UI 经受控接口连接 Electron 服务，不直接取得模型密钥或完整 preload。Shell 只维护浅色/深色主题及公共入口；应用各自决定内部导航和工作区布局。当前 React/Wujie 原型仍是演示数据，真实接入尚待完成。
+Harness 保留现有会话、计划、审批、工具、取消、恢复与成果语义；React 正式入口经第一方 MessageChannel + grant 连接 Electron 服务，不直接取得模型密钥或完整 preload。Shell 只维护浅色/深色主题及公共入口；应用各自决定内部导航和工作区布局。Wujie pilot/prototype 是开发辅助，不能代表正式入口验收。当前分支只面向 Electron 桌面；2026-10-08 用户已授权直接对齐 ZCode 界面与源码，第一轮开发态 UI/交互桌面验收完成，安装包、Windows、真实模型和整体发布关口仍需单独记录。
 
 ## Product Principles
 

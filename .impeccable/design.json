@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T04:08:54Z",
+  "title": "Design System: Mira Harness",
+  "extensions": {
+    "colorMeta": {
+      "mira-primary-light": {
+        "role": "primary",
+        "displayName": "浅色主操作",
+        "tonalRamp": [
+          "#000000",
+          "#0d0d0d",
+          "#161616",
+          "#202020",
+          "#2b2b2b",
+          "#747474",
+          "#f0f0f0",
+          "#ffffff"
+        ]
+      },
+      "mira-background-light": {
+        "role": "neutral",
+        "displayName": "浅色工作表面"
+      },
+      "mira-background-dark": {
+        "role": "neutral",
+        "displayName": "深色工作表面"
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "界面正文",
+        "purpose": "基础控件、正文和应用内标题。"
+      },
+      "caption": {
+        "displayName": "辅助说明",
+        "purpose": "低一级说明和任务建议。"
+      },
+      "secondary": {
+        "displayName": "次要文字",
+        "purpose": "工具提示、辅助说明和菜单描述。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "popover",
+        "value": "0 4px 16px color-mix(in srgb, black 12%, transparent)",
+        "purpose": "权限、模型和上下文菜单。"
+      },
+      {
+        "name": "compact-pane",
+        "value": "0 10px 30px color-mix(in srgb, black 14%, transparent)",
+        "purpose": "紧凑桌面窗口中的导航/资源浮层。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "control",
+        "value": "120ms ease-out",
+        "purpose": "Composer 边框和发送按钮的状态反馈。"
+      },
+      {
+        "name": "divider",
+        "value": "160ms ease",
+        "purpose": "可拖拽分隔条的 hover。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1180px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "发送按钮",
+      "kind": "button",
+      "refersTo": "primary-button",
+      "description": "Composer 28px 发送主操作。",
+      "html": "<button class=\"ds-send\" type=\"button\" aria-label=\"发送任务\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"m5 12 7-7 7 7M12 19V5\"/></svg></button>",
+      "css": ".ds-send { display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:8px; color:var(--mira-primary-foreground,#fff); background:var(--mira-primary,#000); cursor:pointer; transition:opacity 120ms ease-out; } .ds-send:hover { opacity:.8; } .ds-send:focus-visible { outline:2px solid var(--mira-brand,#000); outline-offset:2px; } .ds-send:disabled { opacity:.35; cursor:not-allowed; }"
+    },
+    {
+      "name": "工具按钮",
+      "kind": "button",
+      "description": "Header/Composer 的透明次级操作。",
+      "html": "<button class=\"ds-tool\" type=\"button\" aria-label=\"添加上下文\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button>",
+      "css": ".ds-tool { display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:8px; color:var(--mira-foreground-subtle,#747474); background:transparent; cursor:pointer; } .ds-tool:hover { color:var(--mira-foreground,#202020); background:var(--mira-hover,rgba(13,13,13,.05)); } .ds-tool:focus-visible { outline:2px solid var(--mira-brand,#000); outline-offset:2px; }"
+    },
+    {
+      "name": "任务输入",
+      "kind": "input",
+      "refersTo": "composer",
+      "description": "受控 Composer 的正文输入区域。",
+      "html": "<textarea class=\"ds-task-input\" rows=\"3\" aria-label=\"任务内容\" placeholder=\"向 Mira 提问，使用 + 添加上下文\"></textarea>",
+      "css": ".ds-task-input { display:block; width:320px; min-height:60px; padding:12px; border:1px solid var(--mira-input-border,rgba(13,13,13,.1)); border-radius:16px; color:var(--mira-foreground,#202020); background:var(--mira-input,#fff); resize:vertical; font: 14px/20px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-task-input:hover { border-color:var(--mira-input-border-hover,rgba(13,13,13,.15)); } .ds-task-input:focus-visible { outline:2px solid var(--mira-brand,#000); outline-offset:2px; } .ds-task-input::placeholder { color:var(--mira-foreground-subtlest,#888); }"
+    },
+    {
+      "name": "任务导航行",
+      "kind": "nav",
+      "refersTo": "sidebar",
+      "description": "默认 264px 侧栏中的紧凑任务入口。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"任务\"><button class=\"ds-nav-item\" type=\"button\" aria-current=\"page\">整理项目资料</button><button class=\"ds-nav-item\" type=\"button\">检查文件变更</button></nav>",
+      "css": ".ds-nav { width:240px; padding:4px; background:var(--mira-sidebar,#f0f0f0); } .ds-nav-item { display:block; width:100%; min-height:28px; padding:4px 8px; border:0; border-radius:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--mira-foreground,#202020); background:transparent; cursor:pointer; font: 14px/20px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-nav-item[aria-current=page], .ds-nav-item:hover { background:var(--mira-selected,rgba(13,13,13,.05)); } .ds-nav-item:focus-visible { outline:2px solid var(--mira-brand,#000); outline-offset:-2px; }"
+    },
+    {
+      "name": "文件引用",
+      "kind": "chip",
+      "description": "Composer 已选文件的紧凑 chip。",
+      "html": "<span class=\"ds-file-chip\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/></svg><span>README.md</span><button type=\"button\" aria-label=\"移除 README.md\">×</button></span>",
+      "css": ".ds-file-chip { display:inline-flex; max-width:260px; align-items:center; gap:6px; padding:4px 6px; border-radius:6px; color:var(--mira-foreground,#202020); background:var(--mira-surface,rgba(13,13,13,.03)); font:12px/20px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; } .ds-file-chip button { width:20px; height:20px; padding:0; border:0; border-radius:4px; color:var(--mira-foreground-subtle,#747474); background:transparent; cursor:pointer; } .ds-file-chip button:hover { background:var(--mira-hover,rgba(13,13,13,.05)); } .ds-file-chip button:focus-visible { outline:2px solid var(--mira-brand,#000); }"
+    },
+    {
+      "name": "主线程表面",
+      "kind": "card",
+      "refersTo": "thread-frame",
+      "description": "以 12px 圆角和低对比边框分隔的任务阅读表面。",
+      "html": "<section class=\"ds-thread-frame\" aria-label=\"当前任务\"><header>整理项目资料</header><p>已读取工作目录，可以继续提交下一项任务。</p></section>",
+      "css": ".ds-thread-frame { width:320px; overflow:hidden; border:1px solid var(--mira-border,rgba(13,13,13,.1)); border-radius:12px; color:var(--mira-foreground,#202020); background:var(--mira-background,#f8f8f8); font: 14px/20px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-thread-frame header { min-height:48px; display:flex; align-items:center; padding:0 12px; border-bottom:1px solid var(--mira-border,rgba(13,13,13,.1)); font-weight:550; } .ds-thread-frame p { margin:0; padding:24px; }"
+    },
+    {
+      "name": "项目文件树行",
+      "kind": "nav",
+      "description": "左侧文件抽屉的 28px 虚拟行、12px 层级缩进及选中/焦点表面，搜索复用行并平铺相对路径。Git 名称/直接 M/A/D/R/U 沿用颜色、10px 字母栏；目录后代单个 6px 点与 60% 颜色，M 优先，ignored 只灰精确行。deleted 仅补已加载父目录，不造祖先、不改数据源快照；D 只选中，打开禁用但复制和非位图 chip 保留，发送由宿主校验。28px Lucide 只看变更图标开关使用 selected token/aria-pressed；树态保留变更祖先、搜索仅直接状态且不补 deleted 项，完整树仍驱动监听。loading 保留最后成功快照、筛选/菜单/焦点，明确失败/非仓库及 session/root 变化重置。新源码/10 图复核 slice-pass，文档一致性复核通过；headless/watch fixture/剪贴板 stub 不代替原生，整体未放行，无 Git 写操作或 metadata watcher。",
+      "html": "<div class=\"ds-file-tree\" role=\"tree\" aria-label=\"项目文件\"><button class=\"ds-file-tree-row\" role=\"treeitem\" aria-level=\"1\" aria-expanded=\"true\" tabindex=\"-1\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z\"/></svg><span>alpha</span></button><button class=\"ds-file-tree-row ds-file-tree-row-child\" role=\"treeitem\" aria-level=\"2\" aria-selected=\"true\" title=\"alpha/README.md\"><span class=\"ds-file-tree-chevron\"></span><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6\"/></svg><span>README.md</span></button></div>",
+      "css": ".ds-file-tree { width:240px; padding:0 8px 12px; color:var(--mira-foreground,#202020); background:var(--mira-sidebar,#f0f0f0); } .ds-file-tree-row { display:flex; width:100%; height:28px; align-items:center; gap:6px; padding:0 8px; border:1px solid transparent; border-radius:6px; color:inherit; background:transparent; text-align:left; cursor:pointer; font:12px/26px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; transition:background-color 120ms ease-out,border-color 120ms ease-out; } .ds-file-tree-row-child { padding-left:20px; } .ds-file-tree-row svg,.ds-file-tree-chevron { flex:0 0 auto; color:var(--mira-foreground-subtle,#747474); } .ds-file-tree-chevron { width:12px; height:16px; } .ds-file-tree-row > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ds-file-tree-row:hover { background:var(--mira-surface-hover,rgba(13,13,13,.05)); } .ds-file-tree-row[aria-selected=true] { border-color:var(--mira-input-border-focused,rgba(13,13,13,.15)); } .ds-file-tree-row:focus-visible { border-color:var(--mira-border-hover,rgba(13,13,13,.15)); background:var(--mira-surface-hover,rgba(13,13,13,.05)); outline:1px solid var(--mira-input-border-focused,rgba(13,13,13,.15)); outline-offset:-1px; } @media(prefers-reduced-motion:reduce) { .ds-file-tree-row { transition:none; } }"
+    },
+    {
+      "name": "项目文件搜索",
+      "kind": "input",
+      "description": "返回任务下方的 28px 搜索输入，沿用现有浅深色输入 token、Lucide Search 与 X；清除后返回并定位当前选中项。Electron 使用成熟 ignore 解析 .miraignore，规则仅过滤实际工作区搜索，不影响浏览/预览/上传或 Agent 权限，未覆盖 @/Command Center。首次非空搜索安全初始化，Vue /settings/file-search 读取缺失文件只给模板、同步/恢复仅改草稿，显式保存与未保存离开确认；配置不复制到 React。",
+      "html": "<div class=\"ds-file-search\" role=\"search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input type=\"text\" aria-label=\"搜索文件\" placeholder=\"搜索文件\" maxlength=\"256\" value=\"README\"/><button type=\"button\" title=\"清除文件搜索\" aria-label=\"清除文件搜索\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button></div>",
+      "css": ".ds-file-search { display:flex; width:240px; max-width:100%; height:28px; align-items:center; gap:8px; padding:0 8px; border:1px solid var(--mira-border,rgba(13,13,13,.1)); border-radius:6px; color:var(--mira-foreground-subtle,#747474); background:var(--mira-input,#fff); font:12px/20px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; } .ds-file-search:focus-within { border-color:var(--mira-input-border-focused,rgba(13,13,13,.15)); } .ds-file-search > svg { flex:0 0 auto; } .ds-file-search input { width:0; min-width:0; height:100%; flex:1; padding:0; border:0; outline:0; color:var(--mira-foreground,#202020); background:transparent; font:inherit; caret-color:var(--mira-foreground,#202020); } .ds-file-search input::placeholder { color:var(--mira-foreground-subtle,#747474); } .ds-file-search input:disabled { opacity:.45; cursor:default; } .ds-file-search button { display:grid; width:20px; height:20px; flex:0 0 auto; padding:0; place-items:center; border:0; border-radius:4px; color:inherit; background:transparent; cursor:pointer; } .ds-file-search button:hover:not(:disabled) { color:var(--mira-foreground,#202020); background:var(--mira-surface-hover,rgba(13,13,13,.05)); } .ds-file-search button:focus-visible { outline:1px solid var(--mira-input-border-focused,rgba(13,13,13,.15)); outline-offset:-2px; } .ds-file-search button:disabled { opacity:.45; cursor:default; }"
+    },
+    {
+      "name": "只读文件预览",
+      "kind": "custom",
+      "description": "右侧独立只读标签使用无额外 padding 的满宽 40px 工具栏、12px/20px 源码与 foreground 13px 错误正文；4MiB 位图白名单预览使用 40px 留白、8px 透明棋盘及 Retina 折算，SVG 可切换预览/源码，解码失败仍可加入已读源码，位图不作为附件；共享自动刷新，非活动激活再读、删除保留标签，原生图片验收仍待完成。",
+      "html": "<section class=\"ds-file-preview\" aria-label=\"文件预览 alpha/README.md\"><header class=\"ds-file-preview-toolbar\"><div class=\"ds-file-preview-path\" title=\"alpha/README.md\"><span>alpha</span><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"m9 18 6-6-6-6\"/></svg><span class=\"ds-file-preview-current\">README.md</span></div><div class=\"ds-file-preview-actions\"><button type=\"button\" title=\"刷新文件\" aria-label=\"刷新文件\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5\"/></svg></button><button type=\"button\" title=\"加入对话\" aria-label=\"将当前文件加入对话\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4zM12 7v8M8 11h8\"/></svg></button><button type=\"button\" title=\"文件预览选项\" aria-label=\"文件预览选项\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/><circle cx=\"5\" cy=\"12\" r=\"1\"/></svg></button></div></header><div class=\"ds-file-preview-source\" role=\"region\" aria-label=\"文件源码，共 2 行\" tabindex=\"0\"><div class=\"ds-file-preview-line\"><span aria-hidden=\"true\">1</span><code># Mira</code></div><div class=\"ds-file-preview-line\"><span aria-hidden=\"true\">2</span><code>Project notes</code></div></div></section>",
+      "css": ".ds-file-preview { width:320px; overflow:hidden; color:var(--mira-foreground,#202020); background:var(--mira-background,#f8f8f8); } .ds-file-preview-toolbar { display:flex; height:40px; align-items:center; gap:8px; padding:0 6px 0 12px; background:color-mix(in srgb,var(--mira-surface,rgba(13,13,13,.03)) 30%,transparent); } .ds-file-preview-path { display:flex; min-width:0; flex:1; align-items:center; gap:4px; overflow-x:auto; scrollbar-width:none; white-space:nowrap; color:var(--mira-foreground-subtle,#747474); font:12px/20px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; } .ds-file-preview-path > * { flex-shrink:0; } .ds-file-preview-current { color:var(--mira-foreground,#202020); } .ds-file-preview-actions { display:flex; flex-shrink:0; gap:2px; } .ds-file-preview-actions button { display:grid; width:28px; height:28px; padding:0; place-items:center; border:0; border-radius:6px; color:var(--mira-foreground-subtle,#747474); background:transparent; cursor:pointer; } .ds-file-preview-actions button:hover:not(:disabled) { color:var(--mira-foreground,#202020); background:var(--mira-hover,rgba(13,13,13,.05)); } .ds-file-preview-actions button:focus-visible,.ds-file-preview-source:focus-visible { outline:1px solid var(--mira-input-border-focused,rgba(13,13,13,.15)); outline-offset:-2px; } .ds-file-preview-actions button:disabled { opacity:.4; cursor:default; } .ds-file-preview-source { min-height:100px; overflow:auto; font:12px/20px var(--font-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace); } .ds-file-preview-line { display:flex; min-height:20px; } .ds-file-preview-line > span { position:sticky; left:0; flex:0 0 28px; padding-right:12px; color:var(--mira-foreground-subtle,#747474); background:var(--mira-background,#f8f8f8); font-variant-numeric:tabular-nums; text-align:right; user-select:none; } .ds-file-preview-line code { padding-right:16px; font:inherit; white-space:pre; }"
+    },
+    {
+      "name": "工作区文件标签",
+      "kind": "nav",
+      "description": "28px 标签、60–156px 非活动宽度、活动最小 128px、标题渐隐与关闭按钮覆盖定位。",
+      "html": "<nav class=\"ds-workspace-tabs\" aria-label=\"已打开的工作内容\"><div class=\"ds-workspace-tab-list\"><div class=\"ds-workspace-tab ds-workspace-tab-active\"><button type=\"button\" class=\"ds-workspace-tab-select\" aria-current=\"page\" title=\"alpha/README.md\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6\"/></svg><span>README.md</span></button><button type=\"button\" class=\"ds-workspace-tab-close\" aria-label=\"关闭 README.md\" title=\"关闭 README.md\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button></div><div class=\"ds-workspace-tab\"><button type=\"button\" class=\"ds-workspace-tab-select\" title=\"src/WorkspacePreviewService.ts\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6\"/></svg><span>WorkspacePreviewService.ts</span></button><button type=\"button\" class=\"ds-workspace-tab-close\" aria-label=\"关闭 WorkspacePreviewService.ts\" title=\"关闭 WorkspacePreviewService.ts\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button></div></div></nav>",
+      "css": ".ds-workspace-tabs { display:flex; width:320px; height:48px; align-items:center; padding:0 8px; border-bottom:1px solid var(--mira-border,rgba(13,13,13,.1)); background:var(--mira-background,#f8f8f8); } .ds-workspace-tab-list { display:flex; min-width:0; width:100%; gap:3px; overflow-x:auto; scrollbar-width:none; } .ds-workspace-tab { position:relative; display:flex; min-width:60px; max-width:156px; height:28px; flex:1 1 156px; align-items:center; border-radius:8px; color:var(--mira-foreground-subtle,#747474); } .ds-workspace-tab:hover,.ds-workspace-tab-active { background:var(--mira-hover,rgba(13,13,13,.05)); } .ds-workspace-tab-active { min-width:128px; color:var(--mira-foreground,#202020); } .ds-workspace-tab-select { display:flex; min-width:0; height:100%; flex:1; align-items:center; gap:6px; padding:0 7px; border:0; color:inherit; background:transparent; text-align:left; font:12px/20px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; cursor:default; } .ds-workspace-tab-active .ds-workspace-tab-select { font-weight:600; } .ds-workspace-tab-select svg { flex:0 0 auto; } .ds-workspace-tab-select span { overflow:hidden; white-space:nowrap; mask-image:linear-gradient(to right,black calc(100% - 6px),transparent); } .ds-workspace-tab-close { position:absolute; top:50%; right:4px; transform:translateY(-50%); display:grid; width:22px; height:26px; padding:0; place-items:center; border:0; border-radius:4px; color:var(--mira-foreground-subtle,#747474); background:transparent; opacity:0; pointer-events:none; } .ds-workspace-tab:hover .ds-workspace-tab-select,.ds-workspace-tab-active .ds-workspace-tab-select,.ds-workspace-tab:focus-within .ds-workspace-tab-select { padding-right:27px; } .ds-workspace-tab:hover .ds-workspace-tab-close,.ds-workspace-tab-active .ds-workspace-tab-close,.ds-workspace-tab:focus-within .ds-workspace-tab-close { opacity:1; pointer-events:auto; } .ds-workspace-tab-close:hover { color:var(--mira-foreground,#202020); background:var(--mira-hover,rgba(13,13,13,.05)); } .ds-workspace-tab button:focus-visible { outline:2px solid var(--mira-input-border-focused,rgba(13,13,13,.15)); outline-offset:-2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "ZCode 桌面工作台",
+    "overview": "用户提供的 ZCode 软件、截图与源码是本轮视觉依据。Mira 保留自己的双层 Electron/Vue Shell、\n业务名称与受控 Harness 服务；React 只实现应用内部任务界面。整体采用紧凑、平静的黑白灰\n工作表面，任务线程居中，任务/项目导航与资源面板提供持续操作位置。\n\n界面代码和变量使用 Mira 命名；上游版权、许可与来源原文保留于\n[third-party-licenses](third-party-licenses/README.md)。这份规范不授权恢复已退出的主题色、\n布局配置、Shell 多页签或自由微应用录入。应用内的文件与资源标签沿用当前工作区规范。",
+    "keyCharacteristics": [
+      "双层 Shell 与应用任务画布各自承担职责。",
+      "黑白主操作、灰色表面、紧凑的桌面信息密度。",
+      "同一 Composer 承接新任务草稿和会话继续输入。",
+      "文件、变更、终端与浏览器属于当前任务工作区。",
+      "项目文件在左侧浏览，每个已打开文件在右侧拥有独立只读标签。",
+      "位图与 SVG 复用只读文件工作区，预览能力不等同于模型多模态附件。",
+      "Git 装饰、已加载父目录 deleted 行与只看变更复用文件树；精确 ignored 不影响祖先，搜索不补 deleted 项，只读快照无写操作。",
+      "2026-10-09 13:26 +08:00：搜索 ignore/Vue 设置与两个 P2 修复已接入；SEARCH_IGNORE_EVIDENCE.md 是当前入口，全量/类型、React/Electron 重新构建/审计通过，JS/CSS 字节不变。13:14:15 真实 preload/IPC bridge/DOM 只读 probe 已通过、未重跑；三产物 SHA 与新构建一致。锁屏阻断前景输入/截图，旧 7 图 headless 不改证据身份，整体未放行。",
+      "正式入口使用第一方授权桥，演示页不作为验收基准。"
+    ],
+    "rules": [],
+    "dos": [
+      "Do 按提供的 ZCode 软件/截图与源码校准，同时保留 Mira 的业务和授权边界。",
+      "Do 使用 Mira 语义变量与既有 Radix、assistant-ui、Lucide 组件。",
+      "Do 保留浅深色、焦点、hover、disabled、loading、error 和空态。",
+      "Do 保留文件树的固定行高、层级缩进及预览工具栏和标签的稳定尺寸。",
+      "Do 让搜索结果沿用文件树表面，并保持文件打开保留搜索、清除后定位当前选中项的交互。",
+      "Do 将搜索 ignore 配置归 Vue 平台设置，草稿同步/恢复与显式保存分开，未保存离开确认，失败保留修改；shallowRef 和普通 kind/id 快照避免 Vue Proxy 跨 contextBridge。",
+      "Do 保留图片的 40px 留白、8px 透明棋盘、Retina 与错误/重试状态，并按位图或 SVG 源码限制对话附件动作。",
+      "Do 用现有 Git 颜色、10px 字母栏和单个 6px 后代点；deleted 仅补已加载父目录，ignored 精确命中只灰当前行。",
+      "Do 用 28px Lucide 图标开关筛选变更，保留 query/展开/选中，刷新保留最后成功快照、菜单与焦点；D 只选中，复制/非位图 chip 保留、发送仍经宿主校验。",
+      "Do 使用标题栏28+20px分体按钮、160px Radix菜单和系统应用真实图标；打开成功才保存显式选择，失败可见可重试。",
+      "Do 让编辑器主菜单和树子菜单在可用高度内滚动；偏好读取失败可重试，失败启动不阻止偏好恢复、成功显式选择不被旧值覆盖。",
+      "Do 在隔离 Electron 正式入口逐项记录电脑操作与结果。"
+    ],
+    "donts": [
+      "Don't 把 prototype/pilot、静态稿、构建通过或字节下降写成真实桌面验收通过。",
+      "Don't 将 Harness 的任务侧栏移动到公共 Vue Shell。",
+      "Don't 复制 ZCode 品牌、业务变量或账户 Runtime 到 Mira 实现。",
+      "Don't 删除必要上游版权、许可原文或旧用户数据。",
+      "Don't 恢复独立主题色、布局样式、Shell 多页签或移动端范围。",
+      "Don't 将只读文件预览扩展为内置编辑器，或用尚未实现的音视频、Office、Git 写操作或 metadata watcher 承诺能力。",
+      "Don't 将搜索 ignore 当浏览/Agent 权限隔离，或把 Chrome HTTP fixture/真实 Electron bridge 与 DOM 只读 probe 称为原生鼠标、键盘或截图验收。解锁后重启隔离 Electron 仅补有限设置/搜索/浏览，Git metadata watcher 仅为随后候选，整体 P0-P3 不放行。"
+    ]
+  }
+}

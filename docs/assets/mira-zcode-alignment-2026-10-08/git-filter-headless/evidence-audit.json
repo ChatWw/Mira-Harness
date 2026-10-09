@@ -1,0 +1,73 @@
+{
+  "at": "2026-10-09T04:14:32.062Z",
+  "passed": true,
+  "behaviorChecks": 11,
+  "finalScreenshots": 10,
+  "historicalScreenshots": 2,
+  "dimensions": [
+    {
+      "name": "mira-deleted-context-light.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-menu-refresh-confirmed.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-changed-light.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-changed-dark.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-filter-error-dark.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-filter-nonrepo.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-filter-clean-empty.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-filter-desktop-1440.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-filter-desktop-1710.png",
+      "width": 1710,
+      "height": 992
+    },
+    {
+      "name": "mira-filter-desktop-1280.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "name": "baseline-old-production.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mira-menu-refresh-before-fix.png",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "requests": 190,
+  "manifestFiles": 27,
+  "sourceFiles": 6,
+  "boundaries": "Headless production React and isolated helpers; not native Electron, Vue Shell, clipboard, packaging, Windows or overall release"
+}
