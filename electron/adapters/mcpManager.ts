@@ -48,6 +48,7 @@ export class McpManager {
         const text = Array.isArray(result.content)
           ? result.content.map((item: any) => item.type === 'text' ? item.text : JSON.stringify(item)).join('\n')
           : String(result.content ?? '')
+        if (result.isError) throw new Error(text || 'MCP 工具执行失败')
         return { content: [{ type: 'text', text }], details: { name: tool.name } }
       },
     }

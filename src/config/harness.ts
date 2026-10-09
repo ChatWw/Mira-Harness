@@ -7,6 +7,37 @@ export type HarnessSessionStatus = 'active' | 'completed' | 'failed'
 export type HarnessTitleSource = 'auto' | 'manual'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export type SendShortcut = 'enter' | 'mod-enter'
+
+export interface HarnessSkillMarketItem {
+  id: string
+  name: string
+  description: string
+  sourceId: string
+  sourceName: string
+  repositoryUrl: string
+  commit: string
+  license: 'Apache-2.0'
+  installed: boolean
+  enabled: boolean
+  skillId?: string
+}
+
+export interface HarnessSkillMarketCatalog {
+  sourceId: string
+  sourceName: string
+  repositoryUrl: string
+  commit: string
+  refreshedAt: number
+  excludedCount: number
+  items: HarnessSkillMarketItem[]
+}
+
+export interface HarnessSkillMarketDetail extends HarnessSkillMarketItem {
+  instructions: string
+  licenseText: string
+  files: Array<{ path: string; size: number }>
+  totalBytes: number
+}
 export type AssistantTone = 'casual' | 'professional'
 export type MemorySource = 'auto' | 'explicit' | 'manual' | 'legacy'
 export type MemorySensitivity = 'none' | 'personal' | 'secret'
@@ -247,6 +278,8 @@ export interface HarnessRunUsage {
 
 export interface HarnessActiveRun {
   id: string
+  /** Stable identity of the current assistant segment within this run. */
+  messageId?: string
   startedAt: number
   activities: HarnessRunActivity[]
   subtasks: HarnessSubtask[]
@@ -358,6 +391,11 @@ export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  /** Optional on legacy history; never infer old text/tool ordering from timestamps. */
+  runId?: string
+  delivery?: 'guide'
+  submissionId?: string
+  parts?: HarnessMessagePart[]
   attachments?: HarnessMessageAttachment[]
   run?: HarnessRunSummary
   usage?: HarnessTokenUsage
@@ -369,6 +407,26 @@ export interface HarnessMessage {
   internal?: boolean
 }
 
+export type HarnessMessagePart = {
+  id: string
+  type: 'text' | 'reasoning'
+  text: string
+  state: 'streaming' | 'complete' | 'interrupted'
+  startedAt: number
+  completedAt?: number
+  /** Only public reasoning is bounded; assistant text is never truncated. */
+  truncated?: boolean
+} | {
+  id: string
+  type: 'tool'
+  toolCallId: string
+}
+
+export interface HarnessToolText {
+  text: string
+  truncated: boolean
+}
+
 export interface HarnessFileReference {
   path: string
   name: string
@@ -378,11 +436,71 @@ export interface HarnessMessageAttachment extends HarnessFileReference {
   content: string
 }
 
+export interface HarnessQueuedMessage {
+  id: string
+  submissionId: string
+  sessionId: string
+  text: string
+  references: HarnessFileReference[]
+  selection: ModelSelection
+  planning: boolean
+  permissionMode: PermissionMode
+  createdAt: number
+  delivery?: 'guide'
+  targetRunId?: string
+  requestedDelivery?: 'guide'
+  fallbackReason?: HarnessGuideFallbackReason
+}
+
+export type HarnessGuideFallbackReason = 'attachments' | 'planning' | 'model-mismatch' | 'run-unavailable' | 'confirmation' | 'run-ended'
+
+export interface HarnessMessageQueueSnapshot {
+  sessionId: string
+  revision: number
+  items: HarnessQueuedMessage[]
+  promotingItemId?: string
+  paused?: 'stopped' | 'failed' | 'confirmation'
+  error?: string
+}
+
+export interface HarnessMessageSubmissionReceipt {
+  id: string
+  submissionId: string
+  queue: HarnessMessageQueueSnapshot
+  delivery?: 'guide' | 'queue'
+}
+
+export interface HarnessMessageSubmissionOptions {
+  delivery?: 'immediate' | 'guide'
+  pausedQueueDecision?: 'retain' | 'discard'
+  expectedQueueRevision?: number
+  expectedQueueItemIds?: string[]
+  expectedRunId?: string | null
+}
+
+export type HarnessMessageSubmissionResult = HarnessMessageSubmissionReceipt | {
+  confirmationRequired: true
+  queue: HarnessMessageQueueSnapshot
+} | {
+  retryRequired: true
+  queue: HarnessMessageQueueSnapshot
+}
+
+export interface HarnessMessageWithdrawal {
+  item: HarnessQueuedMessage
+  queue: HarnessMessageQueueSnapshot
+}
+
 export interface ToolCallRecord {
   id: string
   tool: string
   target?: string
-  status: 'running' | 'ok' | 'failed' | 'waiting-confirm'
+  status: 'running' | 'ok' | 'failed' | 'waiting-confirm' | 'cancelled'
+  runId?: string
+  providerCallId?: string
+  input?: HarnessToolText
+  output?: HarnessToolText
+  approvalRequestId?: string
   diff?: string
   error?: string
   createdAt: number
@@ -450,6 +568,15 @@ export type HarnessSessionOrderScope =
 export type HarnessHistoryRange = 'all' | 'today' | 'week' | 'month'
 export type HarnessHistorySort = 'updated-desc' | 'created-desc' | 'title-asc'
 export type HarnessHistoryArchiveView = 'visible' | 'archived'
+
+export interface HarnessConversationSearchResult {
+  id: string
+  title: string
+  projectName?: string
+  messageId?: string
+  snippet: string
+  updatedAt: number
+}
 
 export interface HarnessHistoryQuery {
   q?: string
@@ -522,6 +649,19 @@ export interface HarnessGitBranch {
   uncommittedFileCount?: number
 }
 
+export interface HarnessGitContext {
+  projectId: string
+  directory: string
+  isRepository: boolean
+  headType: 'branch' | 'detached' | 'unborn' | 'none'
+  branchName?: string
+  commit?: string
+  uncommittedFileCount: number
+  branches: HarnessGitBranch[]
+  snapshotToken: string
+  mutationBlocked: boolean
+}
+
 export interface HarnessGitConfig {
   branchPrefix: string
   pullRequestMergeMethod: 'merge' | 'squash'
@@ -564,7 +704,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-complete' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated'
   payload: Record<string, unknown>
 }
 
@@ -573,6 +713,8 @@ export interface HarnessPermissionRequest {
   sessionId: string
   title: string
   detail: string
+  toolCallId?: string
+  runId?: string
 }
 
 export interface ModelProviderInput {

@@ -1,0 +1,18 @@
+{
+  "startedAt": "2026-10-09T09:48:43.976Z",
+  "passed": true,
+  "boundary": "Current source bundled through an isolated esbuild test entry with real React, assistant-ui and Radix DOM, current Tailwind CSS. Explicit in-browser PilotHost fixtures and localStorage, not production app entry, MessageChannel, preload/IPC, native Electron, Git filesystem or ZCode same-state comparison. Headless only; no desktop input.",
+  "checks": [
+    "Real Header submenu updates same sidebar grouping store while sidebar open and closed; collapsed destination remains collapsed",
+    "Header grouping survives reload and ungroup returns task to sidebar without resetting timeline/project-collapse preferences",
+    "Context lazy real tooltip/menu keeps known branch, exposes loading and deduplicates in-flight requests; displays real response count",
+    "Context failure is visible and in-menu retry recovers without losing project or task",
+    "Personal working directory queries and shows no invented Git branch"
+  ],
+  "errors": [],
+  "captures": [
+    "header-group-ungroup-light.png",
+    "header-project-git-light.png"
+  ],
+  "completedAt": "2026-10-09T09:48:47.367Z"
+}

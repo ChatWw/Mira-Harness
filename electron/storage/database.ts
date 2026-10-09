@@ -87,6 +87,13 @@ export class PlatformDatabase {
 
   private harnessDraftSessionIds(): ReadonlySet<string> {
     const retained = new Set<string>()
+    const sidebarRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.session-drawer') as { value: string } | undefined
+    try {
+      const sidebar = JSON.parse(sidebarRow?.value ?? 'null') as { groups?: Array<{ sessionIds?: unknown }>; ungroupedSessionOrder?: unknown } | null
+      const retain = (ids: unknown) => { if (Array.isArray(ids)) ids.forEach(id => { if (typeof id === 'string' && id && id.length <= 128) retained.add(id) }) }
+      if (Array.isArray(sidebar?.groups)) sidebar.groups.forEach(group => retain(group?.sessionIds))
+      retain(sidebar?.ungroupedSessionOrder)
+    } catch { /* Invalid sidebar preferences do not change the existing draft cleanup policy. */ }
     const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.harness-react-composer-drafts') as { value: string } | undefined
     let snapshot: { drafts?: unknown; fileDrafts?: unknown } | null
     try { snapshot = JSON.parse(row?.value ?? 'null') } catch { return retained }

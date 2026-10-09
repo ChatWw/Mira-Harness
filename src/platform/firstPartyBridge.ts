@@ -3,6 +3,7 @@ import type { ModelSelection } from '@/config/harness'
 import type { NovelProjectDocument } from '@/config/novel'
 import type { PlatformApi, PlatformContext } from '@/types'
 import { parseFirstPartyHarnessCall } from './firstPartyHarness'
+import { FirstPartyNavigationError, parseFirstPartyNavigationPath } from './firstPartyNavigation'
 
 export interface FirstPartyRequest {
   type: 'mira:request'
@@ -42,7 +43,7 @@ export async function handleFirstPartyRequest(options: {
   api: PlatformApi
   context: PlatformContext
   route: string
-  navigate: (path: string) => void
+  navigate: (path: string) => void | Promise<void>
 }, request: FirstPartyRequest): Promise<unknown> {
   const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
@@ -112,11 +113,22 @@ export async function handleFirstPartyRequest(options: {
         if (method === 'files.git-status' || method === 'files.git-ignored') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', 'Git 状态读取失败，请检查 Git 是否安装或稍后刷新重试。')
       }
       if (method === 'editors.list') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '无法检测已安装应用，请重试。')
-      if (method === 'message.run' || method === 'plan.continue' || method === 'files.select') {
+      if (method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {
         const message = error instanceof Error ? error.message : ''
         if (message.includes('引用文件不存在：')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '引用文件已不可读取，请重新选择文件后发送。')
         if (message.includes('引用文件过大：')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '引用文件超过大小限制，请选择较小的文本文件。')
         if (message.includes('不支持引用二进制文件：')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '无法引用二进制文件，请选择文本文件。')
+      }
+      if (method === 'message.submit' || method.startsWith('queue.')) {
+        const message = error instanceof Error ? error.message : ''
+        const failure = message.replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const queueErrors = ['待发送消息已开始或已撤回', '待发送消息已存在且内容不同', '待发送消息已达 32 条上限', '请先处理当前任务的确认', '工作目录已变化，请撤回消息后重新发送', '请先处理待发送消息', '该会话正在运行', '权限档位应为 default、auto-approve 或 full', '待发送消息正在提升，请稍后重试', '当前任务已变化，请刷新后重试', '立即发送已取消，消息仍在队列中', '立即发送已取消，内容已保留']
+        const submitted = method === 'message.submit'
+        throw new FirstPartyBridgeError(submitted ? 'MESSAGE_SUBMISSION_FAILED' : 'MESSAGE_QUEUE_FAILED', queueErrors.includes(failure) ? failure : submitted ? '消息提交失败，内容已保留，请稍后重试。' : '消息队列操作失败，请刷新后重试。')
+      }
+      if (method === 'session.archive' || method === 'session.delete' || method === 'session.move') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        throw new FirstPartyBridgeError('SESSION_MUTATION_FAILED', ['该会话正在运行', '请先处理待发送消息'].includes(failure) ? failure : '会话操作失败，请稍后重试。')
       }
       throw error
     }
@@ -126,13 +138,14 @@ export async function handleFirstPartyRequest(options: {
       return { ...context, appId: manifest.appId, apiVersion: { ...PLATFORM_API_VERSION }, capabilities: [...manifest.capabilities], route }
     case 'navigation.open': {
       const path = nonEmptyString(record(request.params).path, '应用路径', 2048)
-      const pathname = path.split(/[?#]/, 1)[0]
-      const parsed = new URL(path, 'https://mira.invalid')
-      if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\') || /%2f|%5c|%25/i.test(path)
-        || parsed.origin !== 'https://mira.invalid' || parsed.pathname !== pathname) {
-        throw new FirstPartyBridgeError('INVALID_REQUEST', '应用路径无效')
+      try {
+        parseFirstPartyNavigationPath(path)
+        await navigate(path)
+      } catch (error) {
+        if (error instanceof FirstPartyNavigationError) throw new FirstPartyBridgeError(error.code, error.message)
+        if (error instanceof FirstPartyBridgeError) throw error
+        throw new FirstPartyBridgeError('NAVIGATION_FAILED', '页面切换失败，请稍后重试')
       }
-      navigate(path)
       return null
     }
     case 'models.generateText': {

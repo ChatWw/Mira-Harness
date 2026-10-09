@@ -9,6 +9,7 @@
 | [TanStack React Virtual](https://github.com/TanStack/virtual/tree/main/packages/react-virtual) 3.14.13 | MIT | [LICENSE](tanstack/react-virtual/LICENSE)、[版本与用途](tanstack/README.md) |
 | [TanStack Virtual Core](https://github.com/TanStack/virtual/tree/main/packages/virtual-core) 3.17.11 | MIT | [LICENSE](tanstack/virtual-core/LICENSE)、[版本与用途](tanstack/README.md) |
 | [ignore](https://github.com/kaelzhang/node-ignore) 7.0.5 | MIT | [LICENSE-MIT](ignore/LICENSE-MIT)、[用途](ignore/README.md) |
+| [cmdk](https://github.com/pacocoursey/cmdk) 1.1.1 | MIT | [LICENSE](cmdk/LICENSE.md)；用于本地 Git 分支搜索与键盘选择，结合现有 Radix Popover/Dialog |
 
 仓库根 [LICENSE](../LICENSE) 继续覆盖 Mira 原创代码。第三方改编部分及直接依赖
 仍须遵守各自许可证；此目录不会改变其授权条件。

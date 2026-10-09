@@ -1,0 +1,3967 @@
+{
+  "startedAt": "2026-10-09T06:23:13.735Z",
+  "scope": "Targeted concurrent-save test correction and deterministic pre-lock root-resolution gates. Real filesystem writes only in test-created temporary workspaces; no production changes, native UI or whole-goal acceptance.",
+  "source": {
+    "path": "tests/harnessWorkspaceIgnore.test.ts",
+    "sha256": "5b7410fc090e515034ae05bf0a32f217890958385eab1f09ccb434790ab3c19b"
+  },
+  "historicalFailure": {
+    "path": "/Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/concurrent-save-winner-test-failure.json",
+    "sha256": "c1e89ff887af7bb9cd2ba60c0d89510b808454582630a19ae249f2a04e2f26fb",
+    "unchanged": true
+  },
+  "runs": [
+    {
+      "label": "full-file",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:13.740Z",
+      "finishedAt": "2026-10-09T06:23:14.750Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 33,
+      "testsFailed": 0,
+      "testsPending": 0,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "passed",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "duration": 4.3202090000000055,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "passed",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "duration": 10.01724999999999,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "passed",
+              "title": "never overwrites rules created by another process during initialization",
+              "duration": 4.652082999999976,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "passed",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "duration": 1.3556250000000034,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "passed",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "duration": 1.645542000000006,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "passed",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "duration": 5.562624999999997,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "passed",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "duration": 5.932749999999999,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "passed",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "duration": 3.082000000000022,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "passed",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "duration": 1.095708000000002,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "passed",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "duration": 1.7470830000000035,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "passed",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "duration": 1.5850829999999974,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "passed",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "duration": 1.6650000000000205,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "passed",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "duration": 9.118124999999992,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "passed",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "duration": 0.6450000000000102,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "passed",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "duration": 0.9039579999999887,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "passed",
+              "title": "refuses broken partitions without discarding custom rules",
+              "duration": 0.48724999999998886,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "passed",
+              "title": "refuses broken partitions without discarding custom rules",
+              "duration": 0.3045840000000055,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "passed",
+              "title": "refuses broken partitions without discarding custom rules",
+              "duration": 0.40766700000000355,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "passed",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "duration": 5.499332999999979,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "passed",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "duration": 1.0664160000000038,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "passed",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "duration": 4.305791999999997,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "passed",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "duration": 5.8605420000000095,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "passed",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "duration": 4.859125000000006,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 4.999417000000022,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 5.566291000000007,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 4.944915999999978,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "passed",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "duration": 5.433750000000003,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "passed",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "duration": 5.185833000000002,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "passed",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "duration": 4.902999999999992,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "passed",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "duration": 4.855833000000018,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "passed",
+              "title": "binds even a template revision to the root identity",
+              "duration": 1.0146670000000313,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "passed",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "duration": 1.7987919999999917,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "passed",
+              "title": "reports safe errors without leaking filesystem details",
+              "duration": 0.5134580000000142,
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526994559,
+          "endTime": 1791526994674.5134,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-1",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:14.751Z",
+      "finishedAt": "2026-10-09T06:23:15.305Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 8.959083000000007,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.362584000000027,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 5.141957999999988,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526995210,
+          "endTime": 1791526995230.1418,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-2",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:15.305Z",
+      "finishedAt": "2026-10-09T06:23:15.862Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 12.24775000000001,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 7.49920800000001,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 6.217708999999985,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526995762,
+          "endTime": 1791526995788.2178,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-3",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:15.862Z",
+      "finishedAt": "2026-10-09T06:23:16.463Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 10.52924999999999,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.780750000000012,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 13.479333000000025,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526996358,
+          "endTime": 1791526996389.4792,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-4",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:16.463Z",
+      "finishedAt": "2026-10-09T06:23:17.012Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 11.227750000000015,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.8783750000000055,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 5.760708999999991,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526996917,
+          "endTime": 1791526996940.7607,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-5",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:17.012Z",
+      "finishedAt": "2026-10-09T06:23:17.557Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 11.508291999999983,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.879708999999991,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 5.698957999999976,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526997463,
+          "endTime": 1791526997486.699,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-6",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:17.557Z",
+      "finishedAt": "2026-10-09T06:23:18.104Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 11.097624999999994,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 5.653665999999987,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 4.935791999999992,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526998011,
+          "endTime": 1791526998032.9358,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-7",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:18.104Z",
+      "finishedAt": "2026-10-09T06:23:18.654Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 10.436791999999997,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.766624999999991,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 6.883916999999997,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526998553,
+          "endTime": 1791526998577.884,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-8",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:18.654Z",
+      "finishedAt": "2026-10-09T06:23:19.516Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 10.234249999999989,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.798208000000017,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 6.779167000000001,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526999420,
+          "endTime": 1791526999443.779,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-9",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:19.516Z",
+      "finishedAt": "2026-10-09T06:23:20.063Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 11.307166999999993,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 6.850916000000012,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 5.674833999999976,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791526999967,
+          "endTime": 1791526999990.6748,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    },
+    {
+      "label": "concurrent-repetition-10",
+      "command": "npx vitest run tests/harnessWorkspaceIgnore.test.ts -t serializes concurrent saves --maxWorkers=2 --reporter=json",
+      "startedAt": "2026-10-09T06:23:20.063Z",
+      "finishedAt": "2026-10-09T06:23:20.609Z",
+      "exitCode": 0,
+      "signal": null,
+      "passed": true,
+      "testsPassed": 3,
+      "testsFailed": 0,
+      "testsPending": 30,
+      "testResults": [
+        {
+          "assertionResults": [
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules previews a partitioned template without writing and conservatively deduplicates defaults",
+              "status": "skipped",
+              "title": "previews a partitioned template without writing and conservatively deduplicates defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "status": "skipped",
+              "title": "safely initializes once during concurrent searches and returns the persisted fingerprint",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules never overwrites rules created by another process during initialization",
+              "status": "skipped",
+              "title": "never overwrites rules created by another process during initialization",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules treats an existing empty .miraignore as the sole source without hidden defaults",
+              "status": "skipped",
+              "title": "treats an existing empty .miraignore as the sole source without hidden defaults",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "status": "skipped",
+              "title": "uses mature gitignore semantics including parent pruning, anchoring, escaping and directory-only rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EACCES to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EACCES to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EPERM to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EPERM to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades first-search creation EROFS to the full in-memory template",
+              "status": "skipped",
+              "title": "degrades first-search creation EROFS to the full in-memory template",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules degrades unreadable existing rules without overwriting them",
+              "status": "skipped",
+              "title": "degrades unreadable existing rules without overwriting them",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .miraignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .miraignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects internal and external symlink rule files: .gitignore",
+              "status": "skipped",
+              "title": "rejects internal and external symlink rule files: .gitignore",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "status": "skipped",
+              "title": "rejects non-regular, oversized, binary and invalid UTF-8 rules without fallback",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "status": "skipped",
+              "title": "accepts the byte limit and preserves UTF-8 BOM while rejecting invalid save payloads",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects rules that change between stat and open instead of reading an unbounded payload",
+              "status": "skipped",
+              "title": "detects rules that change between stat and open instead of reading an unbounded payload",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "status": "skipped",
+              "title": "syncs only the seed and resets only defaults while preserving unsaved custom bytes",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules refuses broken partitions without discarding custom rules",
+              "status": "skipped",
+              "title": "refuses broken partitions without discarding custom rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules atomically saves a missing template and refuses empty or stale revisions",
+              "status": "skipped",
+              "title": "atomically saves a missing template and refuses empty or stale revisions",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects external file edits and fingerprints same-sized new content",
+              "status": "skipped",
+              "title": "detects external file edits and fingerprints same-sized new content",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps private file permissions when atomically replacing existing rules",
+              "status": "skipped",
+              "title": "keeps private file permissions when atomically replacing existing rules",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules keeps the old rules and removes its temporary file after a failed atomic commit",
+              "status": "skipped",
+              "title": "keeps the old rules and removes its temporary file after a failed atomic commit",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules detects an external edit while the temporary replacement is being prepared",
+              "status": "skipped",
+              "title": "detects an external edit while the temporary replacement is being prepared",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves so only one can commit the same expected revision",
+              "status": "passed",
+              "title": "serializes concurrent saves so only one can commit the same expected revision",
+              "duration": 10.897542000000001,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'first' root resolution gated so 'second' commits",
+              "duration": 5.764209000000008,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "status": "passed",
+              "title": "serializes concurrent saves with 'second' root resolution gated so 'first' commits",
+              "duration": 5.952708000000001,
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rechecks authorization immediately before commit and cleans a denied temporary save",
+              "status": "skipped",
+              "title": "rechecks authorization immediately before commit and cleans a denied temporary save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects revocation during awaited commit checks before replacing the rules file",
+              "status": "skipped",
+              "title": "rejects revocation during awaited commit checks before replacing the rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: template-save",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: template-save",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules does not create rules after revocation during awaited initialization checks: first-search",
+              "status": "skipped",
+              "title": "does not create rules after revocation during awaited initialization checks: first-search",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules binds even a template revision to the root identity",
+              "status": "skipped",
+              "title": "binds even a template revision to the root identity",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules rejects a switched root during a save without changing either rules file",
+              "status": "skipped",
+              "title": "rejects a switched root during a save without changing either rules file",
+              "failureMessages": [],
+              "meta": {}
+            },
+            {
+              "ancestorTitles": [
+                "Harness workspace search ignore rules"
+              ],
+              "fullName": "Harness workspace search ignore rules reports safe errors without leaking filesystem details",
+              "status": "skipped",
+              "title": "reports safe errors without leaking filesystem details",
+              "failureMessages": [],
+              "meta": {}
+            }
+          ],
+          "startTime": 1791527000515,
+          "endTime": 1791527000537.9526,
+          "status": "passed",
+          "message": "",
+          "name": "/Volumes/VrenDisk/project/Mira/Mira-Harness/tests/harnessWorkspaceIgnore.test.ts"
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "finishedAt": "2026-10-09T06:23:20.609Z",
+  "log": {
+    "path": "/Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/concurrent-save-regression.log",
+    "sha256": "3eca5df993ff473ad84b5b04ffbd9ea8ef04c9754982e882fec989cb2eea73c2"
+  }
+}

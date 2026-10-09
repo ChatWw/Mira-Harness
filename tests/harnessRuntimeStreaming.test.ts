@@ -21,7 +21,7 @@ describe('runtime text streaming activity persistence', () => {
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
-    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map() })
+    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
     vi.spyOn(runtime as any, 'publishContextUsage').mockImplementation((_sender, value) => value)
     let notify!: (event: any) => void
@@ -32,7 +32,7 @@ describe('runtime text streaming activity persistence', () => {
     const sender = { isDestroyed: () => false, send: vi.fn() }
     await (runtime as any).runAgent(sender, 's', session, { providerId: 'p', modelId: 'model' }, { id: 'p', name: 'test', endpoint: 'http://localhost:1', models: [{ id: 'model', reasoning: false }] }, 'unused', { planning: true })
     expect(database.harness.setActiveRun).toHaveBeenCalledTimes(3) // initial, answering, clear
-    expect(database.harness.appendAssistantDelta).toHaveBeenCalledWith('s', '文本'.repeat(200))
+    expect(database.harness.appendAssistantDelta).toHaveBeenCalledWith('s', '文本'.repeat(200), expect.objectContaining({ runId: expect.any(String), parts: [expect.objectContaining({ type: 'text', text: '文本'.repeat(200), state: 'complete' })] }))
     expect(database.harness.finalizeAssistantMessage).toHaveBeenCalledWith('s', expect.objectContaining({ content: '文本'.repeat(200), run: expect.objectContaining({ status: 'completed' }) }))
   })
 
@@ -44,7 +44,7 @@ describe('runtime text streaming activity persistence', () => {
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
-    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map() })
+    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
     vi.spyOn(runtime as any, 'publishContextUsage').mockImplementation((_sender, value) => value)
     vi.spyOn(Agent.prototype, 'subscribe').mockReturnValue(() => {})
@@ -68,7 +68,7 @@ describe('runtime text streaming activity persistence', () => {
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
-    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map() })
+    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
     vi.spyOn(runtime as any, 'publishContextUsage').mockImplementation((_sender, value) => value)
     let notify!: (event: any) => void
@@ -81,6 +81,8 @@ describe('runtime text streaming activity persistence', () => {
     await (runtime as any).runAgent({ isDestroyed: () => false, send: vi.fn() }, 's', session, { providerId: 'p', modelId: 'model' }, { id: 'p', name: 'test', endpoint: 'http://localhost:1', models: [{ id: 'model', reasoning: false }] }, 'unused', { planning: true })
 
     expect(database.harness.finalizeAssistantMessage).toHaveBeenCalledWith('s', expect.objectContaining({ content: '方案已整理，请确认是否开始执行。' }))
+    const finalized = database.harness.finalizeAssistantMessage.mock.calls.at(-1)![1]
+    expect(finalized.parts.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('')).toBe(finalized.content)
   })
 
   it('fails planning rather than reporting success when the model still omits an interaction', async () => {
@@ -91,7 +93,7 @@ describe('runtime text streaming activity persistence', () => {
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
-    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map() })
+    vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
     vi.spyOn(Agent.prototype, 'subscribe').mockReturnValue(() => {})
     const prompt = vi.spyOn(Agent.prototype, 'prompt').mockResolvedValue(undefined)

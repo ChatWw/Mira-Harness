@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getPreference, savePreference } from '@/platform'
+import router from '@/router'
+import { openHarnessCommandCenter } from '@/platform/harnessCommandCenter'
 
 const RECENT_STORAGE_KEY = 'cp-command-palette-recent'
 const MAX_RECENT_ITEMS = 12
@@ -31,6 +33,10 @@ export const useCommandPaletteStore = defineStore('commandPalette', () => {
   const recentItems = ref<RecentCommandItem[]>(loadRecentItems())
 
   function open() {
+    if (openHarnessCommandCenter(router.currentRoute.value.path, window)) {
+      visible.value = false
+      return
+    }
     visible.value = true
   }
 

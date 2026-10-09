@@ -1,0 +1,132 @@
+{
+  "startedAt": "2026-10-09T09:11:30.324Z",
+  "home": "/private/tmp/mira-first-screen-native-tA0SSf",
+  "window": {
+    "kCGWindowAlpha": 1,
+    "kCGWindowBounds": {
+      "Height": 900,
+      "Width": 1440,
+      "X": 135,
+      "Y": 42
+    },
+    "kCGWindowIsOnscreen": true,
+    "kCGWindowLayer": 0,
+    "kCGWindowMemoryUsage": 2432,
+    "kCGWindowName": "Mira Harness - Mira Harness",
+    "kCGWindowNumber": 4183,
+    "kCGWindowOwnerName": "Electron",
+    "kCGWindowOwnerPID": 74509,
+    "kCGWindowSharingState": 1,
+    "kCGWindowStoreType": 1
+  },
+  "originalFront": {
+    "bundle": "com.openai.codex",
+    "name": "ChatGPT",
+    "pid": 5041
+  },
+  "boundary": "Native macOS clicks and Unicode key input on isolated unpackaged Mira. Real Vue Shell, production React opaque iframe, MessageChannel and Electron preload/IPC. This search test does not run models/scheduler, install market packages, prove ZCode same-state visuals or performance. Legacy /novel is platform fallback only, not the independent Mira Novel Studio implementation.",
+  "passed": true,
+  "records": [
+    {
+      "at": "2026-10-09T09:11:32.463Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"搜索会话\"]",
+        "action": "click",
+        "x": "284",
+        "y": "169"
+      }
+    },
+    {
+      "name": "sidebar-opens-one-react-search-dialog",
+      "at": "2026-10-09T09:11:32.595Z"
+    },
+    {
+      "at": "2026-10-09T09:11:35.563Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全局搜索\"]",
+        "action": "click",
+        "x": "1507",
+        "y": "66"
+      }
+    },
+    {
+      "name": "shell-search-opens-same-react-component-without-vue-dialog",
+      "at": "2026-10-09T09:11:35.700Z"
+    },
+    {
+      "at": "2026-10-09T09:11:38.682Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"新建任务\"]",
+        "action": "click",
+        "x": "284",
+        "y": "131"
+      }
+    },
+    {
+      "at": "2026-10-09T09:11:40.490Z",
+      "nativeClick": {
+        "selector": "textarea[aria-label=\"任务内容\"]",
+        "action": "click",
+        "x": "989",
+        "y": "573"
+      }
+    },
+    {
+      "name": "native-cmd-k-unicode-search-escape-retains-composer-draft",
+      "at": "2026-10-09T09:11:41.973Z"
+    },
+    {
+      "at": "2026-10-09T09:11:43.794Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全局搜索\"]",
+        "action": "click",
+        "x": "1507",
+        "y": "66"
+      }
+    },
+    {
+      "name": "legacy-novel-shell-opens-platform-search-not-harness",
+      "at": "2026-10-09T09:11:43.896Z"
+    },
+    {
+      "name": "real-route-leave-return-restores-harness-draft",
+      "at": "2026-10-09T09:11:45.862Z"
+    }
+  ],
+  "captures": [
+    {
+      "name": "sidebar-search-native-light",
+      "sha256": "b4a5f984604fbcdd378d16b952e49c870bb6bab795b86e5c9cc738998ffb266a",
+      "at": "2026-10-09T09:11:33.595Z"
+    },
+    {
+      "name": "shell-search-native-light",
+      "sha256": "130be0b31831a1e779d96fbb5922fc8d393e1a2a57a1f73b6325f9ef55c7c95a",
+      "at": "2026-10-09T09:11:36.690Z"
+    },
+    {
+      "name": "novel-platform-search-native-light",
+      "sha256": "215fef28061fc6541c1e707040f3e5a91c58c23567cdf4666def6dc9132f6d42",
+      "at": "2026-10-09T09:11:44.926Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "2aa88fd4cc82affdca5c73ff79c7474bbadac8975bb0c213b58e38926a1a933c"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "3873721d7e36a24f9a7830c640bedc3e8855a836c890bd14f71b6a1aa02c220e"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "a55365d07015352b69af2b51d382586963e2e492421e6056444b9ecac22dd819"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    }
+  ],
+  "finishedAt": "2026-10-09T09:11:45.862Z"
+}

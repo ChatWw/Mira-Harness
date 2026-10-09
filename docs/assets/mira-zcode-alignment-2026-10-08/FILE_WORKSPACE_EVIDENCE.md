@@ -10,7 +10,7 @@ Mira 使用隔离 `/tmp/mira-zcode-acceptance.dAACiF`，正式开发态 `/worksp
 （PID 36212 / 窗口 2271），已加载重复同路径清除定位修复。此前 16:21–16:34 同名图片已被
 本轮确认截图替换，不再沿用其旧哈希或声称旧图展示修复。
 逐张打开确认浅色搜索、目录定位、权限错误、深色搜索、菜单和截断列表，PNG 均为
-3104×2024 像素（含 Retina/窗口阴影）。下表副本与 `.impeccable/review/` 原图逐字节一致。
+3104×2024 像素（含 Retina/窗口阴影）。下表保留截图与原采集文件逐字节一致；重复的评审副本已清理。
 
 | 截图 | 对应状态 |
 | --- | --- |
@@ -54,7 +54,7 @@ Cmd+A/Backspace 都滚回 `scrollTop=5386`，目标行 `794..822` 在树视口 `
 
 ## 较早的文件标签桌面复核
 
-以下原图从 `.impeccable/review/` 复制，1440×900 逻辑窗口，Electron PID 13338/窗口 2039；15:35–15:36 在六文件标签关闭按钮覆盖定位修正后的构建中，通过浅色/深色真实设置切换捕获，并逐张打开确认内容。此前同名副本已替换，不能沿用修正前标签样式。
+以下是固化后的原生截图，1440×900 逻辑窗口，Electron PID 13338/窗口 2039；15:35–15:36 在六文件标签关闭按钮覆盖定位修正后的构建中，通过浅色/深色真实设置切换捕获，并逐张打开确认内容。此前同名副本已替换，不能沿用修正前标签样式；重复的评审副本已清理。
 
 | 截图 | 状态与来源 |
 | --- | --- |
@@ -62,7 +62,7 @@ Cmd+A/Backspace 都滚回 `scrollTop=5386`，目标行 `794..822` 在树视口 `
 | [深色文件工作区](./mira-file-workspace-dark-final.png) | 设置往返后六文件标签恢复、同一文件/线程，实际代码色来自 `--shiki-dark`；`desktop-dark.png` |
 | [深色文件菜单](./mira-file-workspace-dark-menu-final.png) | 原生右键菜单；关闭后焦点回 `alpha/README.md`；`desktop-dark-menu.png` |
 
-三份副本的 SHA-256 与 `.impeccable/review/` 同源原图一致，PNG 均为 3104×2024 像素（含 Retina 与窗口阴影）。同一 finish reviewer 已用这组复截图确认标签标题修复 resolved、无本批可见回归；DESIGN 同步亦 resolved，disposition ship 仅限两项收尾。
+三份保留截图的 SHA-256 与原采集文件一致，PNG 均为 3104×2024 像素（含 Retina 与窗口阴影）。同一 finish reviewer 已用这组复截图确认标签标题修复 resolved、无本批可见回归；DESIGN 同步亦 resolved，disposition ship 仅限两项收尾。
 
 ## 本批较早的操作画面
 

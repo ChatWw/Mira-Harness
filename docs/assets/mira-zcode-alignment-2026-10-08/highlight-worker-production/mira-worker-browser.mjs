@@ -23,6 +23,7 @@ import {createMiraCodeHighlighter,miraCodeThemes} from './apps/harness-react/src
 import {miraCodeHighlightWorker} from './apps/harness-react/src/lib/code-highlight-worker-client';
 import {MessageMarkdown} from './apps/harness-react/src/components/conversation/markdown';
 import {FilePreviewSource} from './apps/harness-react/src/components/workspace/FilePreviewPanel';
+import {applyHostTheme} from './apps/harness-react/src/platform/theme';
 import {createBundledHighlighter} from 'shiki/core';
 import {createOnigurumaEngine} from 'shiki/engine/oniguruma';
 import {bundledLanguages,bundledLanguagesInfo} from 'shiki/langs';
@@ -40,14 +41,30 @@ const digest=async value=>[...new Uint8Array(await crypto.subtle.digest('SHA-256
 async function fullReference(input){ reference??=createReference({themes,langs:[]}); const instance=await reference; const name=input.language.trim().toLowerCase(); const language=aliases.get(name)||name; const lang=language in bundledLanguages?language:'text'; if(lang!=='text')await instance.loadLanguage(lang); const pair=input.themes||themes; const {grammarState,...plain}=instance.codeToTokens(input.code,{lang,themes:{light:pair[0],dark:pair[1]},tokenizeTimeLimit:0,tokenizeMaxLineLength:0});return plain; }
 const summarize=async result=>({digest:await digest(result),lines:result.tokens.length,tokens:result.tokens.flat().length,hasGrammarState:'grammarState' in result,themedTokens:result.tokens.flat().filter(token=>token.htmlStyle?.color&&token.htmlStyle['--shiki-dark']).length});
 async function measure(run){const tasks=[];const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())tasks.push({start:entry.startTime,duration:entry.duration});});observer.observe({type:'longtask'});const gaps=[];let last=performance.now();const timer=setInterval(()=>{const now=performance.now();gaps.push(now-last);last=now;},5);await pause(20);const started=performance.now();try{const result=await run();const finished=performance.now();await pause(30);return {...await summarize(result),elapsedMs:finished-started,maxTimerGapMs:Math.max(...gaps),longTasks:tasks.filter(task=>task.start<=finished&&task.start+task.duration>=started)};}finally{clearInterval(timer);observer.disconnect();}}
+const appContainer=document.getElementById('root');
+applyHostTheme(appContainer,{theme:'light'});
 const view=createRoot(document.getElementById('view'));
 window.miraWorkerBrowser={
  owners, origin:globalThis.origin,
+ theme(theme){applyHostTheme(appContainer,{theme});},
  async equivalence(inputs){const highlighter=createMiraCodeHighlighter();const results=[];for(const input of inputs){const options={...input,themes:input.themes||themes};const expected=await fullReference(input);const actual=await highlighter.highlight(options);if(serialize(actual)!==serialize(expected))throw new Error('Token/style/offset mismatch: '+input.language);if('grammarState' in actual)throw new Error('GrammarState escaped worker');for(const token of actual.tokens.flat())if(input.code.slice(token.offset,token.offset+token.content.length)!==token.content)throw new Error('Offset mismatch');results.push({language:input.language,characters:input.code.length,equal:true,...await summarize(actual)});}return results;},
  async compare(input){miraCodeHighlightWorker.dispose();const highlighter=createMiraCodeHighlighter();const baseline=await measure(()=>fullReference(input));const actual=await measure(()=>highlighter.highlight({...input,themes:input.themes||themes}));if(baseline.digest!==actual.digest)throw new Error('Reference digest mismatch');return {referenceMainThread:baseline,productionWorker:actual,equal:true};},
  async growth(){const inputs=Array.from({length:16},(_,i)=>({language:'typescript',code:Array.from({length:(i+1)*64},(_,j)=>'export const grow'+j+': string = "Mira '+j+'";').join('\\n')}));const highlighter=createMiraCodeHighlighter();const actual=await measure(async()=>({tokens:(await Promise.all(inputs.map(input=>highlighter.highlight({...input,themes})))).flatMap(result=>result.tokens)}));const expected=await measure(async()=>({tokens:(await Promise.all(inputs.map(fullReference))).flatMap(result=>result.tokens)}));if(actual.digest!==expected.digest)throw new Error('Growth digest mismatch');return {requests:16,referenceMainThread:expected,productionWorker:actual,equal:true};},
  async sharedCancel(){const highlighter=createMiraCodeHighlighter();const cancellation=new AbortController();const options={code:'/* shared cancellation */\\nconst shared = 42;',language:'typescript',themes};const first=highlighter.highlight(options,cancellation.signal).then(()=>({unexpected:true}),error=>({name:error.name}));const second=highlighter.highlight(options);cancellation.abort();const aborted=await first;const result=await second;if(aborted.name!=='AbortError'||!result.tokens.flat().some(token=>token.htmlStyle?.color))throw new Error('Shared cancellation isolation failed');return {aborted,survived:true};},
  async invalidThemeRetry(){const highlighter=createMiraCodeHighlighter();const input={code:'const retry = 42;',language:'typescript'};let rejected=false;try{await highlighter.highlight({...input,themes:['missing-theme','github-dark']});}catch{rejected=true;}if(!rejected)throw new Error('Fake theme success');const result=await highlighter.highlight({...input,themes});return {rejected,retryThemed:result.tokens.flat().some(token=>token.htmlStyle?.color)};},
+ async renderedStyles(input){
+  const result=await createMiraCodeHighlighter().highlight({...input,themes});
+  const body=document.querySelector('[data-highlight-state="ready"]');
+  const actual=body.querySelector('.shiki');
+  const expected=actual.cloneNode(true);
+  const escape=value=>value.replace(/[&<>\"]/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[character]));
+  expected.querySelector('code').innerHTML=result.tokens.map(line=>'<span class="line">'+line.map(token=>'<span style="'+escape(Object.entries(token.htmlStyle||{}).map(([key,value])=>key+':'+value).join(';'))+'">'+escape(token.content)+'</span>').join('')+'</span>').join('\\n');
+  expected.style.position='absolute';expected.style.visibility='hidden';body.append(expected);
+  const runs=element=>{const walker=document.createTreeWalker(element.querySelector('code'),NodeFilter.SHOW_TEXT);const values=[];let offset=0;while(walker.nextNode()){const node=walker.currentNode;if(!node.data.length)continue;const style=getComputedStyle(node.parentElement);const signature=['color','fontStyle','fontWeight','textDecorationLine','backgroundColor','fontFamily','fontSize','lineHeight'].map(key=>style[key]).join('|');values.push({start:offset,end:offset+node.data.length,signature});offset+=node.data.length;}return values;};
+  const checks=[];
+  try{for(const theme of ['light','dark']){applyHostTheme(appContainer,{theme});const text=result.tokens.map(line=>line.map(token=>token.content).join('')).join('\\n');if(actual.querySelector('code').textContent!==text||expected.querySelector('code').textContent!==text)throw new Error('Rendered source changed: actual='+actual.querySelector('code').textContent.length+', expected='+text.length);const reference=runs(expected);const rendered=runs(actual);let index=0;for(const run of rendered){while(reference[index]?.end<=run.start)index++;let cursor=index;while(reference[cursor]?.start<run.end){if(run.signature!==reference[cursor].signature)throw new Error('Rendered style changed at '+theme+':'+Math.max(run.start,reference[cursor].start));cursor++;}}checks.push({theme,equal:true,characters:text.length,renderedTextRuns:rendered.length,referenceTextRuns:reference.length});}return {checks,tokenCount:result.tokens.flat().length,elements:actual.querySelectorAll('*').length+1};}
+  finally{expected.remove();applyHostTheme(appContainer,{theme:'light'});}
+ },
  render(content,streaming=true){view.render(React.createElement(MessageMarkdown,{content,streaming}));},
  async file(code){const highlighter=createMiraCodeHighlighter();const result=await highlighter.highlight({code,language:'typescript',themes});view.render(React.createElement(FilePreviewSource,{content:code,language:'typescript',highlighted:result,wrap:false,active:true}));return summarize(result);},
  startUIProfile(content){const tasks=[];const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())tasks.push({start:entry.startTime,duration:entry.duration});});observer.observe({type:'longtask'});const gaps=[];let last=performance.now();const timer=setInterval(()=>{const now=performance.now();gaps.push(now-last);last=now;},5);const input=document.getElementById('probe-input');let count=0;input.oninput=()=>count++;const started=performance.now();this.render(content,true);this.finishUIProfile=async()=>{await pause(30);clearInterval(timer);observer.disconnect();return {elapsedMs:performance.now()-started,maxTimerGapMs:Math.max(...gaps),longTasks:tasks,inputEvents:count,value:input.value};};},
@@ -65,7 +82,7 @@ try {
       const path = new URL(request.url, 'http://127.0.0.1').pathname
       if (path === '/favicon.ico') { response.writeHead(204); response.end(); return }
       if (path === '/') { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<!doctype html><iframe sandbox="allow-scripts allow-forms" src="/frame.html" style="width:1400px;height:850px;border:0"></iframe>'); return }
-      if (path === '/frame.html') { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/app.css"></head><body><label>Input <input id="probe-input"></label><div id="view" style="height:700px;overflow:auto"></div><script type="module" src="/fixture/stdin.js"></script></body></html>'); return }
+      if (path === '/frame.html') { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/app.css"></head><body><div id="root"><label>Input <input id="probe-input"></label><div id="view" style="height:700px;overflow:auto"></div></div><script type="module" src="/fixture/stdin.js"></script></body></html>'); return }
       if (path === '/mira-code-highlight.worker.js' && failWorker) { failWorker = false; report.network.push({ path, injectedFailure: 404 }); response.writeHead(404, corsHeadersFor(request)); response.end(); return }
       const base = path.startsWith('/fixture/') ? resolve(temporary, 'fixture') : production
       const file = resolve(base, '.' + (path.startsWith('/fixture/') ? path.slice('/fixture'.length) : path))
@@ -83,6 +100,41 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`)
   const frame = page.frames().find(frame => frame.parentFrame())
   await frame.waitForFunction(() => !!window.miraWorkerBrowser)
+  async function captureTheme(name, theme, background) {
+    const computed = await frame.evaluate(() => {
+      const root = document.getElementById('root')
+      const styles = element => element ? { background: getComputedStyle(element).backgroundColor, foreground: getComputedStyle(element).color } : null
+      return { theme: root.dataset.theme, dark: document.documentElement.classList.contains('dark'), root: styles(root), view: styles(document.getElementById('view')), gutter: styles(document.querySelector('.mira-file-source__number')), code: styles(document.querySelector('.mira-file-source__code .shiki')), themedTokens: document.querySelectorAll('.shiki span[style*="--shiki-dark"]').length }
+    })
+    assert.equal(computed.theme, theme)
+    assert.equal(computed.dark, theme === 'dark')
+    assert.equal(computed.root.background, `rgb(${background.join(', ')})`)
+    assert.equal(computed.view.foreground, computed.root.foreground)
+    assert.notEqual(computed.root.foreground, computed.root.background)
+    assert.ok(computed.themedTokens > 0)
+    if (computed.gutter) assert.equal(computed.gutter.background, computed.root.background)
+    const screenshot = await frame.locator('#root').screenshot({ path: resolve(evidence, name) })
+    const pixels = await page.evaluate(async ({ encoded, background }) => {
+      const image = new Image()
+      image.src = 'data:image/png;base64,' + encoded
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
+      const context = canvas.getContext('2d'); context.drawImage(image, 0, 0)
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data
+      const colors = new Set(); let backgroundPixels = 0
+      for (let offset = 0; offset < data.length; offset += 4) {
+        colors.add((data[offset] << 16) | (data[offset + 1] << 8) | data[offset + 2])
+        if (data[offset] === background[0] && data[offset + 1] === background[1] && data[offset + 2] === background[2]) backgroundPixels++
+      }
+      const totalPixels = canvas.width * canvas.height
+      return { width: canvas.width, height: canvas.height, distinctColors: colors.size, backgroundPixels, totalPixels, nonBackgroundPixels: totalPixels - backgroundPixels }
+    }, { encoded: screenshot.toString('base64'), background })
+    assert.equal(pixels.width, 1400); assert.equal(pixels.height, 850)
+    assert.ok(pixels.backgroundPixels > pixels.totalPixels * 0.5)
+    assert.ok(pixels.nonBackgroundPixels > 1000); assert.ok(pixels.distinctColors > 16)
+    return { path: name, computed, pixels, sha256: createHash('sha256').update(screenshot).digest('hex'), boundary: 'Isolated current React component canvas with production CSS and applyHostTheme/root contract. Not the whole native Mira workbench.' }
+  }
   report.sandbox = await page.locator('iframe').getAttribute('sandbox')
   report.effectiveOrigin = await frame.evaluate(() => window.miraWorkerBrowser.origin)
   assert.equal(report.sandbox, 'allow-scripts allow-forms'); assert.equal(report.effectiveOrigin, 'null')
@@ -114,12 +166,15 @@ try {
   const fenced = '```typescript\n' + singleLine + '\n```'
   await frame.evaluate(content => window.miraWorkerBrowser.startUIProfile(content), fenced)
   const input = frame.locator('#probe-input'); await input.click(); await input.pressSequentially('Mira input stays live', { delay: 15 })
-  await frame.waitForFunction(() => document.querySelectorAll('[data-streamdown="code-block-body"] .shiki span[style*="--shiki-dark"]').length >= 27_300, null, { timeout: 30_000 })
+  await frame.waitForFunction(() => document.querySelector('[data-highlight-state="ready"] .shiki code')?.textContent?.includes('single2099'), null, { timeout: 30_000 })
   report.realReactLongLine = await frame.evaluate(() => window.miraWorkerBrowser.finishUIProfile())
   assert.equal(report.realReactLongLine.value, 'Mira input stays live')
   report.realReactLongLine.retainedFinalIdentifier = await frame.locator('[data-streamdown="code-block-body"]').textContent().then(value => value.includes('single2099'))
   assert.equal(report.realReactLongLine.retainedFinalIdentifier, true)
-  await page.screenshot({ path: resolve(evidence, 'worker-long-line-light.png') })
+  report.realReactLongLine.renderedStyles = await frame.evaluate(code => window.miraWorkerBrowser.renderedStyles({ code, language: 'typescript' }), singleLine + '\n')
+  assert.equal(report.realReactLongLine.renderedStyles.tokenCount, 27_300)
+  assert.ok(report.realReactLongLine.renderedStyles.elements < 20_000)
+  report.lightScreenshot = await captureTheme('worker-long-line-light.png', 'light', [248, 248, 248])
   const changed = '```typescript\nconst current: string = "LATEST";\n```'
   await frame.evaluate(content => { window.miraWorkerBrowser.render('```typescript\nconst stale = "OLD";\n```', true); window.miraWorkerBrowser.render(content, true) }, changed)
   await frame.waitForFunction(() => document.querySelector('[data-streamdown="code-block-body"]')?.textContent?.includes('LATEST') && document.querySelector('[data-streamdown="code-block-body"] .shiki span[style*="--shiki-dark"]'))
@@ -135,8 +190,9 @@ try {
   await frame.locator('.mira-file-source').evaluate(element => { element.scrollTop = element.scrollHeight })
   await frame.waitForFunction(() => [...document.querySelectorAll('.mira-file-source__number')].some(element => element.textContent === '8001'))
   report.fileFinalVisible = true
-  await frame.evaluate(() => document.documentElement.classList.add('dark'))
-  await page.screenshot({ path: resolve(evidence, 'worker-file-dark.png') })
+  await frame.evaluate(() => window.miraWorkerBrowser.theme('dark'))
+  report.darkScreenshot = await captureTheme('worker-file-dark.png', 'dark', [22, 22, 22])
+  assert.notEqual(report.darkScreenshot.computed.root.foreground, report.lightScreenshot.computed.root.foreground)
   // Actual Worker entry failure, not a highlighter mock; next request must create a clean owner.
   await frame.evaluate(() => window.miraWorkerBrowser.dispose())
   const retryPage = await browser.newPage()
@@ -163,6 +219,7 @@ finally {
   await browser?.close()
   await new Promise(resolve => server ? server.close(resolve) : resolve())
   await rm(temporary, { recursive: true, force: true })
+  if (!report.passed) await writeFile(resolve(evidence, `mira-worker-browser-failure-${report.finishedAt.replaceAll(':', '-')}.json`), JSON.stringify(report, null, 2))
   await writeFile(resolve(evidence, 'mira-worker-browser-results.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify({ passed: report.passed, at: report.finishedAt, longLine: report.longLine, realReactLongLine: report.realReactLongLine, failure: report.failure }, null, 2))
 }

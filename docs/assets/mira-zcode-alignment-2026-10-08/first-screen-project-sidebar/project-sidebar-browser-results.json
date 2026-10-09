@@ -1,0 +1,220 @@
+{
+  "startedAt": "2026-10-09T10:08:57.590Z",
+  "passed": true,
+  "boundary": "Current Workbench/Drawer source bundled in an isolated esbuild test entry, real React/assistant-ui/Radix/TanStack virtual tree and current Tailwind CSS. Explicit in-browser PilotHost + localStorage fixtures only. Not production app entry, MessageChannel, preload/IPC, filesystem, native Electron, actual Git or same-state ZCode comparison. Headless desktop 1440x900, no desktop input.",
+  "checks": [
+    "Header has no status badge/file-list button; active A and its unsent draft remain during B/empty-project tree, expansion/search/Git/filter/manual-refresh/return; no session calls or right workspace opening",
+    "Different project preview/add are disabled; same active project preview/add remain enabled, without extending project-scope read/image/editor permissions",
+    "Empty chat draft browses B/empty project and file command does not prepare/create/open a task",
+    "Automation main view remains active while browsing project sidebar; return restores same unsent chat draft"
+  ],
+  "errors": [],
+  "captures": [
+    {
+      "path": "project-b-active-a-light.png",
+      "width": 1440,
+      "height": 900,
+      "theme": "light"
+    },
+    {
+      "path": "project-b-active-a-dark.png",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark"
+    },
+    {
+      "path": "project-b-automations-light.png",
+      "width": 1440,
+      "height": 900,
+      "theme": "light"
+    },
+    {
+      "path": "project-b-automations-dark.png",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark"
+    }
+  ],
+  "calls": [
+    {
+      "method": "getSession",
+      "args": [
+        "active-a"
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "project-b"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-b",
+        [
+          "docs",
+          "README.md"
+        ]
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        "docs"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-b",
+        [
+          "docs/notes.md"
+        ]
+      ]
+    },
+    {
+      "method": "searchProjectFiles",
+      "args": [
+        "project-b",
+        "notes",
+        true
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        ""
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        "docs"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "project-b"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-b",
+        [
+          "docs",
+          "docs/notes.md",
+          "README.md"
+        ]
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "empty-project",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "empty-project"
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-a",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "project-a"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-a",
+        [
+          "docs",
+          "README.md"
+        ]
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "project-b"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-b",
+        [
+          "docs",
+          "README.md"
+        ]
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "empty-project",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "empty-project"
+      ]
+    },
+    {
+      "method": "listProjectFiles",
+      "args": [
+        "project-b",
+        ""
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceGit",
+      "args": [
+        "project-b"
+      ]
+    },
+    {
+      "method": "getProjectWorkspaceIgnored",
+      "args": [
+        "project-b",
+        [
+          "docs",
+          "README.md"
+        ]
+      ]
+    }
+  ],
+  "completedAt": "2026-10-09T10:09:00.335Z"
+}

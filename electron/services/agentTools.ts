@@ -3,6 +3,84 @@ import { NodeExecutionEnv } from '@earendil-works/pi-agent-core/node'
 import { existsSync, realpathSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { diffLines } from 'diff'
+import type { HarnessToolText } from '../../src/config/harness'
+
+export const HARNESS_PUBLIC_TEXT_BYTES = 64 * 1024
+
+export function boundHarnessText(text: string): HarnessToolText {
+  const prefix = text.slice(0, HARNESS_PUBLIC_TEXT_BYTES + 1)
+  const bytes = Buffer.from(prefix, 'utf8')
+  if (bytes.length <= HARNESS_PUBLIC_TEXT_BYTES) return { text: prefix, truncated: prefix.length < text.length }
+  let end = HARNESS_PUBLIC_TEXT_BYTES
+  while (end > 0 && (bytes[end]! & 0xc0) === 0x80) end--
+  return { text: bytes.subarray(0, end).toString('utf8'), truncated: true }
+}
+
+export function publicHarnessText(value: string, secrets: string[] = []): HarnessToolText {
+  // 先保留足够前缀完成秘密替换，再按 UTF-8 边界裁剪，避免泄露被截断的密钥前半段。
+  const prefix = value.slice(0, HARNESS_PUBLIC_TEXT_BYTES + Math.max(0, ...secrets.map(secret => secret.length)))
+  let text = prefix
+  for (const secret of secrets) if (secret) text = text.split(secret).join('[已隐藏]')
+  text = text.replace(/data:(?:image|audio|video)\/[^;,\s]+;base64,[a-z\d+/=]+/gi, '[媒体数据不记录]')
+    .replace(/((?:Bearer|Basic)\s+)[^\s"']+/gi, '$1[已隐藏]')
+    .replace(/(["']?(?:[a-z\d_-]*(?:api[_-]?key|token|password|secret|credential|authorization|base64|image[_-]?url)[a-z\d_-]*|data|raw)["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\s,;}\]]+)/gi, '$1"[已隐藏]"')
+  const bounded = boundHarnessText(text)
+  return { text: bounded.text, truncated: bounded.truncated || prefix.length < value.length }
+}
+
+export function publicHarnessToolInput(value: unknown, secrets: string[] = []): HarnessToolText {
+  let remaining = HARNESS_PUBLIC_TEXT_BYTES, nodes = 256, truncated = false
+  const seen = new WeakSet<object>()
+  const visit = (item: unknown, depth = 0): unknown => {
+    if (--nodes < 0 || depth > 8 || remaining <= 0) { truncated = true; return '[已截断]' }
+    if (typeof item === 'string') {
+      const text = publicHarnessText(item, secrets)
+      if (text.truncated || text.text.length > remaining) truncated = true
+      const kept = text.text.slice(0, remaining)
+      remaining -= kept.length
+      return kept
+    }
+    if (item === null || typeof item === 'boolean' || typeof item === 'number') return item
+    if (typeof item !== 'object') return '[不可展示]'
+    if (seen.has(item)) return '[循环引用]'
+    seen.add(item)
+    if (ArrayBuffer.isView(item) || item instanceof ArrayBuffer) return '[二进制内容不记录]'
+    if (Array.isArray(item)) { if (item.length > 64) truncated = true; return item.slice(0, 64).map(entry => visit(entry, depth + 1)) }
+    const entries = Object.entries(item)
+    if (entries.length > 64) truncated = true
+    return Object.fromEntries(entries.slice(0, 64).map(([key, entry]) => [key, /authorization|password|secret|token|api[_-]?key|credential|base64|^data$|^raw$|image[_-]?url/i.test(key) ? '[已隐藏]' : visit(entry, depth + 1)]))
+  }
+  const result = publicHarnessText(JSON.stringify(visit(value), null, 2) || '', secrets)
+  return { text: result.text, truncated: truncated || result.truncated }
+}
+
+export function publicHarnessToolOutput(result: unknown, secrets: string[] = []): HarnessToolText | undefined {
+  const sanitize = (value: string): HarnessToolText | undefined => {
+    if (value.length <= HARNESS_PUBLIC_TEXT_BYTES && /^\s*[\[{]/.test(value)) {
+      try {
+        const parsed = JSON.parse(value)
+        if (parsed?.type === 'image' || parsed?.type === 'audio') return undefined
+        return publicHarnessToolInput(parsed, secrets)
+      } catch { /* 非 JSON 工具文本继续按文本脱敏。 */ }
+    }
+    return publicHarnessText(value, secrets)
+  }
+  if (!result || typeof result !== 'object') return typeof result === 'string' ? sanitize(result) : undefined
+  const content = (result as { content?: unknown }).content
+  if (typeof content === 'string') return sanitize(content)
+  if (!Array.isArray(content)) return undefined
+  let text = '', truncated = false
+  for (const block of content) {
+    if (!block || typeof block !== 'object' || block.type !== 'text' || typeof block.text !== 'string') continue
+    const next = sanitize(block.text)
+    if (!next) continue
+    const bounded = publicHarnessText(text + (text ? '\n' : '') + next.text, secrets)
+    text = bounded.text
+    truncated ||= next.truncated || bounded.truncated
+    if (bounded.truncated) break
+  }
+  return text || truncated ? { text, truncated } : undefined
+}
 
 function displayDiff(previous: string, next: string) {
   let previousLine = 1

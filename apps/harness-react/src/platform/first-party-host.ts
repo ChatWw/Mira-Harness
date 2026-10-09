@@ -1,18 +1,26 @@
-import type { HarnessEvent, HarnessFileReference, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
+import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
 import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
+import type { SendShortcut } from '../../../../src/config/harness'
+import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../../../src/config/harness'
+import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
+import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
+import type { HarnessGitContext, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
 
 export class FirstPartyHarnessHost implements PilotHost {
+  readonly supportsQueueSubmissionOptions = true
   private sequence = 0
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
   private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
+  private commandCenterListeners = new Set<() => void>()
   private prepareLeave?: () => Promise<void>
   private closed = false
 
   constructor(private port: MessagePort) {
     port.onmessage = message => {
       const data = message.data
+      if (data?.type === 'mira:command-center-open') { this.commandCenterListeners.forEach(listener => listener()); return }
       if (data?.type === 'mira:prepare-leave' && typeof data.id === 'string') {
         const id = data.id
         void Promise.resolve().then(() => {
@@ -60,21 +68,54 @@ export class FirstPartyHarnessHost implements PilotHost {
   }
 
   listSessions = () => this.call<HarnessSessionSummary[]>('sessions.list')
+  getComposerPreferences = () => this.call<{ sendShortcut: SendShortcut; showContextUsage: boolean; followupMode?: 'queue' | 'guide' }>('composer.preferences')
+  browseSkillMarket = (refresh = false) => this.call<HarnessSkillMarketCatalog>('marketplace.browse', { refresh })
+  getSkillMarketDetail = (id: string) => this.call<HarnessSkillMarketDetail>('marketplace.detail', { id })
+  installMarketSkill = (id: string) => this.call<HarnessSkillMarketItem>('marketplace.install', { id })
+  listInstalledMarketSkills = () => this.call<HarnessSkillMarketItem[]>('marketplace.installed')
+  queryHistory = (query: HarnessHistoryQuery) => this.call<HarnessHistoryPage>('sessions.history', query)
+  restoreSession = (id: string) => this.call<void>('session.restore', { id })
   listProjects = () => this.call<HarnessProject[]>('projects.list')
+  searchConversations = (query: string) => this.call<HarnessConversationSearchResult[]>('sessions.search', { query })
+  renameProject = (id: string, name: string) => this.call<void>('projects.rename', { id, name })
+  openProject = (projectId: string, target: 'file-manager' | 'terminal' = 'file-manager') => this.call<string>('projects.open', { projectId, target })
+  selectProject = () => this.call<HarnessProject | null>('projects.select')
+  onCommandCenterOpen = (listener: () => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
+  listAutomationTasks = () => this.call<AutomationTask[]>('automations.list')
+  getAutomationOverview = () => this.call<AutomationOverview>('automations.overview')
+  getAutomationNextRuns = (expression: string) => this.call<number[]>('automations.next-runs', { expression })
+  saveAutomationTask = (input: AutomationTaskInput) => this.call<AutomationTask>('automations.save', { input })
+  setAutomationTaskEnabled = (id: string, enabled: boolean) => this.call<AutomationTask>('automations.set-enabled', { id, enabled })
+  deleteAutomationTask = (id: string) => this.call<void>('automations.delete', { id })
+  listAutomationRuns = (id: string, status?: AutomationRunStatus) => this.call<AutomationRun[]>('automations.runs', { id, status })
+  runAutomationNow = (id: string) => this.call<AutomationRun>('automations.run-now', { id })
+  retryAutomationRun = (id: string) => this.call<AutomationRun>('automations.retry', { id })
+  abortAutomationRun = (id: string) => this.call<void>('automations.abort', { id })
+  getHarnessPermissionConfig = () => this.call<PermissionConfig>('permissions.config')
   getSession = (id: string) => this.call<HarnessSession>('session.get', { id })
   createSession = (projectId?: string) => this.call<HarnessSession>('session.create', { projectId })
   listProviders = () => this.call<ModelProviderSummary[]>('providers.list')
   runMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[] = []) => this.call<void>('message.run', { sessionId, text, references, selection, planning })
+  submitMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[], submissionId: string, options?: HarnessMessageSubmissionOptions) => this.call<HarnessMessageSubmissionResult>('message.submit', { sessionId, submissionId, text, references, selection, planning, ...(options === undefined ? {} : { options }) })
+  getMessageQueue = (sessionId: string) => this.call<HarnessMessageQueueSnapshot>('queue.list', { sessionId })
+  withdrawMessage = (sessionId: string, itemId: string) => this.call<HarnessMessageWithdrawal>('queue.withdraw', { sessionId, itemId })
+  resumeMessageQueue = (sessionId: string) => this.call<HarnessMessageQueueSnapshot>('queue.resume', { sessionId })
+  reorderMessageQueue = (sessionId: string, itemId: string, beforeItemId: string | null) => this.call<HarnessMessageQueueSnapshot>('queue.reorder', { sessionId, itemId, beforeItemId })
+  sendQueuedMessageNow = (sessionId: string, itemId: string, expectedRunId?: string) => this.call<HarnessMessageQueueSnapshot>('queue.send-now', { sessionId, itemId, ...(expectedRunId === undefined ? {} : { expectedRunId }) })
   respondPermission = (requestId: string, allowed: boolean) => this.call<void>('permission.respond', { requestId, allowed })
   listPendingPermissions = (sessionId: string) => this.call<HarnessPermissionRequest[]>('permissions.pending', { sessionId })
   openSessionProject = (sessionId: string, target: 'file-manager' | 'terminal' = 'file-manager') => this.call<string>('project.open', { sessionId, target })
-  abortRun = (sessionId: string) => this.call<void>('run.abort', { sessionId })
+  abortRun = (sessionId: string, expectedRunId?: string) => this.call<void>('run.abort', { sessionId, ...(expectedRunId === undefined ? {} : { expectedRunId }) })
   confirmPlan = (sessionId: string, planId: string, selection: ModelSelection) => this.call<unknown>('plan.confirm', { sessionId, planId, selection })
   answerInteraction = (sessionId: string, interactionId: string, answers: HarnessUserAnswer[], selection: ModelSelection) => this.call<unknown>('interaction.answer', { sessionId, interactionId, answers, selection })
   listFiles = (sessionId: string, path: string) => this.call<{ path: string; entries: HarnessWorkspaceFileEntry[] }>('files.list', { sessionId, path })
   searchFiles = (sessionId: string, query: string, refresh = false) => this.call<HarnessWorkspaceFileSearchResult>('files.search', { sessionId, query, refresh })
   getWorkspaceGit = (sessionId: string) => this.call<HarnessWorkspaceGitSnapshot>('files.git-status', { sessionId })
   getWorkspaceIgnored = (sessionId: string, paths: string[]) => this.call<string[]>('files.git-ignored', { sessionId, paths })
+  listProjectFiles = (projectId: string, path: string) => this.call<{ path: string; entries: HarnessWorkspaceFileEntry[] }>('files.list', { projectId, path })
+  searchProjectFiles = (projectId: string, query: string, refresh = false) => this.call<HarnessWorkspaceFileSearchResult>('files.search', { projectId, query, refresh })
+  getProjectWorkspaceGit = (projectId: string) => this.call<HarnessWorkspaceGitSnapshot>('files.git-status', { projectId })
+  getProjectWorkspaceIgnored = (projectId: string, paths: string[]) => this.call<string[]>('files.git-ignored', { projectId, paths })
   watchFiles = (sessionId: string, paths: string[]) => this.call<{ watchId: string }>('files.watch', { sessionId, paths })
   unwatchFiles = (sessionId: string, watchId: string) => this.call<void>('files.unwatch', { sessionId, watchId })
   listEditors = (refresh = false) => this.call<Array<{ id: string; name: string; icon?: string }>>('editors.list', { refresh })
@@ -109,8 +150,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   listMcp = () => this.call<Array<{ id: string; name: string; enabled: boolean }>>('mcp.list')
   selectFiles = (sessionId: string) => this.call<HarnessFileReference[]>('files.select', { sessionId })
   listGitBranches = (projectId: string) => this.call<unknown>('git.branches', { projectId })
-  checkoutGitBranch = (projectId: string, branch: string) => this.call<void>('git.checkout', { projectId, branch })
-  createGitBranch = (projectId: string, branch: string) => this.call<void>('git.create-branch', { projectId, branch })
+  getGitContext = (projectId: string) => this.call<HarnessGitContext>('git.context', { projectId })
+  checkoutGitBranch = (projectId: string, branch: string, snapshotToken: string) => this.call<HarnessGitContext>('git.checkout', { projectId, branch, snapshotToken })
+  createGitBranch = (projectId: string, branch: string, snapshotToken: string) => this.call<HarnessGitContext>('git.create-branch', { projectId, branch, snapshotToken })
   respondMemory = (requestId: string, approved: boolean) => this.call<void>('memory.respond', { requestId, approved })
   saveMemory = (id: string, selection: ModelSelection) => this.call<void>('memory.save', { sessionId: id, selection })
   stopSubtasks = (id: string, subtaskId?: string) => this.call<void>('subtask.stop', { sessionId: id, subtaskId })
@@ -127,5 +169,6 @@ export class FirstPartyHarnessHost implements PilotHost {
     this.pending.clear()
     this.listeners.clear()
     this.browserListeners.clear()
+    this.commandCenterListeners.clear()
   }
 }

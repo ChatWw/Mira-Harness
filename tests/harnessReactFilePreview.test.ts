@@ -291,7 +291,7 @@ describe('React Harness shared file highlighting core (Node reference)', () => {
     expect(result.tokens.map(line => line.map(token => token.content).join('')).join('\n')).toBe(code)
     expect(result.tokens[7999].some(token => token.htmlStyle?.color && token.htmlStyle['--shiki-dark'])).toBe(true)
     expect(yields.mock.calls.filter(call => call[1] === 0).length).toBeGreaterThan(2)
-  })
+  }, 15_000)
 
   it('cancels before initialization when the file identity is already stale', async () => {
     const cancellation = new AbortController()

@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-10-09T06:59:26.751Z",
+  "scope": "Real current React Markdown components in isolated headless Chromium. Deliberately delayed highlighter fixture, not production Worker performance, Electron, native input, user database or ZCode acceptance.",
+  "errors": [],
+  "passed": false,
+  "productionCssSha256": "776315833fb7a2cd4903c04db8cbe5d1580f361cf79121fa3b1e5e2bfedf05ea",
+  "failure": "page.waitForFunction: Timeout 30000ms exceeded.\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-streaming-regression.mjs:94:14",
+  "finishedAt": "2026-10-09T06:59:58.284Z"
+}

@@ -1,8 +1,60 @@
 # Mira Harness 生产入口 JS 分包证据
 
-最近更新：2026-10-09 13:54 +08:00。当前性能入口为下节的隔离 Chrome 高亮诊断；这是 Worker 原型 profile，不是生产 Worker 已接入或性能放行。搜索 ignore 的最新自动检查/构建/产物身份仍见 [搜索规则证据页](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)，旧 Git/filter、图片与监听数字保留原批次。
+最近更新：2026-10-09 15:08 +08:00。当前入口为下节的行级渲染收尾。单worker103文件/1089项、类型/构建/审计、新CSS60组等价与15:04流式行为通过；前三默认/两workers超时保留。React55/109ms、文件页面72ms长任务仍在，整体性能未放行。按用户最新反馈，先收好本批，回看整个工作台并整理核心交互剩余对齐清单；不继续追加文件支线。performance独立待办，本次未提交/推送。
+
+## 2026-10-09 行级渲染收尾与当前结果
+
+**完成与限定检查**：共享renderer仅对完整浅/深颜色对作行级继承，等色token不包独立span，字体/背景/装饰仍保留，tokens/source/offset不改；新增12项回归，独立60组computed-style/full-source/scrollWidth等价。长行诊断DOM元素27303→14703，正式React统计14704（容器计数口径不同）。改进前 [69ms基线](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/before-dom-inheritance-browser-results.json) 与 [1077检查](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/before-dom-inheritance-validation-results.json) 独立存档。
+
+14:51:38–14:53:27最终 [validation-results.json](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/validation-results.json) 使用 `--maxWorkers=1`：103文件/1089项，Vitest70.36s，React/Vue类型、React/Electron编译、fresh审计/diff exit0。14:41默认FilePreview8001超5s、14:43默认core94k长行超15s、14:47两workers同core超15s（1088/1089、85.85s）三次failure JSON/log保留；只将FilePreview此完整性测试等待设15s，不改core15s/生产预算。单worker绿不代表默认并发/CI速度修好；机器load约19.8和其他进程CPU观察未证明根因。
+
+**最终Chrome单次样本**：14:54:12–14:54:57，实际当前React/client/生产Worker，opaque iframe保持原sandbox。以下全为独立无预算WASM reference对同语义生产Worker，单位ms；timer gap与Long Task只观测页面主线程，不含Worker CPU。
+
+| 完整样本 | 主线程reference：总耗时 / timer gap / Long Task | Worker：总耗时 / timer gap / 页面Long Task |
+| --- | --- | --- |
+| 94,380字符单行 / 27,300 tokens | 5756.3 / 5756.6 / 5756 | 6063.8 / 24.5 / 无记录 |
+| 8001行 / 104,000 tokens | 1285.2 / 1285.3 / 1285 | 2246.5 / 76.7 / 72 |
+| 16增长快照 / 113,152 tokens | 1352.5 / 1352.6 / 53–154（12项，见JSON） | 2220.4 / 11.4 / 无记录 |
+
+三组完整digest、9等价fixture、300围栏、45虚拟行/文件末行、共享取消/theme/loader重试/最新streaming通过。真实React长行6526.0ms、gap110.0ms，**55/109ms Long Tasks仍存在**；21fixture输入事件/最终标识符保留、浅深逐字符有效样式相等，但非原生输入/INP。DOM更少不证明当前性能更快，也不把文件请求72ms页面任务抹成零；两批机器状态不同，不能做可靠前后收益推断。
+
+**最新产物**：14:53:23–14:53:27 fresh双入口291JS/240动态目标/13许可一致，missing/mismatch/stale/orphan0；app静态5JS/1,895,538B/gzip9 567,956B，Worker静态4JS/135,242B/gzip9 43,339B，全部JS10,138,512B/gzip9 2,127,553B。CSS **131,700B / gzip9 23,214B**、SHA `776315833fb7a2cd4903c04db8cbe5d1580f361cf79121fa3b1e5e2bfedf05ea`，fresh Tailwind一致；没有CSS源码修改但生成产物已变化，不能写字节不变。Worker SHA仍为 `ff83414a4e4aef1d8a8290364b8d837b0096fedceda687a9e3a1d7d59863b63e`。详细许可/运行时/失败记录只看 [生产证据索引](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/README.md)。
+
+**新CSS行为复核**：14:56:40–14:57:30颜色继承60组以776...CSS重跑通过；15:04:34–15:04:39 [延迟流式呈现回归](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-streaming-regression-results.json) 13请求、errors/unhandled为空，公开ready/Text Range与继承色观察确认几何稳定、完整尾行/复制、浅深色、乱序/卸载/取消、失败重试和引用通过。14:59旧token-span selector等待30s失败保留，修复仅夹具，不再有生产源码变更；mock/delayed highlighter不计Worker性能/native验收。
+
+**剩余与下一入口（15:08调整）**：先回看整体工作台的主界面、会话、对话执行、输入、审批、悬浮摘要及终端/浏览器面板，形成剩余对齐清单，核心交互优先；本次没有重新设计或重新验收这些区域。旧监听/编辑器错误态、图片/Git同态、metadata watcher、媒体与性能保留待办，不要求连续先做文件能力。当前用户ZCode有输入草稿，不抢焦点/不操作，观察截图不是同态验收。token clone/HTML/React长任务、真实输入/INP、重复/内存/冷暖/进程冷启动独立profile，安装包/Windows/真实模型/P0–P3另验，`9→0`与force reload保存边界不变；不重做Worker/搜索ignore，不截短/删语法换性能通过，整体仍active。
+
+## 2026-10-09 生产高亮 Worker 与最终验证
+
+本节保留14:34改进前基线（1077项、14:33的69ms、旧包体积）；其当时“当前/最终/下一步”不覆盖上节新renderer结果。原JSON已另存 `before-dom-inheritance-*`，同名非before JSON现在指新批次，不据本节旧数字放行当前源码。
+
+**完成**：流式与完成态代码块、文件预览已接入独立 `mira-code-highlight.worker`，构建改为 app / Worker 双入口的 ESM 分包。采用 Shiki 3.23.0 公共 API 与 Oniguruma WASM，保留全部语言/别名和 GitHub 浅深主题；逐行携带 grammar state、修正绝对 offset，传输前去除不可克隆的 grammar state。`tokenizeTimeLimit:0` / `tokenizeMaxLineLength:0` 是为完整语义作出的明确引擎迁移，不将旧默认 JS engine 截断样本当作提速基线。
+
+保持 opaque iframe 的 `allow-scripts allow-forms` / origin `null`，classic Blob + 固定 ESM dynamic import 正式 loader 不增加 same-origin 或放宽 CORS/sandbox；无主线程 tokenizer fallback。请求 ID、取消/迟到保护、共享消费者、错误重试、dispose 回收已接入；启动超时 10s、请求超时 60s，在途最多 256 请求 / 32,000,000 源码字符，LRU 仍为 128 项 / 1,000,000 key 字符。取消保留 warm owner，排队取消移除请求；单行 engine 扫描不能中途打断。上述 admission / key 限制不是 token 结果、总内存或整机响应时延的硬上限。
+
+**最终自动检查**：14:24:26–14:24:51 +08:00，[validation-results.json](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/validation-results.json) `passed=true`；103 文件 / 1077 测试，Vitest 10.44s，React/Vue 类型、React/Electron 编译、fresh bundle audit 和 diff check exit 0。14:17 全量曾因“第一个调用必胜”的并发保存测试假设失败：锁按 root 异步解析后的入队次序串行，并非调用次序；已改为验证实际唯一赢家与磁盘一致，另加两种受控入队顺序回归，33/33 和相关 3 用例连续 10 轮通过。生产 ignore 实现未因此修改，[失败 JSON](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/concurrent-save-winner-test-failure.json) 与 [修复回归](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/concurrent-save-regression-results.json) 分别保留。
+
+**最终 Chrome 单次样本**：14:32:46–14:33:06，Chrome `154.0.8037.99`，真实当前 React/client 与精确生产 Worker，独立无预算 WASM reference 仅存在于 fixture。修正截图 fixture 将主题应用到真实 `#root` / `applyHostTheme` 后完整重跑；下表使用这次最新 JSON，不沿用 14:25 样本。单位 ms；timer gap 为页面 5ms timer 的最大间隔，Long Tasks 只观测页面主线程，不包括 Worker 执行。
+
+| 完整语义样本 | 主线程 WASM reference：总耗时 / timer gap / Long Task | 生产 Worker：总耗时 / timer gap / 页面 Long Task |
+| --- | --- | --- |
+| 94,380 字符单行，2100 statements，27,300 tokens | 3008.1 / 3008.7 / 3008 | 3095.5 / 11.4 / 无记录 |
+| 8001 行文件，104,000 tokens | 648.4 / 648.5 / 648 | 1208.9 / 44.2 / 无记录 |
+| 16 个增长快照，累计 8704 行 / 113,152 tokens | 701.1 / 701.1 / 50、57、61、68、73、77、81 | 1114.4 / 10.1 / 无记录 |
+
+三个样本 token/style digest 均相等；另有 9 个多语言/跨行、别名、CRLF、交换主题/未知语言 fixture 相等，不代表所有 grammar / 输入全覆盖。共享取消另一消费者存活，theme / loader failure 后重试、最新 streaming、300 个完成代码块通过；8001 行预览只挂载 45 行且最后文件行可见，传输结果无 grammar state。准确源码/Worker SHA、请求与截图见 [生产证据索引](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/README.md)。Worker 降低本次主线程阻塞但总耗时更高，不能声称计算更快或全场景性能完成。
+
+**React 残余与分层边界**：真实 React 长行渲染总耗时 3060.3ms、timer gap 69.5ms，仍有 **69ms Long Task**；21 个 fixture input event 保留 `Mira input stays live` 和最后标识符，但不是原生输入、INP 或零卡顿证明。两张 1400×850 组件画布截图逐张复核；深色 root/行号栏背景 `rgb(22,22,22)`、正文 `rgb(245,245,246)`，701 色 / 53,103 非背景像素，不再是未应用主题的白底 fixture，但不是完整原生工作台深色验收。14:14 的延迟 highlighter fixture 单独验证原文/高亮的行号与几何稳定、尾换行复制、未闭合 streaming fence、错误/重试、卸载/迟到取消和 citation；它不测生产 Worker 性能。14:20 的真实 Electron 43.3.0 / Chromium 150.0.7871.212 隐藏 renderer、contextIsolation/sandbox/webSecurity 与 opaque iframe 验证精确 Worker/资源闭包及取消/重试/dispose：单行 27,300 tokens、完整 source / offset，2401ms / timer gap 6.9ms，两 owner 回收、Blob URL 剩余 0。保留开发 CSP warning；该隐藏 fixture 不经过完整 Mira preload/IPC，不是可见应用或原生工作台验收。
+
+**最终产物与许可**：14:24:50 fresh audit 确认双入口 291/291 JS SHA 一致、240 动态目标完整，缺失/差异/旧块/孤儿 0。app 静态闭包 5 JS / 1,894,924B / gzip9 567,734B；Worker 静态闭包 4 JS / 135,242B / gzip9 43,339B；全部 JS 10,137,898B / gzip9 2,127,331B，CSS 131,492B / gzip9 23,205B。共享 chunk 不重复相加，gzip 为逐文件估算而非实际传输。253 个物理 grammar、235 ID / 97 alias / 332 keys、仅两主题；WASM/tokenizer 仅属于 Worker 可达闭包，无 app-root tokenizer fallback 或 JS regex converter。13 份许可、NOTICE/HTML 与来源一致；新增 Shiki MIT、Microsoft binding MIT、native Oniguruma BSD-2 原文，466,610B WASM 与 `vscode-oniguruma@1.7.0` 的 tarball 逐字 SHA 对应，来源见 [Oniguruma 说明](../third-party-licenses/oniguruma/README.md)。不复制 ZCode tokenizer。
+
+**有限原生流程与下一入口**：14:25:17–14:28:15 在 `/private/tmp/mira-native-ignore-8V6O9x` 真实 Mira preload/IPC、原生 click/type/keys 跑通搜索设置模板不写盘、保存、离开取消留草稿、外部冲突不覆盖文件/草稿、重读后重试、browse 不过滤 / search 按规则过滤和预览；27 records / 3 captures、`passed=true`，三张原生图逐张复核未见文字重叠/控件越界，不扩展为整体 ZCode/native/性能验收。旧锁屏、输入丢字符与旧夹具规则冲突均是历史失败/阻断，不能抹成成功。
+
+下一步先 profile token clone/序列化、HTML/React 的 69ms 长任务和真实输入，再做重复样本、内存、冷暖/进程冷启动；保留单行不可中断和完整语义，不以截短/删语言/纯文本退化换通过。旧监听/编辑器错误态与图片/Git 的浅深色同态 ZCode、Git metadata watcher、媒体 lease/Range、正式安装包/Windows/真实模型与 P0–P3 分别推进。整体目标仍进行中，本次证据不提供“无法继续改进”或发布放行结论。
 
 ## 2026-10-09 高亮 Worker 诊断
+
+本节是 13:54 更新时的原型历史；“尚未实现”和当时下一步只描述该采集阶段。当前生产实现及最终数据以本文件上节为准，以下历史数字、失败和验证边界不改写。
 
 **采集与完成范围**：13:48:11–13:48:24 +08:00，隔离 headless Google Chrome `154.0.8037.99`、1440×900 桌面 viewport。使用 [诊断脚本](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/mira-highlight-profile.mjs) 临时编译当时的 `code-highlighter.ts` / `file-preview-highlighter.ts` 与 Worker 原型，记录 [profile-results.json](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/profile-results.json) 的源码 SHA；没有修改生产源码/构建、Electron、用户数据库或历史证据。`passed=true` 仅代表此次诊断结束，`productionWorkerImplemented=false`，不能作为下一批生产 Worker 的通过结论。
 

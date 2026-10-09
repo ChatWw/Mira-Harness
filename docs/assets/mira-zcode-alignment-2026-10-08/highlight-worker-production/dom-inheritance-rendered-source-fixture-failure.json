@@ -1,0 +1,756 @@
+{
+  "startedAt": "2026-10-09T06:50:10.145Z",
+  "passed": false,
+  "errors": [],
+  "network": [
+    {
+      "path": "/app.css",
+      "origin": null,
+      "cors": {},
+      "production": true
+    },
+    {
+      "path": "/fixture/stdin.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-R3KCNYHJ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-5TBO732O.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/wasm-CCL37T75.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/github-light-QPVPKULW.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/github-dark-ZNDPCU4E.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/typescript-TXJMM6NJ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-6R3KEE7K.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/mira-code-highlight.worker.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-4ZIV6YIA.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-ZZLKWTBH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-YEHCSWIG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/wasm-K24ZIFGG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-light-JUBLJC3D.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-dark-GPF4RBQH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/typescript-GKZB4FZZ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7YNZZQVT.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/fixture/vue-YS2DFG6Y.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-AYRPSWZ3.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-3FGBQ6A6.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-XT4S6LNV.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-MLTQE63C.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-2NMMIZH5.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/chunks/vue-7BRCO2HR.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7ISSEMX4.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-JENWYTLI.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-74TZETVY.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-647IURXC.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-UL57AD4T.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/fixture/python-FKW3Z542.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-DCJRCM7E.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/chunks/python-7UP7FS2K.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-G4Z6L7OO.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/fixture/shellscript-TDW2OERN.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-E56XDXUN.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/chunks/shellscript-A36VDXOC.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7OJ4MEEB.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/fixture/markdown-DMSLGTG3.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/chunk-ZD72CDNJ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/chunks/markdown-V3Y3HJQF.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-4WYBE67P.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/fixture/json-LGBVFOAX.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/fixture/javascript-ASFT2VCO.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": false
+    },
+    {
+      "path": "/mira-code-highlight.worker.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-4ZIV6YIA.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-ZZLKWTBH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-YEHCSWIG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/wasm-K24ZIFGG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-light-JUBLJC3D.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-dark-GPF4RBQH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/typescript-GKZB4FZZ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7YNZZQVT.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/mira-code-highlight.worker.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-4ZIV6YIA.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-ZZLKWTBH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-YEHCSWIG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/wasm-K24ZIFGG.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-light-JUBLJC3D.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/github-dark-GPF4RBQH.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/typescript-GKZB4FZZ.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    },
+    {
+      "path": "/chunks/chunk-7YNZZQVT.js",
+      "origin": "null",
+      "cors": {
+        "Access-Control-Allow-Origin": "null"
+      },
+      "production": true
+    }
+  ],
+  "boundary": "Isolated desktop headless Chrome, opaque iframe, real current React components/client and exact built production Worker. Independent WASM reference is fixture-only. Not native input, Electron preload/IPC, installed app, Windows, ZCode GUI, INP, process cold start or whole-goal acceptance.",
+  "runtime": "154.0.8037.99",
+  "sandbox": "allow-scripts allow-forms",
+  "effectiveOrigin": "null",
+  "equivalence": [
+    {
+      "language": "typescript",
+      "characters": 49,
+      "equal": true,
+      "digest": "3960c174357810b4573ccd220ebc2aec27a6f29966d36fdd69b4eabfbeb46317",
+      "lines": 4,
+      "tokens": 13,
+      "hasGrammarState": false,
+      "themedTokens": 13
+    },
+    {
+      "language": "vue",
+      "characters": 150,
+      "equal": true,
+      "digest": "97a9d2991fb52489c280e928a8ca356acb9345f19459cce4b00054414249b76c",
+      "lines": 10,
+      "tokens": 43,
+      "hasGrammarState": false,
+      "themedTokens": 43
+    },
+    {
+      "language": "python",
+      "characters": 37,
+      "equal": true,
+      "digest": "f75a3d0970e1762d304bebb72978518ad079613a8147f32e46d8d1e280d17745",
+      "lines": 5,
+      "tokens": 8,
+      "hasGrammarState": false,
+      "themedTokens": 8
+    },
+    {
+      "language": "shell",
+      "characters": 39,
+      "equal": true,
+      "digest": "ac02ba5ad57a4621691b2a7d89fb2d2cacc66b1286fc6501e45eb2166a72e479",
+      "lines": 6,
+      "tokens": 10,
+      "hasGrammarState": false,
+      "themedTokens": 10
+    },
+    {
+      "language": "markdown",
+      "characters": 64,
+      "equal": true,
+      "digest": "2c9c48166c9068bbc34522f135034edf88d484da66059177c4c068f2dedfc5bb",
+      "lines": 8,
+      "tokens": 13,
+      "hasGrammarState": false,
+      "themedTokens": 13
+    },
+    {
+      "language": "json",
+      "characters": 36,
+      "equal": true,
+      "digest": "feac6847dfc9d9d9ac10c91811bfe9c6395463807a86300c1be54deb7f314a72",
+      "lines": 4,
+      "tokens": 9,
+      "hasGrammarState": false,
+      "themedTokens": 9
+    },
+    {
+      "language": " TS ",
+      "characters": 35,
+      "equal": true,
+      "digest": "2cd7163a5119db7cc905894b878ed4576665b234c89997833958f3ed3fc3b7f6",
+      "lines": 4,
+      "tokens": 10,
+      "hasGrammarState": false,
+      "themedTokens": 10
+    },
+    {
+      "language": "javascript",
+      "characters": 20,
+      "equal": true,
+      "digest": "d9b101e97726cded11ef9f3cba8bebec3a59f16278ac2232162edfb2e2413455",
+      "lines": 2,
+      "tokens": 8,
+      "hasGrammarState": false,
+      "themedTokens": 8
+    },
+    {
+      "language": "mira-unknown",
+      "characters": 53,
+      "equal": true,
+      "digest": "0af55ac9f28bfacffb1b55b819227d9066af0ee1818fafce7d6c0821c01131db",
+      "lines": 3,
+      "tokens": 3,
+      "hasGrammarState": false,
+      "themedTokens": 0
+    }
+  ],
+  "longLine": {
+    "referenceMainThread": {
+      "digest": "8be6cecf60961e3cab8710da78a8fa60fe9d9a7926a5c8ffa322e65e7c6452bd",
+      "lines": 1,
+      "tokens": 27300,
+      "hasGrammarState": false,
+      "themedTokens": 27300,
+      "elapsedMs": 4899.300000011921,
+      "maxTimerGapMs": 4899.70000000298,
+      "longTasks": [
+        {
+          "start": 1175.3999999910593,
+          "duration": 4899
+        }
+      ]
+    },
+    "productionWorker": {
+      "digest": "8be6cecf60961e3cab8710da78a8fa60fe9d9a7926a5c8ffa322e65e7c6452bd",
+      "lines": 1,
+      "tokens": 27300,
+      "hasGrammarState": false,
+      "themedTokens": 27300,
+      "elapsedMs": 5478,
+      "maxTimerGapMs": 19.099999994039536,
+      "longTasks": []
+    },
+    "equal": true
+  },
+  "file8001": {
+    "referenceMainThread": {
+      "digest": "9e749785190481529ce987177303ee4cde5fec6bf855fcf7c21a234b5019859a",
+      "lines": 8001,
+      "tokens": 104000,
+      "hasGrammarState": false,
+      "themedTokens": 104000,
+      "elapsedMs": 1198,
+      "maxTimerGapMs": 1198.1000000089407,
+      "longTasks": [
+        {
+          "start": 11750.39999999106,
+          "duration": 1198
+        }
+      ]
+    },
+    "productionWorker": {
+      "digest": "9e749785190481529ce987177303ee4cde5fec6bf855fcf7c21a234b5019859a",
+      "lines": 8001,
+      "tokens": 104000,
+      "hasGrammarState": false,
+      "themedTokens": 104000,
+      "elapsedMs": 2211.7000000029802,
+      "maxTimerGapMs": 72.40000000596046,
+      "longTasks": [
+        {
+          "start": 15276.39999999106,
+          "duration": 69
+        }
+      ]
+    },
+    "equal": true
+  },
+  "growth": {
+    "requests": 16,
+    "referenceMainThread": {
+      "digest": "1ae9c97b40f93a06da917862b3687daa6bbe9b8b802731edb133efbfb9b5f3d0",
+      "lines": 8704,
+      "tokens": 113152,
+      "hasGrammarState": false,
+      "themedTokens": 113152,
+      "elapsedMs": 1416.7000000029802,
+      "maxTimerGapMs": 1416.800000011921,
+      "longTasks": [
+        {
+          "start": 18211,
+          "duration": 55
+        },
+        {
+          "start": 18266.59999999404,
+          "duration": 61
+        },
+        {
+          "start": 18328.5,
+          "duration": 75
+        },
+        {
+          "start": 18403.70000000298,
+          "duration": 87
+        },
+        {
+          "start": 18491,
+          "duration": 98
+        },
+        {
+          "start": 18589.29999999702,
+          "duration": 112
+        },
+        {
+          "start": 18701.5,
+          "duration": 108
+        },
+        {
+          "start": 18810.09999999404,
+          "duration": 122
+        },
+        {
+          "start": 18932.70000000298,
+          "duration": 140
+        },
+        {
+          "start": 19072.89999999106,
+          "duration": 141
+        },
+        {
+          "start": 19214.29999999702,
+          "duration": 152
+        },
+        {
+          "start": 19366.5,
+          "duration": 157
+        }
+      ]
+    },
+    "productionWorker": {
+      "digest": "1ae9c97b40f93a06da917862b3687daa6bbe9b8b802731edb133efbfb9b5f3d0",
+      "lines": 8704,
+      "tokens": 113152,
+      "hasGrammarState": false,
+      "themedTokens": 113152,
+      "elapsedMs": 2380.5,
+      "maxTimerGapMs": 10.600000008940697,
+      "longTasks": []
+    },
+    "equal": true
+  },
+  "sharedCancel": {
+    "aborted": {
+      "name": "AbortError"
+    },
+    "survived": true
+  },
+  "themeRetry": {
+    "rejected": true,
+    "retryThemed": true
+  },
+  "realReactLongLine": {
+    "elapsedMs": 5459.5,
+    "maxTimerGapMs": 85.70000000298023,
+    "longTasks": [
+      {
+        "start": 25040.09999999404,
+        "duration": 85
+      }
+    ],
+    "inputEvents": 21,
+    "value": "Mira input stays live",
+    "retainedFinalIdentifier": true
+  },
+  "failure": "frame.evaluate: Error: Rendered source changed\n    at Object.renderedStyles (http://127.0.0.1:54107/fixture/stdin.js:41:94)\n    at async <anonymous>:337:30\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-worker-browser.mjs:174:57",
+  "finishedAt": "2026-10-09T06:50:44.187Z"
+}

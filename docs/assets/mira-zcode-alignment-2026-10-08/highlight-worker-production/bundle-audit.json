@@ -1,5 +1,5 @@
 {
-  "auditTime": "2026-10-09T06:15:35.525Z",
+  "auditTime": "2026-10-09T13:41:49.587Z",
   "buildOptionsSource": "scripts/build-harness-react.mjs",
   "passed": true,
   "buildOptions": {
@@ -29,8 +29,8 @@
     "app": {
       "static": {
         "fileCount": 5,
-        "bytes": 1894924,
-        "gzipLevel9SumBytes": 567734,
+        "bytes": 2114235,
+        "gzipLevel9SumBytes": 627033,
         "files": [
           "app.js",
           "chunks/chunk-4ZIV6YIA.js",
@@ -41,8 +41,8 @@
       },
       "includingDynamic": {
         "fileCount": 287,
-        "bytes": 9396585,
-        "gzipLevel9SumBytes": 1861274,
+        "bytes": 9615896,
+        "gzipLevel9SumBytes": 1920573,
         "files": [
           "app.js",
           "chunks/abap-LJYVSNCZ.js",
@@ -644,19 +644,19 @@
   },
   "multiRootClosure": {
     "fileCount": 291,
-    "bytes": 10137898,
-    "gzipLevel9SumBytes": 2127331,
+    "bytes": 10357209,
+    "gzipLevel9SumBytes": 2186630,
     "orphanMetafileOutputs": []
   },
   "expectedJS": {
     "fileCount": 291,
-    "bytes": 10137898,
-    "gzipLevel9SumBytes": 2127331
+    "bytes": 10357209,
+    "gzipLevel9SumBytes": 2186630
   },
   "allDiskJS": {
     "fileCount": 291,
-    "bytes": 10137898,
-    "gzipLevel9SumBytes": 2127331
+    "bytes": 10357209,
+    "gzipLevel9SumBytes": 2186630
   },
   "memoryDiskComparison": {
     "equalCount": 291,
@@ -730,25 +730,31 @@
     "javaScriptRegexConverterInputs": []
   },
   "outputCounts": {
-    "metafileAllOutputs": 291,
-    "allDiskFiles": 307,
+    "metafileAllOutputs": 292,
+    "allDiskFiles": 309,
     "allDiskWASM": []
   },
-  "generatedCSS": [],
+  "generatedCSS": [
+    {
+      "path": "app.css",
+      "bytes": 26677,
+      "note": "Subsequently replaced by the production Tailwind step; audited separately."
+    }
+  ],
   "html": {
     "moduleAppEntry": true
   },
   "css": {
-    "bytes": 131492,
-    "gzip9": 23205,
-    "sha256": "411a46e3d69a7b20ea9aac796b181fffc26334d25b2f73177fdd1a3211ec6143",
-    "expectedTailwindFileSHA256": "411a46e3d69a7b20ea9aac796b181fffc26334d25b2f73177fdd1a3211ec6143",
+    "bytes": 188960,
+    "gzip9": 31359,
+    "sha256": "b31993ac287e338290ae01915a5637981c079d3b4db1ff19203cf4d24bc533f5",
+    "expectedTailwindFileSHA256": "b31993ac287e338290ae01915a5637981c079d3b4db1ff19203cf4d24bc533f5",
     "stdoutTrailingNewlineRemoved": true,
     "matchesFreshTailwind": true,
     "changedOnlyActiveRule": true
   },
   "licenses": {
-    "files": 13,
+    "files": 15,
     "mismatched": [],
     "sourceAndPackagePathsMatch": true,
     "noticeMatches": true,
@@ -757,7 +763,7 @@
   "artifacts": [
     {
       "path": "app.js",
-      "sha256": "46f3df613a95d5ccbd502956ac2124f4a827c4cb4456b9163efde6ee291bdb13"
+      "sha256": "c30f7e8f3fedd451f4c19a69ff619489de2b555cd44b14bea9cdd9c43884c0f5"
     },
     {
       "path": "chunks/abap-LJYVSNCZ.js",
@@ -1925,5 +1931,5 @@
     "sha256": "6d79dd04d54967f1d347513425acd05ce238bdbcd42371f7a6c003930758f05e"
   },
   "boundaries": "Read-only production artifact/build-equivalence audit; no production outputs modified. Not runtime loader, semantic, cancellation, performance, native Electron, packaging, Windows or whole-goal acceptance.",
-  "finishedAt": "2026-10-09T06:15:36.628Z"
+  "finishedAt": "2026-10-09T13:41:50.797Z"
 }

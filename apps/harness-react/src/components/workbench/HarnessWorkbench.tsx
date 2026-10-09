@@ -1,13 +1,25 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
-import { ArrowDown, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, CircleAlert, Copy, FileText, FolderOpen, GitCompare, Globe2, ListTree, LoaderCircle, Menu, PanelRight, Plus, RotateCw, ShieldCheck, Square, TerminalSquare, X } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { ArrowDown, ArrowLeft, ArrowRight, Blocks, BookOpen, CalendarClock, Check, ChevronDown, CircleAlert, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, MoreHorizontal, PanelRight, Plus, RotateCw, Settings, ShieldCheck, TerminalSquare, X } from 'lucide-react'
 import { type HarnessFileChange, type HarnessMessage, type HarnessRunActivity, type ToolCallRecord } from '../../../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../../../src/platform/firstPartyHarness'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from '../../state/pilot-state'
-import { SessionSidebar, useHarnessSessionShortcuts } from '../session/SessionSidebar'
+import { SessionMenuItems, SessionSidebar, useHarnessSessionShortcuts } from '../session/SessionSidebar'
+import { SIDEBAR_PREFERENCE_KEY, SidebarPreferenceStore } from '../session/sidebar-preferences'
+import { HarnessWorkspaceContext } from './HarnessWorkspaceContext'
+import { SkillMarketView } from '../extensions/SkillMarketView'
+import { AutomationsView } from '../automations/AutomationsView'
+import { HarnessCommandCenter, type HarnessSearchCommand } from '../search/HarnessCommandCenter'
 import { MessageMarkdown } from '../conversation/markdown'
 import { RunProgressCard } from '../conversation/run-progress'
-import { EditIcon, FileChangesCard, UserMessageEditor } from '../conversation/message-parts'
+import { AssistantMessageParts, findInlinePermissionTarget, PermissionResponseCard, type PermissionResponseCardProps } from '../conversation/AssistantMessageParts'
+import { AssistantToolbar, EditIcon, FileChangesCard, MessageCopyButton, UserMessageAttachments, UserMessageEditor } from '../conversation/message-parts'
+import { ConversationTurnRail } from '../conversation/ConversationTurnRail'
+import { MiraPendingGuides } from '../conversation/MiraPendingGuides'
+import { TaskSummary } from '../conversation/TaskSummary'
+import { MiraBranchPicker } from '../git/MiraBranchPicker'
+import { projectTimelineMessages, projectTimelineRenderMessages, toolsForRun, type TimelineRenderMessage } from '../conversation/conversation-model'
 import { HarnessComposer, type HarnessComposerHandle } from '../composer/HarnessComposer'
 import { WorkspaceLauncher } from '../workspace/WorkspaceLauncher'
 import { WorkspaceTabs } from '../workspace/WorkspaceTabs'
@@ -25,65 +37,72 @@ import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs as removeOtherWorkspaceT
 
 const StreamMessageContext = createContext<HarnessMessage | undefined>(undefined)
 const MessageLookupContext = createContext<Map<string, HarnessMessage>>(new Map())
-const WorkbenchContext = createContext<{ controller: PilotController; openChangesTab: () => void; running: boolean }>({ controller: undefined as unknown as PilotController, openChangesTab: () => undefined, running: false })
+const WorkbenchContext = createContext<{ controller: PilotController; openChangesTab: () => void; openFile: (path: string) => void; running: boolean; waiting: boolean; latestAssistantId?: string; canRerun: boolean; tools: ToolCallRecord[]; toolsById: ReadonlyMap<string, ToolCallRecord>; permissionResponse?: PermissionResponseCardProps; inlinePermission?: { messageId: string; partId: string } }>({ controller: undefined as unknown as PilotController, openChangesTab: () => undefined, openFile: () => undefined, running: false, waiting: false, canRerun: false, tools: [], toolsById: new Map() })
 const WORKSPACE_PREFERENCE_KEY = 'harness-react-workspace'
+
+function projectWorkbenchMessage({ original, rendererId }: TimelineRenderMessage) {
+  return { ...projectPilotMessage(original), id: rendererId }
+}
 
 function UserMessage() {
   const id = useAuiState(state => state.message.id)
   const messageById = useContext(MessageLookupContext)
-  const { controller, running } = useContext(WorkbenchContext)
+  const { controller, running, openFile } = useContext(WorkbenchContext)
   const original = messageById.get(id)
   const [editing, setEditing] = useState(false)
   if (editing) return <MessagePrimitive.Root className="message-row flex w-full flex-col items-end gap-1">
     <div className="w-full"><UserMessageEditor original={original} content={original?.content || ''} onCancel={() => setEditing(false)} onConfirm={async next => { setEditing(false); await controller.editAndRerun(id, next) }} /></div>
   </MessagePrimitive.Root>
-  return <MessagePrimitive.Root className="message-row group/user-row mt-7 flex w-full flex-col items-end first:mt-0">
+  return <MessagePrimitive.Root className="message-row group/user-row mt-7 flex w-full flex-col items-end first:mt-0" data-user-message-id={id}>
     <div className="flex max-w-full flex-col rounded-xl rounded-tr-xs border border-border bg-surface px-4 py-3 text-ui-base text-foreground @min-[624px]/conversation:max-w-xl"><MessagePrimitive.Content /></div>
-    {!running && <button type="button" className="mt-1 mr-1 flex size-6 items-center justify-center rounded-md text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-foreground group-hover/user-row:opacity-100 focus-visible:opacity-100" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}
+    <UserMessageAttachments message={original} onOpen={openFile} />
+    <div className="mira-message-actions mt-1 opacity-0 transition-opacity group-hover/user-row:opacity-100 group-focus-within/user-row:opacity-100"><MessageCopyButton content={original?.content || ''} label="复制消息" onError={error => controller.reportError(error)} />{!running && <button type="button" className="mira-message-action" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}</div>
   </MessagePrimitive.Root>
 }
 
 function AssistantMessage() {
-  const id = useAuiState(state => state.message.id)
+  const rendererId = useAuiState(state => state.message.id)
   const isOptimistic = useAuiState(state => state.message.metadata.isOptimistic)
   const messageById = useContext(MessageLookupContext)
   const stream = useContext(StreamMessageContext)
-  const { controller, openChangesTab, running } = useContext(WorkbenchContext)
-  const original = messageById.get(id)
+  const { controller, openChangesTab, running, waiting, latestAssistantId, canRerun, tools, toolsById, permissionResponse, inlinePermission } = useContext(WorkbenchContext)
+  const original = messageById.get(rendererId)
+  const id = original?.id ?? rendererId
   const streaming = shouldRenderPilotStream(id, isOptimistic === true, stream?.id)
-  const content = streaming ? (stream?.content ?? '') : (original?.content ?? '')
+  const message = streaming ? stream || original : original
+  const content = message?.content ?? ''
+  const orderedParts = message?.parts !== undefined
   const changes: HarnessFileChange[] = original?.fileChanges || []
-  return <MessagePrimitive.Root className="message-row group/assistant-row w-full min-w-0">
-    <MessageMarkdown content={content} sources={original?.sources} streaming={streaming} />
+  return <MessagePrimitive.Root className="message-row group/assistant-row w-full min-w-0" data-assistant-message-id={id}>
+    {!orderedParts && original?.run && <RunProgressCard run={original.run} tools={toolsForRun(tools, original.run)} running={streaming} waiting={streaming && waiting} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
+    {orderedParts && message ? <AssistantMessageParts message={message} toolsById={toolsById} streaming={streaming} permission={inlinePermission?.messageId === id ? permissionResponse : undefined} permissionPartId={inlinePermission?.messageId === id ? inlinePermission.partId : undefined} /> : content && <MessageMarkdown content={content} sources={original?.sources} streaming={streaming} />}
+    {orderedParts && original?.run && <RunProgressCard run={original.run} summaryOnly running={streaming} waiting={streaming && waiting} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
     {changes.length > 0 && <FileChangesCard changes={changes} onOpen={openChangesTab} />}
-    {original?.run && <RunProgressCard run={original.run} running={streaming} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
+    {original?.interrupted && <p className="mira-reply-interrupted" role="status">回复已停止，已生成的内容保留。可以继续发送消息。</p>}
     {!streaming && content && <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover/assistant-row:opacity-100 group-focus-within:opacity-100">
-      {original?.createdAt ? <span className="text-ui-sm text-foreground-subtlest">{formatClock(original.createdAt)}</span> : null}
-      {formatUsage(original) && <span className="text-ui-sm text-foreground-subtlest">{formatUsage(original)}</span>}
-      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="复制回复" title="复制" onClick={() => { void navigator.clipboard.writeText(content).catch(() => undefined) }}><Copy size={14} /></button>
-      <button type="button" className="flex size-6 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground disabled:opacity-40" disabled={running} aria-label="重新生成" title="重新生成" onClick={() => void controller.rerun()}><RotateCw size={14} /></button>
+      <AssistantToolbar message={original} latestAssistantId={latestAssistantId} canRerun={canRerun && !running} onRerun={() => controller.rerun()} onError={error => controller.reportError(error)} />
     </div>}
   </MessagePrimitive.Root>
 }
 
-function formatClock(createdAt: number) {
-  try { return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } catch { return '' }
-}
-
-function formatUsage(message?: HarnessMessage) {
-  const usage = message?.usage
-  if (!usage?.totalTokens) return ''
-  const cost = usage.cost?.priced ? ` · ${usage.cost.total.toFixed(4)} ${usage.cost.currency}` : ''
-  return `token ${usage.totalTokens}${cost}`
-}
-
 export function HarnessWorkbench({ controller }: { controller: PilotController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
+  const sidebarPreferenceStore = useMemo(() => new SidebarPreferenceStore(() => controller.getPreference(SIDEBAR_PREFERENCE_KEY), value => controller.setPreference(SIDEBAR_PREFERENCE_KEY, value, true)), [controller])
+  const sidebarPreferences = useSyncExternalStore(sidebarPreferenceStore.subscribe, sidebarPreferenceStore.getSnapshot)
+  useEffect(() => {
+    void sidebarPreferenceStore.load().catch(() => undefined)
+    return controller.registerBeforeNavigation(() => sidebarPreferenceStore.save())
+  }, [controller, sidebarPreferenceStore])
   const editorAccess = useWorkspaceEditors(controller)
-  const [sessionSearchRequest, setSessionSearchRequest] = useState(0)
+  const [mainView, setMainView] = useState<'conversation' | 'extensions' | 'automations'>('conversation')
+  const [automationsMounted, setAutomationsMounted] = useState(false)
+  const [commandCenterOpen, setCommandCenterOpen] = useState(false)
+  const [searchTarget, setSearchTarget] = useState<{ sessionId: string; messageId?: string }>()
+  const viewRevision = useRef(0)
   const [draftProjectId, setDraftProjectId] = useState<string>()
   const [sessionsOpen, setSessionsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 1180px)').matches)
   const [sessionsWidth, setSessionsWidth] = useState(264)
+  const [sidebarProjectFiles, setSidebarProjectFiles] = useState<{ projectId: string; directory: string; expandedPaths: string[]; selectedPath?: string }>()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceMounted, setWorkspaceMounted] = useState(false)
   const [terminalStartedIds, setTerminalStartedIds] = useState<string[]>([])
@@ -99,20 +118,24 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     saving: undefined as Promise<void> | undefined,
   }), [controller])
   const composerRef = useRef<HarnessComposerHandle>(null)
+  const messageViewportRef = useRef<HTMLDivElement>(null)
+  const [renamingTask, setRenamingTask] = useState(false)
+  const [taskTitle, setTaskTitle] = useState('')
+  useEffect(() => { setRenamingTask(false) }, [state.session?.id])
   const [preparingWorkspace, setPreparingWorkspace] = useState(false)
-  const [responding, setResponding] = useState(false)
+  const [respondingRequestId, setRespondingRequestId] = useState<string>()
+  const respondingRequest = useRef<string | undefined>(undefined)
+  const [permissionError, setPermissionError] = useState<{ requestId: string; message: string }>()
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [compactLayout, setCompactLayout] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1180px)').matches)
-  const newConversation = () => { controller.newConversation(); setWorkspaceOpen(false); setPlanning(false) }
-  useHarnessSessionShortcuts(newConversation, () => {
-    updateWorkspace(current => ({ ...current, fileTreeOpen: false }))
-    setSessionsOpen(true)
-    if (compactLayout) setWorkspaceOpen(false)
-    setSessionSearchRequest(value => value + 1)
-  })
-  useModalFocusTrap(compactLayout && sessionsOpen, 'pilot-sessions')
-  useModalFocusTrap(compactLayout && workspaceOpen, 'pilot-workspace')
+  const newConversation = () => { viewRevision.current++; setSearchTarget(undefined); setCommandCenterOpen(false); setMainView('conversation'); controller.newConversation(); setDraftProjectId(undefined); setWorkspaceOpen(false); setPlanning(false) }
+  const openCommandCenter = () => { if (compactLayout) { setSessionsOpen(false); setWorkspaceOpen(false) }; setCommandCenterOpen(true) }
+  useHarnessSessionShortcuts(newConversation, openCommandCenter)
+  useEffect(() => controller.onCommandCenterOpen(openCommandCenter), [controller, compactLayout])
+  useEffect(() => () => { viewRevision.current++ }, [controller])
+  useModalFocusTrap(compactLayout && sessionsOpen && !commandCenterOpen, 'pilot-sessions')
+  useModalFocusTrap(compactLayout && workspaceOpen && !commandCenterOpen, 'pilot-workspace')
   useEffect(() => {
     workspacePreferences.mounted = true
     void loadWorkspacePreferences().catch(error => controller.reportError(error))
@@ -164,18 +187,21 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     document.querySelector<HTMLButtonElement>('#pilot-workspace button[aria-label="关闭工作区"]')?.focus()
     return () => trigger?.focus()
   }, [compactLayout, workspaceOpen])
+  const timelineMessages = useMemo(() => projectTimelineMessages(state.messages, state.session?.activeRun), [state.messages, state.session?.activeRun])
+  const rendererMessageCache = useMemo(() => new WeakMap<HarnessMessage, TimelineRenderMessage>(), [controller, state.session?.id])
+  const rendererMessages = useMemo(() => projectTimelineRenderMessages(timelineMessages, state.session?.id, rendererMessageCache), [timelineMessages, state.session?.id, rendererMessageCache])
   const runtime = useExternalStoreRuntime({
-    messages: state.messages,
-    convertMessage: projectPilotMessage,
+    messages: rendererMessages,
+    convertMessage: projectWorkbenchMessage,
     isRunning: state.running,
-    isSendDisabled: !state.session || !state.selection || state.running || Boolean(state.permission) || state.session.pendingInteraction?.status === 'waiting',
+    isSendDisabled: !state.session || !state.selection || state.sessionLoading || !controller.supportsMessageQueue && (state.running || Boolean(state.permission) || state.session.pendingInteraction?.status === 'waiting'),
     onNew: async message => { await controller.send(message.content.filter(part => part.type === 'text').map(part => part.text).join(''), planning) },
     onCancel: async () => controller.stop(),
   })
   const interaction = state.session?.pendingInteraction
-  const lastMessage = state.messages[state.messages.length - 1]
+  const lastMessage = timelineMessages[timelineMessages.length - 1]
   const streamMessage = lastMessage?.role === 'assistant' && lastMessage.id.startsWith('stream-') ? lastMessage : undefined
-  const latestRun = [...state.messages].reverse().find(message => message.run)?.run
+  const latestRun = [...timelineMessages].reverse().find(message => message.run)?.run
   const taskState = getPilotTaskState(state)
   const taskTone = getPilotTaskTone(taskState)
   const isExecuting = taskTone === 'running'
@@ -189,6 +215,9 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const workspaceTabs = workspace.tabs
   const selectedChangeId = workspace.selectedChangeId
   const fileDirectory = project?.directory || state.session?.workingDirectory
+  const sidebarFileProject = state.projects.find(item => item.id === sidebarProjectFiles?.projectId && item.directory === sidebarProjectFiles.directory)
+  const sidebarFilesCanUseTask = Boolean(sidebarFileProject && state.session?.projectId === sidebarFileProject.id && !state.sessionLoading && mainView === 'conversation')
+  useEffect(() => { if (sidebarProjectFiles && !sidebarFileProject) setSidebarProjectFiles(undefined) }, [sidebarProjectFiles, sidebarFileProject])
   const workspaceWatchKey = JSON.stringify([workspaceSessionId, fileDirectory])
   const onWatchDirectoriesChange = useMemo(() => (paths: string[]) => setWatchedTreeDirectories(previous => previous.key === workspaceWatchKey && JSON.stringify(previous.paths) === JSON.stringify(paths) ? previous : { key: workspaceWatchKey, paths }), [workspaceWatchKey])
   const watchedPaths = workspaceWatchPaths(watchedTreeDirectories.key === workspaceWatchKey ? watchedTreeDirectories.paths : [], workspaceTabs.flatMap(tab => tab.path ? [tab.path] : []), sessionsOpen && workspace.fileTreeOpen, workspaceOpen)
@@ -251,14 +280,24 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     setWorkspaceSessions(previous => ({ ...previous, [workspaceSessionId]: update(previous[workspaceSessionId] || createWorkspaceSession()) }))
   }
 
-  async function openWorkspaceTab(id: WorkspaceResourceId, label?: string) {
-    if (preparingWorkspace || state.sessionLoading) return
+  async function openWorkspaceTab(id: WorkspaceResourceId, label?: string, isCurrent?: () => boolean) {
+    if (preparingWorkspace || state.sessionLoading || isCurrent && !isCurrent()) return
+    if (id === 'files') {
+      const projectId = state.session?.projectId || draftProjectId
+      if (projectId) { await openProjectFiles(projectId); return }
+      if (!workspaceSessionId) { controller.reportError(new Error('请先在侧栏选择项目')); return }
+      setSidebarProjectFiles(undefined)
+    }
     let sessionId = workspaceSessionId
     if (!sessionId) {
       setPreparingWorkspace(true)
-      try { sessionId = await composerRef.current?.prepareSession() } finally { setPreparingWorkspace(false) }
+      try { sessionId = await composerRef.current?.prepareSession(isCurrent) } finally { setPreparingWorkspace(false) }
     }
-    if (!sessionId || controller.getSnapshot().session?.id !== sessionId) return
+    if (isCurrent && !isCurrent()) return
+    if (!sessionId || controller.getSnapshot().session?.id !== sessionId) {
+      if (isCurrent) throw new Error(controller.getSnapshot().error || '工作区准备失败，请重试')
+      return
+    }
     if (id === 'files') {
       setWorkspaceSessions(previous => ({ ...previous, [sessionId]: { ...(previous[sessionId] || createWorkspaceSession()), fileTreeOpen: true } }))
       setSessionsOpen(true)
@@ -314,11 +353,23 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     updateWorkspace(current => labelWorkspaceTab(current, id, label))
   }
 
-  async function respondPermission(allowed: boolean) {
-    if (responding) return
-    setResponding(true)
-    await controller.permission(allowed)
-    setResponding(false)
+  async function respondPermission(requestId: string, allowed: boolean) {
+    const request = controller.getSnapshot().permission
+    if (!request || request.requestId !== requestId || request.sessionId !== controller.getSnapshot().session?.id || respondingRequest.current === requestId) return
+    respondingRequest.current = requestId
+    setRespondingRequestId(requestId)
+    setPermissionError(undefined)
+    try {
+      await controller.permission(allowed)
+      const current = controller.getSnapshot()
+      if (current.permission?.requestId === requestId) setPermissionError({ requestId, message: current.error || '权限确认未能提交，请重试。' })
+    } catch (error) {
+      controller.reportError(error)
+      if (controller.getSnapshot().permission?.requestId === requestId) setPermissionError({ requestId, message: error instanceof Error ? error.message : '权限确认未能提交，请重试。' })
+    } finally {
+      if (respondingRequest.current === requestId) respondingRequest.current = undefined
+      setRespondingRequestId(current => current === requestId ? undefined : current)
+    }
   }
 
   async function respondMemory(approved: boolean) {
@@ -389,8 +440,66 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     window.addEventListener('pointercancel', onEnd, { once: true })
   }
 
-  const messageById = useMemo(() => new Map(state.messages.map(message => [message.id, message])), [state.messages])
-  const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), running: state.running }), [controller, state.running, workspaceSessionId, workspaceTabs.length])
+  const messageById = useMemo(() => new Map(rendererMessages.map(({ rendererId, original }) => [rendererId, original])), [rendererMessages])
+  useEffect(() => {
+    if (!searchTarget || mainView !== 'conversation' || state.sessionLoading || state.session?.id !== searchTarget.sessionId) return
+    const target = [...(messageViewportRef.current?.querySelectorAll<HTMLElement>('[data-user-message-id], [data-assistant-message-id]') || [])].find(element => element.dataset.userMessageId === searchTarget.messageId || element.dataset.assistantMessageId === searchTarget.messageId)
+    if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    setSearchTarget(undefined)
+  }, [searchTarget, mainView, state.sessionLoading, state.session?.id, timelineMessages])
+
+  async function showView(view: typeof mainView) {
+    const revision = ++viewRevision.current
+    setSearchTarget(undefined)
+    await controller.flushBeforeNavigation()
+    if (revision !== viewRevision.current) return undefined
+    if (view === 'automations') setAutomationsMounted(true)
+    setMainView(view); setWorkspaceOpen(false)
+    updateWorkspace(current => ({ ...current, fileTreeOpen: false }))
+    if (compactLayout) setSessionsOpen(false)
+    return revision
+  }
+  function currentNavigation(revision: number | undefined) { return revision !== undefined && revision === viewRevision.current }
+  async function openTask(id: string, messageId?: string) {
+    const revision = await showView('conversation')
+    if (!currentNavigation(revision)) return
+    const opened = await controller.open(id, () => currentNavigation(revision))
+    if (!currentNavigation(revision)) return
+    if (!opened) throw new Error(controller.getSnapshot().error || '任务打开失败，请重试')
+    if (messageId) setSearchTarget({ sessionId: id, messageId })
+  }
+  async function openProjectFiles(projectId: string) {
+    const selected = controller.getSnapshot().projects.find(item => item.id === projectId)
+    if (!selected?.directoryExists) throw new Error('所选项目目录不可用，请重新选择')
+    setSidebarProjectFiles(previous => previous?.projectId === projectId && previous.directory === selected.directory ? previous : { projectId, directory: selected.directory, expandedPaths: [] })
+    setSessionsOpen(true)
+    if (compactLayout) setWorkspaceOpen(false)
+  }
+  async function openCommandWorkspace(id: WorkspaceResourceId) {
+    if (id === 'files') { await openWorkspaceTab(id); return }
+    const revision = await showView('conversation')
+    if (!currentNavigation(revision)) return
+    await openWorkspaceTab(id, undefined, () => currentNavigation(revision))
+  }
+  const commands: HarnessSearchCommand[] = [
+    { id: 'new', label: '新建任务', shortcut: '⌘N', icon: <Plus size={16} />, action: newConversation },
+    { id: 'automations', label: '自动化', icon: <CalendarClock size={16} />, action: async () => { await showView('automations') } },
+    { id: 'extensions', label: '插件市场', icon: <Blocks size={16} />, action: async () => { await showView('extensions') } },
+    { id: 'settings', label: '设置', icon: <Settings size={16} />, action: () => controller.navigate('/settings/general') },
+    { id: 'files', label: '项目文件', icon: <FolderOpen size={16} />, action: () => openCommandWorkspace('files') },
+    { id: 'terminal', label: '终端', icon: <TerminalSquare size={16} />, action: () => openCommandWorkspace('terminal') },
+    { id: 'browser', label: '浏览器', icon: <Globe2 size={16} />, action: () => openCommandWorkspace('browser') },
+  ]
+  const latestAssistantId = lastMessage?.role === 'assistant' ? lastMessage.id : undefined
+  const waiting = Boolean(state.permission || state.session?.pendingInteraction?.status === 'waiting')
+  const canRerun = Boolean(state.session && state.selection && !state.running && !state.permission && !state.queue?.items.length && state.session.pendingInteraction?.status !== 'waiting')
+  const toolsById = useMemo(() => new Map((state.session?.toolCalls || []).map(tool => [tool.id, tool])), [state.session?.toolCalls])
+  const inlinePermission = useMemo(() => findInlinePermissionTarget(timelineMessages, state.session?.toolCalls || [], state.permission), [timelineMessages, state.session?.toolCalls, state.permission])
+  const permissionResponse: PermissionResponseCardProps | undefined = state.permission ? { request: state.permission, responding: respondingRequestId === state.permission.requestId, error: permissionError?.requestId === state.permission.requestId ? permissionError.message : undefined, placement: inlinePermission ? 'inline' : 'fallback', onRespond: respondPermission } : undefined
+  const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), openFile: openFilePreview, running: state.running, waiting, latestAssistantId, canRerun, tools: state.session?.toolCalls || [], toolsById, inlinePermission, permissionResponse }), [controller, state.running, waiting, workspaceSessionId, workspaceTabs.length, latestAssistantId, canRerun, state.session?.toolCalls, toolsById, inlinePermission, state.permission, respondingRequestId, permissionError])
+  const currentSummary = state.sessions.find(session => session.id === state.session?.id)
+  const currentTaskGroupId = sidebarPreferences.preferences.groups.find(group => group.sessionIds.includes(currentSummary?.id || ''))?.id
+  const menuAction = (action: () => Promise<unknown>) => { void action().catch(error => controller.reportError(error)) }
   return (
     <WorkbenchContext.Provider value={workbenchValue}>
       <MessageLookupContext.Provider value={messageById}>
@@ -398,7 +507,24 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           {compactLayout && (sessionsOpen || workspaceOpen) && <button type="button" className="pilot-pane-backdrop" aria-label="关闭侧边面板" onClick={() => { setSessionsOpen(false); setWorkspaceOpen(false) }} />}
           {sessionsOpen && (
             <>
-              {workspace.fileTreeOpen && workspaceSessionId ? <aside id="pilot-sessions" className="pilot-drawer" style={{ width: sessionsWidth }} aria-label="项目文件" role={compactLayout ? 'dialog' : undefined} aria-modal={compactLayout || undefined}><ProjectFileDrawer key={workspaceSessionId} controller={controller} sessionId={workspaceSessionId} directory={fileDirectory} selectedPath={workspace.selectedFilePath} expandedPaths={workspace.expandedFilePaths} onExpandedPathsChange={paths => updateWorkspace(current => ({ ...current, expandedFilePaths: paths }))} onOpenFile={openFilePreview} onAddFile={addFileToConversation} onBack={() => updateWorkspace(current => ({ ...current, fileTreeOpen: false }))} onOpenDirectory={() => void controller.openProjectDirectory()} openingDirectory={state.openingProjectDirectory} workspaceWatch={workspaceWatch} onWatchDirectoriesChange={onWatchDirectoriesChange} editors={editorAccess.editors} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} /></aside> : <SessionSidebar state={state} controller={controller} width={sessionsWidth} modal={compactLayout} searchRequest={sessionSearchRequest} onNewConversation={newConversation} onClose={() => setSessionsOpen(false)} />}
+              {sidebarFileProject || workspace.fileTreeOpen && workspaceSessionId ? <aside id="pilot-sessions" className="pilot-drawer" style={{ width: sessionsWidth }} aria-label="项目文件" role={compactLayout ? 'dialog' : undefined} aria-modal={compactLayout || undefined}>
+                <ProjectFileDrawer
+                  key={sidebarFileProject ? JSON.stringify([sidebarFileProject.id, sidebarFileProject.directory]) : workspaceSessionId}
+                  controller={controller} projectId={sidebarFileProject?.id} sessionId={sidebarFileProject ? undefined : workspaceSessionId}
+                  directory={sidebarFileProject?.directory || fileDirectory}
+                  selectedPath={sidebarFileProject ? sidebarProjectFiles?.selectedPath : workspace.selectedFilePath}
+                  expandedPaths={sidebarFileProject ? sidebarProjectFiles?.expandedPaths || [] : workspace.expandedFilePaths}
+                  onExpandedPathsChange={paths => { if (sidebarFileProject) setSidebarProjectFiles(previous => previous?.projectId === sidebarFileProject.id && previous.directory === sidebarFileProject.directory ? { ...previous, expandedPaths: paths } : previous); else updateWorkspace(current => ({ ...current, expandedFilePaths: paths })) }}
+                  onOpenFile={!sidebarFileProject || sidebarFilesCanUseTask ? path => { if (sidebarFileProject) setSidebarProjectFiles(previous => previous?.projectId === sidebarFileProject.id ? { ...previous, selectedPath: path } : previous); openFilePreview(path) } : undefined}
+                  onAddFile={!sidebarFileProject || sidebarFilesCanUseTask ? addFileToConversation : undefined}
+                  onBack={() => { setSidebarProjectFiles(undefined); updateWorkspace(current => ({ ...current, fileTreeOpen: false })) }}
+                  onOpenDirectory={() => { if (sidebarFileProject) menuAction(() => controller.openProject(sidebarFileProject.id)); else void controller.openProjectDirectory() }}
+                  openingDirectory={sidebarFileProject ? undefined : state.openingProjectDirectory}
+                  workspaceWatch={sidebarFileProject ? undefined : workspaceWatch} onWatchDirectoriesChange={sidebarFileProject ? undefined : onWatchDirectoriesChange}
+                  editors={!sidebarFileProject || sidebarFilesCanUseTask ? editorAccess.editors : []}
+                  onOpenEditor={workspaceSessionId && (!sidebarFileProject || sidebarFilesCanUseTask) ? (path, editorId) => editorAccess.open(workspaceSessionId, path, editorId) : undefined}
+                />
+              </aside> : <SessionSidebar state={state} controller={controller} preferenceStore={sidebarPreferenceStore} width={sessionsWidth} modal={compactLayout} onSearch={openCommandCenter} onNewConversation={newConversation} onNewProjectConversation={projectId => { newConversation(); setDraftProjectId(projectId) }} onOpenProjectFiles={projectId => menuAction(() => openProjectFiles(projectId))} onOpenAutomations={() => menuAction(() => showView('automations'))} automationsActive={mainView === 'automations'} onOpenExtensions={() => menuAction(() => showView('extensions'))} extensionsActive={mainView === 'extensions'} onOpenSession={id => menuAction(() => openTask(id))} onClose={() => setSessionsOpen(false)} />}
               <div
                 className="pilot-sessions-resize"
                 role="separator"
@@ -413,31 +539,32 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               />
             </>
           )}
-          <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress}>
+          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background"><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div><SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} /></main>}
+          {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div><AutomationsView host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} onOpenSession={id => openTask(id)} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
+          <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress} hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
             <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>
               <div className="harness-thread-header__leading flex min-w-0 flex-1 items-center gap-1.5">
                 <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" title="会话" aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={openSessions}>
                   <Menu size={17} />
                 </button>
-                {hasTaskProgress && <div className="flex min-w-0 items-center gap-2" title={project?.name || '个人工作区'}>
-                  <FolderOpen size={16} className="shrink-0 text-foreground-subtle" />
-                  <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground" title={state.session?.title}>{state.session?.title || '今天要研究、整理或完成什么？'}</h1>
+                {hasTaskProgress && <div className="flex min-w-0 items-center gap-1">
+                  <HarnessWorkspaceContext controller={controller} project={project} sessionId={workspaceSessionId} directory={fileDirectory} onAction={menuAction} />
+                  {renamingTask ? <form className="mira-thread-rename" onSubmit={event => { event.preventDefault(); const id = state.session?.id; if (id && taskTitle.trim()) { void controller.renameSession(id, taskTitle.trim().slice(0, 42)); setRenamingTask(false) } }}><input autoFocus aria-label="任务名称" value={taskTitle} onChange={event => setTaskTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setRenamingTask(false) }} /><button type="submit" aria-label="保存任务名称" disabled={!taskTitle.trim()}><Check size={14} /></button><button type="button" aria-label="取消重命名" onClick={() => setRenamingTask(false)}><X size={14} /></button></form> : <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground" title={state.session?.title}>{state.session?.title || '新任务'}</h1>}
+                  {currentSummary && !renamingTask && <DropdownMenu.Root><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="当前任务菜单" title="当前任务菜单"><MoreHorizontal size={16} /></button></DropdownMenu.Trigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu" align="start" sideOffset={6}>{sidebarPreferences.error && <><DropdownMenu.Label className="mira-session-menu__label">{sidebarPreferences.error}</DropdownMenu.Label><DropdownMenu.Item className="mira-session-menu__item" onSelect={() => menuAction(() => sidebarPreferenceStore.retry())}><RotateCw size={14} />重试分组偏好</DropdownMenu.Item><DropdownMenu.Separator className="mira-session-menu__separator" /></>}<SessionMenuItems kind="dropdown" session={currentSummary} projects={state.projects} controller={controller} groups={sidebarPreferences.preferences.groups} groupsReady={sidebarPreferences.ready} currentGroupId={currentTaskGroupId} onMoveGroup={groupId => { if (controller.getSnapshot().session?.id !== currentSummary.id) return; if (sidebarPreferenceStore.moveSessionToGroup(currentSummary.id, groupId, currentTaskGroupId ?? null)) menuAction(() => sidebarPreferenceStore.save()) }} onRename={() => { setTaskTitle(state.session?.title || ''); setRenamingTask(true) }} run={menuAction} /></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>}
                 </div>}
               </div>
               <div className="harness-thread-header__actions flex shrink-0 items-center gap-1">
-                {hasTaskProgress && <span className="pilot-inspector__state"><TaskStateBadge taskState={taskState} taskTone={taskTone} running={isExecuting} hasSession={Boolean(state.session)} /></span>}
                 <WorkspaceEditorButton editors={editorAccess.editors} selectedEditor={editorAccess.selectedEditor} disabled={!workspaceSessionId || !fileDirectory || Boolean(state.sessionLoading)} loading={editorAccess.loading} error={editorAccess.error} onRetry={editorAccess.retry} onOpen={async (editorId, remember) => { if (workspaceSessionId) await editorAccess.open(workspaceSessionId, '', editorId, remember).catch(cause => controller.reportError(cause)) }} />
-                <button type="button" className="mira-header-tool" aria-label="查看文件" title="查看文件" aria-expanded={workspace.fileTreeOpen && sessionsOpen} disabled={preparingWorkspace || state.sessionLoading} onClick={() => void openWorkspaceTab('files')}><ListTree size={16} /></button>
                 <button type="button" className="mira-header-tool" aria-label="打开终端" title="打开终端" disabled={preparingWorkspace || state.sessionLoading} onClick={() => void openWorkspaceTab('terminal')}><TerminalSquare size={16} /></button>
                 <button type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" title="工作区" aria-controls="pilot-workspace" aria-expanded={workspaceOpen} onClick={openWorkspace}>
                   <PanelRight size={17} />
                 </button>
               </div>
             </header>
-            <div className="@container/conversation relative flex min-h-0 flex-1 flex-col">
+            <div className="mira-conversation-layout @container/conversation relative flex min-h-0 flex-1 flex-col">
               {hasTaskProgress && (
                 <div className="pointer-events-none absolute right-4 top-0 z-20 pt-4">
-                  <TaskSummary taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} changes={changes.length} onOpenWorkspace={() => openWorkspaceTab('overview')} />
+                  <TaskSummary key={workspaceSessionId} taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} plan={state.session?.activePlan} subtasks={state.session?.activeRun?.subtasks || latestRun?.subtasks || []} changes={new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={mainView === 'conversation'} blocked={Boolean(state.sessionLoading) || state.sessions.some(session => session.projectId === project.id && state.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={() => void openWorkspaceTab('changes')} onOpenProgress={() => { const rows = messageViewportRef.current?.querySelectorAll<HTMLElement>('[data-assistant-message-id]'); rows?.[rows.length - 1]?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }} onReviewPlan={() => { const interaction = messageViewportRef.current?.querySelector<HTMLElement>('[aria-label="计划确认"], .pilot-action'); if (interaction) interaction.scrollIntoView({ block: 'center', behavior: 'smooth' }); else void openWorkspaceTab('overview') }} onStopSubtask={id => controller.stopSubtasks(id)} onError={error => controller.reportError(error)} />
                 </div>
               )}
               <AssistantRuntimeProvider runtime={runtime}>
@@ -447,11 +574,13 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                     {!hasTaskProgress && !state.sessionLoading && <div className="mira-task-start">
                       <h2>{getMiraGreeting()}</h2>
                     </div>}
-                    <ThreadPrimitive.Viewport className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasTaskProgress ? { display: 'none' } : undefined}>
+                    <ConversationTurnRail key={workspaceSessionId || 'draft'} messages={timelineMessages} viewportRef={messageViewportRef} />
+                    <ThreadPrimitive.Viewport ref={messageViewportRef} className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasTaskProgress ? { display: 'none' } : undefined}>
                       <div className="flex min-h-full flex-col">
                         <div className="relative w-full flex-1">
                           <div className="mira-message-column mx-auto flex w-full flex-col gap-5 px-5 pt-16" style={{ overflowAnchor: 'none' }}>
                             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+                            <MiraPendingGuides key={workspaceSessionId} items={state.queue?.items ?? []} promotingItemId={state.queue?.promotingItemId} disabled={Boolean(state.sessionLoading)} onWithdraw={async itemId => { await composerRef.current?.withdrawPendingGuide(itemId) }} />
                             {changes.length > 0 && (
                               <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
                                 <GitCompare size={14} />查看 {changes.length} 个文件变更 <ArrowRight size={13} />
@@ -461,19 +590,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                         </div>
                         <div className="flex w-full justify-center">
                           <div className="mira-message-column relative mx-auto w-full px-5 pb-4">
-                            {state.permission && (
-                              <section className="pilot-action" aria-label="权限确认">
-                                <ShieldCheck size={19} />
-                                <div>
-                                  <strong>{state.permission.title}</strong>
-                                  <p>{state.permission.detail}</p>
-                                  <div className="pilot-action__buttons">
-                                    <button type="button" disabled={responding} onClick={() => void respondPermission(false)}>拒绝</button>
-                                    <button type="button" disabled={responding} onClick={() => void respondPermission(true)}>允许</button>
-                                  </div>
-                                </div>
-                              </section>
-                            )}
+                            {permissionResponse && !inlinePermission && <PermissionResponseCard {...permissionResponse} />}
                             {state.memoryConfirmation && (
                               <section className="pilot-action" aria-label="记忆确认">
                                 <ShieldCheck size={19} />
@@ -496,7 +613,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                     </ThreadPrimitive.Viewport>
                     <div className="mira-composer-region" data-draft={!hasTaskProgress}>
                       <ThreadPrimitive.ScrollToBottom className="mira-scroll-latest" aria-label="回到底部" title="回到底部"><ArrowDown size={16} /></ThreadPrimitive.ScrollToBottom>
-                      <HarnessComposer ref={composerRef} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} />
+                      <HarnessComposer ref={composerRef} active={mainView === 'conversation'} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} />
                       {!hasTaskProgress && <div className="mira-task-suggestions" aria-label="任务示例">
                         {[{ icon: BookOpen, label: '整理资料', prompt: '请整理当前项目资料，先阅读目录和文档，再总结主要内容。' }, { icon: CircleAlert, label: '排查问题', prompt: '帮我分析当前项目，检查运行与构建配置，列出需要处理的问题。' }, { icon: FileText, label: '起草文档', prompt: '帮我写一份项目介绍，先分析已有资料，再给出文档草案。' }].map(({ icon: Icon, label, prompt }) => <button type="button" key={label} onClick={() => window.dispatchEvent(new CustomEvent('mira:compose-draft', { detail: prompt }))}><Icon size={15} />{label}</button>)}
                       </div>}
@@ -537,6 +654,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               </div>
             </aside>
           )}
+          <HarnessCommandCenter open={commandCenterOpen} onOpenChange={setCommandCenterOpen} controller={controller} session={state.session} commands={commands} onOpenSession={result => openTask(result.id, result.messageId)} onOpenFile={async (id, path) => { const revision = await showView('conversation'); if (!currentNavigation(revision)) return; if (controller.getSnapshot().session?.id !== id) { const opened = await controller.open(id, () => currentNavigation(revision)); if (!currentNavigation(revision)) return; if (!opened) throw new Error(controller.getSnapshot().error || '文件所在任务打开失败，请重试') }; if (!currentNavigation(revision) || controller.getSnapshot().session?.id !== id) return; const tab = createWorkspaceFileTab(path); setWorkspaceSessions(previous => ({ ...previous, [id]: { ...addWorkspaceTab(previous[id] || createWorkspaceSession(), tab), selectedFilePath: path } })); setWorkspaceMounted(true); setWorkspaceOpen(true); if (compactLayout) setSessionsOpen(false) }} />
         </div>
       </MessageLookupContext.Provider>
     </WorkbenchContext.Provider>
@@ -545,35 +663,9 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
 
 export const PilotWorkbench = HarnessWorkbench
 
-function TaskStateBadge({ taskState, taskTone, running, hasSession }: { taskState: string; taskTone: PilotTaskTone; running: boolean; hasSession: boolean }) {
-  const label = running ? '执行中' : taskState === '等待下一步' ? (hasSession ? '就绪' : '尚未选择任务') : taskTone === 'completed' ? '已完成' : taskTone === 'stopped' ? '已停止' : taskTone === 'failed' ? '执行失败' : taskState
-  const tone = taskTone === 'failed' ? 'text-red-400' : taskTone === 'running' || taskTone === 'waiting' || taskTone === 'partial' ? 'text-amber-400' : taskTone === 'completed' ? 'text-emerald-400' : 'text-foreground-subtle'
-  return <div className={cn('inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-ui-xs', tone)} aria-live="polite">{running && <LoaderCircle size={13} className="animate-spin" />}{showAlert(taskTone) && <CircleAlert size={13} />}{taskTone === 'completed' && <Check size={13} />}{taskTone === 'stopped' && <Square size={12} />}{label}</div>
-}
-
-function showAlert(taskTone: PilotTaskTone) { return taskTone === 'waiting' || taskTone === 'partial' || taskTone === 'failed' }
-
 function getMiraGreeting() {
   const hour = new Date().getHours()
   return `${hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好'}，有什么想让 Mira 帮忙的吗？`
-}
-
-function TaskSummary({ taskState, taskTone, running, activities, changes, onOpenWorkspace }: { taskState: string; taskTone: PilotTaskTone; running: boolean; activities: HarnessRunActivity[]; changes: number; onOpenWorkspace: () => void }) {
-  const [expanded, setExpanded] = useState(false)
-  const current = activities.find(activity => activity.status === 'running')
-  const completed = activities.filter(activity => activity.status === 'completed').length
-  const dotTone = taskTone === 'running' || taskTone === 'waiting' || taskTone === 'partial' ? 'bg-amber-400' : taskTone === 'completed' ? 'bg-emerald-400' : taskTone === 'failed' ? 'bg-red-400' : 'bg-foreground-subtlest'
-  return <aside className="pointer-events-auto w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-popover-border bg-popover text-foreground shadow-md" aria-label="任务摘要">
-    <button type="button" className="flex min-h-9 w-full items-center gap-2 px-3 text-left hover:bg-hover" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-      <span className={cn('size-2 shrink-0 rounded-full', dotTone)} />
-      <span className="shrink-0 text-ui-sm text-foreground-subtle">{running ? '正在执行' : taskState}</span>
-      <strong className="min-w-0 flex-1 truncate text-ui-sm font-medium">{current?.label || (activities.length ? `${completed}/${activities.length} 步 · ${changes} 个变更` : changes ? `${changes} 个文件有变更` : '任务上下文')}</strong><ChevronDown size={13} className={expanded ? 'rotate-180' : ''} />
-    </button>
-    {expanded && <div className="grid gap-2 px-3 pb-3 text-ui-sm text-foreground-subtle">
-      <span className="min-w-0 break-all">{current?.detail || (running ? 'Mira 正在处理当前任务' : '打开工作区查看完整活动')}</span>
-      <button type="button" className="inline-flex w-max items-center gap-1.5 text-brand hover:underline" onClick={onOpenWorkspace}>查看工作区 <PanelRight size={13} /></button>
-    </div>}
-  </aside>
 }
 
 function OverviewPanel({ taskState, taskTone, latestRun, activities, tools, pending, canRerun, onReview, onRerun, onOpenTab }: { taskState: string; taskTone: PilotTaskTone; latestRun?: HarnessRunSummaryLike; activities: HarnessRunActivity[]; tools: ToolCallRecord[]; pending: boolean; canRerun: boolean; onReview: () => void; onRerun: () => void; onOpenTab: (id: WorkspaceResourceId) => void }) {

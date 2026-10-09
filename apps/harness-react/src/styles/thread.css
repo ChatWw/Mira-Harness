@@ -102,3 +102,120 @@
 @media (max-width: 860px) {
   .pilot-thread__messages { padding-left: 18px; padding-right: 18px; }
 }
+
+/* 对话首屏：同一中性桌面语法下，轮次定位、真实轨迹与任务摘要。 */
+.mira-message-actions { display: flex; align-items: center; gap: 2px; }
+.mira-message-action { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; }
+.mira-message-action:hover { color: var(--color-foreground); background: var(--color-hover); }
+.mira-message-action:disabled { cursor: default; opacity: .4; }
+.mira-message-attachments { display: flex; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.mira-message-attachments button { display: inline-flex; max-width: 220px; min-height: 30px; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 7px; color: var(--color-foreground-subtle); background: var(--color-card); font-size: 12px; }
+.mira-message-attachments span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-message-attachments button:hover { color: var(--color-foreground); background: var(--color-hover); }
+.mira-message-attachments button:disabled { cursor: default; color: var(--color-foreground-subtle); background: var(--color-card); }
+.mira-reply-interrupted { margin: 8px 0 0; color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-assistant-parts { display: grid; min-width: 0; gap: 16px; }
+.mira-assistant-part { min-width: 0; }
+.mira-reasoning { min-width: 0; color: var(--color-foreground-subtle); font-size: 13px; }
+.mira-reasoning > summary { display: flex; min-height: 28px; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
+.mira-reasoning > summary::-webkit-details-marker { display: none; }
+.mira-reasoning > summary > svg { flex: none; }
+.mira-reasoning > summary > svg:last-child, .mira-tool-record > summary > svg:last-child { transition: transform 150ms ease-out; }
+.mira-reasoning[open] > summary > svg:last-child, .mira-tool-record[open] > summary > svg:last-child { transform: rotate(180deg); }
+.mira-reasoning > summary:hover { color: var(--color-foreground); }
+.mira-reasoning > summary:focus-visible, .mira-tool-record > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
+.mira-reasoning > summary > small { font-size: 11px; }
+.mira-reasoning__content { max-height: 320px; margin-top: 7px; padding-inline-start: 21px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
+.mira-payload-truncated { color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-reasoning__content > .mira-payload-truncated { margin-top: 8px; }
+.mira-tool-missing { margin: 0; color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-tool-permission { margin: 8px 0 0; border-radius: 8px; background: var(--color-background-alt); }
+.mira-tool-permission > svg { flex: none; }
+.mira-tool-permission .mira-tool-error { color: var(--color-destructive); }
+.mira-tool-records { display: grid; gap: 6px; }
+.mira-tool-record { color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-tool-record summary { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 4px 0; cursor: pointer; list-style: none; }
+.mira-tool-record summary::-webkit-details-marker { display: none; }
+.mira-tool-record summary > svg { flex-shrink: 0; }
+.mira-tool-record summary strong { min-width: 0; max-width: 40%; overflow: hidden; color: var(--color-foreground); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.mira-tool-record summary span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-tool-record summary small { flex-shrink: 0; font-size: 11px; }
+.mira-tool-record > div { padding: 6px 0 6px 20px; }
+.mira-tool-record p { margin: 0 0 6px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mira-tool-record pre { max-width: 100%; max-height: 240px; margin: 6px 0; overflow: auto; padding: 10px; border-radius: 7px; background: var(--color-card); font-family: var(--font-mono); font-size: 12px; line-height: 1.65; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
+.mira-tool-payload { min-width: 0; margin-bottom: 10px; }
+.mira-tool-payload > strong { color: var(--color-foreground); font-size: 12px; font-weight: 500; }
+.mira-tool-record[data-tool-status='failed'] > summary > svg:first-child, .mira-tool-error { color: var(--color-destructive); }
+.mira-tool-record[data-tool-status='ok'] > summary > svg:first-child { color: var(--color-success); }
+@media (prefers-reduced-motion: reduce) { .mira-reasoning > summary > svg:last-child, .mira-tool-record > summary > svg:last-child { transition: none; } }
+.mira-context-menu { width: 290px; max-width: min(290px, calc(100vw - 24px)); }
+.mira-context-path { margin: 0; padding: 4px 8px 10px; overflow-wrap: anywhere; color: var(--color-foreground); font-size: 12px; }
+.mira-context-info { padding: 8px; }
+.mira-context-info > strong, .mira-context-tooltip > strong { display: block; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; }
+.mira-context-info .mira-context-path, .mira-context-tooltip .mira-context-path { padding: 5px 0 8px; }
+.mira-context-branch { display: flex; min-width: 0; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--color-border); color: var(--color-foreground); font-size: 12px; }
+.mira-context-branch > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mira-context-branch > svg { flex: none; }
+.mira-context-feedback { margin: 5px 0 0; color: var(--color-foreground-subtle); font-size: 11px; }
+.mira-context-error { display: flex; align-items: start; gap: 5px; padding: 0 8px 6px; color: var(--color-destructive); font-size: 11px; }
+.mira-context-error > svg { flex: none; margin-top: 2px; }
+.mira-context-error > span { min-width: 0; overflow-wrap: anywhere; }
+.mira-context-tooltip { z-index: 70; width: 290px; max-width: calc(100vw - 24px); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 6px; background: var(--color-popover); color: var(--color-foreground); box-shadow: 0 6px 18px rgb(0 0 0 / 12%); }
+.mira-context-tooltip, [data-radix-popper-content-wrapper]:has(.mira-context-tooltip) { pointer-events: none; }
+.mira-thread-rename { display: flex; min-width: 0; align-items: center; gap: 3px; }
+.mira-thread-rename input { width: min(280px, 28vw); min-width: 70px; height: 28px; padding: 3px 6px; border: 1px solid var(--color-input-border-focused); border-radius: 5px; color: var(--color-foreground); background: var(--color-card); }
+.mira-thread-rename button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; }
+.mira-thread-rename button:hover { background: var(--color-hover); }
+.mira-turn-rail { position: absolute; z-index: 12; top: 50%; left: 8px; display: none; transform: translateY(-50%); }
+.mira-turn-rail__items { display: grid; max-height: 50vh; overflow-y: auto; scrollbar-width: none; }
+.mira-turn-rail__items button { display: flex; width: 30px; height: 12px; align-items: center; padding: 0 4px; border: 0; border-radius: 3px; background: transparent; }
+.mira-turn-rail__items button span { width: 12px; height: 2px; border-radius: 2px; background: var(--color-foreground-subtlest); transition: width 150ms ease-out, background-color 150ms ease-out; }
+.mira-turn-rail__items button[aria-current] span, .mira-turn-rail__items button[data-running='true'] span { background: var(--color-foreground); }
+.mira-turn-rail__items button:hover span, .mira-turn-rail__items button:focus-visible span { width: 22px; height: 3px; background: var(--color-foreground); }
+.mira-turn-rail__preview { position: absolute; top: 50%; left: 38px; width: 320px; transform: translateY(-50%); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 10px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 6px 18px rgb(0 0 0 / 12%); pointer-events: none; font-size: 13px; }
+.mira-turn-rail__preview strong, .mira-turn-rail__preview p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-turn-rail__preview strong { -webkit-line-clamp: 2; font-weight: 500; }
+.mira-turn-rail__preview p { -webkit-line-clamp: 3; margin: 8px 0 0; color: var(--color-foreground-subtle); }
+@container conversation (min-width: 864px) { .mira-turn-rail { display: block; } }
+.mira-task-summary { pointer-events: auto; width: fit-content; max-width: 320px; overflow: hidden; border: 1px solid var(--color-popover-border); border-radius: 16px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 4px 14px rgb(0 0 0 / 10%); font-size: 13px; }
+.mira-task-summary button { color: inherit; }
+.mira-task-summary__mini { display: flex; min-height: 34px; max-width: 320px; align-items: center; gap: 8px; padding: 5px 12px; border: 0; background: transparent; }
+.mira-task-summary__mini strong { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mira-task-summary__mini:hover { background: var(--color-hover); }
+.mira-summary-dot { display: inline-block; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--color-foreground-subtlest); }
+.mira-task-summary[data-task-tone='running'] .mira-task-summary__mini > .mira-summary-dot, .mira-task-summary[data-task-tone='waiting'] .mira-task-summary__mini > .mira-summary-dot { background: var(--color-warning); }
+.mira-task-summary[data-task-tone='completed'] .mira-task-summary__mini > .mira-summary-dot, .mira-summary-dot[data-status='completed'] { background: var(--color-success); }
+.mira-task-summary[data-task-tone='failed'] .mira-task-summary__mini > .mira-summary-dot, .mira-summary-dot[data-status='failed'] { background: var(--color-destructive); }
+.mira-task-summary__panel { display: none; width: 320px; max-width: calc(100vw - 32px); }
+.mira-task-summary[data-mode='panel'] .mira-task-summary__panel { display: block; }
+.mira-task-summary[data-mode='panel'] .mira-task-summary__mini { display: none; }
+.mira-task-summary__header { display: flex; min-height: 34px; align-items: center; gap: 3px; padding: 4px 8px 4px 12px; color: var(--color-foreground-subtle); }
+.mira-task-summary__header > span { flex: 1; }
+.mira-task-summary__header button { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 5px; background: transparent; }
+.mira-task-summary__header button:hover { background: var(--color-hover); }
+.mira-task-summary__body { display: grid; max-height: min(50vh, 420px); overflow-y: auto; padding: 0 12px 12px; gap: 9px; }
+.mira-task-summary__body details { min-width: 0; border-top: 1px solid var(--color-border); padding-top: 8px; }
+.mira-task-summary__body summary { display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
+.mira-task-summary__body summary::-webkit-details-marker { display: none; }
+.mira-task-summary__body summary strong { flex: 1; font-weight: 500; }
+.mira-task-summary__body small { color: var(--color-foreground-subtle); font-size: 11px; }
+.mira-summary-resource { display: flex; align-items: center; gap: 7px; padding: 5px 0; border: 0; color: var(--color-foreground); background: transparent; text-align: left; }
+.mira-summary-resource span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-summary-resource:hover, .mira-summary-plan:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mira-summary-plan { max-width: 100%; margin: 8px 0; padding: 0; border: 0; background: transparent; text-align: left; overflow-wrap: anywhere; }
+.mira-task-summary__body ol { display: grid; gap: 6px; max-height: 180px; overflow-y: auto; margin: 4px 0 0; padding: 0; list-style: none; }
+.mira-task-summary__body li { display: flex; align-items: flex-start; gap: 7px; }
+.mira-task-summary__body li svg, .mira-task-summary__body li > span { flex-shrink: 0; margin-top: 4px; }
+.mira-task-summary__body li[data-status='completed'] { color: var(--color-foreground-subtle); }
+.mira-summary-agents { display: grid; max-height: 180px; overflow-y: auto; gap: 8px; margin-top: 8px; }
+.mira-summary-agents > div { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.mira-summary-agents > div > span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-summary-agents button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 4px; background: transparent; }
+.mira-summary-agents button:hover { background: var(--color-hover); }
+@container conversation (min-width: 1280px) {
+  .mira-task-summary[data-mode='auto'] .mira-task-summary__panel { display: block; }
+  .mira-task-summary[data-mode='auto'] .mira-task-summary__mini { display: none; }
+  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - 840px) / 2)); margin-right: 344px; }
+  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - 840px) / 2)); }
+}
+@media (prefers-reduced-motion: reduce) { .mira-turn-rail__items button span { transition: none; } }

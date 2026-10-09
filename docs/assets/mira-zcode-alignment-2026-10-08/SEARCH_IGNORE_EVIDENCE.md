@@ -1,6 +1,6 @@
 # 2026-10-09 搜索忽略规则与 Vue 设置
 
-状态：已实现；2026-10-09 13:32 更新。授权竞态与 Vue Proxy 跨桥问题已修复，最新全量/类型/构建/产物审计通过；真实隔离 Electron preload/IPC 读取与页面 DOM probe 通过。headless 七图保留原采集身份，前景鼠标/键盘/截图被 macOS 锁屏阻断，文档当前口径独立抽查通过；整体 ZCode 对齐目标 active。
+状态：已实现；2026-10-09 15:05 更新。授权竞态与 Vue Proxy 跨桥问题已修复；设置/搜索/浏览的有限原生验收现已通过，27 条记录、3 张原生截图逐张确认。最新统一检查为 14:51:38–14:53:27、`--maxWorkers=1`、103 文件 / 1089 项、70.36s，类型、React/Electron 构建与产物审计通过；单 worker 通过不代表默认或两 worker 并发稳定，失败历史见 [Worker 证据](HIGHLIGHT_WORKER_EVIDENCE.md)。headless 七图保留原采集身份，旧锁屏/脚本失败不覆盖新成功流程；整体 ZCode 对齐目标 active。
 本页是本批检查与边界的唯一数字入口，旧 Git/filter/image 的证据保持历史，不覆写。
 
 ## 范围与来源
@@ -113,7 +113,7 @@ API fixture 调用真实 Electron 文件服务，但用隔离 HTTP 替代 preloa
 
 - **实际 Electron 读取证据**：13:14:15 +08:00 的 [bridge-transport-results.json](search-ignore-native/bridge-transport-results.json) 来自隔离工作区 `/private/tmp/mira-native-ignore-aSLqrz/project`、编译后 `out/renderer/index.html` 与真实 preload/IPC。Proxy 明确拒绝，普通目标读取成功；textarea 已启用、与读取内容一致、alerts 为空。JSON 保存了当时 main/preload/renderer SHA-256。
 - **证据限制**：上述 probe 使用 CDP 读取/调用 API，不包含真实点击、键盘、保存全流程或截图。它补足实际桥的读取验证，不代替原生鼠标/键盘、其他 grant 生命周期或 ZCode 同态验收。
-- **锁屏阻断**：13:21:44 +08:00 运行原生 [smoke 脚本](search-ignore-native/mira-native-ignore-smoke.mjs)，[results.json](search-ignore-native/results.json) 的 `blockedBy=macOS-loginwindow`、records/captures 均为 0，exit 1。锁屏 guard 在夹具创建和任何输入之前退出；本轮没有用户可见操作或新截图，不能判作功能失败或通过。此前 focus guard 失败及 Proxy 修复前记录分别保留于该目录的历史 JSON。
+- **历史锁屏阻断**：13:21:44 +08:00 运行原生 [smoke 脚本](search-ignore-native/mira-native-ignore-smoke.mjs)，当时观察为 `blockedBy=macOS-loginwindow`、records/captures 均为 0，exit 1。锁屏 guard 在夹具创建和任何输入之前退出。该独立 JSON 没有保留下来；当前 `results.json` 已被后续成功流程更新，不能引用它验证这次锁屏。此前 focus guard 失败及 Proxy 修复前记录分别保留于该目录的历史 JSON。
 - **最新全量**：13:21:45 开始，`npx vitest run --maxWorkers=2`，100 文件 / 1036 项，12.79s，exit 0。Vue 编辑器为 9 项，旧 1035/8 项是 Proxy 修复前历史。
 - **最新类型**：`npx vue-tsc --noEmit` 和 `npx tsc --noEmit -p apps/harness-react/tsconfig.json` 均 exit 0。
 - **最新构建**：`npm run harness:build` exit 0（esbuild 247ms、Tailwind 106ms）；`npx electron-vite build` exit 0（main 66/preload 8/renderer 2447 modules，renderer 5.40s）。既有 PURE 注释/图标导入警告保留；没有生成或验收安装包。
@@ -126,10 +126,18 @@ API fixture 调用真实 Electron 文件服务，但用隔离 HTTP 替代 preloa
 独立 reviewer 只读核对本批四份证据/原生交接文档及 JSON，另抽查全部上述最新段落：没有混淆 HTTP fixture、真实读取 probe 与原生输入范围，最新构建和保留探针时间明确，下一入口一致。四份证据内 26 个本地链接存在，三项 probe SHA 与重建产物一致；未重跑 probe、UI 或全量测试。
 本次关闭的仅是 `documentation-pending` 门槛；`native-input-blocked`、同态 ZCode、发布/性能/P0–P3 与整体目标继续未放行。13:32 状态回填后主 agent 再执行 JSON 解析及 `git diff --check`。
 
+## 2026-10-09 14:32 有限原生流程完成
+
+- [results.json](search-ignore-native/results.json)：14:25:17–14:28:15 +08:00，`passed=true`，27 条记录、3 张原生截图。真实编译后 Mira Electron/preload/IPC/第一方 React iframe；隔离 home `/private/tmp/mira-native-ignore-8V6O9x`。CDP 建立夹具、定位和读取，原生 helper 执行点击、键盘和输入。
+- 模板读取不落盘；保存实际文件等于草稿；继续编辑保留路由/草稿、撤销恢复；外部冲突不覆盖文件或草稿；重读后再次保存成功。浏览保留 `node_modules`，搜索排除其 `needle.md`，根目录结果可打开预览。
+- [浅色模板](search-ignore-native/light-template-native.png)、[深色冲突](search-ignore-native/dark-conflict-native.png)、[深色搜索预览](search-ignore-native/dark-react-search-preview-native.png) 已逐张打开核对，无可见文字重叠或控件越界。这只证明对应画面和本流程，不证明隐藏上游设置的逐像素复刻。
+- [14:19 输入失败](search-ignore-native/native-input-draft-failure-2026-10-09-1419.json) 保留：多行 CGEvent Unicode 未完整到达。脚本改逐行 type + 原生 Enter，清空后校验焦点/正文、每步校验前景 PID。[14:24 夹具前提失败](search-ignore-native/prior-fixture-rules-present-2026-10-09-1424.json) 保留：旧目录已有规则，换新目录而未删除旧数据。
+- [历史统一检查](highlight-worker-production/before-dom-inheritance-validation-results.json)：14:24:26–14:24:51，103 文件 / 1077 项、10.44s，React/Vue 类型、React/Electron 构建、bundle audit、diff check 通过。该结果早于颜色继承改动；当前 [统一检查](highlight-worker-production/validation-results.json) 为 14:51:38–14:53:27、单 worker、1089 项，不能用当前链接回证旧时间。1036 是本页上一批历史数字。生产保存实现没有修改；并发保存测试改为按实际成功请求核对，两个 lstat gate 确定性覆盖双方获胜，相关三项重复 10 次通过，见 [并发回归](highlight-worker-production/concurrent-save-regression-results.json)。
+- 高亮 Worker 与新许可也已落地，其 Chrome、隐藏 Electron fixture、实际 React 性能范围见 [独立证据](HIGHLIGHT_WORKER_EVIDENCE.md)；不将 Worker timer 结果当成原生设置或完整产品性能验收。
+
 ## 剩余与下一入口
 
-搜索 ignore 已实现。当前第一入口是解锁桌面后重启隔离 Electron，并执行本页原生配置/搜索/浏览有限验收；不因锁屏改变开发主线。
-重启和检查步骤见 [原生交接](search-ignore-native/README.md)。需验证模板不落盘、真实编辑/保存、未保存离开确认、外部冲突/重读恢复、浅深色、React 浏览保留 node_modules 而搜索排除，并逐张核对截图和真实文件。
-随后补旧监听错误态、图片/Git 同态对照。Git metadata watcher 仅是后续候选，先读 `harnessWorkspaceGit.ts` / `harnessWorkspaceWatch.ts` 的 root、metadata、grant 生命周期，再给出最小监听设计与单独验收，不把已有文件 watch 当成 metadata watcher。
-媒体 lease/Range、高亮 Worker/profile、可靠进程冷启动与正式安装包/Windows/真实模型及 P0–P3 仍独立推进。
-未提交、未推送，整体目标不标 complete。
+搜索 ignore 的有限原生验收已完成，不重复实施，也不再以锁屏为当前阻断。可复跑流程见 [原生交接](search-ignore-native/README.md)。
+下一入口回到旧监听/编辑器错误态、图片/Git 同态 ZCode 比较。Git metadata watcher 仅是后续候选，须单独设计 root、metadata、grant 生命周期，不把已有文件 watch 当成它。
+生产高亮 Worker 已实现，长代码块 React DOM/profile、媒体 lease/Range、可靠进程冷启动、安装包/Windows/真实模型及 P0–P3 仍独立推进。
+本轮没有执行提交或推送，整体目标不标 complete。

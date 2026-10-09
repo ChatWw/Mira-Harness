@@ -8,8 +8,9 @@ import { gzipSync } from 'node:zlib'
 import { build } from 'esbuild'
 import { bundledLanguages, bundledLanguagesInfo } from 'shiki/langs'
 
-const evidence = dirname(fileURLToPath(import.meta.url))
-const root = resolve(evidence, '../../../..')
+const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+const evidence = process.env.MIRA_EVIDENCE_DIR ? resolve(process.env.MIRA_EVIDENCE_DIR) : scriptDirectory
+const root = resolve(scriptDirectory, '../../../..')
 process.chdir(root)
 const output = resolve('dist/harness-react-app')
 const hash = buffer => createHash('sha256').update(buffer).digest('hex')

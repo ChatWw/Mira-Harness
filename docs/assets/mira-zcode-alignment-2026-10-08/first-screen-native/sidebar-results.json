@@ -1,0 +1,239 @@
+{
+  "startedAt": "2026-10-09T09:26:22.476Z",
+  "home": "/private/tmp/mira-first-screen-native-tA0SSf",
+  "window": {
+    "kCGWindowAlpha": 1,
+    "kCGWindowBounds": {
+      "Height": 900,
+      "Width": 1440,
+      "X": 135,
+      "Y": 42
+    },
+    "kCGWindowIsOnscreen": true,
+    "kCGWindowLayer": 0,
+    "kCGWindowMemoryUsage": 2432,
+    "kCGWindowName": "Mira Harness - Mira Harness",
+    "kCGWindowNumber": 4183,
+    "kCGWindowOwnerName": "Electron",
+    "kCGWindowOwnerPID": 74509,
+    "kCGWindowSharingState": 1,
+    "kCGWindowStoreType": 1
+  },
+  "originalFront": {
+    "bundle": "com.apple.ScreenContinuity",
+    "name": "iPhone镜像",
+    "pid": 78301
+  },
+  "boundary": "Native macOS clicks and Unicode key input on isolated unpackaged Mira. Real Vue Shell, production React opaque iframe, MessageChannel and Electron preload/IPC. This search test does not run models/scheduler, install market packages, prove ZCode same-state visuals or performance. Legacy /novel is platform fallback only, not the independent Mira Novel Studio implementation.",
+  "passed": true,
+  "records": [
+    {
+      "at": "2026-10-09T09:26:24.783Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"会话\"]",
+        "action": "click",
+        "x": "181",
+        "y": "119.5"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:26.573Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"任务视图选项\"]",
+        "action": "click",
+        "x": "361",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:28.274Z",
+      "nativeClick": {
+        "selector": "[role=\"menuitemradio\"] >> 按项目",
+        "action": "click",
+        "x": "278",
+        "y": "361"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:30.106Z",
+      "nativeClick": {
+        "selector": ".mira-session-row__open >> 首屏验收会话",
+        "action": "click",
+        "x": "271.08203125",
+        "y": "373.5"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:32.005Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全部折叠\"]",
+        "action": "click",
+        "x": "301",
+        "y": "298"
+      }
+    },
+    {
+      "name": "native-bulk-collapse-saves-explicit-project-state",
+      "at": "2026-10-09T09:26:32.230Z",
+      "activeId": "960577c0-7962-45cf-91a9-ae4fa53f903d",
+      "collapsed": {
+        "expandedProjectIds": [],
+        "collapsedProjectIds": [
+          "566594da-daf0-4c0c-ae20-09dccdf19b67"
+        ],
+        "view": "project",
+        "projectView": "collections",
+        "sort": "updated",
+        "groups": [],
+        "hiddenProjectIds": [],
+        "ungroupedSessionOrder": []
+      }
+    },
+    {
+      "name": "native-reload-keeps-active-project-explicitly-collapsed",
+      "at": "2026-10-09T09:26:33.376Z"
+    },
+    {
+      "at": "2026-10-09T09:26:35.074Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全部展开\"]",
+        "action": "click",
+        "x": "301",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:36.885Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"任务视图选项\"]",
+        "action": "click",
+        "x": "361",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:38.700Z",
+      "nativeClick": {
+        "selector": "[role=\"menuitemradio\"] >> 时间线",
+        "action": "click",
+        "x": "278",
+        "y": "389"
+      }
+    },
+    {
+      "name": "native-timeline-two-tabs-project-source-and-real-row-size",
+      "at": "2026-10-09T09:26:38.988Z"
+    },
+    {
+      "at": "2026-10-09T09:26:41.819Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"查看已归档任务\"]",
+        "action": "click",
+        "x": "391",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:43.647Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"恢复 归档恢复验收\"]",
+        "action": "click",
+        "x": "356",
+        "y": "370.5"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:45.504Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"返回任务列表\"]",
+        "action": "click",
+        "x": "391",
+        "y": "298"
+      }
+    },
+    {
+      "name": "native-archive-restore-through-real-query-and-ipc",
+      "at": "2026-10-09T09:26:45.571Z"
+    },
+    {
+      "at": "2026-10-09T09:26:47.320Z",
+      "nativeClick": {
+        "selector": ".mira-session-view button >> 分组",
+        "action": "click",
+        "x": "194.5",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:49.091Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"新建分组\"]",
+        "action": "click",
+        "x": "331",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:26:51.568Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全部折叠\"]",
+        "action": "click",
+        "x": "301",
+        "y": "298"
+      }
+    },
+    {
+      "name": "native-group-bulk-collapse-keeps-project-view-independent",
+      "at": "2026-10-09T09:26:51.669Z"
+    },
+    {
+      "at": "2026-10-09T09:26:54.467Z",
+      "nativeClick": {
+        "selector": ".mira-session-view button >> 项目",
+        "action": "click",
+        "x": "249.5",
+        "y": "298"
+      }
+    },
+    {
+      "name": "native-group-project-return-keeps-timeline-and-active-session",
+      "at": "2026-10-09T09:26:54.570Z"
+    }
+  ],
+  "captures": [
+    {
+      "name": "sidebar-timeline-native-light",
+      "sha256": "affb09b95ea608042ee9cb9ef7088184c9b55d433fffd9fa877abaa0571c50a8",
+      "at": "2026-10-09T09:26:40.038Z"
+    },
+    {
+      "name": "sidebar-group-collapsed-native-light",
+      "sha256": "99bff8e00053c7a79449d3c701242cc6de239927f81e08fb9a975a40b69403b9",
+      "at": "2026-10-09T09:26:52.695Z"
+    },
+    {
+      "name": "sidebar-restored-native-light",
+      "sha256": "b278719c642694e0634a79794f8ed4d0332130d7acbdc7bcd1a11b052d03f95d",
+      "at": "2026-10-09T09:26:55.615Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "5e5987522c73338752f7be61a8238ad774324103d3fcb25dc278757080e7d6ba"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "21f735ff26ab9cbdeb5e6f4552dcc3c024f7c54d05802ae6a0631f528b0baa5f"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "a55365d07015352b69af2b51d382586963e2e492421e6056444b9ecac22dd819"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    }
+  ],
+  "finishedAt": "2026-10-09T09:26:55.615Z"
+}

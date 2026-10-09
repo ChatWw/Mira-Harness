@@ -83,11 +83,11 @@ components:
 
 # Design System: Mira Harness
 
-最近更新：2026-10-09。本文合并文件工作区、搜索/保存/监听/外部编辑器、位图/SVG、Git 删除/筛选，以及搜索忽略规则和 Vue 文件搜索设置，保留已授权视觉方向与既有 token。
-当前入口为 [搜索忽略规则与 Vue 设置](docs/MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md#2026-10-09-搜索忽略规则与-vue-设置)；
-最终检查与限定评审见 [本批证据页](docs/assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)，性能边界见 [性能记录](docs/MIRA_HARNESS_PERFORMANCE_2026-10-08.md)。
-整体目标 active，原生/性能/发布/P0–P3 未放行，未提交、未推送。
-当前真实隔离 Electron 的 preload/IPC bridge 与 CDP DOM 只读 probe 已通过；锁屏阻止的是前景鼠标/键盘/截图，不是 Electron 桥本身。下一入口为解锁后重启隔离 Electron，仅补有限设置/搜索/浏览原生交互；Git metadata watcher 仅为随后候选。
+最近更新：2026-10-09 20:46 +08:00。当前完成/剩余/下一入口统一看 [首屏完整对齐与验收](docs/MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，细项看 [侧栏记录](docs/MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)。本批按ZCode实际装载界面对齐侧栏、对话和Composer，保留既有视觉方向与token，不另做新设计，也不继续新增文件支线。
+
+源码已接入独立分组/项目动作/归档与排序、共享搜索、React自动化/Skill市场、轮次导航/状态胶囊、caret上下文面板；20:14追加宿主权威队列与父任务有序text/reasoning/tool、内联审批，20:46补Composer原子立即发送/暂停队列确认和终态展开保持。限定回归和生产opaque iframe headless只证明局部行为；完整Electron原生/真实模型、ZCode同态及性能仍待验。guide、多模态、阅读恢复/线程虚拟化、导航/搜索历史仍缺。整体active，发布/P0–P3未放行，本批未提交或推送。
+
+既有文件/搜索/Worker 证据继续保留原批身份，见 [对齐记录](docs/MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md)、[搜索证据](docs/assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)、[Worker 证据](docs/assets/mira-zcode-alignment-2026-10-08/HIGHLIGHT_WORKER_EVIDENCE.md) 与 [性能记录](docs/MIRA_HARNESS_PERFORMANCE_2026-10-08.md)。有限原生设置/搜索/浏览通过不代替本批首屏验收；旧错误态、图片/Git 同态、metadata watcher 和媒体保持独立待办，不抢当前优先级。
 
 ## Overview
 
@@ -110,7 +110,7 @@ components:
 - 项目文件在左侧浏览，每个已打开文件在右侧拥有独立只读标签。
 - 位图与 SVG 复用只读文件工作区，预览能力不等同于模型多模态附件。
 - Git 状态装饰现有树与搜索行，精确 ignored 不影响祖先，只读快照不提供写操作。
-- `.miraignore` 仅过滤实际工作区搜索；配置归 Vue 平台设置，不影响浏览、预览、上传或 Agent 权限。
+- `.miraignore` 过滤复用 `files.search` 的文件抽屉、`@` 和 Command Center 查询；配置归 Vue，不影响浏览、预览、上传或 Agent 权限。
 - 正式入口使用第一方授权桥，演示页不作为验收基准。
 
 ## Colors
@@ -183,22 +183,43 @@ frame、Composer、control、compact 使用前置 token 表的实际圆角。
 
 ### Navigation
 
-任务/项目列表保留单行紧凑密度、选中/hover、状态和上下文动作。
-宽窗默认显示，用户可收起；搜索与新任务入口稳定可达。
-拖拽、重命名、移动后的当前会话信息与 Electron 快照保持一致。
+顶部依次为新任务、搜索、自动化和插件市场；自动化与市场是 React 主视图，切换不清对话草稿。
+分组/项目是两个一级视图，时间线不是第三个 tab，当前项目时间线与全部展开/折叠仍未实现。
+独立自定义组提供名称、7 色、折叠、组内新任务、移入移出和解散保留历史；手动排序使用 dnd-kit 鼠标/键盘。
+项目行在 hover 或 focus-within 时出现新任务、文件和更多，菜单可重命名、打开目录/终端、排序、隐藏；恢复隐藏入口不删除历史。
+归档按钮切换归档列表而非归档当前任务，列表支持分页/恢复/二步永久删除，归档时保留全局置顶。
+任务行保留单行密度、选中/hover、真实状态、未读和上下文动作；只在手动排序范围内拖拽。
+新任务与搜索入口展示快捷键；图标动作提供 tooltip，菜单使用 Radix 的定位、键盘与焦点恢复。
+底部设置、技能、MCP 与用量指向现有 Vue 页面，合法 pathname/query 被校验并保留正式 React 返回来源。
+Shell 搜索、侧栏搜索与应用快捷键共用 HarnessCommandCenter，命令/真实正文片段定位/授权文件不重复造索引。
+读取偏好成功前不能用默认值覆盖旧排序/展开/分组；失败可重试，离开需等待最新保存。
+
+### Conversation first screen
+
+48px Header 保留侧栏开合、可达工作目录、任务标题/菜单、真实状态与编辑器/文件/终端/工作区动作。
+目录菜单展示项目和完整路径，支持复制与实际打开；标题菜单复用已有任务动作，不加入没有数据的分支/分享入口。
+两轮起显示 ConversationTurnRail，hover/focus 展示真实用户/助手片段，点击定位，滚动同步当前轮次。
+用户文本附件以真实 chip 展示；相对 workspace 路径可受控预览，外部文本附件不能冒充可预览工作区文件。
+有序parts展示真实公开思考/正文/工具调用，思考默认折叠，工具参数/结果/diff仅展开挂载；旧无parts消息保留运行卡。审批按request/run/tool显式身份内联，失败可重试，拒绝/超时/Stop保留取消记录；缺失数据明确说明，不造思考。渲染身份与canonical消息ID分离，完成/停止/失败后保持已展开详情；本批限定浏览器验证通过，原生与真实模型仍待验。
+助手复制有反馈；重跑只出现在最新可重跑助手轮次，不能把旧消息的按钮接到最新任务。
+TaskSummary 有内容才出现，自动/胶囊/展开三态显示真实计划、子任务、变更和活动；停止子任务经实际 Controller，失败可见。
 
 ### Composer
 
-新任务和已有会话使用同一个受控输入区。左组是添加上下文与权限/计划，右组是模型、支持推理模型的强度选择与发送/停止。
+新任务和已有会话使用同一个受控输入区。左组是添加上下文与权限/计划，右组是上下文用量、模型、支持推理模型的强度选择与发送/停止。
 计划为独立开关，权限档位互斥。项目条选择任务范围，附件与 Skill/MCP 不扩展成常驻多行设置面板。
 输入失败保留草稿，运行/等待确认按真实状态限制动作。
+caret `@`/`/`/`$` 和 `+` 共用分类候选面板，Popover 保留输入焦点，方向键/Enter/Tab/Esc 和鼠标选择都保留触发前后正文。
+文件/Skill/MCP/对话候选来自真实桥，loading/error/empty 可恢复，异步结果绑定当前会话/root/token；切任务不串候选。
+统一宿主控制发送快捷键与用量可见性，中文合成期间不提交。Esc 优先关闭菜单，没有浮层时才允许停止任务。
+运行中空稿停止，有稿按宿主权威队列接收；FIFO、撤回恢复、排序、立即发送及停止暂停/恢复保持完整输入与新草稿。修饰键只改变本次发送，立即发送为单个原子请求；暂停队列由宿主要求保留/清空确认，取消不发不删、保留继续暂停、清空在新输入接纳后执行，旧队列版本须重确认。队列为进程内，renderer重载不重复提交；guide、附件-only与多模态未接，不以视觉入口声称完成。本批限定浏览器通过，不代替原生/真实模型验收。
 
 ### Menus and messages
 
 复用 Radix Dropdown/Context Menu 负责菜单定位、键盘、焦点回收；消息投影复用
 assistant-ui ExternalStoreRuntime。Mira 不另造同类通用交互组件，也不引入上游业务运行时。
 Lucide 图标保持一致笔画。静态 Markdown 继续承载引用与代码复制，streaming 使用 Streamdown；
-两种状态共用 Mira 独立的 Shiki 高亮适配器。
+两种状态及文件预览共用 Mira 独立的 Shiki WASM Worker 适配器；正文保持完整源码和浅深色，不以截断长行或流式不着色作为性能修复。
 
 ### Resource workspace
 
@@ -291,7 +312,7 @@ Vue `/settings/file-search` 属于统一平台设置，复用 SettingsPageShell�
 工作区 target 使用 `shallowRef` 和普通 `{ kind, id }` 请求快照，初读、重读、transform、save 不将 Vue Proxy 传入 `contextBridge`；真实桥克隆 P2 已有复现、回归与独立源码复核。
 
 成熟 `ignore` matcher 在进入子目录前剪枝；每查询读规则，root `dev:ino` 与规则版本/hash 绑定缓存，
-编辑/删除/重建失效，旧扫描不污染新缓存，warm 返回复核 root。仅实际搜索接入，非 `@`/Command Center，
+编辑/删除/重建失效，旧扫描不污染新缓存，warm 返回复核 root。文件抽屉、`@` 与 Command Center 复用 `files.search`，
 浏览/预览/上传与 Agent 权限不使用 matcher，不能当秘密或权限隔离。规则服务和 IPC 的读写/授权约束见证据页，
 最后 awaited 检查后同步授权紧接提交关闭了本次可复现 P2，但不声称跨进程最终 syscall 为绝对 CAS。
 上游同版导航隐藏该设置，Mira 有意开放 Vue 页，不称隐藏上游页原生逐像素验收通过。
@@ -307,8 +328,8 @@ Vue `/settings/file-search` 属于统一平台设置，复用 SettingsPageShell�
 读取中、空文件、具体错误/重试与复制反馈保持在预览表面内，错误文本可换行。
 
 源码使用等宽字体（12px/20px）、粘性行号和虚拟行；开启换行后重新测量行高。
-浅深色复用 Mira Shiki 适配器和 GitHub 两个主题。文件高亮以 grammarState 逐行续接，约（8ms）扫描预算后
-让出线程，保留完整 tokens；隐藏标签和过期读取会取消。首次 grammar/regex 同步编译与病态单行仍不可抢占。
+浅深色复用 Mira Shiki WASM Worker 和 GitHub 两个主题。grammarState 留在 Worker 内逐行续接，约（8ms）扫描预算后
+让出 Worker，保留完整 tokens；隐藏标签和过期读取会取消。首次 grammar/regex 同步编译与病态单行仍不能在 Worker 内中途抢占；主线程不运行 tokenizer，HTML/DOM 着色成本仍单独测量。
 
 ### Bitmap and SVG preview
 
@@ -343,6 +364,10 @@ Radix 菜单承载关闭当前/其他/全部与最近关闭恢复；关闭菜单
 
 ### Evidence and boundaries
 
+当前首屏实现、限定回归、最新生产 React headless 的实际覆盖与未完成项统一看顶部首屏总文档；旧文件批次的全量数字、截图、原生输入和限定 ship 不转移为首屏通过。完整同态 ZCode、实体输入、首屏性能与发布均单独验收。
+
+以下保留各文件批次历史证据。文中旧“下一入口”只记录当时顺序，不覆盖现在侧栏、对话与 Composer 的优先级。
+
 本轮与历史批次的正式 React 构建、全量回归、React/Vue 类型、产物字节和 SHA-256 一致性审计，
 均以顶部所链接的技术记录为准；旧文件标签和搜索批次的检查不代替当前监听/外部编辑器批次的验证。
 [监听与编辑器证据](docs/assets/mira-zcode-alignment-2026-10-08/WATCH_EDITORS_EVIDENCE.md) 分别记录自动化、原生操作、截图与尚未放行的边界。
@@ -362,8 +387,8 @@ grant/IPC 由单测覆盖，watch 通知使用 fixture，剪贴板为 iframe stu
 独立服务复核关闭 awaited 授权 P2；真实 Electron 随后发现的 Vue Proxy target 克隆 P2 也已用 `shallowRef` 与普通请求快照关闭，含复现、回归与独立源码复核。
 2026-10-09 13:26 +08:00 更新：最新全量/类型、React 与 Electron 重新构建和审计通过，JS/CSS 字节不变。7 张旧独立 Chrome headless 图仍保留修前采集身份，未重拍或提升为原生证据；该 HTTP fixture 不含 preload/IPC。
 13:14:15 的 [bridge/DOM probe](docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/bridge-transport-results.json) 经过真实隔离 Electron preload/IPC，确认约 460B 模板、启用且内容一致的 textarea 与无 alert；三产物 SHA 与最新构建一致，但 probe 未重跑。这是 CDP 只读观察，不是实体输入/截图验收。
-当前前景 `com.apple.loginwindow` 锁屏使焦点守卫中止，原生脚本明确 `blockedBy=macOS-loginwindow`、0 actions/0 captures，未解锁或使用 `DOM.click`；这是环境阻断，不算功能失败。
-下一入口为解锁后重启隔离 Electron，仅补本批配置/搜索/浏览有限原生交互，不自动扩展为完整 native 或同态 ZCode 放行；Git metadata watcher 仅为随后候选，须绑定 root/metadata/grant 生命周期，已有文件 watch 不等于它。旧错误态、图片/Git 对照与媒体 lease/Range、高亮 Worker/profile 分别推进，整体性能、发布和 P0–P3 不放行。
+13:21 锁屏阻断保持历史；该独立 JSON 未保留下来，当前 `results.json` 已是 14:25–14:28 成功流程，不能用它回证锁屏。
+2026-10-09 14:32 +08:00：真实 Mira Electron/preload/IPC 中的原生规则编辑/保存、未保存取消、外部冲突/重读，以及 React 浏览不过滤、搜索过滤和结果预览通过；27 条记录与三张原生图逐张确认，见 [原生交接](docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/README.md)。它不等于隐藏上游设置逐像素、完整 native 或图片/Git 同态放行。下一入口回到旧错误态与图片/Git 对照；metadata watcher 须单独绑定 root/metadata/grant，已有文件 watch 不等于它。
 [截图证据](docs/assets/mira-zcode-alignment-2026-10-08/FILE_WORKSPACE_EVIDENCE.md) 来自
 1440×900 的隔离 macOS 开发 Electron 正式入口，记录浅色、目录定位、错误、深色、菜单和截断搜索表面。
 搜索六视图已在（16:49–16:50）复拍并逐张检查、固化；副本与本轮原图的 SHA 一致。
@@ -375,8 +400,8 @@ Pass、clear 定位问题 resolved、remaining clear、disposition ship；该结
 8001 行文件抽样在异步高亮完成和滚动期间未观测到长任务，初始/滚动分别挂载 46/56 行；
 约 2205.5ms 包含异步等待，不能与旧单段阻塞耗时直接比较。完整证据与首次编译、病态单行、对话流式路径、
 可靠冷暖/进程启动、安装包、Windows 及真实模型边界见性能记录，整体发布关口仍未完成。
-文件 watch、外部编辑器、位图/SVG、Git 状态/删除/筛选和搜索 ignore/Vue 设置已实现；本批真实 preload/IPC bridge/DOM 只读验证通过，前景配置/搜索/浏览输入与截图因锁屏待验，旧错误态与图片/Git 原生同态 ZCode 确认仍待完成。
-APNG/GIF 动画变化未验收；Git metadata watcher、音视频/Office、媒体 lease/Range 与 performanceWorker/profile 尚未实现。
+文件 watch、外部编辑器、位图/SVG、Git 状态/删除/筛选和搜索 ignore/Vue 设置已实现；有限设置/搜索/浏览原生验证通过，旧错误态与图片/Git 原生同态 ZCode 仍待完成。
+生产高亮 Worker 已实现，精确产物在 Chrome opaque iframe 与隐藏 Electron fixture 中分别验证；深色 fixture 现使用生产 #root/theme 契约，不再是白背景错误夹具，但仍只是隔离组件画布。准确数据和 DOM 性能后续见 [Worker 证据](docs/assets/mira-zcode-alignment-2026-10-08/HIGHLIGHT_WORKER_EVIDENCE.md)。APNG/GIF 动画、Git metadata watcher、音视频/Office、媒体 lease/Range、代码块 DOM/profile 和完整发布仍未放行。
 
 ## Do's and Don'ts
 

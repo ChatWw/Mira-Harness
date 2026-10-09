@@ -1,8 +1,25 @@
 import { useState } from 'react'
-import { Check, Copy, GitCompare, Pencil, RotateCw } from 'lucide-react'
+import { Check, Copy, FileText, GitCompare, Pencil, RotateCw } from 'lucide-react'
 import type { HarnessFileChange, HarnessMessage } from '../../../../../src/config/harness'
 
 export function EditIcon() { return <Pencil size={13} /> }
+
+export function MessageCopyButton({ content, label = '复制回复', onError }: { content: string; label?: string; onError?: (error: unknown) => void }) {
+  const [copied, setCopied] = useState(false)
+  return <button type="button" className="mira-message-action" aria-label={copied ? '已复制' : label} title={copied ? '已复制' : label} onClick={() => {
+    void navigator.clipboard.writeText(content).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600) }).catch(error => onError?.(error))
+  }}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+}
+
+/** 消息附件使用实际保存的文件引用，不把附件正文再次写入气泡。 */
+export function UserMessageAttachments({ message, onOpen }: { message?: HarnessMessage; onOpen: (path: string) => void }) {
+  if (!message?.attachments?.length) return null
+  return <div className="mira-message-attachments" aria-label="消息附件">{message.attachments.map((attachment, index) => {
+    // 工作区预览不接受外部绝对路径；不把已授权的附件读权扩展为任意文件读权。
+    const external = attachment.path.startsWith('/') || attachment.path.includes('\\') || /^[a-z]:/i.test(attachment.path)
+    return <button key={`${attachment.path}:${index}`} type="button" title={external ? `${attachment.path}\n外部附件，不在当前工作区中` : attachment.path} disabled={external} onClick={() => { if (!external) onOpen(attachment.path) }}><FileText size={15} /><span>{attachment.name || attachment.path}</span></button>
+  })}</div>
+}
 
 const CHANGE_LABELS: Record<HarnessFileChange['tool'], string> = { edit: '编辑', write: '写入', delete: '删除' }
 
@@ -27,15 +44,14 @@ function formatUsage(message: HarnessMessage) {
 }
 
 /** 消息工具栏（ZCode 模式：hover 才显现）。 */
-export function AssistantToolbar({ message, onRerun }: { message?: HarnessMessage; onRerun?: () => Promise<void> }) {
-  const [copied, setCopied] = useState(false)
+export function AssistantToolbar({ message, latestAssistantId, canRerun = true, onRerun, onError }: { message?: HarnessMessage; latestAssistantId?: string; canRerun?: boolean; onRerun?: () => Promise<void>; onError?: (error: unknown) => void }) {
   if (!message) return null
   const usage = formatUsage(message)
   return <div className="mt-1 flex items-center gap-1 text-foreground-subtlest">
     {message.createdAt ? <span className="text-ui-xs">{formatTime(message.createdAt)}</span> : null}
     {usage && <span className="text-ui-xs">{usage}</span>}
-    <button type="button" className="flex size-6 items-center justify-center rounded-md hover:bg-hover hover:text-foreground" aria-label="复制回复" title="复制" onClick={() => { void navigator.clipboard.writeText(message.content).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600) }).catch(() => undefined) }}>{copied ? <Check size={13} /> : <Copy size={13} />}</button>
-    {onRerun && <button type="button" className="flex size-6 items-center justify-center rounded-md hover:bg-hover hover:text-foreground" aria-label="重新生成" title="重新生成" onClick={() => void onRerun()}><RotateCw size={13} /></button>}
+    <MessageCopyButton content={message.content} onError={onError} />
+    {onRerun && message.id === latestAssistantId && <button type="button" className="mira-message-action" disabled={!canRerun} aria-label="重新生成最新回复" title="重新生成最新回复" onClick={() => { if (canRerun) void onRerun().catch(error => onError?.(error)) }}><RotateCw size={13} /></button>}
   </div>
 }
 

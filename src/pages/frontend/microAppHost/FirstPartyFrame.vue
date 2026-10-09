@@ -40,7 +40,7 @@ const props = defineProps<{
   api: PlatformApi
   context: PlatformContext
   route: string
-  navigate: (path: string) => void
+  navigate: (path: string) => void | Promise<void>
 }>()
 const emit = defineEmits<{ error: [message: string] }>()
 const stage = ref<HTMLDivElement>()
@@ -61,12 +61,13 @@ function send(message: unknown) {
   try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
 }
 
+function openCommandCenter() { if (props.manifest.appId === 'mira-harness' && !disposed) send({ type: 'mira:command-center-open' }) }
 function prepareLeave() {
   const activePort = port
   if (disposed || !activePort) return Promise.reject(new Error('Harness 连接尚未就绪，无法确认草稿保存'))
   return session.prepareLeave(message => activePort.postMessage(message))
 }
-defineExpose({ prepareLeave })
+defineExpose({ prepareLeave, openCommandCenter })
 
 function browserState(error?: string) {
   if (!browser || !browserSessionId) return

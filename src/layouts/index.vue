@@ -25,7 +25,7 @@
         </el-popover>
       </div>
       <div class="mira-shell__actions">
-        <el-tooltip content="全局搜索 (Ctrl+K)" placement="bottom">
+        <el-tooltip :content="globalSearchLabel" placement="bottom">
           <button type="button" class="mira-shell__icon-button" aria-label="全局搜索" @click="commandPaletteStore.open()"><AppIcon name="Search" /></button>
         </el-tooltip>
         <el-tooltip content="设置" placement="bottom">
@@ -57,6 +57,7 @@ const route = useRoute()
 const router = useRouter()
 const commandPaletteStore = useCommandPaletteStore()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
+const globalSearchLabel = `全局搜索 (${windowChrome === 'macos-overlay' ? '⌘K' : 'Ctrl+K'})`
 const appMenuVisible = ref(false)
 const currentAppCode = computed(() => route.path === '/novel' ? 'novel' : getAppCodeFromPath(route.path))
 const currentAppName = computed(() => {

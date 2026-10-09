@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { bundledLanguages, bundledLanguagesInfo } from 'shiki/langs'
 import type { TokensResult } from 'shiki/core'
+import type { MiraHighlightResult } from '../apps/harness-react/src/lib/code-highlight-protocol'
 import { createMiraCodeHighlighter, miraCodeHighlighter, miraCodeThemes, renderMiraHighlightedCode } from '../apps/harness-react/src/lib/code-highlighter'
 import { prepareMarkdownHighlights, renderCompletedMarkdown } from '../apps/harness-react/src/components/conversation/markdown'
 
@@ -12,6 +13,81 @@ vi.mock('../apps/harness-react/src/lib/code-highlight-worker-client', async () =
 
 const options = (code: string, language = 'javascript') => ({ code, language, themes: miraCodeThemes })
 const text = (result: TokensResult) => result.tokens.map(line => line.map(token => token.content).join('')).join('\n')
+
+describe('Mira highlighted code color inheritance', () => {
+  const neutral = { color: '#24292E', '--shiki-dark': '#E1E4E8' }
+  const keyword = { color: '#D73A49', '--shiki-dark': '#F97583' }
+  const token = (content: string, htmlStyle: Record<string, string> = neutral) => ({ content, offset: 0, htmlStyle })
+
+  it('inherits the most frequent complete color pair regardless of property order', () => {
+    const html = renderMiraHighlightedCode({ tokens: [[
+      token('const', keyword), token(' '), token('answer', { '--shiki-dark': '#E1E4E8', color: '#24292E' }), token(' = '), token('42', keyword),
+    ]] }, 'typescript')
+    expect(html).toBe('<pre class="shiki"><code class="language-typescript"><span class="line" style="color:#24292E;--shiki-dark:#E1E4E8"><span style="color:#D73A49;--shiki-dark:#F97583">const</span> answer = <span style="color:#D73A49;--shiki-dark:#F97583">42</span></span></code></pre>')
+  })
+
+  it('retains font, background and decoration styles on their tokens', () => {
+    const extraStyles = [
+      { 'font-weight': 'bold' }, { 'font-style': 'italic' }, { 'background-color': '#fff' }, { 'text-decoration': 'underline' },
+    ]
+    const html = renderMiraHighlightedCode({ tokens: [[token('plain'), ...extraStyles.map((extra, index) => token(`extra${index}`, { ...neutral, ...extra }))]] }, 'text')
+    expect(html).toContain('<span class="line" style="color:#24292E;--shiki-dark:#E1E4E8">plain')
+    for (const [index, extra] of extraStyles.entries()) {
+      const [property, value] = Object.entries(extra)[0]
+      expect(html).toContain(`<span style="color:#24292E;--shiki-dark:#E1E4E8;${property}:${value}">extra${index}</span>`)
+    }
+    expect(html.match(/<span style=/g)).toHaveLength(4)
+  })
+
+  it.each([
+    { color: '#24292E' }, { '--shiki-dark': '#E1E4E8' }, { color: '', '--shiki-dark': '#E1E4E8' }, { color: '#24292E', '--shiki-dark': '' }, {},
+  ])('keeps the original HTML path if any token lacks a theme color: %j', style => {
+    const html = renderMiraHighlightedCode({ tokens: [[token('safe'), token('fallback', style)]] }, 'text')
+    expect(html).toContain('<span class="line"><span style="color:#24292E;--shiki-dark:#E1E4E8">safe</span>')
+    expect(html.match(/<span/g)).toHaveLength(3)
+  })
+
+  it('requires own theme colors and keeps unstyled or exclusively decorated lines unchanged', () => {
+    const inherited = Object.create(neutral) as Record<string, string>
+    const html = renderMiraHighlightedCode({ tokens: [[token('safe'), token('inherited', inherited)], [{ content: 'raw', offset: 0 }], [token('bold', { ...neutral, 'font-weight': 'bold' })]] }, 'text')
+    expect(html).toBe('<pre class="shiki"><code class="language-text"><span class="line"><span style="color:#24292E;--shiki-dark:#E1E4E8">safe</span><span>inherited</span></span>\n<span class="line"><span>raw</span></span>\n<span class="line"><span style="color:#24292E;--shiki-dark:#E1E4E8;font-weight:bold">bold</span></span></code></pre>')
+  })
+
+  it('escapes complete source and attributes while retaining empty and trailing lines', () => {
+    const html = renderMiraHighlightedCode({ rootStyle: 'color:red;--test:"safe"', tokens: [[token('<img src="x">&\r')], [], [token('')]] }, 'ts" onclick="bad')
+    expect(html).toBe('<pre class="shiki" style="color:red;--test:&quot;safe&quot;"><code class="language-ts&quot; onclick=&quot;bad"><span class="line" style="color:#24292E;--shiki-dark:#E1E4E8">&lt;img src=&quot;x&quot;&gt;&amp;\r</span>\n<span class="line"></span>\n<span class="line" style="color:#24292E;--shiki-dark:#E1E4E8"></span></code></pre>')
+    expect(html).not.toContain('<img')
+  })
+
+  it('selects colors independently per line without mutating frozen token content, offsets or styles', () => {
+    const result: MiraHighlightResult = { tokens: [[token('first')], [{ ...token('second', keyword), offset: 7 }]] }
+    const snapshot = structuredClone(result)
+    for (const line of result.tokens) {
+      for (const item of line) { Object.freeze(item.htmlStyle); Object.freeze(item) }
+      Object.freeze(line)
+    }
+    Object.freeze(result.tokens); Object.freeze(result)
+    const html = renderMiraHighlightedCode(result, 'text')
+    expect(html).toContain('<span class="line" style="color:#24292E;--shiki-dark:#E1E4E8">first</span>\n<span class="line" style="color:#D73A49;--shiki-dark:#F97583">second</span>')
+    expect(result).toEqual(snapshot)
+  })
+
+  it.each([{ themes: miraCodeThemes }, { themes: ['github-dark', 'github-light'] as [string, string] }])('preserves real CRLF offsets and both color themes for %j', async ({ themes }) => {
+    const source = 'const answer = "<Mira>";\r\n\r\nanswer;\r\n'
+    const renderer = createMiraCodeHighlighter()
+    const result = await renderer.highlight({ ...options(source, 'typescript'), themes })
+    const snapshot = structuredClone(result)
+    const html = renderMiraHighlightedCode(result, 'typescript')
+    expect(text(result)).toBe(source.replace(/\r\n/g, '\n'))
+    for (const item of result.tokens.flat()) expect(source.slice(item.offset, item.offset + item.content.length)).toBe(item.content)
+    expect(html.match(/class="line"/g)).toHaveLength(4)
+    expect(html).toContain('&lt;Mira&gt;')
+    expect(html.match(/<span/g)!.length).toBeLessThan(result.tokens.flat().length + result.tokens.length)
+    const codeKeyword = result.tokens[0].find(item => item.content === 'const')!
+    expect(html).toContain(`color:${codeKeyword.htmlStyle!.color};--shiki-dark:${codeKeyword.htmlStyle!['--shiki-dark']}`)
+    expect(result).toEqual(snapshot)
+  })
+})
 
 describe('Mira code highlighting with real Shiki grammars', () => {
   it('does not reuse tokens when equal-length code changes only in its middle', async () => {

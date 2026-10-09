@@ -20,7 +20,7 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:query-history', (_event, query) => database.queryHarnessHistory(query))
   ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
-  ipcMain.handle('harness:get-session', (_event, id: string) => database.harness.getSession(id))
+  ipcMain.handle('harness:get-session', (_event, id: string) => harnessRuntime.getSession(id))
   ipcMain.handle('harness:set-permission', (_event, id: string, permissionMode) => database.harness.setPermission(id, permissionMode))
   ipcMain.handle('harness:set-active-skills', (_event, id: string, skillIds: string[]) => {
     const requested = Array.isArray(skillIds) ? skillIds : []
@@ -41,23 +41,27 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:reorder-sessions', (_event, scope, ids: string[]) => database.harness.reorderSessions(scope, ids))
   ipcMain.handle('harness:set-unread', (_event, id: string, unread: boolean) => database.harness.setUnread(id, unread))
   ipcMain.handle('harness:move-session', (_event, id: string, projectId: string) => {
+    harnessRuntime.assertSessionMutable(id)
     const session = database.harness.moveSession(id, projectId)
     workspaceWatch?.closeForSession(id)
     return session
   })
   ipcMain.handle('harness:rename-session', (_event, id: string, title: string) => database.harness.renameSession(id, title))
   ipcMain.handle('harness:archive-sessions', (_event, ids: string[]) => {
+    ids.forEach(id => harnessRuntime.assertSessionMutable(id))
     const sessions = database.harness.archiveSessions(ids)
     ids.forEach(id => workspaceWatch?.closeForSession(id))
     return sessions
   })
   ipcMain.handle('harness:restore-sessions', (_event, ids: string[]) => database.harness.restoreSessions(ids))
   ipcMain.handle('harness:delete-session', (_event, id: string) => {
+    harnessRuntime.assertSessionMutable(id)
     const result = database.harness.deleteSession(id)
     workspaceWatch?.closeForSession(id)
     return result
   })
   ipcMain.handle('harness:delete-sessions', (_event, ids: string[]) => {
+    ids.forEach(id => harnessRuntime.assertSessionMutable(id))
     const result = database.harness.deleteSessions(ids)
     ids.forEach(id => workspaceWatch?.closeForSession(id))
     return result
@@ -89,9 +93,11 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
     return result.canceled ? [] : database.harness.selectFileReferences(projectId, result.filePaths)
   })
   ipcMain.handle('harness:attach-directory', async (event, sessionId: string) => {
+    harnessRuntime.assertSessionMutable(sessionId)
     const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
     const result = owner ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'], title: '选择工作目录' }) : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择工作目录' })
     if (result.canceled) return null
+    harnessRuntime.assertSessionMutable(sessionId)
     const session = database.harness.attachDirectory(sessionId, result.filePaths[0])
     workspaceWatch?.closeForSession(sessionId)
     return session

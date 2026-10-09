@@ -8,10 +8,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { firstPartyAppManifests } from '@/config/firstPartyApps'
 import { getPlatformApi } from '@/platform'
+import { navigateHarnessHost } from '@/platform/firstPartyNavigation'
 import { useThemeStore } from '@/stores/theme'
 import FirstPartyFrame from '@/pages/frontend/microAppHost/FirstPartyFrame.vue'
 
@@ -24,10 +25,9 @@ const url = ref('')
 const error = ref('')
 const routeError = ref('')
 const appFrame = ref<InstanceType<typeof FirstPartyFrame>>()
-function navigate(path: string) {
-  const allowed = ['/workspace/chat', '/workspace/harness-react', '/workspace/projects', '/workspace/automations', '/settings/mcp', '/settings/model-config', '/settings/general']
-  void router.push(allowed.includes(path) ? path : '/workspace/harness-react')
-}
+const navigate = (path: string) => navigateHarnessHost(router, path)
+const openCommandCenter = () => appFrame.value?.openCommandCenter()
+onBeforeUnmount(() => window.removeEventListener('mira:open-harness-command-center', openCommandCenter))
 onBeforeRouteLeave(async () => {
   if (!url.value || error.value) return true
   routeError.value = ''
@@ -41,6 +41,7 @@ onBeforeRouteLeave(async () => {
   }
 })
 onMounted(async () => {
+  window.addEventListener('mira:open-harness-command-center', openCommandCenter)
   if (!api) { error.value = 'Harness 仅在 Mira 桌面版可用'; return }
   try { url.value = new URL(manifest.entry.path, await api.resolveLocalMicroAppUrl('micro-mira-harness')).href }
   catch (cause) { error.value = cause instanceof Error ? cause.message : 'Harness 资源加载失败' }

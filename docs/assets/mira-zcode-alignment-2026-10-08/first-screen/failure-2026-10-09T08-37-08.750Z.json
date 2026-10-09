@@ -1,0 +1,561 @@
+{
+  "startedAt": "2026-10-09T08:36:53.741Z",
+  "home": "/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-first-screen-browser-oHAaxW",
+  "boundary": "Exact built production React app in an isolated opaque headless-Chrome iframe, real MessageChannel and bridge/parser; explicit session/permissions fixtures. Market uses actual public source and isolated real SkillStore. Not Electron grants/preload/IPC, native mouse/keyboard, ZCode same-state comparison or performance acceptance.",
+  "passed": false,
+  "checks": [
+    {
+      "name": "thread-and-real-turn-preview",
+      "attachments": 1
+    },
+    {
+      "name": "keyboard-add-preserves-caret-and-mouse-toggle-closes"
+    },
+    {
+      "name": "caret-file-reference-real-candidate"
+    },
+    {
+      "name": "archive-error-retry-restore-active-list"
+    },
+    {
+      "name": "shared-sidebar-host-command-center-content-result"
+    }
+  ],
+  "requests": [
+    {
+      "type": "mira:request",
+      "id": "1",
+      "method": "harness.sessions.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "2",
+      "method": "harness.projects.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "3",
+      "method": "harness.providers.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "4",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-drawer"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "5",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-composer-drafts"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "6",
+      "method": "harness.composer.preferences"
+    },
+    {
+      "type": "mira:request",
+      "id": "7",
+      "method": "harness.editors.list",
+      "params": {
+        "refresh": false
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "10",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-workspace"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "8",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-editor"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "9",
+      "method": "preferences.get",
+      "params": {
+        "key": "harness-react-pane-widths"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "11",
+      "method": "preferences.get",
+      "params": {
+        "key": "model-selection"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "12",
+      "method": "preferences.get",
+      "params": {
+        "key": "active-session"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "13",
+      "method": "harness.session.get",
+      "params": {
+        "id": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "14",
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "15",
+      "method": "preferences.get",
+      "params": {
+        "key": "session-model-selection.active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "16",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-model-selection.active",
+        "value": {
+          "providerId": "fixture-provider",
+          "modelId": "fixture-model"
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "17",
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "18",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "project"
+          ],
+          "view": "project",
+          "sort": "updated",
+          "groups": [],
+          "hiddenProjectIds": [],
+          "ungroupedSessionOrder": []
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "19",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {},
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "20",
+      "method": "harness.skills.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "21",
+      "method": "harness.mcp.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "22",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "active",
+        "path": ""
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "23",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {
+            "active": "已有草稿 后续正文"
+          },
+          "fileDrafts": {},
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "24",
+      "method": "harness.skills.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "25",
+      "method": "harness.mcp.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "26",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "active",
+        "path": ""
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "27",
+      "method": "harness.skills.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "28",
+      "method": "harness.mcp.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "29",
+      "method": "harness.skills.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "30",
+      "method": "harness.mcp.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "31",
+      "method": "harness.files.list",
+      "params": {
+        "sessionId": "active",
+        "path": ""
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "32",
+      "method": "harness.sessions.history",
+      "params": {
+        "archiveView": "archived",
+        "sort": "updated-desc",
+        "page": 1,
+        "pageSize": 50
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "33",
+      "method": "harness.sessions.history",
+      "params": {
+        "archiveView": "archived",
+        "sort": "updated-desc",
+        "page": 1,
+        "pageSize": 50
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "34",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {
+            "active": "请使用 "
+          },
+          "fileDrafts": {
+            "active": [
+              {
+                "path": "README.md",
+                "name": "README.md"
+              }
+            ]
+          },
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "35",
+      "method": "harness.session.restore",
+      "params": {
+        "id": "archived"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "36",
+      "method": "harness.sessions.list"
+    },
+    {
+      "type": "mira:request",
+      "id": "37",
+      "method": "harness.sessions.history",
+      "params": {
+        "archiveView": "archived",
+        "sort": "updated-desc",
+        "page": 1,
+        "pageSize": 50
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "38",
+      "method": "harness.sessions.history",
+      "params": {
+        "archiveView": "archived",
+        "sort": "updated-desc",
+        "page": 1,
+        "pageSize": 50
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "39",
+      "method": "harness.sessions.search",
+      "params": {
+        "query": "保持任务历史"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "40",
+      "method": "harness.files.search",
+      "params": {
+        "sessionId": "active",
+        "query": "保持任务历史",
+        "refresh": false
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "41",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-composer-drafts",
+        "value": {
+          "drafts": {
+            "active": "请使用 "
+          },
+          "fileDrafts": {
+            "active": [
+              {
+                "path": "README.md",
+                "name": "README.md"
+              }
+            ]
+          },
+          "config": {
+            "permission": "default",
+            "skillIds": [],
+            "mcpIds": [],
+            "delegation": true,
+            "planning": false
+          }
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "42",
+      "method": "harness.session.get",
+      "params": {
+        "id": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "43",
+      "method": "harness.permissions.pending",
+      "params": {
+        "sessionId": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "44",
+      "method": "preferences.set",
+      "params": {
+        "key": "harness-react-workspace",
+        "value": {
+          "active": {
+            "tabs": [],
+            "activeTab": "overview",
+            "fileTreeOpen": false,
+            "expandedFilePaths": [],
+            "browserUrl": "",
+            "recentClosedTabs": []
+          }
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "45",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-model-selection.active",
+        "value": {
+          "providerId": "fixture-provider",
+          "modelId": "fixture-model"
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "46",
+      "method": "preferences.set",
+      "params": {
+        "key": "active-session",
+        "value": "active"
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "47",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "project"
+          ],
+          "view": "group",
+          "sort": "updated",
+          "groups": [],
+          "hiddenProjectIds": [],
+          "ungroupedSessionOrder": []
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "48",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "project"
+          ],
+          "view": "group",
+          "sort": "updated",
+          "groups": [
+            {
+              "id": "499b1756-4ab7-4a4f-8804-a58616bdfbd4",
+              "name": "新分组",
+              "color": "gray",
+              "collapsed": false,
+              "sessionIds": []
+            }
+          ],
+          "hiddenProjectIds": [],
+          "ungroupedSessionOrder": []
+        }
+      }
+    },
+    {
+      "type": "mira:request",
+      "id": "49",
+      "method": "preferences.set",
+      "params": {
+        "key": "session-drawer",
+        "value": {
+          "expandedProjectIds": [
+            "project"
+          ],
+          "view": "group",
+          "sort": "updated",
+          "groups": [
+            {
+              "id": "499b1756-4ab7-4a4f-8804-a58616bdfbd4",
+              "name": "首屏研究",
+              "color": "gray",
+              "collapsed": false,
+              "sessionIds": []
+            }
+          ],
+          "hiddenProjectIds": [],
+          "ungroupedSessionOrder": []
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "captures": [
+    {
+      "name": "thread-light-1440",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "composer-context-light",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "sidebar-archive-light",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "command-center-light",
+      "width": 1440,
+      "theme": "light"
+    }
+  ],
+  "error": "locator.click: Timeout 12000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#app').contentFrame().getByRole('button', { name: '首屏研究 的菜单' })\u001b[22m\n\n    at /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen/mira-first-screen-browser.mjs:177:57",
+  "finishedAt": "2026-10-09T08:37:08.750Z"
+}

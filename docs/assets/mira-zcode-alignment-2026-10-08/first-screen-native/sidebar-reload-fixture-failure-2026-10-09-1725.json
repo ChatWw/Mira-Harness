@@ -1,0 +1,51 @@
+{
+  "startedAt": "2026-10-09T09:25:14.081Z",
+  "home": "/private/tmp/mira-first-screen-native-tA0SSf",
+  "window": {
+    "kCGWindowAlpha": 1,
+    "kCGWindowBounds": {
+      "Height": 900,
+      "Width": 1440,
+      "X": 135,
+      "Y": 42
+    },
+    "kCGWindowIsOnscreen": true,
+    "kCGWindowLayer": 0,
+    "kCGWindowMemoryUsage": 2432,
+    "kCGWindowName": "Mira Harness - Mira Harness",
+    "kCGWindowNumber": 4183,
+    "kCGWindowOwnerName": "Electron",
+    "kCGWindowOwnerPID": 74509,
+    "kCGWindowSharingState": 1,
+    "kCGWindowStoreType": 1
+  },
+  "originalFront": {
+    "bundle": "com.apple.ScreenContinuity",
+    "name": "iPhone镜像",
+    "pid": 78301
+  },
+  "boundary": "Native macOS clicks and Unicode key input on isolated unpackaged Mira. Real Vue Shell, production React opaque iframe, MessageChannel and Electron preload/IPC. This search test does not run models/scheduler, install market packages, prove ZCode same-state visuals or performance. Legacy /novel is platform fallback only, not the independent Mira Novel Studio implementation.",
+  "passed": false,
+  "records": [],
+  "captures": [],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "5e5987522c73338752f7be61a8238ad774324103d3fcb25dc278757080e7d6ba"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "21f735ff26ab9cbdeb5e6f4552dcc3c024f7c54d05802ae6a0631f528b0baa5f"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "a55365d07015352b69af2b51d382586963e2e492421e6056444b9ecac22dd819"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    }
+  ],
+  "error": "Error: Timed out: !!document.querySelector('.mira-session-actions')\n    at until (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:40:9)\n    at async harness (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:76:3)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:147:3",
+  "finishedAt": "2026-10-09T09:25:26.306Z"
+}

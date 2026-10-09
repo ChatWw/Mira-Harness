@@ -10,6 +10,10 @@
 @import "./file-drawer.css";
 @import "./file-preview.css";
 @import "./workspace-editors.css";
+@import "../components/extensions/skill-market.css";
+@import "../components/search/command-center.css";
+@import "../components/automations/automations.css";
+@import "../components/git/git-controls.css";
 
 /* Tailwind 组件与现有区域样式共享 Mira 的语义主题。 */
 @theme inline {

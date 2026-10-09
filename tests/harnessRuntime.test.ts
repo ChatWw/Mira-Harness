@@ -229,13 +229,13 @@ describe('HarnessRuntime tool approval', () => {
     expect(database.harness.setPendingInteraction).toHaveBeenCalledWith('session-1', expect.objectContaining({ questions: [expect.objectContaining({ multiSelect: true, options: [{ label: 'A' }, { label: 'B' }] })] }))
   })
 
-  it('runs the planning agent with the persisted plan instead of the pre-plan session snapshot', async () => {
+  it('prepares planning input without appending history before run admission', async () => {
     const sender = { isDestroyed: () => false, send: vi.fn() }
     const existingSession = { id: 'session-1', messages: [{ role: 'user', content: '规划这项改动' }], permissionMode: 'default' }
-    const persistedSession = { ...existingSession, activePlan: expect.objectContaining({ status: 'planning', request: '规划这项改动' }) }
     const database = {
       memories: { enabled: () => false },
       harness: {
+        getSession: vi.fn(() => existingSession),
         resolveMessageAttachments: vi.fn(() => []),
         addMessage: vi.fn(() => existingSession),
         setActivePlan: vi.fn((_id, plan) => ({ ...existingSession, activePlan: plan })),
@@ -247,8 +247,9 @@ describe('HarnessRuntime tool approval', () => {
 
     await runtime.runMessage(sender as any, 'session-1', '规划这项改动', [], { providerId: 'provider-1', modelId: 'model-1' } as any, true)
 
-    expect(database.harness.setActivePlan).toHaveBeenCalledWith('session-1', expect.objectContaining({ status: 'planning', request: '规划这项改动' }))
-    expect(runAgent).toHaveBeenCalledWith(sender, 'session-1', persistedSession, expect.anything(), expect.anything(), 'key', { planning: true })
+    expect(database.harness.addMessage).not.toHaveBeenCalled()
+    expect(database.harness.setActivePlan).not.toHaveBeenCalled()
+    expect(runAgent).toHaveBeenCalledWith(sender, 'session-1', existingSession, expect.anything(), expect.anything(), 'key', { planning: true, input: { text: '规划这项改动', attachments: [], started: undefined } })
   })
 })
 

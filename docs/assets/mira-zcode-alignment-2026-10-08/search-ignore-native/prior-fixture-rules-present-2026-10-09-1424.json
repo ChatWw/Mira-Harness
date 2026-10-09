@@ -1,0 +1,15 @@
+{
+  "startedAt": "2026-10-09T06:24:27.289Z",
+  "home": "/private/tmp/mira-native-ignore-aSLqrz",
+  "root": "/private/tmp/mira-native-ignore-aSLqrz/project",
+  "records": [],
+  "captures": [],
+  "passed": false,
+  "foregroundBefore": {
+    "bundle": "com.trae.app",
+    "name": "TRAE",
+    "pid": 95165
+  },
+  "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert.ok(initial.includes('node_modules/'))\n\n    at file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:110:10",
+  "finishedAt": "2026-10-09T06:24:28.228Z"
+}

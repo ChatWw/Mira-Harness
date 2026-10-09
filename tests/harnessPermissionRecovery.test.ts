@@ -34,4 +34,37 @@ describe('pending Harness permissions', () => {
       expect(await result).toMatchObject({ block: true })
     } finally { vi.useRealTimers() }
   })
+
+  it('cancels a stopped run immediately, ignores late approval and leaves other runs pending', async () => {
+    vi.useFakeTimers()
+    try {
+      const publish = vi.fn()
+      const database = { harness: { getPermissionConfig: () => ({ globalDefaultMode: 'default', dangerousCommands: [] }) } }
+      const policy = new HarnessPermissionPolicy(database as any, publish)
+      const stopped = new AbortController(), other = new AbortController()
+      const first = policy.preflight(undefined, 'session-a', descriptors, 'write', {}, false, undefined, stopped.signal)
+      const second = policy.preflight(undefined, 'session-b', descriptors, 'write', {}, false, undefined, other.signal)
+      const requestId = policy.listPending('session-a')[0].requestId
+      stopped.abort()
+      expect(await first).toMatchObject({ block: true, reason: '运行已停止' })
+      expect(policy.listPending('session-a')).toEqual([])
+      expect(policy.listPending('session-b')).toHaveLength(1)
+      policy.resolve(requestId, true)
+      expect(vi.getTimerCount()).toBe(1)
+      policy.resolve(policy.listPending('session-b')[0].requestId, true)
+      expect(await second).toBeUndefined()
+      expect(vi.getTimerCount()).toBe(0)
+      expect(publish.mock.calls.filter(([, event]) => event.type === 'error')).toEqual([])
+    } finally { vi.useRealTimers() }
+  })
+
+  it('never approves or publishes a request when the run is already stopped', async () => {
+    const publish = vi.fn()
+    const database = { harness: { getPermissionConfig: () => ({ globalDefaultMode: 'full', dangerousCommands: [] }) } }
+    const policy = new HarnessPermissionPolicy(database as any, publish)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(policy.preflight(undefined, 's', descriptors, 'write', {}, false, 'full', controller.signal)).resolves.toMatchObject({ block: true, reason: '运行已停止' })
+    expect(publish).not.toHaveBeenCalled()
+  })
 })

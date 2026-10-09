@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PlatformDatabase } from '../electron/storage/database'
 import { HarnessRuntime, parseMemoryExtraction } from '../electron/services/harnessRuntime'
+import type { HarnessEvent } from '../src/config/harness'
 
 const roots: string[] = []
 
@@ -12,8 +13,9 @@ function createRuntime() {
   roots.push(root)
   const database = new PlatformDatabase(root)
   const sender = { isDestroyed: () => true, send: vi.fn() } as any
-  const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
-  return { root, database, runtime, sender }
+  const events: HarnessEvent[] = []
+  const runtime = new HarnessRuntime(database, { getTools: () => [] } as any, event => events.push(event))
+  return { root, database, runtime, sender, events }
 }
 
 function memoryTool(runtime: HarnessRuntime, sender: any, sessionId: string, name: string) {
@@ -114,5 +116,157 @@ describe('HarnessRuntime file memory tools', () => {
     expect(database.memories.search('global', '专业')).toHaveLength(1)
     expect(database.memories.listPending()).toEqual([])
     database.close()
+  })
+
+  it('cancels sensitive confirmation immediately and ignores late approval', async () => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const session = database.harness.createSession()
+      const remember = memoryTool(runtime, sender, session.id, 'remember_memory')
+      const controller = new AbortController()
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+      const result = remember.execute('remember-personal', { scope: 'global', content: '用户邮箱为 test@example.com' }, controller.signal)
+      const request = events.find(event => event.payload.status === 'needs_confirmation')!
+      expect(database.memories.listPending()).toHaveLength(1)
+      expect(vi.getTimerCount()).toBe(1)
+
+      controller.abort()
+
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      expect(events.filter(event => event.payload.status === 'rejected')).toEqual([
+        expect.objectContaining({ sessionId: session.id, type: 'memory-status', payload: expect.objectContaining({ requestId: request.payload.requestId, candidateId: request.payload.candidateId, status: 'rejected' }) }),
+      ])
+      expect(await result).toMatchObject({ details: { status: 'rejected' } })
+      runtime.respondMemoryConfirmation(String(request.payload.requestId), true)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(database.memories.list('global')).toEqual([])
+      expect(database.memories.listPending()).toEqual([])
+      expect(events.filter(event => event.payload.status === 'rejected')).toHaveLength(1)
+      expect(events.some(event => ['saved', 'failed'].includes(String(event.payload.status)))).toBe(false)
+    } finally { database.close(); vi.useRealTimers() }
+  })
+
+  it('does not save when approval is followed by cancellation before resuming execution', async () => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const session = database.harness.createSession()
+      const controller = new AbortController()
+      const remember = memoryTool(runtime, sender, session.id, 'remember_memory')
+      const result = remember.execute('remember-personal', { scope: 'global', content: '用户邮箱为 test@example.com' }, controller.signal)
+      const request = events.find(event => event.payload.status === 'needs_confirmation')!
+
+      runtime.respondMemoryConfirmation(String(request.payload.requestId), true)
+      controller.abort()
+
+      expect(await result).toMatchObject({ details: { status: 'rejected' } })
+      expect(database.memories.list('global')).toEqual([])
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      expect(events.filter(event => event.payload.status === 'rejected')).toEqual([
+        expect.objectContaining({ payload: expect.objectContaining({ requestId: request.payload.requestId, status: 'rejected' }) }),
+      ])
+    } finally { database.close(); vi.useRealTimers() }
+  })
+
+  it.each(['用户邮箱为 test@example.com', '用户偏好中文回复'])('does not persist an already cancelled memory tool: %s', async content => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const session = database.harness.createSession()
+      const controller = new AbortController()
+      controller.abort()
+      const remember = memoryTool(runtime, sender, session.id, 'remember_memory')
+
+      const result = remember.execute('remember-cancelled', { scope: 'global', content }, controller.signal)
+
+      expect(events).toEqual([])
+      await expect(result).rejects.toMatchObject({ name: 'AbortError' })
+      expect(database.memories.list('global')).toEqual([])
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { database.close(); vi.useRealTimers() }
+  })
+
+  it('only cancels the stopped session and lets another session approve its memory', async () => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const first = database.harness.createSession(), second = database.harness.createSession()
+      const stopped = new AbortController(), other = new AbortController()
+      const result = memoryTool(runtime, sender, first.id, 'remember_memory').execute('remember-a', { scope: 'global', content: '用户邮箱为 test@example.com' }, stopped.signal)
+      const otherResult = memoryTool(runtime, sender, second.id, 'remember_memory').execute('remember-b', { scope: 'global', content: '同事邮箱为 second@example.com' }, other.signal)
+      const request = events.find(event => event.sessionId === second.id && event.payload.status === 'needs_confirmation')!
+
+      stopped.abort()
+
+      expect(database.memories.listPending()).toEqual([expect.objectContaining({ sessionId: second.id, status: 'needs_confirmation' })])
+      expect(await result).toMatchObject({ details: { status: 'rejected' } })
+      expect(vi.getTimerCount()).toBe(1)
+      runtime.respondMemoryConfirmation(String(request.payload.requestId), true)
+      expect(await otherResult).toMatchObject({ details: { created: true } })
+      expect(database.memories.list('global')).toEqual([expect.objectContaining({ content: '同事邮箱为 [邮箱]', sourceSessionId: second.id })])
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { database.close(); vi.useRealTimers() }
+  })
+
+  it.each([true, false])('cleans confirmation timers and listeners after a normal response: %s', async approved => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const session = database.harness.createSession()
+      const controller = new AbortController()
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+      const result = memoryTool(runtime, sender, session.id, 'remember_memory').execute('remember-personal', { scope: 'global', content: '用户邮箱为 test@example.com' }, controller.signal)
+      const request = events.find(event => event.payload.status === 'needs_confirmation')!
+
+      runtime.respondMemoryConfirmation(String(request.payload.requestId), approved)
+
+      expect(await result).toMatchObject({ details: approved ? { created: true } : { status: 'rejected' } })
+      expect(database.memories.list('global')).toHaveLength(approved ? 1 : 0)
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      const completed = [...events]
+      controller.abort()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(events).toEqual(completed)
+    } finally { database.close(); vi.useRealTimers() }
+  })
+
+  it('cleans timed-out confirmation and ignores subsequent cancellation or approval', async () => {
+    vi.useFakeTimers()
+    const { database, runtime, sender, events } = createRuntime()
+    try {
+      database.memories.setEnabled(true)
+      const session = database.harness.createSession()
+      const controller = new AbortController()
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+      const result = memoryTool(runtime, sender, session.id, 'remember_memory').execute('remember-personal', { scope: 'global', content: '用户邮箱为 test@example.com' }, controller.signal)
+      const request = events.find(event => event.payload.status === 'needs_confirmation')!
+
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+
+      expect(await result).toMatchObject({ details: { status: 'rejected' } })
+      expect(database.memories.listPending()).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      expect(events.filter(event => event.payload.status === 'rejected')).toEqual([
+        expect.objectContaining({ payload: expect.objectContaining({ requestId: request.payload.requestId, reason: '确认超时' }) }),
+      ])
+      controller.abort()
+      runtime.respondMemoryConfirmation(String(request.payload.requestId), true)
+      expect(database.memories.list('global')).toEqual([])
+      expect(events.filter(event => event.payload.status === 'rejected')).toHaveLength(1)
+    } finally { database.close(); vi.useRealTimers() }
   })
 })

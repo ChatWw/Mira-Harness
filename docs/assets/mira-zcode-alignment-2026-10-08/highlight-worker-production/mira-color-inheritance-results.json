@@ -1,0 +1,910 @@
+{
+  "startedAt": "2026-10-09T06:56:40.033Z",
+  "passed": true,
+  "boundary": "Independent headless Chrome diagnostic. Current shared production renderer and built production CSS; tokenizer runs only in Node to prepare reference fixtures. No Worker, React scheduler, Electron, native input, INP or whole-product acceptance.",
+  "stylesheetSha256": "776315833fb7a2cd4903c04db8cbe5d1580f361cf79121fa3b1e5e2bfedf05ea",
+  "comparisons": [
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-light",
+        "github-dark"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 94380,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 27303,
+      "afterElements": 14703,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "typescript",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 50,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 17,
+      "afterElements": 11,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "vue",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 94,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 33,
+      "afterElements": 19,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "python",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 38,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 13,
+      "afterElements": 9,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": false,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "completed",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "file",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    },
+    {
+      "language": "text",
+      "themes": [
+        "github-dark",
+        "github-light"
+      ],
+      "surface": "streaming",
+      "dark": true,
+      "characters": 46,
+      "perCharacterComputedStylesEqual": true,
+      "fullSourceEqual": true,
+      "beforeElements": 10,
+      "afterElements": 8,
+      "scrollWidthEqual": true
+    }
+  ],
+  "runtime": "154.0.8037.99",
+  "finishedAt": "2026-10-09T06:57:30.308Z"
+}

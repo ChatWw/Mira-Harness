@@ -92,7 +92,9 @@ function mount(controller: PilotController) {
     return found
   }
   const showFiles = async () => {
-    ;(props(props => props['aria-label'] === '查看文件').onClick as () => void)()
+    ;(props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function').onClick as () => void)()
+    render()
+    ;(props(props => typeof props.onOpen === 'function' && Array.isArray(props.tabs)).onOpen as (id: string) => void)('files')
     await drain()
   }
   const openFile = (path: string) => (props(props => typeof props.onOpenFile === 'function').onOpenFile as (path: string) => void)(path)

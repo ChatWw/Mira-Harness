@@ -17,13 +17,14 @@ import type { WorkspaceEditorInfo } from '../../lib/workspace-editors'
 
 export type ProjectFileDrawerProps = {
   controller: PilotController
-  sessionId: string
+  projectId?: string
+  sessionId?: string
   directory?: string
   selectedPath?: string
   expandedPaths: string[]
   onExpandedPathsChange: (paths: string[]) => void
-  onOpenFile: (path: string) => void
-  onAddFile: (path: string) => void
+  onOpenFile?: (path: string) => void
+  onAddFile?: (path: string) => void
   onBack: () => void
   onOpenDirectory: () => void
   openingDirectory?: boolean
@@ -35,17 +36,29 @@ export type ProjectFileDrawerProps = {
 
 const ROW_HEIGHT = 28
 
-export function ProjectFileDrawer({ controller, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
-  const source = useMemo(() => new FileTreeDataSource(async path => (await controller.listFilesFor(sessionId, path)).entries), [controller, sessionId, directory])
+export function ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
+  const fileSessionId = projectId ? undefined : sessionId
+  const hasWorkspace = Boolean(directory && (projectId || fileSessionId))
+  const source = useMemo(() => new FileTreeDataSource(async path => {
+    if (projectId) return (await controller.listProjectFiles(projectId, path)).entries
+    if (fileSessionId) return (await controller.listFilesFor(fileSessionId, path)).entries
+    throw new Error('未关联项目或任务')
+  }), [controller, projectId, fileSessionId, directory])
   const data = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot)
-  const searchSource = useMemo(() => new FileSearchDataSource((query, refresh) => controller.searchFilesFor(sessionId, query, refresh)), [controller, sessionId, directory])
+  const searchSource = useMemo(() => new FileSearchDataSource(async (query, refresh) => {
+    if (projectId) return controller.searchProjectFiles(projectId, query, refresh)
+    if (fileSessionId) return controller.searchFilesFor(fileSessionId, query, refresh)
+    throw new Error('未关联项目或任务')
+  }), [controller, projectId, fileSessionId, directory])
   const search = useSyncExternalStore(searchSource.subscribe, searchSource.getSnapshot, searchSource.getSnapshot)
+  const supportsGit = Boolean(projectId ? controller.supportsProjectWorkspaceGit : fileSessionId && controller.supportsWorkspaceGit)
   const gitSource = useMemo(() => new FileGitDataSource(
-    controller.supportsWorkspaceGit ? () => controller.getWorkspaceGitFor(sessionId) : undefined,
-    controller.supportsWorkspaceGit ? paths => controller.getWorkspaceIgnoredFor(sessionId, paths) : undefined,
-  ), [controller, sessionId, directory, controller.supportsWorkspaceGit])
+    supportsGit ? () => projectId ? controller.getProjectWorkspaceGit(projectId) : controller.getWorkspaceGitFor(fileSessionId!) : undefined,
+    supportsGit ? paths => projectId ? controller.getProjectWorkspaceIgnored(projectId, paths) : controller.getWorkspaceIgnoredFor(fileSessionId!, paths) : undefined,
+  ), [controller, projectId, fileSessionId, directory, supportsGit])
   const git = useSyncExternalStore(gitSource.subscribe, gitSource.getSnapshot, gitSource.getSnapshot)
-  const watch = useSyncExternalStore(workspaceWatch?.subscribe || subscribeWithoutWorkspaceWatch, workspaceWatch?.getSnapshot || getEmptyWorkspaceWatch, getEmptyWorkspaceWatch)
+  const activeWorkspaceWatch = fileSessionId ? workspaceWatch : undefined
+  const watch = useSyncExternalStore(activeWorkspaceWatch?.subscribe || subscribeWithoutWorkspaceWatch, activeWorkspaceWatch?.getSnapshot || getEmptyWorkspaceWatch, getEmptyWorkspaceWatch)
   const searching = Boolean(search.query.trim())
   const searchInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -91,9 +104,9 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
     pendingFocus.current = undefined
     treeHasFocus.current = false
     if (scrollRef.current) scrollRef.current.scrollTop = 0
-    if (directory) { void source.loadDirectory(''); void gitSource.refresh() }
+    if (hasWorkspace) { void source.loadDirectory(''); void gitSource.refresh() }
     return () => { source.deactivate(); searchSource.deactivate(); gitSource.deactivate() }
-  }, [source, searchSource, gitSource, directory])
+  }, [source, searchSource, gitSource, hasWorkspace])
 
   useEffect(() => { if (!git.available && !git.loading) setShowChangedOnly(false) }, [git.available, git.loading])
 
@@ -111,7 +124,7 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
     void gitSource.refresh()
   }, [source, searchSource, gitSource, watch.revision])
 
-  useEffect(() => { onWatchDirectoriesChange?.(watchedDirectories) }, [onWatchDirectoriesChange, watchedDirectoriesKey])
+  useEffect(() => { if (fileSessionId) onWatchDirectoriesChange?.(watchedDirectories) }, [fileSessionId, onWatchDirectoriesChange, watchedDirectoriesKey])
 
   useEffect(() => {
     setSelectionPath(selectedPath)
@@ -147,6 +160,7 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
     if (element) { element.focus({ preventScroll: true }); pendingFocus.current = undefined }
   }
   function setSearchQuery(query: string) {
+    if (!hasWorkspace) return
     if (!query.trim()) pendingReveal.current = selectionPath
     searchSource.setQuery(query)
   }
@@ -159,7 +173,7 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
   function openRow(row: FileTreeRow) {
     selectRow(row)
     if (isDeletedFile(row)) return
-    if (row.type === 'file') onOpenFile(row.path)
+    if (row.type === 'file') onOpenFile?.(row.path)
     else if (searching) {
       searchSource.setQuery('')
       pendingReveal.current = row.path
@@ -190,7 +204,7 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
     } else if (searching) openRow(row)
     else { selectRow(row); setExpanded(action.path, action.kind === 'expand') }
   }
-  function refreshFiles() { if (watch.error) workspaceWatch?.retry(); searchSource.refresh(); void source.refresh(expandedPaths); void gitSource.refresh() }
+  function refreshFiles() { if (!hasWorkspace) return; if (watch.error) activeWorkspaceWatch?.retry(); searchSource.refresh(); void source.refresh(expandedPaths); void gitSource.refresh() }
   async function copyPath(path: string) {
     const isCurrent = source.guard()
     setActionError('')
@@ -206,7 +220,7 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
 
   return <aside className="mira-file-drawer" aria-label="项目文件">
     <div className="mira-file-drawer__back"><button type="button" onClick={onBack}><ArrowLeft size={16} /><span>返回任务</span></button></div>
-    <div className="mira-file-drawer__search"><Search size={14} aria-hidden="true" /><input ref={searchInputRef} type="text" aria-label="搜索文件" placeholder="搜索文件" maxLength={256} disabled={!directory} value={search.query} onChange={event => setSearchQuery(event.target.value)} onKeyDown={event => {
+    <div className="mira-file-drawer__search"><Search size={14} aria-hidden="true" /><input ref={searchInputRef} type="text" aria-label="搜索文件" placeholder="搜索文件" maxLength={256} disabled={!hasWorkspace} value={search.query} onChange={event => setSearchQuery(event.target.value)} onKeyDown={event => {
       if (event.nativeEvent.isComposing) return
       if (event.key === 'Escape' && search.query) { event.preventDefault(); setSearchQuery('') }
       else if (event.key === 'ArrowDown' && rows.length) { event.preventDefault(); focusRow(rows[0].path) }
@@ -219,15 +233,15 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
         <DropdownMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(directory!)}><Copy size={14} />复制项目路径</DropdownMenu.Item>
       </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
       {(git.available || showChangedOnly) && <button type="button" className="mira-file-drawer__icon" title={showChangedOnly ? '显示全部文件' : '只看变更'} aria-label={showChangedOnly ? '显示全部文件' : '只看变更'} aria-pressed={showChangedOnly} onClick={toggleChangedFiles}><GitCommitVertical size={14} /></button>}
-      <button type="button" className="mira-file-drawer__icon" title="刷新文件" aria-label="刷新文件" disabled={!directory || root?.loading || data.refreshing || search.loading} onClick={refreshFiles}><RefreshCw size={14} className={root?.loading || data.refreshing || search.loading || git.loading ? 'pilot-spin' : undefined} /></button>
+      <button type="button" className="mira-file-drawer__icon" title="刷新文件" aria-label="刷新文件" disabled={!hasWorkspace || root?.loading || data.refreshing || search.loading} onClick={refreshFiles}><RefreshCw size={14} className={root?.loading || data.refreshing || search.loading || git.loading ? 'pilot-spin' : undefined} /></button>
     </header>
     {actionError && <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{actionError}</span></div>}
-    {watch.error && <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{watch.error}</span><button type="button" title="重试文件自动刷新" aria-label="重试文件自动刷新" onClick={workspaceWatch?.retry}><RefreshCw size={14} /></button></div>}
+    {watch.error && <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{watch.error}</span><button type="button" title="重试文件自动刷新" aria-label="重试文件自动刷新" onClick={activeWorkspaceWatch?.retry}><RefreshCw size={14} /></button></div>}
     {git.error && <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{git.error}</span><button type="button" title="重试读取 Git 状态" aria-label="重试读取 Git 状态" onClick={() => void gitSource.refresh()}><RefreshCw size={14} /></button></div>}
     {searching && search.error ? <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{search.error}</span><button type="button" title="重试文件搜索" aria-label="重试文件搜索" onClick={() => searchSource.refresh()}><RefreshCw size={14} /></button></div> : !searching && root?.error ? <div className="mira-file-drawer__error" role="alert"><CircleAlert size={14} /><span>{root.error}</span><button type="button" title="重试加载文件" aria-label="重试加载文件" disabled={root.loading} onClick={refreshFiles}><RefreshCw size={14} /></button></div> : null}
     {searching && search.truncated && <div className="mira-file-drawer__state" role="status">仅显示前 1000 项匹配结果</div>}
     <div ref={scrollRef} className="mira-file-drawer__tree" role="tree" aria-label={`${rootName} ${searching ? '搜索结果' : '文件'}`} aria-busy={Boolean(searching ? search.loading : root?.loading || data.refreshing)} tabIndex={rows.length ? undefined : 0} onFocusCapture={() => { treeHasFocus.current = true }} onBlurCapture={event => { treeHasFocus.current = event.currentTarget.contains(event.relatedTarget as Node | null) }}>
-      {changedOnly && git.loading ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在读取 Git 状态</div> : searching ? search.loading ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在搜索文件</div> : !search.error && !rows.length ? <div className="mira-file-drawer__state" role="status">{changedOnly ? '没有匹配的变更文件' : '没有匹配的文件'}</div> : null : !directory ? <div className="mira-file-drawer__state" role="status">未关联项目目录</div> : !root?.entries && !root?.error ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在加载文件</div> : !root?.error && !rows.length ? <div className="mira-file-drawer__state" role="status">{changedOnly ? '没有变更文件' : '此目录为空'}</div> : null}
+      {changedOnly && git.loading ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在读取 Git 状态</div> : searching ? search.loading ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在搜索文件</div> : !search.error && !rows.length ? <div className="mira-file-drawer__state" role="status">{changedOnly ? '没有匹配的变更文件' : '没有匹配的文件'}</div> : null : !hasWorkspace ? <div className="mira-file-drawer__state" role="status">未关联项目目录</div> : !root?.entries && !root?.error ? <div className="mira-file-drawer__state" role="status"><LoaderCircle size={14} className="pilot-spin" />正在加载文件</div> : !root?.error && !rows.length ? <div className="mira-file-drawer__state" role="status">{changedOnly ? '没有变更文件' : '此目录为空'}</div> : null}
       <div className="mira-file-drawer__rows" role="presentation" style={{ height: virtualizer.getTotalSize() }}>
         {virtualRows.map(item => {
           const row = rows[item.index]
@@ -249,15 +263,15 @@ export function ProjectFileDrawer({ controller, sessionId, directory, selectedPa
             {!row.loading && decoration.statuses.length > 0 && <span className="mira-file-drawer__git-dot" data-file-git-color={decoration.statuses[0]} data-file-git-dot={decoration.statuses[0]} role="img" title={descendantLabel} aria-label={`目录包含：${descendantLabel}`} />}
             {row.loading ? <LoaderCircle size={12} className="pilot-spin" aria-hidden="true" /> : row.error ? <CircleAlert size={12} className="mira-file-drawer__warning" aria-hidden="true" /> : row.expanded && row.empty ? <span className="mira-file-drawer__empty">空</span> : null}
           </div></ContextMenu.Trigger><ContextMenu.Portal container={portal}><ContextMenu.Content className="mira-session-menu" onCloseAutoFocus={restoreTreeFocus} onInteractOutside={() => { menuDismissedOutside.current = true }}>
-            <ContextMenu.Item className="mira-session-menu__item" disabled={deleted} onSelect={() => openRow(row)}>{row.type === 'directory' ? <FolderOpen size={14} /> : <FileText size={14} />}{row.type === 'directory' ? row.expanded ? '收起目录' : '展开目录' : '打开'}</ContextMenu.Item>
+            <ContextMenu.Item className="mira-session-menu__item" disabled={deleted || row.type === 'file' && !onOpenFile} onSelect={() => openRow(row)}>{row.type === 'directory' ? <FolderOpen size={14} /> : <FileText size={14} />}{row.type === 'directory' ? row.expanded ? '收起目录' : '展开目录' : '打开'}</ContextMenu.Item>
             <ContextMenu.Sub><ContextMenu.SubTrigger className="mira-session-menu__item" disabled={deleted || !editors.some(editor => row.type === 'file' || !editor.fileOnly) || !onOpenEditor}><ExternalLink size={14} />打开方式<ChevronRight size={13} /></ContextMenu.SubTrigger><ContextMenu.Portal container={portal}><ContextMenu.SubContent className="mira-session-menu mira-editor-menu" sideOffset={4}>
-              {editors.filter(editor => row.type === 'file' || !editor.fileOnly).map(editor => <ContextMenu.Item key={editor.id} className="mira-session-menu__item" disabled={deleted} onSelect={() => { if (deleted) return; setActionError(''); void onOpenEditor?.(row.path, editor.id).catch(cause => setActionError(cause instanceof Error ? cause.message : '编辑器打开失败，请重试')) }}>{editor.name}</ContextMenu.Item>)}
+              {editors.filter(editor => row.type === 'file' || !editor.fileOnly).map(editor => <ContextMenu.Item key={editor.id} className="mira-session-menu__item" disabled={deleted || !onOpenEditor} onSelect={() => { if (deleted || !onOpenEditor) return; const isCurrent = source.guard(); setActionError(''); void onOpenEditor(row.path, editor.id).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '编辑器打开失败，请重试') }) }}>{editor.name}</ContextMenu.Item>)}
             </ContextMenu.SubContent></ContextMenu.Portal></ContextMenu.Sub>
             {row.error && <ContextMenu.Item className="mira-session-menu__item" disabled={row.loading} onSelect={() => void source.loadDirectory(row.path, true)}><RefreshCw size={14} />重新加载</ContextMenu.Item>}
             <ContextMenu.Separator className="mira-session-menu__separator" />
             <ContextMenu.Item className="mira-session-menu__item" onSelect={() => void copyPath(row.path)}><Copy size={14} />复制相对路径</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(fileTreeAbsolutePath(directory!, row.path))}><Copy size={14} />复制绝对路径</ContextMenu.Item>
-            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" disabled={filePreviewKind(row.path) === 'bitmap'} onSelect={() => { if (filePreviewKind(row.path) !== 'bitmap') onAddFile(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
+            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" disabled={!onAddFile || filePreviewKind(row.path) === 'bitmap'} onSelect={() => { if (filePreviewKind(row.path) !== 'bitmap') onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
           </ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
         })}
       </div>

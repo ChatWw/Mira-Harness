@@ -256,14 +256,54 @@ describe('Harness workspace search ignore rules', () => {
     const root = await workspace()
     await writeFile(join(root, '.miraignore'), 'original/\n')
     const initial = await readHarnessWorkspaceSearchIgnore(root)
-    const results = await Promise.allSettled([
-      writeHarnessWorkspaceSearchIgnore(root, 'first/\n', initial.revision),
-      writeHarnessWorkspaceSearchIgnore(root, 'second/\n', initial.revision),
-    ])
+    const contents = ['first/\n', 'second/\n']
+    const results = await Promise.allSettled(contents.map(content => writeHarnessWorkspaceSearchIgnore(root, content, initial.revision)))
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    const winnerIndex = results.findIndex(result => result.status === 'fulfilled')
+    const winner = results[winnerIndex]
     const rejected = results.find(result => result.status === 'rejected')
     expect(rejected?.status === 'rejected' && rejected.reason.message).toContain('已被修改')
-    expect(await readFile(join(root, '.miraignore'), 'utf8')).toBe('first/\n')
+    const saved = await readFile(join(root, '.miraignore'), 'utf8')
+    expect(saved).toBe(contents[winnerIndex])
+    expect(winner.status === 'fulfilled' && winner.value.content).toBe(saved)
+    expect(await readdir(root)).toEqual(['.miraignore'])
+  })
+
+  it.each([
+    { delayed: 'first', winner: 'second' },
+    { delayed: 'second', winner: 'first' },
+  ] as const)('serializes concurrent saves with $delayed root resolution gated so $winner commits', async ({ delayed, winner }) => {
+    const root = await workspace()
+    await writeFile(join(root, '.miraignore'), 'original/\n')
+    const initial = await readHarnessWorkspaceSearchIgnore(root)
+    const originalStat = (await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')).lstat
+    let entered!: () => void
+    let release!: () => void
+    const enteredGate = new Promise<void>(resolve => { entered = resolve })
+    const gate = new Promise<void>(resolve => { release = resolve })
+    // Delay canonical root resolution before lock admission, not the serialized commit.
+    vi.mocked(fs.lstat).mockImplementationOnce(async (path, options) => {
+      entered()
+      await gate
+      return originalStat(path, options)
+    })
+    const delayedSave = Promise.allSettled([writeHarnessWorkspaceSearchIgnore(root, `${delayed}/\n`, initial.revision)])
+    try {
+      await enteredGate
+      const unblocked = await Promise.allSettled([writeHarnessWorkspaceSearchIgnore(root, `${winner}/\n`, initial.revision)])
+      release()
+      const results = [...await delayedSave, ...unblocked]
+      const fulfilled = results.filter(result => result.status === 'fulfilled')
+      expect(fulfilled).toHaveLength(1)
+      expect(results[0].status).toBe('rejected')
+      expect(results[1].status).toBe('fulfilled')
+      const rejected = results.find(result => result.status === 'rejected')
+      expect(rejected?.status === 'rejected' && rejected.reason.message).toContain('已被修改')
+      const saved = await readFile(join(root, '.miraignore'), 'utf8')
+      expect(saved).toBe(`${winner}/\n`)
+      expect(fulfilled[0].status === 'fulfilled' && fulfilled[0].value.content).toBe(saved)
+      expect(await readdir(root)).toEqual(['.miraignore'])
+    } finally { release(); await delayedSave }
   })
 
   it('rechecks authorization immediately before commit and cleans a denied temporary save', async () => {

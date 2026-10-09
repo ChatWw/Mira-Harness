@@ -1,13 +1,12 @@
 # Mira Harness 工作台交互规格
 
-最近更新：2026-10-09。状态：文件工作区、搜索、保存、监听、外部编辑器、位图/SVG、Git 装饰及删除虚拟行/只看变更、搜索忽略规则与 Vue 设置已实现。本批自动检查、类型、React/Electron 编译、审计与独立 Chrome headless 已有通过记录，最终限定评审统一看本批证据页，不沿用旧 Git/filter verdict。原生设置/搜索/浏览与旧错误态、图片/Git 同态 ZCode 仍待确认。整体 active，性能/发布/P0–P3 未放行，未提交、未推送；用户已授权直接对齐所提供的 ZCode 软件/源码。第 13 节是验收要求，不代表发布关口完成。
-范围：`apps/harness-react` 的 Harness 主工作台及 Vue 平台文件搜索设置；保留 Electron/Vue/React 职责和受控授权边界，允许为草稿离开保存、项目文件选择等交互闭环作必要协议扩展，不改旧 Vue `/workspace/chat` 的业务语义。
+最近更新：2026-10-09 16:46 +08:00。当前续作入口统一为 [首屏完整对齐与验收](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，侧栏细项见 [侧栏记录](./MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)。本批侧栏、对话和 Composer 已接入一批真实生产行为；第 1–13 节按当前代码与明确待办更新，不用文件支线成果替代首屏对齐。
 
-当前续做入口：[搜索忽略规则与 Vue 设置](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md#2026-10-09-搜索忽略规则与-vue-设置)。Electron 能力、Vue 双层 Shell 与 React 正式第一方入口 `/workspace/harness-react` 已接入；原型/pilot 是开发辅助入口。旧日期实施段落保留历史证据，其中“下一图片/Git/删除与筛选/搜索 ignore”等当时待办不覆盖本轮状态。安装包、Windows、真实模型完整矩阵及 P0–P3 整体关口仍未验收。
+范围：Electron 能力、Vue 双层 Shell/统一设置、React 第一方 Harness 工作台 `/workspace/harness-react`。自动化/Skill 市场为 React 主视图，设置仍归 Vue；保留既有 scheduler、数据库、权限、记忆、委派和草稿协议。原型/pilot 只作开发辅助，不改旧 Vue `/workspace/chat` 的业务语义。
 
-当前检查见 [2026-10-09 搜索忽略规则与 Vue 设置](#26-2026-10-09-搜索忽略规则与-vue-设置)，最终数字、headless、审计与限定评审统一引用 [搜索忽略规则证据页](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)。旧 Chrome headless 的真实 Vue/Element Plus/AppIcon/样式与 HTTP 文件服务 fixture 不包含 preload/IPC，7 张图保持原采集身份。新增真实隔离 Electron preload/IPC bridge 与 CDP DOM 只读 probe 已通过，不等于实体输入/截图验收。旧批次数字与限定 verdict 保留原日期/范围；编译不等于安装包、Windows 或整体发布验收。
+源码已实现独立任务组/项目菜单/归档与排序、Shell/侧栏共享搜索、React 自动化与固定开源 Skill 市场、Header/轮次导航/附件/真实执行摘要，以及 caret `@`/`/`/`$`/`+`。市场固定 commit/raw 下载的 14 个 Apache-2.0 包，不自动更新 main，不是在线 MCP 市场。最新检查和页面样本覆盖以首屏总文档为准；限定回归、真实生产 React opaque iframe headless 与 Electron grant/preload/IPC、实体输入、ZCode 同态比较分别记录。
 
-2026-10-09 续作：搜索 ignore 不重复实施，真实 Electron 的 Vue Proxy 克隆 P2 已修复并复核。当前锁屏阻止前景鼠标/键盘/截图，下一入口为解锁后重启隔离 Electron，仅补本批设置/搜索/浏览有限原生交互，不自动扩展为完整 native、同态 ZCode、Windows、真实模型或 P0–P3 放行。Git metadata watcher 仅为随后候选，先设计 root/Git metadata/grant 生命周期，既有文件 watch 不等于它。旧错误态、图片/Git 对照与媒体 lease/Range、高亮 Worker/profile 独立推进，依据见 [下一能力审查](./assets/mira-zcode-alignment-2026-10-08/NEXT_CAPABILITY_AUDIT_2026-10-09.md)，旧截图或旧 ship 不放行本批/整体。
+本批完整原生/同态截图/首屏性能未验收，队列、完整 reasoning/工具输入输出、多模态、阅读恢复/长线程虚拟化与导航/搜索历史仍未完成。旧文件/搜索/Worker 证据见 [对齐记录](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md)；第 14–27 节保留当时日期、数字、失败及“下一步”的历史身份，不作为现在的续作顺序或通过结论。整体 active，发布/P0–P3 未放行，本批未提交或推送；第 13 节是验收要求，不代表已完成。
 
 ## 1. 目标与判断
 
@@ -30,12 +29,16 @@ Mira Shell（Electron + Vue + Wujie）
 └── Mira Harness（React）
     ├── Session Sidebar
     │   ├── 新建任务
+    │   ├── 共用命令中心
+    │   ├── 自动化 / 插件市场主视图
     │   ├── 置顶任务
     │   ├── 运行中 / 待审批
-    │   ├── 项目分组
-    │   └── 最近任务
+    │   ├── 独立分组 / 项目两个视图
+    │   ├── 归档 / 排序
+    │   └── 设置 / 技能 / MCP / 用量
     ├── Task Thread
     │   ├── Thread Header
+    │   ├── Conversation Turn Rail
     │   ├── Task Summary
     │   ├── Messages / Plan / Activity / Interaction
     │   └── Composer
@@ -55,7 +58,7 @@ Mira Shell（Electron + Vue + Wujie）
 - 左右列都可拖拽调整宽度，宽度变化不改变中间消息的阅读宽度上限。
 - 中间 Thread 由 Header、可滚动消息区和固定 Composer 组成。Composer 固定在消息区底部，不随消息流失去焦点。
 - 右侧面板打开时，中间线程保持最小 520px；不足时自动收窄内容间距，不强行压缩控件文字。
-- 任务摘要以中间线程右上角的轻量浮层常驻，显示当前阶段、已完成步骤、变更数量和“打开工作区”入口；不遮挡消息和 Composer。
+- 任务摘要在 Thread 右上角按真实内容出现，提供自动/胶囊/展开三种状态；计划、子任务、文件变更和执行过程按需展开，不造无数据摘要，不遮挡 Composer。
 
 ## 4. 紧凑窗口布局（<= 1180px）
 
@@ -63,66 +66,90 @@ Mira Shell（Electron + Vue + Wujie）
 - 同一时间只允许打开一个浮层；打开会话栏时自动关闭工作区，反之亦然。
 - 会话浮层宽度为 `min(360px, calc(100vw - 24px))`，工作区为 `min(420px, calc(100vw - 24px))`；关闭按钮和 Esc 均可退出。提前进入浮层模式可保证 1024px 窗口的 Thread 不被双侧栏挤压。
 - Header 提供会话栏、工作区、任务状态三个稳定入口；不能依赖悬停操作。
-- Composer 的模式切换改为横向 segmented control，空间不足时收进“更多”菜单，禁止文字竖排。
+- Composer 继续使用紧凑 `+`、权限/计划、模型/推理/发送工具栏；权限仍是 Radix 菜单，不新增第三套模式切换。文字不足时收窄/换行，禁止控件文字竖排。
 
 ## 5. Session Sidebar
 
 ### 5.1 顶部
 
-- 顶部提供新任务、搜索和会话栏开合入口；下方是平台级导航、项目与任务列表，单行任务保持紧凑密度。
+- 顶部依次为新任务、搜索、自动化、插件市场；新建/搜索展示 `⌘/Ctrl+N/K`，收起时快捷键仍挂载。单行任务保持紧凑密度，hover/focus 显示实际动作与 tooltip。
 - 新任务回到居中起点，项目/个人工作区选择与 Composer 保持连续；首条发送时建立对应会话，不要求先在侧栏完成创建表单。
-- 已实现会话搜索、分组、重命名、置顶/归档、移动与上下文菜单；具体鼠标和键盘结果由本轮验收矩阵记录。
+- 自动化与市场切换 React 主视图，保留侧栏选中态及对话草稿，不再跳旧 Vue 工作台。底部设置/技能/MCP/用量使用 Vue 统一页面，合法 pathname/query 经校验并携带正式 React 返回来源。
 
 ### 5.2 分组顺序
 
-1. `置顶`：用户明确置顶的任务。
-2. `需要处理`：待审批、需要回答澄清或失败待恢复的任务。
-3. `运行中`：当前仍有 Harness run 的任务。
-4. 项目分组：项目名、会话数、展开/折叠状态可持久化。
-5. `最近任务`：按最近更新时间排序，显示未读和最后状态。
+1. 全局 `置顶`，进入归档仍保留。
+2. `需要处理` / `运行中` 的未分组优先任务；已加入自定义组的运行任务留原组，行状态可见，不重复搬到队列。
+3. `分组` 视图：独立自定义组与未分组列表；名称、7 色、折叠、成员与组顺序持久化，不等于项目目录。
+4. `项目` 视图：项目及个人工作区，项目展开/排序与隐藏状态持久化。项目区默认分段显示，可显示更多。
 
-会话行显示：标题、项目名/工作目录、状态点、未读点或运行 spinner。运行中和待处理任务永远优先于纯历史任务。
+只有分组/项目两个一级入口；创建时间、最近更新与手动排序均持久化。项目时间线和全部展开/折叠尚未实现，不能把它们写成已通过。
+
+会话行显示标题、真实计划/待确认/运行/未读状态，并在 tooltip/菜单保留工作目录。读取偏好成功前不把初始空值写回；失败可重试，晚到读取不覆盖本地修改，受控离开等待最新保存。
 
 ### 5.3 操作
 
 - 单击打开会话；右键或 `...` 打开上下文菜单：重命名、置顶、标记已读、移动项目、归档、复制工作目录/会话 ID、打开终端/文件管理器、删除。
+- 组动作提供组内真实新任务、名称/颜色、成员移入/移出和解散；解散只清组关系、保留对话。迟到创建完成不能抢走用户已切换的任务/草稿/市场/自动化。
+- 项目行在 hover/focus 提供新任务、文件树、更多；菜单提供真实重命名、目录/终端打开、手动排序与隐藏。隐藏/恢复只改入口，绝不调用会删除会话/回收站/自动化的旧 `deleteProject`。原生目录添加取消不改数据，失败可见。
 - 拖拽只改变同一排序范围内的顺序；键盘拖拽使用方向键，不能只支持鼠标。
-- 搜索只过滤侧栏，不影响当前 Thread 的消息检索。
+- 归档按钮打开/退出归档列表，不归档当前任务；列表分页、打开、恢复、二步永久删除有 loading/error/empty。恢复/删除在途换排序不永久锁定 busy；批量删除未实现。
 - 控件和选中态使用黑白/灰语义；运行状态同时提供文字/图标，待处理 amber、失败 red、完成 green，不用 teal 作为通用主操作色。
+
+### 5.4 共享搜索与主视图
+
+- Harness 活动时，侧栏搜索、应用 `⌘/Ctrl+K` 与 Vue Shell 搜索都打开 `HarnessCommandCenter`。非 Harness 应用保留平台命令/应用入口，不创建第二套全局搜索。
+- 命令调用真实动作；对话查询真实正文并显示片段，点击打开正确任务/消息；文件查询复用当前授权目录 `files.search` 与 ignore，结果打开真实预览。query、session/root 与请求代际变化拒绝旧结果。
+- 分类、方向键/Enter/Esc、加载/空/错误/重试与焦点按成熟浮层处理；搜索历史和完整工作台导航历史仍未实现。
+- `AutomationsView` 复用现有 scheduler/存储，任务创建/编辑、启停、立即运行、停止、确认删除、记录/重试、草稿保存真实接线，不重写引擎。实际定时触发原生验收另记。
+- `SkillMarketView` 有目录/搜索/详情/已安装/安装。首个固定来源为 `anthropics/skills` commit `683bc88e56f3e09ba94f7055977f3d3aa499f202` 的 14 个包级 Apache-2.0 包，通过固定 raw 地址下载，保留包名/源码/许可/通知/hash；不跟随 main、不执行脚本。MCP 仍为本地配置，不假称在线安装市场。
 
 ## 6. Task Thread
 
 ### 6.1 Header
 
-- Header 为 48px 单层应用标题条，左侧提供会话栏入口、当前任务标题与必要状态；新任务显示相应空态标题。
+- Header 为 48px 单层应用标题条，左侧提供会话栏、可达的工作目录信息、当前任务标题与任务菜单；空任务不重复显示大标题。
 - 项目/工作目录归属于任务上下文和 Composer 项目条，不再用两行大标题重复占据阅读区。
-- 右侧提供任务摘要、文件/变更/终端/浏览器与工作区开合入口；只暴露已接通的 Mira 能力。
+- 目录菜单提供完整路径、复制和受控文件管理器打开。任务更多菜单复用侧栏真实操作；不加入没有数据的 branch/云分享/分叉。
+- 右侧提供真实任务状态、外部编辑器、文件、终端与工作区开合；变更/浏览器从资源 launcher/摘要进入，不堆叠占位图标。
 - 状态 badge 文案：`等待任务`、`正在执行`、`等待确认`、`已完成`、`已停止`、`执行失败`。
 
 ### 6.2 消息与任务轨迹
 
 - 用户消息靠右，助手消息靠左，正文阅读宽度控制在 65–75ch。
-- 每个 run 在助手消息下形成可折叠时间线：理解任务、计划、工具调用、子任务、结果。
-- 默认展示步骤名称、状态、耗时和一句结果摘要；参数、原始输出和错误详情通过折叠展开。
+- 两个及以上真实用户轮次出现轮次 rail，hover/focus 展示实际 prompt/response 片段，点击定位，滚动同步当前轮次。尚未实现轮级虚拟化与跨任务阅读位置恢复。
+- 用户消息呈现真实文本附件；安全的相对工作区路径可打开受控预览，外部附件只显示真实名称，不伪造工作区路径。
+- 当前 run 即使正文尚空也投影到助手时间线；运行/等待确认用 live 行，结束后折叠为 completed/failed/stopped/partial 及实际完成数/耗时。
+- 工具记录显示真实名称、target、running/ok/failed/waiting-confirm、diff/error；无参数或输出明确说明记录未提供，不生成假的 reasoning、完整输入输出或事件顺序。
 - 文件变更以独立摘要行出现，点击直接打开右侧“变更”面板并定位文件。
-- 助手消息操作：复制、编辑并重跑、重新生成；运行期间禁用会改变历史的操作。
+- 用户编辑并重跑；助手复制有反馈，重新生成只针对最新符合条件的助手轮次。历史助手不能用相同按钮重跑最新任务，运行期间禁用改变历史的操作。
 - 长任务消息区保持自动跟随底部；用户向上滚动后显示“回到底部”按钮，不抢夺阅读位置。
 
 ### 6.3 悬浮任务摘要
 
-摘要是 Thread 的状态 HUD，不是第二个任务面板。内容固定为：状态、当前阶段、已完成步骤数、变更数、工作区入口。运行结束后保留为可回顾的结果摘要，点击可定位到最后一个 run。
+摘要是 Thread 的状态 HUD，不是第二个任务面板。有真实活动、计划、子任务或变更才出现；提供 `auto/mini/panel` 显示方式，胶囊点击展开，面板可收起。
+
+真实计划可定位待审核请求，计划步骤有实际状态；变更打开资源面板；子任务列表显示真实 queued/running/stopping/结束/失败，停止动作调用实际 Controller，失败可见；执行过程入口定位最新助手。未接 Goal、画板、工作流等数据时不出现假分区或按钮。
 
 ## 7. Composer
 
 ### 7.1 主输入
 
-- 输入框支持中文输入法、`Enter` 发送、`Shift+Enter` 换行、`/` 触发命令菜单、附件 chip 和文件引用。引用文件前必须先选择项目；系统选择器支持项目目录内文件和项目外文本文件，取消选择不改变已有 chip，读取/发送失败保留草稿并提示恢复动作。
+- 输入框保留中文合成保护，发送/换行跟随宿主统一 `sendShortcut`，不另建 React 偏好。支持 caret `@`/`/`/`$`、附件 chip 和文件引用；触发 token 前后正文保留。系统文件选择器保持既有项目/文本附件边界，取消不改变已有 chip，读取/发送失败保留草稿。
 - 无会话时可保留草稿、选择项目/个人工作区与配置，首条发送建立会话；创建失败保留输入并显示恢复入口。无模型时给出管理模型入口。
-- 发送按钮只在可发送且有文本时启用；运行中切换为停止按钮。
+- 发送按钮只在可发送且有文本时启用，准备期间显示 spinner。运行中可继续写草稿但仍只有真实停止按钮；输入队列/指导、附件-only 与多模态尚无完成契约，不用换按钮假装实现。
 
-### 7.2 工具栏顺序
+### 7.2 上下文与能力候选
 
-左组为添加上下文、权限与计划模式、上下文用量；右组为模型和发送/停止。文件、Skill、MCP 收入添加上下文菜单，避免工具栏持续堆叠。
+- `@` 使用 caret 当前 token 和真实文件/同项目对话/已启用 Skill/MCP 分类；文件调用 `files.search`，对话引用读取真实正文，不只插名称。`$` 直达真实 Skill 候选。
+- `/` 在 caret token 范围内筛选命令与实际能力，选择后只替换 token。计划、权限、模型/推理、委派、记忆等执行现有 Controller 动作；不能用“命令”覆盖整篇草稿。
+- `+` 打开同一分类 Popover，提供真实文本附件、命令、文件、对话、Skill/MCP；保留打开前选择范围。菜单 loading/error/empty 可重试，切任务/root/token 不应用旧候选。
+- 方向键移动、Enter/Tab 选择、Esc 关闭，disabled 候选不选；鼠标选择后回输入焦点。关闭任一菜单不误停止 run，只有无浮层时 Esc 才进入真实停止逻辑。
+- 工具图标使用 Lucide 与 tooltip/快捷键提示；不为 `@`/`/` 重复增加常驻文本按钮。chip 可移除，选择/取消/失败均不自动发送。
+
+### 7.3 工具栏顺序
+
+左组为添加上下文、权限与可移除计划标记；右组为宿主控制的上下文用量、模型、推理和发送/停止。文件、Skill、MCP 收入分类候选，避免工具栏持续堆叠。
 
 - 模型和权限使用紧凑 popover，不使用原生 select 挤占宽度。
 - 模型菜单按 provider 分组并可搜索，当前项有选中状态；模型具备 reasoning 能力时提供推理档位选择和快速循环控件，不支持时隐藏入口。模型及有效档位按会话保存，切换 A/B 不继承其他会话的选择，恢复时忽略不可用模型和非法档位。
@@ -218,12 +245,12 @@ Mira Shell（Electron + Vue + Wujie）
 - `files.git-status({ sessionId }) -> { available, entries }` 与 ignored 读取从持久化会话解析授权 root，使用异步 `execFile`、NUL parser；不信任调用方路径或继承的 Git repository 环境覆盖。前后复核 root/repository/metadata 身份，IPC 返回前复核 grant/session/root，变更中的旧结果不可发布。
 - 后端最多两条 Git 命令同时运行、最多 16 条等待；每条 10 秒超时、stdout/stderr 各 8MiB，进程 stdio 排空后释放槽位。React status 与 ignored 各自单在途；ignored 每批最多 512 可见路径、缓存已查路径，刷新重建缓存，version/active guard 拒绝旧响应。
 - 首次进入、手动刷新和工作区变化通知触发 Git 刷新；loading 保留最后成功 available/index 与筛选，清 ignored cache 并推进 version guard，显示读取中。切换筛选不清 query/展开/selection，刷新期间 deleted 行、其菜单与已聚焦行保持；明确失败/非仓库、session/root 变化才清快照并重置筛选，普通树仍可浏览。非仓库 `available:false` 不显示 Git 错误；Git 缺失、超时、超限或失败提供脱敏错误和 retry。无 Git 写操作或 metadata watcher，外部 `git add/commit` 不保证自动刷新，可手动更新。
-- 搜索 ignore 规则/配置尚未对齐；本节不表示完整 Git 文件工作区已完成，后续差异与源码依据见 [下一能力审查](./assets/mira-zcode-alignment-2026-10-08/NEXT_CAPABILITY_AUDIT_2026-10-09.md)。
+- 搜索 ignore 规则/配置已接入第 8.12 节；本节不表示完整 Git 文件工作区或 metadata watcher 完成，旧能力审查保留当时范围。
 - 验收分别记录真实隔离 Git helper/状态解析与预算回归、grant/IPC 单测、正式生产 React + MessageChannel + 实际第一方桥/parser 的 headless，以及真实 Electron 浅深色操作/同态 ZCode 比较。watch 通知为 fixture、剪贴板为 iframe stub，不等于原生监听、grant 或 Vue 设置通过；最新证据统一见 [删除与筛选证据页](./assets/mira-zcode-alignment-2026-10-08/GIT_FILTER_EVIDENCE.md)。新独立源码/10 图逐张复核 slice-pass，文档一致性复核通过，旧 overlay ship 不覆盖本批，原生验收待完成。
 
 ### 8.12 搜索忽略规则与平台设置
 
-- 规则只作用于非空 query 的实际工作区文件搜索，不覆盖 `@`/Command Center。浏览树、预览、上传和 Agent 文件权限不使用 matcher，不能把 ignore 当权限或秘密隔离；Git ignored 行装饰也是独立语义。
+- 规则作用于非空 query 的实际文件搜索。文件抽屉、Composer `@` 和 Command Center 已复用 `files.search`，因此使用同一规则。浏览树、预览、上传和 Agent 文件权限不使用 matcher，不能把 ignore 当权限或秘密隔离；Git ignored 行装饰也是独立语义。
 - 使用成熟 `ignore` 7.0.5 解析器；首次非空搜索安全初始化根 `.miraignore`，设置读取缺失文件只返回模板、不落盘。模板由根 `.gitignore` seed 与上游默认段组成，落盘后不自动同步；空规则允许搜索依赖/默认排除目录，根 `.miraignore` 自身不进入候选。保留 Mira 既有 dotfile 搜索，不追加上游 `.env`/二进制/隐藏目录候选排除。
 - Vue `/settings/file-search` 归平台设置，复用 SettingsPageShell/Element Plus/AppIcon；工作区选择器只提供 DB 已有项目及个人会话工作区，无任意路径输入。没有工作区显示空态，加载失败显示具体安全错误与重读入口；加载成功前禁编辑和保存。
 - 同步 `.gitignore` 只替 seed、恢复默认只替 defaults，保留当前草稿的自定义/未变段，保存才落盘。分区标记缺失或重复明确报错，保留草稿，不静默重建。处理中禁重复操作；模板可未修改首次保存，已有文件仅修改后可保存；超过 256KiB UTF-8 字节禁保存。
@@ -250,7 +277,7 @@ Mira Shell（Electron + Vue + Wujie）
 
 ## 11. 空态、加载态、失败态
 
-- 空态：说明 Harness 能做什么，并提供三个可点击任务示例；不显示虚假的执行记录。
+- 空态：使用当前任务起点、真实目录/模型选择与可输入 Composer；不添加功能介绍、虚假任务示例或执行记录。
 - 加载态：保留布局尺寸，使用局部 skeleton/spinner，不让 Thread 跳动。
 - 失败态：说明失败阶段、已保留的结果和下一步；支持重试、编辑重跑、复制错误。
 - 长文本和超长路径必须省略并提供完整 tooltip，不能撑破侧栏或工具栏。
@@ -262,25 +289,25 @@ Mira Shell（Electron + Vue + Wujie）
 ```text
 src/
 ├── app/              # React 入口、挂载、路由边界
-├── components/       # composer、conversation、session、workbench、workspace、interactions
+├── components/       # composer、conversation、session、search、automations、extensions、workbench、workspace、interactions
 ├── hooks/            # 布局、面板、会话偏好、终端生命周期
 ├── state/            # PilotController、selectors、projections
 ├── platform/         # FirstPartyHarnessHost 与宿主适配
 ├── lib/              # 无业务副作用的工具
 ├── styles/           # token、全局和组件样式
-└── types/            # 工作台 UI 类型
+└── workers/          # 独立代码高亮执行入口
 ```
 
 迁移只调整 import 路径和文件归属，保留现有 `PilotController`、`FirstPartyHarnessHost`、`app-main.tsx`、`pilot-main.tsx` 的运行时职责。
 
 ## 13. 实施顺序与验收
 
-1. 规格文档和目录骨架落地；验证 TypeScript 路径无循环依赖。
-2. 迁移入口、宿主、状态和基础组件；验证 `tsc --noEmit`。
-3. 重做 Composer、Thread Header、摘要和执行轨迹；验证发送、停止、审批、重跑行为测试。
-4. 重做 Session Sidebar 和 Workspace 面板；验证文件、变更、终端、浏览器生命周期测试。
-5. 宽屏/紧凑窗口视觉验收；验证 1440px、1024px 与 820px 无溢出、无竖排文字、浮层互斥。
-6. 运行全量测试、React 构建、`git diff --check`，并更新阶段记录。
+1. 对已实施首屏做最新正式构建的接入回归；验证侧栏/搜索/自动化/市场、对话状态/轮次/附件及 Composer 候选的真实回调、授权、迟到与保存边界。
+2. 对生产 React 做浏览器行为与截图检查；验证浅/深、宽/紧凑窗口、hover/focus/菜单/失败/跨视图草稿，不把 fixture 范围扩大到原生。
+3. 在隔离 Electron 正式入口按 ZCode 同态逐入口核对；验证 native picker、设置返回、实体输入/IME/快捷键、重启持久化及三块首屏四态。
+4. 补真实运行契约缺口；队列、完整 reasoning/工具输入输出、多模态、阅读/导航/搜索历史先查既有 Runtime，产品范围变化再确认，不画无效功能。
+5. 对最新产物测首屏、长线程与输入响应；记录真实条件、冷暖与主线程成本，不用测试数量/Worker 响应代替性能。
+6. 运行最终测试、React/Vue 类型、正式构建和 `git diff --check`；及时更新首屏总文档、PRD、交接与来源记录。
 
 验收门槛：
 
@@ -292,13 +319,13 @@ src/
 
 ## 14. 2026-09-30 实施对照与下一次开工入口
 
-本节及第 15 节为历史记录，保留当时的完成/待办与检查数字；当前续做入口统一看 [2026-10-08 对齐记录](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md)，不再根据历史“下一步”重新要求设计评审。
+第 14–27 节均保留历史记录、当时待办与检查数字；当前续作入口统一看 [2026-10-09 首屏完整对齐与验收](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。旧“下一文件能力”和 `@`/Command Center 尚未使用 ignore 的结论只属于当时调用范围，不再作为现在的状态。
 
 **代码已落地**：三栏/紧凑浮层、会话搜索与优先队列、Thread/摘要/Composer、Radix 模型与权限菜单、计划修改与澄清、文件树已加载节点筛选/刷新、变更增删行号、多终端管理、会话级工作区偏好和浏览器 URL 恢复。浏览器受 Shell 单 WebView 约束，切会话重建视图而非保留原生历史；终端仅在同一次应用运行内保留进程，页面刷新后按已存 tab 新建。
 
 **仍未达到本规格**：文件全目录搜索、变更按 run 分组及大段上下文折叠、活动运行时长和工具错误复制、完整任务状态的真实桌面截图、打包版终端/浏览器生命周期、Windows 和真实模型/实体输入验收。上述是待办，不应因静态构建和模拟截图通过而标记为完成。
 
-**下次从这里开始**：先用隔离开发 Electron 对运行、待审批、失败、完成四态逐项操作并记录截图与宿主调用结果；再处理上述剩余交互，最后做打包 macOS/Windows 验收和默认入口切换决策。阶段执行记录详见 [MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md](./MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md) 第 23 节。
+**当时下一次入口（历史）**：用隔离开发 Electron 对运行、待审批、失败、完成四态逐项验证，再处理剩余交互与打包验收。后续阶段执行记录见 [ZCode 对齐记录](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md)，当前续作入口按本节开头的首屏对齐文档。
 
 ## 15. 2026-09-30 首屏与作用域改造记录
 
@@ -439,4 +466,26 @@ launcher 原生拖宽从 420px flex 单列/48px 行变为 559px grid 三列/88px
 
 **真实桥续作（2026-10-09 13:26 +08:00）**：真实 Electron 复现第二个 P2：Vue Proxy target 经 `contextBridge` 报 `An object could not be cloned.`；`shallowRef` 与普通 `{ kind, id }` 请求快照覆盖初读、重读、transform、save，回归与独立源码复核通过。最新全量/类型、React 与 Electron 重新构建及审计通过，JS/CSS 字节不变，准确结果只看证据页。13:14:15 的 [bridge/DOM probe](./assets/mira-zcode-alignment-2026-10-08/search-ignore-native/bridge-transport-results.json) 经真实 preload/IPC，模板约 460B、textarea 启用且内容一致、无 alert；三产物 SHA 与最新构建一致，但 probe 未重跑。仅 CDP 只读观察，不是实体输入/截图验收，7 张旧 headless 图保持原采集身份。
 
-**剩余与下一入口**：从 [本批对齐记录](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md#2026-10-09-搜索忽略规则与-vue-设置) 与第 8.12 节继续；代码为 `harnessWorkspaceIgnore.ts`、`harnessWorkspaceSearch.ts`、`harnessWorkspaceIgnoreIpc.ts`、`src/pages/backend/fileSearch/`。前景仍为 `616=com.apple.loginwindow`，隔离 Electron 已退出、无可见窗口，原生脚本在夹具设置/输入前记录 `blockedBy=macOS-loginwindow`、0 actions/0 captures，未解锁或使用 `DOM.click`，不算功能失败。下一步解锁后重启隔离 Electron，仅补本批配置/搜索/浏览有限原生验收，不自动扩展为完整 native 或同态 ZCode 放行。Git metadata watcher 仅为随后候选，不把文件 watch 当它；旧错误态/image/Git、媒体 lease/Range、高亮 Worker/profile 分别推进。整体 active，P0–P3/性能/发布未放行，未提交、未推送；历史数字、限定 verdict、`9→0` 和 force reload 保存边界保留。
+**历史下一入口（13:26）**：当时锁屏阻断了有限原生验收；该独立结果 JSON 未保留下来，当前 `results.json` 已是后续成功流程，不引用它回证锁屏。下面第 27 节替代本段为当前入口；源码仍为 `harnessWorkspaceIgnore.ts`、`harnessWorkspaceSearch.ts`、`harnessWorkspaceIgnoreIpc.ts`、`src/pages/backend/fileSearch/`。历史数字、限定 verdict、`9→0` 和 force reload 保存边界保留。
+
+## 27. 2026-10-09 生产 Worker 与有限原生验收
+
+**完成**：流式代码、完成态围栏、虚拟文件源码共享 Shiki Oniguruma WASM Worker，完整 grammar/token/style/offset 不截断；grammarState 不跨结构化克隆，主线程没有 tokenizer fallback。opaque iframe 仍为 `allow-scripts allow-forms`；Blob classic Worker 只导入可信构建入口。正式卸载 dispose、消费者隔离取消、暖 owner、乱序/错误/重试、传输在途预算与超时均有独立回归。
+
+**交互契约**：流式正文 loading/error/ready 保持同样的完整源码行与行号几何，错误条有明确重试；复制/下载使用原始完整源码，引用仍走消息来源，不受高亮装饰改变。深色继承生产 #root/theme 契约。Worker tokenizer 响应与主线程 HTML/DOM 着色分开测量，不能把不卡 tokenizer 写成产品无长任务或 INP 已达标。
+
+**有限原生验收**：真实 Mira Electron/preload/IPC/React 中原生编辑、保存、未保存取消、外部冲突保留草稿/文件、重读恢复、浏览不过滤/搜索过滤和结果预览通过，三图逐张确认。旧 HTTP headless、CDP probe、锁屏、脚本输入失败保留各自身份，见 [搜索证据](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)。这不是隐藏上游设置的逐像素对照或完整原生发布验收。
+
+**剩余与下次入口**：准确自动检查、资源/许可、Chrome 实际 React、隐藏 Electron fixture 和 DOM 性能结果只见 [Worker 证据](./assets/mira-zcode-alignment-2026-10-08/HIGHLIGHT_WORKER_EVIDENCE.md)。下一入口回到旧监听/编辑器错误态与图片/Git 同态 ZCode 对照，再依据测量决定 DOM/profile 的后续；metadata watcher、媒体 lease/Range 和发布单独实施。整体目标 active，本轮没有执行提交或推送。
+
+## 28. 2026-10-09 首屏实现与当前续作
+
+更新：2026-10-09 16:46 +08:00。本节和顶部首屏总文档替代旧文件批次的“当前/下一步”。
+
+完成：第 5–7 节已按真实生产入口更新；侧栏独立组/项目/归档/排序/底部、共享搜索、React 自动化与固定 Skill 市场、Header/轮次/附件/真实状态胶囊、caret `@`/`/`/`$`/`+` 已有实现。自动化复用现有 scheduler，配置复用 Vue/宿主，项目隐藏与组解散保留历史。
+
+验证：16:18:39 +08:00 侧栏 5 文件/49 项为限定回归；最新整合构建、类型、浏览器结果、最终截图和准确覆盖以 [首屏总文档](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md) 为准，不重复旧样本或未确认数字。浏览器市场安装使用本机临时显式代理和隔离 SkillStore，不证明 raw 直连/native Electron 下载；桌面使用 Electron `net.fetch` 遵循现有系统代理，不改系统设置，系统代理关闭时的直连失败仍须实测。
+
+剩余：最新首屏完整浅/深主题操作、原生鼠标/键盘/IME/快捷键/设置返回/重启恢复、同态 ZCode 截图与首屏性能；运行中队列、完整 reasoning/工具输入输出、多模态、轮级虚拟化/阅读恢复、导航/搜索历史、全部展开/折叠、项目时间线与批量归档删除。旧文件错误态、图片/Git 同态、metadata watcher、媒体与发布是独立待办，不抢首屏优先级。
+
+下次从最新正式构建的三块首屏逐入口验收开始；每条分别记源码、回归、浏览器、Electron 链与实体操作，不写宽泛“侧栏通过/完整复刻完成”。整体 active，未提交或推送。

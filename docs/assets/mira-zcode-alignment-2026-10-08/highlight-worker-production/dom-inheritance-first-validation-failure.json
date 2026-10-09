@@ -1,0 +1,20 @@
+{
+  "startedAt": "2026-10-09T06:41:02.629Z",
+  "passed": false,
+  "checks": [
+    {
+      "name": "tests",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exitCode": 1,
+      "elapsedMs": 30938,
+      "log": "tests.log"
+    }
+  ],
+  "boundary": "Unit/core/transport/SSR tests, type checks, unpackaged build and fresh multi-root artifacts. Not Electron native UI, packaged/Windows, model execution or entire ZCode alignment acceptance.",
+  "failure": "tests failed; inspect tests.log",
+  "finishedAt": "2026-10-09T06:41:33.570Z"
+}

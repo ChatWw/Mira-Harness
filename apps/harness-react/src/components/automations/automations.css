@@ -1,0 +1,130 @@
+.mira-automations { display: flex; min-width: 0; min-height: 0; height: 100%; flex: 1; flex-direction: column; color: var(--mira-foreground); background: var(--mira-panel); }
+.mira-automations button, .mira-automations input, .mira-automations select, .mira-automations textarea, .mira-automation-dialog button { font: inherit; }
+.mira-automations button:disabled, .mira-automation-dialog button:disabled { opacity: .45; cursor: default; }
+.mira-automations button:focus-visible, .mira-automations input:focus-visible, .mira-automations select:focus-visible, .mira-automations textarea:focus-visible, .mira-automations summary:focus-visible, .mira-automation-dialog button:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-automation-header { display: flex; height: 48px; min-height: 48px; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--mira-border); }
+.mira-automation-header h1 { margin: 0; font-size: 14px; font-weight: 550; }
+.mira-automation-header-divider { color: var(--mira-foreground-subtlest); }
+.mira-automation-breadcrumb { overflow: hidden; min-width: 0; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.mira-automation-header-actions { display: flex; margin-left: auto; }
+.mira-automation-icon { display: inline-flex; width: 28px; height: 28px; flex: 0 0 28px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; color: inherit; background: transparent; }
+.mira-automation-icon:hover { background: var(--mira-hover); }
+.mira-automation-scroll { min-height: 0; flex: 1; overflow: auto; padding: 28px 32px; scrollbar-width: thin; scrollbar-color: var(--mira-border-hover) transparent; container-type: inline-size; }
+.mira-automation-content { max-width: 1080px; margin: 0 auto; }
+.mira-automation-content--editor { max-width: 760px; }
+.mira-automation-page-heading, .mira-automation-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
+.mira-automation-page-heading h2, .mira-automation-editor-heading h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 20px; line-height: 1.4; font-weight: 550; }
+.mira-automation-primary, .mira-automation-secondary, .mira-automation-danger { display: inline-flex; flex: 0 0 auto; min-height: 30px; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border: 1px solid transparent; border-radius: 6px; color: var(--mira-primary-foreground); background: var(--mira-primary); font-size: 13px; }
+.mira-automation-secondary { border-color: var(--mira-border); color: var(--mira-foreground); background: transparent; }
+.mira-automation-secondary:hover { background: var(--mira-hover); }
+.mira-automation-danger { color: var(--mira-destructive-foreground); background: var(--mira-destructive); }
+.mira-automation-tabs { display: inline-flex; gap: 3px; margin: 0 0 22px; padding: 3px; border-radius: 6px; background: var(--mira-surface); }
+.mira-automation-tabs button { min-height: 28px; padding: 3px 12px; border: 0; border-radius: 4px; color: var(--mira-foreground-subtle); background: transparent; font-size: 13px; }
+.mira-automation-tabs button[aria-selected="true"] { color: var(--mira-foreground); background: var(--mira-panel); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.mira-automation-overview { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 18px; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-automation-overview b { margin-left: 6px; color: var(--mira-foreground); font-weight: 500; font-variant-numeric: tabular-nums; }
+.mira-automation-overview [data-failed="true"] b { color: var(--mira-destructive); }
+.mira-automation-toolbar, .mira-automation-history-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 22px; }
+.mira-automation-search { display: flex; min-width: 180px; flex: 1; height: 34px; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--mira-input-border); border-radius: 6px; background: var(--mira-input); }
+.mira-automation-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: inherit; background: transparent; font-size: 13px; }
+.mira-automation-filters { display: flex; flex-wrap: wrap; gap: 3px; }
+.mira-automation-filters button { min-height: 28px; padding: 3px 8px; border: 0; border-radius: 5px; color: var(--mira-foreground-subtle); background: transparent; font-size: 12px; }
+.mira-automation-filters button:hover, .mira-automation-filters button[aria-pressed="true"] { color: var(--mira-foreground); background: var(--mira-selected); }
+.mira-automation-section-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; font-size: 12px; color: var(--mira-foreground-subtle); }
+.mira-automation-section-title h3 { margin: 0; font-size: 14px; font-weight: 500; }
+.mira-automation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 166px; gap: 16px; }
+.mira-automation-card { position: relative; display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--mira-card-border); border-radius: 8px; background: var(--mira-background); }
+.mira-automation-card:hover { border-color: var(--mira-border-hover); }
+.mira-automation-card[data-status="ended"] { opacity: .65; }
+.mira-automation-card-main { min-width: 0; flex: 1; padding: 12px 12px 0; overflow: hidden; border: 0; border-radius: 8px 8px 0 0; color: inherit; background: transparent; text-align: left; }
+.mira-automation-card-main strong { display: block; padding-right: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; font-weight: 550; }
+.mira-automation-card-main p { display: -webkit-box; margin: 6px 0; height: 38px; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 19px; overflow-wrap: anywhere; }
+.mira-automation-card-project { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mira-foreground-subtlest); font-size: 11px; line-height: 16px; }
+.mira-automation-card-controls { position: absolute; display: flex; align-items: center; gap: 4px; top: 8px; right: 8px; }
+.mira-automation-switch { position: relative; display: inline-flex; width: 28px; height: 16px; align-items: center; }
+.mira-automation-switch input { position: absolute; z-index: 1; width: 100%; height: 100%; margin: 0; cursor: pointer; opacity: 0; }
+.mira-automation-switch span { width: 28px; height: 16px; border-radius: 10px; background: var(--mira-border-hover); }
+.mira-automation-switch span::after { display: block; width: 12px; height: 12px; margin: 2px; border-radius: 50%; background: var(--mira-panel); content: ''; transition: transform .12s; }
+.mira-automation-switch input:checked + span { background: var(--mira-primary); }
+.mira-automation-switch input:checked + span::after { transform: translateX(12px); background: var(--mira-primary-foreground); }
+.mira-automation-switch input:disabled + span { opacity: .4; }
+.mira-automation-switch input:focus-visible + span { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+.mira-automation-card footer { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 12px; }
+.mira-automation-status { display: inline-flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-automation-status[data-status="failed"] { color: var(--mira-destructive); }
+.mira-automation-status[data-status="running"] { color: var(--mira-warning); }
+.mira-automation-status[data-status="stable"], .mira-automation-status[data-status="completed"] { color: var(--mira-success); }
+.mira-automation-card-next { height: 20px; padding: 0 12px 7px; color: var(--mira-foreground-subtlest); font-size: 11px; line-height: 13px; }
+.mira-automation-templates { margin-top: 30px; }
+.mira-automation-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mira-automation-template { display: flex; min-width: 0; min-height: 92px; align-items: flex-start; gap: 10px; padding: 14px; border: 1px solid var(--mira-card-border); border-radius: 8px; color: inherit; background: var(--mira-background); text-align: left; }
+.mira-automation-template:hover { background: var(--mira-hover); }
+.mira-automation-template > svg { flex: 0 0 auto; margin-top: 2px; }
+.mira-automation-template > svg:last-child { margin-left: auto; }
+.mira-automation-template span { min-width: 0; }
+.mira-automation-template strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: 550; }
+.mira-automation-template small { display: block; margin-top: 5px; color: var(--mira-foreground-subtle); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.mira-automation-menu { z-index: 70; min-width: 150px; padding: 4px; border: 1px solid var(--mira-popover-border); border-radius: 6px; color: var(--mira-popover-foreground); background: var(--mira-popover); box-shadow: 0 4px 18px rgb(0 0 0 / 12%); }
+.mira-automation-menu [role="menuitem"] { display: flex; min-height: 30px; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 4px; outline: 0; cursor: pointer; font-size: 12px; }
+.mira-automation-menu [data-highlighted] { background: var(--mira-menu-hover); }
+.mira-automation-menu [data-disabled] { opacity: .4; cursor: default; }
+.mira-automation-menu [role="separator"] { height: 1px; margin: 4px; background: var(--mira-border); }
+.mira-automation-menu-danger { color: var(--mira-destructive); }
+.mira-automation-loading, .mira-automation-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 130px; color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-automation-empty { flex-direction: column; }
+.mira-automation-empty p { margin: 0; }
+.mira-automation-error { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 16px; color: var(--mira-destructive); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.mira-automation-error button { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--mira-border); border-radius: 5px; color: var(--mira-foreground); background: transparent; }
+.mira-automation-feedback, .mira-automation-notice { margin: 0 0 16px; font-size: 13px; }
+.mira-automation-editor fieldset { display: flex; flex-direction: column; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.mira-automation-field { display: flex; flex-direction: column; min-width: 0; gap: 6px; font-size: 13px; }
+.mira-automation-field > span { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mira-automation-field small { color: var(--mira-foreground-subtlest); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-automation-field input, .mira-automation-field select, .mira-automation-field textarea, .mira-automation-history-toolbar select { width: 100%; min-width: 0; min-height: 36px; padding: 7px 10px; border: 1px solid var(--mira-input-border); border-radius: 6px; color: inherit; background: var(--mira-input); font-size: 13px; }
+.mira-automation-field textarea { min-height: 134px; resize: vertical; line-height: 1.6; }
+.mira-automation-field textarea::placeholder, .mira-automation-field input::placeholder { color: var(--mira-foreground-subtlest); }
+.mira-automation-field option, .mira-automation-history-toolbar option { color: var(--mira-foreground); background: var(--mira-panel); }
+.mira-automation-cron { font-family: var(--font-mono) !important; }
+.mira-automation-editor-section { display: flex; flex-direction: column; gap: 16px; padding-top: 22px; border-top: 1px solid var(--mira-border); }
+.mira-automation-editor-section h2 { margin: 0; font-size: 14px; font-weight: 550; }
+.mira-automation-form-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mira-automation-field--wide { grid-column: 1 / -1; }
+.mira-automation-weekdays { display: flex; flex-wrap: wrap; gap: 6px; }
+.mira-automation-weekdays button { display: grid; width: 32px; height: 30px; place-items: center; border: 1px solid var(--mira-border); border-radius: 5px; color: inherit; background: transparent; font-size: 12px; }
+.mira-automation-weekdays button[aria-pressed="true"] { background: var(--mira-selected); border-color: var(--mira-border-hover); }
+.mira-automation-preview { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 12px; border-radius: 6px; color: var(--mira-foreground-subtle); background: var(--mira-surface); font-size: 12px; }
+.mira-automation-preview > svg { flex: 0 0 auto; }
+.mira-automation-preview > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.mira-automation-preview small { font-size: 11px; color: var(--mira-foreground-subtlest); }
+.mira-automation-preview[data-status="error"] { color: var(--mira-destructive); }
+.mira-automation-checkbox { display: flex; align-items: center; gap: 8px; color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-automation-checkbox input { width: 14px; height: 14px; margin: 0; accent-color: var(--mira-primary); }
+.mira-automation-permission-note { margin: 0; color: var(--mira-foreground-subtle); font-size: 12px; line-height: 1.5; }
+.mira-automation-inline { width: fit-content; padding: 0; border: 0; color: var(--mira-icon-blue); background: transparent; font-size: 12px; }
+.mira-automation-editor-footer { display: flex; justify-content: flex-end; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--mira-border); }
+.mira-automation-history-toolbar select { width: 210px; }
+.mira-automation-run-list { display: flex; flex-direction: column; }
+.mira-automation-run { padding: 18px 0; border-top: 1px solid var(--mira-border); }
+.mira-automation-run header, .mira-automation-run footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.mira-automation-run header strong { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 550; }
+.mira-automation-run header time { margin-left: auto; color: var(--mira-foreground-subtlest); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-automation-run > p { display: -webkit-box; margin: 12px 0; overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: pre-wrap; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.mira-automation-run[data-status="failed"] > p { color: var(--mira-destructive); }
+.mira-automation-run details { margin-bottom: 14px; font-size: 12px; color: var(--mira-foreground-subtle); }
+.mira-automation-run summary { cursor: pointer; width: fit-content; }
+.mira-automation-run dl { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 9px 12px; margin: 14px 0; }
+.mira-automation-run dd { margin: 0; overflow-wrap: anywhere; }
+.mira-automation-run-prompt { white-space: pre-wrap; line-height: 1.6; }
+.mira-automation-run footer { justify-content: space-between; color: var(--mira-foreground-subtlest); font-size: 11px; }
+.mira-automation-run footer > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.mira-automation-run footer button { display: inline-flex; min-height: 28px; align-items: center; gap: 5px; padding: 3px 7px; border: 0; border-radius: 5px; color: var(--mira-foreground); background: var(--mira-surface); font-size: 12px; }
+.mira-automation-dialog-overlay { position: fixed; z-index: 80; inset: 0; background: rgb(0 0 0 / 32%); }
+.mira-automation-dialog { position: fixed; z-index: 81; top: 50%; left: 50%; width: min(420px, calc(100% - 40px)); padding: 22px; transform: translate(-50%, -50%); border: 1px solid var(--mira-popover-border); border-radius: 8px; color: var(--mira-foreground); background: var(--mira-popover); box-shadow: 0 8px 40px rgb(0 0 0 / 18%); }
+.mira-automation-dialog h2 { margin: 0 24px 10px 0; font-size: 16px; font-weight: 550; }
+.mira-automation-dialog p { margin: 0 0 22px; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.mira-automation-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.mira-automation-dialog-close { position: absolute; top: 10px; right: 10px; }
+.mira-automation-spin { animation: mira-automation-spin .9s linear infinite; }
+@keyframes mira-automation-spin { to { transform: rotate(360deg); } }
+@container (max-width: 640px) { .mira-automation-grid, .mira-automation-template-grid, .mira-automation-form-columns { grid-template-columns: minmax(0, 1fr); }.mira-automation-history-toolbar select { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .mira-automation-spin { animation: none; }.mira-automation-switch span::after { transition: none; } }

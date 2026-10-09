@@ -1,0 +1,1935 @@
+{
+  "auditTime": "2026-10-09T10:06:27.150Z",
+  "buildOptionsSource": "scripts/build-harness-react.mjs",
+  "passed": true,
+  "buildOptions": {
+    "entryPoints": {
+      "app": "/Volumes/VrenDisk/project/Mira/Mira-Harness/apps/harness-react/src/app/app-main.tsx",
+      "mira-code-highlight.worker": "/Volumes/VrenDisk/project/Mira/Mira-Harness/apps/harness-react/src/workers/mira-code-highlight.worker.ts"
+    },
+    "define": {
+      "MIRA_HIGHLIGHT_WORKER_PATH": "\"./mira-code-highlight.worker.js\""
+    },
+    "bundle": true,
+    "format": "esm",
+    "splitting": true,
+    "chunkNames": "chunks/[name]-[hash]",
+    "platform": "browser",
+    "target": [
+      "chrome110"
+    ],
+    "jsx": "automatic",
+    "outdir": "/Volumes/VrenDisk/project/Mira/Mira-Harness/dist/harness-react-app",
+    "minify": true,
+    "metafile": true,
+    "logLevel": "info",
+    "write": false
+  },
+  "entryClosures": {
+    "app": {
+      "static": {
+        "fileCount": 5,
+        "bytes": 2052080,
+        "gzipLevel9SumBytes": 609003,
+        "files": [
+          "app.js",
+          "chunks/chunk-4ZIV6YIA.js",
+          "chunks/chunk-5ZYGXD3L.js",
+          "chunks/chunk-YEHCSWIG.js",
+          "chunks/chunk-ZZLKWTBH.js"
+        ]
+      },
+      "includingDynamic": {
+        "fileCount": 287,
+        "bytes": 9553741,
+        "gzipLevel9SumBytes": 1902543,
+        "files": [
+          "app.js",
+          "chunks/abap-LJYVSNCZ.js",
+          "chunks/actionscript-3-XFA2IMS7.js",
+          "chunks/ada-GLJP4SP5.js",
+          "chunks/angular-html-VFP2SQ6W.js",
+          "chunks/angular-ts-H2EWJ4CM.js",
+          "chunks/apache-UIPZNHYG.js",
+          "chunks/apex-YLH4TYKT.js",
+          "chunks/apl-ZZP4QLDE.js",
+          "chunks/applescript-ER2UJOFH.js",
+          "chunks/ara-LL7KHGFZ.js",
+          "chunks/asciidoc-OYOU62E4.js",
+          "chunks/asm-6C7HQUEK.js",
+          "chunks/astro-AR6R2XVK.js",
+          "chunks/awk-BGBVGKIG.js",
+          "chunks/ballerina-4QW6AQ2X.js",
+          "chunks/bat-ODIIESLQ.js",
+          "chunks/beancount-GF3XRF2S.js",
+          "chunks/berry-KYEAYTJV.js",
+          "chunks/bibtex-VA2YNVYJ.js",
+          "chunks/bicep-ICRHFT2E.js",
+          "chunks/bird2-YNXAYJ4D.js",
+          "chunks/blade-RS6YQJIS.js",
+          "chunks/bsl-2YJVDU56.js",
+          "chunks/c-VU4EVAXN.js",
+          "chunks/c3-ATSMRKL5.js",
+          "chunks/cadence-2NTSA7YE.js",
+          "chunks/cairo-CUSESZ7W.js",
+          "chunks/chunk-3M2OOQ7S.js",
+          "chunks/chunk-3PHEMJLN.js",
+          "chunks/chunk-4WYBE67P.js",
+          "chunks/chunk-4ZIV6YIA.js",
+          "chunks/chunk-5WOCFKMN.js",
+          "chunks/chunk-5ZYGXD3L.js",
+          "chunks/chunk-647IURXC.js",
+          "chunks/chunk-74TZETVY.js",
+          "chunks/chunk-7ISSEMX4.js",
+          "chunks/chunk-7OJ4MEEB.js",
+          "chunks/chunk-7RSEISFE.js",
+          "chunks/chunk-7YNZZQVT.js",
+          "chunks/chunk-BNNKDZ4H.js",
+          "chunks/chunk-BOCTYCDZ.js",
+          "chunks/chunk-BW4RXNXK.js",
+          "chunks/chunk-DCZ2OBSL.js",
+          "chunks/chunk-E5NQGWZD.js",
+          "chunks/chunk-EH2N475V.js",
+          "chunks/chunk-G4Z6L7OO.js",
+          "chunks/chunk-GCRQHK67.js",
+          "chunks/chunk-H36ABDKY.js",
+          "chunks/chunk-HYVZ3GYN.js",
+          "chunks/chunk-IHIOJK7I.js",
+          "chunks/chunk-IHJNUMSC.js",
+          "chunks/chunk-ISDTMH2Y.js",
+          "chunks/chunk-JC2IYBIL.js",
+          "chunks/chunk-JENWYTLI.js",
+          "chunks/chunk-JNQUFMM4.js",
+          "chunks/chunk-K5HIQOGI.js",
+          "chunks/chunk-L2REESOQ.js",
+          "chunks/chunk-NWAM76L3.js",
+          "chunks/chunk-OAO5IUCE.js",
+          "chunks/chunk-OKPNJIIR.js",
+          "chunks/chunk-OOCKN5B2.js",
+          "chunks/chunk-PBMB5YYZ.js",
+          "chunks/chunk-PRDTEROB.js",
+          "chunks/chunk-QZP6WWS5.js",
+          "chunks/chunk-R4GIXL6S.js",
+          "chunks/chunk-RWXVGZFK.js",
+          "chunks/chunk-UL57AD4T.js",
+          "chunks/chunk-YDN7YOWG.js",
+          "chunks/chunk-YEHCSWIG.js",
+          "chunks/chunk-YLFUX6XH.js",
+          "chunks/chunk-YNXJICZM.js",
+          "chunks/chunk-YOHF7NGD.js",
+          "chunks/chunk-YUL7CG4R.js",
+          "chunks/chunk-ZN7TN6PO.js",
+          "chunks/chunk-ZST3EVPO.js",
+          "chunks/chunk-ZZLKWTBH.js",
+          "chunks/clarity-XMZ3GI6T.js",
+          "chunks/clojure-ELUDWDLO.js",
+          "chunks/cmake-JIMY5AHV.js",
+          "chunks/cobol-37GQCGRR.js",
+          "chunks/codeowners-6FVNPLVP.js",
+          "chunks/codeql-V7B2KNSR.js",
+          "chunks/coffee-CNKHSVE2.js",
+          "chunks/common-lisp-WHSVKUM3.js",
+          "chunks/coq-SJCMHMRI.js",
+          "chunks/cpp-L7WXBLIV.js",
+          "chunks/crystal-IFVWAKDK.js",
+          "chunks/csharp-Y6463LYQ.js",
+          "chunks/css-MPRAV6E5.js",
+          "chunks/csv-M26NAGZT.js",
+          "chunks/cue-PPLXBH7B.js",
+          "chunks/cypher-IEP47IAO.js",
+          "chunks/d-266LKDKO.js",
+          "chunks/dart-4EZLFYIY.js",
+          "chunks/dax-PCVF3KUO.js",
+          "chunks/desktop-WD2KGE7N.js",
+          "chunks/diff-RHWCUCJ2.js",
+          "chunks/docker-6G4KAPZH.js",
+          "chunks/dotenv-WYVTKXQM.js",
+          "chunks/dream-maker-BITYINTI.js",
+          "chunks/edge-KWW2P2W2.js",
+          "chunks/elixir-3ZT52CZA.js",
+          "chunks/elm-NMB5AA3Q.js",
+          "chunks/emacs-lisp-7AYEY7TG.js",
+          "chunks/erb-VAZWU64J.js",
+          "chunks/erlang-LYSYG4DK.js",
+          "chunks/fennel-MT62FNJO.js",
+          "chunks/fish-DMJCLOH7.js",
+          "chunks/fluent-BMZIV3S7.js",
+          "chunks/fortran-fixed-form-2RETSAFU.js",
+          "chunks/fortran-free-form-LLJZ6RSC.js",
+          "chunks/fsharp-IMRIF4OW.js",
+          "chunks/gdresource-RMFZ3KV6.js",
+          "chunks/gdscript-HXTDVAW7.js",
+          "chunks/gdshader-3DS2WLMZ.js",
+          "chunks/genie-SHORG6H2.js",
+          "chunks/gherkin-VHGISNNT.js",
+          "chunks/git-commit-RPNTCHQU.js",
+          "chunks/git-rebase-7SU62HWS.js",
+          "chunks/gleam-IZWHULIO.js",
+          "chunks/glimmer-js-G2J2PLFN.js",
+          "chunks/glimmer-ts-LLLOT6XP.js",
+          "chunks/glsl-B4F45NMJ.js",
+          "chunks/gn-C5RW3YYL.js",
+          "chunks/gnuplot-RQFSQX3T.js",
+          "chunks/go-26Z3ZIWI.js",
+          "chunks/graphql-OKGYCFX3.js",
+          "chunks/groovy-I5CZSU6X.js",
+          "chunks/hack-EEGA4KG4.js",
+          "chunks/haml-OU3VA6PJ.js",
+          "chunks/handlebars-5KJPLEGY.js",
+          "chunks/haskell-ZILSIAQZ.js",
+          "chunks/haxe-Z5EQUMDX.js",
+          "chunks/hcl-WIK4HPIK.js",
+          "chunks/highlighted-body-KPVGNVTW-J4FPPXK3.js",
+          "chunks/hjson-YGEW5PL6.js",
+          "chunks/hlsl-UEACAH2Q.js",
+          "chunks/html-ALNPUE2R.js",
+          "chunks/html-derivative-LXJC7G3B.js",
+          "chunks/http-EGUJLUCS.js",
+          "chunks/hurl-AWH6TFW2.js",
+          "chunks/hxml-V6DEBBKH.js",
+          "chunks/hy-BKDLP3ES.js",
+          "chunks/imba-T5MIAU3Z.js",
+          "chunks/ini-BDYKPQ54.js",
+          "chunks/java-RFX7LS4S.js",
+          "chunks/javascript-HNB4LUDX.js",
+          "chunks/jinja-QRI6N6NF.js",
+          "chunks/jison-7LY3KNRK.js",
+          "chunks/json-7RX5EL4S.js",
+          "chunks/json5-6WALMJ6G.js",
+          "chunks/jsonc-K7QBU4JV.js",
+          "chunks/jsonl-COXIOXOS.js",
+          "chunks/jsonnet-TQ4VBQRV.js",
+          "chunks/jssm-2DXZ7GUV.js",
+          "chunks/jsx-YMMF4IEV.js",
+          "chunks/julia-XC3LXCVR.js",
+          "chunks/just-ZOTD3LMG.js",
+          "chunks/kdl-YYNNP5GL.js",
+          "chunks/kotlin-GZTIGDT2.js",
+          "chunks/kusto-WX34KDGT.js",
+          "chunks/latex-PKNDEMCF.js",
+          "chunks/lean-QIUUOXMA.js",
+          "chunks/less-RC6K4B6H.js",
+          "chunks/liquid-2RO5OL6W.js",
+          "chunks/llvm-ABKWBLCM.js",
+          "chunks/log-HBQHO7Q3.js",
+          "chunks/logo-IQBTYITK.js",
+          "chunks/lua-HOQI67YJ.js",
+          "chunks/luau-RIGB7TYR.js",
+          "chunks/make-CFF2W6ER.js",
+          "chunks/markdown-V3Y3HJQF.js",
+          "chunks/marko-PCO5UQNY.js",
+          "chunks/matlab-DNKTCMEO.js",
+          "chunks/mdc-YENTJBA4.js",
+          "chunks/mdx-I65EAJRT.js",
+          "chunks/mermaid-HWGCJPDP-MAZQC7PR.js",
+          "chunks/mermaid-S6HF63E5.js",
+          "chunks/mipsasm-X773QR6G.js",
+          "chunks/mojo-LPB6EQTT.js",
+          "chunks/moonbit-GIGBLWHH.js",
+          "chunks/move-YHCXZQR4.js",
+          "chunks/narrat-TO7BS62I.js",
+          "chunks/nextflow-5Z7N3L6G.js",
+          "chunks/nextflow-groovy-AAGLF4KB.js",
+          "chunks/nginx-RPKO4Z5N.js",
+          "chunks/nim-X2OQSPFG.js",
+          "chunks/nix-AYTGRVKI.js",
+          "chunks/nushell-MY2O6FQF.js",
+          "chunks/objective-c-YKNFCLAE.js",
+          "chunks/objective-cpp-L5NYLNN2.js",
+          "chunks/ocaml-VJ3RKLVI.js",
+          "chunks/odin-W6HVJ5LR.js",
+          "chunks/openscad-2CNAH7HP.js",
+          "chunks/pascal-S4MO6COH.js",
+          "chunks/perl-MLLUYZFP.js",
+          "chunks/php-GGEVAT4I.js",
+          "chunks/pkl-BS2DIG7N.js",
+          "chunks/plsql-LDEQCYL5.js",
+          "chunks/po-D374N7IZ.js",
+          "chunks/polar-UOUGYIHZ.js",
+          "chunks/postcss-PUJY7RGY.js",
+          "chunks/powerquery-B55YONFM.js",
+          "chunks/powershell-26BRVOFQ.js",
+          "chunks/prisma-E2NSARPA.js",
+          "chunks/prolog-HKMTPETI.js",
+          "chunks/proto-CETDYB7W.js",
+          "chunks/pug-3KL4FX6Y.js",
+          "chunks/puppet-CT7COX6K.js",
+          "chunks/purescript-IMBX5QP4.js",
+          "chunks/python-7UP7FS2K.js",
+          "chunks/qml-MOFWKC7K.js",
+          "chunks/qmldir-UKF2FFV4.js",
+          "chunks/qss-I46PJ3PZ.js",
+          "chunks/r-WPFLSPBE.js",
+          "chunks/racket-CYAWW2TE.js",
+          "chunks/raku-YEG3JH6C.js",
+          "chunks/razor-4QO6SU53.js",
+          "chunks/reg-M3PXHHHB.js",
+          "chunks/regexp-KV5UWAAB.js",
+          "chunks/rel-GBWIDMDB.js",
+          "chunks/riscv-62C3VEQH.js",
+          "chunks/ron-VFIAJCBY.js",
+          "chunks/rosmsg-YEYBQ3D3.js",
+          "chunks/rst-WRUO74YO.js",
+          "chunks/ruby-5BCWNNDI.js",
+          "chunks/rust-A7FVWPEE.js",
+          "chunks/sas-V23R5D5X.js",
+          "chunks/sass-W53O5BDB.js",
+          "chunks/scala-ZS2SKUU7.js",
+          "chunks/scheme-EMQWBARQ.js",
+          "chunks/scss-HG4OXAHI.js",
+          "chunks/sdbl-BONMYE5L.js",
+          "chunks/shaderlab-FSIVLLQH.js",
+          "chunks/shellscript-A36VDXOC.js",
+          "chunks/shellsession-M3THKIO5.js",
+          "chunks/smalltalk-QY2T65RN.js",
+          "chunks/solidity-TZ44XF7T.js",
+          "chunks/soy-DAS6CYYK.js",
+          "chunks/sparql-7ZWOQZ3A.js",
+          "chunks/splunk-AMCZWQGR.js",
+          "chunks/sql-5ZCBIQVS.js",
+          "chunks/ssh-config-4UXHYNFR.js",
+          "chunks/stata-D2PX5YWH.js",
+          "chunks/stylus-EDQ4YDN5.js",
+          "chunks/surrealql-Q5XY25LF.js",
+          "chunks/svelte-3JP5A2NC.js",
+          "chunks/swift-QK2EVNQT.js",
+          "chunks/system-verilog-DQIXQ2FO.js",
+          "chunks/systemd-B553LM7W.js",
+          "chunks/talonscript-DOLKYD4I.js",
+          "chunks/tasl-EVUKTRDS.js",
+          "chunks/tcl-G2WKLGVF.js",
+          "chunks/templ-CFHMJNN3.js",
+          "chunks/terraform-5FA5Q5RT.js",
+          "chunks/tex-JD6MJ5YL.js",
+          "chunks/toml-7XU4MHCH.js",
+          "chunks/ts-tags-TBVY26XY.js",
+          "chunks/tsv-ADR27IE2.js",
+          "chunks/tsx-QPNJO3M3.js",
+          "chunks/turtle-IQRCGNBX.js",
+          "chunks/twig-KFOPGN2E.js",
+          "chunks/typescript-GKZB4FZZ.js",
+          "chunks/typespec-QY7Q5H7A.js",
+          "chunks/typst-SJJVUJMY.js",
+          "chunks/v-UQDFTDT6.js",
+          "chunks/vala-UXQXWJ52.js",
+          "chunks/vb-I3S7LROQ.js",
+          "chunks/verilog-GSHNSKIM.js",
+          "chunks/vhdl-7VLAHRKI.js",
+          "chunks/viml-PRW7U2AU.js",
+          "chunks/vue-7BRCO2HR.js",
+          "chunks/vue-html-3V6YA6MX.js",
+          "chunks/vue-vine-ZVXHGXAV.js",
+          "chunks/vyper-AMLWR5PP.js",
+          "chunks/wasm-CFTZNWTQ.js",
+          "chunks/wenyan-WFUHZNZA.js",
+          "chunks/wgsl-QIP7SIFO.js",
+          "chunks/wikitext-2OR5XMYJ.js",
+          "chunks/wit-Y22EKZ67.js",
+          "chunks/wolfram-GX2IUJSA.js",
+          "chunks/xml-7MGQPQFO.js",
+          "chunks/xsl-AQEQTKRG.js",
+          "chunks/yaml-CBOOKRNB.js",
+          "chunks/zenscript-LRXOFUS2.js",
+          "chunks/zig-SGCE64YD.js"
+        ]
+      }
+    },
+    "worker": {
+      "static": {
+        "fileCount": 4,
+        "bytes": 135242,
+        "gzipLevel9SumBytes": 43339,
+        "files": [
+          "chunks/chunk-4ZIV6YIA.js",
+          "chunks/chunk-YEHCSWIG.js",
+          "chunks/chunk-ZZLKWTBH.js",
+          "mira-code-highlight.worker.js"
+        ]
+      },
+      "includingDynamic": {
+        "fileCount": 287,
+        "bytes": 8281185,
+        "gzipLevel9SumBytes": 1571620,
+        "files": [
+          "chunks/abap-LJYVSNCZ.js",
+          "chunks/actionscript-3-XFA2IMS7.js",
+          "chunks/ada-GLJP4SP5.js",
+          "chunks/angular-html-VFP2SQ6W.js",
+          "chunks/angular-ts-H2EWJ4CM.js",
+          "chunks/apache-UIPZNHYG.js",
+          "chunks/apex-YLH4TYKT.js",
+          "chunks/apl-ZZP4QLDE.js",
+          "chunks/applescript-ER2UJOFH.js",
+          "chunks/ara-LL7KHGFZ.js",
+          "chunks/asciidoc-OYOU62E4.js",
+          "chunks/asm-6C7HQUEK.js",
+          "chunks/astro-AR6R2XVK.js",
+          "chunks/awk-BGBVGKIG.js",
+          "chunks/ballerina-4QW6AQ2X.js",
+          "chunks/bat-ODIIESLQ.js",
+          "chunks/beancount-GF3XRF2S.js",
+          "chunks/berry-KYEAYTJV.js",
+          "chunks/bibtex-VA2YNVYJ.js",
+          "chunks/bicep-ICRHFT2E.js",
+          "chunks/bird2-YNXAYJ4D.js",
+          "chunks/blade-RS6YQJIS.js",
+          "chunks/bsl-2YJVDU56.js",
+          "chunks/c-VU4EVAXN.js",
+          "chunks/c3-ATSMRKL5.js",
+          "chunks/cadence-2NTSA7YE.js",
+          "chunks/cairo-CUSESZ7W.js",
+          "chunks/chunk-3M2OOQ7S.js",
+          "chunks/chunk-3PHEMJLN.js",
+          "chunks/chunk-4WYBE67P.js",
+          "chunks/chunk-4ZIV6YIA.js",
+          "chunks/chunk-5WOCFKMN.js",
+          "chunks/chunk-647IURXC.js",
+          "chunks/chunk-74TZETVY.js",
+          "chunks/chunk-7ISSEMX4.js",
+          "chunks/chunk-7OJ4MEEB.js",
+          "chunks/chunk-7RSEISFE.js",
+          "chunks/chunk-7YNZZQVT.js",
+          "chunks/chunk-BNNKDZ4H.js",
+          "chunks/chunk-BOCTYCDZ.js",
+          "chunks/chunk-BW4RXNXK.js",
+          "chunks/chunk-DCZ2OBSL.js",
+          "chunks/chunk-E5NQGWZD.js",
+          "chunks/chunk-EH2N475V.js",
+          "chunks/chunk-G4Z6L7OO.js",
+          "chunks/chunk-GCRQHK67.js",
+          "chunks/chunk-H36ABDKY.js",
+          "chunks/chunk-HYVZ3GYN.js",
+          "chunks/chunk-IHIOJK7I.js",
+          "chunks/chunk-IHJNUMSC.js",
+          "chunks/chunk-ISDTMH2Y.js",
+          "chunks/chunk-JC2IYBIL.js",
+          "chunks/chunk-JENWYTLI.js",
+          "chunks/chunk-JNQUFMM4.js",
+          "chunks/chunk-K5HIQOGI.js",
+          "chunks/chunk-L2REESOQ.js",
+          "chunks/chunk-NWAM76L3.js",
+          "chunks/chunk-OAO5IUCE.js",
+          "chunks/chunk-OKPNJIIR.js",
+          "chunks/chunk-OOCKN5B2.js",
+          "chunks/chunk-PBMB5YYZ.js",
+          "chunks/chunk-PRDTEROB.js",
+          "chunks/chunk-QZP6WWS5.js",
+          "chunks/chunk-R4GIXL6S.js",
+          "chunks/chunk-RWXVGZFK.js",
+          "chunks/chunk-UL57AD4T.js",
+          "chunks/chunk-YDN7YOWG.js",
+          "chunks/chunk-YEHCSWIG.js",
+          "chunks/chunk-YLFUX6XH.js",
+          "chunks/chunk-YNXJICZM.js",
+          "chunks/chunk-YOHF7NGD.js",
+          "chunks/chunk-YUL7CG4R.js",
+          "chunks/chunk-ZN7TN6PO.js",
+          "chunks/chunk-ZST3EVPO.js",
+          "chunks/chunk-ZZLKWTBH.js",
+          "chunks/clarity-XMZ3GI6T.js",
+          "chunks/clojure-ELUDWDLO.js",
+          "chunks/cmake-JIMY5AHV.js",
+          "chunks/cobol-37GQCGRR.js",
+          "chunks/codeowners-6FVNPLVP.js",
+          "chunks/codeql-V7B2KNSR.js",
+          "chunks/coffee-CNKHSVE2.js",
+          "chunks/common-lisp-WHSVKUM3.js",
+          "chunks/coq-SJCMHMRI.js",
+          "chunks/cpp-L7WXBLIV.js",
+          "chunks/crystal-IFVWAKDK.js",
+          "chunks/csharp-Y6463LYQ.js",
+          "chunks/css-MPRAV6E5.js",
+          "chunks/csv-M26NAGZT.js",
+          "chunks/cue-PPLXBH7B.js",
+          "chunks/cypher-IEP47IAO.js",
+          "chunks/d-266LKDKO.js",
+          "chunks/dart-4EZLFYIY.js",
+          "chunks/dax-PCVF3KUO.js",
+          "chunks/desktop-WD2KGE7N.js",
+          "chunks/diff-RHWCUCJ2.js",
+          "chunks/docker-6G4KAPZH.js",
+          "chunks/dotenv-WYVTKXQM.js",
+          "chunks/dream-maker-BITYINTI.js",
+          "chunks/edge-KWW2P2W2.js",
+          "chunks/elixir-3ZT52CZA.js",
+          "chunks/elm-NMB5AA3Q.js",
+          "chunks/emacs-lisp-7AYEY7TG.js",
+          "chunks/erb-VAZWU64J.js",
+          "chunks/erlang-LYSYG4DK.js",
+          "chunks/fennel-MT62FNJO.js",
+          "chunks/fish-DMJCLOH7.js",
+          "chunks/fluent-BMZIV3S7.js",
+          "chunks/fortran-fixed-form-2RETSAFU.js",
+          "chunks/fortran-free-form-LLJZ6RSC.js",
+          "chunks/fsharp-IMRIF4OW.js",
+          "chunks/gdresource-RMFZ3KV6.js",
+          "chunks/gdscript-HXTDVAW7.js",
+          "chunks/gdshader-3DS2WLMZ.js",
+          "chunks/genie-SHORG6H2.js",
+          "chunks/gherkin-VHGISNNT.js",
+          "chunks/git-commit-RPNTCHQU.js",
+          "chunks/git-rebase-7SU62HWS.js",
+          "chunks/github-dark-GPF4RBQH.js",
+          "chunks/github-light-JUBLJC3D.js",
+          "chunks/gleam-IZWHULIO.js",
+          "chunks/glimmer-js-G2J2PLFN.js",
+          "chunks/glimmer-ts-LLLOT6XP.js",
+          "chunks/glsl-B4F45NMJ.js",
+          "chunks/gn-C5RW3YYL.js",
+          "chunks/gnuplot-RQFSQX3T.js",
+          "chunks/go-26Z3ZIWI.js",
+          "chunks/graphql-OKGYCFX3.js",
+          "chunks/groovy-I5CZSU6X.js",
+          "chunks/hack-EEGA4KG4.js",
+          "chunks/haml-OU3VA6PJ.js",
+          "chunks/handlebars-5KJPLEGY.js",
+          "chunks/haskell-ZILSIAQZ.js",
+          "chunks/haxe-Z5EQUMDX.js",
+          "chunks/hcl-WIK4HPIK.js",
+          "chunks/hjson-YGEW5PL6.js",
+          "chunks/hlsl-UEACAH2Q.js",
+          "chunks/html-ALNPUE2R.js",
+          "chunks/html-derivative-LXJC7G3B.js",
+          "chunks/http-EGUJLUCS.js",
+          "chunks/hurl-AWH6TFW2.js",
+          "chunks/hxml-V6DEBBKH.js",
+          "chunks/hy-BKDLP3ES.js",
+          "chunks/imba-T5MIAU3Z.js",
+          "chunks/ini-BDYKPQ54.js",
+          "chunks/java-RFX7LS4S.js",
+          "chunks/javascript-HNB4LUDX.js",
+          "chunks/jinja-QRI6N6NF.js",
+          "chunks/jison-7LY3KNRK.js",
+          "chunks/json-7RX5EL4S.js",
+          "chunks/json5-6WALMJ6G.js",
+          "chunks/jsonc-K7QBU4JV.js",
+          "chunks/jsonl-COXIOXOS.js",
+          "chunks/jsonnet-TQ4VBQRV.js",
+          "chunks/jssm-2DXZ7GUV.js",
+          "chunks/jsx-YMMF4IEV.js",
+          "chunks/julia-XC3LXCVR.js",
+          "chunks/just-ZOTD3LMG.js",
+          "chunks/kdl-YYNNP5GL.js",
+          "chunks/kotlin-GZTIGDT2.js",
+          "chunks/kusto-WX34KDGT.js",
+          "chunks/latex-PKNDEMCF.js",
+          "chunks/lean-QIUUOXMA.js",
+          "chunks/less-RC6K4B6H.js",
+          "chunks/liquid-2RO5OL6W.js",
+          "chunks/llvm-ABKWBLCM.js",
+          "chunks/log-HBQHO7Q3.js",
+          "chunks/logo-IQBTYITK.js",
+          "chunks/lua-HOQI67YJ.js",
+          "chunks/luau-RIGB7TYR.js",
+          "chunks/make-CFF2W6ER.js",
+          "chunks/markdown-V3Y3HJQF.js",
+          "chunks/marko-PCO5UQNY.js",
+          "chunks/matlab-DNKTCMEO.js",
+          "chunks/mdc-YENTJBA4.js",
+          "chunks/mdx-I65EAJRT.js",
+          "chunks/mermaid-S6HF63E5.js",
+          "chunks/mipsasm-X773QR6G.js",
+          "chunks/mojo-LPB6EQTT.js",
+          "chunks/moonbit-GIGBLWHH.js",
+          "chunks/move-YHCXZQR4.js",
+          "chunks/narrat-TO7BS62I.js",
+          "chunks/nextflow-5Z7N3L6G.js",
+          "chunks/nextflow-groovy-AAGLF4KB.js",
+          "chunks/nginx-RPKO4Z5N.js",
+          "chunks/nim-X2OQSPFG.js",
+          "chunks/nix-AYTGRVKI.js",
+          "chunks/nushell-MY2O6FQF.js",
+          "chunks/objective-c-YKNFCLAE.js",
+          "chunks/objective-cpp-L5NYLNN2.js",
+          "chunks/ocaml-VJ3RKLVI.js",
+          "chunks/odin-W6HVJ5LR.js",
+          "chunks/openscad-2CNAH7HP.js",
+          "chunks/pascal-S4MO6COH.js",
+          "chunks/perl-MLLUYZFP.js",
+          "chunks/php-GGEVAT4I.js",
+          "chunks/pkl-BS2DIG7N.js",
+          "chunks/plsql-LDEQCYL5.js",
+          "chunks/po-D374N7IZ.js",
+          "chunks/polar-UOUGYIHZ.js",
+          "chunks/postcss-PUJY7RGY.js",
+          "chunks/powerquery-B55YONFM.js",
+          "chunks/powershell-26BRVOFQ.js",
+          "chunks/prisma-E2NSARPA.js",
+          "chunks/prolog-HKMTPETI.js",
+          "chunks/proto-CETDYB7W.js",
+          "chunks/pug-3KL4FX6Y.js",
+          "chunks/puppet-CT7COX6K.js",
+          "chunks/purescript-IMBX5QP4.js",
+          "chunks/python-7UP7FS2K.js",
+          "chunks/qml-MOFWKC7K.js",
+          "chunks/qmldir-UKF2FFV4.js",
+          "chunks/qss-I46PJ3PZ.js",
+          "chunks/r-WPFLSPBE.js",
+          "chunks/racket-CYAWW2TE.js",
+          "chunks/raku-YEG3JH6C.js",
+          "chunks/razor-4QO6SU53.js",
+          "chunks/reg-M3PXHHHB.js",
+          "chunks/regexp-KV5UWAAB.js",
+          "chunks/rel-GBWIDMDB.js",
+          "chunks/riscv-62C3VEQH.js",
+          "chunks/ron-VFIAJCBY.js",
+          "chunks/rosmsg-YEYBQ3D3.js",
+          "chunks/rst-WRUO74YO.js",
+          "chunks/ruby-5BCWNNDI.js",
+          "chunks/rust-A7FVWPEE.js",
+          "chunks/sas-V23R5D5X.js",
+          "chunks/sass-W53O5BDB.js",
+          "chunks/scala-ZS2SKUU7.js",
+          "chunks/scheme-EMQWBARQ.js",
+          "chunks/scss-HG4OXAHI.js",
+          "chunks/sdbl-BONMYE5L.js",
+          "chunks/shaderlab-FSIVLLQH.js",
+          "chunks/shellscript-A36VDXOC.js",
+          "chunks/shellsession-M3THKIO5.js",
+          "chunks/smalltalk-QY2T65RN.js",
+          "chunks/solidity-TZ44XF7T.js",
+          "chunks/soy-DAS6CYYK.js",
+          "chunks/sparql-7ZWOQZ3A.js",
+          "chunks/splunk-AMCZWQGR.js",
+          "chunks/sql-5ZCBIQVS.js",
+          "chunks/ssh-config-4UXHYNFR.js",
+          "chunks/stata-D2PX5YWH.js",
+          "chunks/stylus-EDQ4YDN5.js",
+          "chunks/surrealql-Q5XY25LF.js",
+          "chunks/svelte-3JP5A2NC.js",
+          "chunks/swift-QK2EVNQT.js",
+          "chunks/system-verilog-DQIXQ2FO.js",
+          "chunks/systemd-B553LM7W.js",
+          "chunks/talonscript-DOLKYD4I.js",
+          "chunks/tasl-EVUKTRDS.js",
+          "chunks/tcl-G2WKLGVF.js",
+          "chunks/templ-CFHMJNN3.js",
+          "chunks/terraform-5FA5Q5RT.js",
+          "chunks/tex-JD6MJ5YL.js",
+          "chunks/toml-7XU4MHCH.js",
+          "chunks/ts-tags-TBVY26XY.js",
+          "chunks/tsv-ADR27IE2.js",
+          "chunks/tsx-QPNJO3M3.js",
+          "chunks/turtle-IQRCGNBX.js",
+          "chunks/twig-KFOPGN2E.js",
+          "chunks/typescript-GKZB4FZZ.js",
+          "chunks/typespec-QY7Q5H7A.js",
+          "chunks/typst-SJJVUJMY.js",
+          "chunks/v-UQDFTDT6.js",
+          "chunks/vala-UXQXWJ52.js",
+          "chunks/vb-I3S7LROQ.js",
+          "chunks/verilog-GSHNSKIM.js",
+          "chunks/vhdl-7VLAHRKI.js",
+          "chunks/viml-PRW7U2AU.js",
+          "chunks/vue-7BRCO2HR.js",
+          "chunks/vue-html-3V6YA6MX.js",
+          "chunks/vue-vine-ZVXHGXAV.js",
+          "chunks/vyper-AMLWR5PP.js",
+          "chunks/wasm-CFTZNWTQ.js",
+          "chunks/wasm-K24ZIFGG.js",
+          "chunks/wenyan-WFUHZNZA.js",
+          "chunks/wgsl-QIP7SIFO.js",
+          "chunks/wikitext-2OR5XMYJ.js",
+          "chunks/wit-Y22EKZ67.js",
+          "chunks/wolfram-GX2IUJSA.js",
+          "chunks/xml-7MGQPQFO.js",
+          "chunks/xsl-AQEQTKRG.js",
+          "chunks/yaml-CBOOKRNB.js",
+          "chunks/zenscript-LRXOFUS2.js",
+          "chunks/zig-SGCE64YD.js",
+          "mira-code-highlight.worker.js"
+        ]
+      }
+    }
+  },
+  "multiRootClosure": {
+    "fileCount": 291,
+    "bytes": 10295054,
+    "gzipLevel9SumBytes": 2168600,
+    "orphanMetafileOutputs": []
+  },
+  "expectedJS": {
+    "fileCount": 291,
+    "bytes": 10295054,
+    "gzipLevel9SumBytes": 2168600
+  },
+  "allDiskJS": {
+    "fileCount": 291,
+    "bytes": 10295054,
+    "gzipLevel9SumBytes": 2168600
+  },
+  "memoryDiskComparison": {
+    "equalCount": 291,
+    "missing": [],
+    "mismatched": [],
+    "staleCount": 0,
+    "staleBytes": 0,
+    "staleGzipLevel9SumBytes": 0,
+    "staleFiles": []
+  },
+  "dynamicImports": {
+    "edges": 240,
+    "uniqueTargets": 240,
+    "missingOnDisk": [],
+    "missingInMetafile": [],
+    "otherDynamicEntries": [
+      {
+        "path": "chunks/github-light-JUBLJC3D.js",
+        "entryPoint": "node_modules/shiki/dist/themes/github-light.mjs"
+      },
+      {
+        "path": "chunks/github-dark-GPF4RBQH.js",
+        "entryPoint": "node_modules/shiki/dist/themes/github-dark.mjs"
+      },
+      {
+        "path": "chunks/wasm-K24ZIFGG.js",
+        "entryPoint": "node_modules/shiki/dist/wasm.mjs"
+      },
+      {
+        "path": "chunks/highlighted-body-KPVGNVTW-J4FPPXK3.js",
+        "entryPoint": "node_modules/streamdown/dist/highlighted-body-KPVGNVTW.js"
+      },
+      {
+        "path": "chunks/mermaid-HWGCJPDP-MAZQC7PR.js",
+        "entryPoint": "node_modules/streamdown/dist/mermaid-HWGCJPDP.js"
+      }
+    ]
+  },
+  "shiki": {
+    "physicalGrammarModules": 253,
+    "physicalGrammarContributingModules": 253,
+    "publicLanguageIDs": 235,
+    "aliases": 97,
+    "aliasUniqueCount": 97,
+    "totalLanguageKeys": 332,
+    "unmappedKeys": [],
+    "publicIDsWithGrammarInput": 235,
+    "themeInputs": [
+      "node_modules/@shikijs/themes/dist/github-light.mjs",
+      "node_modules/@shikijs/themes/dist/github-dark.mjs"
+    ],
+    "themeContributingInputs": [
+      "node_modules/@shikijs/themes/dist/github-light.mjs",
+      "node_modules/@shikijs/themes/dist/github-dark.mjs"
+    ],
+    "wasmInputs": [
+      "node_modules/@shikijs/engine-oniguruma/dist/index.mjs",
+      "node_modules/shiki/dist/engine-oniguruma.mjs",
+      "node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs",
+      "node_modules/shiki/dist/wasm.mjs"
+    ],
+    "workerWasmInputs": [
+      "node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs",
+      "node_modules/@shikijs/engine-oniguruma/dist/index.mjs"
+    ],
+    "appWasmInputs": [],
+    "appTokenizerInputs": [],
+    "workerCoreInputs": [
+      "apps/harness-react/src/lib/code-highlight-core.ts"
+    ],
+    "javaScriptRegexConverterInputs": []
+  },
+  "outputCounts": {
+    "metafileAllOutputs": 292,
+    "allDiskFiles": 308,
+    "allDiskWASM": []
+  },
+  "generatedCSS": [
+    {
+      "path": "app.css",
+      "bytes": 26677,
+      "note": "Subsequently replaced by the production Tailwind step; audited separately."
+    }
+  ],
+  "html": {
+    "moduleAppEntry": true
+  },
+  "css": {
+    "bytes": 176213,
+    "gzip9": 29610,
+    "sha256": "edaeb55c45d13ffdcb66a72737d0af70390183ae8aacf24523e388eb5aa00bec",
+    "expectedTailwindFileSHA256": "edaeb55c45d13ffdcb66a72737d0af70390183ae8aacf24523e388eb5aa00bec",
+    "stdoutTrailingNewlineRemoved": true,
+    "matchesFreshTailwind": true,
+    "changedOnlyActiveRule": true
+  },
+  "licenses": {
+    "files": 14,
+    "mismatched": [],
+    "sourceAndPackagePathsMatch": true,
+    "noticeMatches": true,
+    "htmlMatches": true
+  },
+  "artifacts": [
+    {
+      "path": "app.js",
+      "sha256": "7c71a2f04bf6bfa29ab3cea308eadb76fb264d6d59e5811f808ee90dfcf6cc3a"
+    },
+    {
+      "path": "chunks/abap-LJYVSNCZ.js",
+      "sha256": "ed72acbdd7aba1051f06ad999724b55325fbcc6c595b95dbf6ce50cdb6702d42"
+    },
+    {
+      "path": "chunks/actionscript-3-XFA2IMS7.js",
+      "sha256": "f75236b8118f156997efd30b1bbc92d2990c60497f4e5e47caceeb033315365a"
+    },
+    {
+      "path": "chunks/ada-GLJP4SP5.js",
+      "sha256": "72d4db934125bc0130bda40d97aa9f98a3aea318320262c4e432aba39b1972ef"
+    },
+    {
+      "path": "chunks/angular-html-VFP2SQ6W.js",
+      "sha256": "1623f027d0f6cd72500f4304129c64cf9ae57e97aa2b63e1f38426643f6f17c5"
+    },
+    {
+      "path": "chunks/angular-ts-H2EWJ4CM.js",
+      "sha256": "20532ee22837b39eb147b47133cd405513c8f01a8bd5b7ec3d67938b008f7b77"
+    },
+    {
+      "path": "chunks/apache-UIPZNHYG.js",
+      "sha256": "f7037c92388c89fd6aecc9b329231f000a414b700db4e46203af5644c99b2a06"
+    },
+    {
+      "path": "chunks/apex-YLH4TYKT.js",
+      "sha256": "48bb9383bf5784dcc7f4e0022444e2a099195459582c09685a2aa301a02748d4"
+    },
+    {
+      "path": "chunks/apl-ZZP4QLDE.js",
+      "sha256": "427785faab05d636158f690f410746528c760fd9cc4253ca85ca3e21df246ce6"
+    },
+    {
+      "path": "chunks/applescript-ER2UJOFH.js",
+      "sha256": "446ceea81e678071d505ab7098e06acb4b6e62431e23e4bbfd280fbd188f0072"
+    },
+    {
+      "path": "chunks/ara-LL7KHGFZ.js",
+      "sha256": "850195baaaaef516283efa2e6fbc0591573178eca4da901552d88ac7d46a3317"
+    },
+    {
+      "path": "chunks/asciidoc-OYOU62E4.js",
+      "sha256": "7217b76a3b403fe13f0ee43c8a7a8c5091450fa2293230d4ce62b8812220e181"
+    },
+    {
+      "path": "chunks/asm-6C7HQUEK.js",
+      "sha256": "c35dbb2191074e3440892d1fe1bd15a5dc095102ca7d7a50d45d59bbe5ea5192"
+    },
+    {
+      "path": "chunks/astro-AR6R2XVK.js",
+      "sha256": "0687a0c8fd65aeaed3c14fe5118679c91ab3c9f7f1c4c37fedec68c9d5cd1144"
+    },
+    {
+      "path": "chunks/awk-BGBVGKIG.js",
+      "sha256": "8931e30978ba9605c00980fa3d4a6023bf653a0e42cc961ef568be676df0cb7b"
+    },
+    {
+      "path": "chunks/ballerina-4QW6AQ2X.js",
+      "sha256": "75ccf28f816a78007d3f24b03a58d591fd715081643fa646e08f984e62a8c4df"
+    },
+    {
+      "path": "chunks/bat-ODIIESLQ.js",
+      "sha256": "a18bb5dc66a73ef990d1137853af4df31b2d1a360edc9885ce53e8b6d5ee4809"
+    },
+    {
+      "path": "chunks/beancount-GF3XRF2S.js",
+      "sha256": "9e885a323f8b97833e6b4d070090ab09e91222fc9fb7de20fa8b817887a82f90"
+    },
+    {
+      "path": "chunks/berry-KYEAYTJV.js",
+      "sha256": "e9008c63e2526da9bc885c7270f1b62ccccad545e5e1a2d8b81a5f4d2fd80a96"
+    },
+    {
+      "path": "chunks/bibtex-VA2YNVYJ.js",
+      "sha256": "fd5996b35aef6a32e8a419ac7bc1d8b254918a450dffd69076c63184d24d2105"
+    },
+    {
+      "path": "chunks/bicep-ICRHFT2E.js",
+      "sha256": "a21df2b71820b2b76a455df3ab688385b672f39fd0598ab4af363852bffc8ed5"
+    },
+    {
+      "path": "chunks/bird2-YNXAYJ4D.js",
+      "sha256": "bd53c1bba4f57e0c966fd913ddc09bbb0c7e9c855f91188686b0a70756663298"
+    },
+    {
+      "path": "chunks/blade-RS6YQJIS.js",
+      "sha256": "8e5ee18fc5a376d3aa80bcd5fad9a0749af0c4553005efa891641427d3034990"
+    },
+    {
+      "path": "chunks/bsl-2YJVDU56.js",
+      "sha256": "47360c50c87f4f168e7b6bb9d06ae5d537453f83c716ee1e8a64b43b9165b869"
+    },
+    {
+      "path": "chunks/c-VU4EVAXN.js",
+      "sha256": "453aff239c4167adcc297274076b66f14997bc91530c52fad9c366a7ecba17d7"
+    },
+    {
+      "path": "chunks/c3-ATSMRKL5.js",
+      "sha256": "48a59a9b0f13455a67aa863e6ada05df3475ca99cc4cdd029d8d04a71c43b45e"
+    },
+    {
+      "path": "chunks/cadence-2NTSA7YE.js",
+      "sha256": "23480477d7e5afe685a6177fc4be7ce145f0002b2e866682bb10e572f9260563"
+    },
+    {
+      "path": "chunks/cairo-CUSESZ7W.js",
+      "sha256": "53a65df0199c350140e562dfece2a583bfa778b3b903d6b7a473a60bfcc76d88"
+    },
+    {
+      "path": "chunks/chunk-3M2OOQ7S.js",
+      "sha256": "9a62948a5f44cdcd70e19b11158f60b52a386352bbf33e5810561739409f2afa"
+    },
+    {
+      "path": "chunks/chunk-3PHEMJLN.js",
+      "sha256": "e11f90a107347a373c7f8fa91f60a793dc9d06378ffbe862a44d6ee97565559f"
+    },
+    {
+      "path": "chunks/chunk-4WYBE67P.js",
+      "sha256": "a5389ac0d888f9d6ae95300145816110e7c8efb4649ee946d72d1b24021efaa5"
+    },
+    {
+      "path": "chunks/chunk-4ZIV6YIA.js",
+      "sha256": "1456531c876e55458542c4ff3ab22526c9b47e97c4e40ddb263e22705594afba"
+    },
+    {
+      "path": "chunks/chunk-5WOCFKMN.js",
+      "sha256": "3296ccb20ac9bb73ec492b8931d525e79502f9c56681693b7277029fc57cab16"
+    },
+    {
+      "path": "chunks/chunk-5ZYGXD3L.js",
+      "sha256": "ecec5038f2017ed0c5a9206f96acb87cbe8209b6d81586cc6eae289da6a7841b"
+    },
+    {
+      "path": "chunks/chunk-647IURXC.js",
+      "sha256": "81bf73eda37dccfba6931ed9749959b311e85c94480f8d10863c9faa9693475e"
+    },
+    {
+      "path": "chunks/chunk-74TZETVY.js",
+      "sha256": "7a90c5b5bc215b6a385492a690b6996df13c01eae012e02727ae3afcab41231f"
+    },
+    {
+      "path": "chunks/chunk-7ISSEMX4.js",
+      "sha256": "118c983c3b1a433f6c40bab78da5482d7063b72bfead7c25f6964a702a2818a5"
+    },
+    {
+      "path": "chunks/chunk-7OJ4MEEB.js",
+      "sha256": "1d20fc775a1808a6d85c683461ac4b9092956761bc39b0b23c9b68a3f9b54364"
+    },
+    {
+      "path": "chunks/chunk-7RSEISFE.js",
+      "sha256": "827b6ff833139829b73a4749ab1065797b80b84b468c23e35d78b3879156a00a"
+    },
+    {
+      "path": "chunks/chunk-7YNZZQVT.js",
+      "sha256": "e0afef6348c6ee6c97316dd17390288024d1648ca3d73cff42accd222f27faee"
+    },
+    {
+      "path": "chunks/chunk-BNNKDZ4H.js",
+      "sha256": "1898b63313797005726f3ebfa0cbbad7d48329410e214c0e9bb08e9e119f36cc"
+    },
+    {
+      "path": "chunks/chunk-BOCTYCDZ.js",
+      "sha256": "1c953af0a93c329e1ada4a85f310c4dde1d98746b3b7d9d604df85760c54d716"
+    },
+    {
+      "path": "chunks/chunk-BW4RXNXK.js",
+      "sha256": "120664f080e711e488c0230cf2a1c72b6316b337198c282db346d6e4d85ab672"
+    },
+    {
+      "path": "chunks/chunk-DCZ2OBSL.js",
+      "sha256": "64d0ed72e30d0446e966c186ed878ac76678d5a941e64044809cebef00b432d7"
+    },
+    {
+      "path": "chunks/chunk-E5NQGWZD.js",
+      "sha256": "747c7fb810df9e2b4ed6c62e95144278ea41bcfe2e211f699f4db0220329f06a"
+    },
+    {
+      "path": "chunks/chunk-EH2N475V.js",
+      "sha256": "ebe887b6939804699c41c28233242eccfb0177d383fe6b1e7fa75860dbc70845"
+    },
+    {
+      "path": "chunks/chunk-G4Z6L7OO.js",
+      "sha256": "d80840810fc4c5afb0b07a0abca8204617da7f49a56c4494ac31f2d3a0efc6cf"
+    },
+    {
+      "path": "chunks/chunk-GCRQHK67.js",
+      "sha256": "d608685b4581f57ec64aad199f54075e5e49c6098b7f3e17435ffbd09157e7f1"
+    },
+    {
+      "path": "chunks/chunk-H36ABDKY.js",
+      "sha256": "9b6831e19c1c488c255029e887659e4439b26851f03c509fed5c1bd71e02c28e"
+    },
+    {
+      "path": "chunks/chunk-HYVZ3GYN.js",
+      "sha256": "e87902a4856ffa8a141ad9e411c859d131753bd9698b05b790adbe6d499ed957"
+    },
+    {
+      "path": "chunks/chunk-IHIOJK7I.js",
+      "sha256": "eedb3f4b9298d5f4f8b360f6c8259222ca4990d73d4daba6ec84fb9d9f1c0282"
+    },
+    {
+      "path": "chunks/chunk-IHJNUMSC.js",
+      "sha256": "a7ad1f04cae0247616283dc4913dd24c13fa400abea37bd4b35004b8d025a87f"
+    },
+    {
+      "path": "chunks/chunk-ISDTMH2Y.js",
+      "sha256": "60a6ab43263b94e611c9e2edb838ea29c7c209343ff0559a0ced3dcee716ddc8"
+    },
+    {
+      "path": "chunks/chunk-JC2IYBIL.js",
+      "sha256": "1e708fe712040486e17522fb3157ca37489759cbe0d09c9c19971ea8a7c78987"
+    },
+    {
+      "path": "chunks/chunk-JENWYTLI.js",
+      "sha256": "47231b7f8c552c8cd9859d3b1ab15d42e0e0a8b6c8b642e0b6c9fb496b9abbdf"
+    },
+    {
+      "path": "chunks/chunk-JNQUFMM4.js",
+      "sha256": "a39693c88098e9ed9ea9f940874e6f19842bd2d2287df3cae9ba969ba813b10a"
+    },
+    {
+      "path": "chunks/chunk-K5HIQOGI.js",
+      "sha256": "b18ce4d7ac4ab23df10b553f18d22d72352a3e14b8726bc6c96247261c0e3d36"
+    },
+    {
+      "path": "chunks/chunk-L2REESOQ.js",
+      "sha256": "de498bc5f41a9bdc0c075d000007d225b0f7ed93baab9428e58bf72a63f18c26"
+    },
+    {
+      "path": "chunks/chunk-NWAM76L3.js",
+      "sha256": "aa72a9c2dde0728b48958d46e2447b0d2054449b234c69396ab39784b8cad5a9"
+    },
+    {
+      "path": "chunks/chunk-OAO5IUCE.js",
+      "sha256": "acb65442824c60edf3e3289d0e3f2df8b01623e1c5c13e5dabf59da7c8bfe891"
+    },
+    {
+      "path": "chunks/chunk-OKPNJIIR.js",
+      "sha256": "3d68ad7995cc0f595b2b15d866e8c3db198dd712341952b86888ecdc2b52d980"
+    },
+    {
+      "path": "chunks/chunk-OOCKN5B2.js",
+      "sha256": "a9f91fb7b0e8dbdc836c5a042228d67e17fe4f75016d662c9352df0000ee551e"
+    },
+    {
+      "path": "chunks/chunk-PBMB5YYZ.js",
+      "sha256": "4cce8a8157c98647ae28e5ace98c96c546efc231c5eed426fcbab1dd892e2161"
+    },
+    {
+      "path": "chunks/chunk-PRDTEROB.js",
+      "sha256": "2e4d362ca4a629ab140718af5acc1b345744f09a7a400a1da7720f2eaebcaf82"
+    },
+    {
+      "path": "chunks/chunk-QZP6WWS5.js",
+      "sha256": "1d0165e54250b106f613b782f7aea9b286a8209b82bfff41c6333c7dfbd28f73"
+    },
+    {
+      "path": "chunks/chunk-R4GIXL6S.js",
+      "sha256": "df98ac7c7a8637104d169b5030c6087256e6e25ac5fd8e0fb6f775a229525c83"
+    },
+    {
+      "path": "chunks/chunk-RWXVGZFK.js",
+      "sha256": "036bd25a51c67cb3b47cfc84e5f4aa1a8a538dc86c7e67f689b80c1846d1c465"
+    },
+    {
+      "path": "chunks/chunk-UL57AD4T.js",
+      "sha256": "36bfb60e01b750739f278950657723d536bb9235760477aa8276235805e33754"
+    },
+    {
+      "path": "chunks/chunk-YDN7YOWG.js",
+      "sha256": "5480d56e2bd055368127bd5d7feb3606e8efd2a607339bc49d6130d22f333d1e"
+    },
+    {
+      "path": "chunks/chunk-YEHCSWIG.js",
+      "sha256": "a061872bc3282fa5e6f8fcfbd14e2d15fa7af0c2bacfd4c2f6f275ba0d568a28"
+    },
+    {
+      "path": "chunks/chunk-YLFUX6XH.js",
+      "sha256": "2904d8b483dd485e39ad3654434b71efffe4d2f85bbe9762edfb3ff87ec7a586"
+    },
+    {
+      "path": "chunks/chunk-YNXJICZM.js",
+      "sha256": "5eb4ef76f80e6d899384cec8880654eec4233acc6bb99f3da80652b17cf0de2a"
+    },
+    {
+      "path": "chunks/chunk-YOHF7NGD.js",
+      "sha256": "70242be1530c6c03dc347296c56f38f66cc558bce0762d6db7b6ecd12bb96f8f"
+    },
+    {
+      "path": "chunks/chunk-YUL7CG4R.js",
+      "sha256": "0a9a069bdd61173c373d64513b6139b12be2bccf967c86705df548ebe9db6d0d"
+    },
+    {
+      "path": "chunks/chunk-ZN7TN6PO.js",
+      "sha256": "f697f5563489688d09fa5356d59494c6dc5fee3e1cfd1ee4c293f2148b1e00b2"
+    },
+    {
+      "path": "chunks/chunk-ZST3EVPO.js",
+      "sha256": "0da42cebf0ec3d120bbd7e42ec062c16edcf69d87ac352d8cff681c7a81ce719"
+    },
+    {
+      "path": "chunks/chunk-ZZLKWTBH.js",
+      "sha256": "ba3002b29347b1f23246b3f3b4863b581867961f5f79dc59f656ed9d64b67907"
+    },
+    {
+      "path": "chunks/clarity-XMZ3GI6T.js",
+      "sha256": "87ba1e270f6bff1e99ab2f80ba0a615757356f799fba7608871b26e6ef393f2d"
+    },
+    {
+      "path": "chunks/clojure-ELUDWDLO.js",
+      "sha256": "d8622ba0c3009d26a39420a94437c5b87a0b1722f7eadd277515937b2e59ed4e"
+    },
+    {
+      "path": "chunks/cmake-JIMY5AHV.js",
+      "sha256": "ddc464f1bb178ff25399444b0309570224354733b218553f3145d63a08474106"
+    },
+    {
+      "path": "chunks/cobol-37GQCGRR.js",
+      "sha256": "7820a6688af4d657d46218c56a024b6261f8c18562b831fe0d2f870ac76e460e"
+    },
+    {
+      "path": "chunks/codeowners-6FVNPLVP.js",
+      "sha256": "e3f226a291e87852c7d9ec7c36fe3c0d1e388334d1b7531ba4f04806ed8faa3e"
+    },
+    {
+      "path": "chunks/codeql-V7B2KNSR.js",
+      "sha256": "f054d0361dbf591cd4e560bb47d26f5d025539da57163760303612534f1866f6"
+    },
+    {
+      "path": "chunks/coffee-CNKHSVE2.js",
+      "sha256": "38b70ebeb9ccdbdc60e2b9c85ea0fca9cea9cc14835bd63b949ffc10489ea102"
+    },
+    {
+      "path": "chunks/common-lisp-WHSVKUM3.js",
+      "sha256": "2790300cea838fe332a217999621d26c9aa6ff57e664f5edee26a3469826a477"
+    },
+    {
+      "path": "chunks/coq-SJCMHMRI.js",
+      "sha256": "d26861408061f57bdcc86f717a575a746aace1a1caece6a98d7f9c36cdfea952"
+    },
+    {
+      "path": "chunks/cpp-L7WXBLIV.js",
+      "sha256": "4cd8cdf005982ec2253fc6cf35240131900b9b5fafa787794b3d388db0741681"
+    },
+    {
+      "path": "chunks/crystal-IFVWAKDK.js",
+      "sha256": "96ad940641b798825ec842ca483b89852b6d7ca4200c37e579e1d71b74e5a375"
+    },
+    {
+      "path": "chunks/csharp-Y6463LYQ.js",
+      "sha256": "3f2c87bdf23dd936d1ab5d2f680563dd2d7786cf7ca6c4a0ff27215d8ecae9d3"
+    },
+    {
+      "path": "chunks/css-MPRAV6E5.js",
+      "sha256": "3cb10fcc84a63c8f7d313ad99a9d9b940870d92fb5d50d6196c45628b265ec18"
+    },
+    {
+      "path": "chunks/csv-M26NAGZT.js",
+      "sha256": "ce4e40ea4573e83a8f7b80cca033fe1278419334f3bb1b891602288389d23647"
+    },
+    {
+      "path": "chunks/cue-PPLXBH7B.js",
+      "sha256": "6148b810cbc9d3b3c488653908df2b2906c687d8dcd9dfddc00f322f32de6e4c"
+    },
+    {
+      "path": "chunks/cypher-IEP47IAO.js",
+      "sha256": "475e59714e042aa6b4cfcecce32c91a32e3e293dc314f90679c3ce7703a1cc80"
+    },
+    {
+      "path": "chunks/d-266LKDKO.js",
+      "sha256": "6f091d968c8bd21b2dd313e188a171688237c5447b2a5c8f415a64bd2f2ac19b"
+    },
+    {
+      "path": "chunks/dart-4EZLFYIY.js",
+      "sha256": "82bb8c5b3d234d3421610c990694f1ac5249e997b32526c9f3caab7f8584fe6c"
+    },
+    {
+      "path": "chunks/dax-PCVF3KUO.js",
+      "sha256": "b97b8fd22fe0ea49df480c312668ee6e31dd7a3e4de43bd9072115a93b9acf08"
+    },
+    {
+      "path": "chunks/desktop-WD2KGE7N.js",
+      "sha256": "15917912fcd0a13b6201f19ef62591df80e2d4dd7f765fbdf43a1153dc090509"
+    },
+    {
+      "path": "chunks/diff-RHWCUCJ2.js",
+      "sha256": "ff98e7f0ef969ab1048436a123d1002b3f998d2426ea13a8bd4926d703be8e06"
+    },
+    {
+      "path": "chunks/docker-6G4KAPZH.js",
+      "sha256": "e5dec4a0732b810c8b92904a452d8d87ce26cd87a75ee16d5a72c5f1b6123e95"
+    },
+    {
+      "path": "chunks/dotenv-WYVTKXQM.js",
+      "sha256": "5320c3f5f23387338181de57f3bb1d2732c7cc9a68c89b90b8d893b8dff6abf6"
+    },
+    {
+      "path": "chunks/dream-maker-BITYINTI.js",
+      "sha256": "0d57b0d133f560a467f31c1a13031494170f8e4fda1106673ebdf17fcce32357"
+    },
+    {
+      "path": "chunks/edge-KWW2P2W2.js",
+      "sha256": "39dcbb1e87a51ad6b48dcbdc13ca7961c3cc8fc6397988ba670a5c27ded3299a"
+    },
+    {
+      "path": "chunks/elixir-3ZT52CZA.js",
+      "sha256": "ad8b7a5432175abc14caf78c7cb08a32501cead6b431c5d6f214ecb2eca47623"
+    },
+    {
+      "path": "chunks/elm-NMB5AA3Q.js",
+      "sha256": "fc65c91a34b39288688e9a24cee21b9fc9a3dcb6236640a7c50fa633d895f634"
+    },
+    {
+      "path": "chunks/emacs-lisp-7AYEY7TG.js",
+      "sha256": "785a83fac946427c5aa912cf1249490b48d62f62a7e18e35e74ac73087c500e5"
+    },
+    {
+      "path": "chunks/erb-VAZWU64J.js",
+      "sha256": "19dee5eed265c9561f3c2597561f833ec6dea818a5005153353940be4c1ce2cc"
+    },
+    {
+      "path": "chunks/erlang-LYSYG4DK.js",
+      "sha256": "8620ab13a2fa8fdbc302e3c928eb374b48139d6f8990ec98fd24c1a27bb641e2"
+    },
+    {
+      "path": "chunks/fennel-MT62FNJO.js",
+      "sha256": "58542d46ccf7d6bdde91b63f041fec85bbd749bce87b6a815dee11d4a064bf15"
+    },
+    {
+      "path": "chunks/fish-DMJCLOH7.js",
+      "sha256": "f4827d87a9e20a2fedb0c2fbb0ef1499b3790236a613470e7099adf6df2aa4b1"
+    },
+    {
+      "path": "chunks/fluent-BMZIV3S7.js",
+      "sha256": "6d3eefc2fbc4138a9a6c214dd13c567b24339cabd7c40b43422b834b831ac065"
+    },
+    {
+      "path": "chunks/fortran-fixed-form-2RETSAFU.js",
+      "sha256": "ca4da68979967f7c249b81554505ac170dabc7d1707805a18751f69f98a31aa8"
+    },
+    {
+      "path": "chunks/fortran-free-form-LLJZ6RSC.js",
+      "sha256": "9ecfd2874408c455694ad35836718603e5f16c5cc2d2f48804d672bfdc5e9311"
+    },
+    {
+      "path": "chunks/fsharp-IMRIF4OW.js",
+      "sha256": "0bf9cd51aef0a4ea33050c79b6877831f2d9c7ed9f8cb803ed636fc4c62fecad"
+    },
+    {
+      "path": "chunks/gdresource-RMFZ3KV6.js",
+      "sha256": "e7c1116e8e8d2a26a200a1f320a6438102eb05babb8b0c5bebede5d7744ff76a"
+    },
+    {
+      "path": "chunks/gdscript-HXTDVAW7.js",
+      "sha256": "e61b50bd3302da53c51ca3c23c8458b6b52addac9eb0669d0ef487933d809864"
+    },
+    {
+      "path": "chunks/gdshader-3DS2WLMZ.js",
+      "sha256": "7cf3ddc7c2c30f468eb4d242afe4e9f0e80e805b025459f52dafed0e3b7d780c"
+    },
+    {
+      "path": "chunks/genie-SHORG6H2.js",
+      "sha256": "acfbb32ec5c1d517437a198317b60206f012560dcf1185f2ab96a8f320ce6175"
+    },
+    {
+      "path": "chunks/gherkin-VHGISNNT.js",
+      "sha256": "4bdbf8ff54ffff045ab603cda874a82ce8bef3a0225d3f91bd95dfd0c9406ac3"
+    },
+    {
+      "path": "chunks/git-commit-RPNTCHQU.js",
+      "sha256": "7620fb4effda445d34fa6f2015fe41579fe9a6d35e039ef7a7e588b5416b7e3a"
+    },
+    {
+      "path": "chunks/git-rebase-7SU62HWS.js",
+      "sha256": "ba27181b0ffc81d2c9854be9c2c99a7f39a24b8d0772cea30239c53dd0c377f3"
+    },
+    {
+      "path": "chunks/github-dark-GPF4RBQH.js",
+      "sha256": "270d8909288b09ec0f92f9738c1d44487f2d211a2640c466334930526a4b5ae0"
+    },
+    {
+      "path": "chunks/github-light-JUBLJC3D.js",
+      "sha256": "e20631f9f93cf266fec349ca04ec43c1da19b4bb537ceca190ae84f97248b645"
+    },
+    {
+      "path": "chunks/gleam-IZWHULIO.js",
+      "sha256": "a0960c84b1c6b402a38f03ae78fea5cd9d37fb34c6ac7970b1431a15a18b8428"
+    },
+    {
+      "path": "chunks/glimmer-js-G2J2PLFN.js",
+      "sha256": "4ca073450a334b7f22b4ffc3ceeca495346a70ca3dd374306482799d65d44423"
+    },
+    {
+      "path": "chunks/glimmer-ts-LLLOT6XP.js",
+      "sha256": "96037c9f212e136c8bd2dea96a574c17218eba76bdfb2b9ac5a868dbdb2e99ad"
+    },
+    {
+      "path": "chunks/glsl-B4F45NMJ.js",
+      "sha256": "00e6fd454b0ada98a5634133fbd86093e8ba61e30b5af98e9dc4bbdc9f46060d"
+    },
+    {
+      "path": "chunks/gn-C5RW3YYL.js",
+      "sha256": "938def7c677078dbbc7111ee006386a11b7352c78a1aa8a62700b50b00546de5"
+    },
+    {
+      "path": "chunks/gnuplot-RQFSQX3T.js",
+      "sha256": "51db4cb80db8e63defda980f4eb4a96e30384a09209cc93912874747d540442c"
+    },
+    {
+      "path": "chunks/go-26Z3ZIWI.js",
+      "sha256": "642f940993837857e24029d79228285d7f8170bf4e4cde03ced6d69b4df826be"
+    },
+    {
+      "path": "chunks/graphql-OKGYCFX3.js",
+      "sha256": "aafdaa3d1fb467bc323c4b422ab7e5e89250da52078946ec812dd2e90d2457dd"
+    },
+    {
+      "path": "chunks/groovy-I5CZSU6X.js",
+      "sha256": "44d407db4eb2022b2d958a4ddbe87a1cb0a43d62498af983fe677b654c1f1209"
+    },
+    {
+      "path": "chunks/hack-EEGA4KG4.js",
+      "sha256": "ed94a99b5b5c5079e3617e69fdaf257ec5276dc179c06795ea35d812e19a5379"
+    },
+    {
+      "path": "chunks/haml-OU3VA6PJ.js",
+      "sha256": "57eed33fa88a40f7a94443bd9fa89eb4eade707c67bfb24cc46a4e0b80974733"
+    },
+    {
+      "path": "chunks/handlebars-5KJPLEGY.js",
+      "sha256": "0f01885f33aeda33e8c401d2b940384f6ca7d79f55f48d228c0fd74731c2c2b4"
+    },
+    {
+      "path": "chunks/haskell-ZILSIAQZ.js",
+      "sha256": "c9e5f5a55e5b4c6b450f92959b98dd1a42c4786507ef7a6c627dfb928c6b4582"
+    },
+    {
+      "path": "chunks/haxe-Z5EQUMDX.js",
+      "sha256": "715a3650398487de95f79d0bf1237e474966da0c35be45e6b2baf1b623628b7b"
+    },
+    {
+      "path": "chunks/hcl-WIK4HPIK.js",
+      "sha256": "3c61b0afc16208e18ef320196a92247c1fd0099797c2cd7c0bc2f049710d4ea6"
+    },
+    {
+      "path": "chunks/highlighted-body-KPVGNVTW-J4FPPXK3.js",
+      "sha256": "ae1cdd2a0fcff4576d3909a00b9f0eafff563a22ec138e82a2ae4e36dbb5442d"
+    },
+    {
+      "path": "chunks/hjson-YGEW5PL6.js",
+      "sha256": "32356dc4fbd7bc86c801cc3565d0d7422e9bec8d058110586df68d6cecbeb99e"
+    },
+    {
+      "path": "chunks/hlsl-UEACAH2Q.js",
+      "sha256": "f053667c6490dc3c2d60cae39a90f8cce674a9aea8ce2c2724d4218056db53aa"
+    },
+    {
+      "path": "chunks/html-ALNPUE2R.js",
+      "sha256": "081e7a0737d445e9ac657ae1f240860e3ea7362faa2fff8039eb90a13d5431a9"
+    },
+    {
+      "path": "chunks/html-derivative-LXJC7G3B.js",
+      "sha256": "f6744050a249e4103b7682a24bed540e92921b5442d927870fee44726108dece"
+    },
+    {
+      "path": "chunks/http-EGUJLUCS.js",
+      "sha256": "fabf31a52974418297dc332fcf4b5e537d52dad30d26c463e4213d8003d39494"
+    },
+    {
+      "path": "chunks/hurl-AWH6TFW2.js",
+      "sha256": "cfd52535b21168d4c8c8fc2bb0bee87367428788aef8e77150401bb13957b371"
+    },
+    {
+      "path": "chunks/hxml-V6DEBBKH.js",
+      "sha256": "192dc023f048b9f1404290076b30a2dd80c1c61de6fcc4d7a20d3e57559373b6"
+    },
+    {
+      "path": "chunks/hy-BKDLP3ES.js",
+      "sha256": "471f62cb6a2cf4eae4c068d4ab0befdc87bd2200f69ba4a1f56540fe675b15e2"
+    },
+    {
+      "path": "chunks/imba-T5MIAU3Z.js",
+      "sha256": "41667192ba8c4f06553139afa0b79ab2880be83589628ad0e2adab9afb01afa6"
+    },
+    {
+      "path": "chunks/ini-BDYKPQ54.js",
+      "sha256": "3f0c6e5c848aad897e06465b5bde3efa118383e627e065e5bd7f40c1cb05738b"
+    },
+    {
+      "path": "chunks/java-RFX7LS4S.js",
+      "sha256": "4b7eeebbf8ae32a07dfaddeb99ed4429b5ab58fc3b2877d1620f87463525275d"
+    },
+    {
+      "path": "chunks/javascript-HNB4LUDX.js",
+      "sha256": "a2f519077a6efb241e89621256a96f88dd8bd8034750c2b7514a328855997389"
+    },
+    {
+      "path": "chunks/jinja-QRI6N6NF.js",
+      "sha256": "972de78da1608486ce131eddccd1213e452597867453ce3b796bc59b8fbe18ca"
+    },
+    {
+      "path": "chunks/jison-7LY3KNRK.js",
+      "sha256": "4301b6946c8897a20ab69e090d33810606a1ba9a3558435e5c22565e1b409e71"
+    },
+    {
+      "path": "chunks/json-7RX5EL4S.js",
+      "sha256": "bdf890c9315aa81989b4c2e97a5a29f848d6a501af6c95759b36a980949a4693"
+    },
+    {
+      "path": "chunks/json5-6WALMJ6G.js",
+      "sha256": "0463b7fc1533bcd2c916a4c6a80d90c439d43feaa38a564f6dfd71d7677b2e0b"
+    },
+    {
+      "path": "chunks/jsonc-K7QBU4JV.js",
+      "sha256": "5c9f012a5b8c2600963921665a196f2ad7978f7ef1c3672e10b9f1940007ca2a"
+    },
+    {
+      "path": "chunks/jsonl-COXIOXOS.js",
+      "sha256": "9cafe3a8f21dafeace605ff6dd585feb3da3740c7915333721584ccbf8a95f37"
+    },
+    {
+      "path": "chunks/jsonnet-TQ4VBQRV.js",
+      "sha256": "2d3186dd6f390210c288cb427839545c02b023df530c944f137cbbe74e0470c0"
+    },
+    {
+      "path": "chunks/jssm-2DXZ7GUV.js",
+      "sha256": "fe9d3e863161890fe7c650d873a8159a766161d92301636352d07967fa3212d4"
+    },
+    {
+      "path": "chunks/jsx-YMMF4IEV.js",
+      "sha256": "de126a2865d6037a3c7561676610e2b1749ee1d999a757601870836a52101c58"
+    },
+    {
+      "path": "chunks/julia-XC3LXCVR.js",
+      "sha256": "2683970c58066ea45e81f649e0fb93e0911a7ee2f621117363ceebf6d60403ee"
+    },
+    {
+      "path": "chunks/just-ZOTD3LMG.js",
+      "sha256": "d5951bfa6d8eb57b584126a3d1e181c9d06beedd97d3dbe5d5ebf261554de45d"
+    },
+    {
+      "path": "chunks/kdl-YYNNP5GL.js",
+      "sha256": "1b5a0c0e547cc53069f6f4aca4691e2b4c1d4284d311c1db07f91ba96c0a35e7"
+    },
+    {
+      "path": "chunks/kotlin-GZTIGDT2.js",
+      "sha256": "b9d0f17620262e73347adc1c4910908580386a8eba67fdcea44d25761212e191"
+    },
+    {
+      "path": "chunks/kusto-WX34KDGT.js",
+      "sha256": "775a2df244e89a9a581fd2ffae2ff2773930e594c2ed4784753c675cc2a02746"
+    },
+    {
+      "path": "chunks/latex-PKNDEMCF.js",
+      "sha256": "d74da430a9e6b446e24d69525d4ed05a9173b2e1f18fdc2ee95612e062a5c1e2"
+    },
+    {
+      "path": "chunks/lean-QIUUOXMA.js",
+      "sha256": "b343b3ed148221011024cccce0fff4b66a109b122ac4effbfe8a9dd474417447"
+    },
+    {
+      "path": "chunks/less-RC6K4B6H.js",
+      "sha256": "b0fdff3ea606587e9702f7632c780d00c9e2494df917f2b7f103c763563f31b2"
+    },
+    {
+      "path": "chunks/liquid-2RO5OL6W.js",
+      "sha256": "79c860ce8a99dada5265d340b9cde469f7e8c584ce03c7d9062f5adc33a7719a"
+    },
+    {
+      "path": "chunks/llvm-ABKWBLCM.js",
+      "sha256": "96b0a543f1d197416c4cbf413cc14796e315834f8759b8bf8934158a68f4cdbf"
+    },
+    {
+      "path": "chunks/log-HBQHO7Q3.js",
+      "sha256": "c6a8682c1356fcae24436e2ee1cbdea8c97af20c47af8ba9633961ba090eea57"
+    },
+    {
+      "path": "chunks/logo-IQBTYITK.js",
+      "sha256": "d73cbc95468eee51368a29049f90bc90264a0a81ab2f43e95a2aefa16c1e42c9"
+    },
+    {
+      "path": "chunks/lua-HOQI67YJ.js",
+      "sha256": "df319d366ce5c8ecad9da9f7767a9fa4f1a653212dcdcbd797236051d9fb888f"
+    },
+    {
+      "path": "chunks/luau-RIGB7TYR.js",
+      "sha256": "8408646b1e9584d8d99a2accee82e1a557ebcdbaaa3aa291bf5f04074b1f50b6"
+    },
+    {
+      "path": "chunks/make-CFF2W6ER.js",
+      "sha256": "31e786f26d3bc92d8eff7f6f703b2d03da280aded55065040f85e5bf85722c38"
+    },
+    {
+      "path": "chunks/markdown-V3Y3HJQF.js",
+      "sha256": "9730d1c764d003cde27d75446105de4d82aa595b5c6f70613cefc9d364e62a39"
+    },
+    {
+      "path": "chunks/marko-PCO5UQNY.js",
+      "sha256": "53f6505a8b0dd8bcd866c07995b063ec9937304ef55359d7216e0c54c3d0aa37"
+    },
+    {
+      "path": "chunks/matlab-DNKTCMEO.js",
+      "sha256": "d11153248e047df9be9619e2d48954cae5aa938313ff03d09933395118e6f5a0"
+    },
+    {
+      "path": "chunks/mdc-YENTJBA4.js",
+      "sha256": "52ab1995c63fc6517049f898811608d88d3d7aa488b0294f7cf951c2829a20e9"
+    },
+    {
+      "path": "chunks/mdx-I65EAJRT.js",
+      "sha256": "6b71342737a81f03bc1483c05808e6363ecbfdeef5f9467f55cc223da30ebf97"
+    },
+    {
+      "path": "chunks/mermaid-HWGCJPDP-MAZQC7PR.js",
+      "sha256": "2e37a35744271e666f7ba20825f68fa2c9a6d330b2621339935732db9b68f953"
+    },
+    {
+      "path": "chunks/mermaid-S6HF63E5.js",
+      "sha256": "a3922657017bb98bc8b31cdefd5671dfcc5acfb2ca0f8f1fbea4c46ecb4502d4"
+    },
+    {
+      "path": "chunks/mipsasm-X773QR6G.js",
+      "sha256": "129e82379b25323b34095dc11f1ea9bf46f7c2d9cad96e9b7cd41a2368813dc2"
+    },
+    {
+      "path": "chunks/mojo-LPB6EQTT.js",
+      "sha256": "22cdeb531dc1eeff8745dee2fabfd97f41271c97d1207e4cea3f370524ee794c"
+    },
+    {
+      "path": "chunks/moonbit-GIGBLWHH.js",
+      "sha256": "f67681bd3fb88bcbdd7abd8a457fcbd53f23fac4a6b2f14e46decb26d24750f4"
+    },
+    {
+      "path": "chunks/move-YHCXZQR4.js",
+      "sha256": "8a88c28c3ad633cafbfc94de610aa33076a42fc3caa198a8874a643f2a7fe90a"
+    },
+    {
+      "path": "chunks/narrat-TO7BS62I.js",
+      "sha256": "31ff342ff04026e7c819dd06176ed0ef42a54a168b9645fc65c954b3a6b8cf5f"
+    },
+    {
+      "path": "chunks/nextflow-5Z7N3L6G.js",
+      "sha256": "5d82b823d86721b6436eebc97eb853137b7d93e12377743c5ebe667355a8d4b5"
+    },
+    {
+      "path": "chunks/nextflow-groovy-AAGLF4KB.js",
+      "sha256": "b5777afc03d2ef75573e9b01abb556c713e9d31fef0f1f9abab273def33c55a9"
+    },
+    {
+      "path": "chunks/nginx-RPKO4Z5N.js",
+      "sha256": "b4595f7f6d44c3ed7b50270d4a8e18cc7854eada3ad0bf35048d8f1bd812b445"
+    },
+    {
+      "path": "chunks/nim-X2OQSPFG.js",
+      "sha256": "b42b8dc305329154f0026293c552eda4a68911b5f5ebac36c9527ece61781899"
+    },
+    {
+      "path": "chunks/nix-AYTGRVKI.js",
+      "sha256": "9a02519c996ac57361a131f41fe1f68620acb7ddc7c81642f0d6ca4c751aa4b0"
+    },
+    {
+      "path": "chunks/nushell-MY2O6FQF.js",
+      "sha256": "84e0f37a08afa48f16e91ee460d1152cb7d06f85d54eef1516ff1f34f97905f2"
+    },
+    {
+      "path": "chunks/objective-c-YKNFCLAE.js",
+      "sha256": "212c57c3db9f7607acbcfaa40ad3c24426c085d1ad6d1955905b273fd070cb81"
+    },
+    {
+      "path": "chunks/objective-cpp-L5NYLNN2.js",
+      "sha256": "189341d159143483654519ce843e8e1ec26f79648afcea92fead4fc3cfe1b9e8"
+    },
+    {
+      "path": "chunks/ocaml-VJ3RKLVI.js",
+      "sha256": "4e597e99b1a4e9ddf9b3642acc168b8233e763de5dfa3ae73cdb893cbc78e4fd"
+    },
+    {
+      "path": "chunks/odin-W6HVJ5LR.js",
+      "sha256": "e1ac03c658e3fbdfa09155a75c5e94907df2d3a47a2a0c70dc1bdf54c39b84af"
+    },
+    {
+      "path": "chunks/openscad-2CNAH7HP.js",
+      "sha256": "1890e44da4b41ae6441031c03748d281aa25911348c3492c7b72d34a58baa1d6"
+    },
+    {
+      "path": "chunks/pascal-S4MO6COH.js",
+      "sha256": "bf53c5a69d242821f30dfdd84802d5cebd9616a5145fa41027de6600f55c5361"
+    },
+    {
+      "path": "chunks/perl-MLLUYZFP.js",
+      "sha256": "67a2e365c23fbb68ae87e12786c8feb3360c05e245eea9c2501bf1a02f171054"
+    },
+    {
+      "path": "chunks/php-GGEVAT4I.js",
+      "sha256": "8a5e244625e82e336e40d8a44f8b786424d7738224d2c4404d4126fa192dd664"
+    },
+    {
+      "path": "chunks/pkl-BS2DIG7N.js",
+      "sha256": "75cebe369da277fb2b66ce8f726308ee1d70f0505e407f7de0d597365adfc7f3"
+    },
+    {
+      "path": "chunks/plsql-LDEQCYL5.js",
+      "sha256": "cd23d4a1cec2a86fc2af8e1b39181d1ae111e34b3af5a28c7ba19ac857e06bf7"
+    },
+    {
+      "path": "chunks/po-D374N7IZ.js",
+      "sha256": "2789dcc6eb55fa4b8d29d6f991c21201d20b92233b25fe6f1fd489f1653d3515"
+    },
+    {
+      "path": "chunks/polar-UOUGYIHZ.js",
+      "sha256": "d78af45ff49c04bebdd9579ad07f73cddae97e0908cbe3a583d18dc8e2743ed1"
+    },
+    {
+      "path": "chunks/postcss-PUJY7RGY.js",
+      "sha256": "c7888d7330618ea01da68348efd05f1ae98fcc02f621bf35f998a3883a36a7a2"
+    },
+    {
+      "path": "chunks/powerquery-B55YONFM.js",
+      "sha256": "aa17123f6622026d09f31697d68a83b79fa68fb6874440fdb30ce6bb0f9762fb"
+    },
+    {
+      "path": "chunks/powershell-26BRVOFQ.js",
+      "sha256": "d199e5080386ec0697d8cc48751eef88cb638c182037c1218ac23e95a451a882"
+    },
+    {
+      "path": "chunks/prisma-E2NSARPA.js",
+      "sha256": "62da0d281e693bbff3a869e7b44068d9deb6fc1af93ff35cf1ec8a9595873853"
+    },
+    {
+      "path": "chunks/prolog-HKMTPETI.js",
+      "sha256": "51e12b84185cff94e2481957bee104c8e3e308593d479086748cf27f4f7d0746"
+    },
+    {
+      "path": "chunks/proto-CETDYB7W.js",
+      "sha256": "79c47e91a7d1b68e9111e10a2b8d469529d03856c04ac2b56d7a54abdd1dedce"
+    },
+    {
+      "path": "chunks/pug-3KL4FX6Y.js",
+      "sha256": "788dfaebda2d0377f33be128513120159ff74412ac545f9c4c38855d06d06b9f"
+    },
+    {
+      "path": "chunks/puppet-CT7COX6K.js",
+      "sha256": "f746749fba09dc8f3e49ae44f6e7fc4784037873213a37fc47ee4b72e7220f14"
+    },
+    {
+      "path": "chunks/purescript-IMBX5QP4.js",
+      "sha256": "4114e2017dff1e1da37ae6abea9d2424016a2a54f4b6dbb12d8298cb1fb69319"
+    },
+    {
+      "path": "chunks/python-7UP7FS2K.js",
+      "sha256": "03d4033961493d8286e97f557b22fba3c82705f0d579237f5286b68bc8824884"
+    },
+    {
+      "path": "chunks/qml-MOFWKC7K.js",
+      "sha256": "9cd7accf9ef48c51ed58531c76f71806cb1e5b791d97aa61c97797f5a69763ce"
+    },
+    {
+      "path": "chunks/qmldir-UKF2FFV4.js",
+      "sha256": "6046f1ccccec97e3852417bbccf7bd1c9e2cf8af3516096e11a9be1e6f8457b6"
+    },
+    {
+      "path": "chunks/qss-I46PJ3PZ.js",
+      "sha256": "e6b528e2ba9034e1a434c88c1808b9fce4c7af713b5df48b7685c32ac696c634"
+    },
+    {
+      "path": "chunks/r-WPFLSPBE.js",
+      "sha256": "fd5813caf564e57339c791e7646327bfda8d583b613188383f2771f8698cf988"
+    },
+    {
+      "path": "chunks/racket-CYAWW2TE.js",
+      "sha256": "9bc2432a7677b3bd133759c022efb5f75c3fa0a421b6afb7ce9dfc1a218fbd7c"
+    },
+    {
+      "path": "chunks/raku-YEG3JH6C.js",
+      "sha256": "24b183a7018ab8af7bede03707bdf5e287105ebafea4de7759db98380c81891a"
+    },
+    {
+      "path": "chunks/razor-4QO6SU53.js",
+      "sha256": "fafced55935f101dd58d15ea556cb70697eab1542d589c8ee64742ed9a7bd9b7"
+    },
+    {
+      "path": "chunks/reg-M3PXHHHB.js",
+      "sha256": "4facdbda4ef8f8ce2a92e185dd58294b5dd01028fe8b2cce113df41897a79632"
+    },
+    {
+      "path": "chunks/regexp-KV5UWAAB.js",
+      "sha256": "a7f73ca4dfdf27eeef201582bb39891c49e6721649c9cb0f9c62357bae921585"
+    },
+    {
+      "path": "chunks/rel-GBWIDMDB.js",
+      "sha256": "d0903b26a4b4ed589fb8b37c0bafdb864784d81dfeef70455dfb9e482157b3bf"
+    },
+    {
+      "path": "chunks/riscv-62C3VEQH.js",
+      "sha256": "cf79559d933af8cfd69b28aa9cef2691e82730abc6327197b0749f6c61b8ace9"
+    },
+    {
+      "path": "chunks/ron-VFIAJCBY.js",
+      "sha256": "f42c7ac9df4490b8ae0d974ee0433c254b98fd16d8c381da9e15345a400c8f4f"
+    },
+    {
+      "path": "chunks/rosmsg-YEYBQ3D3.js",
+      "sha256": "a124c23bad181b007d64eb9a705264ee495d94f209bab3cd43726fd5c75fedde"
+    },
+    {
+      "path": "chunks/rst-WRUO74YO.js",
+      "sha256": "1acb02f8839bc5583faa2aad0794f796f1aa62d08db6e33e5a72a633be4a8f78"
+    },
+    {
+      "path": "chunks/ruby-5BCWNNDI.js",
+      "sha256": "8cdd15994446f4443f10829401c4b2500467e76b2f6b27645baaf37bf4f347f5"
+    },
+    {
+      "path": "chunks/rust-A7FVWPEE.js",
+      "sha256": "87fdccaf3f87fcf9433507bb1cf3aede0192f839f6bd6b47161e9a9988038d5a"
+    },
+    {
+      "path": "chunks/sas-V23R5D5X.js",
+      "sha256": "00d1dcc98e23e8a4c4dad9ca2bd43df249512e447a629247a613f1d45f2642b6"
+    },
+    {
+      "path": "chunks/sass-W53O5BDB.js",
+      "sha256": "6dfee1062fd5bc0fdb363b5530f1aa276c0c972336f62bf4684cf26feb97fe66"
+    },
+    {
+      "path": "chunks/scala-ZS2SKUU7.js",
+      "sha256": "2b2473b76433646c0c213ab961132a0e04c40316a1333a9d3801ceda879522c4"
+    },
+    {
+      "path": "chunks/scheme-EMQWBARQ.js",
+      "sha256": "73541ebe8ccf8d44310ac9b97f21c5d0a785871cd82ea3a43d5ac6fa0b94cec4"
+    },
+    {
+      "path": "chunks/scss-HG4OXAHI.js",
+      "sha256": "db87d35ebc9640d67cd261a0c52f7d513fa058f7ef3d9a80530f7210621dae37"
+    },
+    {
+      "path": "chunks/sdbl-BONMYE5L.js",
+      "sha256": "4c4d2d5abd063625f258f93082d31401dc0d23c1b01e2839da587de39369540c"
+    },
+    {
+      "path": "chunks/shaderlab-FSIVLLQH.js",
+      "sha256": "e400129dd2e9aab2321833a67c41dde01143b4c95b7f3fa0687b277edfe803a2"
+    },
+    {
+      "path": "chunks/shellscript-A36VDXOC.js",
+      "sha256": "cf640561f7d1d8ee1753e05f315a43188a59ab253d9c5859f0f91ac8d4583ade"
+    },
+    {
+      "path": "chunks/shellsession-M3THKIO5.js",
+      "sha256": "851ec5818269bb2f8339901f0e11346bdda391b8cdd95704b3063198db8c4cc9"
+    },
+    {
+      "path": "chunks/smalltalk-QY2T65RN.js",
+      "sha256": "ff57b34e9e6ff217ac2c4cd2e19bfef77ffbbcfa99014966a3d21d09437f9d3d"
+    },
+    {
+      "path": "chunks/solidity-TZ44XF7T.js",
+      "sha256": "e5b45c2f1fd1d93f160d5ec0d2233779edf79e4eebf8379dc4d7db984cc00255"
+    },
+    {
+      "path": "chunks/soy-DAS6CYYK.js",
+      "sha256": "79b86c09d1a0f98e49a4c6f5cee9243c28294b4cf193278ac1aef56685c9e82a"
+    },
+    {
+      "path": "chunks/sparql-7ZWOQZ3A.js",
+      "sha256": "171d05efc751271494bb616557c2d35ef54016abc7438d2a09cada12d04a02e9"
+    },
+    {
+      "path": "chunks/splunk-AMCZWQGR.js",
+      "sha256": "f12e0d7d2ef30df999e7cb6e2c3038875c5da63353025750a95b84968b4ff86a"
+    },
+    {
+      "path": "chunks/sql-5ZCBIQVS.js",
+      "sha256": "2d35ef8302a715a6968660f9900c33e0e0472203e9dd8620e08ca2f8cafdb6ad"
+    },
+    {
+      "path": "chunks/ssh-config-4UXHYNFR.js",
+      "sha256": "d76e7cff6a6c6dc9f827356fbafbf04ebfce710e6953f3e3661a5b6422432fdc"
+    },
+    {
+      "path": "chunks/stata-D2PX5YWH.js",
+      "sha256": "f7cfda4ec729e58b478bd7478e3722669ae19da2dda01419638667f1d2bd2c46"
+    },
+    {
+      "path": "chunks/stylus-EDQ4YDN5.js",
+      "sha256": "7e1ca033c7bd41da18e8f58b9e08d02d0e5dd35e4f945e08d1f6c0ac3b18e438"
+    },
+    {
+      "path": "chunks/surrealql-Q5XY25LF.js",
+      "sha256": "9a3524c2c1816af80d937935fc904ae96d7bc63fea023fb80f81353926c1fe41"
+    },
+    {
+      "path": "chunks/svelte-3JP5A2NC.js",
+      "sha256": "3b967c2c5be96ecc1db27164ea06362f04e3df294e2756c4b058aa911cdfafb5"
+    },
+    {
+      "path": "chunks/swift-QK2EVNQT.js",
+      "sha256": "abb9c5965149a0de6adb70f83115e776aa56c8bf7282f7c041d38548af5ab56e"
+    },
+    {
+      "path": "chunks/system-verilog-DQIXQ2FO.js",
+      "sha256": "776593f9d497e94cf0be5a31dce3b0951e1f59eccad0b591e899f23fd6b7b915"
+    },
+    {
+      "path": "chunks/systemd-B553LM7W.js",
+      "sha256": "c894e8d24ff6749721fe1a9c7691dd0f7bd8bc1a64a4237c6e66b6984a8ea61a"
+    },
+    {
+      "path": "chunks/talonscript-DOLKYD4I.js",
+      "sha256": "55a475cfe0619b04d8a414738b02ed123d75c276566edc9f79a308b42fb6e8a6"
+    },
+    {
+      "path": "chunks/tasl-EVUKTRDS.js",
+      "sha256": "a427eb8b9a0c4f52a35b46ec9e8d11e787e40e4155892fdb4da99a936ace7fb0"
+    },
+    {
+      "path": "chunks/tcl-G2WKLGVF.js",
+      "sha256": "743e18aaed449621311f6bc1fff9e0ad33d50a303a6ee9d4ed0cafe8f4b0ec20"
+    },
+    {
+      "path": "chunks/templ-CFHMJNN3.js",
+      "sha256": "a4df0de896902eab1c40da5bfeafb5ce9c7d4a20d12309ccaf651499fbe75ab7"
+    },
+    {
+      "path": "chunks/terraform-5FA5Q5RT.js",
+      "sha256": "c0e3338158d3ba698f9eda957730a303a311cd740d4be648db3d53eea8f9aa56"
+    },
+    {
+      "path": "chunks/tex-JD6MJ5YL.js",
+      "sha256": "dac8c5aadeff0c5747fb55d17acb368c2c38b589dadbfa30986a8a37e622c994"
+    },
+    {
+      "path": "chunks/toml-7XU4MHCH.js",
+      "sha256": "690ba69738936235774a65a96a4dca4496d098a33b792b49dcce722477e3465d"
+    },
+    {
+      "path": "chunks/ts-tags-TBVY26XY.js",
+      "sha256": "b0c68c8bf3cba2928049c1d477bc0697001fddf73df3c17b55d4672643b3f3ab"
+    },
+    {
+      "path": "chunks/tsv-ADR27IE2.js",
+      "sha256": "f3041446def69715a6fb02c93f8d7f50ff63a0a8db2f66637de52cec76cd3998"
+    },
+    {
+      "path": "chunks/tsx-QPNJO3M3.js",
+      "sha256": "9fed9a4ff3dbdffabd470f914bbbb0f133f857d4b5fd433355d1582846342846"
+    },
+    {
+      "path": "chunks/turtle-IQRCGNBX.js",
+      "sha256": "12bbd3295b4bbc14594c397a5acbcac74889159738d16f268aa81a63dc6bb19c"
+    },
+    {
+      "path": "chunks/twig-KFOPGN2E.js",
+      "sha256": "da129b454d7a4242597e3f2ae9b5e0b15a0333e0b7f3ac7ef3102b52e6e62ba3"
+    },
+    {
+      "path": "chunks/typescript-GKZB4FZZ.js",
+      "sha256": "f564a7891e08c1d0d063e007946f87bb8ff0a8f5d90c05bbff88d985b2db8ee4"
+    },
+    {
+      "path": "chunks/typespec-QY7Q5H7A.js",
+      "sha256": "86c6e1a4ac8091b884759a92bf27a1bfe6880fc7e59605315f76d4604c6c934e"
+    },
+    {
+      "path": "chunks/typst-SJJVUJMY.js",
+      "sha256": "c3ae9dbd7c5598f5b585173b70aa751e98b47a9ee72927e8843778fe14c9b13a"
+    },
+    {
+      "path": "chunks/v-UQDFTDT6.js",
+      "sha256": "173a3374670534cce6ece2872e3f132f73b678c48c7e64f5f580d7fa984102b1"
+    },
+    {
+      "path": "chunks/vala-UXQXWJ52.js",
+      "sha256": "a0f9d7ff15a0451877acd17f79142fd115575cd18528d215d49e5ef8b5151cad"
+    },
+    {
+      "path": "chunks/vb-I3S7LROQ.js",
+      "sha256": "f63747a195f690d2bc68155612413b5d818ae7d39630d182f124f5334fff1918"
+    },
+    {
+      "path": "chunks/verilog-GSHNSKIM.js",
+      "sha256": "fb2e8dcbb4a9d89b30e2aa1aa0a48541bccda49e319cfeb891c41b89fde8dbe3"
+    },
+    {
+      "path": "chunks/vhdl-7VLAHRKI.js",
+      "sha256": "1eec66138d055a7fbd00e84fe289865a88b766ad6d33223f2df32bf25677c0fe"
+    },
+    {
+      "path": "chunks/viml-PRW7U2AU.js",
+      "sha256": "8d42665b4a82a98d35ca12d0d6021af936a3ff8e7f658d8017fe4b577658977b"
+    },
+    {
+      "path": "chunks/vue-7BRCO2HR.js",
+      "sha256": "99e26d603da955a4788399e4ecfe101786ea1be7a315e8c2ff353fd2c6adbfc8"
+    },
+    {
+      "path": "chunks/vue-html-3V6YA6MX.js",
+      "sha256": "dcfa261e33371da0ae56f83330d83add6f4e01011145a81bd76e3ceb6b9e6936"
+    },
+    {
+      "path": "chunks/vue-vine-ZVXHGXAV.js",
+      "sha256": "b97806c1ca9e30ecc6de51e5d156cbf96a8b06be7fa8834df9d04edfba6499ea"
+    },
+    {
+      "path": "chunks/vyper-AMLWR5PP.js",
+      "sha256": "26a7873de8b0e10ede6faf6affee9f57063f82e4b7924c73c857449fb0ca3038"
+    },
+    {
+      "path": "chunks/wasm-CFTZNWTQ.js",
+      "sha256": "83212cd80c022b0a23541836e7b3e8760ce8e03d2f7e70d2412939a01bb4e3c0"
+    },
+    {
+      "path": "chunks/wasm-K24ZIFGG.js",
+      "sha256": "48851baad91bc6b0fbf5c56bcb6412cd88040b39d22b2a0ff9defc5cfb13af89"
+    },
+    {
+      "path": "chunks/wenyan-WFUHZNZA.js",
+      "sha256": "9e17159298a80ceb21cebfd5db901b234af936d8d40e276c48b3a6fe89f9d958"
+    },
+    {
+      "path": "chunks/wgsl-QIP7SIFO.js",
+      "sha256": "4b8d741064aece40fcb2001c6d1cf98d337b1b97d5034f1d36abec9cfda7dc7e"
+    },
+    {
+      "path": "chunks/wikitext-2OR5XMYJ.js",
+      "sha256": "cd42d4730a331255f5ad5cbddba2af1aeca36372562eda15bcb45b1d315bff32"
+    },
+    {
+      "path": "chunks/wit-Y22EKZ67.js",
+      "sha256": "bc3059303c3dd8cce934acb26a3df9f4402ffc0e60462a61ff4103b8c206152c"
+    },
+    {
+      "path": "chunks/wolfram-GX2IUJSA.js",
+      "sha256": "f8b1f51273c97ac07c4c55d6e6ace2c3f3f149b8faad901e519a7da6f3bb281f"
+    },
+    {
+      "path": "chunks/xml-7MGQPQFO.js",
+      "sha256": "f0aa144b93aa26af4a18cdbeea46e68971db44507e1be1446b0a57101d817829"
+    },
+    {
+      "path": "chunks/xsl-AQEQTKRG.js",
+      "sha256": "8787ca098a1d00e636c0efd5772ae8015209813a875372f553a40bd9feb1d550"
+    },
+    {
+      "path": "chunks/yaml-CBOOKRNB.js",
+      "sha256": "3c0d5e537cb3920c3abb260ebd98f3fbe07aad7fafa9517abb338945e2a98ef7"
+    },
+    {
+      "path": "chunks/zenscript-LRXOFUS2.js",
+      "sha256": "ee177b8cf09ab131b9d58fbad4646d73b628b676d81ad5e63b25c2db69aea4b9"
+    },
+    {
+      "path": "chunks/zig-SGCE64YD.js",
+      "sha256": "bf81354453f6f276731e4eeb1e2dd926e089bed43ed75a1af12c5a1e5bde8c03"
+    },
+    {
+      "path": "mira-code-highlight.worker.js",
+      "sha256": "ff83414a4e4aef1d8a8290364b8d837b0096fedceda687a9e3a1d7d59863b63e"
+    }
+  ],
+  "buildSource": {
+    "path": "scripts/build-harness-react.mjs",
+    "sha256": "6d79dd04d54967f1d347513425acd05ce238bdbcd42371f7a6c003930758f05e"
+  },
+  "boundaries": "Read-only production artifact/build-equivalence audit; no production outputs modified. Not runtime loader, semantic, cancellation, performance, native Electron, packaging, Windows or whole-goal acceptance.",
+  "finishedAt": "2026-10-09T10:06:28.667Z"
+}

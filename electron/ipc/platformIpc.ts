@@ -6,6 +6,7 @@ import type { McpConfigStore } from '../storage/mcpConfigStore'
 import type { MicroApp } from '../../src/types'
 import { firstPartyAppManifests, validateFirstPartyAppManifest, type FirstPartyAppManifest } from '../../src/config/firstPartyApps'
 import type { ModelSelection } from '../../src/config/harness'
+import { assertComposerFollowupMode, resolveComposerFollowupMode } from '../../src/config/composerPreferences'
 import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 import { parseFirstPartyHarnessCall } from '../../src/platform/firstPartyHarness'
@@ -15,6 +16,9 @@ import type { HarnessTerminalSessions } from '../services/harnessTerminalSession
 import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
 import { getInstalledHarnessEditors, openHarnessWorkspaceInEditor } from '../services/harnessWorkspaceEditors'
 import { readHarnessWorkspaceGit, readHarnessWorkspaceIgnored } from '../services/harnessWorkspaceGit'
+import type { SkillMarketplaceService } from '../services/skillMarketplace'
+import type { AutomationScheduler } from '../services/automationScheduler'
+import { automationRunWithSessionState, saveAutomationTask } from './automationIpc'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
@@ -27,6 +31,8 @@ export interface PlatformIpcDependencies {
   terminalSessions?: HarnessTerminalSessions
   workspaceWatch?: HarnessWorkspaceWatch
   mcpConfigStore?: McpConfigStore
+  skillMarketplace?: SkillMarketplaceService
+  automationScheduler?: AutomationScheduler
 }
 
 function boundedString(value: unknown, field: string, maxLength: number) {
@@ -50,10 +56,13 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const firstPartyGrantOwners = new WeakSet<object>()
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
-  ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => database.savePreference(key, value))
+  ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => {
+    if (key === 'followupMode') assertComposerFollowupMode(value)
+    return database.savePreference(key, value)
+  })
   ipcMain.handle('platform:update-menus', (_event, menus) => database.saveMenus(menus))
   ipcMain.handle('platform:update-microapps', (_event, apps: MicroApp[]) => {
     localMicroAppServer.validateApps(apps)
@@ -139,27 +148,117 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
     resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
     if (!harnessRuntime) throw new Error('Harness 服务不可用')
     const call = parseFirstPartyHarnessCall(method, params)
+    const assertMarketAuthorized = () => {
+      if (event.sender.isDestroyed()) throw new Error('Harness 连接已关闭')
+      resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+    }
+    const fileWorkspace = (scope: { projectId: string } | { sessionId: string }) => {
+      const session = 'sessionId' in scope ? database.harness.getSession(scope.sessionId) : undefined
+      const projectId = 'projectId' in scope ? scope.projectId : session?.projectId
+      const directory = projectId ? database.harness.getProject(projectId).directory : session?.workingDirectory
+      if (!directory) throw new Error('该会话没有可用工作目录')
+      return { directory, identity: JSON.stringify([projectId, directory]) }
+    }
+    const assertFileWorkspace = (scope: { projectId: string } | { sessionId: string }, expected: ReturnType<typeof fileWorkspace>) => {
+      if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')
+      resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+      if (fileWorkspace(scope).identity !== expected.identity) throw new Error('工作目录已变化，请重新打开文件工作区。')
+    }
     switch (call.method) {
+      case 'permissions.config': return database.harness.getPermissionConfig()
+      case 'automations.list': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        return database.automations.listTasks().map(task => ({ ...task, nextRunAt: automationScheduler.taskNextRun(task) }))
+      }
+      case 'automations.overview': return database.automations.overview()
+      case 'automations.next-runs': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        return automationScheduler.nextRuns(call.expression)
+      }
+      case 'automations.save': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        return saveAutomationTask(database, automationScheduler, call.input)
+      }
+      case 'automations.set-enabled': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        const task = database.automations.setEnabled(call.id, call.enabled)
+        automationScheduler.reschedule()
+        return task
+      }
+      case 'automations.delete': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        database.automations.deleteTask(call.id)
+        automationScheduler.reschedule()
+        return
+      }
+      case 'automations.runs': return database.automations.listRuns(call.id, call.status ? { status: call.status } : {}).map(run => automationRunWithSessionState(database, run))
+      case 'automations.run-now':
+      case 'automations.retry': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        const previous = call.method === 'automations.retry' ? database.automations.getRun(call.id) : undefined
+        if (previous && previous.status !== 'failed') throw new Error('只能重试失败的运行记录')
+        return automationScheduler.launch(previous?.taskId ?? call.id, previous ? 'manual-retry' : 'manual', previous?.id).then(run => { assertMarketAuthorized(); return automationRunWithSessionState(database, run) })
+      }
+      case 'automations.abort': {
+        if (!automationScheduler) throw new Error('自动化服务不可用')
+        return automationScheduler.abort(call.id)
+      }
       case 'sessions.list': return database.harness.listSessions()
+      case 'marketplace.browse': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.browse(call.refresh).then(result => { assertMarketAuthorized(); return result })
+      }
+      case 'marketplace.detail': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.detail(call.id).then(result => { assertMarketAuthorized(); return result })
+      }
+      case 'marketplace.install': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.install(call.id, assertMarketAuthorized)
+      }
+      case 'marketplace.installed': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.installed()
+      }
+      case 'composer.preferences': {
+        const { sendShortcut, showContextUsage, followupMode } = database.getSnapshot().preferences
+        return { sendShortcut, showContextUsage, followupMode: resolveComposerFollowupMode(followupMode) }
+      }
+      case 'sessions.history': return database.harness.queryHistory(call.query)
+      case 'sessions.search': return database.harness.searchConversations(call.query).then(result => { assertMarketAuthorized(); return result })
       case 'projects.list': return database.harness.listProjects()
+      case 'projects.rename': return database.harness.renameProject(call.id, call.name)
+      case 'projects.select': {
+        const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const options: OpenDialogOptions = { properties: ['openDirectory'], title: '添加项目' }
+        return (async () => {
+          const selected = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+          assertMarketAuthorized()
+          return selected.canceled ? null : database.harness.createProject(selected.filePaths[0])
+        })()
+      }
       case 'providers.list': return database.models.list()
       case 'editors.list': return getInstalledHarnessEditors(call.refresh)
-      case 'session.get': return database.harness.getSession(call.id)
+      case 'session.get': return harnessRuntime.getSession(call.id)
       case 'session.create': return database.harness.createSession(call.projectId)
       case 'session.rename': return database.harness.renameSession(call.id, call.title)
       case 'session.set-pinned': return database.harness.setPinned(call.id, call.pinned)
       case 'session.set-unread': return database.harness.setUnread(call.id, call.unread)
       case 'session.archive': {
+        harnessRuntime.assertSessionMutable(call.id)
         const sessions = database.harness.archiveSessions([call.id])
         workspaceWatch?.closeForSession(call.id)
         return sessions
       }
+      case 'session.restore': return database.harness.restoreSessions([call.id])
       case 'session.delete': {
+        harnessRuntime.assertSessionMutable(call.id)
         const result = database.harness.deleteSession(call.id)
         workspaceWatch?.closeForSession(call.id)
         return result
       }
       case 'session.move': {
+        harnessRuntime.assertSessionMutable(call.id)
         const result = database.harness.moveSession(call.id, call.projectId)
         workspaceWatch?.closeForSession(call.id)
         return result
@@ -198,55 +297,43 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
           return database.harness.selectFileReferences(session.projectId, result.filePaths)
         })()
       }
-      case 'git.branches': return database.harness.listGitBranches(call.projectId)
-      case 'git.checkout': return database.harness.checkoutGitBranch(call.projectId, call.branch)
-      case 'git.create-branch': return database.harness.createAndCheckoutGitBranch(call.projectId, call.branch)
+      case 'git.context': return harnessRuntime.getGitContext(call.projectId, assertMarketAuthorized)
+      case 'git.branches': return harnessRuntime.getGitContext(call.projectId, assertMarketAuthorized).then(context => context.branches)
+      case 'git.checkout': return harnessRuntime.checkoutGitBranch(call.projectId, call.branch, call.snapshotToken, assertMarketAuthorized)
+      case 'git.create-branch': return harnessRuntime.createGitBranch(call.projectId, call.branch, call.snapshotToken, assertMarketAuthorized)
       case 'permissions.pending': return harnessRuntime.listPendingPermissions(call.sessionId)
       case 'permission.respond': return harnessRuntime.resolvePermission(call.requestId, call.allowed)
       case 'memory.respond': return harnessRuntime.respondMemoryConfirmation(call.requestId, call.approved)
       case 'memory.save': return harnessRuntime.saveProjectMemory(event.sender, call.sessionId, call.selection)
       case 'subtask.stop': return harnessRuntime.stopSubtasks(call.sessionId, call.subtaskId ? [call.subtaskId] : undefined)
-      case 'run.abort': return harnessRuntime.abort(call.sessionId)
+      case 'run.abort': return harnessRuntime.abort(call.sessionId, call.expectedRunId)
       case 'run.rerun': return harnessRuntime.rerun(event.sender, call.sessionId, call.selection)
       case 'run.edit-rerun': return harnessRuntime.editAndRerun(event.sender, call.sessionId, call.messageId, call.content, call.selection)
       case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, call.references, call.selection, call.planning)
+      case 'message.submit': return call.options === undefined
+        ? harnessRuntime.submitMessage(event.sender, call.sessionId, call.submissionId, call.text, call.references, call.selection, call.planning)
+        : harnessRuntime.submitMessage(event.sender, call.sessionId, call.submissionId, call.text, call.references, call.selection, call.planning, call.options)
+      case 'queue.list': return harnessRuntime.getMessageQueue(call.sessionId)
+      case 'queue.withdraw': return harnessRuntime.withdrawMessage(call.sessionId, call.itemId)
+      case 'queue.resume': return harnessRuntime.resumeMessageQueue(call.sessionId)
+      case 'queue.reorder': return harnessRuntime.reorderMessageQueue(call.sessionId, call.itemId, call.beforeItemId)
+      case 'queue.send-now': return harnessRuntime.sendQueuedMessageNow(call.sessionId, call.itemId, call.expectedRunId)
       case 'plan.confirm': return harnessRuntime.confirmPlan(event.sender, call.sessionId, call.planId, call.selection)
       case 'plan.cancel': return harnessRuntime.cancelPlan(event.sender, call.sessionId, call.planId)
       case 'plan.continue': return harnessRuntime.continuePlan(event.sender, call.sessionId, call.planId, call.message, call.references, call.selection)
       case 'interaction.answer': return harnessRuntime.answerInteraction(event.sender, call.sessionId, call.interactionId, call.answers, call.selection)
       case 'files.list': {
-        const session = database.harness.getSession(call.sessionId)
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-        if (!directory) throw new Error('该会话没有可用工作目录')
-        return listHarnessWorkspaceFiles(directory, call.path)
+        const workspace = fileWorkspace(call)
+        return listHarnessWorkspaceFiles(workspace.directory, call.path).then(result => { assertFileWorkspace(call, workspace); return result })
       }
       case 'files.search': {
-        const resolveDirectory = () => {
-          const session = database.harness.getSession(call.sessionId)
-          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-          if (!directory) throw new Error('该会话没有可用工作目录')
-          return directory
-        }
-        const directory = resolveDirectory()
-        return searchHarnessWorkspaceFiles(directory, call.query, call.refresh, () => {
-          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
-          if (event.sender.isDestroyed?.() || resolveDirectory() !== directory) throw new Error('工作目录已变化，请重新加载规则')
-        })
+        const workspace = fileWorkspace(call)
+        return searchHarnessWorkspaceFiles(workspace.directory, call.query, call.refresh, () => assertFileWorkspace(call, workspace)).then(result => { assertFileWorkspace(call, workspace); return result })
       }
       case 'files.git-status':
       case 'files.git-ignored': {
-        const resolveDirectory = () => {
-          const session = database.harness.getSession(call.sessionId)
-          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-          if (!directory) throw new Error('该会话没有可用工作目录')
-          return directory
-        }
-        const directory = resolveDirectory()
-        return (call.method === 'files.git-status' ? readHarnessWorkspaceGit(directory) : readHarnessWorkspaceIgnored(directory, call.paths)).then(result => {
-          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
-          if (resolveDirectory() !== directory) throw new Error('工作目录已变化，请重新打开文件工作区。')
-          return result
-        })
+        const workspace = fileWorkspace(call)
+        return (call.method === 'files.git-status' ? readHarnessWorkspaceGit(workspace.directory) : readHarnessWorkspaceIgnored(workspace.directory, call.paths)).then(result => { assertFileWorkspace(call, workspace); return result })
       }
       case 'files.open-editor': {
         const session = database.harness.getSession(call.sessionId)
@@ -317,9 +404,11 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         if (call.action !== 'close' && call.action !== 'hide') database.harness.getSession(call.sessionId)
         return call
       }
+      case 'projects.open':
       case 'project.open': {
-        const session = database.harness.getSession(call.sessionId)
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        const session = call.method === 'project.open' ? database.harness.getSession(call.sessionId) : undefined
+        const projectId = call.method === 'projects.open' ? call.projectId : session?.projectId
+        const directory = projectId ? database.harness.getProject(projectId).directory : session?.workingDirectory
         if (!directory) throw new Error('该会话没有可用工作目录')
         if (call.target === 'file-manager') return shell.openPath(directory)
         if (process.platform === 'darwin') {

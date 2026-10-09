@@ -39,18 +39,23 @@ export function parseMemoryExtraction(text: string): ExtractedMemory {
 
 export class HarnessMemoryCoordinator {
   private readonly writes = new Map<string, Promise<void>>()
-  private readonly confirmations = new Map<string, { resolve: (approved: boolean) => void, timer: ReturnType<typeof setTimeout>, candidate: MemoryCandidate }>()
+  private readonly confirmations = new Map<string, { resolve: (approved: boolean) => void }>()
 
   constructor(private readonly database: PlatformDatabase, private readonly publish: PublishEvent, private readonly log: (record: RuntimeLogRecord) => void) {}
 
-  waitForPending(sessionId: string) { return this.writes.get(sessionId) }
+  waitForPending(sessionId: string, signal?: AbortSignal) {
+    const pending = this.writes.get(sessionId)
+    signal?.throwIfAborted()
+    if (!pending || !signal) return pending
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => { signal.removeEventListener('abort', abort); reject(signal.reason) }
+      signal.addEventListener('abort', abort, { once: true })
+      pending.then(() => { signal.removeEventListener('abort', abort); resolve() }, error => { signal.removeEventListener('abort', abort); reject(error) })
+    })
+  }
 
   respondConfirmation(requestId: string, approved: boolean) {
-    const entry = this.confirmations.get(requestId)
-    if (!entry) return
-    clearTimeout(entry.timer)
-    this.confirmations.delete(requestId)
-    entry.resolve(Boolean(approved))
+    this.confirmations.get(requestId)?.resolve(Boolean(approved))
   }
 
   list(scope: MemoryScope, projectId?: string) { return this.database.memories.list(scope, projectId) }
@@ -153,7 +158,8 @@ export class HarnessMemoryCoordinator {
       register({
         name: 'remember_memory', label: '保存记忆', description: '仅在用户明确要求记住某项长期事实时保存到指定范围。内容必须是稳定、可复用的事实或偏好。',
         parameters: Type.Object({ content: Type.String(), redactedContent: Type.Optional(Type.String()), scope: Type.Union([Type.Literal('global'), Type.Literal('project')]) }), executionMode: 'sequential',
-        execute: async (_id: string, params: { content: string, redactedContent?: string, scope: string }) => {
+        execute: async (_id: string, params: { content: string, redactedContent?: string, scope: string }, signal?: AbortSignal) => {
+          signal?.throwIfAborted()
           const scope = memoryScope(params.scope); const target = this.database.memories.path(scope, session().projectId); const id = record('remember_memory', target)
           try {
             const classified = classifyMemoryContent(params.content)
@@ -173,10 +179,13 @@ export class HarnessMemoryCoordinator {
               this.database.memories.savePending({ ...candidate, status: 'needs_confirmation' })
               this.database.harness.updateTool(sessionId, id, { status: 'waiting-confirm' })
               this.publish(sender, { sessionId, type: 'tool-call', payload: { id, tool: 'remember_memory', target, status: 'waiting-confirm' } })
-              const confirmation = await this.requestConfirmation(sender, sessionId, candidate)
-              if (!confirmation.approved) {
-                this.database.memories.removePending(candidate.id)
-                finish(id, 'ok', '- 用户拒绝保存脱敏记忆')
+              const confirmation = await this.requestConfirmation(sender, sessionId, candidate, signal)
+              if (!confirmation.approved || signal?.aborted) {
+                if (confirmation.approved) {
+                  this.database.memories.removePending(candidate.id)
+                  this.publish(sender, { sessionId, type: 'memory-status', payload: { status: 'rejected', requestId: confirmation.requestId, candidateId: candidate.id, reason: '运行已停止' } })
+                }
+                finish(id, 'ok', signal?.aborted ? '- 运行已停止，未保存脱敏记忆' : '- 用户拒绝保存脱敏记忆')
                 return { content: [{ type: 'text', text: '已取消保存这条敏感个人信息。' }], details: { scope, path: target, status: 'rejected' } }
               }
               const result = this.database.memories.remember(scope, redactedContent, session().projectId, { source: 'explicit', sensitivity: 'personal', allowPersonal: true, sourceSessionId: sessionId })
@@ -221,17 +230,26 @@ export class HarnessMemoryCoordinator {
     void task.finally(() => { if (this.writes.get(sessionId) === task) this.writes.delete(sessionId) })
   }
 
-  private async requestConfirmation(sender: WebContents | undefined, sessionId: string, candidate: MemoryCandidate) {
+  private async requestConfirmation(sender: WebContents | undefined, sessionId: string, candidate: MemoryCandidate, signal?: AbortSignal) {
     const requestId = randomUUID()
     const promise = new Promise<boolean>(resolve => {
-      const timer = setTimeout(() => {
-        this.confirmations.delete(requestId)
-        this.publish(sender, { sessionId, type: 'memory-status', payload: { status: 'rejected', requestId, candidateId: candidate.id, reason: '确认超时' } })
-        resolve(false)
-      }, 5 * 60 * 1000)
-      this.confirmations.set(requestId, { resolve, timer, candidate })
+      const settle = (approved: boolean, reason = '用户拒绝保存') => {
+        if (!this.confirmations.delete(requestId)) return
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', abort)
+        if (!approved) {
+          this.database.memories.removePending(candidate.id)
+          this.publish(sender, { sessionId, type: 'memory-status', payload: { status: 'rejected', requestId, candidateId: candidate.id, reason } })
+        }
+        resolve(approved)
+      }
+      const abort = () => settle(false, '运行已停止')
+      const timer = setTimeout(() => settle(false, '确认超时'), 5 * 60 * 1000)
+      this.confirmations.set(requestId, { resolve: settle })
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+      else this.publish(sender, { sessionId, type: 'memory-status', payload: { status: 'needs_confirmation', requestId, candidateId: candidate.id, content: candidate.redactedContent } })
     })
-    this.publish(sender, { sessionId, type: 'memory-status', payload: { status: 'needs_confirmation', requestId, candidateId: candidate.id, content: candidate.redactedContent } })
     return { requestId, approved: await promise }
   }
 

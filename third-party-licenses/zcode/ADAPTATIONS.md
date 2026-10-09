@@ -1,8 +1,8 @@
 # ZCode → Mira Harness 改编记录
 
-更新日期：2026-10-09（Asia/Shanghai）。
+更新日期：2026-10-09 20:46 +08:00（Asia/Shanghai）。
 
-前一批检查为 [收尾增量](#2026-10-08-收尾增量) 的 80 文件/458 项；80/455 保留为此前批次。本批文件树与只读预览来源见 [文件工作区增量](#2026-10-08-文件工作区增量)。开发态生命周期验收不等于安装包、Windows 或 P0–P3 放行。未提交、未推送。
+当前改编批次为 [首屏实现增量](#2026-10-09-首屏实现增量)，下一入口仍是首屏交互/截图与性能验收，不回到文件支线。前一批 [收尾增量](#2026-10-08-收尾增量) 的 80 文件/458 项及 80/455、后续文件批次继续保留历史身份，不能作为当前首屏验收统计。限定回归与 opaque iframe headless 不等于新的原生 Electron、安装包、Windows 或 P0–P3 放行。本批未提交、未推送。
 
 ## 可核验来源
 
@@ -41,10 +41,31 @@
 | `apps/harness-react/src/lib/file-preview.ts` | `packages/ui/src/lib/codeViewer.ts`、`packages/ui/src/lib/path.ts` 与 `packages/ui/src/PreviewPane.tsx` 的文件预览流程 | 参考语言识别、路径呈现与读取生命周期；Mira 独立实现语言映射、面包屑及绝对路径显示、捕获会话的读取助手与响应路径核验；未复制上游完整预览源模型或运行服务 |
 | `apps/harness-react/src/components/workspace/MiraImagePreview.tsx`、`lib/image-preview.ts`、`styles/file-preview.css` 的图片画布、`FilePreviewPanel.tsx` 的 SVG 入口 | `packages/ui/src/previewPaneImageContent.tsx`、`PreviewPane.tsx` | 40px 留白、8px 透明棋盘、自然尺寸与 Retina 文件名折算、SVG 适配画布及 image data URI；Mira 增加原生图片解码状态、失败重试、SVG 源码虚拟行及位图文本动作限制。文件名与状态采用 Mira 命名 |
 | `apps/harness-react/src/components/composer/HarnessComposer.tsx`、`apps/harness-react/src/lib/model-reasoning.ts` | `packages/ui/src/chat-input-toolbar/ThoughtLevelCycleControl.tsx`、`thoughtLevelOptions.ts`、`modelSelection.ts` | 适配模型与推理工具栏、档位显示和焦点返回；仅暴露 Mira Runtime 支持的关闭/低/中/高，第一方桥保留 `thinkingLevel`，不复制上游供应商配置体系 |
+| `apps/harness-react/src/components/git/MiraBranchPicker.tsx`、`git-controls.css`、Composer 项目条与 `TaskSummary.tsx` 的环境区 | `packages/ui/src/WorkspaceShellLayout.tsx`、`ConversationStatusPanel.tsx`、`GitActionMenu.tsx` | 参考 Composer 和悬浮摘要中的分支入口；Header 目录提示保持只读。使用 cmdk 1.1.1、Radix 与 Lucide 实现搜索、当前分支、工作树状态、创建及失败重读；宿主快照和项目忙碌守卫由 Mira 独立实现，不强制切换、不 stash、不丢弃更改；cmdk MIT 原文保留在 `../cmdk/LICENSE.md` |
+| `apps/harness-react/src/components/session/SidebarCollectionSection.tsx`、`SessionSidebar.tsx`、`sidebar-preferences.ts`、`styles/session.css` | `packages/ui/src/workspace-grouped-tasks/group-item.tsx`、`task-context-menu-content.tsx`、`types.ts` 与 `WorkspaceSidebarItem.tsx` | 改编独立自定义组的名称/颜色/折叠/任务移动/解散，以及项目 hover 新任务/文件树/更多的交互结构；组与项目/会话顺序用 Mira 偏好/Controller 保存，保留历史的项目隐藏不调用破坏性删除。Radix/dnd-kit 沿用本地依赖，不复制上游组服务或工作区 Runtime |
+| `apps/harness-react/src/components/search/HarnessCommandCenter.tsx`、`command-center-query.ts`、`command-center.css` | `packages/ui/src/command-center/CommandCenterDialog.tsx` | 改编命令/对话/文件分类、搜索结果与键盘选择；Mira 用自己受控桥的正文搜索和授权目录文件搜索，由 Shell 与侧栏共用入口；未移植完整导航/搜索历史 |
+| `apps/harness-react/src/components/automations/AutomationsView.tsx`、`AutomationEditor.tsx` 与对应样式 | `packages/ui/src/settings/AutomationsSection.tsx`、`AutomationEditView.tsx` | 改编任务列表、编辑与运行记录主视图；任务、触发、启停/运行/重试/停止和草稿使用现有 Mira scheduler/存储与第一方桥，不复制 ZCode 云端调度/工作流引擎 |
+| `apps/harness-react/src/components/extensions/SkillMarketView.tsx` 与 `skill-market.css` | `packages/ui/src/settings/PluginStoreListView.tsx`、`PluginStoreDetailView.tsx` | 改编搜索/已安装条带/目录/详情布局；Mira 固定公开 Skill 来源与真实 `SkillStore` 安装，不复制上游私有市场、计费或插件包。市场内容的独立来源/许可见 `third-party-licenses/skill-marketplace/` |
+| `apps/harness-react/src/components/conversation/ConversationTurnRail.tsx`、`TaskSummary.tsx` 与 `conversation-model.ts` | `packages/ui/src/v4/ConversationTurnNavigator.tsx`、`ConversationFileSummaryPanel.tsx` 及用户提供的实际工作台画面 | 参考真实轮次 hover/定位与悬浮摘要交互；状态投影、计划/子任务/变更与操作由 Mira 独立实现，缺失 reasoning/完整工具数据不造假；不复制上游完整 conversation renderer 或反馈/分享后台 |
+| `apps/harness-react/src/components/conversation/AssistantMessageParts.tsx`、`run-progress.tsx` 与 `styles/thread.css` | `packages/ui/src/v4/ConversationRowView.tsx` 的 ReasoningRow/ToolCallRow 及共享工具行 | 参考有序正文/折叠公开思考/工具参数结果与内联审批表现；Mira独立parts契约与数据库JSON持久化，使用实际pi-ai父任务thinking事件和工具调用身份。旧消息兼容，公开思考和工具文本有界，不暴露子任务推理，不移植上游Runtime |
+| `apps/harness-react/src/components/composer/HarnessMessageQueue.tsx`、`HarnessComposer.tsx` 与 `styles/composer.css` | `packages/ui/src/v4/ConversationQueuePanel.tsx`、`ConversationComposer.tsx`、`SessionPane.tsx` 的运行中入队/撤回/排序/立即发送/暂停发送确认交互，以及 CLI `session-flow.ts` 的保留队列语义 | 改编队列面板、dnd-kit键盘排序、修饰键立即发送与Radix暂停确认；Mira独立实现宿主FIFO/完整输入冻结/撤回草稿恢复/原子预占和admission后清空/停止暂停与受控桥，renderer重载复用提交身份。队列仅进程内；guide未移植 |
+| `apps/harness-react/src/components/composer/ComposerSuggestionPanel.tsx`、`ComposerControlHint.tsx`、`useComposerCatalogs.ts`、`lib/prompt-input-triggers.ts` | `packages/ui/src/mentions/activePromptInputToken.ts` 及已装载输入框的引用/命令交互 | 参考 caret 触发和替换范围；Mira 使用本地命名与实际文件/Skill/MCP/对话候选，保留前后草稿、方向键/Enter/Tab/Esc，成熟 Radix 菜单/tooltip。发送偏好来自统一宿主，不移植上游多模态、运行队列或插件业务 |
 | `apps/harness-react/src/components/session/`、`components/composer/`、`components/workbench/`、`components/workspace/` | ZCode 桌面应用的任务侧栏、起点、输入区、资源面板；源码 `packages/ui` 对应区域 | 根据 Mira Harness 已有能力适配交互与布局；Mira 组件、文件与业务变量保持本项目命名 |
 
 本表最后一行记录界面参考范围，不声称完整复制了上游 Agent Runtime、账号服务、
 订阅、远控或其他尚未接入的业务能力。实际完成状态由 Mira 进展文档与运行验收记录维护。
+
+## 2026-10-09 首屏实现增量
+
+本批将侧栏、对话与 Composer 作为同一主线实施，来源映射见上表；不是新的原创视觉方案，也不是完整 ZCode 商业业务移植。实际已接入独立任务组与项目菜单、归档/排序、共享搜索中心、React 自动化/Skill 市场主视图、轮次定位/状态摘要和 caret `@`/`/`/`$`/`+`。改编组件保留必要上游版权与 Apache-2.0 声明，Mira 文件/业务名称不照搬 ZCode。
+
+Mira 原创宿主适配包括第一方参数白名单/双解析、项目原生选择与打开、偏好串行保存/晚到读取保护、组任务保留、对话正文查询、现有自动化 scheduler 调用，以及市场有界下载、Git blob hash/大小核验、授权复核和原子发布。这些能力不依赖复制上游 RPC 或 Runtime。
+
+市场目录固定到 `anthropics/skills` commit `683bc88e56f3e09ba94f7055977f3d3aa499f202`，来源清单在 `electron/services/marketplace/curated-skill-source.json`；只从固定 `raw.githubusercontent.com` 地址下载该 commit 的文件，不再依赖匿名 GitHub API，也不自动跟随 main。审核的 19 个目录中，仅 14 个包级 Apache-2.0 包可安装；特殊非开源/无许可条目排除，保留完整包、许可、上游第三方声明和来源记录。MCP 仅管理 Mira 已有本地配置，不表示具备在线 MCP 市场；Skill 文件不按 UI 文件重命名规则改写。
+
+本批限定回归与生产 React opaque iframe headless 有记录，正式桥/parser 在隔离 fixture 下执行；最新检查、截图及最后评审统一见 [首屏总记录](../../docs/MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，不重复旧样本数字。市场浏览器样本通过本机临时显式代理访问真实公开来源并写入隔离 `SkillStore`，不称 raw 直连或 native Electron 下载通过。桌面访问使用 Electron `net.fetch` 遵循已有系统代理，不修改系统设置；当前系统代理关闭，完整原生网络仍需实测。浏览器检查不等于新的 Electron grant/preload/IPC、实体鼠标/键盘、ZCode 同态、真实模型或性能放行。
+
+2026-10-09 20:14追加队列与父任务有序执行数据链，20:46补修饰键原子立即发送与暂停确认，来源见上表；公开思考仅保证当前provider API key跨chunk隐藏，不声明任意凭证全面脱敏。终态渲染身份与会话级WeakMap是Mira独立适配，不复制上游完整renderer或持久化UI状态。剩余guide、多模态、阅读恢复/线程虚拟化、导航/搜索历史、完整同态截图与性能继续留待首屏主线，不宣布完整对齐。未移植的ZCode云账号、订阅、云分享、Goal、远控、画板与工作流不作为已完成能力；历史文件批次的通过范围不扩大。
 
 ## 2026-10-08 第二批增量
 

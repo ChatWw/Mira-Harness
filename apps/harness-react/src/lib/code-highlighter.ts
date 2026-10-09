@@ -89,9 +89,26 @@ const escapeHtml = (value: string) => value.replace(/[&<>"]/g, character => ({ '
 
 export function renderMiraHighlightedCode(result: MiraHighlightResult, language: string) {
   const style = result.rootStyle || (result.fg && result.bg ? `background-color:${result.bg};color:${result.fg}` : '')
-  const lines = result.tokens.map(line => `<span class="line">${line.map(token => {
-    const tokenStyle = Object.entries(token.htmlStyle || {}).map(([name, value]) => `${name}:${value}`).join(';')
-    return `<span${tokenStyle ? ` style="${escapeHtml(tokenStyle)}"` : ''}>${escapeHtml(token.content)}</span>`
-  }).join('')}</span>`).join('\n')
+  const lines = result.tokens.map(line => {
+    const colors = new Map<string, { color: string; dark: string; count: number }>()
+    let base: { color: string; dark: string; count: number } | undefined
+    for (const token of line) {
+      const tokenStyle = token.htmlStyle
+      if (!tokenStyle?.color || !tokenStyle['--shiki-dark'] || !Object.prototype.hasOwnProperty.call(tokenStyle, 'color') || !Object.prototype.hasOwnProperty.call(tokenStyle, '--shiki-dark')) { base = undefined; break }
+      if (Object.keys(tokenStyle).length !== 2) continue
+      const key = JSON.stringify([tokenStyle.color, tokenStyle['--shiki-dark']])
+      const entry = colors.get(key) || { color: tokenStyle.color, dark: tokenStyle['--shiki-dark'], count: 0 }
+      entry.count += 1
+      colors.set(key, entry)
+      if (!base || entry.count > base.count) base = entry
+    }
+    // Inherit colors only; font, background and decoration must remain on their own token.
+    const lineStyle = base ? ` style="${escapeHtml(`color:${base.color};--shiki-dark:${base.dark}`)}"` : ''
+    return `<span class="line"${lineStyle}>${line.map(token => {
+      if (base && Object.keys(token.htmlStyle || {}).length === 2 && token.htmlStyle?.color === base.color && token.htmlStyle['--shiki-dark'] === base.dark) return escapeHtml(token.content)
+      const tokenStyle = Object.entries(token.htmlStyle || {}).map(([name, value]) => `${name}:${value}`).join(';')
+      return `<span${tokenStyle ? ` style="${escapeHtml(tokenStyle)}"` : ''}>${escapeHtml(token.content)}</span>`
+    }).join('')}</span>`
+  }).join('\n')
   return `<pre class="shiki"${style ? ` style="${escapeHtml(style)}"` : ''}><code class="${escapeHtml(`language-${language}`)}">${lines}</code></pre>`
 }

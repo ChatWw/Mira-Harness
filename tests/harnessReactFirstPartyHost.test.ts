@@ -9,6 +9,20 @@ function fixture() {
 }
 
 describe('React Harness prepare-leave handshake', () => {
+  it('sends Git context and token-bound local branch actions without renderer paths or model permissions', async () => {
+    const { host, port, receive } = fixture()
+    const context = { projectId: 'project', directory: '/fixture/project', isRepository: true, headType: 'branch', branchName: 'main', uncommittedFileCount: 0, branches: [], snapshotToken: 'a'.repeat(64), mutationBlocked: false }
+    const reading = host.getGitContext('project')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.git.context', params: { projectId: 'project' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: context }); await expect(reading).resolves.toEqual(context)
+    const switching = host.checkoutGitBranch('project', 'topic', context.snapshotToken)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.git.checkout', params: { projectId: 'project', branch: 'topic', snapshotToken: context.snapshotToken } })
+    receive({ type: 'mira:response', id: '2', ok: true, value: { ...context, branchName: 'topic' } }); await expect(switching).resolves.toMatchObject({ branchName: 'topic' })
+    const creating = host.createGitBranch('project', 'mira/task', context.snapshotToken)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '3', method: 'harness.git.create-branch', params: { projectId: 'project', branch: 'mira/task', snapshotToken: context.snapshotToken } })
+    receive({ type: 'mira:response', id: '3', ok: false, error: { message: 'Git 工作区或分支已变化，请刷新后重试' } })
+    await expect(creating).rejects.toThrow('Git 工作区或分支已变化'); host.close()
+  })
   it('reads Git decorations using the captured session and exact relative paths', async () => {
     const { host, port, receive } = fixture()
     const status = host.getWorkspaceGit('session-a')

@@ -84,24 +84,28 @@ const entries: HarnessWorkspaceFileEntry[] = [
   { name: TARGET, path: TARGET, type: 'file' },
 ]
 type ClearMode = 'button' | 'escape' | 'input'
-type MountOptions = { directories?: Record<string, HarnessWorkspaceFileEntry[]>; searchEntries?: HarnessWorkspaceFileEntry[]; editors?: WorkspaceEditorInfo[] }
+type MountOptions = { directories?: Record<string, HarnessWorkspaceFileEntry[]>; searchEntries?: HarnessWorkspaceFileEntry[]; editors?: WorkspaceEditorInfo[]; projectId?: string; detached?: boolean; supportsSessionGit?: boolean }
 
 function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries, git?: { read: (sessionId: string) => Promise<HarnessWorkspaceGitSnapshot>; ignored: (sessionId: string, paths: string[]) => Promise<string[]> }, options: MountOptions = {}) {
   const listFilesFor = vi.fn(async (_sessionId: string, path: string) => ({ entries: options.directories?.[path] ?? (path ? [] : fileEntries) }))
   const searchFilesFor = vi.fn(async () => ({ entries: options.searchEntries ?? [entries[TARGET_INDEX]], truncated: false }))
-  const controller = { listFilesFor, searchFilesFor, supportsWorkspaceGit: Boolean(git), getWorkspaceGitFor: git?.read, getWorkspaceIgnoredFor: git?.ignored } as unknown as PilotController
+  const listProjectFiles = vi.fn(async (_projectId: string, path: string) => ({ entries: options.directories?.[path] ?? (path ? [] : fileEntries) }))
+  const searchProjectFiles = vi.fn(async () => ({ entries: options.searchEntries ?? [entries[TARGET_INDEX]], truncated: false }))
+  const controller = { listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles, supportsWorkspaceGit: options.supportsSessionGit ?? Boolean(git), supportsProjectWorkspaceGit: Boolean(git), getWorkspaceGitFor: git?.read, getWorkspaceIgnoredFor: git?.ignored, getProjectWorkspaceGit: git?.read, getProjectWorkspaceIgnored: git?.ignored } as unknown as PilotController
   const scroll = { scrollTop: 0, clientHeight: 112, focus: vi.fn() }
   const input = { focus: vi.fn() }
   const rowElements = new Map<string, { focus: ReturnType<typeof vi.fn> }>()
   let tree: React.ReactElement
   let selectedPath: string | undefined
   let expandedPaths: string[] = []
-  let sessionId = 'session', directory = '/project'
+  let sessionId: string | undefined = options.detached ? undefined : 'session', directory = '/project', projectId = options.projectId
   const onOpenFile = vi.fn((path: string) => {
     if (path !== selectedPath) { selectedPath = path; hooks.dirty = true }
   })
   const onAddFile = vi.fn()
   const onOpenEditor = vi.fn(async (_path: string, _editorId: string) => undefined)
+  const onOpenDirectory = vi.fn()
+  const onWatchDirectoriesChange = vi.fn()
   const onExpandedPathsChange = vi.fn((paths: string[]) => { expandedPaths = paths; hooks.dirty = true })
   const visit = (node: React.ReactNode, callback: (props: Record<string, unknown>, element: React.ReactElement<Record<string, unknown>>) => void) => {
     if (Array.isArray(node)) { node.forEach(child => visit(child, callback)); return }
@@ -111,7 +115,7 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
   }
   const render = () => {
     hooks.cursor = 0; hooks.dirty = false
-    tree = ProjectFileDrawer({ controller, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onAddFile, onBack: vi.fn(), onOpenDirectory: vi.fn(), workspaceWatch, editors: options.editors, onOpenEditor })
+    tree = ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile: options.detached ? undefined : onOpenFile, onAddFile: options.detached ? undefined : onAddFile, onBack: vi.fn(), onOpenDirectory, workspaceWatch, onWatchDirectoriesChange, editors: options.editors, onOpenEditor: options.detached ? undefined : onOpenEditor })
     visit(tree, props => {
       if (props.role === 'tree') (props.ref as React.RefObject<unknown>).current = scroll
       else if (props['aria-label'] === '搜索文件') (props.ref as React.RefObject<unknown>).current = input
@@ -150,7 +154,10 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
     if (!found) throw new Error(`File drawer row control not found: ${path}`)
     return found
   }
-  const changeContext = async (nextSession: string, nextDirectory: string) => { sessionId = nextSession; directory = nextDirectory; render(); await drain() }
+  const changeContext = async (nextSession: string | undefined, nextDirectory: string, nextProject = projectId) => {
+    if (nextProject !== projectId || nextDirectory !== directory) { selectedPath = undefined; expandedPaths = [] }
+    sessionId = nextSession; directory = nextDirectory; projectId = nextProject; render(); await drain()
+  }
   const search = async (query = 'transient') => {
     ;(props(props => props['aria-label'] === '搜索文件').onChange as (event: unknown) => void)({ target: { value: query } })
     await drain()
@@ -169,7 +176,7 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
     await drain()
   }
   render()
-  return { drain, search, open, clear, scroll, props, allProps, rowProps, changeContext, render, onOpenFile, onAddFile, onOpenEditor, onExpandedPathsChange, getExpandedPaths: () => expandedPaths, listFilesFor, searchFilesFor }
+  return { drain, search, open, clear, scroll, props, allProps, rowProps, changeContext, render, onOpenFile, onAddFile, onOpenEditor, onOpenDirectory, onWatchDirectoriesChange, onExpandedPathsChange, getExpandedPaths: () => expandedPaths, listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles }
 }
 
 beforeEach(() => {
@@ -185,6 +192,141 @@ afterEach(() => {
   hooks.slots.forEach(slot => slot.cleanup?.())
   vi.useRealTimers()
   vi.unstubAllGlobals()
+})
+
+describe('React Harness project-scoped file drawer', () => {
+  const text = (label: string) => (props: Record<string, unknown>) => props.children === label || Array.isArray(props.children) && props.children.includes(label)
+
+  it('browses, searches, copies and opens the project directory without a session', async () => {
+    const read = vi.fn(async () => ({ available: true, entries: [{ path: 'file.md', status: 'modified' as const }] }))
+    const ignored = vi.fn(async () => ['ignored.tmp'])
+    const files: HarnessWorkspaceFileEntry[] = [{ path: 'src', name: 'src', type: 'directory' }, { path: 'file.md', name: 'file.md', type: 'file' }, { path: 'ignored.tmp', name: 'ignored.tmp', type: 'file' }]
+    const view = mount(undefined, files, { read, ignored }, { projectId: 'project-a', detached: true, supportsSessionGit: false, directories: { src: [{ path: 'src/child.md', name: 'child.md', type: 'file' }] }, searchEntries: [files[1]] })
+    await view.drain()
+    expect(view.listProjectFiles.mock.calls).toEqual([['project-a', '']])
+    expect(read).toHaveBeenCalledWith('project-a')
+    expect(ignored.mock.calls.every(([scope]) => scope === 'project-a')).toBe(true)
+    expect(view.props(props => props['data-file-tree-path'] === 'file.md')['aria-label']).toBe('file.md，已修改')
+    expect(view.props(props => props['data-file-tree-path'] === 'ignored.tmp')['aria-label']).toBe('ignored.tmp，已忽略')
+    await view.open('src')
+    expect(view.listProjectFiles).toHaveBeenCalledWith('project-a', 'src')
+    expect(view.getExpandedPaths()).toEqual(['src'])
+    await view.search('file')
+    expect(view.searchProjectFiles).toHaveBeenCalledWith('project-a', 'file', true)
+    await view.open('file.md')
+    expect(view.props(props => props['data-file-tree-path'] === 'file.md')['aria-selected']).toBe(true)
+    ;(view.rowProps('file.md', text('复制相对路径')).onSelect as () => void)()
+    ;(view.rowProps('file.md', text('复制绝对路径')).onSelect as () => void)()
+    ;(view.props(props => props['aria-label'] === '打开项目目录').onClick as () => void)()
+    await view.drain()
+    expect(navigator.clipboard.writeText).toHaveBeenNthCalledWith(1, 'file.md')
+    expect(navigator.clipboard.writeText).toHaveBeenNthCalledWith(2, '/project/file.md')
+    expect(view.onOpenDirectory).toHaveBeenCalledOnce()
+    expect(view.listFilesFor).not.toHaveBeenCalled(); expect(view.searchFilesFor).not.toHaveBeenCalled()
+    expect(view.onOpenFile).not.toHaveBeenCalled(); expect(view.onAddFile).not.toHaveBeenCalled()
+  })
+
+  it('selects by keyboard but disables session actions when their callbacks are absent', async () => {
+    const view = mount(undefined, [{ path: 'file.md', name: 'file.md', type: 'file' }], undefined, { projectId: 'project-a', detached: true, editors: [{ id: 'mira-editor', name: 'Test Editor', fileOnly: true }] })
+    await view.drain()
+    for (const key of ['Enter', ' ']) {
+      ;(view.props(props => props['data-file-tree-path'] === 'file.md').onKeyDown as (event: unknown) => void)({ key, shiftKey: false, preventDefault: vi.fn() })
+      await view.drain()
+      expect(view.props(props => props['data-file-tree-path'] === 'file.md')['aria-selected']).toBe(true)
+    }
+    for (const label of ['打开', '打开方式', 'Test Editor', '加入对话']) expect(view.rowProps('file.md', text(label)).disabled).toBe(true)
+    for (const label of ['打开', 'Test Editor', '加入对话']) (view.rowProps('file.md', text(label)).onSelect as () => void)()
+    await view.drain()
+    expect(view.onOpenFile).not.toHaveBeenCalled(); expect(view.onAddFile).not.toHaveBeenCalled(); expect(view.onOpenEditor).not.toHaveBeenCalled()
+  })
+
+  it('retains explicit same-project session actions without querying the session file root', async () => {
+    const view = mount(undefined, [{ path: 'file.md', name: 'file.md', type: 'file' }], undefined, { projectId: 'project-a', editors: [{ id: 'mira-editor', name: 'Test Editor', fileOnly: true }] })
+    await view.drain(); await view.open('file.md')
+    ;(view.rowProps('file.md', text('加入对话')).onSelect as () => void)()
+    ;(view.rowProps('file.md', text('Test Editor')).onSelect as () => void)()
+    await view.drain()
+    expect(view.onOpenFile).toHaveBeenCalledWith('file.md'); expect(view.onAddFile).toHaveBeenCalledWith('file.md'); expect(view.onOpenEditor).toHaveBeenCalledWith('file.md', 'mira-editor')
+    expect(view.listFilesFor).not.toHaveBeenCalled()
+    view.listProjectFiles.mockClear()
+    await view.changeContext('other-session', '/project')
+    expect(view.listProjectFiles).not.toHaveBeenCalled()
+    expect(view.props(props => props['data-file-tree-path'] === 'file.md')['aria-selected']).toBe(true)
+  })
+
+  it('ignores session watchers in project mode and keeps manual refresh functional', async () => {
+    const workspaceWatch = { getSnapshot: vi.fn(() => ({ revision: 5, paths: [''], error: 'wrong-session watcher' })), subscribe: vi.fn(() => vi.fn()), retry: vi.fn() } as unknown as WorkspaceWatchDataSource
+    const read = vi.fn(async () => ({ available: true, entries: [] }))
+    const view = mount(workspaceWatch, [{ path: 'file.md', name: 'file.md', type: 'file' }], { read, ignored: vi.fn(async () => []) }, { projectId: 'project-a', detached: true })
+    await view.drain(); await view.search()
+    expect(workspaceWatch.subscribe).not.toHaveBeenCalled(); expect(workspaceWatch.getSnapshot).not.toHaveBeenCalled()
+    expect(view.onWatchDirectoriesChange).not.toHaveBeenCalled()
+    expect(view.allProps(props => props['aria-label'] === '重试文件自动刷新')).toEqual([])
+    view.listProjectFiles.mockClear(); view.searchProjectFiles.mockClear(); read.mockClear()
+    ;(view.props(props => props['aria-label'] === '刷新文件').onClick as () => void)()
+    await view.drain()
+    expect(view.listProjectFiles).toHaveBeenCalledWith('project-a', '')
+    expect(view.searchProjectFiles).toHaveBeenCalledWith('project-a', 'transient', true)
+    expect(read).toHaveBeenCalledWith('project-a')
+    expect(workspaceWatch.retry).not.toHaveBeenCalled()
+  })
+
+  it('suppresses late tree, search and Git results when the project changes at the same directory', async () => {
+    let finishTree!: (value: { entries: HarnessWorkspaceFileEntry[] }) => void, finishSearch!: (value: { entries: HarnessWorkspaceFileEntry[]; truncated: boolean }) => void, finishGit!: (value: HarnessWorkspaceGitSnapshot) => void
+    const read = vi.fn().mockReturnValueOnce(new Promise(resolve => { finishGit = resolve })).mockResolvedValue({ available: true, entries: [{ path: 'new.md', status: 'added' }] })
+    const ignored = vi.fn(async () => [])
+    const view = mount(undefined, [], { read, ignored }, { projectId: 'project-a', detached: true })
+    await view.drain()
+    view.listProjectFiles.mockImplementationOnce(() => new Promise(resolve => { finishTree = resolve }))
+    view.searchProjectFiles.mockImplementationOnce(() => new Promise(resolve => { finishSearch = resolve }))
+    ;(view.props(props => props['aria-label'] === '刷新文件').onClick as () => void)()
+    await view.drain(); await view.search('old')
+    view.listProjectFiles.mockResolvedValue({ entries: [{ path: 'new.md', name: 'new.md', type: 'file' }] })
+    await view.changeContext(undefined, '/project', 'project-b')
+    finishTree({ entries: [{ path: 'old.md', name: 'old.md', type: 'file' }] })
+    finishSearch({ entries: [{ path: 'old.md', name: 'old.md', type: 'file' }], truncated: false })
+    finishGit({ available: true, entries: [{ path: 'old.md', status: 'deleted' }] })
+    await view.drain()
+    expect(view.allProps(props => props.role === 'treeitem').map(props => props['data-file-tree-path'])).toEqual(['new.md'])
+    expect(view.props(props => props['data-file-tree-path'] === 'new.md')['aria-label']).toBe('new.md，已新增')
+    expect(view.props(props => props['aria-label'] === '搜索文件').value).toBe('')
+    expect(view.getExpandedPaths()).toEqual([])
+    expect(view.listProjectFiles).toHaveBeenCalledWith('project-b', '')
+    expect(ignored.mock.calls.every(([scope]) => scope === 'project-b')).toBe(true)
+  })
+
+  it('does not query any file scope when neither project nor session is supplied', async () => {
+    const view = mount(undefined, entries, undefined, { detached: true })
+    await view.drain(); await view.search()
+    ;(view.props(props => props['aria-label'] === '刷新文件').onClick as () => void)()
+    await view.drain()
+    expect(view.props(props => props['aria-label'] === '搜索文件').disabled).toBe(true)
+    expect(view.props(props => props.role === 'status' && props.children === '未关联项目目录')).toBeDefined()
+    expect(view.listFilesFor).not.toHaveBeenCalled(); expect(view.searchFilesFor).not.toHaveBeenCalled()
+    expect(view.listProjectFiles).not.toHaveBeenCalled(); expect(view.searchProjectFiles).not.toHaveBeenCalled()
+  })
+
+  it('keeps project rows virtualized and restores local selection after clearing search without preview', async () => {
+    const view = mount(undefined, entries, undefined, { projectId: 'project-a', detached: true })
+    await view.drain()
+    expect(view.allProps(props => props.role === 'treeitem').length).toBeLessThan(entries.length)
+    await view.search(); await view.open(); await view.clear('button')
+    expect(view.props(props => props['data-file-tree-path'] === TARGET)['aria-selected']).toBe(true)
+    expect(virtualization.instance.scrollToIndex).toHaveBeenLastCalledWith(TARGET_INDEX, { align: 'auto' })
+    expect(view.onOpenFile).not.toHaveBeenCalled()
+    expect(view.allProps(props => props.role === 'treeitem').every(props => (props.style as { height: number }).height === 28)).toBe(true)
+  })
+
+  it('ignores an editor error from the previously browsed project', async () => {
+    let fail!: (cause: Error) => void
+    const view = mount(undefined, [{ path: 'file.md', name: 'file.md', type: 'file' }], undefined, { projectId: 'project-a', editors: [{ id: 'mira-editor', name: 'Test Editor', fileOnly: true }] })
+    await view.drain()
+    view.onOpenEditor.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+    ;(view.rowProps('file.md', text('Test Editor')).onSelect as () => void)()
+    await view.changeContext('session', '/other-project', 'project-b')
+    fail(new Error('old-project editor failure')); await view.drain()
+    expect(view.allProps(props => props.role === 'alert')).toEqual([])
+  })
 })
 
 describe('React Harness file drawer search clearing', () => {

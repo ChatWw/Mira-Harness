@@ -1,6 +1,6 @@
 # Mira 后续能力只读审查
 
-日期：2026-10-09，Asia/Shanghai。范围：源码审查与一次 Node 诊断样本；删除/筛选及搜索 ignore/Vue 设置已在后续同日批次接入，metadata watcher、媒体 lease/Range 和高亮 Worker/profile 仍未实现。当前检查与限定评审见 [搜索忽略规则证据页](./SEARCH_IGNORE_EVIDENCE.md)，旧 filter 数字/verdict 保留历史；本页不授予原生 Electron 或整体放行。
+日期：2026-10-09，Asia/Shanghai；14:48 更新。范围：历史源码/Node 诊断与后续能力入口。删除/筛选、搜索 ignore/Vue 设置和生产高亮 Worker 已接入，有限设置/搜索/浏览原生验收通过；metadata watcher、媒体 lease/Range 与代码块 DOM/profile 仍独立推进。准确结果分别见 [搜索证据](./SEARCH_IGNORE_EVIDENCE.md) 和 [Worker 证据](./HIGHLIGHT_WORKER_EVIDENCE.md)，旧数字/verdict 保留历史；本页不授予完整原生或整体发布放行。
 
 ## 音视频预览
 
@@ -12,9 +12,9 @@ Mira `electron/adapters/localMicroAppServer.ts` 的当前静态 GET/HEAD 不提�
 
 验收需真实大于 8MiB 媒体、tail-moov MP4、HEAD/206/416、分段 seek、backpressure、删除/替换/授权撤销/隐藏恢复、codec 错误、无路径/凭据泄漏与原生浅深色。Office 未包含在此方案，也尚未实现。
 
-## 高亮性能
+## 高亮性能：10:49 历史诊断
 
-源码事实：`code-highlighter.ts` 的 Promise continuation 内仍完整同步执行 `codeToTokens`；异步 API 不等于让出主线程。`file-preview-highlighter.ts` 在每行完成后按 8ms 预算让出，无法中断首次 grammar/regex 编译或单行 tokenizer。
+当时源码事实：`code-highlighter.ts` 的 Promise continuation 内完整同步执行 `codeToTokens`；异步 API 不等于让出主线程。`file-preview-highlighter.ts` 在每行完成后按 8ms 预算让出，无法中断首次 grammar/regex 编译或单行 tokenizer。后续同日已迁移 WASM Worker，下列诊断不描述当前执行位置。
 
 独立只读审查在 10:49:59（Node 24.7.0、esbuild `write:false` 载入当前 TS）报告下列单样本；原始诊断输出未在本批证据目录保存，故仅作定位线索，不据此回填浏览器 Long Tasks 或性能门槛。
 
@@ -28,7 +28,7 @@ Mira `electron/adapters/localMicroAppServer.ts` 的当前静态 GET/HEAD 不提�
 
 审查另外报告暖态 batch 16/32/64 的 8001 行约 499/495/487ms，TS/Vue/Python/Shell/Markdown/JSON/CRLF Unicode 七夹具 token 等价。批量参数只能减少调用开销，不解决首次/单行阻塞，本批不为得到更好数字重新采样或改参数。
 
-下一步先在独立真实浏览器中区分初始化、grammar load/compile、tokenize、暖缓存与输入响应，随后考虑 opaque iframe 中可加载的 Worker，把同步高亮移出 UI 主线程，同时保留语言、跨行 grammar state、浅深主题、取消/迟到保护与 bounded cache。不能通过删语言、截断内容或把长行降为纯文本来宣布性能改善。
+当时建议先区分初始化、grammar load/compile、tokenize、暖缓存与输入响应，再实现 opaque iframe 的 Worker。生产实现现已覆盖流式/完成态/文件预览，保留语言、跨行状态、双主题、取消/迟到保护和有界缓存，不以删语言、截断或纯文本长行回退获得性能结论，详见 [Worker 证据](./HIGHLIGHT_WORKER_EVIDENCE.md)。主线程 HTML/DOM 着色是新的独立瓶颈，不能把“有 Worker”写成全部性能已收敛。
 
 既往原生 136/161ms long-task 记录保留；默认 8001 行 5 秒超时的完整当次日志未在这次审查定位，不能编造原因。最新两 workers 全量绿只证明限定并发回归，不消除上述边界。
 
@@ -36,7 +36,7 @@ Mira `electron/adapters/localMicroAppServer.ts` 的当前静态 GET/HEAD 不提�
 
 ZCode `packages/services/src/git/repo/gitCliRepo.ts:142` 用 Git 自身解析 absolute git-dir/common-dir，单独输出元数据 watcher 边界；linked-worktree 的目录可能位于 workspace 外，不能猜 `.git` 路径。Linux 大树 recursive workspace watcher 被明确排除。
 
-Mira 本轮已实现只读装饰与初次/手动/既有 workspace 事件刷新；未实现该 metadata 边界。当前先补搜索 ignore 的有限原生验收，Git metadata watcher 仅为随后候选：用 Git 自身解析 canonical git-dir/common-dir，复核授权 root/repository/metadata 身份，以宿主内部监听对象绑定 renderer owner/grant/session/root，不把元数据绝对路径暴露成 renderer 任意监听 API。覆盖 index/HEAD/refs、linked-worktree 公共目录、原子替换/消失恢复、合并刷新与所有生命周期释放；已有 `harnessWorkspaceWatch.ts` 文件目录监听不等于该能力，不因当前锁屏自动切换开发主线。
+Mira 本轮已实现只读装饰与初次/手动/既有 workspace 事件刷新；未实现该 metadata 边界。搜索 ignore 有限原生验收已完成，下一入口回到旧错误态和图片/Git 同态对照，metadata watcher 是独立候选：用 Git 自身解析 canonical git-dir/common-dir，复核授权 root/repository/metadata 身份，以宿主内部监听对象绑定 renderer owner/grant/session/root，不把元数据绝对路径暴露成 renderer 任意监听 API。覆盖 index/HEAD/refs、linked-worktree 公共目录、原子替换/消失恢复、合并刷新与所有生命周期释放；已有 `harnessWorkspaceWatch.ts` 不等于该能力。
 
 下次先读 `electron/services/harnessWorkspaceGit.ts`、`harnessWorkspaceWatch.ts` 和 `electron/ipc/platformIpc.ts` 的 root、metadata 与 grant 生命周期，形成最小协议/预算/错误态设计再实现。验收分别覆盖外部 add/commit/reset/branch 切换、普通仓库/linked-worktree、metadata 位于 root 外时的受控路径、grant 撤销/会话换 root/renderer 导航与销毁；不借旧文件 watch 或搜索 headless 宣称通过。媒体 lease/Range 与高亮 Worker/profile 独立推进，不和 watcher 合并成大批重构。
 
@@ -63,6 +63,6 @@ Mira loading 保留最后成功 available/index、筛选、删除菜单与焦点
 
 **检查边界（2026-10-09 13:26 +08:00）**：有界 UTF-8、拒链接/特殊文件、hard-link no-replace、root 串行/revision/mode/flush 与同步提交授权已接入。本次独立服务复现的 awaited 授权 P2 已修复并复验；它不解决通用 POSIX 最后检查至 syscall 的跨进程非 CAS/root 路径竞争，也不承诺 root 移走无临时文件残留。真实 Electron 随后发现的 Vue Proxy target 克隆 P2 已改为 `shallowRef` 与普通 `{ kind, id }` 请求快照，初读/重读/transform/save 不传 Proxy，回归与独立源码复核通过。最新全量/类型、React 与 Electron 重新构建/审计通过，JS/CSS 字节不变，准确数字与评审只看 [本批证据](./SEARCH_IGNORE_EVIDENCE.md)。7 张旧 headless 图未重拍，原 HTTP fixture 不含 preload/IPC；不改变其历史证据身份。
 
-**真实桥与环境**：13:14:15 的 [bridge/DOM probe](./search-ignore-native/bridge-transport-results.json) 经真实隔离 Electron preload/IPC，模板约 460B、textarea 启用且内容一致、无 alert；三产物 SHA 与最新构建一致，但 probe 未重跑。这是 CDP 只读观察，不是实体输入/截图验收。AX/CG/helper 权限可用，不能写成 Electron 桥或所有原生验证不可用。前景仍为 `616=com.apple.loginwindow`，隔离 Electron 已退出、无可见窗口；当前原生脚本在夹具设置/输入前记录 `blockedBy=macOS-loginwindow`、0 actions/0 captures，未解锁或使用 `DOM.click`，不算功能失败。
+**真实桥与历史环境**：13:14:15 的 [bridge/DOM probe](./search-ignore-native/bridge-transport-results.json) 保留实际读取/CDP 身份，不是原生输入。13:21 锁屏阻断保持历史观察，其独立 JSON 未保留下来，当前 `results.json` 已是后续成功流程，不能用它回证锁屏。AX/CG/helper 可用，未解锁或使用 `DOM.click`。
 
-**下一次**：搜索 ignore 不重复实施。解锁后重启隔离 Electron，先补本批配置/搜索/浏览的有限原生验收，不自动扩展为完整 native、同态 ZCode、Windows、真实模型或 P0–P3 放行。Git metadata watcher 仅为随后候选，不因锁屏更换当前主线；既有文件 watch 不等于它。旧错误态/image/Git、媒体 lease/Range、高亮 Worker/profile 与可靠进程冷启动、安装包/Windows/真实模型及 P0–P3 分别推进；整体 active，未提交、未推送，不称功能或性能已无法改进。
+**14:48 当前完成与下一次**：14:25–14:28 有限原生配置/搜索/浏览流程通过，27 条记录/3 张截图逐张确认，见 [原生交接](./search-ignore-native/README.md)；不重复实施。生产 Worker 也已实现。下一入口回到旧监听/编辑器错误态和图片/Git 同态 ZCode 对照，metadata watcher、媒体 lease/Range、代码块 DOM/profile、可靠冷启动及安装包/Windows/真实模型各自推进。原生截图发现用户正在 ZCode 输入草稿，已停止操作该窗口；新增观察图不算受控同态验收。整体 active，本轮没有执行提交或推送，不称功能或性能已无法改进。

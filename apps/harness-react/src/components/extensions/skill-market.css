@@ -1,0 +1,65 @@
+.mira-market { display: flex; min-width: 0; min-height: 0; height: 100%; flex: 1; flex-direction: column; color: var(--mira-foreground); background: var(--mira-panel); }
+.mira-market button, .mira-market input { font: inherit; }
+.mira-market button { cursor: pointer; }
+.mira-market button:disabled { cursor: default; opacity: .5; }
+.mira-market button:focus-visible, .mira-market input:focus-visible, .mira-market summary:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-market-header { display: flex; height: 48px; min-height: 48px; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--mira-border); }
+.mira-market-header h1 { margin: 0; font-size: 14px; font-weight: 550; }
+.mira-market-header-actions { display: flex; gap: 4px; margin-left: auto; }
+.mira-market-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: 0; border-radius: 6px; color: inherit; background: transparent; }
+.mira-market-icon:hover { background: var(--mira-hover); }
+.mira-market-breadcrumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.mira-market-scroll { min-height: 0; overflow: auto; padding: 32px; scrollbar-width: thin; scrollbar-color: var(--mira-border-hover) transparent; }
+.mira-market-list, .mira-market-detail { max-width: 1080px; margin: 0 auto; }
+.mira-market-search { display: flex; height: 38px; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--mira-input-border); border-radius: 6px; background: var(--mira-input); }
+.mira-market-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: inherit; background: transparent; font-size: 14px; }
+.mira-market-search:focus-within { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-market-search input:focus-visible { outline: none; }
+.mira-market-search input::placeholder { color: var(--mira-foreground); opacity: .7; }
+.mira-market-search input::-webkit-search-cancel-button { display: none; }
+.mira-market-installed-strip { margin-top: 26px; }
+.mira-market-installed-strip > div, .mira-market-section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--mira-border); }
+.mira-market h2, .mira-market h3 { margin: 0; font-weight: 550; }
+.mira-market-installed-strip h2, .mira-market-section-title h2 { font-size: 16px; }
+.mira-market-installed-strip nav { display: flex; gap: 8px; padding-top: 12px; overflow-x: auto; }
+.mira-market-installed-strip nav button { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: 6px; color: inherit; background: var(--mira-surface); font-size: 13px; }
+.mira-market-installed-strip nav button:hover { background: var(--mira-hover); }
+.mira-market-segments { display: flex; gap: 4px; margin: 28px 0 22px; }
+.mira-market-segments button { height: 30px; padding: 0 12px; border: 0; border-radius: 6px; color: inherit; background: transparent; font-size: 13px; }
+.mira-market-segments button:hover, .mira-market-segments button[aria-selected="true"] { background: var(--mira-selected); }
+.mira-market-section-title > span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.mira-market-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 12px; padding-top: 16px; }
+.mira-market-item { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--mira-border); border-radius: 8px; }
+.mira-market-item:hover { border-color: var(--mira-border-hover); }
+.mira-market-item-main { display: flex; flex: 1; min-width: 0; align-items: flex-start; gap: 12px; padding: 16px 16px 12px; border: 0; border-radius: 8px 8px 0 0; text-align: left; color: inherit; background: transparent; }
+.mira-market-item-main > span:last-child { min-width: 0; }
+.mira-market-avatar { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 8px; color: inherit; background: var(--mira-surface); }
+.mira-market-item h3 { overflow-wrap: anywhere; font-size: 14px; }
+.mira-market-item p { display: -webkit-box; margin: 5px 0 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.mira-market-item-footer { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 16px 12px; font-size: 12px; }
+.mira-market-install { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: 6px; color: var(--mira-primary-foreground); background: var(--mira-primary); font-size: 12px; }
+.mira-market-installed { display: inline-flex; min-height: 28px; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
+.mira-market-loading, .mira-market-empty { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 120px; margin: 0; font-size: 13px; }
+.mira-market-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1080px; margin: 0 auto 20px; padding: 12px 0; border-bottom: 1px solid var(--mira-border); color: var(--mira-destructive); font-size: 13px; }
+.mira-market-error button { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--mira-border); border-radius: 6px; color: var(--mira-foreground); background: transparent; }
+.mira-market-feedback { max-width: 1080px; margin: 0 auto 20px; font-size: 13px; }
+.mira-market-detail-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.mira-market-detail-heading > .mira-market-avatar { width: 56px; height: 56px; }
+.mira-market-detail-title { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; }
+.mira-market-detail-title h2 { min-width: 0; font-size: 22px; overflow-wrap: anywhere; }
+.mira-market-detail-heading p { margin: 0; line-height: 1.6; }
+.mira-market-source { font-size: 12px; }
+.mira-market-detail-section { margin-top: 32px; }
+.mira-market-detail-section h3 { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--mira-border); font-size: 16px; }
+.mira-market-detail-section h3 span { font-size: 12px; font-weight: 400; }
+.mira-market-detail-section pre { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; }
+.mira-market-detail-section ul { margin: 10px 0 0; padding: 0; list-style: none; }
+.mira-market-detail-section li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 6px 0; font-size: 12px; }
+.mira-market-detail-section code { min-width: 0; overflow-wrap: anywhere; }
+.mira-market-detail-section li span { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.mira-market-detail-section dl { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px 16px; margin: 14px 0; font-size: 13px; }
+.mira-market-detail-section dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.mira-market-detail-section details summary { cursor: pointer; font-size: 13px; }
+.mira-market-spin { animation: mira-market-spin .9s linear infinite; }
+@keyframes mira-market-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mira-market-spin { animation: none; } }

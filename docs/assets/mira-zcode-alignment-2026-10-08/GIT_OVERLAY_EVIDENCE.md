@@ -65,7 +65,7 @@ CSS SHA-256：`b066218a995a9219c643bfbe5b1fb1440106632004ee40289e1f62a334be831f`
 | [1710 桌面](./git-overlay-headless/mira-git-desktop-1710.png) | 滚动后布局与 264px 侧栏 |
 | [1280 桌面](./git-overlay-headless/mira-git-desktop-1280.png) | 较小桌面窗口，无横向溢出 |
 
-[SHA 清单](./git-overlay-headless/sha256-manifest.json) 固定当前七图、结果和两本机脚本。早期夹具 session.get 使用错误字段、重复 aside locator、展开后监听补读未等待、虚拟树点击改变选择等失败日志均保留在 `initial-*`；不列为有效全流程验收，也未据此修改产品代码。[first-1440-success](./git-overlay-headless/first-1440-success.log) 是扩展桌面尺寸前的成功历史。
+[SHA 清单](./git-overlay-headless/sha256-manifest.json) 固定当前七图、结果和两本机脚本。早期夹具 session.get 使用错误字段与重复 aside locator 的错误已修正，其旧 JSON/日志中间产物已清理；监听补读未等待、虚拟树点击改变选择的两批失效截图已清理。这些夹具失败不列为有效全流程验收，也未据此修改产品代码。[first-1440-success](./git-overlay-headless/first-1440-success.log) 是扩展桌面尺寸前的成功历史。
 
 ## 独立评审
 

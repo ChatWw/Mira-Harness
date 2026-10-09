@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-09T06:11:41.967Z",
+  "startedAt": "2026-10-09T06:54:12.600Z",
   "passed": true,
   "errors": [],
   "network": [
@@ -763,12 +763,12 @@
       "tokens": 27300,
       "hasGrammarState": false,
       "themedTokens": 27300,
-      "elapsedMs": 2146.3999999910593,
-      "maxTimerGapMs": 2146.7000000029802,
+      "elapsedMs": 5756.29999999702,
+      "maxTimerGapMs": 5756.5999999940395,
       "longTasks": [
         {
-          "start": 498.70000000298023,
-          "duration": 2146
+          "start": 1530.5,
+          "duration": 5756
         }
       ]
     },
@@ -778,8 +778,8 @@
       "tokens": 27300,
       "hasGrammarState": false,
       "themedTokens": 27300,
-      "elapsedMs": 2207.2000000029802,
-      "maxTimerGapMs": 12.799999997019768,
+      "elapsedMs": 6063.800000011921,
+      "maxTimerGapMs": 24.5,
       "longTasks": []
     },
     "equal": true
@@ -791,12 +791,12 @@
       "tokens": 104000,
       "hasGrammarState": false,
       "themedTokens": 104000,
-      "elapsedMs": 514.2999999970198,
-      "maxTimerGapMs": 514.3999999910593,
+      "elapsedMs": 1285.2000000029802,
+      "maxTimerGapMs": 1285.300000011921,
       "longTasks": [
         {
-          "start": 4999.300000011921,
-          "duration": 514
+          "start": 13562.79999999702,
+          "duration": 1285
         }
       ]
     },
@@ -806,9 +806,14 @@
       "tokens": 104000,
       "hasGrammarState": false,
       "themedTokens": 104000,
-      "elapsedMs": 930.2999999970198,
-      "maxTimerGapMs": 35.29999999701977,
-      "longTasks": []
+      "elapsedMs": 2246.5,
+      "maxTimerGapMs": 76.69999998807907,
+      "longTasks": [
+        {
+          "start": 17216.69999998808,
+          "duration": 72
+        }
+      ]
     },
     "equal": true
   },
@@ -820,24 +825,56 @@
       "tokens": 113152,
       "hasGrammarState": false,
       "themedTokens": 113152,
-      "elapsedMs": 551.8000000119209,
-      "maxTimerGapMs": 551.8000000119209,
+      "elapsedMs": 1352.5,
+      "maxTimerGapMs": 1352.5999999940395,
       "longTasks": [
         {
-          "start": 8060.4000000059605,
-          "duration": 52
+          "start": 19978.39999999106,
+          "duration": 53
         },
         {
-          "start": 8113.20000000298,
-          "duration": 56
-        },
-        {
-          "start": 8169.4000000059605,
+          "start": 20032.19999998808,
           "duration": 60
         },
         {
-          "start": 8229.5,
-          "duration": 63
+          "start": 20092.29999999702,
+          "duration": 67
+        },
+        {
+          "start": 20159.79999999702,
+          "duration": 79
+        },
+        {
+          "start": 20239.19999998808,
+          "duration": 94
+        },
+        {
+          "start": 20334.19999998808,
+          "duration": 107
+        },
+        {
+          "start": 20441.59999999404,
+          "duration": 106
+        },
+        {
+          "start": 20548,
+          "duration": 115
+        },
+        {
+          "start": 20663.39999999106,
+          "duration": 126
+        },
+        {
+          "start": 20790.19999998808,
+          "duration": 143
+        },
+        {
+          "start": 20934.09999999404,
+          "duration": 143
+        },
+        {
+          "start": 21077.19999998808,
+          "duration": 154
         }
       ]
     },
@@ -847,8 +884,8 @@
       "tokens": 113152,
       "hasGrammarState": false,
       "themedTokens": 113152,
-      "elapsedMs": 953.7999999970198,
-      "maxTimerGapMs": 7,
+      "elapsedMs": 2220.3999999910593,
+      "maxTimerGapMs": 11.400000005960464,
       "longTasks": []
     },
     "equal": true
@@ -864,17 +901,69 @@
     "retryThemed": true
   },
   "realReactLongLine": {
-    "elapsedMs": 2342.0999999940395,
-    "maxTimerGapMs": 76.1000000089407,
+    "elapsedMs": 6526,
+    "maxTimerGapMs": 110,
     "longTasks": [
       {
-        "start": 10649.800000011921,
-        "duration": 52
+        "start": 27680.89999999106,
+        "duration": 55
+      },
+      {
+        "start": 27736.69999998808,
+        "duration": 109
       }
     ],
     "inputEvents": 21,
     "value": "Mira input stays live",
-    "retainedFinalIdentifier": true
+    "retainedFinalIdentifier": true,
+    "renderedStyles": {
+      "checks": [
+        {
+          "theme": "light",
+          "equal": true,
+          "characters": 94381,
+          "renderedTextRuns": 27301,
+          "referenceTextRuns": 27301
+        },
+        {
+          "theme": "dark",
+          "equal": true,
+          "characters": 94381,
+          "renderedTextRuns": 27301,
+          "referenceTextRuns": 27301
+        }
+      ],
+      "tokenCount": 27300,
+      "elements": 14704
+    }
+  },
+  "lightScreenshot": {
+    "path": "worker-long-line-light.png",
+    "computed": {
+      "theme": "light",
+      "dark": false,
+      "root": {
+        "background": "rgb(248, 248, 248)",
+        "foreground": "oklch(0.269 0 none)"
+      },
+      "view": {
+        "background": "rgba(0, 0, 0, 0)",
+        "foreground": "oklch(0.269 0 none)"
+      },
+      "gutter": null,
+      "code": null,
+      "themedTokens": 14701
+    },
+    "pixels": {
+      "width": 1400,
+      "height": 850,
+      "distinctColors": 748,
+      "backgroundPixels": 1048241,
+      "totalPixels": 1190000,
+      "nonBackgroundPixels": 141759
+    },
+    "sha256": "955f174cad824575b7f8cddd25bb92c3c48506b96706b52bd9b93bbc77636840",
+    "boundary": "Isolated current React component canvas with production CSS and applyHostTheme/root contract. Not the whole native Mira workbench."
   },
   "streamingLatest": "const current: string = \"LATEST\";\n",
   "completedFences": 300,
@@ -887,6 +976,40 @@
   },
   "fileMountedRows": 45,
   "fileFinalVisible": true,
+  "darkScreenshot": {
+    "path": "worker-file-dark.png",
+    "computed": {
+      "theme": "dark",
+      "dark": true,
+      "root": {
+        "background": "rgb(22, 22, 22)",
+        "foreground": "rgb(245, 245, 246)"
+      },
+      "view": {
+        "background": "rgba(0, 0, 0, 0)",
+        "foreground": "rgb(245, 245, 246)"
+      },
+      "gutter": {
+        "background": "rgb(22, 22, 22)",
+        "foreground": "oklab(0.87 0 0 / 0.6)"
+      },
+      "code": {
+        "background": "rgba(0, 0, 0, 0)",
+        "foreground": "rgb(245, 245, 246)"
+      },
+      "themedTokens": 352
+    },
+    "pixels": {
+      "width": 1400,
+      "height": 850,
+      "distinctColors": 701,
+      "backgroundPixels": 1136897,
+      "totalPixels": 1190000,
+      "nonBackgroundPixels": 53103
+    },
+    "sha256": "b8cf4dfddb508f26e68d15c92dbb530376f335141dd7474cd98cba550435b4c5",
+    "boundary": "Isolated current React component canvas with production CSS and applyHostTheme/root contract. Not the whole native Mira workbench."
+  },
   "loaderRetry": {
     "failed": true,
     "retryPassed": true,
@@ -908,7 +1031,7 @@
   "sources": [
     {
       "path": "apps/harness-react/src/lib/code-highlighter.ts",
-      "sha256": "b38b40e36344dd5aa472ebd495ce8da0939a95c9df0ecb85eb9f5d4b136fd169"
+      "sha256": "23f0a16cf8594979bc3ca81ca55b817afad93c1f35ec72f52137bb9d85245611"
     },
     {
       "path": "apps/harness-react/src/lib/code-highlight-core.ts",
@@ -927,5 +1050,5 @@
       "sha256": "cce6cc34a944d838ed9fd15ff23cdf71b9118ae0d8e96cab0b71182c18330237"
     }
   ],
-  "finishedAt": "2026-10-09T06:11:57.118Z"
+  "finishedAt": "2026-10-09T06:54:57.003Z"
 }

@@ -67,14 +67,22 @@ try {
   const state = async () => page.evaluate(() => window.miraStreamingFixture.state())
   const lastRequest = async () => (await state()).requests.at(-1).id
   const body = page.locator('[data-streamdown="code-block-body"] code')
+  const waitForReady = () => page.waitForFunction(() => document.querySelector('[data-streamdown="code-block-body"]')?.dataset.highlightState === 'ready')
   const tick = async () => page.evaluate(() => new Promise(resolveTick => setTimeout(resolveTick, 0)))
   const geometry = () => page.locator('[data-streamdown="code-block-body"]').evaluate(element => {
     const pre = element.querySelector('pre')
     const line = element.querySelector('.line')
-    const token = line.querySelector('span')
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+    let text = walker.nextNode()
+    while (text && !text.textContent.length) text = walker.nextNode()
+    if (!text) throw new Error('Fixture first line has no rendered text')
+    // Measure source text, not a token wrapper or the line-number pseudo-element.
+    const range = document.createRange()
+    range.setStart(text, 0)
+    range.setEnd(text, 1)
     const rect = element.getBoundingClientRect()
     const before = getComputedStyle(line, '::before')
-    return { state: element.dataset.highlightState, bodyWidth: rect.width, bodyHeight: rect.height, preHeight: pre.getBoundingClientRect().height, textInset: token.getBoundingClientRect().x - rect.x, gutterWidth: before.width, gutterMargin: before.marginRight, lineHeight: getComputedStyle(pre).lineHeight, rows: element.querySelectorAll('.line').length }
+    return { state: element.dataset.highlightState, bodyWidth: rect.width, bodyHeight: rect.height, preHeight: pre.getBoundingClientRect().height, textInset: range.getBoundingClientRect().x - rect.x, gutterWidth: before.width, gutterMargin: before.marginRight, lineHeight: getComputedStyle(pre).lineHeight, rows: element.querySelectorAll('.line').length }
   })
 
   const first = 'const answer = "old";\n\n'
@@ -91,7 +99,8 @@ try {
   assert.equal(rawGeometry.gutterWidth, '24px')
   assert.equal(rawGeometry.gutterMargin, '16px')
   await settle(secondId)
-  await page.waitForFunction(() => document.querySelector('[data-streamdown="code-block-body"] .line span')?.getAttribute('style')?.includes('#D73A49'))
+  await waitForReady()
+  assert.equal(await page.locator('[data-streamdown="code-block-body"] .line span').count(), 0)
   const readyGeometry = await geometry()
   assert.equal(readyGeometry.state, 'ready')
   assert.deepEqual({ ...rawGeometry, state: 'ready' }, readyGeometry)
@@ -107,7 +116,7 @@ try {
   const incompleteId = await lastRequest()
   assert.equal(await body.textContent(), 'const incomplete =')
   await settle(incompleteId)
-  await page.waitForFunction(() => document.querySelector('[data-streamdown="code-block-body"] .line span')?.getAttribute('style')?.includes('#D73A49'))
+  await waitForReady()
   report.incomplete = { visibleAndHighlightedBeforeCompletion: true }
 
   await render('const aborted = 1;')
@@ -140,11 +149,13 @@ try {
   const retriedId = await lastRequest()
   assert.ok(retriedId > failedId)
   await settle(retriedId)
+  await waitForReady()
   await page.waitForFunction(() => !document.querySelector('[role="alert"]'))
   assert.deepEqual({ ...failureRawGeometry, state: 'ready' }, await geometry())
-  const lightReadyColor = await page.locator('[data-streamdown="code-block-body"] .line span').first().evaluate(element => getComputedStyle(element).color)
+  const readyColor = () => page.locator('[data-streamdown="code-block-body"] .line').first().evaluate(element => getComputedStyle(element).color)
+  const lightReadyColor = await readyColor()
   await page.evaluate(() => document.documentElement.classList.add('dark'))
-  const darkReadyColor = await page.locator('[data-streamdown="code-block-body"] .line span').first().evaluate(element => getComputedStyle(element).color)
+  const darkReadyColor = await readyColor()
   assert.equal(lightReadyColor, 'rgb(215, 58, 73)')
   assert.equal(darkReadyColor, 'rgb(249, 117, 131)')
   assert.deepEqual({ ...failureRawGeometry, state: 'ready' }, await geometry())

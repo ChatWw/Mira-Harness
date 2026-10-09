@@ -1,6 +1,8 @@
 import { execFile, type ExecException } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { lstat, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path'
+import type { HarnessGitContext } from '../../src/config/harness'
 
 type GitStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked'
 type Root = { original: string; path: string; identity: string }
@@ -64,10 +66,11 @@ async function acquireCommand() {
   await new Promise<void>(resolve => waitingCommands.push(resolve))
 }
 function releaseCommand() { const next = waitingCommands.shift(); if (next) next(); else runningCommands-- }
-async function runGit(root: Root, args: string[], input?: Buffer): Promise<CommandResult> {
+async function runGit(root: Root, args: string[], input?: Buffer, beforeSpawn?: () => void | Promise<void>, disableHooks = false): Promise<CommandResult> {
   await acquireCommand()
   try {
     await verifyRoot(root)
+    await beforeSpawn?.()
     return await new Promise<CommandResult>((resolve, reject) => {
       let closed = false
       let completed: { error: ExecException | null; stdout: Buffer; stderr: Buffer } | undefined
@@ -80,7 +83,7 @@ async function runGit(root: Root, args: string[], input?: Buffer): Promise<Comma
         if (error && typeof error.code !== 'number') { reject(new Error('Git 状态读取失败，请重试')); return }
         resolve({ stdout, stderr, code: error ? Number(error.code) : 0 })
       }
-      const child = execFile('git', ['--no-optional-locks', ...(args[0] === 'status' ? ['--literal-pathspecs'] : []), '-c', 'core.fsmonitor=false', '-C', root.path, ...args], {
+      const child = execFile('git', ['--no-optional-locks', ...(args[0] === 'status' ? ['--literal-pathspecs'] : []), '-c', 'core.fsmonitor=false', ...(disableHooks ? ['-c', 'core.hooksPath=/dev/null'] : []), '-C', root.path, ...args], {
         encoding: 'buffer', env: gitEnvironment(), timeout: 10_000, maxBuffer: MAX_OUTPUT_BYTES, killSignal: 'SIGKILL', windowsHide: true,
       }, (error, stdout, stderr) => { completed = { error, stdout, stderr }; finish() })
       // execFile may report failure before stdio closes; retain the slot until the process is drained.
@@ -155,6 +158,119 @@ export async function readHarnessWorkspaceGit(workspacePath: string): Promise<{ 
     if (result.code !== 0) throw new Error('Git 状态读取失败，请重试')
     return { available: true, entries: parseStatus(repository, result.stdout) }
   } catch (error) { throw safeGitFailure(error) }
+}
+
+type GitContext = Omit<HarnessGitContext, 'projectId' | 'mutationBlocked'>
+type BranchRepository = Repository & { gitDirectory: Root }
+const STALE_GIT_CONTEXT = 'Git 工作区或分支已变化，请刷新后重试'
+const GIT_ACTION_FAILURE = 'Git 分支操作失败，请检查工作区状态后重试'
+
+async function branchRepository(root: Root, assertCurrent: () => void): Promise<BranchRepository | undefined> {
+  assertCurrent()
+  const repository = await resolveRepository(root)
+  assertCurrent()
+  if (!repository) return
+  const result = await runGit(root, ['rev-parse', '--absolute-git-dir'], undefined, async () => { await verifyRepository(repository); assertCurrent() })
+  if (result.code !== 0) throw new Error(GIT_ACTION_FAILURE)
+  const gitDirectory = await rootIdentity(result.stdout.toString('utf8').replace(/\n$/, ''))
+  await verifyRepository(repository); assertCurrent()
+  return { ...repository, gitDirectory }
+}
+
+async function branchCommand(repository: BranchRepository, args: string[], assertCurrent: () => void, mutation = false) {
+  return runGit(repository.root, args, undefined, async () => {
+    await verifyRepository(repository)
+    await verifyRoot(repository.gitDirectory)
+    assertCurrent()
+  }, mutation)
+}
+
+async function branchHead(repository: BranchRepository, assertCurrent: () => void) {
+  const symbolic = await branchCommand(repository, ['symbolic-ref', '--quiet', 'HEAD'], assertCurrent)
+  if (symbolic.code !== 0 && symbolic.code !== 1) throw new Error(GIT_ACTION_FAILURE)
+  const ref = symbolic.code === 0 ? symbolic.stdout.toString('utf8').trim() : undefined
+  if (ref && !ref.startsWith('refs/heads/')) throw new Error(GIT_ACTION_FAILURE)
+  const result = await branchCommand(repository, ['rev-parse', '--verify', 'HEAD'], assertCurrent)
+  const commit = result.code === 0 ? result.stdout.toString('utf8').trim() : undefined
+  if ((commit && !/^[a-f0-9]{40,64}$/.test(commit)) || (result.code !== 0 && (!ref || result.code !== 128))) throw new Error(GIT_ACTION_FAILURE)
+  return { headType: (ref ? commit ? 'branch' : 'unborn' : 'detached') as HarnessGitContext['headType'], ...(ref ? { branchName: ref.slice(11) } : {}), ...(commit ? { commit } : {}) }
+}
+
+function gitSnapshotToken(root: Root, repository?: BranchRepository, head?: Awaited<ReturnType<typeof branchHead>>) {
+  return createHash('sha256').update(JSON.stringify([root.original, root.path, root.identity, repository?.repository, repository?.metadata, repository?.gitDirectory, head])).digest('hex')
+}
+
+async function branchContext(repository: BranchRepository, assertCurrent: () => void): Promise<GitContext> {
+  const head = await branchHead(repository, assertCurrent)
+  const refs = await branchCommand(repository, ['for-each-ref', '--format=%(refname)', '--sort=refname', 'refs/heads'], assertCurrent)
+  const status = await branchCommand(repository, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], assertCurrent)
+  if (refs.code !== 0 || status.code !== 0) throw new Error(GIT_ACTION_FAILURE)
+  const names = refs.stdout.toString('utf8').split('\n').filter(Boolean).map(ref => {
+    if (!ref.startsWith('refs/heads/')) throw new Error(GIT_ACTION_FAILURE)
+    return ref.slice(11)
+  })
+  const uncommittedFileCount = parseStatus({ ...repository, prefix: '' }, status.stdout).length
+  const latest = await branchHead(repository, assertCurrent)
+  if (JSON.stringify(head) !== JSON.stringify(latest)) throw new Error(STALE_GIT_CONTEXT)
+  await verifyRepository(repository); await verifyRoot(repository.gitDirectory); assertCurrent()
+  return { directory: repository.root.original, isRepository: true, ...head, uncommittedFileCount,
+    branches: names.map(name => ({ name, current: name === head.branchName, ...(name === head.branchName && uncommittedFileCount ? { uncommittedFileCount } : {}) })),
+    snapshotToken: gitSnapshotToken(repository.root, repository, head) }
+}
+
+export async function readHarnessGitContext(workspacePath: string, assertCurrent = () => {}, onRepository?: (directory: string) => void): Promise<GitContext> {
+  try {
+    const root = await rootIdentity(workspacePath)
+    const repository = await branchRepository(root, assertCurrent)
+    if (repository) { onRepository?.(repository.repository.path); return await branchContext(repository, assertCurrent) }
+    await verifyRoot(root); assertCurrent()
+    return { directory: workspacePath, isRepository: false, headType: 'none', uncommittedFileCount: 0, branches: [], snapshotToken: gitSnapshotToken(root) }
+  } catch (error) { throw safeBranchFailure(error) }
+}
+
+function branchName(value: string) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error('分支名称不能为空')
+  const name = value.trim()
+  if (name.endsWith('/')) throw new Error('分支名不能以“/”结尾')
+  if (name.length > 256 || name.startsWith('-') || /[\x00-\x20\x7f~^:?*[\\]/.test(name) || name === 'HEAD' || name === '@' || name.includes('..') || name.includes('@{')) throw new Error('分支名称无效')
+  return name
+}
+
+export async function changeHarnessGitBranch(workspacePath: string, value: string, create: boolean, snapshotToken: string | undefined, assertCurrent = () => {}, beforeMutation?: (directory: string) => void): Promise<GitContext> {
+  try {
+    const name = branchName(value)
+    const root = await rootIdentity(workspacePath)
+    const repository = await branchRepository(root, assertCurrent)
+    if (!repository) throw new Error('项目不是 Git 仓库')
+    beforeMutation?.(repository.repository.path)
+    const context = await branchContext(repository, assertCurrent)
+    if (snapshotToken !== undefined && snapshotToken !== context.snapshotToken) throw new Error(STALE_GIT_CONTEXT)
+    const validated = await branchCommand(repository, ['check-ref-format', '--branch', name], assertCurrent)
+    if (validated.code !== 0 || validated.stdout.toString('utf8').trim() !== name) throw new Error('分支名称无效')
+    if (create ? context.branches.some(branch => branch.name === name) : !context.branches.some(branch => branch.name === name)) throw new Error(create ? '分支已存在' : '未找到本地分支')
+    if (create && context.headType === 'unborn') throw new Error('请先创建首次提交，再新建分支')
+    const head = await branchHead(repository, assertCurrent)
+    if (gitSnapshotToken(root, repository, head) !== context.snapshotToken) throw new Error(STALE_GIT_CONTEXT)
+    const result = await branchCommand(repository, create ? ['switch', '--no-guess', '-c', name] : ['switch', '--no-guess', '--', name], assertCurrent, true)
+    await verifyRepository(repository); await verifyRoot(repository.gitDirectory); assertCurrent()
+    if (result.code !== 0) {
+      const error = result.stderr.toString('utf8')
+      if (/would be overwritten|Please commit your changes or stash them/.test(error)) throw new Error('本地更改阻止切换分支，请先自行处理更改')
+      if (/already exists/.test(error)) throw new Error('分支已存在')
+      throw new Error(GIT_ACTION_FAILURE)
+    }
+    return await branchContext(repository, assertCurrent)
+  } catch (error) { throw safeBranchFailure(error) }
+}
+
+function safeBranchFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+  const known = ['分支名称不能为空', '分支名不能以“/”结尾', '分支名称无效', '分支已存在', '未找到本地分支',
+    '请先创建首次提交，再新建分支', '项目不是 Git 仓库', '本地更改阻止切换分支，请先自行处理更改',
+    '请先停止项目任务并处理待发送消息', '项目正在切换分支，请稍后重试', '第一方授权无效或应用已停用', 'Harness 连接已关闭', STALE_GIT_CONTEXT]
+  if (known.includes(message)) return new Error(message)
+  const safe = safeGitFailure(error)
+  return new Error(safe.message === 'Git 状态读取失败，请重试' ? GIT_ACTION_FAILURE : safe.message)
 }
 
 function normalizeIgnoredPaths(paths: string[]) {

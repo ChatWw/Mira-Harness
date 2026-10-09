@@ -18,15 +18,47 @@ function setup() {
   const database = { harness, automations: { listTasks: vi.fn(() => []), deleteTask: vi.fn() } }
   const workspaceWatch = { closeForSession: vi.fn(), closeInvalid: vi.fn() }
   const automationScheduler = { reschedule: vi.fn() }
-  registerHarnessSessionIpcHandlers({ database, workspaceWatch } as any)
-  registerHarnessProjectIpcHandlers({ database, workspaceWatch, automationScheduler } as any)
+  const harnessRuntime = { assertSessionMutable: vi.fn(), isProjectRunning: vi.fn(() => false) }
+  registerHarnessSessionIpcHandlers({ database, workspaceWatch, harnessRuntime } as any)
+  registerHarnessProjectIpcHandlers({ database, workspaceWatch, automationScheduler, harnessRuntime } as any)
   const invoke = (channel: string, ...params: unknown[]) => electron.handlers.get(channel)!({ sender: {} }, ...params)
-  return { invoke, harness, workspaceWatch, result, automationScheduler }
+  return { invoke, harness, workspaceWatch, result, automationScheduler, harnessRuntime }
 }
 
 beforeEach(() => { electron.handlers.clear(); vi.clearAllMocks() })
 
 describe('workspace watcher legacy lifecycle', () => {
+  it.each(['move-session', 'delete-session', 'archive-sessions', 'delete-sessions'])('checks all active or queued sessions before %s mutation', action => {
+    const { invoke, harness, harnessRuntime, workspaceWatch } = setup()
+    for (const message of ['该会话正在运行', '请先处理待发送消息']) {
+      harnessRuntime.assertSessionMutable.mockImplementation(id => { if (id === 'session') throw new Error(message) })
+      const ids = action.endsWith('sessions') ? ['idle', 'session'] : 'session'
+      expect(() => invoke(`harness:${action}`, ids, 'project')).toThrow(message)
+      expect(harness.moveSession).not.toHaveBeenCalled()
+      expect(harness.archiveSessions).not.toHaveBeenCalled()
+      expect(harness.deleteSession).not.toHaveBeenCalled()
+      expect(harness.deleteSessions).not.toHaveBeenCalled()
+      expect(workspaceWatch.closeForSession).not.toHaveBeenCalled()
+    }
+  })
+
+  it('rechecks mutation admission after the directory dialog await', async () => {
+    const { invoke, harness, harnessRuntime, workspaceWatch } = setup()
+    electron.dialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/other'] })
+    harnessRuntime.assertSessionMutable.mockImplementationOnce(() => {}).mockImplementationOnce(() => { throw new Error('该会话正在运行') })
+    await expect(invoke('harness:attach-directory', 'session')).rejects.toThrow('该会话正在运行')
+    expect(harness.attachDirectory).not.toHaveBeenCalled()
+    expect(workspaceWatch.closeForSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects project deletion before removing tasks, sessions or watches while execution or backlog exists', () => {
+    const { invoke, harness, harnessRuntime, workspaceWatch, automationScheduler } = setup()
+    harnessRuntime.isProjectRunning.mockReturnValue(true)
+    expect(() => invoke('harness:delete-project', 'project')).toThrow('请先停止项目任务并处理待发送消息')
+    expect(harness.deleteProject).not.toHaveBeenCalled()
+    expect(workspaceWatch.closeInvalid).not.toHaveBeenCalled()
+    expect(automationScheduler.reschedule).not.toHaveBeenCalled()
+  })
   it.each(['move-session', 'delete-session'])('closes listeners after a successful %s', action => {
     const { invoke, result, workspaceWatch } = setup()
     expect(invoke(`harness:${action}`, 'session', 'project')).toBe(result)

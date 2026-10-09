@@ -296,7 +296,7 @@ function focusInput() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+  if (!event.defaultPrevented && !event.isComposing && !event.repeat && !event.altKey && !event.shiftKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteStore.open()
   } else if (event.key === 'Escape' && paletteStore.visible) {

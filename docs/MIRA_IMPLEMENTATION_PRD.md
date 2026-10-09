@@ -1,23 +1,61 @@
 # Mira 第一阶段开发实施文档（模块化 PRD）
 
-> 初版日期：2026-09-23；最近更新：2026-10-09 13:54 +08:00
-> 状态：Electron 能力、Vue 双层 Shell 和 React Harness 正式第一方入口已接入；文件工作区、搜索、保存、监听、外部编辑器、位图/SVG、Git 装饰及删除虚拟行/只看变更、搜索忽略规则与 Vue 文件搜索设置已实现。本批自动检查、类型、React/Electron 编译、产物审计和独立 Chrome headless 已有通过记录，最终检查及限定评审统一看本批证据页，不沿用旧 Git/filter verdict。原生 Electron 配置/搜索验收、监听/编辑器错误态、图片/Git 浅深色和同态 ZCode 比较仍待完成。整体目标 active，未提交、未推送；正式安装包、Windows、真实模型、性能与 P0–P3 整体关口未放行。
+当前更新：2026-10-09 20:46 +08:00。已接运行中宿主权威队列及父任务有序公开思考/正文/工具输入输出、内联审批；本批补Composer原子立即发送/暂停队列确认与终态展开保持，当前完成/剩余/验证边界以 [首屏总文档](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md) 为准。清理最终58个废弃文档/无效测试/旧截图和临时产物（21:38复核恢复两份旧管理工具函数测试），现版测试与许可保留，无指向删项的活动引用；清理后两workers全量134文件/1773项及React/Vue类型通过。此前128文件/1709项、React/Electron构建和22项生产浏览器检查保留原批次范围；不替代真实模型、原生/ZCode同态、性能或发布验收。下一步从本批真实链路验收和Header分支/分组继续，不重写已接队列或返回文件支线。整体active，未提交/推送。
+
+以下17:27及更早头部为历史阶段，旧“仍缺队列/完整事件”不覆盖上方当前状态。
+
+最近更新：2026-10-09 17:27 +08:00。当前入口仍是 [首屏完整对齐](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。侧栏项目时间线、项目/自定义组独立的全部展开与折叠已完成；时间线保留两个一级标签、按日期分桶和真实任务菜单，显式折叠与视图偏好重启恢复，不改变当前会话。恢复隐藏项目收进项目视图菜单；tooltip 遮挡相邻归档按钮已通过局部 `pointer-events: none`（含 Radix wrapper）修正。新定向 4 文件/53 项、React 类型/构建和独立 291 JS/14 许可审计通过。
+
+**本轮限定原生结果**：17:11:30–17:11:45 搜索 10 records/3 captures，17:26:22–17:26:55 侧栏 21 records/3 captures 均通过；使用实际 Shell、生产 React、opaque iframe、MessageChannel、preload/IPC 与原生输入。Harness 侧栏和 Shell 搜索打开同一组件；侧栏覆盖按项目、全部折叠、`Cmd+R` 后保持、时间线、真实 IPC 归档恢复、分组独立折叠和返回保持活动会话。完整结果、失败历史与产物身份统一见 [本轮原生证据](assets/mira-zcode-alignment-2026-10-08/first-screen-native/README.md)。首轮 tooltip 遮挡及 fixture 重载后隐藏侧栏的失败记录保留，不改写为成功。
+
+**搜索职责与剩余**：统一 Shell 搜索入口，内容和操作由当前应用负责。Harness 已接自己的命令、会话正文和项目文件；旧页面/现有小说页目前回退 Vue 平台搜索，不是独立 Novel 实现。后续 Novel 应检索作品、章节、人物与设定，不复用 Harness 内容。首屏仍缺输入队列/指导与撤回、完整 reasoning/工具输入输出事件、多模态及其余尚未验入口；本轮有限原生不放行完整 UI/ZCode 同态、性能、真实模型/自动化调度、Windows、安装包或 P0–P3，整体 active，未提交/推送。
+
+**当前续做入口（17:27）**：读首屏总文档当前矩阵，从输入队列/完整执行事件或明确未验入口继续；不重做时间线/全部折叠，不返回文件支线。以下 16:58 及更早记录仅保留当时范围，旧全量 1313 项、13 张截图及 SHA 不更新为本轮结果。
+
+> 以下 16:58 头部和当时续做入口为历史；“未完成本批原生”只描述当时，不覆盖上方有限原生结果。
+
+最近更新：2026-10-09 16:58 +08:00。当前优先级仍为 [首屏完整对齐](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。侧栏独立分组/项目菜单/归档/排序/footer、共享正文搜索、React 自动化、公开 Skill 市场、Header/轮次导航/真实 run 与摘要、光标 `@`/`/`/`$`/`+` 已接入。公开源固定审查提交，14 个 Apache 包可浏览安装并进入 SkillStore/Composer；自动化复用底层，不重写调度器。导航竞态及设置路由修正完成，本批限定整合检查通过；准确最新数量/SHA/13 张截图见 [首屏证据页](assets/mira-zcode-alignment-2026-10-08/first-screen/README.md)。运行中队列、完整 reasoning/工具事件、多模态及完整 native/ZCode 同态/性能仍未完成；整体 active，发布/P0–P3 不放行。本轮未提交/推送。
+
+**当前续做入口**：只用首屏总文档的当前矩阵和“下次开始”。先完成本批隔离 Electron/preload/IPC 与原生交互确认，再接队列/执行事件；不返回文件支线。以下 15:44、15:15 和更早正文/下一步均为历史，不覆盖本节。
+
+最近更新：2026-10-09 15:15 +08:00。当前主线为 [侧栏功能对齐清单](./MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)：提供的软件/源码与Mira当前代码只读核对完成，**侧栏只实现/抽样验收部分能力，未完整对齐**。归档列表/恢复、自定义组、Command Center、created排序/偏好、项目新增/菜单/footer/plugin及导航/设置返回链路仍缺，下一次按清单做侧栏首批；本次未实现新功能、未新原生验收。整体active，15:08及更早测试/性能数字与失败原样保留，不扩大为完整工作台或发布/P0–P3放行。
+
+**当前续做入口**：[MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md](./MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)。先落实上游功能、Mira表现层、授权桥、持久化与交互验收的对应关系；不能只复制外观/有按钮即算完成。上游项目移除保留历史，Mira当前`deleteProject`清会话/trash/相关自动化，不直接复用为移除动作。
+
+以下15:08与更早为历史阶段记录，保留原数字/完成范围；当前侧栏入口以上方15:15和最新更新表为准。
+
+最近更新：2026-10-09 15:08 +08:00。当前 [行级渲染批次](#2026-10-09-行级渲染收尾与当前结果) 已收尾：单worker103/1089、类型/构建/审计、新CSS60组等价/15:04流式行为限定通过，前三默认/两workers失败保留，React55/109ms/文件页面72ms长任务仍在。按最新反馈不继续追加文件支线，先回看整个工作台、列剩余对齐清单，核心交互优先；不是已经重设计/原生验收。整体active，默认并发/性能/发布/P0–P3不放行，本次未提交/推送。
+
+以下14:34头部与历史记录保留改进前1077/69ms及当时下一步；上方15:08状态和最新记录优先，`before-dom-inheritance-*`是旧数据身份，同名非before JSON现在是新批次。
+
+> 初版日期：2026-09-23；以下头部基线截至2026-10-09 14:34 +08:00，当前状态以上方15:08为准。
+> 状态：Electron 能力、Vue 双层 Shell 和 React Harness 正式第一方入口已接入；文件工作区、搜索、保存、监听、外部编辑器、位图/SVG、Git 装饰及删除虚拟行/只看变更、搜索 ignore/Vue 设置与生产高亮 Worker 已实现。最终自动检查、类型、React/Electron 编译、双入口产物审计、Chrome 真实 React/生产 Worker、隐藏 Electron Worker fixture 通过；搜索配置/搜索/浏览的有限原生流程已通过。React 长行仍有 69ms Long Task，监听/编辑器错误态及图片/Git 同态 ZCode 仍待确认；整体 active，性能/正式安装包/Windows/真实模型/P0–P3 未放行。当前提交/推送按 Git 核对，不沿用历史全部未提交说法。
 > 依据：[MIRA_PLATFORM_PLAN.md](./MIRA_PLATFORM_PLAN.md)，以该文档的产品边界与待定决策为准。  
 > 适用范围：当前 `Mira/Mira-Harness` 的 Electron 桌面产品；第一阶段本仓库开发 Mira-Harness，并接入后续独立维护的 Mira Novel Studio。
 > 用途：回答“改哪几个大模块、各模块按什么顺序做到可交付”；具体接口和页面交互在对应批次落地前再细化。
 
-**当前续做入口**：[2026-10-09 搜索忽略规则与 Vue 设置](./MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md#2026-10-09-搜索忽略规则与-vue-设置)。正式 `/workspace/harness-react` 使用 FirstPartyFrame + MessageChannel + grant；prototype/pilot 与旧 Vue 回退不等于当前正式 React 入口。下方按日期的记录保留历史事实，其中“待评审”“尚未接入”“下一图片/Git/删除与筛选/搜索 ignore”等当时结论不覆盖本次基线。
+**当前续做入口**：[生产高亮 Worker 与有限原生验收](#2026-10-09-生产高亮-worker-与有限原生验收)。正式 `/workspace/harness-react` 使用 FirstPartyFrame + MessageChannel + grant；prototype/pilot 与旧 Vue 回退不等于当前正式 React 入口。下方按日期记录保留历史事实，其中“待评审”“尚未接入”“尚未实现 Worker”“锁屏阻断”等当时结论不覆盖本次基线。
 
-当前检查索引：[2026-10-09 搜索忽略规则与 Vue 设置](#2026-10-09-搜索忽略规则与-vue-设置)；最终数字、headless、审计与限定评审统一看 [搜索忽略规则证据页](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)。旧 Chrome headless 运行真实 Vue/Element Plus/AppIcon/全局样式，经 HTTP fixture 调真实文件服务，不经过 preload/IPC；7 张图保持原采集身份。新增真实隔离 Electron preload/IPC bridge 与 CDP DOM 只读 probe 已通过，不等于实体输入/截图验收。旧批次数字和限定 verdict 保留原日期/范围；编译不等于安装包或 Windows 验收。
+当前检查索引：[生产证据与最终检查](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/README.md)、[有限原生搜索](./assets/mira-zcode-alignment-2026-10-08/search-ignore-native/README.md)。旧搜索服务/授权/HTTP headless/bridge probe 仍见 [搜索忽略规则证据页](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)，7 张 HTTP 图与当前 3 张原生图保留各自采集身份；隐藏 Electron Worker、真实 Mira preload/IPC 原生搜索和 Chrome React performance 的范围不混用。旧数字/verdict 保留原日期，编译不等于安装包或 Windows。
 
-2026-10-09 续作：搜索 ignore 已接入，不重复实施；真实 Electron 的 Vue Proxy 克隆 P2 已修复并复核。当前锁屏阻止前景鼠标/键盘/截图，下一入口为解锁后重启隔离 Electron，补本批 Vue 设置/实际搜索/浏览的有限原生交互，不自动扩展为完整 native、同态 ZCode、Windows、真实模型或 P0–P3 放行。Git metadata watcher 仅为随后候选，先做 root、Git metadata 与 grant 生命周期的最小设计，既有文件 watch 不等于它；旧错误态、图片/Git 对照及媒体 lease/Range、高亮 Worker/profile 独立推进，依据见 [下一能力审查](./assets/mira-zcode-alignment-2026-10-08/NEXT_CAPABILITY_AUDIT_2026-10-09.md)。旧截图或旧 ship 不放行本批、整体或发布。
+2026-10-09 14:34 续作：搜索 ignore 与生产 Worker 不再是待实现项，锁屏不再是当前阻断。先 profile token clone/HTML/React 69ms 残余与真实输入、重复样本/内存/冷启动，再补旧错误态与图片/Git 同态 ZCode。Git metadata watcher 仅为随后候选，先做 canonical root/Git metadata/grant 生命周期设计，既有文件 watch 不等于它；媒体 lease/Range 等独立推进。旧 [能力审查](./assets/mira-zcode-alignment-2026-10-08/NEXT_CAPABILITY_AUDIT_2026-10-09.md) 的 Worker 待办已由本批取代，旧截图/ship 不放行整体或发布。
 
-2026-10-09 13:54 高亮诊断入口：[高亮 Worker 诊断](#2026-10-09-高亮-worker-诊断)。13:48 隔离 Chrome 的 Worker 原型 profile 已完成，生产 Worker 尚未实现、暂无该批回归/构建/性能通过结论；主 agent 将单独实施并验证。该开发批次不替代解锁后有限原生验收，也不把历史长单行 token mismatch 或失败运行抹为成功。
+13:48 原型诊断与“生产尚未实现”的 13:54 状态保留在 [历史诊断](#2026-10-09-高亮-worker-诊断)；新的正式实现/引擎迁移与最终检查是独立批次，不把历史 token mismatch / loader / 无预算 JS 中断抹成成功。
 
 ## 0. 更新记录
 
 | 日期 | 更新内容 | 状态影响 |
 | --- | --- | --- |
+| 2026-10-09 20:46 +08:00 | 完成Composer修饰键原子立即发送、暂停队列保留/清空/过期重确认与旧运行明确拒绝后的原稿重试；消息终态保持展开，复用历史对象避免重复转换。 | 冻结后128文件/1709项、类型/构建、291JS/14许可审计及22项浏览器/8图通过；初轮失败保留，证据/剩余见首屏总文档。原生/真实模型/同态/整体性能/发布仍未验收。 |
+| 2026-10-09 20:14 +08:00 | 运行中权威队列、撤回恢复/排序/立即发送/暂停，父任务有序parts、真实有界工具输入输出和内联审批；修用户消息同步、晚事件、审批终态与MCP错误。清理60个旧文档/死测试/无效产物，保留现版测试/许可。 | 当前128文件/1649项与React/Vue类型通过；限定浏览器检查及剩余统一见首屏总文档。仍缺guide/发送确认、终态展开保持、多模态/阅读恢复等；本批真实模型、原生/ZCode同态、性能、正式包/Windows/P0–P3未放行。 |
+| 2026-10-09 17:27 +08:00 | 完成侧栏项目时间线及项目/自定义组独立全部展开折叠，保留视图/显式折叠恢复；修 tooltip 遮挡；原生确认 Harness 两个搜索入口共用组件、侧栏恢复和活动会话不受影响。 | 新定向 4/53、React 类型/构建、291 JS/14 许可审计及搜索 10 records/3 captures、侧栏 21 records/3 captures 限定通过；证据见本轮原生页，失败保留。统一 Shell 入口但应用负责搜索内容，Novel 尚未实现；队列/完整事件与未验入口继续，整体 active，完整 UI/性能/发布/P0–P3 不放行。 |
+| 2026-10-09 16:58 +08:00 | 首屏首批实现与限定整合检查收尾，完成导航竞态/设置路由回归并创建首屏证据 README；同步总文档、对齐与交接当前状态。 | 最终自动检查和生产 React 浏览器图有一致产物身份，准确数量/时间/失败/网络边界统一见证据页；公开安装是真实公网+隔离 SkillStore，显式临时代理不等于 native。整体 active；下次先首屏隔离 Electron 与真实链路，随后队列/执行事件，不转文件支线。 |
+| 2026-10-09 16:46 +08:00 | 完成首屏首批实际接线：侧栏/分组/项目/归档、共享命令中心、React 自动化/公开 Skill 市场、真实对话状态/摘要、caret Composer；修跨桥 query/MCP 参数、CSS 产物、Unicode 搜索及组任务重启保留。 | 当前状态/最新整合验证集中在首屏总文档和证据页；本轮实现不等于 native/真实模型调度/同态性能通过。公开源固定提交/raw 14 Apache包，桌面下载遵循系统代理、安装不执行脚本。下一步仍首屏原生/真实链路及队列/完整事件，不去文件支线，整体 active。 |
+| 2026-10-09 15:15 +08:00 | 完成ZCode软件/源码参照与Mira侧栏、第一方桥、Vue路由和设置返回的只读核对；建立 [侧栏对齐清单](./MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)，修正验收矩阵“左侧导航通过”为“部分操作已验，非完整功能对齐”。 | 当时缺归档列表/恢复、真实自定义组、Command Center、created排序/偏好、项目新增/完整菜单/footer/plugin。该记录保留历史，当前已实现范围以上方16:46与首屏总文档为准；项目隐藏不得调用会删会话/trash/自动化的deleteProject。 |
+| 2026-10-09 15:08 +08:00 | 用户指出近期过度集中在文件支线；本批收口，不新增连续文件功能，先回看整体工作台：主界面、会话、对话执行、输入、审批、悬浮摘要、终端/浏览器面板，形成剩余对齐清单。 | 核心交互优先；旧错误态/图片/Git同态、metadata/媒体/performance保留待办，不强制作为下批。仅计划调整，不声称已重新设计或原生验收；现有证据/失败与整体active、P0–P3/发布边界保持。 |
+| 2026-10-09 15:06 +08:00 | 当前CSS776...重新执行60组颜色等价及15:04延迟流式行为，13请求/错误与unhandled为空，公开ready/Text Range/行继承色确认几何/复制/浅深/乱序/取消/卸载/失败重试/引用通过。 | 14:59旧token-span条件timeout保留failure，修复仅fixture，无后续生产源码修改；不是Worker/native/INP性能采样。最后单worker1089与14:54browser边界保持，下一UI先旧错误态/图片/Git同态，性能/发布/P0–P3未放行。 |
+| 2026-10-09 14:56 +08:00 | 行级颜色继承仅减HTML span，12新增回归/60组逐字样式等价；最终14:51:38–14:53:27单worker103/1089、类型/React与Electron编译、291JS双入口/13许可审计通过。14:54最新browser完整语义/React浅深样式通过。 | 默认两轮与两workers一轮超时保持失败，FilePreview只调测试等待15s，core15s/生产预算不变；React55/109ms与文件请求页面72ms长任务仍在，DOM减少不证明性能收益。CSS新产物SHA776...不同，不能沿用411...。下一UI先旧错误态/图片/Git同态，性能单列；整体active，未提交/推送、P0–P3/发布未放行。 |
+| 2026-10-09 14:34 +08:00 | 生产高亮 Worker / 完整 WASM 语义接入；最终 103 文件/1077 项、React/Vue 类型、React/Electron 编译、291 JS 双入口/13 许可审计通过；14:32 新 Chrome 完整 digest / React / 浅深主题 fixture 与14:20隐藏 Electron Worker fixture通过。14:25–14:28新隔离目录的真实 preload/IPC + 原生配置/搜索/浏览流程通过，3图逐张确认。 | Worker 与有限原生搜索已实现/限定通过，不再以锁屏或原型作为当前状态；React仍有69ms Long Task，整体性能/发布/P0–P3未放行。并发保存测试首调用必胜假设已修正，两种入队次序回归保留；生产ignore未改，历史失败保留。提交/推送另核对Git。 |
 | 2026-10-09 13:54 +08:00 | 回填 13:48 隔离 Chrome 高亮诊断：opaque iframe classic blob + dynamic import 原型可加载；长单行/并发增长主线程阻塞与 8001 行耗时样本、三次失败历史和行时间预算语义边界已记录。 | 仅诊断原型，生产 Worker 尚未实现；准确结果与脚本统一见性能记录和 profile JSON。没有本批生产回归/类型/构建/产物或性能放行；原生仍锁屏受阻、整体 active，未提交、未推送。 |
 | 2026-10-09 13:26 +08:00 | 搜索 ignore 真实桥续作：修复 Vue Proxy target 跨 `contextBridge` 克隆失败，`shallowRef` 与普通 `{ kind, id }` 请求快照覆盖初读/重读/transform/save；真实隔离 Electron preload/IPC bridge/DOM probe 通过。 | 最新全量/类型、React 与 Electron 重新构建和审计通过，JS/CSS 字节不变；准确数字统一见本批证据页。13:14:15 probe 三产物 SHA 与新构建一致但未重跑；前景 `com.apple.loginwindow` 阻断原生操作，脚本记录 `blockedBy=macOS-loginwindow`、0 actions/0 captures，不算功能失败；解锁后重启隔离 Electron 补有限验收，整体 active，未提交、未推送。 |
 | 2026-10-09 | 搜索忽略规则与 Vue 设置：成熟 `ignore` 解析器；首次非空搜索安全初始化 `.miraignore`，规则参与扫描剪枝/缓存身份；Vue `/settings/file-search` 管理既有项目或个人工作区，支持草稿同步/恢复默认、revision 保存及未保存离开确认。 | 已实现；最终自动检查、类型、构建、审计、独立 Chrome headless 与限定评审统一见 [搜索忽略规则证据页](./assets/mira-zcode-alignment-2026-10-08/SEARCH_IGNORE_EVIDENCE.md)。仅覆盖实际工作区搜索，不影响浏览或 Agent 权限，不含 `@`/Command Center；原生/性能/发布/P0–P3 未放行，整体 active，未提交、未推送。 |
@@ -54,7 +92,7 @@
 | 2026-09-29 | 复核 React 工作台的任务状态、深色和窄窗口；修复审批状态被“执行中”覆盖，并以隔离快照采集四态截图。开发 Electron 终端真实输入输出通过，浏览器真实导航失败且已显示错误。 | UI 状态矩阵和开发态 PTY 有证据；浏览器必须改为 Electron/Shell 所有的原生视图，打包版与默认入口仍未放行。 |
 | 2026-09-29 | 按用户截图和 ZCode 结构开始正式 UI 改造：工作区改为动态内容标签，任务活动作为默认标签，文件/变更/终端/浏览器按需打开并可关闭；会话列表改为覆盖式抽屉；Vue 宿主去除重复 Harness 标题栏；浏览器视图提升到 Shell 持有并增加 guest 安全限制。 | React 工作台的目标信息架构已落到正式代码；开发 Electron 的文件预览、终端标签保持、浏览器 HTTPS 加载和导航已通过。打包版、真实模型、xterm.js 和默认入口切换仍未放行。 |
 | 2026-09-29 | 根据用户对截图的反馈，纠正“截图就是目标稿”的误读：空会话默认仅显示线程，工作区按需展开；形成待确认的桌面结构原型并完成一小批结构代码。 | 原型尚待用户确认；这批代码不是高保真批准或生产入口放行。 |
-| 2026-09-29 | 复核用户补充的 Mira 现状截图，确认 Shell 与 Harness 画布边界，以及常驻右侧概览挤压线程的问题；提供独立结构原型 `apps/harness-react/design-review.html`，修正空态摘要和状态标签误显，补齐窗口控制示意、工作区宽度和标签关闭交互。 | Chrome 1440×900 验证空态、执行中终端标签、文件标签关闭后重新打开、会话切换及键盘调整宽度；原型中的模型、终端、浏览器均为演示，交互方案仍待用户确认，不继续默认入口切换。 |
+| 2026-09-29 | 复核用户补充的 Mira 现状截图，确认 Shell 与 Harness 画布边界，以及常驻右侧概览挤压线程的问题；当时提供独立结构原型，修正空态摘要和状态标签误显，补齐窗口控制示意、工作区宽度和标签关闭交互。该旧稿已由后续 ZCode 对齐路线替代。 | Chrome 1440×900 验证空态、执行中终端标签、文件标签关闭后重新打开、会话切换及键盘调整宽度；原型中的模型、终端、浏览器均为演示，交互方案当时仍待用户确认，不继续默认入口切换。 |
 | 2026-09-29 | 审计 ZCode 侧面板组件与 Mira 已有 React 依赖：继续使用 `@assistant-ui/react`、`lucide-react`；ZCode 整体 Side Pane 与内部服务强耦合，高保真只借鉴交互并按需选 Radix 原语。 | 组件策略已记录在工作台原型文档；布局确认前不引入依赖、不复制 ZCode 源码、不改正式 UI。 |
 | 2026-09-29 | React 迁移阶段 0（收编与地基）：`prototypes/harness-react` 转正为 `apps/harness-react`（构建/测试/文档/开发路由全部同步）；pilot.css 拆分为 tokens/layout/thread/workspace 四文件并合并覆盖层死样式，终端深色改令牌；`mira:context` 增 `primaryColor`/`onPrimary`，React 经 `applyHostTheme` 对齐壳层主色与深浅切换；第一方桥新增 `preferences.get/set`（按 appId 命名空间隔离），pilot 上次模型选择改走宿主偏好持久化。 | 已通过：`npm test`（69 文件 305 用例）、`npx tsc -p apps/harness-react/tsconfig.json`、`npm run build`、`git diff --check`。开发态 Electron 视觉复验（深浅×主色切换）与打包版仍待验收。 |
 | 2026-09-29 | React 迁移阶段 1（桥扩容 + 会话抽屉完整对齐）：第一方 Harness 白名单扩容至 40+ 方法（会话重命名/置顶/未读/归档/删除/移动/排序、会话权限/Skill/MCP/委派配置、Git 分支三操作、记忆确认与保存、子任务停止、重跑/编辑重跑、计划取消/继续、message.run 支持文件引用、project.open 支持终端目标），主进程逐项分发并带参数校验；pilot-state 增加跨会话徽标缓存（运行中/未读/挂起审批），打开会话自动清除未读；会话抽屉重建为完整对齐 Vue 侧边栏：置顶/项目/最近三组、项目折叠经偏好持久化、四类徽标优先级（计划>审批>运行>未读）、右键菜单全套（重命名/置顶/已读/归档/删除确认/移动/复制/打开方式）、行内置顶归档快捷操作、dnd-kit 组内拖拽排序（禁止跨组）、行内重命名（42 字上限）。 | 已通过：`npm test`（70 文件 314 用例）、`npx vue-tsc --noEmit`、`npx tsc -p apps/harness-react/tsconfig.json`、`npm run build`、`git diff --check`。抽屉的桌面视觉与物理鼠标拖拽复验、打包版、真实模型链路仍待验收。 |
@@ -204,11 +242,43 @@ launcher 原生拖宽从 420px 单列/48px 行切到 559px 三列/88px 卡片。
 
 ### 2026-10-09 高亮 Worker 诊断
 
+本节保留 13:54 的原型历史；当前实现与验收看下一节，不将当时“尚未实现”或锁屏状态视为当前结论。
+
 更新：2026-10-09 13:54 +08:00。完成 13:48:11–13:48:24 隔离 headless Chrome 高亮诊断及 Worker 原型，结果、完整指标与源码身份见 [性能记录](./MIRA_HARNESS_PERFORMANCE_2026-10-08.md#2026-10-09-高亮-worker-诊断) / [profile-results.json](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-profile/profile-results.json)，不是生产能力交付。opaque iframe classic blob + dynamic import 可加载，module URL/blob/static import 失败；原型可移出部分主线程阻塞，但总耗时并非全场景下降。默认行时间预算导致长单行 token/style 可能不等；13:39 loader、13:41 mismatch 和 13:44 无预算 JS 中断三份失败记录保留，WASM 无预算只是不同 engine 诊断，不改生产引擎。
 
 **剩余与下一步**：生产 Worker 尚未实现，主 agent 将独立实施正式 loader、取消/迟到保护、故障恢复及有界资源，并补语言/主题/跨行与长行语义、回归/类型/正式构建/产物和同条件性能检查；当前暂无该批通过结论。诊断未改生产源码/构建、未运行 Electron/用户数据库/原生输入/截图/ZCode GUI。原生设置/搜索/浏览仍锁屏受阻，解锁后重启隔离 Electron 的有限验收入口不变；整体性能、发布及 P0–P3 未放行，未提交、未推送。
 
+### 2026-10-09 生产高亮 Worker 与有限原生验收
+
+**完成**：正式流式/完成态代码块与文件预览接入 Mira Worker；app / Worker 双 ESM 入口，不放宽 opaque sandbox/CORS，无主线程 tokenizer fallback。Shiki 3.23.0 公共 API 的 Oniguruma WASM 完整逐行语义/offset/grammar continuation、无时间/行长截断、两主题/全语言及别名保留；取消/共享消费者/迟到防护、重试和 dispose 回收，10s/60s 超时、256请求/32,000,000源码字符 admission 与128项/1,000,000 key字符缓存已实现。源字符预算不是token结果或总内存硬上限，单行扫描仍不可中断。
+
+**验证与历史**：14:24 全量103文件/1077项、类型、React/Electron编译、fresh双入口/13许可审计通过；14:32:46–14:33:06 Chrome9组等价、长单行27,300tokens/8001行104,000tokens/16增长快照、300完成代码块、共享取消及loader/theme重试通过，真实React仍有**69ms Long Task**。浅深组件截图按真实 `applyHostTheme/#root` 重跑并逐张复核。14:14延迟highlighter fixture验证呈现/恢复但不是Worker性能；14:20真Electron隐藏fixture验证资源/取消/dispose但不是完整Mira preload/native UI。指标、SHA、失败JSON、引擎迁移与Shiki MIT/Microsoft MIT/native Oniguruma BSD-2来源只在 [生产证据索引](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/README.md) / [性能记录](./MIRA_HARNESS_PERFORMANCE_2026-10-08.md#2026-10-09-生产高亮-worker-与最终验证) 集中维护。14:17全量因并发保存测试固定首调用为赢家失败；按实际唯一commit及两种受控入队顺序修复测试，生产ignore未修改，原失败保留。
+
+**有限原生搜索**：14:25:17–14:28:15真实Mira Electron1440×900、隔离 `/private/tmp/mira-native-ignore-8V6O9x`，实际preload/IPC + 原生click/type/keys通过模板不写盘、保存、离开取消留草稿、外部revision冲突不覆盖文件/草稿、重读重试、browse不排除/search按规则排除及needle预览；27records/3captures、passed=true，三图逐张复核无可见重叠/越界。见 [原生结果](./assets/mira-zcode-alignment-2026-10-08/search-ignore-native/README.md)；旧锁屏、输入丢字符与旧fixture规则失败保持历史，不扩大到整体native、上游隐藏设置页逐像素或ZCode对照。
+
+**剩余与下次入口**：从本节和生产证据继续token clone/HTML/React长任务、真实输入、重复样本/内存/冷暖及进程冷启动；不重写已实现Worker/搜索ignore，不通过删语法/截短长行放行。旧监听/编辑器错误态及图片/Git浅深色同态ZCode、metadata watcher、媒体lease/Range、安装包/Windows/真实模型分别推进；整体active，性能/发布/P0–P3未放行，`9→0`未归因、force reload异步保存边界不变。本次文档更新未提交/推送，仓库当前代码状态按Git另核对。
+
 以上早期增量及以下阶段记录保留其日期下的历史状态；旧“下一次”不作为当前开工指令。
+
+### 2026-10-09 侧栏只读核对与下一首批
+
+本节是 15:15 的只读历史，以下“未实现/下一次”不是当前任务状态；实现增量与剩余以首屏总文档为准。
+
+**完成**：只读核对当前`SessionSidebar.tsx`、`platform/first-party-host.ts`、Vue React宿主navigate与`SettingsSiderMenu.vue`，按上游源码确认完整功能遗漏。旧矩阵只验证部分外观/操作，未建立完整功能到授权桥/持久化/验收的映射；“分组”外观与updated排序相似不代表上游自定义组、created排序及preferences等价。具体源码依据与首批范围集中在 [侧栏清单](./MIRA_SIDEBAR_ALIGNMENT_2026-10-09.md)。
+
+**未实现**：归档列表/restore、自定义组/组管理、Command Center、created排序/偏好、项目新增与完整菜单、footer/plugin；“工具与技能”仅去MCP设置，搜索仅title/project。第一方桥无history/restore/项目CRUD；Vue完整字符串白名单静默拦合法query与personalization，设置未带from时返回旧chat。项目“移除”须保留历史，不能直接调用清会话/trash/相关自动化的`deleteProject`。
+
+**下一次**：从清单步骤1导航与底部入口开始，修合法参数/React设置来源返回，分开工具与技能并接真实设置/本地用量；随后步骤2归档/排序，宿主协议/状态恢复/偏好与交互验收一同落实。本轮仅核对/记计划，没有新代码/新原生操作通过。主界面/线程/输入/审批/摘要/终端浏览器后续逐区核对；旧文件/metadata/媒体/performance保留待办，不继续文件支线，整体active、发布/P0–P3未放行。
+
+### 2026-10-09 行级渲染收尾与当前结果
+
+**完成**：共享renderer安全行级颜色继承只减HTML等色span，不改tokens/source/offset、保留字体/背景/装饰和escaping/fallback；12新增回归、独立60组逐字样式/完整源码/滚动宽度等价，DOM27303→14703。最终单worker103/1089、React/Vue类型、React/Electron编译、fresh291JS/240动态目标/13许可通过；此前两默认与一两workers超时失败保留，不以单worker绿替代默认并发验收，不提高core15s或生产预算。
+
+**限定结果**：14:54:12–14:54:57新Chrome完整digest/9fixture、300围栏、45文件虚拟行/末行、取消/重试与浅深逐字样式通过；真实React55/109ms/gap110ms和文件请求页面72ms长任务仍有，21fixture输入不是原生/INP，DOM减少不能证明性能改善。新产物CSS131700B/SHA776...，没有CSS源码变更但不沿用411...。最终度量、3失败JSON/log、before69ms/1077及许可统一见 [生产证据](./assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/README.md) / [当前性能](./MIRA_HARNESS_PERFORMANCE_2026-10-08.md#2026-10-09-行级渲染收尾与当前结果)。旧隐藏Electron/延迟React与真实native搜索各自限定，不拼成整体验收。
+
+**新CSS行为**：14:56颜色60组与15:04:34–15:04:39延迟highlighter的13请求/geometry/精确复制/浅深/乱序/取消/卸载/错误重试/引用通过，errors/unhandled为空；以当前776...CSS关联。14:59旧独立token-span条件timeout保留，fixture改公开ready/Text Range/继承色，无后续生产源码变化，不记性能/native新采样。
+
+**下一次（15:08调整）**：回看整个工作台的主界面/会话/对话执行/输入/审批/悬浮摘要/终端浏览器，形成剩余对齐清单，核心交互优先；本次只是收口和计划，不是新设计/原生验收。文件错误态、图片/Git同态、metadata/媒体/performance保留待办，不要求连续优先追加。用户ZCode草稿不操作/不抢焦点，自有Electron已退出/数据保留，观察图不当同态；性能/包/Windows/模型/P0–P3另验，`9→0`/force reload边界不变，不重复Worker/搜索ignore，整体active、本次未提交/推送。
 
 ### 2026-09-24 阶段 1A 第一批记录：设置与壳层基线收敛
 
@@ -229,14 +299,14 @@ launcher 原生拖宽从 420px 单列/48px 行切到 559px 三列/88px 卡片。
 
 **下一次开工入口**
 
-- 从本模块 D「Mira-Harness 默认应用」P0/P1 开始，先阅读 `docs/MIRA_PHASE0_AUDIT.md` 第 5、6 节和 Harness 现有页面/事件测试。
+- 本批当时从 D「Mira-Harness 默认应用」P0/P1 开始；当前继续入口见 [首屏对齐](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md) 与 [SDK 契约](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)。
 - 首个交互切片聚焦空态、执行态、等待确认态、失败恢复和成果入口；先形成可评审设计与状态契约，再改业务页面。
 
 ### 2026-09-24 阶段 1A 第二批记录：工作面板状态一致性
 
 **已完成**
 
-- 新增 [`MIRA_HARNESS_UI_SLICE_2026-09-24.md`](./MIRA_HARNESS_UI_SLICE_2026-09-24.md)，固定工作面板六种状态及交互边界。
+- 当时固定工作面板六种状态及交互边界；现行要求统一见 [工作台交互规格](./MIRA_HARNESS_WORKBENCH_INTERACTION_SPEC_2026-09-30.md)。
 - 工作面板现在区分 `running`、`rendering`、`failed`、`stopped`、`completed` 和 `idle`，不再把停止、失败或整理回复显示为完成。
 - 当前运行状态优先使用运行 store，最近完成消息补充失败/停止/完成结果；失败错误摘要在面板中可见，重试仍由消息区负责。
 - 保留工具活动、文件变更和执行详情的现有折叠/展开交互；没有新增执行器、IPC、权限或数据协议。
@@ -380,7 +450,7 @@ P 是**同一模块内部的完成关口**，不是需求优先级，也不要�
 
 建议的**最短验证路径**：先审计现有 Electron/Harness/小说依赖并调研开源 Agent UI，明确 A/B/C 的边界和 D 的选型；用现有 Harness 和小说业务验证 SDK，再由独立 Novel Studio 项目提供本地静态包并完成 E 的接入与旧作品验收；最后 F 接远程 Release 和安装事务，由 G 贯穿并完成总验收。旧结构下的原型测试只是技术摸底，不能充当新架构验收；安装器不能替代外部子应用闭环。
 
-阶段 0 的实际源码审计与候选初筛见 [MIRA_PHASE0_AUDIT.md](./MIRA_PHASE0_AUDIT.md)。它记录第一批改动建议，不把本 PRD 的 P0–P3 自动标记为通过。
+阶段 0 的源码审计与候选初筛已经结束。当前继续入口见 [首屏对齐](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，本 PRD 的 P0–P3 仍须逐项验收，不能因初筛或构建通过自动标记为完成。
 
 ## 3. 模块关口
 
@@ -435,7 +505,7 @@ P 是**同一模块内部的完成关口**，不是需求优先级，也不要�
 
 **下一次开工入口**
 
-- 先读本节 C 模块边界和 `docs/MIRA_REACT_HARNESS_STAGE1_DESIGN_2026-09-24.md`，开始 D 模块 React 应用内设计评审与最小受控桥接，不再改 Shell 公共职责。
+- 本批当时从 C 模块边界进入 D 的 React 设计评审与受控桥接；当前要求见 [交互规格](./MIRA_HARNESS_WORKBENCH_INTERACTION_SPEC_2026-09-30.md) 与 [SDK 契约](./MIRA_FIRST_PARTY_SDK_CONTRACT.md)，Shell 公共职责沿用该边界。
 
 ### D. Mira-Harness 默认应用
 
@@ -604,7 +674,7 @@ React UI 已按方案 A 调整为任务线程主区，会话与工作区按需�
 
 **剩余**：本轮未切换默认入口，未修改 Electron/Vue 能力协议；终端仍为受控文本输入，浏览器仍为 `<webview>`，安装包、Windows 和真实模型链路未验收。
 
-**下一次入口**：先请用户确认 `docs/MIRA_HARNESS_WORKBENCH_WIREFRAME_2026-09-28.md` 的“待确认的桌面原型”；确认后制作六类高保真画面，再进行正式 UI 替换。当前代码仍需补执行中、待审批、完成、失败四态以及拖拽、标签关闭、跨会话资源回收的运行态回归。xterm.js、文件编辑器和安装包验收不在这轮结构代码内。
+**当时下一次入口（历史）**：评审桌面原型，再制作高保真画面与替换 UI。此流程已由用户确认的 ZCode 对齐路线替代，当前继续入口见 [首屏对齐](./MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。执行中、待审批、完成、失败四态及拖拽、标签关闭、跨会话资源回收均以各后续批次证据为准；不把早期结构回归作为安装包验收。
 
 ### 2026-09-29 高保真正式实现
 

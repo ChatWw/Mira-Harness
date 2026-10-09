@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T04:08:54Z",
+  "generatedAt": "2026-10-09T06:44:00Z",
   "title": "Design System: Mira Harness",
   "extensions": {
     "colorMeta": {
@@ -159,7 +159,7 @@
       "项目文件在左侧浏览，每个已打开文件在右侧拥有独立只读标签。",
       "位图与 SVG 复用只读文件工作区，预览能力不等同于模型多模态附件。",
       "Git 装饰、已加载父目录 deleted 行与只看变更复用文件树；精确 ignored 不影响祖先，搜索不补 deleted 项，只读快照无写操作。",
-      "2026-10-09 13:26 +08:00：搜索 ignore/Vue 设置与两个 P2 修复已接入；SEARCH_IGNORE_EVIDENCE.md 是当前入口，全量/类型、React/Electron 重新构建/审计通过，JS/CSS 字节不变。13:14:15 真实 preload/IPC bridge/DOM 只读 probe 已通过、未重跑；三产物 SHA 与新构建一致。锁屏阻断前景输入/截图，旧 7 图 headless 不改证据身份，整体未放行。",
+      "2026-10-09 14:44 +08:00：搜索 ignore/Vue 设置的有限原生保存、未保存取消、外部冲突/重读、React 浏览/搜索/预览通过，27 条记录/3 图逐张确认；旧锁屏不再是当前阻断，7 张 HTTP headless 与旧 CDP probe 保留原身份。生产 Shiki WASM Worker 已接入流式/完成态/文件预览，维持 opaque iframe 与完整tokens；根/theme修正只在截图fixture。SEARCH_IGNORE_EVIDENCE.md 与 HIGHLIGHT_WORKER_EVIDENCE.md 分别记录准确数字和剩余DOM/profile边界，不放行完整原生、性能、发布或P0-P3。",
       "正式入口使用第一方授权桥，演示页不作为验收基准。"
     ],
     "rules": [],
@@ -184,7 +184,7 @@
       "Don't 删除必要上游版权、许可原文或旧用户数据。",
       "Don't 恢复独立主题色、布局样式、Shell 多页签或移动端范围。",
       "Don't 将只读文件预览扩展为内置编辑器，或用尚未实现的音视频、Office、Git 写操作或 metadata watcher 承诺能力。",
-      "Don't 将搜索 ignore 当浏览/Agent 权限隔离，或把 Chrome HTTP fixture/真实 Electron bridge 与 DOM 只读 probe 称为原生鼠标、键盘或截图验收。解锁后重启隔离 Electron 仅补有限设置/搜索/浏览，Git metadata watcher 仅为随后候选，整体 P0-P3 不放行。"
+      "Don't 将搜索 ignore 当浏览/Agent 权限隔离，或混用 HTTP headless、CDP probe、隐藏 Electron Worker fixture 与原生 Mira 的范围。有限设置/搜索/浏览原生通过不放行图片/Git同态、产品性能或P0-P3；下一入口回到真实界面差异，metadata watcher单独设计。"
     ]
   }
 }

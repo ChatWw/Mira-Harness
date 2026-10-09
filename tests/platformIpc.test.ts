@@ -8,6 +8,9 @@ import { LocalMicroAppServer } from '../electron/adapters/localMicroAppServer'
 import type { FirstPartyAppManifest } from '../src/config/firstPartyApps'
 import { FirstPartyGrantStore } from '../electron/security/firstPartyGrant'
 import * as workspaceGit from '../electron/services/harnessWorkspaceGit'
+import * as workspaceFiles from '../electron/services/harnessWorkspaceFiles'
+import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
+import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => unknown>(),
@@ -144,7 +147,7 @@ describe('platform IPC registration', () => {
 
   it('reclaims watchers when first-party sessions move or delete and imported configuration invalidates their roots', () => {
     const workspaceWatch = { closeForSession: vi.fn(), closeInvalid: vi.fn(), closeForGrant: vi.fn(), closeForWebContents: vi.fn() }
-    const { invoke, database } = register({ harnessRuntime: {} as never, workspaceWatch: workspaceWatch as never })
+    const { invoke, database } = register({ harnessRuntime: { assertSessionMutable: vi.fn() } as never, workspaceWatch: workspaceWatch as never })
     const moveSession = vi.fn(() => ({ id: 's' }))
     const deleteSession = vi.fn()
     Object.assign(database.harness, { moveSession, deleteSession })
@@ -157,6 +160,112 @@ describe('platform IPC registration', () => {
     invoke('platform:import-snapshot', '{}')
     invoke('platform:restore-defaults')
     expect(workspaceWatch.closeInvalid).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['session.archive', 'session.delete', 'session.move'])('guards %s before changing running or paused queued task scope', method => {
+    const assertSessionMutable = vi.fn()
+    const workspaceWatch = { closeForSession: vi.fn() }
+    const { invoke, database } = register({ harnessRuntime: { assertSessionMutable } as never, workspaceWatch: workspaceWatch as never })
+    const archiveSessions = vi.fn(), deleteSession = vi.fn(), moveSession = vi.fn()
+    Object.assign(database.harness, { archiveSessions, deleteSession, moveSession })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    for (const message of ['该会话正在运行', '请先处理待发送消息']) {
+      assertSessionMutable.mockImplementation(() => { throw new Error(message) })
+      expect(() => invoke('platform:first-party-harness', grantId, method, { id: 's', projectId: 'other' })).toThrow(message)
+      expect(archiveSessions).not.toHaveBeenCalled()
+      expect(deleteSession).not.toHaveBeenCalled()
+      expect(moveSession).not.toHaveBeenCalled()
+      expect(workspaceWatch.closeForSession).not.toHaveBeenCalled()
+    }
+  })
+
+  it('routes owner-authorized queue reorder and send-now with parsed authority-bound parameters', async () => {
+    const queue = { sessionId: 's', revision: 2, items: [] }
+    const harnessRuntime = { reorderMessageQueue: vi.fn(() => queue), sendQueuedMessageNow: vi.fn(async () => queue) }
+    const { invoke, invokeAs } = register({ harnessRuntime: harnessRuntime as never })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'queue.reorder', { sessionId: 's', itemId: 'item', beforeItemId: null, apiKey: 'ignored' })).toEqual(queue)
+    await expect(invoke('platform:first-party-harness', grantId, 'queue.send-now', { sessionId: 's', itemId: 'item', expectedRunId: 'run', injected: true })).resolves.toEqual(queue)
+    expect(harnessRuntime.reorderMessageQueue).toHaveBeenCalledExactlyOnceWith('s', 'item', null)
+    expect(harnessRuntime.sendQueuedMessageNow).toHaveBeenCalledExactlyOnceWith('s', 'item', 'run')
+    expect(() => invokeAs(2, 'platform:first-party-harness', grantId, 'queue.send-now', { sessionId: 's', itemId: 'item' })).toThrow('授权无效')
+    expect(harnessRuntime.sendQueuedMessageNow).toHaveBeenCalledOnce()
+  })
+
+  it('reads archived pages and restores the selected task through an owner-bound Harness grant', () => {
+    const { invoke, invokeAs, database } = register({ harnessRuntime: {} as never })
+    const queryHistory = vi.fn(() => ({ rows: [{ id: 'archived' }], total: 1 }))
+    const restoreSessions = vi.fn(() => [{ id: 'archived' }])
+    Object.assign(database.harness, { queryHistory, restoreSessions })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'sessions.history', { archiveView: 'archived', page: 2, pageSize: 50 })).toMatchObject({ total: 1 })
+    expect(queryHistory).toHaveBeenCalledWith({ archiveView: 'archived', sort: 'updated-desc', page: 2, pageSize: 50, q: undefined })
+    invoke('platform:first-party-harness', grantId, 'session.restore', { id: 'archived' })
+    expect(restoreSessions).toHaveBeenCalledExactlyOnceWith(['archived'])
+    expect(() => invokeAs(2, 'platform:first-party-harness', grantId, 'session.restore', { id: 'archived' })).toThrow('授权无效')
+    expect(restoreSessions).toHaveBeenCalledOnce()
+  })
+
+  it('retains archive filters through the actual bridge-to-IPC double parsing chain', async () => {
+    const view = register({ harnessRuntime: {} as never })
+    const queryHistory = vi.fn(() => ({ rows: [], total: 0 }))
+    Object.assign(view.database.harness, { queryHistory })
+    const grantId = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    await handleFirstPartyRequest({ manifest: firstPartyAppManifests.find(item => item.appId === 'mira-harness')!, grantId, context: {} as never, route: '/', navigate: vi.fn(), api: { invokeFirstPartyHarness: (grant, method, params) => view.invoke('platform:first-party-harness', grant, method, params) } as never }, { type: 'mira:request', id: '1', method: 'harness.sessions.history', params: { archiveView: 'archived', sort: 'created-desc', page: 2, pageSize: 20 } })
+    expect(queryHistory).toHaveBeenCalledExactlyOnceWith({ archiveView: 'archived', sort: 'created-desc', page: 2, pageSize: 20, q: undefined })
+  })
+
+  it('returns only the global composer preferences, not the platform snapshot', () => {
+    const { invoke, database } = register({ harnessRuntime: {} as never })
+    database.getSnapshot.mockReturnValueOnce({ preferences: { sendShortcut: 'mod-enter', showContextUsage: false, secret: 'not-exposed' } } as never)
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'composer.preferences', undefined)).toEqual({ sendShortcut: 'mod-enter', showContextUsage: false, followupMode: 'queue' })
+  })
+
+  it.each(['queue', 'guide'])('persists and projects the global %s follow-up preference without changing existing input preferences', followupMode => {
+    const { invoke, database } = register({ harnessRuntime: {} as never })
+    const preferences = { sendShortcut: 'mod-enter', showContextUsage: false, followupMode: 'queue' }
+    database.savePreference.mockImplementation((key: string, value: unknown) => {
+      Object.assign(preferences, { [key]: value })
+      return { key, value }
+    })
+    database.getSnapshot.mockImplementation(() => ({ preferences }) as never)
+    expect(invoke('platform:save-preference', 'followupMode', followupMode)).toEqual({ key: 'followupMode', value: followupMode })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'composer.preferences', undefined)).toEqual({ sendShortcut: 'mod-enter', showContextUsage: false, followupMode })
+    expect(database.savePreference).toHaveBeenCalledExactlyOnceWith('followupMode', followupMode)
+  })
+
+  it.each([undefined, null, '', 'start-now', 'QUEUE', false, 1, {}])('defaults a legacy or unknown follow-up preference to queue (%j)', followupMode => {
+    const { invoke, database } = register({ harnessRuntime: {} as never })
+    database.getSnapshot.mockReturnValueOnce({ preferences: { sendShortcut: 'enter', showContextUsage: true, followupMode } } as never)
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'composer.preferences', undefined)).toEqual({ sendShortcut: 'enter', showContextUsage: true, followupMode: 'queue' })
+    expect(database.savePreference).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, null, '', 'start-now', 'QUEUE', false, 1, {}])('rejects an invalid follow-up preference before any persistent write (%j)', value => {
+    const { invoke, database } = register()
+    expect(() => invoke('platform:save-preference', 'followupMode', value)).toThrow('运行中消息处理只允许队列或引导')
+    expect(database.savePreference).not.toHaveBeenCalled()
+  })
+
+  it('rechecks revoked market authority after a read and passes a commit guard to installation', async () => {
+    let finishBrowse!: (value: unknown) => void
+    const browse = vi.fn(() => new Promise(resolve => { finishBrowse = resolve }))
+    const install = vi.fn(async (_id: string, assertAuthorized: () => void) => { await Promise.resolve(); assertAuthorized(); return { installed: true } })
+    const view = register({ harnessRuntime: {} as never, skillMarketplace: { browse, install } as never })
+    Object.assign(view.sender, { isDestroyed: () => false })
+    const grantId = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const read = view.invoke('platform:first-party-harness', grantId, 'marketplace.browse', { refresh: true }) as Promise<unknown>
+    view.invoke('platform:revoke-first-party-grant', grantId)
+    finishBrowse({ items: [] })
+    await expect(read).rejects.toThrow('授权无效')
+    const nextGrant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const installation = view.invoke('platform:first-party-harness', nextGrant, 'marketplace.install', { id: 'public-skill' }) as Promise<unknown>
+    view.invoke('platform:revoke-first-party-grant', nextGrant)
+    await expect(installation).rejects.toThrow('授权无效')
+    expect(install).toHaveBeenCalledWith('public-skill', expect.any(Function))
   })
 
   it('validates micro-apps before saving and leaves the server unchanged on failure', () => {
@@ -386,10 +495,12 @@ describe('platform IPC registration', () => {
     expect(() => invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: '' })).toThrow('会话 ID无效')
     expect(harnessRuntime.abort).not.toHaveBeenCalled()
     expect(invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toBeUndefined()
-    expect(harnessRuntime.abort).toHaveBeenCalledWith('s')
+    expect(harnessRuntime.abort).toHaveBeenCalledWith('s', undefined)
+    invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's', expectedRunId: 'run-1' })
+    expect(harnessRuntime.abort).toHaveBeenLastCalledWith('s', 'run-1')
     invoke('platform:revoke-first-party-grant', grant)
     expect(() => invoke('platform:first-party-harness', grant, 'run.abort', { sessionId: 's' })).toThrow('授权无效')
-    expect(harnessRuntime.abort).toHaveBeenCalledTimes(1)
+    expect(harnessRuntime.abort).toHaveBeenCalledTimes(2)
   })
 
   it('rejects personal-workspace file selection before opening a picker and preserves project-file validation', async () => {
@@ -452,6 +563,67 @@ describe('platform IPC registration', () => {
     } finally {
       await rm(root, { recursive: true, force: true })
     }
+  })
+
+  it('browses persisted project roots without a session and never trusts a caller root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-platform-project-files-'))
+    try {
+      await writeFile(join(root, 'project.md'), 'project-only fixture')
+      const registered = register({ harnessRuntime: {} as PlatformIpcDependencies['harnessRuntime'] })
+      registered.database.harness.getProject.mockReturnValue({ id: 'empty-project', directory: root })
+      registered.database.harness.getSession.mockImplementation(() => { throw new Error('No session should be resolved') })
+      const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.list', { projectId: 'empty-project', path: '', root: '/private/injected' })).resolves.toMatchObject({ path: '', entries: [{ path: 'project.md' }] })
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.search', { projectId: 'empty-project', query: 'project', root: '/private/injected' })).resolves.toMatchObject({ entries: [{ path: 'project.md' }] })
+      expect(registered.database.harness.getProject).toHaveBeenCalledWith('empty-project')
+      expect(registered.database.harness.getSession).not.toHaveBeenCalled()
+      expect(registered.database.harness.createSession).not.toHaveBeenCalled()
+      expect(() => registered.invoke('platform:first-party-harness', grant, 'files.list', { projectId: 'empty-project', path: '../secret' })).toThrow('路径无效')
+      expect(() => registered.invoke('platform:first-party-harness', grant, 'files.list', { projectId: 'empty-project', sessionId: 's', path: '' })).toThrow('文件范围')
+      registered.database.harness.getProject.mockImplementation(() => { throw new Error('未找到项目') })
+      expect(() => registered.invoke('platform:first-party-harness', grant, 'files.list', { projectId: 'unknown', path: '' })).toThrow('未找到项目')
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it.each(['files.list', 'files.search', 'files.git-status', 'files.git-ignored'])('%s checks project grants before reading and rejects all late invalidation cases', async method => {
+    const source = method === 'files.list' ? workspaceFiles : method === 'files.search' ? workspaceFiles : workspaceGit
+    const helper = method === 'files.list' ? 'listHarnessWorkspaceFiles' : method === 'files.search' ? 'searchHarnessWorkspaceFiles' : method === 'files.git-status' ? 'readHarnessWorkspaceGit' : 'readHarnessWorkspaceIgnored'
+    let finish!: (value: unknown) => void
+    const read = vi.spyOn(source as typeof workspaceFiles & typeof workspaceGit, helper).mockImplementation(() => new Promise(resolve => { finish = resolve }) as never)
+    try {
+      for (const invalidation of ['revoked-grant', 'changed-project-directory', 'deleted-project', 'destroyed-sender']) {
+        const registered = register({ harnessRuntime: {} as PlatformIpcDependencies['harnessRuntime'] })
+        registered.database.harness.getProject.mockReturnValue({ id: 'project', directory: '/mira-project' })
+        const isDestroyed = vi.fn(() => false); Object.assign(registered.sender, { isDestroyed })
+        const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
+        const params = { projectId: 'project', path: '', query: 'notes', paths: ['build'], root: '/private/injected' }
+        expect(() => registered.invokeAs(2, 'platform:first-party-harness', grant, method, params)).toThrow('授权无效')
+        expect(() => registered.invokeFromSubframe('platform:first-party-harness', grant, method, params)).toThrow('宿主主页面')
+        const request = registered.invoke('platform:first-party-harness', grant, method, params)
+        expect(read).toHaveBeenLastCalledWith('/mira-project', ...(method === 'files.list' ? [''] : method === 'files.search' ? ['notes', false, expect.any(Function)] : method === 'files.git-ignored' ? [['build']] : []))
+        if (invalidation === 'revoked-grant') registered.invoke('platform:revoke-first-party-grant', grant)
+        else if (invalidation === 'changed-project-directory') registered.database.harness.getProject.mockReturnValue({ id: 'project', directory: '/different-project' })
+        else if (invalidation === 'deleted-project') registered.database.harness.getProject.mockImplementation(() => { throw new Error('未找到项目') })
+        else isDestroyed.mockReturnValue(true)
+        finish(method === 'files.list' ? { path: '', entries: [] } : method === 'files.search' ? { entries: [], truncated: false } : method === 'files.git-status' ? { available: true, entries: [] } : [])
+        await expect(request).rejects.toThrow(invalidation === 'revoked-grant' ? '授权无效' : invalidation === 'changed-project-directory' ? '工作目录已变化' : invalidation === 'deleted-project' ? '未找到项目' : '连接已关闭')
+        expect(registered.database.harness.getSession).not.toHaveBeenCalled()
+        expect(registered.database.harness.createSession).not.toHaveBeenCalled()
+      }
+    } finally { read.mockRestore() }
+  })
+
+  it.each(['files.git-status', 'files.git-ignored'])('%s reads project Git state without session fallback', async method => {
+    const helper = method === 'files.git-status' ? 'readHarnessWorkspaceGit' : 'readHarnessWorkspaceIgnored'
+    const result = method === 'files.git-status' ? { available: true, entries: [] } : ['build']
+    const read = vi.spyOn(workspaceGit, helper).mockResolvedValue(result as never)
+    try {
+      const registered = register({ harnessRuntime: {} as PlatformIpcDependencies['harnessRuntime'] })
+      registered.database.harness.getProject.mockReturnValue({ id: 'project', directory: '/mira-project' })
+      const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
+      await expect(registered.invoke('platform:first-party-harness', grant, method, { projectId: 'project', paths: ['build'] })).resolves.toEqual(result)
+      expect(registered.database.harness.getSession).not.toHaveBeenCalled()
+    } finally { read.mockRestore() }
   })
 
   it('requires a current workbench grant and resolves search roots again after a session changes project', async () => {

@@ -27,6 +27,25 @@ function createStore() {
 }
 
 describe('HarnessStore', () => {
+  it('searches the real visible message table, not titles only, and excludes hidden and archived content', async () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession(), archived = store.createSession(), hidden = store.createSession()
+      store.renameSession(session.id, '独立标题')
+      const message = store.addMessage(session.id, 'assistant', `${'前文'.repeat(100)}真正内容 Keyword 100%`)
+      store.addMessage(archived.id, 'user', '真正内容')
+      store.archiveSessions([archived.id])
+      store.updateSession({ ...hidden, messages: [{ id: 'internal', role: 'assistant', content: '真正内容', internal: true, createdAt: Date.now() }] })
+      const rows = await store.searchConversations('真正内容')
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: session.id, messageId: message.messages.at(-1)?.id, title: '独立标题' })
+      expect(rows[0].snippet).toContain('真正内容')
+      expect(rows[0].snippet.length).toBeLessThanOrEqual(182)
+      expect(await store.searchConversations('keyword')).toHaveLength(1)
+      expect(await store.searchConversations('100%')).toHaveLength(1)
+      expect(await store.searchConversations('没有出现')).toEqual([])
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
   it.each(['failed', 'stopped'] as const)('persists an empty %s reply with elapsed time', status => {
     const { root, database, store } = createStore()
     try {
@@ -647,7 +666,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it.each(['text', 'attachments'])('keeps an unsent project session with persisted %s drafts after a database restart', kind => {
+  it.each(['text', 'attachments', 'group', 'dissolved-group'])('keeps an unsent project session with persisted %s drafts after a database restart', kind => {
     const root = mkdtempSync(join(tmpdir(), 'mira-harness-draft-restart-'))
     let database: PlatformDatabase | undefined
     try {
@@ -663,6 +682,7 @@ describe('HarnessStore', () => {
         fileDrafts: kind === 'attachments' ? { [retained.id]: [{ path: '/tmp/selected.md', name: 'selected.md' }] } : {},
       }
       database.savePreference(preferenceKey, preference)
+      if (kind === 'group' || kind === 'dissolved-group') database.savePreference('first-party.mira-harness.session-drawer', { groups: kind === 'group' ? [{ id: 'group', name: '研究', sessionIds: [retained.id] }] : [], ungroupedSessionOrder: kind === 'dissolved-group' ? [retained.id] : [] })
       database.close(); database = undefined
 
       database = new PlatformDatabase(root)

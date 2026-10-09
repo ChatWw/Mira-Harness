@@ -57,13 +57,19 @@ function key(name, ...modifiers) {
   execFileSync(helper, ['key', name, ...modifiers])
 }
 function type(value) {
-  frontmost(window().kCGWindowOwnerPID)
-  execFileSync(helper, ['type', value], { timeout: 30000 })
+  // CGEvent Unicode chunks containing newlines can lose text; native Enter keeps line breaks exact.
+  const lines = value.split('\n')
+  for (let index = 0; index < lines.length; index++) {
+    frontmost(window().kCGWindowOwnerPID)
+    if (lines[index]) execFileSync(helper, ['type', lines[index]], { timeout: 30000 })
+    if (index < lines.length - 1) key('enter')
+  }
 }
 async function draft(value) {
   act('.search-ignore__editor textarea')
   key('a', 'cmd')
   key('backspace')
+  await until("document.activeElement===document.querySelector('.search-ignore__editor textarea') && document.querySelector('.search-ignore__editor textarea').value===''")
   type(value)
   await until(`document.querySelector('.search-ignore__editor textarea').value===${JSON.stringify(value)}`)
 }
@@ -82,6 +88,7 @@ async function capture(name) {
 const result = { startedAt: new Date().toISOString(), home, root, records, captures, passed: false }
 try {
   const foreground = JSON.parse(execFileSync(helper, ['frontmost'], { encoding: 'utf8' }))
+  result.foregroundBefore = foreground
   if (foreground.bundle === 'com.apple.loginwindow') {
     result.blockedBy = 'macOS-loginwindow'
     throw new Error('Desktop is locked; native input/capture cannot target Mira')

@@ -1,20 +1,117 @@
 {
-  "startedAt": "2026-10-09T06:17:21.879Z",
-  "passed": false,
+  "startedAt": "2026-10-09T06:51:38.949Z",
+  "passed": true,
   "checks": [
     {
       "name": "tests",
       "command": [
         "node",
         "node_modules/vitest/vitest.mjs",
-        "run"
+        "run",
+        "--maxWorkers=1"
       ],
-      "exitCode": 1,
-      "elapsedMs": 10593,
+      "exitCode": 0,
+      "elapsedMs": 71034,
       "log": "tests.log"
+    },
+    {
+      "name": "react-types",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "apps/harness-react/tsconfig.json",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 4363,
+      "log": "react-types.log"
+    },
+    {
+      "name": "vue-types",
+      "command": [
+        "node",
+        "node_modules/vue-tsc/bin/vue-tsc.js",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 9920,
+      "log": "vue-types.log"
+    },
+    {
+      "name": "react-build",
+      "command": [
+        "node",
+        "scripts/build-harness-react.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 1514,
+      "log": "react-build.log"
+    },
+    {
+      "name": "electron-build",
+      "command": [
+        "node",
+        "node_modules/electron-vite/bin/electron-vite.js",
+        "build"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 18040,
+      "log": "electron-build.log"
+    },
+    {
+      "name": "bundle-audit",
+      "command": [
+        "node",
+        "docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-bundle-audit.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 3347,
+      "log": "bundle-audit.log"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 73,
+      "log": "diff-check.log"
     }
   ],
   "boundary": "Unit/core/transport/SSR tests, type checks, unpackaged build and fresh multi-root artifacts. Not Electron native UI, packaged/Windows, model execution or entire ZCode alignment acceptance.",
-  "failure": "tests failed; inspect tests.log",
-  "finishedAt": "2026-10-09T06:17:32.474Z"
+  "testSummary": [
+    "Test Files  103 passed (103)",
+    "Tests  1089 passed (1089)",
+    "Duration  70.36s (transform 2.83s, setup 0ms, collect 10.28s, tests 36.56s, environment 17ms, prepare 6.88s)"
+  ],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "f029bffeb13685bc74aba458aec675489803abbf0580daff127bb720fc9656e7"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "776315833fb7a2cd4903c04db8cbe5d1580f361cf79121fa3b1e5e2bfedf05ea"
+    },
+    {
+      "path": "dist/harness-react-app/mira-code-highlight.worker.js",
+      "sha256": "ff83414a4e4aef1d8a8290364b8d837b0096fedceda687a9e3a1d7d59863b63e"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "93970d1b74f06fc4ad083a9e06031a9cb137f5cbb6892555963b5a2eccef71e6"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    },
+    {
+      "path": "out/renderer/index.html",
+      "sha256": "f836b4060026714768f73a0714e50d96fd2cb651a2cfe19b7eb869d08183be58"
+    }
+  ],
+  "finishedAt": "2026-10-09T06:53:27.248Z"
 }

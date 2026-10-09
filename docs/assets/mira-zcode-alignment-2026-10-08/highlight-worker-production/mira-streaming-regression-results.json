@@ -1,9 +1,9 @@
 {
-  "startedAt": "2026-10-09T06:14:52.669Z",
+  "startedAt": "2026-10-09T07:04:34.978Z",
   "scope": "Real current React Markdown components in isolated headless Chromium. Deliberately delayed highlighter fixture, not production Worker performance, Electron, native input, user database or ZCode acceptance.",
   "errors": [],
   "passed": true,
-  "productionCssSha256": "411a46e3d69a7b20ea9aac796b181fffc26334d25b2f73177fdd1a3211ec6143",
+  "productionCssSha256": "776315833fb7a2cd4903c04db8cbe5d1580f361cf79121fa3b1e5e2bfedf05ea",
   "layoutStability": {
     "raw": {
       "state": "loading",
@@ -102,5 +102,5 @@
   },
   "requestCount": 13,
   "unhandled": [],
-  "finishedAt": "2026-10-09T06:14:54.424Z"
+  "finishedAt": "2026-10-09T07:04:39.072Z"
 }

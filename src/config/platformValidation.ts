@@ -1,5 +1,6 @@
 import { BUILT_IN_PAGE_OPTIONS, RESERVED_MENU_PATH_PREFIXES, RESERVED_MENU_PATHS } from './menus'
 import { isBuiltInMicroAppPackage } from './microApps'
+import { assertComposerFollowupMode } from './composerPreferences'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '@/types'
 
 const BUILT_IN_PAGE_KEYS = new Set(BUILT_IN_PAGE_OPTIONS.map(option => option.value))
@@ -78,6 +79,7 @@ export function validateMicroApps(apps: MicroApp[]) {
 
 export function validateSnapshot(snapshot: PlatformSnapshot) {
   if (!snapshot || !Array.isArray(snapshot.mainMenus) || !Array.isArray(snapshot.microApps)) throw new Error('配置快照格式无效')
+  if (snapshot.preferences?.followupMode !== undefined) assertComposerFollowupMode(snapshot.preferences.followupMode)
   validateMenus(snapshot.mainMenus)
   validateMicroApps(snapshot.microApps)
 }

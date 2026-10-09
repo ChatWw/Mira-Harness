@@ -74,7 +74,7 @@ Electron main 为 415,196 B，preload 为 13,203 B，renderer 静态目录合计
 | [SVG 源码](./image-preview-headless/mira-svg-source.png) | 等宽高亮源码与工具栏 |
 | [读取失败](./image-preview-headless/mira-image-read-error.png) | 浅色文件不存在与重试；Composer 保留损坏 SVG 的文本引用 |
 
-[SHA-256 清单](./image-preview-headless/sha256-manifest.json) 固定六图、结果及本机复现脚本。10:34 的捕获存在 compositor 滞后，dark 图仍浅色、decode 图仍加载；[完整失效批次](./image-preview-headless/invalid-capture-compositor-lag/) 已保留但不用于放行。测试脚本增加双 requestAnimationFrame、250ms 采集等待和主题像素/错误态断言后重新采集，没有再次改产品 UI。早期会话启动等待和 Retina 错误期待的夹具失败也保留为 `initial-fixture-*.json`，不改写成产品失败或有效截图。
+[SHA-256 清单](./image-preview-headless/sha256-manifest.json) 固定六图、结果及本机复现脚本。10:34 的捕获存在 compositor 滞后，dark 图仍浅色、decode 图仍加载，该失效截图批次已清理，不用于放行。测试脚本增加双 requestAnimationFrame、250ms 采集等待和主题像素/错误态断言后重新采集，没有再次改产品 UI。早期会话启动等待和 Retina 错误期待的夹具失败仍保留为 `initial-fixture-*.json`，不改写成产品失败或有效截图。
 
 ### 限定复评
 

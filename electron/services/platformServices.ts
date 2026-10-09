@@ -6,10 +6,11 @@ import { McpConfigStore } from '../storage/mcpConfigStore'
 import { McpManager } from '../adapters/mcpManager'
 import { PythonEnvironment } from '../adapters/pythonEnv'
 import { AutomationScheduler } from './automationScheduler'
+import { SkillMarketplaceService } from './skillMarketplace'
 import type { MiraPaths } from '../storage/miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from '../storage/miraDataMigration'
 import type { HarnessEvent } from '../../src/config/harness'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { join, resolve } from 'node:path'
 
 const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
@@ -23,6 +24,7 @@ export interface PlatformServices {
   mcpConfigStore: McpConfigStore
   mcpManager: McpManager
   automationScheduler: AutomationScheduler
+  skillMarketplace: SkillMarketplaceService
   cleanupExpiredTrash: () => void
 }
 
@@ -52,6 +54,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   const mcpManager = new McpManager()
   const harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent)
   const automationScheduler = new AutomationScheduler(database, harnessRuntime)
+  const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init))
   await mcpManager.refresh(mcpConfigStore.list())
   automationScheduler.start()
   const pythonEnvironment = new PythonEnvironment()
@@ -67,5 +70,5 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     database.savePreference('localMicroAppPort', localMicroAppServer.port)
   }
 
-  return { database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, pythonEnvironment, mcpConfigStore, mcpManager, automationScheduler, cleanupExpiredTrash }
+  return { database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, pythonEnvironment, mcpConfigStore, mcpManager, automationScheduler, skillMarketplace, cleanupExpiredTrash }
 }

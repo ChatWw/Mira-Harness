@@ -10,6 +10,7 @@ import {
   isProjectIcon,
   normalizeAutoTitle,
   type HarnessMessage,
+  type HarnessConversationSearchResult,
   type HarnessFileReference,
   type HarnessFileChange,
   type HarnessGitBranch,
@@ -119,6 +120,7 @@ export class HarnessStore {
   private readonly paths: MiraPaths
 
   constructor(private readonly database: Database.Database, paths: MiraPaths | string) {
+    this.database.function('mira_search_fold', { deterministic: true }, (value: unknown) => typeof value === 'string' ? value.toLowerCase() : '')
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
     mkdirSync(this.paths.workspace, { recursive: true })
     mkdirSync(this.paths.sessions, { recursive: true })
@@ -338,6 +340,12 @@ export class HarnessStore {
     return this.listProjects()
   }
 
+  getProjectDirectory(id: string): string {
+    const row = this.database.prepare('SELECT directory FROM harness_projects WHERE id = ?').get(id) as { directory: string } | undefined
+    if (!row) throw new Error('未找到项目')
+    return row.directory
+  }
+
   getProject(id: string): HarnessProject {
     const row = this.database.prepare('SELECT * FROM harness_projects WHERE id = ?').get(id) as ProjectRow | undefined
     if (!row) throw new Error('未找到项目')
@@ -446,6 +454,28 @@ export class HarnessStore {
     const update = this.database.prepare('UPDATE harness_sessions SET sort_order = ? WHERE id = ?')
     this.database.transaction(() => orderedIds.forEach((id, index) => update.run(orderedIds.length - index, id)))()
     return this.listSessions()
+  }
+
+  async searchConversations(query: string): Promise<HarnessConversationSearchResult[]> {
+    const needle = query.trim().toLowerCase()
+    if (!needle || needle.length > 256 || /[\u0000-\u001f\u007f]/.test(needle)) throw new Error('搜索关键词无效')
+    const rows = this.database.prepare(`WITH matches AS (
+      SELECT m.session_id, m.message_id, m.content,
+        ROW_NUMBER() OVER (PARTITION BY m.session_id ORDER BY m.created_at, m.rowid) AS position
+      FROM harness_messages m JOIN harness_sessions s ON s.id = m.session_id
+      WHERE s.archived_at IS NULL AND m.role IN ('user', 'assistant')
+        AND COALESCE(json_extract(m.payload, '$.internal'), 0) = 0 AND instr(mira_search_fold(m.content), @query) > 0
+    ) SELECT s.id, s.title, s.updated_at, p.name AS project_name, m.message_id, m.content
+      FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
+      LEFT JOIN matches m ON m.session_id = s.id AND m.position = 1
+      WHERE s.archived_at IS NULL AND (m.message_id IS NOT NULL OR instr(mira_search_fold(s.title), @query) > 0 OR instr(mira_search_fold(p.name), @query) > 0)
+      ORDER BY s.updated_at DESC LIMIT 50`).all({ query: needle }) as Array<Pick<SessionRow, 'id' | 'title' | 'updated_at'> & { project_name: string | null; message_id: string | null; content: string | null }>
+    return rows.map(row => {
+      const text = row.content ?? `${row.title} ${row.project_name || ''}`
+      const index = text.toLowerCase().indexOf(needle)
+      const start = Math.max(0, index - 60)
+      return { id: row.id, title: row.title, ...(row.project_name ? { projectName: row.project_name } : {}), ...(row.message_id ? { messageId: row.message_id } : {}), snippet: `${start ? '…' : ''}${text.slice(start, start + 180)}${text.length > start + 180 ? '…' : ''}`, updatedAt: row.updated_at }
+    })
   }
 
   queryHistory(query: HarnessHistoryQuery = {}, providerKeys = new Map<string, string>()): HarnessHistoryPage {
@@ -659,24 +689,39 @@ export class HarnessStore {
     return saved
   }
 
-  appendAssistantDelta(id: string, content: string) {
-    if (!content) return this.getSession(id)
+  appendAssistantDelta(id: string, content: string, ordered?: Pick<HarnessMessage, 'runId' | 'parts'> & { messageId?: string }) {
+    if (!content && !ordered) return this.getSession(id)
     const session = this.getSession(id)
     const last = session.messages.at(-1)
-    if (last?.role === 'assistant') last.content += content
-    else session.messages.push({ id: randomUUID(), role: 'assistant', content, createdAt: now() })
+    const { messageId, ...metadata } = ordered || {}
+    if (last?.role === 'assistant' && (!ordered || last.runId === ordered.runId) && (!messageId || last.id === messageId)) {
+      last.content += content
+      if (ordered) Object.assign(last, metadata)
+    } else session.messages.push({ id: messageId || randomUUID(), role: 'assistant', content, createdAt: now(), ...metadata })
     return this.saveSession(session)
   }
 
-  finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[] } = {}) {
+  appendGuidanceMessage(id: string, message: HarnessMessage, previous: Pick<HarnessMessage, 'id' | 'content' | 'parts' | 'sources'>, nextAssistantMessageId: string) {
+    const session = this.getSession(id)
+    const last = session.messages.at(-1)
+    if (!session.activeRun || session.activeRun.id !== message.runId || last?.role !== 'assistant' || last.id !== previous.id || session.messages.some(item => item.id === message.id)) throw new Error('当前任务已变化，请刷新后重试')
+    Object.assign(last, previous)
+    session.messages.push(message)
+    session.activeRun.messageId = nextAssistantMessageId
+    return this.saveSession(session)
+  }
+
+  finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[], runId?: string, messageId?: string, parts?: HarnessMessage['parts'] } = {}) {
     const session = this.getSession(id)
     let last = session.messages.at(-1)
-    if (!last || last.role !== 'assistant') {
+    if (!last || last.role !== 'assistant' || options.runId && last.runId !== options.runId || options.messageId && last.id !== options.messageId) {
       if (!options.run) throw new Error('没有可完成的助手回复')
-      last = { id: randomUUID(), role: 'assistant', content: '', createdAt: options.run.startedAt }
+      last = { id: options.messageId || randomUUID(), role: 'assistant', content: '', createdAt: options.run.startedAt }
       session.messages.push(last)
     }
     if (options.content !== undefined) last.content = options.content
+    if (options.runId) last.runId = options.runId
+    if (options.parts) last.parts = options.parts
     if (options.run) last.run = options.run
     if (options.usage) last.usage = options.usage
     if (options.sources?.length) last.sources = options.sources

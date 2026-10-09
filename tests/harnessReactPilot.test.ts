@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { HarnessEvent, HarnessSession } from '../src/config/harness'
+import type { HarnessEvent, HarnessMessage, HarnessMessagePart, HarnessMessageQueueSnapshot, HarnessSession } from '../src/config/harness'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
 
 function session(id: string, content = ''): HarnessSession {
@@ -36,11 +36,599 @@ function fixture() {
     onBrowserEvent: vi.fn(() => () => undefined),
   }
   const controller = new PilotController(host)
-  const emit = (type: HarnessEvent['type'], payload: Record<string, unknown>, sessionId = 'a') => listener?.({ sessionId, type, payload })
+  const emit = (type: HarnessEvent['type'], payload: Record<string, unknown>, sessionId = 'a', runId?: string, metadata: Partial<HarnessEvent> = {}) => listener?.({ sessionId, type, payload, ...(runId ? { runId } : {}), ...metadata })
   return { controller, host, snapshots, emit, unsubscribe }
 }
 
 describe('React Harness pilot controller', () => {
+  it('separates consumed guidance inside the same run and ignores late old-segment output', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const active = { id: 'run', messageId: 'first', startedAt: 10, activities: [], subtasks: [] }
+    snapshots.set('a', { ...session('a'), activeRun: active })
+    await controller.start()
+    emit('message-delta', { messageId: 'first', delta: '前段' }, 'a', 'run', { sequence: 1 })
+    const previous: HarnessMessage = { id: 'first', runId: 'run', role: 'assistant', content: '权威前段', createdAt: 11 }
+    const guide: HarnessMessage = { id: 'guide', submissionId: 'submit-guide', runId: 'run', delivery: 'guide', role: 'user', content: '只做必要修改', createdAt: 20 }
+    snapshots.set('a', { ...session('a'), messages: [previous, guide], activeRun: { ...active, messageId: 'second' } })
+    emit('message-boundary', { previousAssistantMessageId: 'first', previousAssistantMessage: previous, message: guide, nextAssistantMessageId: 'second', queueItemId: 'guide', submissionId: 'submit-guide' }, 'a', 'run', { sequence: 2 })
+    emit('message-delta', { messageId: 'second', delta: '后段' }, 'a', 'run', { sequence: 3 })
+    emit('message-delta', { messageId: 'first', delta: '过期' }, 'a', 'run', { sequence: 99 })
+    emit('message-delta', { messageId: 'second', delta: '继续' }, 'a', 'run', { sequence: 4 })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages).toMatchObject([previous, guide, { id: 'stream-second', runId: 'run', content: '后段继续' }]))
+    expect(controller.getSnapshot().session?.activeRun).toMatchObject({ id: 'run', messageId: 'second' })
+    expect(controller.getSnapshot().running).toBe(true)
+    const reads = vi.mocked(host.getSession).mock.calls.length
+    emit('message-complete', { messageId: 'first' }, 'a', 'run', { sequence: 100 })
+    expect(vi.mocked(host.getSession).mock.calls).toHaveLength(reads)
+    controller.dispose()
+  })
+
+  it('invalidates an old same-run snapshot at a guide boundary without losing the closed segment', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const active = { id: 'run', messageId: 'first', startedAt: 10, activities: [], subtasks: [] }
+    snapshots.set('a', { ...session('a'), activeRun: active })
+    await controller.start()
+    emit('message-delta', { messageId: 'first', delta: 'before' }, 'a', 'run')
+    let finish!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    emit('run-activity', {}, 'a', 'run')
+    const previous: HarnessMessage = { id: 'first', role: 'assistant', runId: 'run', content: 'closed', createdAt: 11 }
+    const guide: HarnessMessage = { id: 'guide', role: 'user', runId: 'run', delivery: 'guide', content: 'steer', createdAt: 20 }
+    snapshots.set('a', { ...session('a'), messages: [previous, guide], activeRun: { ...active, messageId: 'second' } })
+    emit('message-boundary', { previousAssistantMessageId: 'first', previousAssistantMessage: previous, message: guide, nextAssistantMessageId: 'second', queueItemId: 'guide', submissionId: 'submission' }, 'a', 'run')
+    emit('message-delta', { messageId: 'second', delta: 'after' }, 'a', 'run')
+    finish({ ...session('a'), activeRun: active, messages: [{ ...previous, content: 'stale' }] })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['closed', 'steer', 'after']))
+    expect(controller.getSnapshot().session?.activeRun?.messageId).toBe('second')
+    controller.dispose()
+  })
+
+  it('resumes the identified live segment without appending to an earlier assistant from the same run', async () => {
+    const { controller, snapshots, emit } = fixture()
+    const first: HarnessMessage = { id: 'first', role: 'assistant', runId: 'run', content: 'closed', createdAt: 11 }
+    const guide: HarnessMessage = { id: 'guide', role: 'user', runId: 'run', delivery: 'guide', content: 'steer', createdAt: 20 }
+    const text: HarnessMessagePart = { id: 'second-text', type: 'text', text: 'saved', state: 'streaming', startedAt: 21 }
+    snapshots.set('a', { ...session('a'), messages: [first, guide, { id: 'second', role: 'assistant', runId: 'run', content: 'saved', parts: [text], createdAt: 21 }], activeRun: { id: 'run', messageId: 'second', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('message-part', { messageId: 'first', partId: 'old', delta: 'stale' }, 'a', 'run', { sequence: 99 })
+    emit('message-part', { messageId: 'second', partId: text.id, delta: ' continued', offset: 5 }, 'a', 'run', { sequence: 1 })
+    expect(controller.getSnapshot().messages).toMatchObject([first, guide, { id: 'stream-second', content: 'saved continued', parts: [{ ...text, text: 'saved continued' }] }])
+    controller.dispose()
+  })
+
+  it('accepts guidance already reflected in a snapshot once, and keeps next-segment live bytes', async () => {
+    const { controller, snapshots, emit } = fixture()
+    const previous: HarnessMessage = { id: 'first', role: 'assistant', runId: 'run', content: 'closed', createdAt: 11 }
+    const guide: HarnessMessage = { id: 'guide', role: 'user', runId: 'run', delivery: 'guide', content: 'steer', createdAt: 20 }
+    snapshots.set('a', { ...session('a'), messages: [previous, guide, { id: 'second', role: 'assistant', runId: 'run', content: 'saved', createdAt: 21 }], activeRun: { id: 'run', messageId: 'second', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('message-delta', { messageId: 'second', delta: ' live' }, 'a', 'run', { sequence: 3 })
+    const boundary = { previousAssistantMessageId: 'first', previousAssistantMessage: previous, message: guide, nextAssistantMessageId: 'second', queueItemId: 'guide', submissionId: 'submission' }
+    emit('message-boundary', boundary, 'a', 'run', { sequence: 4 })
+    emit('message-boundary', boundary, 'a', 'run', { sequence: 5 })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['closed', 'steer', 'saved live']))
+    expect(controller.getSnapshot().messages.filter(message => message.id === 'guide')).toHaveLength(1)
+    controller.dispose()
+  })
+
+  it('offers queue actions only with the base queue and corresponding optional host method', async () => {
+    const { controller, host } = fixture()
+    host.reorderMessageQueue = vi.fn(); host.sendQueuedMessageNow = vi.fn()
+    expect(controller.supportsQueueReorder).toBe(false); expect(controller.supportsQueueSendNow).toBe(false)
+    host.submitMessage = vi.fn(); host.getMessageQueue = vi.fn(); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    expect(controller.supportsQueueReorder).toBe(true); expect(controller.supportsQueueSendNow).toBe(true)
+    host.reorderMessageQueue = undefined; expect(controller.supportsQueueReorder).toBe(false)
+    expect(await controller.reorderMessageQueue('a', 'item', null)).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('accepts queue reorder/send-now ACKs without local reorder and rejects older revisions', async () => {
+    const { controller, host, emit } = fixture()
+    const initial = { sessionId: 'a', revision: 1, items: [] }
+    let resolve!: (queue: HarnessMessageQueueSnapshot) => void
+    host.submitMessage = vi.fn(); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn(); host.getMessageQueue = vi.fn(async () => initial)
+    host.reorderMessageQueue = vi.fn(() => new Promise(done => { resolve = done }))
+    host.sendQueuedMessageNow = vi.fn(async () => ({ sessionId: 'a', revision: 5, items: [], paused: 'stopped' }))
+    await controller.start()
+    const pending = controller.reorderMessageQueue('a', 'item', 'next')
+    expect(controller.getSnapshot().queue).toEqual(initial)
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 4, items: [] } })
+    resolve({ sessionId: 'a', revision: 2, items: [] }); await pending
+    expect(controller.getSnapshot().queue?.revision).toBe(4)
+    await controller.sendQueuedMessageNow('a', 'item', 'run-a')
+    expect(host.sendQueuedMessageNow).toHaveBeenCalledExactlyOnceWith('a', 'item', 'run-a')
+    expect(controller.getSnapshot().queue).toMatchObject({ revision: 5, paused: 'stopped' })
+    controller.dispose()
+  })
+
+  it('keeps late queue actions and their failures out of a newly opened session', async () => {
+    const { controller, host } = fixture()
+    let resolve!: (queue: HarnessMessageQueueSnapshot) => void
+    host.submitMessage = vi.fn(); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn(); host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] }))
+    host.reorderMessageQueue = vi.fn(() => new Promise(done => { resolve = done }))
+    await controller.start()
+    const pending = controller.reorderMessageQueue('a', 'item', null)
+    await controller.open('b'); resolve({ sessionId: 'a', revision: 1, items: [] })
+    expect(await pending).toBeUndefined(); expect(controller.getSnapshot().queue?.sessionId).toBe('b')
+    host.sendQueuedMessageNow = vi.fn(async () => { throw new Error('authoritative failure') })
+    await expect(controller.sendQueuedMessageNow('b', 'item')).rejects.toThrow('authoritative failure')
+    expect(controller.getSnapshot().queueError).toBe('authoritative failure')
+    expect(controller.getSnapshot().running).toBe(false)
+    controller.dispose()
+  })
+
+  it('submits busy input through queue ACK without optimistic conversation messages', async () => {
+    const { controller, host, emit } = fixture()
+    const queue: HarnessMessageQueueSnapshot = { sessionId: 'a', revision: 1, items: [] }
+    host.submitMessage = vi.fn(async (_id, _text, _selection, _planning, _refs, submissionId) => ({ id: 'queued', submissionId, queue }))
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] }))
+    host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    await controller.start()
+    emit('run-start', { startedAt: 10 }, 'a', 'run-a')
+    const before = controller.getSnapshot().messages
+    expect(await controller.send('下一条', true, [{ path: 'README.md', name: 'README.md' }], 'stable-submission')).toBe(true)
+    expect(host.submitMessage).toHaveBeenCalledWith('a', '下一条', { providerId: 'provider', modelId: 'model' }, true, [{ path: 'README.md', name: 'README.md' }], 'stable-submission')
+    expect(host.runMessage).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().messages).toEqual(before)
+    expect(controller.getSnapshot().queue).toEqual(queue)
+    controller.dispose()
+  })
+
+  it('gates atomic delivery on explicit host support and projects confirmation without accepting the draft', async () => {
+    const { controller, host } = fixture()
+    const queue: HarnessMessageQueueSnapshot = { sessionId: 'a', revision: 3, items: [], paused: 'stopped' }
+    host.submitMessage = vi.fn(async () => ({ confirmationRequired: true as const, queue }))
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] })); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    await controller.start()
+    expect(controller.supportsQueueSubmissionOptions).toBe(false)
+    expect(await controller.send('Immediate', false, [], 'id', undefined, { delivery: 'immediate', expectedRunId: null })).toBe(false)
+    expect(host.submitMessage).not.toHaveBeenCalled()
+    Object.defineProperty(host, 'supportsQueueSubmissionOptions', { value: true })
+    expect(controller.supportsQueueSubmissionOptions).toBe(true)
+    expect(await controller.send('Current draft', false, [], 'id')).toBe('confirmation-required')
+    expect(host.submitMessage).toHaveBeenCalledWith('a', 'Current draft', { providerId: 'provider', modelId: 'model' }, false, [], 'id', {})
+    expect(controller.getSnapshot().queue).toEqual(queue)
+    expect(controller.getSnapshot().messages).toEqual([])
+    expect(controller.getSnapshot().running).toBe(false)
+    controller.dispose()
+  })
+
+  it('freezes atomic options for its host request and never applies a late confirmation to another session', async () => {
+    const { controller, host } = fixture()
+    let resolve!: (result: { confirmationRequired: true; queue: HarnessMessageQueueSnapshot }) => void
+    Object.defineProperty(host, 'supportsQueueSubmissionOptions', { value: true })
+    host.submitMessage = vi.fn(() => new Promise(done => { resolve = done }))
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] })); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    await controller.start()
+    const options = { delivery: 'immediate' as const, pausedQueueDecision: 'retain' as const, expectedRunId: null, expectedQueueRevision: 3, expectedQueueItemIds: ['old'] }
+    const sending = controller.send('Frozen', true, [], 'id', undefined, options)
+    options.expectedQueueItemIds[0] = 'changed'
+    expect(vi.mocked(host.submitMessage).mock.calls[0]![6]?.expectedQueueItemIds).toEqual(['old'])
+    await controller.open('b')
+    resolve({ confirmationRequired: true, queue: { sessionId: 'a', revision: 5, items: [] } })
+    expect(await sending).toBe('confirmation-required')
+    expect(controller.getSnapshot().queue?.sessionId).toBe('b')
+    controller.dispose()
+  })
+
+  it('refreshes an explicitly rejected old run so the unchanged draft can be submitted against the new run', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    Object.defineProperty(host, 'supportsQueueSubmissionOptions', { value: true })
+    const queue: HarnessMessageQueueSnapshot = { sessionId: 'a', revision: 1, items: [] }
+    host.submitMessage = vi.fn().mockResolvedValueOnce({ retryRequired: true, queue }).mockResolvedValueOnce({ id: 'accepted', submissionId: 'retry-id', queue: { ...queue, revision: 2 } })
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] })); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    await controller.start()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'old', startedAt: 10, activities: [], subtasks: [] } })
+    emit('run-start', { startedAt: 10 }, 'a', 'old')
+    await Promise.resolve()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'new', startedAt: 20, activities: [], subtasks: [] } })
+    expect(await controller.send('Unchanged draft', false, [], 'old-id', undefined, { delivery: 'immediate', expectedRunId: 'old' })).toBe('retry-required')
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('new')
+    expect(await controller.send('Unchanged draft', false, [], 'retry-id', undefined, { delivery: 'immediate', expectedRunId: controller.getSnapshot().session?.activeRun?.id ?? null })).toBe(true)
+    expect(vi.mocked(host.submitMessage).mock.calls[1]![6]).toEqual({ delivery: 'immediate', expectedRunId: 'new' })
+    emit('status', { state: 'idle' }, 'a', 'old')
+    expect(controller.getSnapshot().running).toBe(true)
+    controller.dispose()
+  })
+
+  it('uses the frozen submitted model instead of newer next-message settings', async () => {
+    const { controller, host } = fixture()
+    host.submitMessage = vi.fn(async (_id, _text, _selection, _planning, _refs, submissionId) => ({ id: 'item', submissionId, queue: { sessionId: 'a', revision: 1, items: [] } }))
+    host.getMessageQueue = vi.fn(async () => ({ sessionId: 'a', revision: 0, items: [] })); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    await controller.start()
+    const original = { providerId: 'provider', modelId: 'model', thinkingLevel: 'medium' as const }
+    controller.select({ ...original, thinkingLevel: 'high' })
+    await controller.send('原提交', false, [], 'original-id', original)
+    expect(host.submitMessage).toHaveBeenCalledWith('a', '原提交', original, false, [], 'original-id')
+    expect(controller.getSnapshot().selection?.thinkingLevel).toBe('high')
+    controller.dispose()
+  })
+
+  it('rejects stale queue snapshots and background updates and resets queue for new drafts', async () => {
+    const { controller, host, emit } = fixture()
+    let resolve!: (queue: HarnessMessageQueueSnapshot) => void
+    host.submitMessage = vi.fn(); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    host.getMessageQueue = vi.fn().mockImplementationOnce(() => new Promise(done => { resolve = done })).mockResolvedValue({ sessionId: 'b', revision: 0, items: [] })
+    const opening = controller.start()
+    for (let index = 0; index < 12; index++) await Promise.resolve()
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 4, items: [], paused: 'failed', error: 'queue failed' } })
+    resolve({ sessionId: 'a', revision: 1, items: [] }); await opening
+    expect(controller.getSnapshot().queue).toMatchObject({ revision: 4, paused: 'failed' })
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 3, items: [] } })
+    expect(controller.getSnapshot().queue?.revision).toBe(4)
+    await controller.open('b')
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 5, items: [] } })
+    expect(controller.getSnapshot().queue?.sessionId).toBe('b')
+    controller.newConversation(); expect(controller.getSnapshot().queue).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('keeps queue withdrawal and resume bound to the requested session after navigation', async () => {
+    const { controller, host } = fixture()
+    let resolve!: (value: any) => void
+    host.submitMessage = vi.fn(); host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] }))
+    host.withdrawMessage = vi.fn(() => new Promise(done => { resolve = done }))
+    host.resumeMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 8, items: [] }))
+    await controller.start()
+    const withdrawal = controller.withdrawMessage('a', 'item-a')
+    await controller.open('b')
+    resolve({ item: { sessionId: 'a', id: 'item-a' }, queue: { sessionId: 'a', revision: 7, items: [] } })
+    expect(await withdrawal).toMatchObject({ item: { sessionId: 'a', id: 'item-a' } })
+    expect(controller.getSnapshot().queue?.sessionId).toBe('b')
+    expect(await controller.resumeMessageQueue('a')).toBeUndefined()
+    expect(host.resumeMessageQueue).not.toHaveBeenCalled()
+    expect(host.withdrawMessage).toHaveBeenCalledWith('a', 'item-a')
+    controller.dispose()
+  })
+
+  it('lets the authority decide resume when an obsolete queue snapshot still says confirmation', async () => {
+    const { controller, host, emit } = fixture()
+    host.submitMessage = vi.fn(); host.withdrawMessage = vi.fn()
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] }))
+    host.resumeMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 2, items: [] }))
+    await controller.start()
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 1, items: [], paused: 'confirmation' } })
+    expect(await controller.resumeMessageQueue('a')).toEqual({ sessionId: 'a', revision: 2, items: [] })
+    expect(host.resumeMessageQueue).toHaveBeenCalledWith('a')
+    controller.dispose()
+  })
+
+  it('rejects old-run deltas and terminal events and deduplicates current deltas without waiting for dense sequences', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    emit('run-start', { startedAt: 1 }, 'a', 'old', { sequence: 1, eventId: 'old-start' })
+    emit('run-start', { startedAt: 2 }, 'a', 'current', { sequence: 1, eventId: 'new-start' })
+    emit('message-delta', { delta: 'CURRENT' }, 'a', 'current', { sequence: 8, eventId: 'delta' })
+    emit('message-delta', { delta: 'STALE' }, 'a', 'old', { sequence: 9, eventId: 'old-delta' })
+    emit('message-delta', { delta: 'CURRENT' }, 'a', 'current', { sequence: 8, eventId: 'delta' })
+    emit('message-delta', { delta: 'sequence duplicate' }, 'a', 'current', { sequence: 8, eventId: 'other-id' })
+    const reads = vi.mocked(host.getSession).mock.calls.length
+    emit('message-complete', {}, 'a', 'old', { sequence: 10 })
+    emit('status', { state: 'idle' }, 'a', 'old', { sequence: 11 })
+    emit('run-start', { startedAt: 1 }, 'a', 'old', { sequence: 12 })
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('CURRENT')
+    expect(controller.getSnapshot().running).toBe(true)
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('current')
+    expect(host.getSession).toHaveBeenCalledTimes(reads)
+    controller.dispose()
+  })
+
+  it('retains run duplicate protection across session reopening with a sequence-less active snapshot', async () => {
+    const { controller, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run-a', startedAt: 1, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('message-delta', { delta: 'once' }, 'a', 'run-a', { sequence: 3, eventId: 'delta-a' })
+    await controller.open('b'); await controller.open('a')
+    emit('message-delta', { delta: 'duplicate' }, 'a', 'run-a', { sequence: 3, eventId: 'delta-a' })
+    expect(controller.getSnapshot().messages).toEqual([])
+    emit('message-delta', { delta: 'new' }, 'a', 'run-a', { sequence: 9, eventId: 'next' })
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('new')
+    controller.dispose()
+  })
+
+  it('closes a run on terminal status and rejects later higher-sequence output from that same run', async () => {
+    const { controller, emit } = fixture()
+    await controller.start()
+    emit('run-start', { startedAt: 1 }, 'a', 'closed-run', { sequence: 1 })
+    emit('message-delta', { delta: 'before idle' }, 'a', 'closed-run', { sequence: 2 })
+    emit('status', { state: 'idle' }, 'a', 'closed-run', { sequence: 3 })
+    for (let index = 0; index < 12; index++) await Promise.resolve()
+    expect(controller.getSnapshot().running).toBe(false)
+    const before = controller.getSnapshot().messages
+    emit('message-delta', { delta: 'after idle' }, 'a', 'closed-run', { sequence: 9 })
+    emit('run-start', { startedAt: 1 }, 'a', 'closed-run', { sequence: 10 })
+    expect(controller.getSnapshot().messages).toEqual(before)
+    expect(controller.getSnapshot().running).toBe(false)
+    emit('run-start', { startedAt: 2 }, 'a', 'next-run', { sequence: 1 })
+    emit('message-delta', { delta: 'next' }, 'a', 'next-run', { sequence: 4 })
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('next')
+    controller.dispose()
+  })
+
+  it('keeps queue, workspace, terminal and legacy events independent from the closed-run gate', async () => {
+    const { controller, emit } = fixture(), workspace = vi.fn(), terminal = vi.fn()
+    await controller.start(); controller.onWorkspaceFilesChanged(workspace); controller.onTerminalEvent(terminal)
+    emit('run-start', { startedAt: 1 }, 'a', 'run', { sequence: 1 })
+    emit('status', { state: 'idle' }, 'a', 'run', { sequence: 2 })
+    emit('workspace-files-changed', { watchId: 'watch', directory: '/tmp', paths: ['README.md'] }, 'a', 'run', { sequence: 3 })
+    emit('terminal-output', { terminalId: 'terminal', data: 'output' }, 'a', 'run', { sequence: 4 })
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 2, items: [] } }, 'a', 'run', { sequence: 5 })
+    emit('message-delta', { delta: 'legacy' })
+    expect(workspace).toHaveBeenCalledOnce(); expect(terminal).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot().queue?.revision).toBe(2)
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('legacy')
+    controller.dispose()
+  })
+
+  it('can stop the preparing run from its event identity before a snapshot arrives', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    emit('run-start', { startedAt: 10, activities: [], subtasks: [] }, 'a', 'preparing-run')
+    await controller.stop()
+    expect(host.abortRun).toHaveBeenCalledExactlyOnceWith('a', 'preparing-run')
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('preparing-run')
+    controller.dispose()
+  })
+
+  it('uses the restored active run identity and never sends an unscoped stop', async () => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'restored-run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    await controller.stop()
+    expect(host.abortRun).toHaveBeenCalledExactlyOnceWith('a', 'restored-run')
+    await controller.open('b')
+    await controller.stop()
+    expect(host.abortRun).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
+  it('does not let a snapshot started before run admission erase the stop target', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-activity', { activities: [] })
+    emit('run-start', { startedAt: 10, activities: [], subtasks: [] }, 'a', 'new-run')
+    resolve(session('a'))
+    await Promise.resolve()
+    await controller.stop()
+    expect(host.abortRun).toHaveBeenCalledExactlyOnceWith('a', 'new-run')
+    expect(controller.getSnapshot().running).toBe(true)
+    controller.dispose()
+  })
+
+  it('loads the admitted user and previous authoritative turn at run start without dropping later live deltas', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'queued-run')
+    emit('message-delta', { delta: '新回复' }, 'a', 'queued-run')
+    expect(controller.getSnapshot().messages.some(message => message.role === 'user')).toBe(false)
+    const messages: HarnessSession['messages'] = [
+      { id: 'old-user', role: 'user', content: '上一条问题', createdAt: 1 },
+      { id: 'old-assistant', role: 'assistant', content: '上一条权威回复', createdAt: 2, runId: 'old-run' },
+      { id: 'queued-user', role: 'user', content: '已实际开始的排队消息', createdAt: 10, runId: 'queued-run' },
+      { id: 'internal', role: 'user', content: '隐藏上下文', createdAt: 10, internal: true },
+    ]
+    resolve({ ...session('a'), messages, activeRun: { id: 'queued-run', startedAt: 10, activities: [], subtasks: [] } })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['上一条问题', '上一条权威回复', '已实际开始的排队消息', '新回复']))
+    emit('message-delta', { delta: '继续' }, 'a', 'queued-run')
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('新回复继续')
+    controller.dispose()
+  })
+
+  it('still syncs the admitted transcript when an activity read supersedes the start read', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'queued-run')
+    const admitted = { ...session('a'), messages: [{ id: 'queued-user', role: 'user' as const, content: 'admitted', createdAt: 10 }], activeRun: { id: 'queued-run', startedAt: 10, activities: [], subtasks: [] } }
+    snapshots.set('a', admitted)
+    emit('run-activity', {}, 'a', 'queued-run'); emit('message-delta', { delta: 'live' }, 'a', 'queued-run')
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['admitted', 'live']))
+    resolve(session('a', '过时的开始快照')); await Promise.resolve()
+    expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['admitted', 'live'])
+    controller.dispose()
+  })
+
+  it.each([undefined, { id: 'old-run', startedAt: 1, activities: [], subtasks: [] }])('does not let a stale start snapshot replace a newer active identity: %j', async staleRun => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    vi.mocked(host.getSession).mockResolvedValueOnce({ ...session('a', 'stale'), activeRun: staleRun })
+    emit('run-start', { startedAt: 10 }, 'a', 'new-run'); emit('message-delta', { delta: 'current live' }, 'a', 'new-run')
+    for (let index = 0; index < 12; index++) await Promise.resolve()
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('new-run')
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('current live')
+    expect(controller.getSnapshot().running).toBe(true)
+    controller.dispose()
+  })
+
+  it('keeps a newer queued run when a previous start snapshot resolves late', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'first-run')
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'new-user', role: 'user', content: 'new admitted user', createdAt: 20 }], activeRun: { id: 'second-run', startedAt: 20, activities: [], subtasks: [] } })
+    emit('run-start', { startedAt: 20 }, 'a', 'second-run'); emit('message-delta', { delta: 'new live' }, 'a', 'second-run')
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['new admitted user', 'new live']))
+    resolve({ ...session('a', 'old response'), activeRun: { id: 'first-run', startedAt: 10, activities: [], subtasks: [] } }); await Promise.resolve()
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('second-run')
+    expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['new admitted user', 'new live'])
+    controller.dispose()
+  })
+
+  it('merges an active persisted assistant into its live stream without rendering a duplicate reply', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'run'); emit('message-delta', { delta: '完整实时回复' }, 'a', 'run')
+    resolve({ ...session('a'), messages: [{ id: 'user', role: 'user', content: 'admitted', createdAt: 10, runId: 'run' }, { id: 'persisted', role: 'assistant', content: '完整', createdAt: 11, runId: 'run' }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['admitted', '完整实时回复']))
+    expect(controller.getSnapshot().messages.at(-1)?.id).toBe('stream-run')
+    controller.dispose()
+  })
+
+  it('does not consume future persisted delta bytes before their live event arrives', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'run'); emit('message-delta', { delta: '已到达' }, 'a', 'run')
+    resolve({ ...session('a'), messages: [{ id: 'user', role: 'user', content: 'admitted', createdAt: 10, runId: 'run' }, { id: 'persisted', role: 'assistant', content: '已到达下一段', createdAt: 11, runId: 'run' }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages[0]?.role).toBe('user'))
+    emit('message-delta', { delta: '下一段' }, 'a', 'run')
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('已到达下一段')
+    controller.dispose()
+  })
+
+  it('continues a persisted active reply after reopening with its existing prefix intact', async () => {
+    const { controller, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'user', role: 'user', content: 'admitted', createdAt: 10, runId: 'run' }, { id: 'persisted', role: 'assistant', content: '重开前的正文', createdAt: 11, runId: 'run' }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start(); emit('message-delta', { delta: '之后的增量' }, 'a', 'run')
+    expect(controller.getSnapshot().messages.map(message => message.content)).toEqual(['admitted', '重开前的正文之后的增量'])
+    controller.dispose()
+  })
+
+  it('keeps text, tool and reasoning parts in received order without double-appending legacy content deltas', async () => {
+    const { controller, emit } = fixture()
+    await controller.start(); emit('run-start', { startedAt: 10 }, 'a', 'run', { sequence: 1 })
+    const text: HarnessMessagePart = { id: 'text-1', type: 'text', text: '', state: 'streaming', startedAt: 10 }
+    const reasoning: HarnessMessagePart = { id: 'reasoning', type: 'reasoning', text: '', state: 'streaming', startedAt: 11 }
+    emit('message-part', { part: text }, 'a', 'run', { sequence: 2 }); emit('message-part', { partId: text.id, delta: '工具前正文' }, 'a', 'run', { sequence: 3 })
+    emit('message-delta', { delta: '工具前正文' }, 'a', 'run', { sequence: 4 }); emit('message-part', { part: { ...text, text: '工具前正文', state: 'complete', completedAt: 11 } }, 'a', 'run', { sequence: 5 })
+    emit('message-part', { part: { id: 'tool', type: 'tool', toolCallId: 'tool-call' } }, 'a', 'run', { sequence: 6 })
+    emit('message-part', { part: reasoning }, 'a', 'run', { sequence: 7 }); emit('message-part', { partId: reasoning.id, delta: '公开推理' }, 'a', 'run', { sequence: 8 })
+    emit('message-part', { part: { ...reasoning, text: '公开推理', state: 'complete', truncated: true } }, 'a', 'run', { sequence: 9 })
+    const message = controller.getSnapshot().messages.at(-1)!
+    expect(message.id).toBe('stream-run'); expect(message.runId).toBe('run'); expect(message.content).toBe('工具前正文')
+    expect(message.parts?.map(part => part.id)).toEqual(['text-1', 'tool', 'reasoning'])
+    expect(message.parts?.[0]).toMatchObject({ text: '工具前正文', state: 'complete' })
+    expect(message.parts?.[2]).toMatchObject({ text: '公开推理', truncated: true })
+    emit('message-part', { partId: text.id, delta: '不应追加' }, 'a', 'run', { sequence: 10 })
+    emit('message-part', { part: { id: 'late-old', type: 'tool', toolCallId: 'old-tool' } }, 'a', 'old', { sequence: 11 })
+    expect(controller.getSnapshot().messages.at(-1)?.parts).toEqual(message.parts)
+    controller.dispose()
+  })
+
+  it('merges snapshot part IDs with newer live states without losing an inline approval tool', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void; vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('run-start', { startedAt: 10 }, 'a', 'run')
+    const text: HarnessMessagePart = { id: 'text', type: 'text', text: 'live text', state: 'complete', startedAt: 10, completedAt: 11 }
+    const tool: HarnessMessagePart = { id: 'tool', type: 'tool', toolCallId: 'approved-tool' }
+    emit('message-part', { part: text }, 'a', 'run'); emit('message-part', { part: tool }, 'a', 'run')
+    emit('permission-request', { requestId: 'approval', title: '写入文件', toolCallId: 'approved-tool', runId: 'run' }, 'a', 'run')
+    resolve({ ...session('a'), messages: [{ id: 'user', role: 'user', content: 'admitted', createdAt: 10 }, { id: 'persisted', role: 'assistant', content: '', runId: 'run', parts: [{ ...text, text: 'stale', state: 'streaming' }], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages[0]?.role).toBe('user'))
+    expect(controller.getSnapshot().messages.at(-1)?.parts).toEqual([text, tool])
+    expect(controller.getSnapshot().permission).toMatchObject({ requestId: 'approval', toolCallId: 'approved-tool', runId: 'run' })
+    controller.dispose()
+  })
+
+  it('resumes persisted parts in the same assistant after reopening and reconciles a snapshot-ahead part create', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const existing: HarnessMessagePart = { id: 'existing', type: 'text', text: '已保存', state: 'streaming', startedAt: 10 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: '已保存', parts: [existing], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start(); emit('message-part', { partId: existing.id, delta: '新增' }, 'a', 'run'); emit('message-delta', { delta: '新增' }, 'a', 'run')
+    expect(controller.getSnapshot().messages).toHaveLength(1); expect(controller.getSnapshot().messages[0].parts?.[0]).toMatchObject({ text: '已保存新增' })
+    const ahead: HarnessMessagePart = { id: 'ahead', type: 'text', text: '还没收到事件', state: 'streaming', startedAt: 12 }
+    vi.mocked(host.getSession).mockResolvedValueOnce({ ...snapshots.get('a')!, messages: [{ ...snapshots.get('a')!.messages[0], parts: [existing, ahead] }] })
+    emit('run-activity', {}, 'a', 'run'); await vi.waitFor(() => expect(controller.getSnapshot().messages[0].parts).toHaveLength(2))
+    emit('message-part', { part: { ...ahead, text: '' } }, 'a', 'run'); emit('message-part', { partId: ahead.id, delta: '还没收到事件', offset: 0 }, 'a', 'run')
+    expect(controller.getSnapshot().messages[0].parts?.[1]).toMatchObject({ text: '还没收到事件' })
+    expect(controller.getSnapshot().messages).toHaveLength(1)
+    controller.dispose()
+  })
+
+  it('deduplicates late and overlapping part deltas after reload and projects content only once', async () => {
+    const { controller, snapshots, emit } = fixture()
+    const part: HarnessMessagePart = { id: 'text', type: 'text', text: '前缀已保存', state: 'streaming', startedAt: 10 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: part.text, parts: [part], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('message-part', { part: { ...part, text: '前缀' } }, 'a', 'run', { sequence: 1 })
+    emit('message-part', { partId: part.id, delta: '已保存', offset: 2 }, 'a', 'run', { sequence: 2 })
+    emit('message-part', { partId: part.id, delta: '保存后续', offset: 3 }, 'a', 'run', { sequence: 3 })
+    emit('message-delta', { delta: '后续' }, 'a', 'run', { sequence: 4 })
+    const message = controller.getSnapshot().messages[0]
+    expect(message.parts?.[0]).toMatchObject({ text: '前缀已保存后续' }); expect(message.content).toBe('前缀已保存后续')
+    emit('message-part', { part: { ...part, text: '前缀', state: 'complete', completedAt: 20 } }, 'a', 'run', { sequence: 5 })
+    emit('message-part', { part: { ...part, text: '前缀', state: 'streaming' } }, 'a', 'run', { sequence: 6 })
+    expect(controller.getSnapshot().messages[0].parts?.[0]).toMatchObject({ text: '前缀已保存后续', state: 'complete' })
+    controller.dispose()
+  })
+
+  it('resyncs a part offset gap from authority instead of fabricating missing characters', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const part: HarnessMessagePart = { id: 'text', type: 'text', text: 'A', state: 'streaming', startedAt: 10 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: 'A', parts: [part], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start(); const reads = vi.mocked(host.getSession).mock.calls.length
+    snapshots.set('a', { ...snapshots.get('a')!, messages: [{ ...snapshots.get('a')!.messages[0], content: 'ABC', parts: [{ ...part, text: 'ABC' }] }] })
+    emit('message-part', { partId: 'text', delta: 'C', offset: 2 }, 'a', 'run')
+    expect(controller.getSnapshot().messages[0].content).toBe('A')
+    await vi.waitFor(() => expect(controller.getSnapshot().messages[0].content).toBe('ABC'))
+    expect(host.getSession).toHaveBeenCalledTimes(reads + 1)
+    controller.dispose()
+  })
+
+  it('counts overlap offsets in UTF-16 code units and excludes reasoning from canonical content', async () => {
+    const { controller, snapshots, emit } = fixture()
+    const part: HarnessMessagePart = { id: 'text', type: 'text', text: '\uD83D\uDE00A', state: 'streaming', startedAt: 10 }
+    const reasoning: HarnessMessagePart = { id: 'reasoning', type: 'reasoning', text: '公开推理', state: 'complete', startedAt: 9 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: 'stale projection', parts: [reasoning, part], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    expect(controller.getSnapshot().messages[0].content).toBe('\uD83D\uDE00A')
+    emit('message-part', { partId: 'text', delta: 'AB', offset: 2 }, 'a', 'run')
+    expect(controller.getSnapshot().messages[0].content).toBe('\uD83D\uDE00AB')
+    expect(controller.getSnapshot().messages[0].parts?.[1]).toMatchObject({ text: '\uD83D\uDE00AB' })
+    controller.dispose()
+  })
+
+  it('resyncs mismatched overlap without losing other live parts or inline approval', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const part: HarnessMessagePart = { id: 'text', type: 'text', text: 'AB', state: 'streaming', startedAt: 10 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: 'AB', parts: [part], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    const tool: HarnessMessagePart = { id: 'tool', type: 'tool', toolCallId: 'tool-call' }
+    emit('message-part', { part: tool }, 'a', 'run')
+    emit('permission-request', { requestId: 'approval', title: '执行工具', toolCallId: 'tool-call', runId: 'run' }, 'a', 'run')
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('message-part', { partId: 'text', delta: 'CD', offset: 1 }, 'a', 'run')
+    expect(controller.getSnapshot().messages[0].content).toBe('AB')
+    resolve({ ...snapshots.get('a')!, messages: [{ ...snapshots.get('a')!.messages[0], content: 'ABCD', parts: [{ ...part, text: 'ABCD' }] }] })
+    await vi.waitFor(() => expect(controller.getSnapshot().messages[0].content).toBe('ABCD'))
+    expect(controller.getSnapshot().messages[0].parts?.[1]).toEqual(tool)
+    expect(controller.getSnapshot().permission).toMatchObject({ requestId: 'approval', toolCallId: 'tool-call', runId: 'run' })
+    controller.dispose()
+  })
+
+  it('rejects gap resync from the previous session after navigation and ignores parts for a closed run', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const part: HarnessMessagePart = { id: 'text', type: 'text', text: 'A', state: 'streaming', startedAt: 10 }
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'persisted', role: 'assistant', runId: 'run', content: 'A', parts: [part], createdAt: 11 }], activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    let resolve!: (value: HarnessSession) => void
+    vi.mocked(host.getSession).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('message-part', { partId: 'text', delta: 'C', offset: 2 }, 'a', 'run')
+    await controller.open('b')
+    resolve({ ...snapshots.get('a')!, messages: [{ ...snapshots.get('a')!.messages[0], content: 'ABC', parts: [{ ...part, text: 'ABC' }] }] })
+    await Promise.resolve(); await Promise.resolve()
+    expect(controller.getSnapshot().session?.id).toBe('b'); expect(controller.getSnapshot().messages).toEqual([])
+    emit('run-start', { startedAt: 20 }, 'b', 'b-run', { sequence: 1 })
+    emit('message-part', { part }, 'b', 'b-run', { sequence: 2 })
+    emit('status', { state: 'idle' }, 'b', 'b-run', { sequence: 3 })
+    const reads = vi.mocked(host.getSession).mock.calls.length
+    emit('message-part', { partId: 'text', delta: 'late', offset: 1 }, 'b', 'b-run', { sequence: 4 })
+    expect(host.getSession).toHaveBeenCalledTimes(reads)
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('A')
+    controller.dispose()
+  })
+
   it('keeps image reads scoped to their captured session after switching tasks', async () => {
     const { controller, host } = fixture()
     const image = { path: 'assets/mira.png', mediaType: 'image/png', dataBase64: 'aW1hZ2U=', byteLength: 5 }
@@ -189,6 +777,88 @@ describe('React Harness pilot controller', () => {
     await response
     expect(host.respondPermission).toHaveBeenCalledWith('req', true)
     expect(controller.getSnapshot().permission).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('clears an expired tool approval while the same run continues and ignores a later approval click', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('permission-request', { requestId: 'expired', title: '写入文件', toolCallId: 'tool', runId: 'run' }, 'a', 'run')
+    emit('tool-call', { id: 'tool', status: 'cancelled', approvalRequestId: 'expired', runId: 'run', error: '权限确认超时' }, 'a', 'run')
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    expect(controller.getSnapshot().pendingPermissions.a).toBeUndefined()
+    expect(controller.getSnapshot().running).toBe(true)
+    await controller.permission(true)
+    expect(host.respondPermission).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('clears a matching cancelled tool approval before Stop publishes its terminal run status', async () => {
+    const { controller, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('permission-request', { requestId: 'stopped', title: '执行命令', toolCallId: 'tool', runId: 'run' }, 'a', 'run')
+    emit('tool-call', { id: 'tool', status: 'cancelled', approvalRequestId: 'stopped', runId: 'run', error: '运行已停止' }, 'a', 'run')
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    expect(controller.getSnapshot().pendingPermissions.a).toBeUndefined()
+    emit('status', { state: 'stopped' }, 'a', 'run')
+    expect(controller.getSnapshot().running).toBe(false)
+    controller.dispose()
+  })
+
+  it.each(['ok', 'failed', 'cancelled'])('only clears the exact request, tool and run when a tool becomes %s', async status => {
+    const { controller, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    const request = { requestId: 'new', title: '新的请求', toolCallId: 'new-tool', runId: 'run' }
+    emit('permission-request', request, 'a', 'run')
+    for (const payload of [
+      { id: 'old-tool', approvalRequestId: 'old', runId: 'run' },
+      { id: 'new-tool', approvalRequestId: 'old', runId: 'run' },
+      { id: 'old-tool', approvalRequestId: 'new', runId: 'run' },
+      { id: 'new-tool', approvalRequestId: 'new', runId: 'old-run' },
+      { id: 'new-tool', runId: 'run' },
+    ]) {
+      emit('tool-call', { ...payload, status }, 'a', 'run')
+      expect(controller.getSnapshot().permission?.requestId).toBe('new')
+      expect(controller.getSnapshot().pendingPermissions.a?.requestId).toBe('new')
+    }
+    emit('tool-call', { id: 'new-tool', approvalRequestId: 'new', runId: 'run', status }, 'a', 'run')
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    expect(controller.getSnapshot().pendingPermissions.a).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('clears only a matching background tool approval and preserves the active session request', async () => {
+    const { controller, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run-a', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    emit('permission-request', { requestId: 'a-request', title: 'A请求', toolCallId: 'tool-a', runId: 'run-a' }, 'a', 'run-a')
+    emit('run-start', { startedAt: 20 }, 'b', 'run-b')
+    emit('permission-request', { requestId: 'b-request', title: 'B请求', toolCallId: 'tool-b', runId: 'run-b' }, 'b', 'run-b')
+    emit('tool-call', { id: 'tool-a', approvalRequestId: 'a-request', runId: 'run-b', status: 'cancelled' }, 'b', 'run-b')
+    expect(controller.getSnapshot().pendingPermissions.b?.requestId).toBe('b-request')
+    emit('tool-call', { id: 'tool-b', approvalRequestId: 'b-request', runId: 'run-b', status: 'cancelled' }, 'b', 'run-b')
+    expect(controller.getSnapshot().pendingPermissions.b).toBeUndefined()
+    expect(controller.getSnapshot().permission?.requestId).toBe('a-request')
+    expect(controller.getSnapshot().pendingPermissions.a?.requestId).toBe('a-request')
+    controller.dispose()
+  })
+
+  it('does not restore an expired approval from an older pending query during session reopen', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
+    await controller.start()
+    const request = { sessionId: 'a', requestId: 'expired', title: '过期请求', detail: '', toolCallId: 'tool', runId: 'run' }
+    emit('permission-request', request, 'a', 'run')
+    let resolve!: (value: Awaited<ReturnType<PilotHost['listPendingPermissions']>>) => void
+    vi.mocked(host.listPendingPermissions).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    const opening = controller.open('a')
+    emit('tool-call', { id: 'tool', approvalRequestId: 'expired', runId: 'run', status: 'cancelled' }, 'a', 'run')
+    resolve([request]); await opening
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    expect(controller.getSnapshot().pendingPermissions.a).toBeUndefined()
     controller.dispose()
   })
 

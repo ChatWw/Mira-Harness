@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FirstPartyAppManifest } from '../src/config/firstPartyApps'
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '../src/platform/firstPartyBridge'
+import { FirstPartyNavigationError } from '../src/platform/firstPartyNavigation'
 import type { PlatformApi, PlatformContext } from '../src/types'
 
 const manifest: FirstPartyAppManifest = {
@@ -95,6 +96,33 @@ describe('first-party capability bridge', () => {
     expect(entry.api.saveFirstPartyNovelProject).not.toHaveBeenCalled()
   })
 
+  it('allows encoded query paths while retaining pathname confinement', async () => {
+    const entry = bridge()
+    const path = '/settings/personalization?from=%2Fworkspace%2Fharness-react'
+    await expect(entry.request('navigation.open', { path })).resolves.toBeNull()
+    expect(entry.navigate).toHaveBeenCalledWith(path)
+    for (const invalid of ['/settings/%2fescape', '/settings/%252fescape', '/settings/general\n']) {
+      await expect(entry.request('navigation.open', { path: invalid })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    expect(entry.navigate).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for navigation and exposes a blocked route instead of reporting success', async () => {
+    const entry = bridge()
+    let finish!: (value?: unknown) => void
+    entry.navigate.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    let settled = false
+    const pending = entry.request('navigation.open', { path: '/settings/general' }).finally(() => { settled = true })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    finish()
+    await expect(pending).resolves.toBeNull()
+    entry.navigate.mockImplementationOnce(() => { throw new FirstPartyNavigationError('NAVIGATION_FAILED', '草稿保存失败，已保留当前页面') })
+    await expect(entry.request('navigation.open', { path: '/settings/general' })).rejects.toMatchObject({ code: 'NAVIGATION_FAILED', message: '草稿保存失败，已保留当前页面' })
+    entry.navigate.mockImplementationOnce(() => Promise.reject(new Error('private host failure')))
+    await expect(entry.request('navigation.open', { path: '/settings/general' })).rejects.toMatchObject({ code: 'NAVIGATION_FAILED', message: '页面切换失败，请稍后重试' })
+  })
+
   it('sends only validated model selection fields to the host model channel', async () => {
     const entry = bridge()
     await expect(entry.request('models.generateText', { role: 'authoring', prompt: 'text', selection: { providerId: 'p', modelId: 'm', apiKey: 'injected' } })).resolves.toBe('generated')
@@ -143,7 +171,8 @@ describe('first-party capability bridge', () => {
     await expectCall('session.set-delegation', { id: 's', enabled: true })
     await expectCall('projects.reorder', { ids: ['p'] })
     await expectCall('git.branches', { projectId: 'p' })
-    await expectCall('git.create-branch', { projectId: 'p', branch: 'feat/x' })
+    await expectCall('git.context', { projectId: 'p' })
+    await expectCall('git.create-branch', { projectId: 'p', branch: 'feat/x', snapshotToken: 'a'.repeat(64) })
     await expectCall('memory.respond', { requestId: 'r', approved: true })
     await expectCall('memory.save', { sessionId: 's', selection: { providerId: 'p', modelId: 'm' } })
     await expectCall('subtask.stop', { sessionId: 's', subtaskId: 't' })

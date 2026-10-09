@@ -1,13 +1,13 @@
 {
-  "startedAt": "2026-10-09T06:19:01.302Z",
-  "home": "/private/tmp/mira-native-ignore-aSLqrz",
-  "root": "/private/tmp/mira-native-ignore-aSLqrz/project",
+  "startedAt": "2026-10-09T06:25:17.115Z",
+  "home": "/private/tmp/mira-native-ignore-8V6O9x",
+  "root": "/private/tmp/mira-native-ignore-8V6O9x/project",
   "records": [
     {
       "name": "real-preload-template-does-not-write",
-      "at": "2026-10-09T06:19:02.522Z",
-      "projectId": "719e557a-110c-4576-ba2d-b695f5d66085",
-      "sessionId": "79406bea-a16d-4dae-ad94-c3b97f14ebca",
+      "at": "2026-10-09T06:25:18.220Z",
+      "projectId": "e7c25ef0-6468-4ff7-977a-b960eca7f8c9",
+      "sessionId": "12f7d1fa-fd73-4186-9aa6-92c154f1d8d1",
       "window": {
         "kCGWindowAlpha": 1,
         "kCGWindowBounds": {
@@ -20,14 +20,14 @@
         "kCGWindowLayer": 0,
         "kCGWindowMemoryUsage": 2432,
         "kCGWindowName": "文件搜索 - Mira Harness",
-        "kCGWindowNumber": 3480,
+        "kCGWindowNumber": 3559,
         "kCGWindowOwnerName": "Electron",
-        "kCGWindowOwnerPID": 93665,
+        "kCGWindowOwnerPID": 1404,
         "kCGWindowSharingState": 1,
         "kCGWindowStoreType": 1
       },
       "shell": {
-        "url": "file:///Volumes/VrenDisk/project/Mira/Mira-Harness/out/renderer/index.html#/workspace/chat?draft=579c2c71-dd2c-42e0-a38a-8db2fdb6d0b3",
+        "url": "file:///Volumes/VrenDisk/project/Mira/Mira-Harness/out/renderer/index.html#/workspace/chat?draft=565c9298-c9d6-467b-8f9b-37699258a66a",
         "api": true,
         "title": "新对话 - Mira Harness"
       }
@@ -37,6 +37,151 @@
       "selector": ".search-ignore__editor textarea",
       "x": "975",
       "y": "590.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__actions button >> 保存",
+      "x": "1347",
+      "y": "787.6953125"
+    },
+    {
+      "name": "native-save-real-ipc-real-file",
+      "at": "2026-10-09T06:25:56.265Z",
+      "bytes": 470
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__editor textarea",
+      "x": "975",
+      "y": "590.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".settings-nav-item >> 常规",
+      "x": "254.5",
+      "y": "204"
+    },
+    {
+      "action": "click",
+      "selector": ".el-message-box__btns button >> 继续编辑",
+      "x": "909",
+      "y": "528"
+    },
+    {
+      "name": "native-cancel-route-leave-retains-draft",
+      "at": "2026-10-09T06:26:36.327Z"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__actions button >> 撤销修改",
+      "x": "1245",
+      "y": "787.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".settings-nav-item >> 外观",
+      "x": "254.5",
+      "y": "244"
+    },
+    {
+      "action": "click",
+      "selector": ".theme-option >> 深色",
+      "x": "935",
+      "y": "273.8984375"
+    },
+    {
+      "action": "click",
+      "selector": ".settings-nav-item >> 文件搜索",
+      "x": "254.5",
+      "y": "575"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__editor textarea",
+      "x": "975",
+      "y": "590.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__actions button >> 保存",
+      "x": "1347",
+      "y": "787.6953125"
+    },
+    {
+      "name": "native-external-conflict-retains-file-and-draft",
+      "at": "2026-10-09T06:27:22.027Z",
+      "error": "忽略规则已被修改，请重新载入"
+    },
+    {
+      "action": "click",
+      "selector": "button[aria-label=\"重新读取规则\"]",
+      "x": "895.5703125",
+      "y": "397.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".el-message-box__btns button >> 放弃修改",
+      "x": "1009",
+      "y": "528"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__editor textarea",
+      "x": "975",
+      "y": "590.6953125"
+    },
+    {
+      "action": "click",
+      "selector": ".search-ignore__actions button >> 保存",
+      "x": "1347",
+      "y": "787.6953125"
+    },
+    {
+      "name": "native-reload-and-retry-recovers",
+      "at": "2026-10-09T06:28:04.228Z"
+    },
+    {
+      "action": "click",
+      "selector": "button[aria-label=\"返回应用\"]",
+      "x": "254.5",
+      "y": "109.5"
+    },
+    {
+      "action": "click",
+      "selector": ".mira-session-row__open >> Mira native search validation",
+      "x": "274.2890625",
+      "y": "341.5"
+    },
+    {
+      "action": "click",
+      "selector": "button[aria-label=\"查看文件\"]",
+      "x": "1463",
+      "y": "119.5"
+    },
+    {
+      "name": "native-browsing-remains-unfiltered",
+      "at": "2026-10-09T06:28:09.645Z"
+    },
+    {
+      "action": "click",
+      "selector": "input[aria-label=\"搜索文件\"]",
+      "x": "295",
+      "y": "165"
+    },
+    {
+      "name": "native-react-search-respects-saved-rules",
+      "at": "2026-10-09T06:28:12.021Z",
+      "frame": {
+        "url": "http://127.0.0.1:52244/apps/micro-mira-harness/index.html",
+        "timeOrigin": 1791527285763.7,
+        "overflow": false
+      }
+    },
+    {
+      "action": "click",
+      "selector": "[data-file-tree-path=\"needle.md\"]",
+      "x": "284",
+      "y": "237"
     }
   ],
   "captures": [
@@ -55,16 +200,66 @@
         "kCGWindowLayer": 0,
         "kCGWindowMemoryUsage": 2432,
         "kCGWindowName": "文件搜索 - Mira Harness",
-        "kCGWindowNumber": 3480,
+        "kCGWindowNumber": 3559,
         "kCGWindowOwnerName": "Electron",
-        "kCGWindowOwnerPID": 93665,
+        "kCGWindowOwnerPID": 1404,
         "kCGWindowSharingState": 1,
         "kCGWindowStoreType": 1
       },
-      "at": "2026-10-09T06:19:04.049Z"
+      "at": "2026-10-09T06:25:19.431Z"
+    },
+    {
+      "name": "dark-conflict-native",
+      "path": "/Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/dark-conflict-native.png",
+      "window": {
+        "kCGWindowAlpha": 1,
+        "kCGWindowBounds": {
+          "Height": 900,
+          "Width": 1440,
+          "X": 135,
+          "Y": 42
+        },
+        "kCGWindowIsOnscreen": true,
+        "kCGWindowLayer": 0,
+        "kCGWindowMemoryUsage": 2432,
+        "kCGWindowName": "文件搜索 - Mira Harness",
+        "kCGWindowNumber": 3559,
+        "kCGWindowOwnerName": "Electron",
+        "kCGWindowOwnerPID": 1404,
+        "kCGWindowSharingState": 1,
+        "kCGWindowStoreType": 1
+      },
+      "at": "2026-10-09T06:27:23.214Z"
+    },
+    {
+      "name": "dark-react-search-preview-native",
+      "path": "/Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/dark-react-search-preview-native.png",
+      "window": {
+        "kCGWindowAlpha": 1,
+        "kCGWindowBounds": {
+          "Height": 900,
+          "Width": 1440,
+          "X": 135,
+          "Y": 42
+        },
+        "kCGWindowIsOnscreen": true,
+        "kCGWindowLayer": 0,
+        "kCGWindowMemoryUsage": 2432,
+        "kCGWindowName": "Mira Harness - Mira Harness",
+        "kCGWindowNumber": 3559,
+        "kCGWindowOwnerName": "Electron",
+        "kCGWindowOwnerPID": 1404,
+        "kCGWindowSharingState": 1,
+        "kCGWindowStoreType": 1
+      },
+      "at": "2026-10-09T06:28:15.003Z"
     }
   ],
-  "passed": false,
-  "error": "Error: Timed out: document.querySelector('.search-ignore__editor textarea').value===\"build/\\n# === Mira: end of .gitignore seed ===\\n.git/\\n.hg/\\n.svn/\\nnode_modules/\\nbower_components/\\njspm_packages/\\n__pycache__/\\nsite-packages/\\nvenv/\\ncoverage/\\nhtmlcov/\\nlcov-report/\\ncmakefiles/\\ncmake-build-*/\\nbazel-*/\\npods/\\nderiveddata/\\nstorybook-static/\\nplaywright-report/\\ntest-results/\\nallure-results/\\nallure-report/\\ncdk.out/\\n*.egg-info/\\n*.dist-info/\\neggs/\\npip-wheel-metadata/\\nwheels/\\n# === Mira: end of default search exclusions ===\\n# 自定义规则写在下方\\n\\nprivate/\\n\"\n    at until (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:31:9)\n    at async draft (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:68:3)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/search-ignore-native/mira-native-ignore-smoke.mjs:109:3",
-  "finishedAt": "2026-10-09T06:19:16.849Z"
+  "passed": true,
+  "foregroundBefore": {
+    "bundle": "com.github.Electron",
+    "name": "Electron",
+    "pid": 1404
+  },
+  "finishedAt": "2026-10-09T06:28:15.003Z"
 }

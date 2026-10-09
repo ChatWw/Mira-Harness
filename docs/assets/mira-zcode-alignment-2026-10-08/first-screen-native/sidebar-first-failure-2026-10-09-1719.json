@@ -1,0 +1,133 @@
+{
+  "startedAt": "2026-10-09T09:19:04.147Z",
+  "home": "/private/tmp/mira-first-screen-native-tA0SSf",
+  "window": {
+    "kCGWindowAlpha": 1,
+    "kCGWindowBounds": {
+      "Height": 900,
+      "Width": 1440,
+      "X": 135,
+      "Y": 42
+    },
+    "kCGWindowIsOnscreen": true,
+    "kCGWindowLayer": 0,
+    "kCGWindowMemoryUsage": 2432,
+    "kCGWindowName": "Mira Harness - Mira Harness",
+    "kCGWindowNumber": 4183,
+    "kCGWindowOwnerName": "Electron",
+    "kCGWindowOwnerPID": 74509,
+    "kCGWindowSharingState": 1,
+    "kCGWindowStoreType": 1
+  },
+  "originalFront": {
+    "bundle": "com.openai.codex",
+    "name": "ChatGPT",
+    "pid": 5041
+  },
+  "boundary": "Native macOS clicks and Unicode key input on isolated unpackaged Mira. Real Vue Shell, production React opaque iframe, MessageChannel and Electron preload/IPC. This search test does not run models/scheduler, install market packages, prove ZCode same-state visuals or performance. Legacy /novel is platform fallback only, not the independent Mira Novel Studio implementation.",
+  "passed": false,
+  "records": [
+    {
+      "at": "2026-10-09T09:19:06.227Z",
+      "nativeClick": {
+        "selector": ".mira-session-row__open >> 首屏验收会话",
+        "action": "click",
+        "x": "274.2890625",
+        "y": "373.5"
+      }
+    },
+    {
+      "at": "2026-10-09T09:19:07.983Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全部折叠\"]",
+        "action": "click",
+        "x": "301",
+        "y": "298"
+      }
+    },
+    {
+      "name": "native-bulk-collapse-saves-explicit-project-state",
+      "at": "2026-10-09T09:19:08.081Z",
+      "activeId": "960577c0-7962-45cf-91a9-ae4fa53f903d",
+      "collapsed": {
+        "expandedProjectIds": [],
+        "collapsedProjectIds": [
+          "566594da-daf0-4c0c-ae20-09dccdf19b67"
+        ],
+        "view": "project",
+        "projectView": "collections",
+        "sort": "updated",
+        "groups": [],
+        "hiddenProjectIds": [],
+        "ungroupedSessionOrder": []
+      }
+    },
+    {
+      "name": "native-reload-keeps-active-project-explicitly-collapsed",
+      "at": "2026-10-09T09:19:09.050Z"
+    },
+    {
+      "at": "2026-10-09T09:19:10.765Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"全部展开\"]",
+        "action": "click",
+        "x": "301",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:19:12.526Z",
+      "nativeClick": {
+        "selector": "button[aria-label=\"任务视图选项\"]",
+        "action": "click",
+        "x": "361",
+        "y": "298"
+      }
+    },
+    {
+      "at": "2026-10-09T09:19:14.359Z",
+      "nativeClick": {
+        "selector": "[role=\"menuitemradio\"] >> 时间线",
+        "action": "click",
+        "x": "278",
+        "y": "389"
+      }
+    },
+    {
+      "name": "native-timeline-two-tabs-project-source-and-real-row-size",
+      "at": "2026-10-09T09:19:14.643Z"
+    }
+  ],
+  "captures": [
+    {
+      "name": "sidebar-timeline-native-light",
+      "sha256": "affb09b95ea608042ee9cb9ef7088184c9b55d433fffd9fa877abaa0571c50a8",
+      "at": "2026-10-09T09:19:15.633Z"
+    },
+    {
+      "name": "failure-native",
+      "sha256": "affb09b95ea608042ee9cb9ef7088184c9b55d433fffd9fa877abaa0571c50a8",
+      "at": "2026-10-09T09:19:22.341Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "5e5987522c73338752f7be61a8238ad774324103d3fcb25dc278757080e7d6ba"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "7cf20f0ab83243dd0d081725a566ebf8fa177ca58de20c33f94db075a939307f"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "a55365d07015352b69af2b51d382586963e2e492421e6056444b9ecac22dd819"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    }
+  ],
+  "error": "Error: Command failed: /Users/wujinbo/.nvm/versions/node/v24.7.0/bin/node /Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/watch-editor-scripts/mira-act.mjs button[aria-label=\"查看已归档任务\"]\nfile:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/watch-editor-scripts/mira-act.mjs:15\n  if (response.result.exceptionDetails) throw new Error(response.result.exceptionDetails.exception?.description || response.result.exceptionDetails.text);\n                                              ^\n\nError: Error: Missing visible element\n    at <anonymous>:1:304\n    at <anonymous>:1:481\n    at evaluate (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/watch-editor-scripts/mira-act.mjs:15:47)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/watch-editor-scripts/mira-act.mjs:22:11\n\nNode.js v24.7.0\n\n    at genericNodeError (node:internal/errors:985:15)\n    at wrappedFn (node:internal/errors:539:14)\n    at checkExecSyncError (node:child_process:925:11)\n    at execFileSync (node:child_process:961:15)\n    at act (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:54:29)\n    at sidebarChecks (file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:108:3)\n    at async file:///Volumes/VrenDisk/project/Mira/Mira-Harness/docs/assets/mira-zcode-alignment-2026-10-08/first-screen-native/mira-native-search-smoke.mjs:145:5",
+  "finishedAt": "2026-10-09T09:19:22.341Z"
+}

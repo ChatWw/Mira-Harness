@@ -1,0 +1,59 @@
+.mira-command-center-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(0 0 0 / 20%);
+}
+.mira-command-center {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100% - 48px));
+  max-height: calc(100dvh - 88px);
+  overflow: hidden;
+  transform: translateX(-50%);
+  border-radius: 8px;
+  background: var(--mira-popover);
+  color: var(--mira-foreground);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 22%);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  outline: none;
+}
+.mira-command-center-input { display: flex; flex: 0 0 52px; align-items: center; gap: 10px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--mira-border); }
+.mira-command-center-input > svg { flex: none; color: var(--mira-foreground-subtle); }
+.mira-command-center-input input { flex: 1; min-width: 0; height: 44px; border: 0; outline: none; background: transparent; color: inherit; font: inherit; caret-color: var(--mira-foreground); }
+.mira-command-center-input input::placeholder { color: var(--mira-foreground-subtle); }
+.mira-command-center-close { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--mira-foreground-subtle); cursor: pointer; }
+.mira-command-center-close:hover { background: var(--mira-hover); color: var(--mira-foreground); }
+.mira-command-center-scopes { display: flex; flex: none; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--mira-border); }
+.mira-command-center-scopes button { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 58px; height: 26px; padding: 0 8px; border: 0; border-radius: 5px; color: var(--mira-foreground-subtle); background: transparent; font-size: 12px; cursor: pointer; }
+.mira-command-center-scopes button:hover, .mira-command-center-scopes button[aria-pressed="true"] { background: var(--mira-selected); color: var(--mira-foreground); }
+.mira-command-center-results { flex: 1; min-height: 88px; max-height: min(440px, calc(100dvh - 190px)); overflow: auto; overscroll-behavior: contain; padding: 4px 6px 8px; scrollbar-width: thin; scrollbar-color: var(--mira-border-hover) transparent; }
+.mira-command-center-section { display: flex; align-items: center; gap: 10px; padding: 10px 10px 5px; font-size: 12px; color: var(--mira-foreground-subtle); }
+.mira-command-center-section > span { flex: none; font-weight: 500; }
+.mira-command-center-section small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.mira-command-center-result { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 6px; text-align: left; background: transparent; color: inherit; cursor: pointer; }
+.mira-command-center-result[aria-selected="true"] { background: var(--mira-selected); }
+.mira-command-center-result:disabled { cursor: wait; }
+.mira-command-center-result-icon { display: flex; flex: 0 0 16px; align-self: flex-start; padding-top: 2px; color: var(--mira-foreground-subtle); }
+.mira-command-center-result-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.mira-command-center-result-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-command-center-result-text small { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-command-center-result kbd { flex: none; padding: 0 4px; border: 1px solid var(--mira-border); border-radius: 3px; color: var(--mira-foreground-subtle); font-family: inherit; font-size: 11px; line-height: 20px; }
+.mira-command-center-result-arrow { flex: none; color: var(--mira-foreground-subtle); opacity: 0; }
+.mira-command-center-result[aria-selected="true"] .mira-command-center-result-arrow { opacity: 1; }
+.mira-command-center mark { background: var(--mira-find-highlight); color: inherit; }
+.mira-command-center-status { display: flex; align-items: center; gap: 6px; padding: 8px 10px; margin: 0; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-command-center-error { display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: var(--mira-destructive); font-size: 12px; }
+.mira-command-center-error span { flex: 1; overflow-wrap: anywhere; }
+.mira-command-center-error button { display: flex; flex: none; align-items: center; gap: 4px; padding: 3px 6px; border: 0; border-radius: 4px; background: var(--mira-hover); color: inherit; cursor: pointer; }
+.mira-command-center button:focus-visible { outline: 2px solid var(--mira-foreground); outline-offset: -2px; }
+.mira-command-center-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.mira-command-center-spin { animation: mira-command-center-spin 1s linear infinite; }
+@keyframes mira-command-center-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mira-command-center-spin { animation: none; } }

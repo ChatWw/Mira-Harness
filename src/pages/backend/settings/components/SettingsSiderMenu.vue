@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { resolveSettingsReturnPath } from '@/platform/firstPartyNavigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -68,16 +69,8 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
 // 设置项已拆分为独立路由，按当前路径判断激活项
 const activeSection = computed(() => settingsNavGroups.flatMap(group => group.items).find(item => route.path === item.path)?.key ?? '')
 
-function getReturnPath() {
-  const from = route.query.from
-  if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//') || from.startsWith('/settings')) {
-    return '/workspace/chat'
-  }
-  return from
-}
-
 function returnToApplication() {
-  void router.replace(getReturnPath())
+  void router.replace(resolveSettingsReturnPath(route.query.from))
 }
 
 function goToSection(path: string) {

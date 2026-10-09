@@ -1,0 +1,116 @@
+{
+  "startedAt": "2026-10-09T06:24:26.110Z",
+  "passed": true,
+  "checks": [
+    {
+      "name": "tests",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 11073,
+      "log": "tests.log"
+    },
+    {
+      "name": "react-types",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "apps/harness-react/tsconfig.json",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 1671,
+      "log": "react-types.log"
+    },
+    {
+      "name": "vue-types",
+      "command": [
+        "node",
+        "node_modules/vue-tsc/bin/vue-tsc.js",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 4245,
+      "log": "vue-types.log"
+    },
+    {
+      "name": "react-build",
+      "command": [
+        "node",
+        "scripts/build-harness-react.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 622,
+      "log": "react-build.log"
+    },
+    {
+      "name": "electron-build",
+      "command": [
+        "node",
+        "node_modules/electron-vite/bin/electron-vite.js",
+        "build"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 6221,
+      "log": "electron-build.log"
+    },
+    {
+      "name": "bundle-audit",
+      "command": [
+        "node",
+        "docs/assets/mira-zcode-alignment-2026-10-08/highlight-worker-production/mira-bundle-audit.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 1202,
+      "log": "bundle-audit.log"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedMs": 12,
+      "log": "diff-check.log"
+    }
+  ],
+  "boundary": "Unit/core/transport/SSR tests, type checks, unpackaged build and fresh multi-root artifacts. Not Electron native UI, packaged/Windows, model execution or entire ZCode alignment acceptance.",
+  "testSummary": [
+    "Test Files  103 passed (103)",
+    "Tests  1077 passed (1077)",
+    "Duration  10.44s (transform 3.55s, setup 0ms, collect 12.83s, tests 32.06s, environment 12ms, prepare 5.26s)"
+  ],
+  "artifacts": [
+    {
+      "path": "dist/harness-react-app/app.js",
+      "sha256": "46f3df613a95d5ccbd502956ac2124f4a827c4cb4456b9163efde6ee291bdb13"
+    },
+    {
+      "path": "dist/harness-react-app/app.css",
+      "sha256": "411a46e3d69a7b20ea9aac796b181fffc26334d25b2f73177fdd1a3211ec6143"
+    },
+    {
+      "path": "dist/harness-react-app/mira-code-highlight.worker.js",
+      "sha256": "ff83414a4e4aef1d8a8290364b8d837b0096fedceda687a9e3a1d7d59863b63e"
+    },
+    {
+      "path": "out/main/main.js",
+      "sha256": "93970d1b74f06fc4ad083a9e06031a9cb137f5cbb6892555963b5a2eccef71e6"
+    },
+    {
+      "path": "out/preload/preload.mjs",
+      "sha256": "7e4444b366821a5c401e796e843298f28a09d4eab119c468f211c0c603cc3f6b"
+    },
+    {
+      "path": "out/renderer/index.html",
+      "sha256": "f836b4060026714768f73a0714e50d96fd2cb651a2cfe19b7eb869d08183be58"
+    }
+  ],
+  "finishedAt": "2026-10-09T06:24:51.159Z"
+}

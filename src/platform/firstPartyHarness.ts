@@ -1,4 +1,4 @@
-import { isPermissionMode, type HarnessFileReference, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
+import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
@@ -29,6 +29,28 @@ function idList(value: unknown, name: string, max = 64) {
   return value.map(item => string(item, name, 128))
 }
 
+function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptions {
+  const input = fields(value)
+  if (input.delivery !== undefined && input.delivery !== 'immediate' && input.delivery !== 'guide') throw new Error('消息投递方式无效')
+  if (input.pausedQueueDecision !== undefined && input.pausedQueueDecision !== 'retain' && input.pausedQueueDecision !== 'discard') throw new Error('暂停队列选择无效')
+  const expectedRunId = input.expectedRunId === null ? null : optionalString(input.expectedRunId, '运行 ID')
+  if ((input.delivery || input.pausedQueueDecision) && expectedRunId === undefined) throw new Error('运行 ID无效')
+  if (input.delivery === 'guide' && (expectedRunId === null || input.pausedQueueDecision !== undefined)) throw new Error('指导投递参数无效')
+  const revision = input.expectedQueueRevision
+  if (revision !== undefined && (!Number.isSafeInteger(revision) || Number(revision) < 0)) throw new Error('队列版本无效')
+  const ids = input.expectedQueueItemIds === undefined ? undefined : idList(input.expectedQueueItemIds, '队列消息 ID', 32)
+  if (ids && new Set(ids).size !== ids.length) throw new Error('队列消息 ID无效')
+  if (input.pausedQueueDecision && (revision === undefined || ids === undefined)) throw new Error('暂停队列确认无效')
+  if (!input.pausedQueueDecision && (revision !== undefined || ids !== undefined)) throw new Error('暂停队列确认无效')
+  return {
+    ...(input.delivery === undefined ? {} : { delivery: input.delivery }),
+    ...(input.pausedQueueDecision === undefined ? {} : { pausedQueueDecision: input.pausedQueueDecision }),
+    ...(revision === undefined ? {} : { expectedQueueRevision: Number(revision) }),
+    ...(ids === undefined ? {} : { expectedQueueItemIds: ids }),
+    ...(expectedRunId === undefined ? {} : { expectedRunId }),
+  }
+}
+
 function selection(value: unknown): ModelSelection {
   const input = fields(value)
   const thinkingLevel = input.thinkingLevel
@@ -49,6 +71,13 @@ function workspacePath(value: unknown, allowEmpty = false) {
 function workspaceSearchQuery(value: unknown) {
   if (typeof value !== 'string' || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) throw new Error('搜索关键词无效')
   return value
+}
+
+function workspaceScope(params: Record<string, unknown>): { projectId: string } | { sessionId: string } {
+  const project = Object.prototype.hasOwnProperty.call(params, 'projectId')
+  const session = Object.prototype.hasOwnProperty.call(params, 'sessionId')
+  if (project === session) throw new Error('文件范围必须指定一个项目或会话')
+  return project ? { projectId: string(params.projectId, '项目 ID') } : { sessionId: string(params.sessionId, '会话 ID') }
 }
 
 function fileReferencePath(value: unknown) {
@@ -106,15 +135,54 @@ function permissionMode(value: unknown): PermissionMode {
   return value
 }
 
+function timestamp(value: unknown, name: string) {
+  if (!Number.isSafeInteger(value) || Number(value) < 1) throw new Error(`${name}无效`)
+  return Number(value)
+}
+
+function automationTask(value: unknown): AutomationTaskInput {
+  const input = fields(value), rawTrigger = fields(input.trigger), rawTarget = fields(input.target)
+  let trigger: AutomationTrigger
+  if (rawTrigger.type === 'cron') trigger = { type: 'cron', expression: string(rawTrigger.expression, 'Cron 表达式', 256), ...(rawTrigger.humanLabel === undefined ? {} : { humanLabel: string(rawTrigger.humanLabel, '计划说明', 120) }) }
+  else if (rawTrigger.type === 'once') trigger = { type: 'once', scheduledAt: timestamp(rawTrigger.scheduledAt, '执行时间') }
+  else if (rawTrigger.type === 'session-completed') trigger = { type: 'session-completed' }
+  else throw new Error('自动化触发类型无效')
+  let target: AutomationTarget
+  if (rawTarget.type === 'new-session') target = { type: 'new-session' }
+  else if (rawTarget.type === 'existing-session') target = { type: 'existing-session', sessionId: string(rawTarget.sessionId, '会话 ID') }
+  else throw new Error('自动化目标无效')
+  return { ...(input.id === undefined ? {} : { id: string(input.id, '自动化 ID') }), name: string(input.name, '自动化名称', 120), projectId: string(input.projectId, '项目 ID'), prompt: string(input.prompt, '任务内容', 100_000), model: selection(input.model), permissionMode: permissionMode(input.permissionMode), enabled: boolean(input.enabled, '启用状态'), trigger, target,
+    ...(input.templateId === undefined ? {} : { templateId: string(input.templateId, '模板 ID') }),
+    ...(input.validFrom === undefined ? {} : { validFrom: timestamp(input.validFrom, '生效时间') }),
+    ...(input.validUntil === undefined ? {} : { validUntil: timestamp(input.validUntil, '失效时间') }) }
+}
+
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
-  if (method === 'sessions.list' || method === 'projects.list' || method === 'providers.list' || method === 'skills.list') return { method } as const
+  if (method === 'sessions.list' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'mcp.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
+  if (method === 'marketplace.browse') {
+    const params = raw === undefined ? {} : fields(raw)
+    return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
+  }
   if (method === 'editors.list') {
     const params = raw === undefined ? {} : fields(raw)
     return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
   }
   const params = fields(raw)
   switch (method) {
-    case 'mcp.list': return { method } as const
+    case 'automations.next-runs': return { method, expression: string(params.expression, 'Cron 表达式', 256) } as const
+    case 'automations.save': return { method, input: automationTask(params.input) } as const
+    case 'automations.set-enabled': return { method, id: string(params.id, '自动化 ID'), enabled: boolean(params.enabled, '启用状态') } as const
+    case 'automations.delete':
+    case 'automations.run-now':
+    case 'automations.abort': return { method, id: string(params.id, '自动化 ID') } as const
+    case 'automations.retry': return { method, id: string(params.id, '运行 ID') } as const
+    case 'automations.runs': {
+      const status = params.status
+      if (status !== undefined && !['running', 'completed', 'failed', 'skipped', 'interrupted'].includes(String(status))) throw new Error('自动化运行状态无效')
+      return { method, id: string(params.id, '自动化 ID'), status: status as AutomationRunStatus | undefined } as const
+    }
+    case 'marketplace.detail':
+    case 'marketplace.install': return { method, id: string(params.id, '市场条目 ID') } as const
     case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     case 'files.open-editor': {
       const editorId = string(params.editorId, '打开方式', 128)
@@ -122,8 +190,8 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, true), editorId } as const
     }
     case 'files.search':
-      return { method, sessionId: string(params.sessionId, '会话 ID'), query: workspaceSearchQuery(params.query), refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
-    case 'files.git-status': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+      return { method, ...workspaceScope(params), query: workspaceSearchQuery(params.query), refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
+    case 'files.git-status': return { method, ...workspaceScope(params) } as const
     case 'files.git-ignored': {
       if (!Array.isArray(params.paths) || params.paths.length > 512) throw new Error('一次最多查询 512 个文件的 Git 忽略状态')
       const paths = [...new Set(params.paths.map(path => {
@@ -131,7 +199,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
         if (/^[a-z][a-z\d+.-]*:/i.test(value)) throw new Error('路径无效')
         return value
       }))]
-      return { method, sessionId: string(params.sessionId, '会话 ID'), paths } as const
+      return { method, ...workspaceScope(params), paths } as const
     }
     case 'files.watch': {
       if (!Array.isArray(params.paths) || !params.paths.length || params.paths.length > 256) throw new Error('一次最多监听 256 个目录')
@@ -145,9 +213,9 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')
       return { method, sessionId: string(params.sessionId, '会话 ID'), path } as const
     }
-    case 'files.list':
+    case 'files.list': return { method, ...workspaceScope(params), path: workspacePath(params.path, true) } as const
     case 'files.read':
-      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, method === 'files.list') } as const
+      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path) } as const
     case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), url: browserUrl(params.url), bounds: browserBounds(params.bounds) } as const
     case 'browser.bounds': return { method, sessionId: string(params.sessionId, '会话 ID'), bounds: browserBounds(params.bounds) } as const
     case 'browser.control': {
@@ -165,6 +233,20 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'session.set-pinned': return { method, id: string(params.id, '会话 ID'), pinned: boolean(params.pinned, '置顶状态') } as const
     case 'session.set-unread': return { method, id: string(params.id, '会话 ID'), unread: boolean(params.unread, '未读状态') } as const
     case 'session.archive': return { method, id: string(params.id, '会话 ID') } as const
+    case 'session.restore': return { method, id: string(params.id, '会话 ID') } as const
+    case 'sessions.search': return { method, query: string(workspaceSearchQuery(params.query).trim(), '搜索关键词', 256) } as const
+    case 'sessions.history': {
+      const query = params.query === undefined ? params : fields(params.query)
+      const archiveView = query.archiveView ?? 'visible'
+      const sort = query.sort ?? 'updated-desc'
+      if (archiveView !== 'visible' && archiveView !== 'archived') throw new Error('归档视图无效')
+      if (sort !== 'updated-desc' && sort !== 'created-desc') throw new Error('任务排序无效')
+      const page = query.page ?? 1
+      const pageSize = query.pageSize ?? 50
+      if (!Number.isInteger(page) || Number(page) < 1 || Number(page) > 1_000_000) throw new Error('历史页码无效')
+      if (!Number.isInteger(pageSize) || Number(pageSize) < 1 || Number(pageSize) > 100) throw new Error('历史页大小无效')
+      return { method, query: { archiveView, sort, page: Number(page), pageSize: Number(pageSize), q: query.q === undefined ? undefined : workspaceSearchQuery(query.q) } } as const
+    }
     case 'session.delete': return { method, id: string(params.id, '会话 ID') } as const
     case 'session.move': return { method, id: string(params.id, '会话 ID'), projectId: string(params.projectId, '项目 ID') } as const
     case 'session.reorder': return { method, scope: orderScope(params.scope), ids: idList(params.ids, '会话 ID 列表') } as const
@@ -173,9 +255,16 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'session.set-mcp-servers': return { method, id: string(params.id, '会话 ID'), serverIds: idList(params.serverIds, 'MCP 服务列表') } as const
     case 'session.set-delegation': return { method, id: string(params.id, '会话 ID'), enabled: boolean(params.enabled, '委派开关') } as const
     case 'projects.reorder': return { method, ids: idList(params.ids, '项目 ID 列表') } as const
+    case 'projects.rename': return { method, id: string(params.id, '项目 ID'), name: string(params.name, '项目名称', 120) } as const
+    case 'projects.open': return { method, projectId: string(params.projectId, '项目 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const
+    case 'git.context':
     case 'git.branches': return { method, projectId: string(params.projectId, '项目 ID') } as const
-    case 'git.checkout': return { method, projectId: string(params.projectId, '项目 ID'), branch: string(params.branch, '分支名', 256) } as const
-    case 'git.create-branch': return { method, projectId: string(params.projectId, '项目 ID'), branch: string(params.branch, '分支名', 256) } as const
+    case 'git.checkout':
+    case 'git.create-branch': {
+      const snapshotToken = string(params.snapshotToken, 'Git 快照', 64)
+      if (!/^[a-f0-9]{64}$/.test(snapshotToken)) throw new Error('Git 快照无效')
+      return { method, projectId: string(params.projectId, '项目 ID'), branch: string(params.branch, '分支名', 256), snapshotToken } as const
+    }
     case 'permissions.pending': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     case 'permission.respond': {
       if (typeof params.allowed !== 'boolean') throw new Error('权限响应无效')
@@ -187,10 +276,18 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     }
     case 'memory.save': return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection) } as const
     case 'subtask.stop': return { method, sessionId: string(params.sessionId, '会话 ID'), subtaskId: optionalString(params.subtaskId, '子任务 ID') } as const
-    case 'run.abort': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'run.abort': return { method, sessionId: string(params.sessionId, '会话 ID'), ...(params.expectedRunId === undefined ? {} : { expectedRunId: string(params.expectedRunId, '运行 ID') }) } as const
     case 'run.rerun': return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection) } as const
     case 'run.edit-rerun': return { method, sessionId: string(params.sessionId, '会话 ID'), messageId: string(params.messageId, '消息 ID'), content: string(params.content, '消息内容', 100_000), selection: selection(params.selection) } as const
     case 'project.open': return { method, sessionId: string(params.sessionId, '会话 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const
+    case 'queue.list':
+    case 'queue.resume': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'queue.withdraw': return { method, sessionId: string(params.sessionId, '会话 ID'), itemId: string(params.itemId, '排队消息 ID') } as const
+    case 'queue.reorder': return { method, sessionId: string(params.sessionId, '会话 ID'), itemId: string(params.itemId, '排队消息 ID'), beforeItemId: params.beforeItemId === null ? null : string(params.beforeItemId, '排序锚点 ID') } as const
+    case 'queue.send-now': return { method, sessionId: string(params.sessionId, '会话 ID'), itemId: string(params.itemId, '排队消息 ID'), ...(params.expectedRunId === undefined ? {} : { expectedRunId: string(params.expectedRunId, '运行 ID') }) } as const
+    case 'message.submit': {
+      return { method, sessionId: string(params.sessionId, '会话 ID'), submissionId: string(params.submissionId, '提交 ID'), text: string(params.text, '任务内容', 100_000), references: fileReferences(params.references), selection: selection(params.selection), planning: boolean(params.planning, '执行模式'), ...(params.options === undefined ? {} : { options: messageSubmissionOptions(params.options) }) } as const
+    }
     case 'message.run': {
       if (typeof params.planning !== 'boolean') throw new Error('执行模式无效')
       return { method, sessionId: string(params.sessionId, '会话 ID'), text: string(params.text, '任务内容', 100_000), references: fileReferences(params.references), selection: selection(params.selection), planning: params.planning } as const

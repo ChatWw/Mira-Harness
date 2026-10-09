@@ -77,6 +77,15 @@
             <el-option label="按 Cmd / Ctrl + Enter 键" value="mod-enter" />
           </el-select>
         </div>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">运行中消息处理</span>
+          </div>
+          <el-select class="send-shortcut-picker" :model-value="followupMode" :disabled="followupSaving" :loading="followupSaving" aria-label="运行中消息处理" @update:model-value="setFollowupMode">
+            <el-option label="队列" value="queue" />
+            <el-option label="引导" value="guide" />
+          </el-select>
+        </div>
       </div>
     </section>
 
@@ -106,6 +115,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type PermissionMode, type SendShortcut } from '@/config/harness'
+import { resolveComposerFollowupMode } from '@/config/composerPreferences'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import type { CloseWindowBehavior } from '@/types'
@@ -117,6 +127,8 @@ const permissionConfigLoaded = ref(false)
 const closeWindowBehavior = computed<CloseWindowBehavior>(() => platformPreferences.closeWindowBehavior === 'quit' ? 'quit' : 'background')
 const showContextUsage = computed(() => getPreference('showContextUsage', true))
 const sendShortcut = computed<SendShortcut>(() => getPreference<SendShortcut>('sendShortcut', 'enter') === 'mod-enter' ? 'mod-enter' : 'enter')
+const followupMode = computed(() => resolveComposerFollowupMode(platformPreferences.followupMode))
+const followupSaving = ref(false)
 
 async function loadPermissionConfig() {
   try {
@@ -209,6 +221,21 @@ function setCloseWindowBehavior(value: CloseWindowBehavior) {
 
 function setShowContextUsage(value: boolean) { savePreference('showContextUsage', value) }
 function setSendShortcut(value: string) { savePreference('sendShortcut', value === 'enter' ? 'enter' : 'mod-enter') }
+
+async function setFollowupMode(value: string) {
+  if (followupSaving.value || (value !== 'queue' && value !== 'guide') || value === followupMode.value) return
+  followupSaving.value = true
+  try {
+    const api = getPlatformApi()
+    if (!api) throw new Error('运行中消息设置仅在桌面端中可用')
+    await api.savePreference('followupMode', value)
+    platformPreferences.followupMode = value
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '运行中消息设置保存失败，请重试')
+  } finally {
+    followupSaving.value = false
+  }
+}
 
 onMounted(() => { void loadPermissionConfig() })
 </script>
