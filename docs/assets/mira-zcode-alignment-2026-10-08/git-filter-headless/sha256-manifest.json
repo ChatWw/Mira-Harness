@@ -30,12 +30,6 @@
     "sha256": "4425584f1cf80dd75251f54ff75d86762c81dae5542b0fccf268ee30f3bdae73"
   },
   {
-    "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-bundle-audit.mjs",
-    "bytes": 10054,
-    "mtime": "2026-10-09T03:53:04.312Z",
-    "sha256": "8249fa56e2fdf9b817be0f4719433d1a6e8c538723db53d8ba1e5cb0170b0aad"
-  },
-  {
     "path": "docs/assets/mira-zcode-alignment-2026-10-08/git-filter-headless/mira-changed-dark.png",
     "bytes": 62577,
     "mtime": "2026-10-09T03:58:32.346Z",

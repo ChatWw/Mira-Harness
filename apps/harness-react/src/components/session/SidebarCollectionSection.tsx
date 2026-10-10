@@ -38,6 +38,10 @@ export interface SidebarCollectionProps {
   onColor?: (color: SidebarGroupColor) => void
   onHide?: () => void
   onUngroup?: () => void
+  headerDropRef?: (node: HTMLDivElement | null) => void
+  footerDropRef?: (node: HTMLDivElement | null) => void
+  headerDropId?: string
+  footerDropId?: string
   children: ReactNode
 }
 
@@ -68,8 +72,8 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
   }
   const menu = (kind: 'context' | 'dropdown') => <SidebarCollectionMenu kind={kind} name={name} color={color} disabled={disabled || creating} onNewTask={create} onBeginRename={onBeginRename} onOpenFiles={onOpenFiles} onOpenDirectory={onOpenDirectory ? target => run(() => onOpenDirectory(target)) : undefined} onColor={onColor} onHide={onHide} onUngroup={onUngroup} />
   const portal = document.getElementById('root')
-  return <section ref={setNodeRef} className={`mira-session-group mira-sidebar-collection${isDragging ? ' is-dragging' : ''}`} data-collection-id={id} data-group-color={color} style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
-    <ContextMenu.Root><ContextMenu.Trigger asChild disabled={renaming}><div className="mira-collection-head">
+  return <section ref={setNodeRef} className={`mira-session-group mira-sidebar-collection${isDragging ? ' is-dragging' : ''}`} data-collection-id={id} data-collection-expanded={expanded} data-collection-renaming={renaming} data-group-color={color} style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
+    <ContextMenu.Root><ContextMenu.Trigger asChild disabled={renaming}><div ref={props.headerDropRef} data-sidebar-drop-id={props.headerDropId} data-collection-header className="mira-collection-head">
       {sortable && <button type="button" className="mira-collection-grip" aria-label={`拖拽排序 ${name}`} {...attributes} {...listeners}><GripVertical size={12} /></button>}
       {color && onColor ? <DropdownMenu.Root><SidebarActionHint title="分组颜色"><DropdownMenu.Trigger asChild><button type="button" className="mira-collection-color" aria-label={`${name} 的颜色`}><Hash size={12} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={portal}><DropdownMenu.Content className="mira-session-menu" sideOffset={4}><DropdownMenu.Label className="mira-session-menu__label">分组颜色</DropdownMenu.Label><DropdownMenu.RadioGroup value={color} onValueChange={value => onColor(value as SidebarGroupColor)}>{SIDEBAR_GROUP_COLORS.map(value => <DropdownMenu.RadioItem key={value} value={value} className="mira-session-menu__item"><span className="mira-collection-swatch" data-group-color={value} />{colorLabels[value]}<DropdownMenu.ItemIndicator className="mira-session-menu__arrow"><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root> : <Folder size={13} className="mira-collection-folder" />}
       {renaming ? <form className="mira-session-rename" onSubmit={event => { event.preventDefault(); void commit() }}><input autoFocus aria-label={`重命名${color ? '分组' : '项目'}`} maxLength={64} value={draft} disabled={saving} onFocus={event => event.currentTarget.select()} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); if (!saving) onCancelRename() } }} /><button type="submit" aria-label="保存名称" disabled={saving || !draft.trim()}>{saving ? <LoaderCircle size={13} className="pilot-spin" /> : <Check size={13} />}</button><button type="button" aria-label="取消重命名" disabled={saving} onClick={onCancelRename}><X size={13} /></button></form> : <>
@@ -80,6 +84,7 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
     </div></ContextMenu.Trigger><ContextMenu.Portal container={portal}><ContextMenu.Content className="mira-session-menu" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}>{menu('context')}</ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
     {error && <p className="mira-session-feedback" role="alert">{error}</p>}
     {expanded && <div className={color ? 'mira-collection-content' : undefined}>{children}</div>}
+    {expanded && props.footerDropRef && <div ref={props.footerDropRef} data-sidebar-drop-id={props.footerDropId} className="mira-sidebar-drop-edge" aria-hidden="true" />}
   </section>
 }
 

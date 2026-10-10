@@ -62,7 +62,7 @@ function fixture(read: () => Promise<unknown> = async () => null) {
   const host = { getPreference, setPreference, navigate } as unknown as PilotHost
   const controller = new PilotController(host)
   const session: HarnessSession = { version: 1, id: 'a', title: 'a', permissionMode: 'default', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
-  Object.assign(controller.getSnapshot(), { session, sessions: [session] })
+  Object.assign(controller.getSnapshot(), { initialized: true, session, sessions: [session] })
   return { controller, host, getPreference, setPreference, navigate }
 }
 
@@ -110,7 +110,7 @@ function mount(controller: PilotController) {
 beforeEach(() => {
   hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hooks.effects = []
   vi.stubGlobal('React', React)
-  vi.stubGlobal('window', { matchMedia: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) })
+  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn(), matchMedia: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) })
 })
 afterEach(() => { vi.unstubAllGlobals() })
 

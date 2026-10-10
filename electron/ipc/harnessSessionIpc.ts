@@ -16,7 +16,7 @@ export interface HarnessSessionIpcDependencies {
 }
 
 export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mcpConfigStore, pythonEnvironment, workspaceWatch }: HarnessSessionIpcDependencies) {
-  ipcMain.handle('harness:list-sessions', (_event, query?: string) => database.harness.listSessions(query))
+  ipcMain.handle('harness:list-sessions', (_event, query?: string) => harnessRuntime.listSessions(query))
   ipcMain.handle('harness:query-history', (_event, query) => database.queryHarnessHistory(query))
   ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))

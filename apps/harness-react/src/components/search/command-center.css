@@ -52,6 +52,17 @@
 .mira-command-center-error { display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: var(--mira-destructive); font-size: 12px; }
 .mira-command-center-error span { flex: 1; overflow-wrap: anywhere; }
 .mira-command-center-error button { display: flex; flex: none; align-items: center; gap: 4px; padding: 3px 6px; border: 0; border-radius: 4px; background: var(--mira-hover); color: inherit; cursor: pointer; }
+.mira-command-center-history { flex: none; padding: 0 12px 10px; border-top: 1px solid var(--mira-border); }
+.mira-command-center-history-heading { display: flex; align-items: center; gap: 3px; padding: 6px 0 3px; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-command-center-history-heading > span { margin-right: auto; font-weight: 500; }
+.mira-command-center-history-heading button { display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; }
+.mira-command-center-history-heading button:hover { background: var(--mira-hover); color: var(--mira-foreground); }
+.mira-command-center-history-chips { display: flex; gap: 6px; max-height: 160px; overflow: auto; padding: 2px; scrollbar-width: thin; }
+.mira-command-center-history-chips[data-expanded="true"] { flex-wrap: wrap; }
+.mira-command-center-history-chips button { display: inline-flex; flex: none; align-items: center; gap: 4px; max-width: 176px; min-height: 24px; padding: 2px 8px; border: 1px solid var(--mira-border); border-radius: 999px; color: var(--mira-foreground-subtle); background: transparent; font: inherit; font-size: 13px; line-height: 1.25; cursor: pointer; }
+.mira-command-center-history-chips button:hover { color: var(--mira-foreground); background: var(--mira-hover); }
+.mira-command-center-history-chips button > span:first-child { font-size: 11px; }
+.mira-command-center-history-chips button > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-command-center button:focus-visible { outline: 2px solid var(--mira-foreground); outline-offset: -2px; }
 .mira-command-center-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .mira-command-center-spin { animation: mira-command-center-spin 1s linear infinite; }

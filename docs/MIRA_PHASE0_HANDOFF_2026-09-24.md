@@ -1,6 +1,10 @@
 # Mira 续作交接（2026-09-24）
 
-2026-10-09 20:46 +08:00 当前入口：[首屏完整对齐](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。运行中权威队列与父任务有序parts/工具内审批已接；本批完成Composer原子立即发送/暂停队列确认和消息终态展开保持。冻结后两workers全量128文件/1709项、React/Vue类型、React/Electron构建和22项浏览器/8图通过，准确临时证据与失败保留见总文档。清理数量经21:38复核最终为58个：48 tracked与10非tracked均有本机临时归档，无指向删项的活动引用；两份旧管理工具函数测试已恢复，清理后134文件/1773项及React/Vue类型通过。备份不进Git也不跨机器。下一次先补本批真实Electron/模型链路，桌面工具不可用时从Header分支/分组继续，不重复队列/parts底层，不回文件支线。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，dirty保留、未提交/推送；整体active，未放行完整原生/性能或发布。
+2026-10-10 10:13 +08:00 当前续做入口：[首屏完整对齐](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。分区排序、悬浮组标题及 >80 的两层虚拟滚动已实现；纠正旧计划，自定义组完整展示，项目任务才 +5。最终 154 文件/2600 项、React 类型/构建及产物审计通过，实际明暗宿主 35 项通过；不修改冻结产物、不重做已闭合协议，之后继续对话区/Composer 与原生同态、慢首开。仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，保留 dirty 修改及清理备份，未提交/推送，整体 active。
+
+以下 09:36 及更早记录保留历史身份；旧“组内 +5/增量分页/下一步”不覆盖当前合同。
+
+2026-10-10 09:36 +08:00 当前入口：[首屏完整对齐](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)。遗留清理、跨组拖拽、任务行操作/独立文件树、组内草稿之后，本批补项目/个人分区独立开合、项目任务每次 +5/折叠重置、父/子 bulk 一次保存、Shell 搜索取消回焦与重复打开、虚拟轮次 rail；运行/审批保留原归属，显式新建/复开聚焦 Composer。第 7+ 已有项目选择后不可见已修，最终全量 152 文件/2567 项、React 类型/构建与产物审计通过。浅深宿主 25 项与 bulk 5 项分别属于旧构建，最终项目选择窄确认单列；准确报告/hash/截图限制只看首屏总文档。下次从分区排序、长组 sticky、组内 +5 与大任务列表虚拟化开始，随后前台/ZCode 同态及慢首开。09:00 三次性能报告属旧构建，不复做已闭合草稿/拖拽/焦点/rail。PDF/视频、独立 Novel 搜索、跨 owner 预览/监听、真实模型/调度、Windows/发布仍待办。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`；保留 dirty 修改与本机清理备份，未提交/推送，整体 active。
 
 下方17:27与更早交接是历史，旧“剩余队列/完整事件”不作为当前待实现项。
 

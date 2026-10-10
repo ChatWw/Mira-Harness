@@ -110,4 +110,18 @@ describe('ModelConfigStore', () => {
     expect(ollama.hasApiKey).toBe(false)
     database.close()
   })
+
+  it('retains explicit image capability overrides and leaves legacy capability unspecified after reopening', () => {
+    const { database, store, directory } = createStore()
+    const saved = store.save({ providerKey: 'custom', name: 'Vision', endpoint: 'http://127.0.0.1:12345/v1', authMode: 'none', models: [{ ...model('custom-vision'), multimodal: true }, { ...model('glm-4.6v'), multimodal: false }, model('legacy-model')], enabled: true })
+
+    expect(saved.models.map(item => item.multimodal)).toEqual([true, false, undefined])
+    const serialized = JSON.parse(readFileSync(store.path(), 'utf8'))
+    expect(serialized.version).toBe(2)
+    expect(serialized.providers[0].models[0].multimodal).toBe(true)
+    expect(serialized.providers[0].models[1].multimodal).toBe(false)
+    expect(serialized.providers[0].models[2]).not.toHaveProperty('multimodal')
+    expect(new ModelConfigStore(database, new MiraPaths(directory)).get(saved.id)?.models).toEqual(saved.models)
+    database.close()
+  })
 })

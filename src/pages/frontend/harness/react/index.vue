@@ -2,7 +2,7 @@
   <main class="harness-react-host">
     <p v-if="error" class="harness-react-host__error" role="alert">{{ error }} <router-link to="/workspace/chat">使用旧版工作台</router-link></p>
     <p v-else-if="!url" class="harness-react-host__loading">正在加载 Harness…</p>
-    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" route="/" :navigate="navigate" @error="error = $event" />
+    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
     <p v-if="routeError" class="harness-react-host__route-error" role="alert">{{ routeError }}</p>
   </main>
 </template>
@@ -14,6 +14,7 @@ import { firstPartyAppManifests } from '@/config/firstPartyApps'
 import { getPlatformApi } from '@/platform'
 import { navigateHarnessHost } from '@/platform/firstPartyNavigation'
 import { useThemeStore } from '@/stores/theme'
+import { useAppNavigationStore } from '@/stores/appNavigation'
 import FirstPartyFrame from '@/pages/frontend/microAppHost/FirstPartyFrame.vue'
 
 const api = getPlatformApi()
@@ -25,9 +26,12 @@ const url = ref('')
 const error = ref('')
 const routeError = ref('')
 const appFrame = ref<InstanceType<typeof FirstPartyFrame>>()
+const appNavigation = useAppNavigationStore()
+const navigationSnapshot = appNavigation.getSavedSnapshot('mira-harness')
+const navigationOwner = appNavigation.register('mira-harness', command => appFrame.value?.navigateHistory(command) ?? false)
 const navigate = (path: string) => navigateHarnessHost(router, path)
 const openCommandCenter = () => appFrame.value?.openCommandCenter()
-onBeforeUnmount(() => window.removeEventListener('mira:open-harness-command-center', openCommandCenter))
+onBeforeUnmount(() => { navigationOwner.release(); window.removeEventListener('mira:open-harness-command-center', openCommandCenter) })
 onBeforeRouteLeave(async () => {
   if (!url.value || error.value) return true
   routeError.value = ''

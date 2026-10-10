@@ -430,6 +430,16 @@ export interface HarnessToolText {
 export interface HarnessFileReference {
   path: string
   name: string
+  mediaType?: HarnessImageMediaType
+  size?: number
+}
+
+export type HarnessImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+
+export interface HarnessAttachmentImportFile {
+  name: string
+  mediaType: string
+  data: string
 }
 
 export interface HarnessMessageAttachment extends HarnessFileReference {
@@ -452,7 +462,7 @@ export interface HarnessQueuedMessage {
   fallbackReason?: HarnessGuideFallbackReason
 }
 
-export type HarnessGuideFallbackReason = 'attachments' | 'planning' | 'model-mismatch' | 'run-unavailable' | 'confirmation' | 'run-ended'
+export type HarnessGuideFallbackReason = 'attachments' | 'planning' | 'model-mismatch' | 'permission-mismatch' | 'run-unavailable' | 'confirmation' | 'run-ended'
 
 export interface HarnessMessageQueueSnapshot {
   sessionId: string
@@ -483,6 +493,7 @@ export type HarnessMessageSubmissionResult = HarnessMessageSubmissionReceipt | {
   queue: HarnessMessageQueueSnapshot
 } | {
   retryRequired: true
+  reason?: 'image-model-unsupported'
   queue: HarnessMessageQueueSnapshot
 }
 
@@ -511,6 +522,8 @@ export interface ToolCallRecord {
 export interface HarnessSession {
   version: 1
   id: string
+  /** Attachment owners stay hidden until the first message is accepted. Older sessions omit this field. */
+  draftState?: 'prepared' | 'accepted'
   title: string
   titleSource?: HarnessTitleSource
   titleRevision?: number
@@ -555,6 +568,7 @@ export interface HarnessSkillSettings {
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {
+  isRunning?: boolean
   projectName?: string
   workingDirectory?: string
   planStatus?: HarnessPlanSessionStatus
@@ -596,6 +610,10 @@ export interface HarnessHistoryRow extends HarnessSessionSummary {
   providerKey?: ModelProviderKey
   preview?: string
 }
+
+/** Main holds the complete, frozen selection; the application only receives its handle and count. */
+export interface HarnessArchivedSnapshot { snapshotId: string; count: number }
+export interface HarnessArchivedDeletionResult { deletedIds: string[]; skippedIds: string[]; failedIds: string[] }
 
 export interface HarnessHistoryStats {
   total: number
@@ -734,6 +752,7 @@ export interface ProviderModelConfig {
   id: string
   enabled: boolean
   reasoning: boolean
+  multimodal?: boolean
   contextWindow: number
   pricing?: ModelPricing
 }

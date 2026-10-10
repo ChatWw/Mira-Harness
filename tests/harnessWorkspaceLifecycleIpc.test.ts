@@ -13,12 +13,12 @@ function setup() {
   const result = { id: 'session' }
   const harness = {
     moveSession: vi.fn(() => result), deleteSession: vi.fn(() => result), deleteSessions: vi.fn(() => result),
-    archiveSessions: vi.fn(() => result), attachDirectory: vi.fn(() => result), deleteProject: vi.fn(),
+    archiveSessions: vi.fn(() => result), attachDirectory: vi.fn(() => result), deleteProject: vi.fn(), listSessions: vi.fn(),
   }
   const database = { harness, automations: { listTasks: vi.fn(() => []), deleteTask: vi.fn() } }
   const workspaceWatch = { closeForSession: vi.fn(), closeInvalid: vi.fn() }
   const automationScheduler = { reschedule: vi.fn() }
-  const harnessRuntime = { assertSessionMutable: vi.fn(), isProjectRunning: vi.fn(() => false) }
+  const harnessRuntime = { assertSessionMutable: vi.fn(), isProjectRunning: vi.fn(() => false), listSessions: vi.fn(() => [{ id: 'session', isRunning: true }]) }
   registerHarnessSessionIpcHandlers({ database, workspaceWatch, harnessRuntime } as any)
   registerHarnessProjectIpcHandlers({ database, workspaceWatch, automationScheduler, harnessRuntime } as any)
   const invoke = (channel: string, ...params: unknown[]) => electron.handlers.get(channel)!({ sender: {} }, ...params)
@@ -28,6 +28,15 @@ function setup() {
 beforeEach(() => { electron.handlers.clear(); vi.clearAllMocks() })
 
 describe('workspace watcher legacy lifecycle', () => {
+  it('routes legacy session filtering through the runtime snapshot without reading persisted status directly', () => {
+    const { invoke, harness, harnessRuntime } = setup()
+    const result = [{ id: 'session', isRunning: true }]
+    harnessRuntime.listSessions.mockReturnValue(result)
+    expect(invoke('harness:list-sessions', 'project query')).toBe(result)
+    expect(harnessRuntime.listSessions).toHaveBeenCalledExactlyOnceWith('project query')
+    expect(harness.listSessions).not.toHaveBeenCalled()
+  })
+
   it.each(['move-session', 'delete-session', 'archive-sessions', 'delete-sessions'])('checks all active or queued sessions before %s mutation', action => {
     const { invoke, harness, harnessRuntime, workspaceWatch } = setup()
     for (const message of ['该会话正在运行', '请先处理待发送消息']) {

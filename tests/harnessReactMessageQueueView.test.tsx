@@ -55,6 +55,19 @@ describe('Mira queue panel controls', () => {
     expect(view.props.queue!.items[0].references).toEqual([{ path: '资料.md', name: '资料.md' }])
   })
 
+  it.each([
+    ['planning', '计划模式已排队'],
+    ['model-mismatch', '不同模型已排队'],
+    ['permission-mismatch', '权限设置已变化，已加入待发送'],
+    ['run-unavailable', '当前任务不可引导，已排队'],
+    ['confirmation', '等待确认，已排队'],
+  ] as const)('shows the actual %s fallback without projecting it as pending guidance', (fallbackReason, label) => {
+    const view = mount(1)
+    view.props.queue!.items = [{ ...item(0), requestedDelivery: 'guide', fallbackReason }]; view.render()
+    expect(view.nodes(props => props.className === 'mira-message-queue__fallback')[0].children).toBe(label)
+    expect(view.nodes(props => props['data-queue-item'] === 'item-0')).toHaveLength(1)
+  })
+
   it('shows five stable rows before expanding and exposes no unimplemented reorder or send-now control', () => {
     const view = mount()
     expect(view.nodes(props => Boolean(props['data-queue-item']))).toHaveLength(5)

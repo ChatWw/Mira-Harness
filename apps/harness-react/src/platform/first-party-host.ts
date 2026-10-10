@@ -1,11 +1,14 @@
 import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
-import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
+import type { HarnessAttachmentSaveResult, HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
 import type { SendShortcut } from '../../../../src/config/harness'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../../../src/config/harness'
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
 import type { HarnessGitContext, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
+import { readMiraAppNavigationCommand, readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '../../../../src/platform/appNavigation'
+import type { HarnessMessageAttachment } from '../../../../src/config/harness'
+import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
 
 export class FirstPartyHarnessHost implements PilotHost {
   readonly supportsQueueSubmissionOptions = true
@@ -13,14 +16,33 @@ export class FirstPartyHarnessHost implements PilotHost {
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
   private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
-  private commandCenterListeners = new Set<() => void>()
+  private commandCenterListeners = new Set<(focusRequestId?: string) => void>()
+  private navigationCommandListeners = new Set<(command: MiraAppNavigationCommand) => void>()
+  private navigationRestoreListeners = new Set<(snapshot: MiraAppNavigationSnapshot | undefined) => void>()
+  private navigationRestoreReceived = false
+  private navigationRestoreSnapshot?: MiraAppNavigationSnapshot
   private prepareLeave?: () => Promise<void>
   private closed = false
 
   constructor(private port: MessagePort) {
     port.onmessage = message => {
+      if (this.closed) return
       const data = message.data
-      if (data?.type === 'mira:command-center-open') { this.commandCenterListeners.forEach(listener => listener()); return }
+      if (data?.type === 'mira:app-navigation-command') {
+        const command = readMiraAppNavigationCommand(data)
+        if (command) this.navigationCommandListeners.forEach(listener => listener(command))
+        return
+      }
+      if (data?.type === 'mira:app-navigation-restore') {
+        if (this.navigationRestoreReceived || Array.isArray(data) || !Object.prototype.hasOwnProperty.call(data, 'snapshot') || Object.keys(data).some(key => key !== 'type' && key !== 'snapshot')) return
+        const snapshot = readMiraAppNavigationSnapshot(data.snapshot)
+        if (data.snapshot !== undefined && !snapshot) return
+        this.navigationRestoreReceived = true
+        this.navigationRestoreSnapshot = snapshot
+        this.navigationRestoreListeners.forEach(listener => listener(snapshot))
+        return
+      }
+      if (data?.type === 'mira:command-center-open' && !Array.isArray(data) && Object.keys(data).every(key => key === 'type' || key === 'focusRequestId') && (data.focusRequestId === undefined || typeof data.focusRequestId === 'string' && data.focusRequestId.length > 0 && data.focusRequestId.length <= 128)) { this.commandCenterListeners.forEach(listener => listener(data.focusRequestId)); return }
       if (data?.type === 'mira:prepare-leave' && typeof data.id === 'string') {
         const id = data.id
         void Promise.resolve().then(() => {
@@ -74,13 +96,35 @@ export class FirstPartyHarnessHost implements PilotHost {
   installMarketSkill = (id: string) => this.call<HarnessSkillMarketItem>('marketplace.install', { id })
   listInstalledMarketSkills = () => this.call<HarnessSkillMarketItem[]>('marketplace.installed')
   queryHistory = (query: HarnessHistoryQuery) => this.call<HarnessHistoryPage>('sessions.history', query)
+  getArchivedSnapshot = () => this.call<HarnessArchivedSnapshot>('sessions.archived-snapshot')
+  deleteArchivedSessions = (snapshotId: string) => this.call<HarnessArchivedDeletionResult>('sessions.delete-archived', { snapshotId })
   restoreSession = (id: string) => this.call<void>('session.restore', { id })
   listProjects = () => this.call<HarnessProject[]>('projects.list')
   searchConversations = (query: string) => this.call<HarnessConversationSearchResult[]>('sessions.search', { query })
   renameProject = (id: string, name: string) => this.call<void>('projects.rename', { id, name })
   openProject = (projectId: string, target: 'file-manager' | 'terminal' = 'file-manager') => this.call<string>('projects.open', { projectId, target })
   selectProject = () => this.call<HarnessProject | null>('projects.select')
-  onCommandCenterOpen = (listener: () => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
+  onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
+  dismissCommandCenterFocus = (focusRequestId: string) => {
+    if (this.closed || !focusRequestId || focusRequestId.length > 128) return false
+    try { this.port.postMessage({ type: 'mira:command-center-dismiss', focusRequestId }); return true } catch { return false }
+  }
+  onNavigationCommand = (listener: (command: MiraAppNavigationCommand) => void) => {
+    if (!this.closed) this.navigationCommandListeners.add(listener)
+    return () => { this.navigationCommandListeners.delete(listener) }
+  }
+  onNavigationRestore = (listener: (snapshot: MiraAppNavigationSnapshot | undefined) => void) => {
+    if (!this.closed) {
+      this.navigationRestoreListeners.add(listener)
+      if (this.navigationRestoreReceived) listener(this.navigationRestoreSnapshot)
+    }
+    return () => { this.navigationRestoreListeners.delete(listener) }
+  }
+  publishNavigationState = (state: MiraAppNavigationState) => {
+    const message = readMiraAppNavigationState(state)
+    if (this.closed || !message) return
+    try { this.port.postMessage(message) } catch { /* 宿主已离开，导航状态不再发送。 */ }
+  }
   listAutomationTasks = () => this.call<AutomationTask[]>('automations.list')
   getAutomationOverview = () => this.call<AutomationOverview>('automations.overview')
   getAutomationNextRuns = (expression: string) => this.call<number[]>('automations.next-runs', { expression })
@@ -94,6 +138,12 @@ export class FirstPartyHarnessHost implements PilotHost {
   getHarnessPermissionConfig = () => this.call<PermissionConfig>('permissions.config')
   getSession = (id: string) => this.call<HarnessSession>('session.get', { id })
   createSession = (projectId?: string) => this.call<HarnessSession>('session.create', { projectId })
+  prepareSession = (projectId?: string) => this.call<HarnessSession>('session.create', { projectId, prepared: true })
+  importAttachments = (sessionId: string, files: Array<{ name: string; mediaType: string; data: string }>) => this.call<HarnessFileReference[]>('attachments.import', { sessionId, files })
+  getAttachment = (sessionId: string, path: string) => this.call<HarnessMessageAttachment>('attachments.get', { sessionId, path })
+  saveAttachment = (sessionId: string, path: string) => this.call<HarnessAttachmentSaveResult>('attachments.save', { sessionId, path })
+  stageAttachment = (sessionId: string, path: string) => this.call<HarnessFileReference>('attachments.stage', { sessionId, path })
+  selectAttachments = (sessionId: string) => this.call<HarnessFileReference[]>('attachments.select', { sessionId })
   listProviders = () => this.call<ModelProviderSummary[]>('providers.list')
   runMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[] = []) => this.call<void>('message.run', { sessionId, text, references, selection, planning })
   submitMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[], submissionId: string, options?: HarnessMessageSubmissionOptions) => this.call<HarnessMessageSubmissionResult>('message.submit', { sessionId, submissionId, text, references, selection, planning, ...(options === undefined ? {} : { options }) })
@@ -170,5 +220,9 @@ export class FirstPartyHarnessHost implements PilotHost {
     this.listeners.clear()
     this.browserListeners.clear()
     this.commandCenterListeners.clear()
+    this.navigationCommandListeners.clear()
+    this.navigationRestoreListeners.clear()
+    this.navigationRestoreReceived = false
+    this.navigationRestoreSnapshot = undefined
   }
 }

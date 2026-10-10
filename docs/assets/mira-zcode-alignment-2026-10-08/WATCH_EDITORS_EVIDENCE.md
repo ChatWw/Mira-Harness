@@ -16,15 +16,15 @@
 
 | 检查 | 最新结果与证据 |
 | --- | --- |
-| `npm test -- --maxWorkers=2` | 2026-10-09 10:08:36，最终错误态 CSS 修正后 91 文件 / 784 项通过，11.76s；[最终日志](./mira-watch-editors-final-tests-2026-10-09.log)；09:45 的旧通过日志保留 |
-| React `tsc --noEmit` | 09:46 exit 0；[类型日志](./mira-watch-editors-react-types.log)（只含 npm 配置提醒，无类型诊断） |
-| Vue `vue-tsc --noEmit` | 09:46 exit 0；[类型日志](./mira-watch-editors-vue-types.log) |
-| `npm run harness:build` | 10:01 错误态 CSS 修正后 exit 0，JS bundler 846ms / CSS 168ms；[完整日志](./mira-watch-editors-final-react-build.log) |
-| `electron-vite build` | 10:04 exit 0；[最终日志](./mira-watch-editors-final-electron-build.log)；不是 DMG 构建/安装验收 |
+| `npm test -- --maxWorkers=2` | 2026-10-09 10:08:36，最终错误态 CSS 修正后 91 文件 / 784 项通过，11.76s；历史通过日志已清理，结果摘要保留 |
+| React `tsc --noEmit` | 09:46 exit 0；类型日志（历史原始日志已清理）（只含 npm 配置提醒，无类型诊断） |
+| Vue `vue-tsc --noEmit` | 09:46 exit 0；类型日志（历史原始日志已清理） |
+| `npm run harness:build` | 10:01 错误态 CSS 修正后 exit 0，JS bundler 846ms / CSS 168ms；完整日志（历史原始日志已清理） |
+| `electron-vite build` | 10:04 exit 0；最终日志（历史原始日志已清理）；不是 DMG 构建/安装验收 |
 | 构建图/许可审计 | 10:01:54，只读 `write:false` 重建，287/287 JS SHA 一致；缺失、差异、旧块 0；239 动态目标 / 645 静态边完整，7/7 许可一致；[最终 JSON](./mira-watch-editors-final-bundle-audit-2026-10-09.json) |
 | `git diff --check` | 09:47 exit 0；不代表未跟踪文件已提交 |
 
-静态入口闭包 3 JS / 2,024,802B，逐文件 gzip9 合计 609,756B；全 JS 9,549,043B / gzip9 1,908,321B；最终 CSS 126,918B / gzip9 22,526B。09:46 的原 CSS 为 126,628B / gzip9 22,480B，旧审计与回归日志保留。字节只说明产物大小与完整性，不推导启动、渲染或交互提速。
+静态入口闭包 3 JS / 2,024,802B，逐文件 gzip9 合计 609,756B；全 JS 9,549,043B / gzip9 1,908,321B；最终 CSS 126,918B / gzip9 22,526B。09:46 的原 CSS 为 126,628B / gzip9 22,480B；旧审计 JSON 及其清单条目已于 2026-10-10 清理，最终审计 JSON 保留，原始通过日志已清理。字节只说明产物大小与完整性，不推导启动、渲染或交互提速。
 
 ### 修复与失败历史
 
@@ -88,7 +88,7 @@
 
 ## 复现材料与限定评审
 
-脚本/原生工具源码保存在 [watch-editor-scripts](./watch-editor-scripts/)。它们是本机隔离验收材料，使用绝对 `/tmp` 路径、CDP9222 和 Swift 原生工具；不能不经准备直接对生产数据执行。没有作为运行时 UI 资产发布。图与日志的 SHA-256、复制一致性见 `WATCH_EDITORS_MANIFEST.json`。
+2026-10-10 清理了 6 份依赖旧绝对 `/tmp` 路径、CDP9222、窗口与原生工具的一次性验收脚本；删除前已在本机仓库外按 SHA-256 备份，历史操作结果与截图保留。目录 [watch-editor-scripts](./watch-editor-scripts/) 保留仍被其他原生验证脚本引用的 `mira-act.mjs`、`mira-cdp.mjs` 和 [Swift 辅助源码](./watch-editor-scripts/mira-zcode-cu.swift)；补审已恢复该源码，避免本机 `/tmp` 二进制失效后无法重建。这不是可直接重跑本批流程的完整工具包。图与日志的 SHA-256、复制一致性见 `WATCH_EDITORS_MANIFEST.json`。
 
 独立代码复评完成：已发现并修复偏好失败时序 P2，23 项对应回归通过；其余已核查的菜单约束、grant/session/root 和生命周期回收未发现新的可证实缺陷。
 

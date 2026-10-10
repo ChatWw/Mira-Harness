@@ -3,6 +3,7 @@ import type { MenuItem, MicroApp } from '@/types'
 import { resolveHttpUrl, resolveIframePolicy } from './iframe'
 import { canonicalMicroAppCode, LEGACY_MICRO_APP_CODE_ALIASES } from './microApps'
 import { applications, findRuntimeMicroApp, microMenus, runtimeNavigation } from './runtime'
+import { HARNESS_WORKBENCH_PATH } from '@/platform/firstPartyNavigation'
 
 export interface ResolvedNavigation {
   area: 'main' | 'microapp'
@@ -100,7 +101,7 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 
 export function getApplicationEntryPath(code: string) {
   const canonicalCode = canonicalMicroAppCode(code)
-  if (canonicalCode === 'main') return '/workspace/chat'
+  if (canonicalCode === 'main' || canonicalCode === 'mira-harness') return HARNESS_WORKBENCH_PATH
   const menus = microMenus.value[code] || microMenus.value[canonicalCode] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
     || `/micro/${canonicalCode}`

@@ -12,6 +12,7 @@ import { renderMiraHighlightedCode } from '../../lib/code-highlighter'
 import { highlightFilePreview } from '../../lib/file-preview-highlighter'
 import { createFileImagePreviewReader, createFilePreviewReader, filePreviewAbsolutePath, filePreviewBreadcrumbs, filePreviewImageSource, filePreviewKey, filePreviewKind, filePreviewLanguage, type FilePreviewSnapshot } from '../../lib/file-preview'
 import { miraSvgImageSource } from '../../lib/image-preview'
+import { attachmentImageType } from '../../lib/attachment-input'
 import { MiraImagePreview } from './MiraImagePreview'
 import { MessageMarkdown } from '../conversation/markdown'
 import { getEmptyWorkspaceWatch, subscribeWithoutWorkspaceWatch, workspaceFileParent, type WorkspaceWatchDataSource } from '../../lib/workspace-watch'
@@ -50,6 +51,8 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
   const imageKey = JSON.stringify([key, refresh, watchRefresh])
   const imageSource = useMemo(() => current?.status === 'image' ? filePreviewImageSource(current.image) : kind === 'svg' && current?.status === 'ready' ? miraSvgImageSource(current.content) : '', [current, kind])
   const imageFailed = imageDecode?.key === imageKey && imageDecode.failed
+  const unsupportedImageAttachment = kind === 'bitmap' && !attachmentImageType(path)
+  const canAddFile = active && !unsupportedImageAttachment && (kind === 'bitmap' ? current?.status === 'image' && !imageFailed : ready && !(previewMode === 'preview' && imageFailed))
   const breadcrumbs = filePreviewBreadcrumbs(directory, path)
   const absolutePath = filePreviewAbsolutePath(directory, path)
 
@@ -112,7 +115,7 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
       </div>
       <div className="mira-file-preview__actions">
         <button type="button" title="刷新文件" aria-label="刷新文件" disabled={!active || current?.status === 'loading'} onClick={() => setRefresh(value => value + 1)}><RotateCw size={14} /></button>
-        {kind !== 'bitmap' && <button type="button" title="加入对话" aria-label="将当前文件加入对话" disabled={!ready || (previewMode === 'preview' && imageFailed)} onClick={() => onAddFile(path)}><MessageSquarePlus size={14} /></button>}
+        <button type="button" title={unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : '加入对话'} aria-label="将当前文件加入对话" disabled={!canAddFile} onClick={() => { if (canAddFile) onAddFile(path) }}><MessageSquarePlus size={14} /></button>
         <DropdownMenu.Root><DropdownMenu.Trigger type="button" title="文件预览选项" aria-label="文件预览选项"><Ellipsis size={15} /></DropdownMenu.Trigger><DropdownMenu.Portal container={typeof document === 'undefined' ? undefined : document.getElementById('root')}><DropdownMenu.Content align="end" sideOffset={5} className="mira-session-menu mira-file-preview__menu">
           {(language === 'markdown' || kind === 'svg') && <><DropdownMenu.Label className="mira-session-menu__label">{kind === 'svg' ? 'SVG' : 'Markdown'}</DropdownMenu.Label><DropdownMenu.RadioGroup value={previewMode} onValueChange={setPreviewMode}>
             <DropdownMenu.RadioItem value="preview" className="mira-session-menu__item">{kind === 'svg' ? <ImageIcon size={14} /> : <FileText size={14} />}预览<DropdownMenu.ItemIndicator className="mira-file-preview__indicator"><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>

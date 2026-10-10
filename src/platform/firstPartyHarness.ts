@@ -1,4 +1,4 @@
-import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
+import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessImageMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
@@ -94,8 +94,30 @@ function fileReferences(value: unknown): HarnessFileReference[] {
   return value.map(item => {
     const reference = fields(item)
     // 系统选择器允许项目外文本文件；不能套用仅供工作区浏览的相对路径限制。
-    return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512) }
+    const mediaType = reference.mediaType
+    if (mediaType !== undefined && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(String(mediaType))) throw new Error('附件媒体类型无效')
+    const size = reference.size
+    if (size !== undefined && (!Number.isSafeInteger(size) || Number(size) < 0 || Number(size) > 20 * 1024 * 1024)) throw new Error('附件大小无效')
+    return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512), ...(mediaType === undefined ? {} : { mediaType: mediaType as HarnessImageMediaType }), ...(size === undefined ? {} : { size: Number(size) }) }
   })
+}
+
+function attachmentImports(value: unknown): HarnessAttachmentImportFile[] {
+  if (!Array.isArray(value) || !value.length || value.length > 12) throw new Error('一次最多引用 12 个文件')
+  let encodedBytes = 0
+  return value.map(item => {
+    const file = fields(item)
+    const data = file.data
+    if (typeof data !== 'string' || data.length > Math.ceil(20 * 1024 * 1024 / 3) * 4) throw new Error('单张图片不得超过 20 MiB；文本附件不得超过 256 KiB')
+    encodedBytes += data.length
+    if (encodedBytes > Math.ceil(41 * 1024 * 1024 / 3) * 4 + 12 * 4) throw new Error('图片附件总大小不得超过 40 MiB；文本附件总大小不得超过 1 MiB')
+    return { name: string(file.name, '附件文件名', 512), mediaType: string(file.mediaType, '附件媒体类型', 128), data }
+  })
+}
+
+function messageText(value: unknown, references: HarnessFileReference[]) {
+  if (typeof value !== 'string' || value.length > 100_000 || value.includes('\0') || (!value.trim() && !references.length)) throw new Error('任务内容无效')
+  return value
 }
 
 function orderScope(value: unknown): HarnessSessionOrderScope {
@@ -114,6 +136,7 @@ function browserUrl(value: unknown) {
 }
 
 export interface HarnessBrowserBounds { x: number; y: number; width: number; height: number }
+export type HarnessAttachmentSaveResult = { status: 'saved' } | { status: 'canceled' }
 
 function browserBounds(value: unknown): HarnessBrowserBounds {
   const bounds = fields(value)
@@ -158,7 +181,7 @@ function automationTask(value: unknown): AutomationTaskInput {
 }
 
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
-  if (method === 'sessions.list' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'mcp.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
+  if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'mcp.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
   if (method === 'marketplace.browse') {
     const params = raw === undefined ? {} : fields(raw)
     return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
@@ -184,6 +207,11 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'marketplace.detail':
     case 'marketplace.install': return { method, id: string(params.id, '市场条目 ID') } as const
     case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'attachments.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'attachments.import': return { method, sessionId: string(params.sessionId, '会话 ID'), files: attachmentImports(params.files) } as const
+    case 'attachments.get': return { method, sessionId: string(params.sessionId, '会话 ID'), path: fileReferencePath(params.path) } as const
+    case 'attachments.save': return { method, sessionId: string(params.sessionId, '会话 ID'), path: fileReferencePath(params.path) } as const
+    case 'attachments.stage': return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path) } as const
     case 'files.open-editor': {
       const editorId = string(params.editorId, '打开方式', 128)
       if (!/^mira-[a-z-]+$/.test(editorId)) throw new Error('打开方式无效')
@@ -228,12 +256,13 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const
     case 'terminal.close': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID') } as const
     case 'session.get': return { method, id: string(params.id, '会话 ID') } as const
-    case 'session.create': return { method, projectId: params.projectId === undefined ? undefined : string(params.projectId, '项目 ID') } as const
+    case 'session.create': return { method, projectId: params.projectId === undefined ? undefined : string(params.projectId, '项目 ID'), ...(params.prepared === undefined ? {} : { prepared: boolean(params.prepared, '草稿准备状态') }) } as const
     case 'session.rename': return { method, id: string(params.id, '会话 ID'), title: string(params.title, '会话标题', 120) } as const
     case 'session.set-pinned': return { method, id: string(params.id, '会话 ID'), pinned: boolean(params.pinned, '置顶状态') } as const
     case 'session.set-unread': return { method, id: string(params.id, '会话 ID'), unread: boolean(params.unread, '未读状态') } as const
     case 'session.archive': return { method, id: string(params.id, '会话 ID') } as const
     case 'session.restore': return { method, id: string(params.id, '会话 ID') } as const
+    case 'sessions.delete-archived': return { method, snapshotId: string(params.snapshotId, '归档快照', 128) } as const
     case 'sessions.search': return { method, query: string(workspaceSearchQuery(params.query).trim(), '搜索关键词', 256) } as const
     case 'sessions.history': {
       const query = params.query === undefined ? params : fields(params.query)
@@ -286,16 +315,19 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'queue.reorder': return { method, sessionId: string(params.sessionId, '会话 ID'), itemId: string(params.itemId, '排队消息 ID'), beforeItemId: params.beforeItemId === null ? null : string(params.beforeItemId, '排序锚点 ID') } as const
     case 'queue.send-now': return { method, sessionId: string(params.sessionId, '会话 ID'), itemId: string(params.itemId, '排队消息 ID'), ...(params.expectedRunId === undefined ? {} : { expectedRunId: string(params.expectedRunId, '运行 ID') }) } as const
     case 'message.submit': {
-      return { method, sessionId: string(params.sessionId, '会话 ID'), submissionId: string(params.submissionId, '提交 ID'), text: string(params.text, '任务内容', 100_000), references: fileReferences(params.references), selection: selection(params.selection), planning: boolean(params.planning, '执行模式'), ...(params.options === undefined ? {} : { options: messageSubmissionOptions(params.options) }) } as const
+      const references = fileReferences(params.references)
+      return { method, sessionId: string(params.sessionId, '会话 ID'), submissionId: string(params.submissionId, '提交 ID'), text: messageText(params.text, references), references, selection: selection(params.selection), planning: boolean(params.planning, '执行模式'), ...(params.options === undefined ? {} : { options: messageSubmissionOptions(params.options) }) } as const
     }
     case 'message.run': {
       if (typeof params.planning !== 'boolean') throw new Error('执行模式无效')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), text: string(params.text, '任务内容', 100_000), references: fileReferences(params.references), selection: selection(params.selection), planning: params.planning } as const
+      const references = fileReferences(params.references)
+      return { method, sessionId: string(params.sessionId, '会话 ID'), text: messageText(params.text, references), references, selection: selection(params.selection), planning: params.planning } as const
     }
     case 'plan.confirm': return { method, sessionId: string(params.sessionId, '会话 ID'), planId: string(params.planId, '计划 ID'), selection: selection(params.selection) } as const
     case 'plan.cancel': return { method, sessionId: string(params.sessionId, '会话 ID'), planId: string(params.planId, '计划 ID') } as const
     case 'plan.continue': {
-      return { method, sessionId: string(params.sessionId, '会话 ID'), planId: string(params.planId, '计划 ID'), message: string(params.message, '任务内容', 100_000), references: fileReferences(params.references), selection: selection(params.selection) } as const
+      const references = fileReferences(params.references)
+      return { method, sessionId: string(params.sessionId, '会话 ID'), planId: string(params.planId, '计划 ID'), message: messageText(params.message, references), references, selection: selection(params.selection) } as const
     }
     case 'interaction.answer': {
       if (!Array.isArray(params.answers) || params.answers.length > 8) throw new Error('澄清回答无效')

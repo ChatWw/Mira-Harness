@@ -114,7 +114,7 @@
                   <div class="model-row__identity">
                     <strong>{{ model.id }}</strong>
                     <span v-if="model.reasoning" class="model-badge">推理</span>
-                    <span v-if="isMultimodal(model.id)" class="model-badge">多模态</span>
+                    <span v-if="isMultimodal(model)" class="model-badge">多模态</span>
                   </div>
                   <span class="model-meta">{{ formatContextWindow(model.contextWindow) }} 上下文</span>
                   <span class="model-meta model-meta--pricing">{{ model.pricing ? `${model.pricing.currency} 已计价` : '未计价' }}</span>
@@ -151,6 +151,10 @@
           <el-form-item label="模型状态"><el-switch v-model="modelDraft.enabled" active-text="启用" inactive-text="停用" /></el-form-item>
           <el-form-item label="推理能力"><el-switch v-model="modelDraft.reasoning" active-text="支持推理" inactive-text="标准回复" /></el-form-item>
         </div>
+        <el-form-item label="图片输入">
+          <el-checkbox v-model="modelDraft.multimodal" aria-describedby="model-image-support-tip">支持图片输入</el-checkbox>
+          <p id="model-image-support-tip" class="field-tip">已知模型自动填写，未知模型默认关闭；可按供应商实际能力调整。</p>
+        </el-form-item>
         <el-form-item label="上下文长度">
           <el-input-number v-model="modelDraft.contextWindow" :min="16384" :step="16000" :precision="0" controls-position="right" />
           <span class="input-suffix">token</span>
@@ -222,11 +226,11 @@ const form = reactive<ModelProviderInput>({ providerKey: 'glm', name: '', endpoi
 const modelDialogVisible = ref(false)
 const editingModelIndex = ref(-1)
 const pricingEnabled = ref(false)
-const modelDraft = reactive<ProviderModelConfig>({ id: '', enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
+const modelDraft = reactive<ProviderModelConfig>({ id: '', enabled: true, reasoning: false, multimodal: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
 
 function createModel(id: string): ProviderModelConfig {
   const knowledge = lookupModelKnowledge(id)
-  return { id, enabled: true, reasoning: knowledge?.reasoning ?? inferModelReasoning(id), contextWindow: knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW, ...(knowledge?.pricing ? { pricing: { ...knowledge.pricing } } : {}) }
+  return { id, enabled: true, reasoning: knowledge?.reasoning ?? inferModelReasoning(id), multimodal: knowledge?.multimodal ?? false, contextWindow: knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW, ...(knowledge?.pricing ? { pricing: { ...knowledge.pricing } } : {}) }
 }
 
 function syntheticProvider(preset: typeof FIXED_PRESETS[number]): ModelProviderSummary {
@@ -258,7 +262,7 @@ function providerIconUrl(key: ModelProviderKey) {
 }
 
 function isDraftProvider(provider: ModelProviderSummary) { return provider.id.startsWith('draft:') }
-function isMultimodal(modelId: string) { return lookupModelKnowledge(modelId)?.multimodal === true }
+function isMultimodal(model: ProviderModelConfig) { return model.multimodal ?? lookupModelKnowledge(model.id)?.multimodal ?? false }
 function formatContextWindow(tokens: number) { return tokens >= 1000000 && tokens % 1000000 === 0 ? `${tokens / 1000000}M` : tokens >= 1000 && tokens % 1000 === 0 ? `${tokens / 1000}K` : String(tokens) }
 function formSnapshot() { return JSON.stringify({ id: form.id, providerKey: form.providerKey, endpoint: form.endpoint, authMode: form.authMode, apiKey: form.apiKey, enabled: form.enabled, models: form.models }) }
 function markFormClean() { cleanSnapshot.value = formSnapshot() }
@@ -353,7 +357,7 @@ async function testConnection() {
 }
 
 function resetModelDraft(model?: ProviderModelConfig) {
-  Object.assign(modelDraft, model ? { ...model, pricing: { ...model.pricing || DEFAULT_MODEL_PRICING } } : { id: '', enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
+  Object.assign(modelDraft, model ? { ...model, multimodal: isMultimodal(model), pricing: { ...model.pricing || DEFAULT_MODEL_PRICING } } : { id: '', enabled: true, reasoning: false, multimodal: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
   pricingEnabled.value = Boolean(model?.pricing)
 }
 
@@ -362,6 +366,7 @@ function editModel(index: number) { editingModelIndex.value = index; resetModelD
 function applyModelKnowledge() {
   const knowledge = lookupModelKnowledge(modelDraft.id)
   modelDraft.reasoning = knowledge?.reasoning ?? inferModelReasoning(modelDraft.id)
+  modelDraft.multimodal = knowledge?.multimodal ?? false
   modelDraft.contextWindow = knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
   pricingEnabled.value = Boolean(knowledge?.pricing)
   modelDraft.pricing = { ...knowledge?.pricing || DEFAULT_MODEL_PRICING }
@@ -370,7 +375,7 @@ function confirmModel() {
   const id = modelDraft.id.trim()
   if (!id) return ElMessage.warning('请输入模型名称')
   if (form.models.some((model, index) => model.id === id && index !== editingModelIndex.value)) return ElMessage.warning('该模型已存在')
-  const next = { id, enabled: modelDraft.enabled, reasoning: modelDraft.reasoning, contextWindow: modelDraft.contextWindow, ...(pricingEnabled.value ? { pricing: { ...modelDraft.pricing! } } : {}) }
+  const next = { id, enabled: modelDraft.enabled, reasoning: modelDraft.reasoning, multimodal: modelDraft.multimodal, contextWindow: modelDraft.contextWindow, ...(pricingEnabled.value ? { pricing: { ...modelDraft.pricing! } } : {}) }
   if (editingModelIndex.value === -1) form.models.push(next)
   else form.models.splice(editingModelIndex.value, 1, next)
   modelDialogVisible.value = false

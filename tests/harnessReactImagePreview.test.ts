@@ -104,11 +104,13 @@ describe('Mira authorized image preview', () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
     expect(miraSvgImageSource(svg)).toBe(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
   })
-  it('omits unsupported image-to-conversation and source-copy controls for bitmaps', () => {
+  it('exposes a loading-disabled image attachment action without text source controls', () => {
     vi.stubGlobal('React', React)
     const html = renderToStaticMarkup(React.createElement(FilePreviewPanel, { controller: {} as PilotController, sessionId: 'alpha', path: 'logo.png', directory: '/tmp/Mira', active: true, onAddFile: vi.fn() }))
     expect(html).toContain('aria-label="刷新文件"')
     expect(html).toContain('aria-label="文件预览选项"')
-    expect(html).not.toContain('aria-label="将当前文件加入对话"')
+    expect(html).toContain('aria-label="将当前文件加入对话" disabled=""')
+    expect(html).not.toContain('自动换行')
+    expect(html).not.toContain('复制文件内容')
   })
 })

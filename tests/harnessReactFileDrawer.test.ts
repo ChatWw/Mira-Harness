@@ -330,18 +330,36 @@ describe('React Harness project-scoped file drawer', () => {
 })
 
 describe('React Harness file drawer search clearing', () => {
-  it.each(['mira.png', 'mira.JPG', 'mira@2x.webp', 'mira.avif', 'mira.gif'])('disables text-only conversation attachment for %s while preserving file opening', async path => {
+  it.each(['mira.png', 'mira.JPG', 'mira.jpeg', 'mira@2x.webp', 'mira.gif'])('adds supported image %s through its exact workspace path while preserving file opening', async path => {
     const view = mount(undefined, [{ path, name: path, type: 'file' }])
     await view.drain()
-    expect(view.props(props => props.children && Array.isArray(props.children) && props.children.includes('加入对话')).disabled).toBe(true)
+    const add = view.props(props => Array.isArray(props.children) && props.children.includes('加入对话'))
+    expect(add.disabled).toBe(false)
+    ;(add.onSelect as () => void)()
+    expect(view.onAddFile).toHaveBeenCalledExactlyOnceWith(path)
     ;(view.props(props => props['data-file-tree-path'] === path).onClick as (event: unknown) => void)({ detail: 1 })
     expect(view.onOpenFile).toHaveBeenCalledWith(path)
+  })
+
+  it.each(['mira.avif', 'mira.apng', 'mira.bmp', 'mira.ico'])('explains unsupported image %s and refuses attachment while preserving preview', async path => {
+    const view = mount(undefined, [{ path, name: path, type: 'file' }])
+    await view.drain()
+    const add = view.props(props => Array.isArray(props.children) && props.children.includes('加入对话'))
+    expect(add.disabled).toBe(true)
+    expect(add.title).toContain('PNG、JPEG、GIF 或 WebP')
+    ;(add.onSelect as () => void)()
+    expect(view.onAddFile).not.toHaveBeenCalled()
+    await view.open(path)
+    expect(view.onOpenFile).toHaveBeenCalledExactlyOnceWith(path)
   })
 
   it.each(['mira.svg', 'mira.md'])('retains the text conversation attachment action for %s', async path => {
     const view = mount(undefined, [{ path, name: path, type: 'file' }])
     await view.drain()
-    expect(view.props(props => props.children && Array.isArray(props.children) && props.children.includes('加入对话')).disabled).not.toBe(true)
+    const add = view.props(props => Array.isArray(props.children) && props.children.includes('加入对话'))
+    expect(add.disabled).toBe(false)
+    ;(add.onSelect as () => void)()
+    expect(view.onAddFile).toHaveBeenCalledExactlyOnceWith(path)
   })
 
   it.each([

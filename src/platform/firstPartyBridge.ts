@@ -58,6 +58,22 @@ export async function handleFirstPartyRequest(options: {
       return await api.invokeFirstPartyHarness(grantId, method, params)
     } catch (error) {
       // 只映射已知文件失败，避免把主进程异常、堆栈或模型凭据透出到应用。
+      if (method.startsWith('attachments.') || method.startsWith('queue.') || method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const attachmentErrors = ['单张图片不得超过 20 MiB', '图片附件总大小不得超过 40 MiB', '图片附件内容不完整或签名无效', '图片附件签名无效；目前支持 PNG、JPEG、GIF 和 WebP', '附件必须使用规范的 base64 编码', '附件引用无效或不属于当前会话', '归档会话不能新增附件，请先恢复任务', '一次最多引用 12 个文件', '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB', '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型', '只能暂存工作目录中的相对路径文件']
+        if (attachmentErrors.includes(failure)) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', failure)
+        if (method === 'attachments.save') throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', failure === '未找到会话' ? '任务已不存在，请重新创建或选择任务。' : '附件保存失败，请重试。')
+        if (failure.includes('单张图片不得超过 20 MiB')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '单张图片不得超过 20 MiB；文本附件不得超过 256 KiB')
+        if (failure.startsWith('不支持引用二进制文件或非 UTF-8 文本：')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '附件仅支持 UTF-8 文本和 PNG、JPEG、GIF、WebP 图片。')
+        if (method.startsWith('attachments.')) {
+          const recovery = failure.startsWith('引用文件过大：') ? '文本附件不得超过 256 KiB，请选择较小的文件。'
+            : failure.startsWith('引用文件不存在：') ? '附件已不可读取，请重新选择文件。'
+              : failure.startsWith('不支持引用二进制文件：') ? '附件仅支持 UTF-8 文本和 PNG、JPEG、GIF、WebP 图片。'
+                : failure === '未找到会话' ? '任务已不存在，请重新创建或选择任务。'
+                  : '附件处理失败，请重新选择文件后重试。'
+          throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', recovery)
+        }
+      }
       if (method.startsWith('files.') && method !== 'files.select') {
         const message = error instanceof Error ? error.message : ''
         const failure = message.replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
@@ -126,9 +142,9 @@ export async function handleFirstPartyRequest(options: {
         const submitted = method === 'message.submit'
         throw new FirstPartyBridgeError(submitted ? 'MESSAGE_SUBMISSION_FAILED' : 'MESSAGE_QUEUE_FAILED', queueErrors.includes(failure) ? failure : submitted ? '消息提交失败，内容已保留，请稍后重试。' : '消息队列操作失败，请刷新后重试。')
       }
-      if (method === 'session.archive' || method === 'session.delete' || method === 'session.move') {
+      if (method === 'session.archive' || method === 'session.delete' || method === 'session.move' || method === 'sessions.archived-snapshot' || method === 'sessions.delete-archived') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
-        throw new FirstPartyBridgeError('SESSION_MUTATION_FAILED', ['该会话正在运行', '请先处理待发送消息'].includes(failure) ? failure : '会话操作失败，请稍后重试。')
+        throw new FirstPartyBridgeError('SESSION_MUTATION_FAILED', ['该会话正在运行', '请先处理待发送消息', '归档快照已失效，请重新打开删除确认。'].includes(failure) ? failure : '会话操作失败，请稍后重试。')
       }
       throw error
     }

@@ -1,6 +1,6 @@
 import router, { syncBusinessRoutes } from '@/router'
 import { applyPlatformSnapshot } from '@/config/runtime'
-import { resolveNavigation } from '@/config/navigation'
+import { getApplicationEntryPath, isWorkspacePath, resolveNavigation } from '@/config/navigation'
 import { getPlatformApi } from '@/platform'
 import type { PlatformApi, PlatformSnapshot } from '@/types'
 
@@ -19,6 +19,7 @@ export function applyManagementSnapshot(snapshot: PlatformSnapshot) {
   syncBusinessRoutes()
   const currentPath = router.currentRoute.value.path
   const isSettingsRoute = currentPath === '/settings' || currentPath.startsWith('/settings/')
+  const isHarnessRoute = isWorkspacePath(currentPath) && Boolean(router.resolve(currentPath).name)
   const navigation = resolveNavigation(currentPath)
-  if (!isSettingsRoute && currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace('/workspace/chat')
+  if (!isSettingsRoute && !isHarnessRoute && currentPath !== '/404' && !navigation.menu && !navigation.app) void router.replace(getApplicationEntryPath('main'))
 }

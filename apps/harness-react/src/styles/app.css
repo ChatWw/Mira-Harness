@@ -14,6 +14,7 @@
 @import "../components/search/command-center.css";
 @import "../components/automations/automations.css";
 @import "../components/git/git-controls.css";
+@import "../components/conversation/conversation-find.css";
 
 /* Tailwind 组件与现有区域样式共享 Mira 的语义主题。 */
 @theme inline {
@@ -54,3 +55,33 @@
 .dark #root {
   --shadow-soft: 0 4px 16px color-mix(in oklab, black 30%, transparent);
 }
+/* Frozen message and draft attachment previews share the same desktop dialog. */
+.mira-attachment-preview__overlay { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / 60%); }
+.mira-attachment-preview { position: fixed; inset: 10% 8%; z-index: 101; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 12px; color: var(--color-foreground); background: var(--color-card); }
+.mira-attachment-preview__header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.mira-attachment-preview__header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; }
+.mira-attachment-preview__header button { display: grid; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; place-items: center; color: var(--color-foreground); background: transparent; }
+.mira-attachment-preview__header button:hover { background: var(--color-hover); }
+.mira-attachment-preview__body { display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: auto; padding: 24px; }
+.mira-attachment-preview__body img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.mira-attachment-preview__body pre { align-self: stretch; width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
+.mira-attachment-preview--gallery { inset: 16px; padding: 40px; border-radius: 0; background: transparent; pointer-events: auto; -webkit-app-region: no-drag; }
+.mira-attachment-preview--gallery .mira-attachment-preview__body { position: relative; padding: 0; overflow: hidden; cursor: grab; user-select: none; }
+.mira-attachment-preview--gallery .mira-attachment-preview__body:active { cursor: grabbing; }
+.mira-attachment-preview--gallery .mira-attachment-preview__body img { border-radius: 12px; background: var(--color-background); box-shadow: 0 16px 48px rgb(0 0 0 / 30%); }
+.mira-attachment-preview__actions { position: absolute; top: 16px; right: 16px; z-index: 2; display: flex; gap: 8px; }
+.mira-attachment-preview__actions button, .mira-attachment-preview__previous, .mira-attachment-preview__next { display: grid; width: 36px; height: 36px; flex: none; padding: 0; border: 1px solid var(--color-border); border-radius: 50%; place-items: center; color: var(--color-foreground); background: var(--color-background); box-shadow: 0 4px 12px rgb(0 0 0 / 15%); }
+.mira-attachment-preview__previous, .mira-attachment-preview__next { position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); }
+.mira-attachment-preview__previous { left: 0; }
+.mira-attachment-preview__next { right: 0; }
+.mira-attachment-preview__zoom { position: absolute; bottom: 0; left: 50%; display: flex; align-items: center; gap: 8px; padding: 4px; border: 1px solid var(--color-border); border-radius: 24px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 4px 12px rgb(0 0 0 / 15%); transform: translateX(-50%); }
+.mira-attachment-preview__zoom button { display: grid; width: 28px; height: 28px; border: 0; border-radius: 50%; place-items: center; color: inherit; background: transparent; }
+.mira-attachment-preview__zoom > span:not(.sr-only) { min-width: 48px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+.mira-attachment-preview button:disabled { cursor: default; opacity: .5; }
+.mira-attachment-preview button:hover:not(:disabled) { background: var(--color-hover); }
+.mira-attachment-preview button:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 3px; }
+.mira-attachment-preview__loading { position: absolute; color: var(--color-foreground); }
+.mira-attachment-preview__notice { display: grid; justify-items: center; gap: 12px; max-width: 480px; padding: 24px; border-radius: 12px; color: var(--color-foreground); background: var(--color-card); text-align: center; }
+.mira-attachment-preview__notice p { margin: 0; }
+.mira-attachment-preview__notice button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 6px; color: inherit; background: var(--color-background); }
+.mira-attachment-preview__save-error { position: absolute; bottom: 44px; left: 50%; max-width: calc(100% - 32px); margin: 0; padding: 8px 12px; border-radius: 8px; color: var(--color-destructive); background: var(--color-card); transform: translateX(-50%); }

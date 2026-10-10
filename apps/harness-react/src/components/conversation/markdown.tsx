@@ -102,7 +102,7 @@ function StaticMarkdown({ content, sources }: { content: string; sources?: Harne
   }
   return <div className="message-markdown size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
     <div className="pilot-markdown [&_.citation-marker_button]:leading-normal!" onClick={event => void handleClick(event)} dangerouslySetInnerHTML={{ __html: html }} />
-    {highlightFailure === content && <div className="flex items-center gap-2 text-xs text-foreground-subtle" role="alert"><span>代码高亮失败</span><button type="button" title="重试代码高亮" aria-label="重试代码高亮" className="flex size-6 shrink-0 items-center justify-center rounded hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" onClick={() => setRetry(value => value + 1)}><RotateCw size={14} /></button></div>}
+    {highlightFailure === content && <div data-mira-find-ignore className="flex items-center gap-2 text-xs text-foreground-subtle" role="alert"><span>代码高亮失败</span><button type="button" title="重试代码高亮" aria-label="重试代码高亮" className="flex size-6 shrink-0 items-center justify-center rounded hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" onClick={() => setRetry(value => value + 1)}><RotateCw size={14} /></button></div>}
     {citation && <aside className="pilot-citation" role="note">
       <button type="button" className="pilot-citation__close" aria-label="关闭来源" onClick={() => setCitation(undefined)}>×</button>
       <strong>{citation.title || citation.url}</strong>

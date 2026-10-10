@@ -3,6 +3,7 @@ import { Brain, ChevronDown, LoaderCircle, ShieldCheck } from 'lucide-react'
 import type { HarnessMessage, HarnessMessagePart, HarnessPermissionRequest, ToolCallRecord } from '../../../../../src/config/harness'
 import { MessageMarkdown } from './markdown'
 import { ToolRecord } from './run-progress'
+import { taskFindTargetKey } from '../../lib/conversation-find'
 
 export interface PermissionResponseCardProps {
   request: HarnessPermissionRequest
@@ -56,17 +57,18 @@ const AssistantReasoning = memo(function AssistantReasoning({ part }: { part: Ex
   </details>
 })
 
-export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId }: {
+export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId, rendererId = message.id }: {
   message: HarnessMessage
   toolsById: ReadonlyMap<string, ToolCallRecord>
   streaming?: boolean
   permission?: PermissionResponseCardProps
   permissionPartId?: string
+  rendererId?: string
 }) {
   return <div className="mira-assistant-parts">{message.parts?.map(part => {
     const candidate = part.type === 'tool' ? toolsById.get(part.toolCallId) : undefined
     const tool = candidate && (!message.runId || !candidate.runId || candidate.runId === message.runId) ? candidate : undefined
-    return <div key={part.id} className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type}>
+    return <div key={part.id} className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
       {part.type === 'text' ? <MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /> : part.type === 'reasoning' ? <AssistantReasoning part={part} /> : <>
         {tool ? <ToolRecord tool={tool} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
         {permission && permissionPartId === part.id && <PermissionResponseCard {...permission} />}

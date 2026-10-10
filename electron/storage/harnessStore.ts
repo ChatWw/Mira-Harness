@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
@@ -12,6 +12,7 @@ import {
   type HarnessMessage,
   type HarnessConversationSearchResult,
   type HarnessFileReference,
+  type HarnessAttachmentImportFile,
   type HarnessFileChange,
   type HarnessGitBranch,
   type HarnessGitConfig,
@@ -41,9 +42,10 @@ import {
 } from '../../src/config/harness'
 import { atomicMove } from './miraDataMigration'
 import { MiraPaths } from './miraPaths'
+import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentImageType } from '../services/harnessAttachmentContent'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
-type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
+type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, draft_state: HarnessSession['draftState'] | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
 const MAX_FILE_REFERENCES = 12
@@ -128,6 +130,8 @@ export class HarnessStore {
   }
 
   private ensureStructuredSchema() {
+    const sessionColumns = this.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
+    if (sessionColumns.length && !sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
@@ -137,6 +141,7 @@ export class HarnessStore {
       CREATE TABLE IF NOT EXISTS harness_runs (session_id TEXT NOT NULL, run_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id));
       CREATE TABLE IF NOT EXISTS harness_run_activities (session_id TEXT NOT NULL, run_id TEXT NOT NULL, activity_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, activity_id));
       CREATE TABLE IF NOT EXISTS harness_subtasks (session_id TEXT NOT NULL, run_id TEXT NOT NULL, subtask_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, subtask_id));
+      CREATE TABLE IF NOT EXISTS harness_attachments (session_id TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, id));
     `)
   }
 
@@ -174,23 +179,47 @@ export class HarnessStore {
     return this.workspaceFilePath(directory, filePath)
   }
 
-  private resolveAttachments(directory: string, references: HarnessFileReference[], allowExternal: boolean) {
+  private readAttachmentFile(target: string, path: string, name: string, textBytes = 0, imageBytes = 0) {
+    const size = statSync(target).size
+    if (size > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error(`引用文件过大：${name}；单张图片不得超过 20 MiB`)
+    // 先读取有限签名，再决定文本/图片限额，避免为过大的文本分配整文件内存。
+    const header = Buffer.alloc(Math.min(size, 32))
+    const descriptor = openSync(target, 'r')
+    try { readSync(descriptor, header, 0, header.length, 0) } finally { closeSync(descriptor) }
+    const image = harnessAttachmentImageType(header)
+    if (!image && size > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${name}；文本附件不得超过 256 KiB`)
+    if (image ? imageBytes + size > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes : textBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error(image ? '图片附件总大小不得超过 40 MiB' : '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
+    return harnessAttachmentFromBytes(path, name, readFileSync(target))
+  }
+
+  private stagedAttachment(sessionId: string, path: string): HarnessMessageAttachment {
+    const id = path.slice(HARNESS_ATTACHMENT_PREFIX.length)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new Error('附件引用无效或不属于当前会话')
+    const row = this.database.prepare('SELECT payload FROM harness_attachments WHERE session_id = ? AND id = ?').get(sessionId, id) as { payload: string } | undefined
+    if (!row) throw new Error('附件引用无效或不属于当前会话')
+    return JSON.parse(row.payload) as HarnessMessageAttachment
+  }
+
+  private resolveAttachments(directory: string, references: HarnessFileReference[], allowExternal: boolean, sessionId?: string) {
     if (references.length > MAX_FILE_REFERENCES) throw new Error(`一次最多引用 ${MAX_FILE_REFERENCES} 个文件`)
     const uniquePaths = new Set<string>()
-    let totalBytes = 0
+    let textBytes = 0, imageBytes = 0
     return references.map(reference => {
       if (!reference || typeof reference.path !== 'string' || uniquePaths.has(reference.path)) throw new Error('引用文件重复或无效')
       uniquePaths.add(reference.path)
-      const target = this.attachmentFilePath(directory, reference.path, allowExternal)
-      const size = statSync(target).size
-      if (size > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
-      if (totalBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
-      const content = readFileSync(target)
-      if (content.includes(0)) throw new Error(`不支持引用二进制文件：${reference.path}`)
-      if (content.byteLength > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${reference.path}`)
-      totalBytes += content.byteLength
-      if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制')
-      return { path: reference.path, name: basename(target), content: content.toString('utf8') }
+      let attachment: HarnessMessageAttachment
+      if (reference.path.startsWith(HARNESS_ATTACHMENT_PREFIX)) {
+        if (!sessionId) throw new Error('附件引用无效或不属于当前会话')
+        attachment = this.stagedAttachment(sessionId, reference.path)
+      } else {
+        const target = this.attachmentFilePath(directory, reference.path, allowExternal)
+        attachment = this.readAttachmentFile(target, reference.path, basename(target), textBytes, imageBytes)
+      }
+      if (attachment.mediaType) imageBytes += attachment.size!
+      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
+      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片附件总大小不得超过 40 MiB')
+      return attachment
     })
   }
 
@@ -203,20 +232,51 @@ export class HarnessStore {
     }
   }
 
+  private freezeSessionImages(session: HarnessSession): HarnessSession {
+    const messages = session.messages.map(message => {
+      if (!message.attachments?.some(file => file.mediaType && file.content)) return message
+      const attachments = message.attachments.map(file => {
+        if (!file.mediaType || !file.content) return file
+        let frozen: HarnessMessageAttachment
+        if (file.path.startsWith(HARNESS_ATTACHMENT_PREFIX)) {
+          frozen = this.stagedAttachment(session.id, file.path)
+          if (frozen.content !== file.content || frozen.mediaType !== file.mediaType) throw new Error('附件内容已冻结，不能覆盖已发送的图片')
+        } else {
+          const bytes = decodeHarnessAttachmentImport({ name: file.name, mediaType: file.mediaType, data: file.content })
+          frozen = harnessAttachmentFromBytes(`${HARNESS_ATTACHMENT_PREFIX}${randomUUID()}`, file.name, bytes, file.mediaType)
+          this.database.prepare('INSERT INTO harness_attachments(session_id, id, payload) VALUES (?, ?, ?)').run(session.id, frozen.path.slice(HARNESS_ATTACHMENT_PREFIX.length), JSON.stringify(frozen))
+        }
+        // 大图只在不可变附件表存一次；状态增量、会话JSON、消息表和renderer快照仅传元数据。
+        return { path: frozen.path, name: frozen.name, mediaType: frozen.mediaType, size: frozen.size, content: '' }
+      })
+      return { ...message, attachments }
+    })
+    return messages.some((message, index) => message !== session.messages[index]) ? { ...session, messages } : session
+  }
+
+  hydrateMessageAttachments(sessionId: string, message: HarnessMessage): HarnessMessage {
+    if (!message.attachments?.some(file => file.mediaType && !file.content)) return message
+    return { ...message, attachments: message.attachments.map(file => file.mediaType && !file.content ? this.stagedAttachment(sessionId, file.path) : file) }
+  }
+
   private saveSession(session: HarnessSession, preserveUpdatedAt = false) {
+    // An old configuration/run snapshot cannot demote a task after admission.
+    const stored = this.database.prepare('SELECT draft_state FROM harness_sessions WHERE id = ?').get(session.id) as { draft_state: HarnessSession['draftState'] | null } | undefined
+    if (stored?.draft_state) session = { ...session, draftState: stored.draft_state }
     const path = this.sessionPath(session)
     mkdirSync(dirname(path), { recursive: true })
     if (!preserveUpdatedAt) session.updatedAt = now()
     const persist = this.database.transaction(() => {
-      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, path, working_directory, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      session = this.freezeSessionImages(session)
+      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, draft_state, path, working_directory, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
       model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, unread = excluded.unread, archived_at = excluded.archived_at, path = excluded.path,
-      working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
+      draft_state = excluded.draft_state, working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
-        session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
+        session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, session.draftState || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
       this.persistStructuredSession(session)
-      if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
+      if (session.projectId && session.draftState !== 'prepared') this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     })
     persist()
     const temporaryPath = `${path}.${process.pid}.tmp`
@@ -302,16 +362,16 @@ export class HarnessStore {
 
   private sessionOrderWhere(scope: HarnessSessionOrderScope) {
     if (!scope || typeof scope !== 'object' || !['pinned', 'recent', 'project'].includes(scope.type)) throw new Error('会话排序范围无效')
-    if (scope.type === 'pinned') return { where: 'pinned = 1 AND archived_at IS NULL', parameters: [] as string[] }
-    if (scope.type === 'recent') return { where: 'pinned = 0 AND project_id IS NULL AND archived_at IS NULL', parameters: [] as string[] }
+    if (scope.type === 'pinned') return { where: "pinned = 1 AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [] as string[] }
+    if (scope.type === 'recent') return { where: "pinned = 0 AND project_id IS NULL AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [] as string[] }
     if (!scope.projectId) throw new Error('项目排序范围无效')
     this.getProject(scope.projectId)
-    return { where: 'pinned = 0 AND project_id = ? AND archived_at IS NULL', parameters: [scope.projectId] }
+    return { where: "pinned = 0 AND project_id = ? AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [scope.projectId] }
   }
 
   private promoteSessionOrder(id: string) {
-    const row = this.database.prepare('SELECT project_id, pinned, archived_at FROM harness_sessions WHERE id = ?').get(id) as Pick<SessionRow, 'project_id' | 'pinned' | 'archived_at'> | undefined
-    if (!row || row.archived_at) return
+    const row = this.database.prepare('SELECT project_id, pinned, archived_at, draft_state FROM harness_sessions WHERE id = ?').get(id) as Pick<SessionRow, 'project_id' | 'pinned' | 'archived_at' | 'draft_state'> | undefined
+    if (!row || row.archived_at || row.draft_state === 'prepared') return
     const scope: HarnessSessionOrderScope = row.pinned ? { type: 'pinned' } : row.project_id ? { type: 'project', projectId: row.project_id } : { type: 'recent' }
     const { where, parameters } = this.sessionOrderWhere(scope)
     const maximum = (this.database.prepare(`SELECT COALESCE(MAX(sort_order), 0) AS value FROM harness_sessions WHERE ${where}`).get(...parameters) as { value: number }).value
@@ -319,7 +379,7 @@ export class HarnessStore {
   }
 
   listProjects(): HarnessProject[] {
-    const counts = this.database.prepare('SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL GROUP BY project_id').all() as Array<{ project_id: string, count: number }>
+    const counts = this.database.prepare("SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' GROUP BY project_id").all() as Array<{ project_id: string, count: number }>
     const countMap = new Map(counts.map(row => [row.project_id, row.count]))
     return (this.database.prepare('SELECT * FROM harness_projects ORDER BY sort_order DESC, created_at DESC').all() as ProjectRow[]).map(row => {
       const directoryExists = existsSync(row.directory)
@@ -349,7 +409,7 @@ export class HarnessStore {
   getProject(id: string): HarnessProject {
     const row = this.database.prepare('SELECT * FROM harness_projects WHERE id = ?').get(id) as ProjectRow | undefined
     if (!row) throw new Error('未找到项目')
-    const sessionCount = (this.database.prepare('SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ?').get(id) as { count: number }).count
+    const sessionCount = (this.database.prepare("SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ? AND COALESCE(draft_state, '') <> 'prepared'").get(id) as { count: number }).count
     const directoryExists = existsSync(row.directory)
     return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, ...(directoryExists ? gitMetadata(row.directory) : {}), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
   }
@@ -424,11 +484,11 @@ export class HarnessStore {
     this.database.prepare('DELETE FROM harness_projects WHERE id = ?').run(id)
   }
 
-  createSession(projectId?: string, permissionMode: PermissionMode = this.getPermissionConfig().globalDefaultMode) {
+  createSession(projectId?: string, permissionMode: PermissionMode = this.getPermissionConfig().globalDefaultMode, prepared = false) {
     const project = projectId ? this.getProject(projectId) : undefined
     const time = now()
     const session: HarnessSession = {
-      version: 1, id: createSessionId(), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory || this.paths.workspace,
+      version: 1, id: createSessionId(), ...(prepared ? { draftState: 'prepared' as const } : {}), title: '新对话', titleSource: 'auto', titleRevision: 0, projectId: project?.id, workingDirectory: project?.directory || this.paths.workspace,
       permissionMode, messages: [], toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false, delegationEnabled: true,
     }
     const saved = this.saveSession(session)
@@ -436,10 +496,27 @@ export class HarnessStore {
     return saved
   }
 
+  /** Lifecycle and optional first-message persistence share one admission transaction. */
+  acceptPreparedSession(id: string, persist?: () => void) {
+    this.database.transaction(() => {
+      const session = this.getSession(id)
+      if (session.archivedAt) throw new Error('目标会话不可用')
+      if (session.draftState === 'prepared') {
+        session.draftState = 'accepted'
+        session.updatedAt = now()
+        this.database.prepare("UPDATE harness_sessions SET draft_state = 'accepted', updated_at = ? WHERE id = ?").run(session.updatedAt, id)
+        this.persistStructuredSession(session)
+        this.promoteSessionOrder(id)
+        if (session.projectId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
+      }
+      persist?.()
+    })()
+  }
+
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
-      WHERE s.archived_at IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -463,12 +540,12 @@ export class HarnessStore {
       SELECT m.session_id, m.message_id, m.content,
         ROW_NUMBER() OVER (PARTITION BY m.session_id ORDER BY m.created_at, m.rowid) AS position
       FROM harness_messages m JOIN harness_sessions s ON s.id = m.session_id
-      WHERE s.archived_at IS NULL AND m.role IN ('user', 'assistant')
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND m.role IN ('user', 'assistant')
         AND COALESCE(json_extract(m.payload, '$.internal'), 0) = 0 AND instr(mira_search_fold(m.content), @query) > 0
     ) SELECT s.id, s.title, s.updated_at, p.name AS project_name, m.message_id, m.content
       FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
       LEFT JOIN matches m ON m.session_id = s.id AND m.position = 1
-      WHERE s.archived_at IS NULL AND (m.message_id IS NOT NULL OR instr(mira_search_fold(s.title), @query) > 0 OR instr(mira_search_fold(p.name), @query) > 0)
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND (m.message_id IS NOT NULL OR instr(mira_search_fold(s.title), @query) > 0 OR instr(mira_search_fold(p.name), @query) > 0)
       ORDER BY s.updated_at DESC LIMIT 50`).all({ query: needle }) as Array<Pick<SessionRow, 'id' | 'title' | 'updated_at'> & { project_name: string | null; message_id: string | null; content: string | null }>
     return rows.map(row => {
       const text = row.content ?? `${row.title} ${row.project_name || ''}`
@@ -484,7 +561,7 @@ export class HarnessStore {
     const sort: HarnessHistorySort = ['created-desc', 'title-asc'].includes(query.sort || '') ? query.sort as HarnessHistorySort : 'updated-desc'
     const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize || 20)))
     const page = Math.max(1, Math.floor(query.page || 1))
-    const where = [archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL']
+    const where = [archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL', "COALESCE(s.draft_state, '') <> 'prepared'"]
     const parameters: Array<string | number> = []
     const search = query.q?.trim()
     if (search) {
@@ -536,7 +613,7 @@ export class HarnessStore {
       }
       return result
     })
-    const facetRows = this.database.prepare(`SELECT DISTINCT s.project_id, p.name AS project_name, p.icon AS project_icon, s.model_id, s.model_provider_id FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL'}`).all() as Array<{ project_id: string | null, project_name: string | null, project_icon: string | null, model_id: string | null, model_provider_id: string | null }>
+    const facetRows = this.database.prepare(`SELECT DISTINCT s.project_id, p.name AS project_name, p.icon AS project_icon, s.model_id, s.model_provider_id FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL'} AND COALESCE(s.draft_state, '') <> 'prepared'`).all() as Array<{ project_id: string | null, project_name: string | null, project_icon: string | null, model_id: string | null, model_provider_id: string | null }>
     const projects = facetRows.flatMap(row => row.project_id && row.project_name ? [{ id: row.project_id, name: row.project_name, icon: projectIcon(row.project_icon || undefined) }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
     const models = facetRows.flatMap(row => row.model_id ? [{ id: row.model_id, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) as HarnessHistoryRow['providerKey'] : undefined }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
     return {
@@ -549,7 +626,7 @@ export class HarnessStore {
   usageStats(providerNames = new Map<string, string>()): HarnessUsageStats {
     type UsageRow = Pick<SessionRow, 'id' | 'project_id' | 'model_provider_id' | 'model_id' | 'title'> & { project_name: string | null }
     const rows = this.database.prepare(`SELECT s.id, s.project_id, s.model_provider_id, s.model_id, s.title, p.name AS project_name
-      FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id ORDER BY s.updated_at DESC`).all() as UsageRow[]
+      FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE COALESCE(s.draft_state, '') <> 'prepared' ORDER BY s.updated_at DESC`).all() as UsageRow[]
     const empty = () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costs: {} as Record<string, number>, pricedRuns: 0, unpricedRuns: 0 })
     const providers = new Map<string, HarnessUsageBucket>()
     const projects = new Map<string, HarnessUsageBucket>()
@@ -585,10 +662,13 @@ export class HarnessStore {
   }
 
   getSession(id: string) {
+    const lifecycle = this.database.prepare('SELECT draft_state FROM harness_sessions WHERE id = ?').get(id) as { draft_state: HarnessSession['draftState'] | null } | undefined
     const structured = this.database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(id) as { payload?: string } | undefined
     if (structured?.payload) {
       const session = this.parseSession(structured.payload)
+      session.draftState = lifecycle?.draft_state || undefined
       const stored = JSON.parse(structured.payload) as Partial<HarnessSession>
+      if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
       if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
       return session
     }
@@ -596,8 +676,10 @@ export class HarnessStore {
     if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
     const raw = readFileSync(row.path, 'utf8')
     const session = this.parseSession(raw)
+    session.draftState = lifecycle?.draft_state || undefined
     const stored = JSON.parse(raw) as Partial<HarnessSession>
     if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
+    if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
     this.persistStructuredSession(session)
     return session
   }
@@ -628,7 +710,7 @@ export class HarnessStore {
     if (!saved.pinned) this.promoteSessionOrder(id)
     if (previousProjectId && previousProjectId !== project.id) {
       this.database.prepare(`UPDATE harness_projects SET last_session_at = (
-        SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id
+        SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared'
       ) WHERE id = ?`).run(previousProjectId)
     }
     return saved
@@ -910,26 +992,136 @@ export class HarnessStore {
     return references
   }
 
+  assertAttachmentSessionWritable(sessionId: string) {
+    const row = this.database.prepare('SELECT id, working_directory, archived_at FROM harness_sessions WHERE id = ?').get(sessionId) as Pick<SessionRow, 'id' | 'working_directory' | 'archived_at'> | undefined
+    if (!row) throw new Error('未找到会话')
+    if (row.archived_at) throw new Error('归档会话不能新增附件，请先恢复任务')
+    return { id: row.id, workingDirectory: row.working_directory || undefined }
+  }
+
+  private stageAttachments(sessionId: string, attachments: HarnessMessageAttachment[]): HarnessFileReference[] {
+    this.assertAttachmentSessionWritable(sessionId)
+    assertHarnessAttachmentTotals(attachments)
+    const records = attachments.map(attachment => ({ ...attachment, path: `${HARNESS_ATTACHMENT_PREFIX}${randomUUID()}`, size: attachment.mediaType ? attachment.size : Buffer.byteLength(attachment.content, 'utf8') }))
+    const insert = this.database.prepare('INSERT INTO harness_attachments(session_id, id, payload) VALUES (?, ?, ?)')
+    // 只有整批验证通过才发布引用；事务失败不会留下可见的半批附件。
+    this.database.transaction(() => records.forEach(record => insert.run(sessionId, record.path.slice(HARNESS_ATTACHMENT_PREFIX.length), JSON.stringify(record))))()
+    return records.map(({ path, name, mediaType, size }) => ({ path, name, ...(mediaType ? { mediaType } : {}), size }))
+  }
+
+  importMessageAttachments(sessionId: string, files: HarnessAttachmentImportFile[]): HarnessFileReference[] {
+    this.assertAttachmentSessionWritable(sessionId)
+    if (!Array.isArray(files) || !files.length || files.length > MAX_FILE_REFERENCES) throw new Error('一次最多引用 12 个文件')
+    const attachments: HarnessMessageAttachment[] = []
+    let textBytes = 0, imageBytes = 0
+    for (const file of files) {
+      if (!file || typeof file.name !== 'string' || !file.name.trim() || file.name.length > 512 || /[\\/\u0000-\u001f\u007f]/.test(file.name)) throw new Error('附件文件名无效')
+      if (typeof file.mediaType !== 'string' || file.mediaType.length > 128) throw new Error('附件媒体类型无效')
+      const bytes = decodeHarnessAttachmentImport(file)
+      const image = harnessAttachmentImageType(bytes)
+      if (image) imageBytes += bytes.length
+      else textBytes += bytes.length
+      if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
+      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片附件总大小不得超过 40 MiB')
+      attachments.push(harnessAttachmentFromBytes('', file.name, bytes, file.mediaType))
+    }
+    return this.stageAttachments(sessionId, attachments)
+  }
+
+  selectMessageAttachments(sessionId: string, filePaths: string[]): HarnessFileReference[] {
+    this.assertAttachmentSessionWritable(sessionId)
+    if (filePaths.length > MAX_FILE_REFERENCES) throw new Error('一次最多引用 12 个文件')
+    const attachments: HarnessMessageAttachment[] = []
+    let textBytes = 0, imageBytes = 0
+    for (const path of filePaths) {
+      const target = this.externalFilePath(path)
+      const attachment = this.readAttachmentFile(target, '', basename(target), textBytes, imageBytes)
+      attachments.push(attachment)
+      if (attachment.mediaType) imageBytes += attachment.size!
+      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      assertHarnessAttachmentTotals(attachments)
+    }
+    return this.stageAttachments(sessionId, attachments)
+  }
+
+  getMessageAttachment(sessionId: string, path: string): HarnessMessageAttachment {
+    if (path.startsWith(HARNESS_ATTACHMENT_PREFIX)) {
+      if (!this.database.prepare('SELECT 1 FROM harness_sessions WHERE id = ?').get(sessionId)) throw new Error('未找到会话')
+      return this.stagedAttachment(sessionId, path)
+    }
+    return this.resolveMessageAttachments(sessionId, [{ path, name: basename(path) }])[0]!
+  }
+
+  stageMessageAttachment(sessionId: string, path: string): HarnessFileReference {
+    this.assertAttachmentSessionWritable(sessionId)
+    if (isAbsolute(path) || /^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('只能暂存工作目录中的相对路径文件')
+    return this.stageAttachments(sessionId, [this.getMessageAttachment(sessionId, path)])[0]!
+  }
+
   resolveMessageAttachments(sessionId: string, references: HarnessFileReference[] = []): HarnessMessageAttachment[] {
     if (!references.length) return []
     const session = this.getSession(sessionId)
     const directory = session.projectId ? this.getProject(session.projectId).directory : session.workingDirectory
     if (!directory) throw new Error('该会话没有可用工作目录')
-    return this.resolveAttachments(directory, references, Boolean(session.projectId))
+    return this.resolveAttachments(directory, references, Boolean(session.projectId), sessionId)
   }
 
   removeEmptySessions(retainedIds: ReadonlySet<string> = new Set()) {
-    const rows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
+    const rows = this.database.prepare("SELECT id FROM harness_sessions WHERE COALESCE(draft_state, '') <> 'accepted'").all() as Array<{ id: string }>
     const emptyIds = rows.flatMap(row => {
       if (retainedIds.has(row.id)) return []
-      try { return this.getSession(row.id).messages.some(message => message.role === 'user') ? [] : [row.id] } catch { return [] }
+      if (this.database.prepare('SELECT 1 FROM harness_messages WHERE session_id = ? LIMIT 1').get(row.id)) return []
+      try {
+        const session = this.getSession(row.id)
+        return session.id !== row.id || session.messages.length ? [] : [row.id]
+      } catch { return [] }
     })
     if (!emptyIds.length) return 0
     this.deleteSessions(emptyIds)
     this.database.prepare(`UPDATE harness_projects SET last_session_at = (
-      SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id
+      SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared'
     )`).run()
     return emptyIds.length
+  }
+
+  /** Startup only: durable history/drafts are complete roots before any runtime queue exists. */
+  reclaimStagedAttachments(references: ReadonlyMap<string, ReadonlySet<string>>, protectedOwners: ReadonlySet<string> = new Set()) {
+    const owners = this.database.prepare('SELECT DISTINCT session_id FROM harness_attachments').all() as Array<{ session_id: string }>
+    const remove = this.database.prepare('DELETE FROM harness_attachments WHERE session_id = ? AND id = ?')
+    return this.database.transaction(() => {
+      let removed = 0
+      for (const { session_id: owner } of owners) {
+        if (protectedOwners.has(owner)) continue
+        const paths = new Set(references.get(owner))
+        const retainMessage = (message: unknown) => {
+          if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('未知消息格式')
+          const attachments = (message as { attachments?: unknown }).attachments
+          if (attachments === undefined) return
+          if (!Array.isArray(attachments)) throw new Error('未知附件格式')
+          for (const file of attachments) {
+            if (!file || typeof file !== 'object' || typeof file.path !== 'string' || !file.path.trim()) throw new Error('未知附件引用')
+            paths.add(file.path)
+          }
+        }
+        try {
+          const state = this.database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(owner) as { payload: string } | undefined
+          const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(owner) as { path: string } | undefined
+          // 老会话尚未结构化时读取原文件；损坏/无法读取的 owner 保留全部附件。
+          if (state || row) {
+            const session = JSON.parse(state ? state.payload : readFileSync(row!.path, 'utf8')) as { version?: unknown; id?: unknown; messages?: unknown } | null
+            if (!session || session.version !== 1 || session.id !== owner || !Array.isArray(session.messages)) throw new Error('未知会话格式')
+            session.messages.forEach(retainMessage)
+          }
+          const messages = this.database.prepare('SELECT payload FROM harness_messages WHERE session_id = ?').all(owner) as Array<{ payload: string }>
+          messages.forEach(message => retainMessage(JSON.parse(message.payload)))
+        } catch { continue }
+        const attachments = this.database.prepare('SELECT id FROM harness_attachments WHERE session_id = ?').all(owner) as Array<{ id: string }>
+        for (const { id } of attachments) {
+          if (!paths.has(`${HARNESS_ATTACHMENT_PREFIX}${id}`)) removed += remove.run(owner, id).changes
+        }
+      }
+      return removed
+    })()
   }
 
   deleteSession(id: string) {
@@ -937,6 +1129,26 @@ export class HarnessStore {
     if (row?.path) rmSync(row.path, { force: true })
     this.deleteStructuredSession(id)
     this.database.prepare('DELETE FROM harness_sessions WHERE id = ?').run(id)
+  }
+
+  archivedSessionIds() {
+    // Selection is independent of sidebar pages, hidden projects, pinning and title filters.
+    return (this.database.prepare("SELECT id FROM harness_sessions WHERE archived_at IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' ORDER BY id").all() as Array<{ id: string }>).map(row => row.id)
+  }
+
+  isSessionArchived(id: string) {
+    return Boolean(this.database.prepare('SELECT 1 FROM harness_sessions WHERE id = ? AND archived_at IS NOT NULL').get(id))
+  }
+
+  deleteArchivedSession(id: string) {
+    return this.database.transaction(() => {
+      // Conditional write and dependent cleanup share one synchronous transaction.
+      const row = this.database.prepare('DELETE FROM harness_sessions WHERE id = ? AND archived_at IS NOT NULL RETURNING path').get(id) as { path?: string } | undefined
+      if (!row) return false
+      if (row.path) rmSync(row.path, { force: true })
+      this.deleteStructuredSession(id)
+      return true
+    })()
   }
 
   deleteSessions(ids: string[]) {
@@ -953,6 +1165,7 @@ export class HarnessStore {
   }
 
   private deleteStructuredSession(id: string) {
+    this.database.prepare('DELETE FROM harness_attachments WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_tool_calls WHERE session_id = ?').run(id)

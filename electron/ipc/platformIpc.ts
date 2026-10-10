@@ -1,5 +1,8 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { writeFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 import type { PlatformDatabase } from '../storage/database'
 import type { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import type { McpConfigStore } from '../storage/mcpConfigStore'
@@ -9,7 +12,7 @@ import type { ModelSelection } from '../../src/config/harness'
 import { assertComposerFollowupMode, resolveComposerFollowupMode } from '../../src/config/composerPreferences'
 import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
-import { parseFirstPartyHarnessCall } from '../../src/platform/firstPartyHarness'
+import { parseFirstPartyHarnessCall, type HarnessAttachmentSaveResult } from '../../src/platform/firstPartyHarness'
 import type { HarnessRuntime } from '../services/harnessRuntime'
 import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile, readHarnessWorkspaceImage, searchHarnessWorkspaceFiles } from '../services/harnessWorkspaceFiles'
 import type { HarnessTerminalSessions } from '../services/harnessTerminalSessions'
@@ -58,6 +61,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
 
 export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const firstPartyGrantOwners = new WeakSet<object>()
+  const archivedSelections = new Map<string, { snapshotId: string; ids: readonly string[]; webContentsId: number }>()
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => {
     if (key === 'followupMode') assertComposerFollowupMode(value)
@@ -94,6 +98,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       firstPartyGrantOwners.add(event.sender)
       const cleanupOwner = () => {
         firstPartyGrantStore.revokeForWebContents(event.sender.id)
+        for (const [id, selection] of archivedSelections) if (selection.webContentsId === event.sender.id) archivedSelections.delete(id)
         terminalSessions?.closeForWebContents(event.sender.id)
         workspaceWatch?.closeForWebContents(event.sender.id)
       }
@@ -112,7 +117,10 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
   })
   ipcMain.handle('platform:revoke-first-party-grant', (event, grantId: string) => {
     requireMainFrame(event)
-    if (firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)) workspaceWatch?.closeForGrant(grantId, event.sender.id)
+    if (firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)) {
+      archivedSelections.delete(grantId)
+      workspaceWatch?.closeForGrant(grantId, event.sender.id)
+    }
     terminalSessions?.closeForWebContents(event.sender.id)
   })
   ipcMain.handle('platform:generate-first-party-text', async (event, grantId: string, role: 'authoring' | 'automation', prompt: string, selection: ModelSelection) => {
@@ -203,7 +211,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         if (!automationScheduler) throw new Error('自动化服务不可用')
         return automationScheduler.abort(call.id)
       }
-      case 'sessions.list': return database.harness.listSessions()
+      case 'sessions.list': return harnessRuntime.listSessions()
       case 'marketplace.browse': {
         if (!skillMarketplace) throw new Error('插件市场服务不可用')
         return skillMarketplace.browse(call.refresh).then(result => { assertMarketAuthorized(); return result })
@@ -225,6 +233,22 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         return { sendShortcut, showContextUsage, followupMode: resolveComposerFollowupMode(followupMode) }
       }
       case 'sessions.history': return database.harness.queryHistory(call.query)
+      case 'sessions.archived-snapshot': {
+        const snapshotId = randomUUID()
+        const ids = Object.freeze(database.harness.archivedSessionIds())
+        archivedSelections.set(grantId, { snapshotId, ids, webContentsId: event.sender.id })
+        return { snapshotId, count: ids.length }
+      }
+      case 'sessions.delete-archived': {
+        const selection = archivedSelections.get(grantId)
+        if (!selection || selection.snapshotId !== call.snapshotId) throw new Error('归档快照已失效，请重新打开删除确认。')
+        // Consume before the first await; duplicate confirmations cannot execute the same selection.
+        archivedSelections.delete(grantId)
+        return harnessRuntime.deleteArchivedSessions(selection.ids, assertMarketAuthorized).then(result => {
+          for (const id of result.deletedIds) workspaceWatch?.closeForSession(id)
+          return result
+        })
+      }
       case 'sessions.search': return database.harness.searchConversations(call.query).then(result => { assertMarketAuthorized(); return result })
       case 'projects.list': return database.harness.listProjects()
       case 'projects.rename': return database.harness.renameProject(call.id, call.name)
@@ -240,7 +264,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'providers.list': return database.models.list()
       case 'editors.list': return getInstalledHarnessEditors(call.refresh)
       case 'session.get': return harnessRuntime.getSession(call.id)
-      case 'session.create': return database.harness.createSession(call.projectId)
+      case 'session.create': return call.prepared === undefined ? database.harness.createSession(call.projectId) : database.harness.createSession(call.projectId, undefined, call.prepared)
       case 'session.rename': return database.harness.renameSession(call.id, call.title)
       case 'session.set-pinned': return database.harness.setPinned(call.id, call.pinned)
       case 'session.set-unread': return database.harness.setUnread(call.id, call.unread)
@@ -254,6 +278,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'session.delete': {
         harnessRuntime.assertSessionMutable(call.id)
         const result = database.harness.deleteSession(call.id)
+        database.removeHarnessDraftOwners([call.id])
         workspaceWatch?.closeForSession(call.id)
         return result
       }
@@ -295,6 +320,43 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
           const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
           if (result.canceled) return []
           return database.harness.selectFileReferences(session.projectId, result.filePaths)
+        })()
+      }
+      case 'attachments.import': return database.harness.importMessageAttachments(call.sessionId, call.files)
+      case 'attachments.get': return database.harness.getMessageAttachment(call.sessionId, call.path)
+      case 'attachments.save': {
+        const attachment = database.harness.getMessageAttachment(call.sessionId, call.path)
+        const bytes = Buffer.from(attachment.content, attachment.mediaType ? 'base64' : 'utf8')
+        const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const name = basename(attachment.name.replace(/\\/g, '/')).replace(/[\u0000-\u001f\u007f]/g, '')
+        const options: SaveDialogOptions = { title: '保存附件', defaultPath: name && name !== '.' && name !== '..' ? name : '附件', buttonLabel: '保存' }
+        return (async (): Promise<HarnessAttachmentSaveResult> => {
+          let result
+          try { result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options) }
+          catch { throw new Error('附件保存失败，请重试。') }
+          if (result.canceled) return { status: 'canceled' }
+          if (!result.filePath) throw new Error('附件保存失败，请重试。')
+          // 等待系统对话框时会话可能被删除、授权可能撤销；只写入用户刚选择的位置。
+          if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')
+          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+          database.harness.getMessageAttachment(call.sessionId, call.path)
+          try { await writeFile(result.filePath, bytes) }
+          catch { throw new Error('附件保存失败，请重试。') }
+          return { status: 'saved' }
+        })()
+      }
+      case 'attachments.stage': return database.harness.stageMessageAttachment(call.sessionId, call.path)
+      case 'attachments.select': {
+        const session = database.harness.assertAttachmentSessionWritable(call.sessionId)
+        const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const options: OpenDialogOptions = { ...(session.workingDirectory ? { defaultPath: session.workingDirectory } : {}), properties: ['openFile', 'multiSelections'], title: '选择附件（文本或图片）' }
+        return (async () => {
+          const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+          // 原生窗口等待期间授权、会话归档/删除都可能变化；不得用旧授权发布附件。
+          if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')
+          resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+          database.harness.assertAttachmentSessionWritable(call.sessionId)
+          return result.canceled ? [] : database.harness.selectMessageAttachments(call.sessionId, result.filePaths)
         })()
       }
       case 'git.context': return harnessRuntime.getGitContext(call.projectId, assertMarketAuthorized)

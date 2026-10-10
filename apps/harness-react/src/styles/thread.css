@@ -113,6 +113,8 @@
 .mira-message-attachments span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-message-attachments button:hover { color: var(--color-foreground); background: var(--color-hover); }
 .mira-message-attachments button:disabled { cursor: default; color: var(--color-foreground-subtle); background: var(--color-card); }
+.mira-message-attachments .mira-message-attachment--image { display: block; width: 80px; height: 80px; min-height: 0; padding: 0; overflow: hidden; border: 0; border-radius: 12px; }
+.mira-message-attachment--image img { width: 100%; height: 100%; object-fit: cover; }
 .mira-reply-interrupted { margin: 8px 0 0; color: var(--color-foreground-subtle); font-size: 12px; }
 .mira-assistant-parts { display: grid; min-width: 0; gap: 16px; }
 .mira-assistant-part { min-width: 0; }
@@ -166,13 +168,15 @@
 .mira-thread-rename input { width: min(280px, 28vw); min-width: 70px; height: 28px; padding: 3px 6px; border: 1px solid var(--color-input-border-focused); border-radius: 5px; color: var(--color-foreground); background: var(--color-card); }
 .mira-thread-rename button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; }
 .mira-thread-rename button:hover { background: var(--color-hover); }
-.mira-turn-rail { position: absolute; z-index: 12; top: 50%; left: 8px; display: none; transform: translateY(-50%); }
-.mira-turn-rail__items { display: grid; max-height: 50vh; overflow-y: auto; scrollbar-width: none; }
-.mira-turn-rail__items button { display: flex; width: 30px; height: 12px; align-items: center; padding: 0 4px; border: 0; border-radius: 3px; background: transparent; }
-.mira-turn-rail__items button span { width: 12px; height: 2px; border-radius: 2px; background: var(--color-foreground-subtlest); transition: width 150ms ease-out, background-color 150ms ease-out; }
-.mira-turn-rail__items button[aria-current] span, .mira-turn-rail__items button[data-running='true'] span { background: var(--color-foreground); }
-.mira-turn-rail__items button:hover span, .mira-turn-rail__items button:focus-visible span { width: 22px; height: 3px; background: var(--color-foreground); }
-.mira-turn-rail__preview { position: absolute; top: 50%; left: 38px; width: 320px; transform: translateY(-50%); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 10px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 6px 18px rgb(0 0 0 / 12%); pointer-events: none; font-size: 13px; }
+.mira-turn-rail { position: absolute; z-index: 12; inset: 0 auto 0 0; display: none; width: 48px; pointer-events: none; }
+.mira-turn-rail__items { position: absolute; top: 50%; left: 12px; width: 36px; max-height: calc(100% - 96px); transform: translateY(-50%); overflow-x: hidden; overflow-y: auto; scrollbar-width: none; pointer-events: auto; }
+.mira-turn-rail__spacer { position: relative; width: 36px; }
+.mira-turn-rail__row { position: absolute; inset: 0 auto auto 0; width: 36px; height: 10px; }
+.mira-turn-rail__items button { display: flex; width: 36px; height: 10px; align-items: center; padding: 0; border: 0; border-radius: 3px; background: transparent; }
+.mira-turn-rail__items button:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: -2px; }
+.mira-turn-rail__items button span { width: 12px; height: 2px; border-radius: 2px; transform-origin: left; background: var(--color-foreground-subtlest); transition: transform 150ms ease-out, opacity 150ms ease-out, background-color 150ms ease-out; }
+.mira-turn-rail__items button[aria-current] span, .mira-turn-rail__items button[data-visual-focus='true'] span { background: var(--color-foreground); }
+.mira-turn-rail__preview { z-index: 70; width: 320px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 10px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 6px 18px rgb(0 0 0 / 12%); font-size: 14px; }
 .mira-turn-rail__preview strong, .mira-turn-rail__preview p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-turn-rail__preview strong { -webkit-line-clamp: 2; font-weight: 500; }
 .mira-turn-rail__preview p { -webkit-line-clamp: 3; margin: 8px 0 0; color: var(--color-foreground-subtle); }

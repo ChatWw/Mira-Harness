@@ -10,6 +10,8 @@
 | [TanStack Virtual Core](https://github.com/TanStack/virtual/tree/main/packages/virtual-core) 3.17.11 | MIT | [LICENSE](tanstack/virtual-core/LICENSE)、[版本与用途](tanstack/README.md) |
 | [ignore](https://github.com/kaelzhang/node-ignore) 7.0.5 | MIT | [LICENSE-MIT](ignore/LICENSE-MIT)、[用途](ignore/README.md) |
 | [cmdk](https://github.com/pacocoursey/cmdk) 1.1.1 | MIT | [LICENSE](cmdk/LICENSE.md)；用于本地 Git 分支搜索与键盘选择，结合现有 Radix Popover/Dialog |
+| [Radix UI](https://github.com/radix-ui/primitives) Hover Card 1.1.24 / Collapsible 1.1.20 | MIT | [LICENSE](radix/LICENSE)，原文与两个安装包一致；用于轮次悬浮预览和项目/个人区折叠，未修改依赖实现 |
+| Streamdown 查找投影依赖：remend 1.3.1、unified 11.0.5、remark-parse 11.0.0、remark-rehype 11.1.2 | Apache-2.0 / MIT | [remend](markdown-find/remend/LICENSE)、[unified](markdown-find/unified/license)、[remark-parse](markdown-find/remark-parse/license)、[remark-rehype](markdown-find/remark-rehype/license)；复用现有流式正文解析规则，以上版本从已有间接依赖明确为直接依赖 |
 
 仓库根 [LICENSE](../LICENSE) 继续覆盖 Mira 原创代码。第三方改编部分及直接依赖
 仍须遵守各自许可证；此目录不会改变其授权条件。

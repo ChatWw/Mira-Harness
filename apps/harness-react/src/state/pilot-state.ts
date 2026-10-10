@@ -1,11 +1,14 @@
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type HarnessWorkspaceFileSearchResult, type HarnessWorkspaceGitSnapshot, type HarnessWorkspaceImagePreview, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
-import type { HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
+import type { HarnessAttachmentSaveResult, HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
 import type { HarnessHistoryPage, HarnessHistoryQuery } from '../../../../src/config/harness'
 import type { SendShortcut } from '../../../../src/config/harness'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../../../src/config/harness'
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
 import type { HarnessGitContext, HarnessMessagePart, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
+import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNavigationState } from '../../../../src/platform/appNavigation'
+import type { HarnessMessageAttachment } from '../../../../src/config/harness'
+import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
 
 export interface PilotBrowserEvent { sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string }
 export interface PilotWorkspaceFileEvent { sessionId: string; watchId: string; directory: string; paths: string[]; error?: string }
@@ -15,6 +18,7 @@ export interface PilotHost {
   listProjects(): Promise<HarnessProject[]>
   getSession(id: string): Promise<HarnessSession>
   createSession(projectId?: string): Promise<HarnessSession>
+  prepareSession?(projectId?: string): Promise<HarnessSession>
   listProviders(): Promise<ModelProviderSummary[]>
   runMessage(id: string, text: string, selection: ModelSelection, planning: boolean, references?: HarnessFileReference[]): Promise<void>
   readonly supportsQueueSubmissionOptions?: boolean
@@ -68,8 +72,14 @@ export interface PilotHost {
   setSessionUnread?(id: string, unread: boolean): Promise<void>
   archiveSession?(id: string): Promise<void>
   queryHistory?(query: HarnessHistoryQuery): Promise<HarnessHistoryPage>
+  getArchivedSnapshot?(): Promise<HarnessArchivedSnapshot>
+  deleteArchivedSessions?(snapshotId: string): Promise<HarnessArchivedDeletionResult>
   searchConversations?(query: string): Promise<HarnessConversationSearchResult[]>
-  onCommandCenterOpen?(listener: () => void): () => void
+  onCommandCenterOpen?(listener: (focusRequestId?: string) => void): () => void
+  dismissCommandCenterFocus?(focusRequestId: string): boolean
+  onNavigationCommand?(listener: (command: MiraAppNavigationCommand) => void): () => void
+  onNavigationRestore?(listener: (snapshot: MiraAppNavigationSnapshot | undefined) => void): () => void
+  publishNavigationState?(state: MiraAppNavigationState): void
   renameProject?(id: string, name: string): Promise<void>
   openProject?(id: string, target?: 'file-manager' | 'terminal'): Promise<string>
   selectProject?(): Promise<HarnessProject | null>
@@ -96,6 +106,11 @@ export interface PilotHost {
   listSkills?(): Promise<unknown[]>
   listMcp?(): Promise<Array<{ id: string; name: string; enabled: boolean }>>
   selectFiles?(id: string): Promise<HarnessFileReference[]>
+  importAttachments?(id: string, files: Array<{ name: string; mediaType: string; data: string }>): Promise<HarnessFileReference[]>
+  getAttachment?(id: string, path: string): Promise<HarnessMessageAttachment>
+  saveAttachment?(id: string, path: string): Promise<HarnessAttachmentSaveResult>
+  stageAttachment?(id: string, path: string): Promise<HarnessFileReference>
+  selectAttachments?(id: string): Promise<HarnessFileReference[]>
   listGitBranches?(projectId: string): Promise<unknown>
   getGitContext?(projectId: string): Promise<HarnessGitContext>
   checkoutGitBranch?(projectId: string, branch: string, snapshotToken: string): Promise<HarnessGitContext>
@@ -110,6 +125,7 @@ export interface PilotHost {
 }
 
 export interface PilotState {
+  initialized?: boolean
   sessions: HarnessSessionSummary[]
   projects: HarnessProject[]
   session?: HarnessSession
@@ -176,8 +192,9 @@ export function shouldRenderPilotStream(messageId: string, isOptimistic: boolean
 }
 
 export class PilotController {
-  private state: PilotState = { sessions: [], projects: [], providers: [], messages: [], running: false, sessionLoading: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
+  private state: PilotState = { initialized: false, sessions: [], projects: [], providers: [], messages: [], running: false, sessionLoading: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   private listeners = new Set<() => void>()
+  private deletedSessionListeners = new Set<(id: string) => void>()
   private terminalListeners = new Set<(event: HarnessEvent) => void>()
   private workspaceFileListeners = new Set<(event: PilotWorkspaceFileEvent) => void>()
   private beforeNavigation = new Set<() => Promise<void> | void>()
@@ -186,8 +203,12 @@ export class PilotController {
   private generation = 0
   private snapshotVersion = 0
   private permissionRevision = 0
+  private runningRevision = 0
+  private runningRevisions = new Map<string, number>()
   private activeSessionId?: string
+  private loadingSessionId?: string
   private disposed = false
+  private archivedDeletion?: { snapshotId: string; promise: Promise<HarnessArchivedDeletionResult & { refreshError?: string }> }
   private defaultSelection?: ModelSelection
   private sessionSelections = new Map<string, ModelSelection>()
   private queues = new Map<string, HarnessMessageQueueSnapshot>()
@@ -217,6 +238,7 @@ export class PilotController {
   async start() {
     this.unsubscribe = this.host.onEvent(this.handleEvent)
     const generation = this.generation
+    const runningRevision = this.runningRevision
     try {
       const [sessions, projects, providers] = await Promise.all([this.host.listSessions(), this.host.listProjects(), this.host.listProviders()])
       if (this.disposed) return
@@ -228,26 +250,33 @@ export class PilotController {
       ])
       if (this.disposed) return
       this.defaultSelection = this.availableSelection(storedSelection, providers) ?? available[0]
-      this.update({ sessions, projects, providers, selection: this.defaultSelection })
+      this.applySessionList(sessions, runningRevision)
+      this.update({ projects, providers, selection: this.defaultSelection })
       if (generation !== this.generation || storedSession === null) return
       const restore = typeof storedSession === 'string' ? sessions.find(session => session.id === storedSession) : undefined
       if (restore || sessions[0]) await this.open((restore || sessions[0])!.id)
     } catch (error) { this.fail(error) }
+    finally { this.update({ initialized: true }) }
   }
   async open(id: string, isCurrent?: () => boolean) {
     if (isCurrent && !isCurrent()) return false
     const generation = ++this.generation
+    this.loadingSessionId = id
     this.snapshotVersion++
-    this.livePartKeys.clear()
-    if (!isCurrent) this.activeSessionId = id
+    if (!isCurrent) { this.livePartKeys.clear(); this.activeSessionId = id }
     const permissionRevision = this.permissionRevision
-    this.update(isCurrent ? { sessionLoading: true, queue: undefined, queueError: undefined, error: undefined } : { session: undefined, sessionLoading: true, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined, error: undefined })
+    this.update(isCurrent ? { sessionLoading: true, error: undefined } : { session: undefined, sessionLoading: true, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined, error: undefined })
     try {
-      const [session, pendingPermissions, savedSelection, queueResult] = await Promise.all([
+      let [session, pendingPermissions, savedSelection, queueResult] = await Promise.all([
         this.host.getSession(id), this.host.listPendingPermissions(id),
         this.sessionSelections.has(id) ? Promise.resolve(this.sessionSelections.get(id)) : this.readPreference<unknown>(`session-model-selection.${id}`),
         this.host.getMessageQueue ? this.host.getMessageQueue(id).then(queue => ({ queue }), error => ({ error: error instanceof Error ? error.message : '待发送列表读取失败' })) : Promise.resolve(undefined),
       ])
+      // Reconcile missed boundaries from canonical history; only reread snapshots behind the cursor.
+      for (let attempt = 0; generation === this.generation && !this.disposed && !this.reconcileSnapshotRun(session); attempt++) {
+        if (attempt >= 3) throw new Error('任务快照尚未同步，请重新打开任务')
+        session = await this.host.getSession(id)
+      }
       if (generation !== this.generation || this.disposed) return false
       if (isCurrent && !isCurrent()) { this.update({ sessionLoading: false }); return false }
       const lastUsedSelection = this.availableSelection({ providerId: session.modelProviderId, modelId: session.modelId })
@@ -261,15 +290,17 @@ export class PilotController {
         if (pendingPermissions[0]) permissions[id] = pendingPermissions[0]
         else delete permissions[id]
       }
+      if (isCurrent) this.livePartKeys.clear()
       this.activeSessionId = id
       this.captureRun(session)
       if (queueResult && 'queue' in queueResult) this.applyQueue(queueResult.queue)
       this.update({ session, sessionLoading: false, selection, messages: session.messages.filter(message => !message.internal).map(projectPartContent), running: Boolean(session.activeRun), openingProjectDirectory: false, memoryConfirmation: undefined, queue: this.queues.get(id), queueError: queueResult && 'error' in queueResult ? queueResult.error : undefined, permission: permissionRevision === this.permissionRevision ? pendingPermissions[0] : this.state.permission, pendingPermissions: permissions })
       if (selection) this.writePreference(`session-model-selection.${id}`, selection)
-      this.writePreference('active-session', id)
-      await this.markSessionRead(id)
+      this.writePreference('active-session', session.draftState === 'prepared' ? null : id)
+      void this.markSessionRead(id)
       return generation === this.generation && !this.disposed && (!isCurrent || isCurrent()) && this.state.session?.id === id
     } catch (error) { if (generation === this.generation && (!isCurrent || isCurrent())) { this.update({ sessionLoading: false }); this.fail(error) } else if (generation === this.generation) this.update({ sessionLoading: false }); return false }
+    finally { if (generation === this.generation) this.loadingSessionId = undefined }
   }
   /** Return to the task draft without creating or stopping a persisted session. */
   newConversation() {
@@ -278,6 +309,7 @@ export class PilotController {
     this.permissionRevision++
     this.livePartKeys.clear()
     this.activeSessionId = undefined
+    this.loadingSessionId = undefined
     this.update({ session: undefined, sessionLoading: false, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined, error: undefined })
     this.writePreference('active-session', null)
   }
@@ -298,8 +330,30 @@ export class PilotController {
       await this.refreshList()
       if (generation !== this.generation || isCurrent && !isCurrent()) return false
       const opened = await this.open(session.id, isCurrent)
-      return opened && this.state.session?.id === session.id
+      return opened && this.getSnapshot().session?.id === session.id
     } catch (error) { if (generation === this.generation && (!isCurrent || isCurrent())) this.fail(error); return false }
+  }
+  get supportsPreparedSessions() { return Boolean(this.host.prepareSession) }
+  async prepare(projectId?: string, isCurrent?: () => boolean) {
+    if (this.disposed || this.state.session || this.state.sessionLoading || isCurrent && !isCurrent()) return false
+    const generation = this.generation
+    this.update({ sessionLoading: true, error: undefined })
+    try {
+      if (!this.host.prepareSession) throw new Error('当前宿主不支持任务草稿准备')
+      if (projectId && !this.state.projects.some(project => project.id === projectId && project.directoryExists)) throw new Error('所选项目目录不可用，请重新选择')
+      const session = await this.host.prepareSession(projectId)
+      if (generation !== this.generation || this.disposed) return false
+      if (isCurrent && !isCurrent()) { this.update({ sessionLoading: false }); return false }
+      if (!session.id || session.draftState !== 'prepared') throw new Error('任务草稿准备结果无效')
+      const opened = await this.open(session.id, isCurrent)
+      return opened && this.getSnapshot().session?.id === session.id
+    } catch (error) {
+      if (generation === this.generation) {
+        this.update({ sessionLoading: false })
+        if (!isCurrent || isCurrent()) this.fail(error)
+      }
+      return false
+    }
   }
   select(selection: ModelSelection) {
     this.defaultSelection = selection
@@ -324,7 +378,7 @@ export class PilotController {
   get supportsQueueSendNow() { return this.supportsMessageQueue && Boolean(this.host.sendQueuedMessageNow) }
   async send(text: string, planning = false, references: HarnessFileReference[] = [], submissionId: string = crypto.randomUUID(), capturedSelection?: ModelSelection, options?: HarnessMessageSubmissionOptions): Promise<boolean | 'confirmation-required' | 'retry-required'> {
     const selection = capturedSelection ?? this.state.selection
-    if (!text.trim() || !selection || this.state.sessionLoading) return false
+    if (!text.trim() && !references.length || !selection || this.state.sessionLoading) return false
     const session = this.state.session
     if (!session) return false
     if (options && !this.supportsQueueSubmissionOptions) return false
@@ -339,8 +393,16 @@ export class PilotController {
         if ('confirmationRequired' in receipt) return 'confirmation-required'
         if ('retryRequired' in receipt) {
           await this.refreshSession(session.id, generation, true, true)
-          if (generation === this.generation && this.state.session?.id === session.id) this.update({ error: '当前任务已变化，请重新发送。' })
+          if (generation === this.generation && this.state.session?.id === session.id) this.update({ error: 'reason' in receipt && receipt.reason === 'image-model-unsupported' ? '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型' : '当前任务已变化，请重新发送。' })
           return 'retry-required'
+        }
+        if (session.draftState === 'prepared') {
+          if (generation === this.generation && this.state.session?.id === session.id) {
+            this.update({ session: { ...this.state.session, draftState: 'accepted' } })
+            this.writePreference('active-session', session.id)
+          }
+          try { await Promise.all([this.refreshList(), this.host.listProjects().then(projects => this.update({ projects }))]) }
+          catch { if (generation === this.generation && this.state.session?.id === session.id && !this.disposed) this.fail(new Error('任务已接纳，但任务列表刷新失败，请重试刷新。')) }
         }
         return true
       } catch (error) { if (generation === this.generation && this.state.session?.id === session.id) this.fail(error); return false }
@@ -502,17 +564,77 @@ export class PilotController {
     this.update({ unreadSessionIds: unreadIds, sessions: this.state.sessions.map(item => item.id === id ? { ...item, unread } : item) })
     return this.run(async () => { await this.require('setSessionUnread')(id, unread); await this.refreshList() })
   }
-  archiveSession(id: string) { return this.run(async () => {
+  async archiveSession(id: string): Promise<void> {
+    const generation = this.generation
+    if (this.activeSessionId === id) await this.flushBeforeNavigation()
     await this.require('archiveSession')(id)
-    await this.refreshList()
-    if (this.activeSessionId === id) {
-      if (this.state.sessions[0]) await this.open(this.state.sessions[0].id)
-      else this.newConversation()
+    if (this.disposed) return
+    const wasActive = this.activeSessionId === id
+    const loadingOther = Boolean(this.loadingSessionId && this.loadingSessionId !== id)
+    const selectReplacement = wasActive && !loadingOther && generation === this.generation
+    if (wasActive) {
+      if (!loadingOther) this.newConversation()
+      else {
+        // A newer guarded load must survive removal of the previously displayed task.
+        this.activeSessionId = undefined
+        this.snapshotVersion++; this.permissionRevision++; this.livePartKeys.clear()
+        this.update({ session: undefined, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined })
+        this.writePreference('active-session', null)
+      }
+    } else if (this.loadingSessionId === id) {
+      this.generation++; this.snapshotVersion++; this.loadingSessionId = undefined
+      this.update({ sessionLoading: false })
     }
-  }) }
+    this.update({ sessions: this.state.sessions.filter(session => session.id !== id), runningSessionIds: this.state.runningSessionIds.filter(sessionId => sessionId !== id), unreadSessionIds: this.state.unreadSessionIds.filter(sessionId => sessionId !== id) })
+    const replacementGeneration = this.generation
+    try { await this.refreshList() }
+    catch {
+      // The archived row has gone; keep a refresh failure visible in the workbench.
+      const error = new Error('任务已归档，但任务列表刷新失败，请重试刷新。')
+      this.fail(error)
+      throw error
+    }
+    if (selectReplacement && replacementGeneration === this.generation && !this.disposed && this.state.sessions[0]) await this.open(this.state.sessions[0].id)
+  }
   queryHistory(query: HarnessHistoryQuery) { return this.require('queryHistory')(query) }
+  get supportsArchivedDeletion() { return Boolean(this.host.getArchivedSnapshot && this.host.deleteArchivedSessions) }
+  getArchivedSnapshot() { return this.require('getArchivedSnapshot')() }
+  refreshSessions() { return this.refreshList() }
+  deleteArchivedSessions(snapshotId: string) {
+    if (this.archivedDeletion) {
+      if (this.archivedDeletion.snapshotId === snapshotId) return this.archivedDeletion.promise
+      return Promise.reject(new Error('正在删除归档任务，请稍后重试。'))
+    }
+    const promise = this.performArchivedDeletion(snapshotId)
+    this.archivedDeletion = { snapshotId, promise }
+    const finish = () => { if (this.archivedDeletion?.promise === promise) this.archivedDeletion = undefined }
+    void promise.then(finish, finish)
+    return promise
+  }
+  private async performArchivedDeletion(snapshotId: string): Promise<HarnessArchivedDeletionResult & { refreshError?: string }> {
+    await this.flushBeforeNavigation()
+    if (this.disposed) throw new Error('Harness 连接已关闭')
+    const result = await this.require('deleteArchivedSessions')(snapshotId)
+    if (this.disposed) return result
+    const wasActive = this.removeDeletedSessions(result.deletedIds)
+    const generation = this.generation
+    try {
+      await this.refreshList()
+      if (wasActive && generation === this.generation && !this.disposed && this.state.sessions[0]) await this.open(this.state.sessions[0].id)
+      return result
+    } catch { return { ...result, refreshError: '删除操作已完成，但任务列表刷新失败，请重试刷新。' } }
+  }
   searchConversations(query: string) { return this.require('searchConversations')(query) }
-  onCommandCenterOpen(listener: () => void) { return this.host.onCommandCenterOpen?.(listener) || (() => undefined) }
+  onCommandCenterOpen(listener: (focusRequestId?: string) => void) { return this.host.onCommandCenterOpen?.(listener) || (() => undefined) }
+  dismissCommandCenterFocus(focusRequestId: string) { return this.host.dismissCommandCenterFocus?.(focusRequestId) ?? false }
+  onNavigationCommand(listener: (command: MiraAppNavigationCommand) => void) { return this.host.onNavigationCommand?.(listener) || (() => undefined) }
+  onNavigationRestore(listener: (snapshot: MiraAppNavigationSnapshot | undefined) => void) {
+    if (this.host.onNavigationRestore) return this.host.onNavigationRestore(listener)
+    listener(undefined)
+    return () => undefined
+  }
+  publishNavigationState(state: MiraAppNavigationState) { this.host.publishNavigationState?.(state) }
+  onSessionDeleted(listener: (id: string) => void) { this.deletedSessionListeners.add(listener); return () => { this.deletedSessionListeners.delete(listener) } }
   async renameProject(id: string, name: string) { await this.require('renameProject')(id, name); await this.refreshList(); if (this.state.session?.projectId === id) await this.refreshSession(this.state.session.id, this.generation, false) }
   async openProject(id: string, target: 'file-manager' | 'terminal' = 'file-manager') { const error = await this.require('openProject')(id, target); if (error) throw new Error(error) }
   async selectProject() { const project = await this.require('selectProject')(); if (project) await this.refreshList(); return project }
@@ -540,19 +662,42 @@ export class PilotController {
     if (this.activeSessionId === id) await this.refreshSession(id, this.generation, false)
   }
   async deleteSession(id: string) {
+    if (this.activeSessionId === id) await this.flushBeforeNavigation()
     await this.require('deleteSession')(id)
-    this.sessionSelections.delete(id)
-    this.writePreference(`session-model-selection.${id}`, null)
-    const pendingPermissions = { ...this.state.pendingPermissions }
-    delete pendingPermissions[id]
-    this.update({ pendingPermissions, runningSessionIds: this.state.runningSessionIds.filter(item => item !== id), unreadSessionIds: this.state.unreadSessionIds.filter(item => item !== id) })
+    const wasActive = this.removeDeletedSessions([id])
+    const generation = this.generation
     await this.refreshList()
-    if (this.activeSessionId === id) {
+    if (wasActive && generation === this.generation && !this.disposed) {
       if (this.state.sessions[0]) await this.open(this.state.sessions[0].id)
-      else this.newConversation()
     }
   }
-  moveSession(id: string, projectId: string) { return this.run(async () => { await this.require('moveSession')(id, projectId); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation, false) }) }
+  private removeDeletedSessions(ids: readonly string[]) {
+    const deleted = new Set(ids)
+    const wasActive = Boolean(this.activeSessionId && deleted.has(this.activeSessionId))
+    if (wasActive) this.newConversation()
+    else if (this.loadingSessionId && deleted.has(this.loadingSessionId)) {
+      this.generation++; this.snapshotVersion++; this.loadingSessionId = undefined
+      this.update({ sessionLoading: false })
+    }
+    const pendingPermissions = { ...this.state.pendingPermissions }
+    for (const id of deleted) {
+      this.deletedSessionListeners.forEach(listener => listener(id))
+      this.sessionSelections.delete(id)
+      this.queues.delete(id); this.eventRuns.delete(id); this.runningRevisions.delete(id)
+      this.writePreference(`session-model-selection.${id}`, null)
+      delete pendingPermissions[id]
+    }
+    this.update({ sessions: this.state.sessions.filter(item => !deleted.has(item.id)), pendingPermissions, runningSessionIds: this.state.runningSessionIds.filter(id => !deleted.has(id)), unreadSessionIds: this.state.unreadSessionIds.filter(id => !deleted.has(id)) })
+    return wasActive
+  }
+  async moveSession(id: string, projectId: string) {
+    const generation = this.generation
+    try {
+      await this.require('moveSession')(id, projectId)
+      await this.refreshList()
+      if (generation === this.generation && id === this.activeSessionId) await this.refreshSession(id, generation, false)
+    } catch (error) { if (generation === this.generation && !this.disposed) this.fail(error) }
+  }
   reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) { return this.run(async () => { await this.require('reorderSessions')(scope, ids); await this.refreshList() }) }
   reorderProjects(ids: string[]) { return this.run(async () => { await this.require('reorderProjects')(ids); await this.refreshList() }) }
   setSessionPermission(id: string, mode: PermissionMode) { return this.run(async () => { await this.require('setSessionPermission')(id, mode); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
@@ -566,6 +711,13 @@ export class PilotController {
     if (!id) return Promise.reject(new Error('尚未选择任务'))
     return this.require('selectFiles')(id)
   }
+  get supportsAttachments() { return Boolean(this.host.importAttachments && this.host.getAttachment && this.host.selectAttachments) }
+  importAttachments(id: string, files: Array<{ name: string; mediaType: string; data: string }>) { return this.require('importAttachments')(id, files) }
+  getAttachment(id: string, path: string) { return this.require('getAttachment')(id, path) }
+  get supportsAttachmentSave() { return Boolean(this.host.saveAttachment) }
+  saveAttachment(id: string, path: string) { return this.require('saveAttachment')(id, path) }
+  stageAttachment(id: string, path: string) { return this.require('stageAttachment')(id, path) }
+  selectAttachments(id: string) { return this.require('selectAttachments')(id) }
   listGitBranches(projectId: string) { return this.require('listGitBranches')(projectId) }
   get supportsGitActions() { return Boolean(this.host.getGitContext && this.host.checkoutGitBranch && this.host.createGitBranch) }
   async getGitContext(projectId: string) {
@@ -721,8 +873,18 @@ export class PilotController {
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => this.host.onBrowserEvent(listener)
   onTerminalEvent = (listener: (event: HarnessEvent) => void) => { this.terminalListeners.add(listener); return () => { this.terminalListeners.delete(listener) } }
   private refreshList = async () => {
+    const runningRevision = this.runningRevision
     const sessions = await this.host.listSessions()
-    this.update({ sessions })
+    this.applySessionList(sessions, runningRevision)
+  }
+  private applySessionList(sessions: HarnessSessionSummary[], revision: number) {
+    const runningIds = new Set(this.state.runningSessionIds)
+    for (const session of sessions) {
+      if (session.isRunning === undefined || (this.runningRevisions.get(session.id) ?? 0) > revision) continue
+      if (session.isRunning) runningIds.add(session.id)
+      else runningIds.delete(session.id)
+    }
+    this.update({ sessions, runningSessionIds: [...runningIds] })
   }
   private async refreshSession(id: string, generation: number, replaceMessages = true, confirmedRunChange = false) {
     if (generation !== this.generation || id !== this.activeSessionId || this.disposed) return
@@ -730,6 +892,7 @@ export class PilotController {
     try {
       const session = await this.host.getSession(id)
       if (generation !== this.generation || version !== this.snapshotVersion || this.disposed) return
+      if (!confirmedRunChange && !this.reconcileSnapshotRun(session)) return
       const eventRun = this.eventRuns.get(id)
       // 宿主明确拒绝旧运行身份后，读取最新权威运行；普通流式快照仍保持原游标保护。
       if (!confirmedRunChange && eventRun && !eventRun.closed && this.state.running && session.activeRun?.id !== eventRun.id) return
@@ -863,7 +1026,7 @@ export class PilotController {
     }
     if (!this.acceptRunEvent(event)) return
     if (event.type === 'tool-call') this.settleToolPermission(event)
-    if (event.type === 'status') this.applyStatusBadge(event.sessionId, String(event.payload.state || ''), event.sessionId !== this.activeSessionId)
+    if (event.type === 'status' || event.type === 'run-start') this.applyStatusBadge(event.sessionId, event.type === 'run-start' ? 'running' : String(event.payload.state || ''), event.sessionId !== this.activeSessionId)
     if (event.type === 'status' || event.type === 'title-updated') void this.refreshList().catch(error => this.fail(error))
     if (event.type === 'permission-request' && typeof event.payload.requestId === 'string') {
       const request: HarnessPermissionRequest = { sessionId: event.sessionId, requestId: event.payload.requestId, title: String(event.payload.title || '请求权限'), detail: String(event.payload.detail || ''), ...(typeof event.payload.toolCallId === 'string' ? { toolCallId: event.payload.toolCallId } : {}), ...(typeof event.payload.runId === 'string' ? { runId: event.payload.runId } : event.runId ? { runId: event.runId } : {}) }
@@ -940,6 +1103,27 @@ export class PilotController {
     if (current) retired.add(current.id)
     this.eventRuns.set(session.id, { id: run.id, messageId: run.messageId, startedAt: run.startedAt, sequence: -1, retired })
   }
+  private reconcileSnapshotRun(session: HarnessSession) {
+    const cursor = this.eventRuns.get(session.id)
+    if (!cursor?.messageId) return true
+    const run = session.activeRun
+    if (run && run.id !== cursor.id) {
+      if (cursor.retired.has(run.id) || run.startedAt < cursor.startedAt) return false
+      this.captureRun(session)
+      return true
+    }
+    if (cursor.closed) return !run
+    if (run?.id === cursor.id && run.messageId === cursor.messageId) return true
+    const previous = session.messages.findIndex(message => message.role === 'assistant' && message.runId === cursor.id && message.id === cursor.messageId)
+    if (run?.id === cursor.id) {
+      if (!run.messageId || previous < 0 || !session.messages.slice(previous + 1).some(message => message.role === 'user' && message.runId === cursor.id && message.delivery === 'guide')) return false
+      cursor.messageId = run.messageId
+      return true
+    }
+    if (previous < 0 || !session.messages.slice(previous).some(message => message.role === 'assistant' && message.runId === cursor.id && message.run?.status)) return false
+    cursor.closed = true
+    return true
+  }
   private acceptRunEvent(event: HarnessEvent) {
     if (event.eventId && this.seenEventIds.has(event.eventId)) return false
     if (event.runId) {
@@ -975,6 +1159,7 @@ export class PilotController {
     return true
   }
   private applyStatusBadge(sessionId: string, state: string, isBackground: boolean) {
+    this.runningRevisions.set(sessionId, ++this.runningRevision)
     const running = state === 'running' || state === 'rendering'
     const terminal = state === 'completed' || state === 'failed' || state === 'stopped'
     const runningIds = new Set(this.state.runningSessionIds)
@@ -988,5 +1173,5 @@ export class PilotController {
     this.update({ runningSessionIds: [...runningIds], unreadSessionIds: [...unreadIds], pendingPermissions })
   }
   private fail(error: unknown) { this.update({ error: error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : '操作失败' }) }
-  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.listeners.clear() }
+  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.deletedSessionListeners.clear(); this.listeners.clear() }
 }

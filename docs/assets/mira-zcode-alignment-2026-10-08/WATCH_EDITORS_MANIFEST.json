@@ -87,45 +87,10 @@
       "matchesTemporarySource": true
     },
     {
-      "name": "mira-watch-editors-confirmation-bundle-audit.json",
-      "bytes": 5560,
-      "sha256": "7731ce1260417a9d0457e33423652c3c956c9952b800ea5268567b45976c292c",
-      "sourceModifiedAtUTC": "2026-10-09T01:46:08.399Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-confirmation-tests.log",
-      "bytes": 6619,
-      "sha256": "6ba16b042a365ff74a40ef4157848911e8d9ea04dc5f97165f5cf47c55e87397",
-      "sourceModifiedAtUTC": "2026-10-09T01:45:52.299Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-electron-build.log",
-      "bytes": 27354,
-      "sha256": "8b9cc4e71dc6b9d132a91b86e6db4c4c961f5bd847a8de68d6efd2c21b4240af",
-      "sourceModifiedAtUTC": "2026-10-09T01:46:13.141Z",
-      "matchesTemporarySource": true
-    },
-    {
       "name": "mira-watch-editors-native-final-results.jsonl",
       "bytes": 3426,
       "sha256": "057bcfece3317e5ff6c9337c7003f5e803c70707a2282cf7f13dfdb72b2827e7",
       "sourceModifiedAtUTC": "2026-10-09T01:36:15.340Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-react-types.log",
-      "bytes": 296,
-      "sha256": "f3a9a08c92f34fb54ef6019d82d3f7a4f56988b6ad48d3dbdb84ce30d7f81a25",
-      "sourceModifiedAtUTC": "2026-10-09T01:46:04.051Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-vue-types.log",
-      "bytes": 296,
-      "sha256": "f3a9a08c92f34fb54ef6019d82d3f7a4f56988b6ad48d3dbdb84ce30d7f81a25",
-      "sourceModifiedAtUTC": "2026-10-09T01:46:05.200Z",
       "matchesTemporarySource": true
     },
     {
@@ -168,27 +133,6 @@
       "bytes": 768204,
       "sha256": "49b07d4428ab56c610af8d359c6414a2ff748d35ed4cb8897760771857a56866",
       "sourceModifiedAtUTC": "2026-10-08T09:09:24.763Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-final-tests-2026-10-09.log",
-      "bytes": 6714,
-      "sha256": "2194744e8ac1c05831364f3bd99551bc070d072b5071d3093ff20807fa7eff59",
-      "sourceModifiedAtUTC": "2026-10-09T02:08:48.385Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-final-react-build.log",
-      "bytes": 1812,
-      "sha256": "072c2d7dfdb398c7c294baea6616ed1e26a4be6655bb552eca3592da5304d179",
-      "sourceModifiedAtUTC": "2026-10-09T02:01:52.265Z",
-      "matchesTemporarySource": true
-    },
-    {
-      "name": "mira-watch-editors-final-electron-build.log",
-      "bytes": 27353,
-      "sha256": "843d47615d36a3c4265aeed4cd4b112eaf7e5fb5c411228aae35eacb9d0709ae",
-      "sourceModifiedAtUTC": "2026-10-09T02:05:05.720Z",
       "matchesTemporarySource": true
     },
     {

@@ -1,11 +1,14 @@
 import * as React from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Window } from 'happy-dom'
 import { HarnessComposer, type HarnessComposerHandle } from '../apps/harness-react/src/components/composer/HarnessComposer'
 import { ComposerSuggestionPanel, type ComposerSuggestion, type ComposerSuggestionSection } from '../apps/harness-react/src/components/composer/ComposerSuggestionPanel'
 import { HarnessMessageQueue } from '../apps/harness-react/src/components/composer/HarnessMessageQueue'
+import { MiraComposerAttachments } from '../apps/harness-react/src/components/composer/MiraComposerAttachments'
 import type { PilotController, PilotState } from '../apps/harness-react/src/state/pilot-state'
 import type { HarnessQueuedMessage, HarnessWorkspaceFileSearchResult } from '../src/config/harness'
+import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-drafts'
 
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
 // Exercise the shipped composer hooks, async catalogues and callbacks; Radix owns positioning.
@@ -39,14 +42,24 @@ const emptyFiles = { entries: [], truncated: false } as HarnessWorkspaceFileSear
 const event = (key: string, modifiers: Record<string, unknown> = {}) => ({ key, keyCode: 0, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...modifiers })
 const listeners = new Map<string, Set<(event: ReturnType<typeof event>) => void>>()
 
-function fixture(options: { search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean } = {}) {
+function fixture(options: { search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean; attachments?: boolean; textarea?: HTMLTextAreaElement } = {}) {
   const session = { version: 1 as const, id: 'current', title: 'Current', projectId: 'project', workingDirectory: '/project', permissionMode: 'default' as const, messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active' as const, pinned: false }
   const state: PilotState = { session, sessions: [session, { ...session, id: 'reference', title: '研究记录' }], projects: [{ id: 'project', name: 'Project', directory: '/project', directoryExists: true, createdAt: 1, updatedAt: 1 }], providers: [{ id: 'provider', providerKey: 'custom', name: 'Provider', endpoint: 'http://localhost', enabled: true, authMode: 'api-key', hasApiKey: true, createdAt: 1, updatedAt: 1, models: [{ id: 'model', enabled: true, reasoning: true, contextWindow: 1000 }] }], selection: { providerId: 'provider', modelId: 'model', thinkingLevel: 'medium' }, messages: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   const api = {
     getSnapshot: () => state,
     getPreference: vi.fn(async () => options.draftPreference ? await options.draftPreference : null),
     getComposerPreferences: vi.fn(async () => ({ sendShortcut: options.preference || 'enter', showContextUsage: true, followupMode: options.followupMode || 'queue' })),
-    setPreference: vi.fn(async () => undefined), registerBeforeNavigation: vi.fn(() => () => undefined),
+    setPreference: vi.fn(async () => undefined), registerBeforeNavigation: vi.fn((_guard: () => Promise<void>) => () => undefined),
+    onSessionDeleted: vi.fn((_listener: (id: string) => void) => () => undefined),
+    supportsAttachments: options.attachments ?? false,
+    prepare: vi.fn(async () => { state.session = { ...session, id: 'created', draftState: 'prepared' }; return true }),
+    open: vi.fn(async (id: string, isCurrent = () => true) => { if (!isCurrent()) return false; state.session = { ...session, id, draftState: 'prepared' }; return true }),
+    moveSession: vi.fn(async (_id: string, projectId: string) => { state.session = { ...state.session!, projectId } }),
+    reportError: vi.fn((error: unknown) => { state.error = error instanceof Error ? error.message : String(error) }),
+    newConversation: vi.fn(() => { state.session = undefined; state.sessionLoading = false }),
+    stageAttachment: vi.fn(async (_id: string, path: string) => ({ path: 'mira-attachment:staged', name: path.split('/').pop()!, size: 20 })),
+    selectAttachments: vi.fn(async (_id: string) => [{ path: 'mira-attachment:fixture', name: '截图.png', mediaType: 'image/png' as const, size: 70 }]),
+    importAttachments: vi.fn(async (_id: string, _files: unknown[]) => [{ path: 'mira-attachment:paste', name: '粘贴的文本.txt' }]),
     listFilesFor: vi.fn(async () => options.files ? await options.files : emptyFiles),
     searchFilesFor: vi.fn(options.search || (async () => emptyFiles)),
     listSkills: vi.fn(async () => [{ id: 'research', name: 'Research', description: '资料整理', enabled: true }]),
@@ -62,9 +75,11 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
     reorderMessageQueue: vi.fn(async () => ({ sessionId: 'current', revision: 3, items: [] })),
     sendQueuedMessageNow: vi.fn(async () => ({ sessionId: 'current', revision: 3, items: [] })),
   }
-  let tree: React.ReactElement, planning = false, active = options.active ?? true
+  let tree: React.ReactElement, planning = false, active = options.active ?? true, draftProjectId: string | undefined
+  const onDraftChange = vi.fn<(draft: ComposerTaskDraft | null | undefined) => void>()
+  const onDraftAccepted = vi.fn(async (_sessionId: string, _draft: ComposerTaskDraft) => undefined)
   const handle = { current: null as HarnessComposerHandle | null }
-  const textarea = { selectionStart: 0, selectionEnd: 0, scrollHeight: 40, style: {} as Record<string, string>, focus: vi.fn(), closest: () => null, setSelectionRange: (start: number, end: number) => { textarea.selectionStart = start; textarea.selectionEnd = end } }
+  const textarea = options.textarea ?? { selectionStart: 0, selectionEnd: 0, scrollHeight: 40, style: {} as Record<string, string>, focus: vi.fn(), closest: () => null, setSelectionRange: (start: number, end: number) => { textarea.selectionStart = start; textarea.selectionEnd = end } }
   const plusButton = { contains: (target: unknown) => target === plusButton }
   const visit = (node: React.ReactNode, callback: (element: React.ReactElement<Record<string, unknown>>) => void) => {
     if (Array.isArray(node)) { node.forEach(child => visit(child, callback)); return }
@@ -79,9 +94,12 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
   }
   const render = () => {
     hooks.cursor = 0; hooks.dirty = false
-    tree = (HarnessComposer as unknown as { render: (props: unknown, ref: unknown) => React.ReactElement }).render({ state, controller: api as unknown as PilotController, active, planning, setPlanning: (value: boolean) => { planning = value; hooks.dirty = true } }, handle)
+    tree = (HarnessComposer as unknown as { render: (props: unknown, ref: unknown) => React.ReactElement }).render({ state, controller: api as unknown as PilotController, active, planning, setPlanning: (value: boolean) => { planning = value; hooks.dirty = true }, draftProjectId, onDraftProjectChange: (value?: string) => { draftProjectId = value; hooks.dirty = true }, onDraftChange, onDraftAccepted }, handle)
     visit(tree, element => {
-      if (element.type === 'textarea') (element.props.ref as React.RefObject<unknown>).current = textarea
+      if (element.type === 'textarea') {
+        (element.props.ref as React.RefObject<unknown>).current = textarea
+        if (options.textarea) { options.textarea.value = element.props.value as string; options.textarea.readOnly = Boolean(element.props.readOnly) }
+      }
       if (element.props['aria-label'] === '添加上下文' && element.props.ref) (element.props.ref as React.RefObject<unknown>).current = plusButton
     })
     hooks.effects.splice(0).forEach(callback => callback())
@@ -120,7 +138,9 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
   const openPopups = () => { let count = 0; visit(tree, element => { if (element.props.open === true) count++ }); return count }
   render()
   const queueProps = () => props((_, element) => element.type === HarnessMessageQueue)
-  return { state, api, handle, render, drain, type, key, plus, select, dispatch, compose, setActive, formSubmit, dialogProps, confirm, cancel, openPopups, textarea, plusButton, props, inputProps, panelProps, queueProps, items, text: () => inputProps().value as string }
+  const attachmentProps = () => props((_, element) => element.type === MiraComposerAttachments)
+  const attachmentPaths = () => (attachmentProps().references as Array<{ path: string }>).map(item => item.path)
+  return { state, api, handle, onDraftChange, onDraftAccepted, render, drain, type, key, plus, select, dispatch, compose, setActive, formSubmit, dialogProps, confirm, cancel, openPopups, textarea, plusButton, props, inputProps, panelProps, queueProps, attachmentProps, attachmentPaths, items, text: () => inputProps().value as string }
 }
 
 function queued(id = 'queued-1'): HarnessQueuedMessage {
@@ -133,9 +153,349 @@ beforeEach(() => {
   vi.stubGlobal('document', { getElementById: () => null, querySelector: () => null })
   vi.stubGlobal('window', { setTimeout, clearTimeout, requestAnimationFrame: (callback: () => void) => { callback(); return 1 }, addEventListener: (name: string, callback: (event: ReturnType<typeof event>) => void) => { const set = listeners.get(name) || new Set(); set.add(callback); listeners.set(name, set) }, removeEventListener: (name: string, callback: (event: ReturnType<typeof event>) => void) => listeners.get(name)?.delete(callback) })
 })
+
+describe('group draft lifecycle in the shipped Composer', () => {
+  function focusFixture(options: Parameters<typeof fixture>[0] = {}) {
+    const dom = new Window(), frames = new Map<number, () => void>()
+    const textarea = dom.document.createElement('textarea'), outside = dom.document.createElement('button')
+    dom.document.body.append(outside, textarea); outside.focus()
+    vi.stubGlobal('document', dom.document)
+    let nextFrame = 0
+    window.requestAnimationFrame = (callback: FrameRequestCallback) => { const id = ++nextFrame; frames.set(id, () => callback(0)); return id }
+    const view = fixture({ ...options, textarea: textarea as unknown as HTMLTextAreaElement })
+    const frame = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback()) }
+    return { ...view, textarea, dom, outside, frame, unmount: () => hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
+  }
+
+  it('focuses the real textarea after explicit new-task entries, including repeated entries in the same draft', async () => {
+    const view = focusFixture(); await view.drain()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    expect(await view.handle.current!.startDraft('research', undefined, () => true)).toBe(true)
+    await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.textarea)
+    await view.type('保留输入和光标'); view.outside.focus()
+    expect(await view.handle.current!.startDraft('writing', undefined, () => true)).toBe(true)
+    await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.textarea)
+    expect(view.textarea.value).toBe('保留输入和光标')
+    expect(view.api.prepare).not.toHaveBeenCalled()
+  })
+
+  it('does not steal focus on hydration, implicit draft restoration or ordinary task reading', async () => {
+    const view = focusFixture({ draftPreference: Promise.resolve({ draft: { id: 'saved', sessionId: 'prepared' }, drafts: { prepared: '已保存的输入' } }) })
+    await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    expect(await view.handle.current!.openDraft(undefined, () => true)).toBe(true)
+    await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    view.state.session = { ...view.state.session!, id: 'reading' }; view.render(); await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+  })
+
+  it('waits for a prepared draft to become visible and editable before returning focus on explicit reopen', async () => {
+    const view = focusFixture({ active: false, draftPreference: Promise.resolve({ draft: { id: 'saved', sessionId: 'prepared' }, drafts: { prepared: '附件草稿' } }) })
+    await view.drain()
+    expect(await view.handle.current!.openDraft('saved', () => true)).toBe(true)
+    view.state.sessionLoading = true; view.render(); await view.setActive(true); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    view.state.sessionLoading = false; view.render(); await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.textarea)
+    expect(view.textarea.value).toBe('附件草稿')
+    expect(view.api.prepare).not.toHaveBeenCalled()
+  })
+
+  it('does not let an asynchronous prepared draft or its scheduled focus override a newer navigation', async () => {
+    const view = focusFixture({ draftPreference: Promise.resolve({ draft: { id: 'saved', sessionId: 'prepared' } }) })
+    await view.drain()
+    const opened = deferred<boolean>(); view.api.open.mockReturnValueOnce(opened.promise)
+    let current = true
+    const reopening = view.handle.current!.openDraft('saved', () => current)
+    await view.drain(); current = false; opened.resolve(true)
+    expect(await reopening).toBe(false); await view.drain(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    current = true
+    expect(await view.handle.current!.startDraft(undefined, undefined, () => current)).toBe(true)
+    await view.drain(); current = false; view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+  })
+
+  it('drops scheduled draft focus after the application hides or the Composer unmounts', async () => {
+    const view = focusFixture(); await view.drain()
+    await view.handle.current!.startDraft(undefined, undefined, () => true); await view.drain()
+    await view.setActive(false); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+    await view.setActive(true); view.unmount(); view.frame()
+    expect(view.dom.document.activeElement).toBe(view.outside)
+  })
+
+  it('reuses an unsent owner across group entries and closes only its visible placement', async () => {
+    const view = fixture(); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('保留未发送输入')
+    await view.handle.current!.startDraft('first'); await view.drain()
+    const first = view.onDraftChange.mock.lastCall![0]!
+    await view.handle.current!.startDraft('second'); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual({ ...first, groupId: 'second' })
+    expect(view.text()).toBe('保留未发送输入'); expect(view.api.prepare).not.toHaveBeenCalled()
+    await view.handle.current!.closeDraft('obsolete'); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]?.visible).toBe(true)
+    await view.handle.current!.closeDraft(first.id); await view.drain()
+    expect(view.text()).toBe('保留未发送输入')
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ draft: { id: first.id, visible: false }, drafts: { draft: '保留未发送输入' } }), true)
+    await view.handle.current!.startDraft('first'); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual({ id: first.id, groupId: 'first', visible: true })
+  })
+
+  it('retains the prepared attachment owner while closing and reopening the same draft', async () => {
+    const view = fixture({ attachments: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('附件草稿'); await view.handle.current!.startDraft('first'); await view.drain()
+    await view.plus(); await view.select('attach-files'); await view.drain()
+    const owner = view.onDraftChange.mock.lastCall![0]!
+    expect(owner).toMatchObject({ sessionId: 'created', groupId: 'first' })
+    expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+    await view.handle.current!.closeDraft(owner.id); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain()
+    await view.handle.current!.startDraft('second'); await view.drain()
+    expect(view.api.prepare).toHaveBeenCalledOnce(); expect(view.api.open).toHaveBeenCalledExactlyOnceWith('created', undefined)
+    expect(view.text()).toBe('附件草稿'); expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual({ ...owner, groupId: 'second', visible: true })
+  })
+
+  it('keeps the selected project when only the anonymous draft group changes', async () => {
+    const view = fixture(); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('项目草稿'); await view.handle.current!.startDraft('first', 'project'); await view.drain()
+    await view.handle.current!.startDraft('second'); await view.drain()
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ config: expect.objectContaining({ projectId: 'project' }) }), true)
+    await view.key('Enter'); expect(view.api.prepare).toHaveBeenCalledWith('project', expect.any(Function))
+  })
+
+  it('moves a prepared draft to another project while keeping its text and frozen attachment owner', async () => {
+    const view = fixture({ attachments: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('切换项目保留附件'); await view.handle.current!.startDraft('first', 'project'); await view.drain()
+    await view.plus(); await view.select('attach-files'); await view.drain()
+    const owner = view.onDraftChange.mock.lastCall![0]!
+    await view.handle.current!.startDraft(undefined, 'other'); await view.drain()
+    expect(view.api.moveSession).toHaveBeenCalledExactlyOnceWith('created', 'other')
+    expect(view.api.prepare).toHaveBeenCalledOnce()
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual({ ...owner, groupId: undefined, visible: true })
+    expect(view.text()).toBe('切换项目保留附件'); expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ config: expect.objectContaining({ projectId: 'other' }) }), true)
+  })
+
+  it('keeps the prepared draft accessible when moving its project fails', async () => {
+    const view = fixture({ attachments: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('项目变更失败仍保留'); await view.handle.current!.startDraft('first', 'project'); await view.drain()
+    await view.plus(); await view.select('attach-files'); await view.drain()
+    const owner = view.onDraftChange.mock.lastCall![0]!
+    view.api.moveSession.mockImplementationOnce(async () => { view.state.error = '目标目录不可用' })
+    expect(await view.handle.current!.startDraft('second', 'other')).toBe(false); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual(owner)
+    expect(view.state.session?.projectId).toBe('project')
+    expect(view.text()).toBe('项目变更失败仍保留'); expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+  })
+
+  it('returns to an unconfirmed first submission without replacing its owner, project or captured group', async () => {
+    const view = fixture({ queue: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('尚未确认的首发'); await view.handle.current!.startDraft('first'); await view.drain()
+    const receipt = deferred<boolean>(); view.api.send.mockImplementationOnce(() => receipt.promise)
+    await view.key('Enter')
+    const submitted = view.onDraftChange.mock.lastCall![0]!
+    await view.handle.current!.closeDraft(submitted.id); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]?.visible).toBe(false)
+    await view.handle.current!.startDraft('second', 'other'); await view.drain()
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual(submitted)
+    expect(view.api.moveSession).not.toHaveBeenCalled(); expect(view.api.prepare).toHaveBeenCalledOnce()
+    expect(view.text()).toBe('尚未确认的首发')
+    receipt.resolve(true); await view.drain()
+    expect(view.onDraftAccepted).toHaveBeenCalledExactlyOnceWith('created', submitted)
+  })
+
+  it('settles a late ACK into its captured group without clearing another open task input', async () => {
+    const view = fixture({ queue: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('第一份提交'); await view.handle.current!.startDraft('first'); await view.drain()
+    const receipt = deferred<boolean>(); view.api.send.mockImplementationOnce(() => receipt.promise)
+    await view.key('Enter')
+    const submitted = view.onDraftChange.mock.lastCall![0]!
+    expect(view.api.send).toHaveBeenCalledOnce()
+    view.state.session = { ...view.state.sessions[1], messages: [], toolCalls: [] }; view.render(); await view.drain()
+    await view.type('另一任务的新输入')
+    receipt.resolve(true); await view.drain()
+    expect(view.onDraftAccepted).toHaveBeenCalledExactlyOnceWith('created', submitted)
+    expect(view.text()).toBe('另一任务的新输入'); expect(view.state.session?.id).toBe('reference')
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ drafts: { reference: '另一任务的新输入' } }), true)
+  })
+})
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('shipped Mira Composer contextual interactions', () => {
+  it('never rehydrates deleted owner text, files, recoveries or submissions from a late preference read', async () => {
+    const saved = deferred<unknown>(), view = fixture({ draftPreference: saved.promise, attachments: true, queue: true })
+    const remove = view.api.onSessionDeleted.mock.calls[0][0]
+    remove('current'); await view.drain()
+    saved.resolve({ drafts: { current: '旧草稿', reference: '保留草稿' }, fileDrafts: { current: [{ path: 'mira-attachment:old', name: 'old.png', mediaType: 'image/png' }], reference: [{ path: 'keep.md', name: 'keep.md' }] }, recoveries: { current: [queued()] }, submissions: { current: { id: 'unconfirmed', text: '旧草稿', planning: false, references: [], selection: view.state.selection } } })
+    await view.drain()
+    expect(view.text()).toBe(''); expect(view.attachmentPaths()).toEqual([])
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    const writes = view.api.setPreference.mock.calls as unknown as Array<[string, { drafts: Record<string, string>; fileDrafts: Record<string, unknown>; recoveries?: Record<string, unknown>; submissions?: Record<string, unknown> }]>
+    const result = writes.at(-1)![1]
+    expect(result.drafts).toEqual({ reference: '保留草稿' }); expect(result.fileDrafts).toEqual({ reference: [{ path: 'keep.md', name: 'keep.md' }] })
+    expect(result.recoveries ?? {}).not.toHaveProperty('current'); expect(result.submissions ?? {}).not.toHaveProperty('current')
+  })
+  it('releases a rejected model intent so the same image can be sent with a newly selected model', async () => {
+    const image = { path: 'mira-attachment:fixture', name: '截图.png', mediaType: 'image/png', size: 70 }
+    const view = fixture({ attachments: true, queue: true, draftPreference: Promise.resolve({ drafts: { current: '检查图片' }, fileDrafts: { current: [image] } }) }); await view.drain()
+    ;(view.attachmentProps().onBlocked as (blocked: boolean) => void)(false); await view.drain()
+    view.api.send.mockResolvedValueOnce('retry-required'); view.state.error = '所选模型不支持图片输入'
+    await view.key('Enter')
+    expect(view.text()).toBe('检查图片'); expect(view.attachmentPaths()).toEqual([image.path])
+    const rejected = view.api.send.mock.calls[0]
+    view.state.selection = { providerId: 'provider', modelId: 'vision' }; view.render(); await view.drain()
+    await view.key('Enter')
+    expect(view.api.send.mock.calls[1][4]).toEqual(view.state.selection)
+    expect(view.api.send.mock.calls[1][3]).not.toBe(rejected[3])
+    expect(view.text()).toBe('')
+  })
+
+  it('never transfers an old upload failure to another task after an external owner change', async () => {
+    const pending = deferred<Awaited<ReturnType<ReturnType<typeof fixture>['api']['selectAttachments']>>>(), view = fixture({ attachments: true }); await view.drain()
+    view.api.selectAttachments.mockReturnValueOnce(pending.promise)
+    await view.plus(); await view.select('attach-files')
+    view.state.session = { ...view.state.session!, id: 'other' }; view.render(); await view.drain()
+    pending.reject(new Error('旧任务已删除')); await view.drain()
+    expect(view.attachmentPaths()).toEqual([])
+    await expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).resolves.toBeUndefined()
+    await view.type('新任务内容'); expect(view.props(props => props['aria-label'] === '发送任务').disabled).toBe(false)
+  })
+
+  it('holds navigation through draft session creation and configuration before importing', async () => {
+    const create = deferred<boolean>(), configuration = deferred<void>()
+    const view = fixture({ attachments: true, draftPreference: Promise.resolve({ config: { permission: 'full' } }) }); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain(); await view.type('新任务草稿')
+    view.api.prepare.mockImplementationOnce(async () => { await create.promise; view.state.session = { version: 1, id: 'created', title: 'Created', draftState: 'prepared', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }; return true })
+    view.api.setSessionPermission.mockReturnValueOnce(configuration.promise)
+    await view.plus(); await view.select('attach-files')
+    let completed = false
+    const flush = view.api.registerBeforeNavigation.mock.calls[0][0]().then(() => { completed = true })
+    await view.drain(); expect(completed).toBe(false); expect(view.api.selectAttachments).not.toHaveBeenCalled()
+    create.resolve(true); await view.drain(); expect(completed).toBe(false)
+    expect(view.api.setSessionPermission).toHaveBeenCalledWith('created', 'full')
+    configuration.resolve(); await view.drain(); await flush
+    expect(view.api.selectAttachments).toHaveBeenCalledWith('created')
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ drafts: expect.objectContaining({ created: '新任务草稿' }), fileDrafts: expect.objectContaining({ created: [expect.objectContaining({ path: 'mira-attachment:fixture' })] }) }), true)
+  })
+
+  it('keeps a newly created task visible when its pending import fails during navigation', async () => {
+    const create = deferred<boolean>(), view = fixture({ attachments: true }); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain()
+    view.api.prepare.mockImplementationOnce(async () => { await create.promise; view.state.session = { version: 1, id: 'created', title: 'Created', draftState: 'prepared', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }; return true })
+    view.api.selectAttachments.mockRejectedValueOnce(new Error('文件读取失败'))
+    await view.plus(); await view.select('attach-files')
+    const guarded = expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).rejects.toThrow('附件尚未添加成功')
+    create.resolve(true); await view.drain(); await guarded
+    expect(view.props(props => props.role === 'alert').children).toBeDefined()
+    expect(view.props(props => props['aria-label'] === '取消附件添加')).toBeDefined()
+  })
+
+  it('blocks a newly added reference immediately and freezes workspace references before displaying them', async () => {
+    const staging = deferred<Awaited<ReturnType<ReturnType<typeof fixture>['api']['stageAttachment']>>>()
+    const view = fixture({ attachments: true, queue: true }); await view.drain(); await view.type('检查文件')
+    view.api.stageAttachment.mockReturnValueOnce(staging.promise)
+    view.handle.current!.addFileReference('current', 'src/mira.ts'); await view.drain()
+    expect(view.api.stageAttachment).toHaveBeenCalledWith('current', 'src/mira.ts')
+    await view.key('Enter'); expect(view.api.send).not.toHaveBeenCalled()
+    staging.resolve({ path: 'mira-attachment:staged', name: 'mira.ts', size: 20 }); await view.drain()
+    expect(view.attachmentPaths()).toEqual(['mira-attachment:staged'])
+    await view.key('Enter'); expect(view.api.send).not.toHaveBeenCalled()
+    ;(view.attachmentProps().onBlocked as (blocked: boolean) => void)(false); await view.drain()
+    await view.key('Enter'); expect(view.api.send).toHaveBeenCalledWith('检查文件', false, [{ path: 'mira-attachment:staged', name: 'mira.ts', size: 20 }], expect.any(String), expect.any(Object))
+  })
+
+  it('retries a failed draft read while preserving local input and blocking file admission', async () => {
+    const preference = deferred<unknown>(), view = fixture({ attachments: true, draftPreference: preference.promise })
+    await view.type('读取期间的新输入'); preference.reject(new Error('偏好不可读')); await view.drain()
+    expect(view.props(props => props['aria-label'] === '添加上下文').disabled).toBe(true)
+    await expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).rejects.toThrow('偏好不可读')
+    view.api.getPreference.mockResolvedValueOnce({ drafts: { other: '历史草稿' } })
+    ;(view.props(props => props.children === '重试读取草稿').onClick as () => void)(); await view.drain()
+    expect(view.text()).toBe('读取期间的新输入')
+    expect(view.props(props => props['aria-label'] === '添加上下文').disabled).toBe(false)
+    await expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).resolves.toBeUndefined()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ drafts: { current: '读取期间的新输入', other: '历史草稿' } }), true)
+  })
+
+  it('waits for native attachment staging before saving and entering settings', async () => {
+    const pending = deferred<Awaited<ReturnType<ReturnType<typeof fixture>['api']['selectAttachments']>>>()
+    const view = fixture({ attachments: true, queue: true }); await view.drain()
+    view.api.selectAttachments.mockReturnValueOnce(pending.promise)
+    await view.plus(); await view.select('attach-files')
+    expect(view.api.selectAttachments).toHaveBeenCalledWith('current')
+    const guard = view.api.registerBeforeNavigation.mock.calls[0][0]
+    let completed = false; const flush = guard().then(() => { completed = true })
+    await view.drain(); expect(completed).toBe(false)
+    pending.resolve([{ path: 'mira-attachment:fixture', name: '截图.png', mediaType: 'image/png', size: 70 }]); await view.drain(); await flush
+    expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ fileDrafts: { current: [expect.objectContaining({ mediaType: 'image/png' })] } }), true)
+  })
+
+  it('blocks sending and leaving after failed attachment staging until retry succeeds or the user cancels', async () => {
+    const view = fixture({ attachments: true, queue: true }); await view.drain(); await view.type('原草稿')
+    view.api.selectAttachments.mockRejectedValueOnce(new Error('图片无法读取'))
+    await view.plus(); await view.select('attach-files')
+    expect(view.text()).toBe('原草稿')
+    expect(view.props(props => props['aria-label'] === '发送任务').disabled).toBe(true)
+    await expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).rejects.toThrow('附件尚未添加成功')
+    await view.key('Enter'); expect(view.api.send).not.toHaveBeenCalled()
+    ;(view.props(props => props['aria-label'] === '取消附件添加').onClick as () => void)(); await view.drain()
+    await expect(view.api.registerBeforeNavigation.mock.calls[0][0]()).resolves.toBeUndefined()
+    expect(view.props(props => props['aria-label'] === '发送任务').disabled).toBe(false)
+  })
+
+  it('preserves spreadsheet text over its generated clipboard image and converts large plain pastes to files', async () => {
+    const view = fixture({ attachments: true }); await view.drain()
+    const nativePaste = { clipboardData: { getData: (type: string) => type === 'text/plain' ? 'A\tB' : '<table><tr><td>A</td></tr></table>', files: [new File(['image'], 'table.png', { type: 'image/png' })] }, preventDefault: vi.fn() }
+    ;(view.inputProps().onPaste as (event: unknown) => void)(nativePaste)
+    expect(nativePaste.preventDefault).not.toHaveBeenCalled(); expect(view.api.importAttachments).not.toHaveBeenCalled()
+    vi.stubGlobal('FileReader', class { result = 'data:text/plain;base64,cGFzdGU='; onload?: () => void; readAsDataURL() { Promise.resolve().then(() => this.onload?.()) } })
+    const longPaste = { clipboardData: { getData: (type: string) => type === 'text/plain' ? '原文'.repeat(8000) : '', files: [] }, preventDefault: vi.fn() }
+    ;(view.inputProps().onPaste as (event: unknown) => void)(longPaste); await view.drain()
+    expect(longPaste.preventDefault).toHaveBeenCalledOnce()
+    expect(view.api.importAttachments).toHaveBeenCalledWith('current', [{ name: '粘贴的文本.txt', mediaType: 'text/plain', data: 'cGFzdGU=' }])
+    expect(view.attachmentPaths()).toEqual(['mira-attachment:paste'])
+  })
+
+  it('handles file drops on the Composer and never imports while hidden', async () => {
+    const view = fixture({ attachments: true }); await view.drain()
+    vi.stubGlobal('FileReader', class { result = 'data:text/plain;base64,dGV4dA=='; onload?: () => void; readAsDataURL() { Promise.resolve().then(() => this.onload?.()) } })
+    const drop = { dataTransfer: { types: ['Files'], files: [new File(['text'], 'notes.txt', { type: 'text/plain' })] }, preventDefault: vi.fn() }
+    ;(view.props((_, element) => element.type === 'form').onDrop as (event: unknown) => void)(drop); await view.drain()
+    expect(drop.preventDefault).toHaveBeenCalledOnce(); expect(view.api.importAttachments).toHaveBeenCalledWith('current', [{ name: 'notes.txt', mediaType: 'text/plain', data: 'dGV4dA==' }])
+    await view.setActive(false)
+    ;(view.props((_, element) => element.type === 'form').onDrop as (event: unknown) => void)(drop); await view.drain()
+    expect(view.api.importAttachments).toHaveBeenCalledTimes(1)
+  })
+  it('sends an attachment-only idle draft and preserves attachment-only retry metadata', async () => {
+    const image = { path: 'mira-attachment:fixture', name: '截图.png', mediaType: 'image/png', size: 70 }
+    const view = fixture({ queue: true, draftPreference: Promise.resolve({ fileDrafts: { current: [image] } }) }); await view.drain()
+    expect(view.text()).toBe('')
+    expect(view.props(props => props['aria-label'] === '发送任务').disabled).toBe(false)
+    view.api.send.mockResolvedValueOnce(false)
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('', false, [image], expect.any(String), expect.any(Object))
+    expect(view.attachmentPaths()).toEqual([image.path])
+    const id = view.api.send.mock.calls[0][3]
+    await view.key('Enter')
+    expect(view.api.send.mock.calls[1][3]).toBe(id)
+  })
+
+  it('queues an attachment-only running draft and exposes Stop only after the references are gone', async () => {
+    const view = fixture({ queue: true, draftPreference: Promise.resolve({ fileDrafts: { current: [{ path: 'only.md', name: 'only.md' }] } }) }); await view.drain()
+    view.state.running = true; view.render(); await view.drain()
+    expect(view.props(props => props['aria-label'] === '加入待发送').disabled).toBe(false)
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('', false, [{ path: 'only.md', name: 'only.md' }], expect.any(String), expect.any(Object))
+    expect(view.props(props => props['aria-label'] === '停止任务')).toBeDefined()
+  })
   it('sends plain running input as a real guide intent and keeps the default empty-input Stop', async () => {
     const view = fixture({ queue: true, submissionOptions: true, followupMode: 'guide' }); await view.drain()
     view.state.running = true; view.state.session!.activeRun = { id: 'guide-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain()
@@ -201,6 +561,33 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.api.send).toHaveBeenCalledExactlyOnceWith(submission.text, false, [], submission.id, submission.selection, submission.options)
   })
 
+  it('refreshes the follow-up preference when returning from settings without replacing the draft', async () => {
+    const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
+    view.state.running = true; view.state.session!.activeRun = { id: 'same-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain(); await view.type('设置返回后的正文')
+    await view.setActive(false)
+    view.api.getComposerPreferences.mockResolvedValueOnce({ sendShortcut: 'enter', showContextUsage: true, followupMode: 'guide' })
+    await view.setActive(true)
+    expect(view.text()).toBe('设置返回后的正文'); expect(view.props(props => props['aria-label'] === '引导当前任务')).toBeDefined()
+    await view.key('Enter'); expect(view.api.send.mock.calls[0]?.[5]).toEqual({ delivery: 'guide', expectedRunId: 'same-run' })
+  })
+
+  it('captures the guide target before durable save and does not silently follow a new run', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, followupMode: 'guide' }); await view.drain()
+    view.state.running = true; view.state.session!.activeRun = { id: 'clicked-guide-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain(); await view.type('指导原任务')
+    const saving = deferred<void>(); view.api.setPreference.mockReturnValueOnce(saving.promise); await view.key('Enter')
+    expect(view.api.send).not.toHaveBeenCalled()
+    view.state.session!.activeRun = { ...view.state.session!.activeRun!, id: 'later-run' }; view.render(); await view.drain(); saving.resolve(); await view.drain()
+    expect(view.api.send.mock.calls[0]?.[5]).toEqual({ delivery: 'guide', expectedRunId: 'clicked-guide-run' })
+  })
+
+  it('keeps an uncertain guide target frozen even while a running identity is temporarily missing', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, followupMode: 'guide' }); await view.drain()
+    view.state.running = true; view.state.session!.activeRun = { id: 'original-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain(); await view.type('未知确认不改路由')
+    view.api.send.mockResolvedValueOnce(false); await view.key('Enter'); const original = view.api.send.mock.calls[0]
+    view.state.session!.activeRun = undefined; view.render(); await view.drain(); await view.key('Enter')
+    expect(view.api.send.mock.calls[1]).toEqual(original)
+  })
+
   it('protects new draft text from a late guide ACK and resamples only after explicit stale-run rejection', async () => {
     const view = fixture({ queue: true, submissionOptions: true, followupMode: 'guide' }); await view.drain()
     view.state.running = true; view.state.session!.activeRun = { id: 'first-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain()
@@ -232,6 +619,18 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.queueProps().recoveries).toEqual([]); expect(view.text()).toBe('')
     view.state.queue.items = []; view.render(); await view.drain(); await view.handle.current!.withdrawPendingGuide(guide.id)
     expect(view.api.withdrawMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves a late guide withdrawal only for its original owner after navigating away', async () => {
+    const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
+    const guide = { ...queued(), delivery: 'guide' as const, targetRunId: 'run' }, ack = deferred<Awaited<ReturnType<typeof view.api.withdrawMessage>>>()
+    view.state.queue = { sessionId: 'current', revision: 1, items: [guide] }; view.api.withdrawMessage.mockReturnValueOnce(ack.promise); view.render(); await view.drain()
+    const withdrawal = view.handle.current!.withdrawPendingGuide(guide.id)
+    view.state.session = { ...view.state.session!, id: 'next' }; view.state.queue = undefined; view.render(); await view.drain(); await view.type('另一会话的新正文')
+    ack.resolve({ item: guide, queue: { sessionId: 'current', revision: 2, items: [] } }); await withdrawal; await view.drain()
+    expect(view.text()).toBe('另一会话的新正文'); expect(view.api.select).not.toHaveBeenCalled()
+    expect(view.api.setPreference).toHaveBeenCalledWith('harness-react-composer-drafts', expect.objectContaining({ recoveries: { current: [expect.objectContaining({ id: guide.id, sessionId: 'current', text: guide.text })] } }), true)
+    view.state.session = { ...view.state.session!, id: 'current' }; view.render(); await view.drain(); expect(view.queueProps().recoveries).toEqual([guide]); expect(view.text()).toBe('')
   })
 
   it.each(['ctrlKey', 'metaKey'])('submits %s+Enter as one atomic immediate intent with the clicked run identity', async modifier => {
@@ -509,8 +908,8 @@ describe('shipped Mira Composer contextual interactions', () => {
     await view.type('ACK 期间的新草稿')
     ack.resolve(true); await view.drain()
     expect(view.text()).toBe('ACK 期间的新草稿')
-    expect(view.props(props => props.title === 'new.md')).toBeDefined()
-    expect(() => view.props(props => props.title === 'old.md')).toThrow()
+    expect(view.attachmentPaths()).toContain('new.md')
+    expect(view.attachmentPaths()).not.toContain('old.md')
   })
 
   it('reuses the submission identity for an unchanged retry and changes it for a new payload', async () => {
@@ -598,7 +997,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.items().find(item => item.id === 'mcp-docs')?.disabled).toBe(true)
     await view.type('@next')
     await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-next.md')
-    expect(view.props(props => props.title === 'next.md')).toBeDefined()
+    expect(view.attachmentPaths()).toContain('next.md')
     await view.type('@研究'); await view.select('session-reference'); expect(view.text()).toContain('真实结论')
     expect(view.props(props => props['aria-label'] === '权限与计划模式').disabled).toBe(true)
     expect(view.props(props => props['aria-label'] === '模型').disabled).toBe(false)
@@ -615,7 +1014,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.text()).toBe('')
     ack.resolve({ item: queued(), queue: { sessionId: 'current', revision: 2, items: [] } }); await editing; await view.drain()
     expect(view.text()).toBe('排队的正文')
-    expect(view.props(props => props.title === 'queued.md')).toBeDefined()
+    expect(view.attachmentPaths()).toContain('queued.md')
     expect(view.api.select).toHaveBeenCalledWith(queued().selection)
     expect(view.props(props => props['aria-label'] === '关闭计划模式')).toBeDefined()
   })
@@ -706,10 +1105,10 @@ describe('shipped Mira Composer contextual interactions', () => {
     const ack = deferred<boolean>(), view = fixture({ queue: true, search: async () => ({ entries: [{ path: 'same.md', name: 'same.md', type: 'file' }], truncated: false }) }); await view.drain()
     await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.type('发这条')
     view.api.send.mockReturnValueOnce(ack.promise); await view.key('Enter')
-    ;(view.props(props => props['aria-label'] === '移除 same.md').onClick as () => void)(); await view.drain()
+    ;(view.attachmentProps().onRemove as (path: string) => void)('same.md'); await view.drain()
     await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.type('保留新正文')
     ack.resolve(true); await view.drain()
-    expect(view.props(props => props.title === 'same.md')).toBeDefined()
+    expect(view.attachmentPaths()).toContain('same.md')
     expect(view.text()).toBe('保留新正文')
   })
 
@@ -817,7 +1216,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.api.searchFilesFor).toHaveBeenCalledWith('current', 'RE')
     await view.key('Tab')
     expect(view.text()).toBe('检查  后续正文')
-    expect(view.props(props => props.title === 'docs/README.md').children).toBeDefined()
+    expect(view.attachmentPaths()).toContain('docs/README.md')
     expect(view.api.send).not.toHaveBeenCalled()
   })
 
@@ -880,7 +1279,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.items().find(item => item.id === 'file-image.png')?.disabled).toBe(true)
     expect(view.items()[view.panelProps().selectedIndex as number].id).toBe('file-source.svg')
     await view.key('Enter'); expect(view.text()).toBe('')
-    expect(view.props(props => props.title === 'source.svg')).toBeDefined()
+    expect(view.attachmentPaths()).toContain('source.svg')
   })
 
   it('does not scan the filesystem for slash commands and wraps keyboard navigation', async () => {
@@ -921,6 +1320,22 @@ describe('shipped Mira Composer contextual interactions', () => {
     await view.dispatch('Escape', { target: view.textarea }); expect(view.api.stop).toHaveBeenCalledOnce()
     expect(view.inputProps().placeholder).toContain('任务运行中')
     expect(view.props(props => props['aria-label'] === '停止任务')).toBeDefined()
+  })
+
+  it('yields model, permission and stop shortcuts to an open modal preview', async () => {
+    const view = fixture()
+    await view.drain()
+    view.state.running = true; view.render(); await view.drain()
+    vi.stubGlobal('document', { getElementById: () => null, querySelector: (selector: string) => selector.includes('aria-modal') ? {} : null })
+    for (const [key, modifiers] of [['m', { ctrlKey: true }], ['m', { ctrlKey: true, shiftKey: true }], ['Escape', {}]] as const) {
+      const input = await view.dispatch(key, { ...modifiers, target: { closest: () => null } })
+      expect(input.preventDefault).not.toHaveBeenCalled()
+    }
+    await view.drain()
+    expect(view.api.select).not.toHaveBeenCalled()
+    expect(view.api.stop).not.toHaveBeenCalled()
+    expect(view.api.setSessionPermission).not.toHaveBeenCalled()
+    expect(view.openPopups()).toBe(0)
   })
 
   it('yields Composer shortcuts to terminal and other editable targets', async () => {
@@ -993,5 +1408,28 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.text()).toBe('用户新草稿')
     await vi.advanceTimersByTimeAsync(250)
     expect(view.api.setPreference).toHaveBeenCalledWith('harness-react-composer-drafts', expect.objectContaining({ drafts: expect.objectContaining({ current: '用户新草稿' }) }), true)
+  })
+
+  it('restores a prepared owner only through guarded navigation and retains input typed before hydration', async () => {
+    const preference = deferred<unknown>(), view = fixture({ draftPreference: preference.promise })
+    view.state.session = undefined; view.render(); await view.type('启动期间的新输入')
+    preference.resolve({ draft: { id: 'saved', sessionId: 'created', groupId: 'first' }, drafts: { created: '已保存的输入' } }); await view.drain()
+    expect(view.api.open).not.toHaveBeenCalled()
+    const current = () => true
+    expect(await view.handle.current!.openDraft(undefined, current)).toBe(true); await view.drain()
+    expect(view.api.open).toHaveBeenCalledExactlyOnceWith('created', current)
+    expect(view.text()).toBe('已保存的输入\n\n启动期间的新输入')
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ drafts: { created: '已保存的输入\n\n启动期间的新输入' } }), true)
+  })
+
+  it('abandons restored owner navigation when a newer target wins during hydration', async () => {
+    const preference = deferred<unknown>(), view = fixture({ draftPreference: preference.promise })
+    view.state.session = undefined; view.render(); await view.drain()
+    let current = true
+    const navigation = view.handle.current!.openDraft(undefined, () => current)
+    current = false; preference.resolve({ draft: { id: 'saved', sessionId: 'created' }, drafts: { created: '保存的草稿' } })
+    expect(await navigation).toBe(false); await view.drain()
+    expect(view.api.open).not.toHaveBeenCalled(); expect(view.api.newConversation).not.toHaveBeenCalled()
   })
 })

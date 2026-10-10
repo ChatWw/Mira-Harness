@@ -27,6 +27,8 @@ function setup() {
     reserve: vi.fn(() => Symbol('queue')), release: vi.fn(),
     currentRunId: vi.fn(() => running ? 'current-run' : undefined),
     preemptAndWait: vi.fn(async () => { running = false }),
+    accept: vi.fn((_id, persist) => { persist?.() }),
+    guideFallback: vi.fn(() => undefined),
     execute: vi.fn(async (_item, _attachments, _token, _sender, started) => { started(); return {} }),
     publish: vi.fn(), settled: vi.fn(),
   }
@@ -40,6 +42,115 @@ async function flush() {
 }
 
 describe('HarnessMessageQueue', () => {
+  it('commits admission before ordinary ACK and replays without a second lifecycle commit', async () => {
+    const { queue, deps, submit, setRunning } = setup()
+    setRunning(true)
+    const receipt = submit()
+    expect(deps.accept).toHaveBeenCalledExactlyOnceWith('s')
+    expect(queue.replay('s', 'one', input())).toMatchObject({ id: receipt.id })
+    expect(submit().id).toBe(receipt.id)
+    expect(deps.accept).toHaveBeenCalledOnce()
+    setRunning(false); queue.onRunSettled('s', 'completed'); await flush()
+    expect(deps.accept).toHaveBeenCalledOnce()
+  })
+
+  it('releases reservation without an item or receipt when durable ordinary admission fails', async () => {
+    const { queue, deps, submit } = setup()
+    vi.mocked(deps.accept!).mockImplementationOnce(() => { throw new Error('storage failed') })
+    expect(() => submit()).toThrow(recoverableError)
+    expect(queue.hasPending('s')).toBe(false)
+    expect(queue.get('s').items).toEqual([])
+    expect(queue.replay('s', 'one', input())).toBeUndefined()
+    expect(deps.release).toHaveBeenCalledOnce()
+    await flush(); expect(deps.execute).not.toHaveBeenCalled()
+    submit(); await flush(); expect(deps.execute).toHaveBeenCalledOnce()
+  })
+
+  it('admits immediate input with its persistence callback and rejects a failed commit without a receipt', async () => {
+    const { queue, deps } = setup()
+    const persist = vi.fn(), ready = deferred<void>()
+    vi.mocked(deps.execute).mockImplementationOnce(async (_item, _files, _token, _sender, started) => { await ready.promise; started(persist); return {} })
+    vi.mocked(deps.accept!).mockImplementationOnce(() => { throw new Error('storage failed') })
+    const options: HarnessMessageSubmissionOptions = { delivery: 'immediate', expectedRunId: null }
+    const pending = queue.submit(sender, input(), attachments, scope, options)
+    await flush(); expect(deps.accept).not.toHaveBeenCalled()
+    ready.resolve()
+    await expect(pending).rejects.toThrow(recoverableError)
+    expect(persist).not.toHaveBeenCalled()
+    expect(queue.hasPending('s')).toBe(false)
+    expect(queue.replayWithOptions('s', 'one', input(), options)).toBeUndefined()
+    expect(deps.release).toHaveBeenCalledOnce()
+    vi.mocked(deps.execute).mockImplementationOnce(async (_item, _files, _token, _sender, started) => { started(persist); return {} })
+    const accepted = await queue.submit(sender, input(), attachments, scope, options)
+    expect('id' in accepted).toBe(true)
+    expect(persist).toHaveBeenCalledOnce()
+    expect(deps.accept).toHaveBeenLastCalledWith('s', persist)
+  })
+
+  it('keeps guidance pending and withdrawable before the engine stages it, replaying its actual delivery receipt', () => {
+    const { queue, deps, setRunning } = setup()
+    setRunning(true)
+    const value = { ...input('guide'), planning: false, references: [] }
+    const options: HarnessMessageSubmissionOptions = { delivery: 'guide', expectedRunId: 'current-run' }
+    const receipt = queue.submit(sender, value, [], scope, options) as any
+    expect(receipt).toMatchObject({ delivery: 'guide', queue: { items: [{ delivery: 'guide', requestedDelivery: 'guide', targetRunId: 'current-run' }] } })
+    expect(queue.submit(sender, value, [], scope, options)).toMatchObject({ id: receipt.id, delivery: 'guide' })
+    expect(deps.reserve).not.toHaveBeenCalled()
+    expect(deps.preemptAndWait).not.toHaveBeenCalled()
+    queue.withdraw('s', receipt.id)
+    expect(queue.stageGuide('s', 'current-run')).toBeUndefined()
+  })
+
+  it('locks only the engine delivery boundary and removes the item only after successful public-message persistence', async () => {
+    const { queue, deps, setRunning } = setup()
+    setRunning(true)
+    const receipt = queue.submit(sender, { ...input('guide'), planning: false, references: [] }, [], scope, { delivery: 'guide', expectedRunId: 'current-run' }) as any
+    expect(queue.stageGuide('s', 'wrong')).toBeUndefined()
+    expect(queue.stageGuide('s', 'current-run')?.item.id).toBe(receipt.id)
+    expect(queue.get('s').promotingItemId).toBe(receipt.id)
+    expect(() => queue.withdraw('s', receipt.id)).toThrow('已开始')
+    expect(() => queue.reorder('s', receipt.id, null)).toThrow('已开始')
+    await expect(queue.sendNow('s', receipt.id)).rejects.toThrow('正在提升')
+    expect(queue.stageGuide('s', 'current-run')).toBeUndefined()
+    const commit = vi.fn()
+    expect(queue.consumeGuide('s', receipt.id, 'wrong', commit)).toBe(false)
+    expect(() => queue.consumeGuide('s', receipt.id, 'current-run', () => { throw new Error('save failed') })).toThrow('save failed')
+    expect(queue.get('s').items).toHaveLength(1)
+    expect(queue.consumeGuide('s', receipt.id, 'current-run', commit)).toBe(true)
+    expect(queue.consumeGuide('s', receipt.id, 'current-run', commit)).toBe(false)
+    expect(commit).toHaveBeenCalledOnce()
+    expect(queue.get('s').items).toEqual([])
+    expect(deps.execute).not.toHaveBeenCalled()
+  })
+
+  it.each(['attachments', 'planning', 'model-mismatch', 'permission-mismatch', 'run-unavailable', 'confirmation'] as const)('explicitly falls back while retaining the entire frozen input (%s)', reason => {
+    const { queue, deps, setRunning } = setup()
+    setRunning(true)
+    vi.mocked(deps.guideFallback!).mockReturnValue(reason)
+    const value = input('guide')
+    const receipt = queue.submit(sender, value, attachments, scope, { delivery: 'guide', expectedRunId: 'current-run' }) as any
+    expect(receipt).toMatchObject({ delivery: 'queue', queue: { items: [{ ...value, requestedDelivery: 'guide', fallbackReason: reason }] } })
+    expect(receipt.queue.items[0].delivery).toBeUndefined()
+    expect(queue.stageGuide('s', 'current-run')).toBeUndefined()
+    expect(deps.preemptAndWait).not.toHaveBeenCalled()
+  })
+
+  it.each(['aborted', 'failed', 'completed'] as const)('converts an unconsumed staged guide only after full idle and requires explicit resume (%s)', async status => {
+    const { queue, deps, setRunning } = setup()
+    setRunning(true)
+    const receipt = queue.submit(sender, { ...input('guide'), planning: false, references: [] }, [], scope, { delivery: 'guide', expectedRunId: 'current-run' }) as any
+    queue.stageGuide('s', 'current-run')
+    queue.onRunSettled('s', status)
+    expect(queue.get('s').items[0]?.delivery).toBe('guide')
+    setRunning(false); queue.onRunSettled('s', status)
+    expect(queue.get('s')).toMatchObject({ paused: status === 'aborted' ? 'stopped' : status === 'failed' ? 'failed' : 'confirmation', items: [{ id: receipt.id, requestedDelivery: 'guide', fallbackReason: 'run-ended' }] })
+    expect(queue.get('s').items[0]?.delivery).toBeUndefined()
+    expect(queue.get('s').promotingItemId).toBeUndefined()
+    await flush(); expect(deps.execute).not.toHaveBeenCalled()
+    queue.resume('s'); await flush()
+    expect(deps.execute).toHaveBeenCalledOnce()
+  })
+
   it('requires an authoritative paused-queue choice without accepting, stopping or clearing anything', async () => {
     const { queue, deps, submit, setRunning } = setup()
     setRunning(true); submit('old'); queue.pause('s', 'stopped'); setRunning(false)

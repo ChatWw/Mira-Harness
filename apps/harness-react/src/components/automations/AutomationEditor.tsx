@@ -11,9 +11,9 @@ import { formatAutomationTime } from '../../../../../src/pages/frontend/harness/
 import { AUTOMATION_FREQUENCIES, automationModels, automationTriggerForForm, type AutomationForm, type AutomationFrequency } from './automation-form'
 import type { AutomationsHost } from './automation-host'
 
-export function AutomationEditor({ host, form, projects, sessions, providers, permission, saving, readOnly, active = true, error, onChange, onSave, onManageModels }: {
+export function AutomationEditor({ host, form, projects, sessions, providers, permission, saving, readOnly, active = true, navigationBusy = false, error, onChange, onSave, onManageModels }: {
   host: AutomationsHost; form: AutomationForm; projects: HarnessProject[]; sessions: HarnessSessionSummary[]; providers: ModelProviderSummary[]; permission: PermissionConfig
-  saving: boolean; readOnly: boolean; active?: boolean; error: string; onChange: (form: AutomationForm) => void; onSave: () => void; onManageModels: () => void
+  saving: boolean; readOnly: boolean; active?: boolean; navigationBusy?: boolean; error: string; onChange: (form: AutomationForm) => void; onSave: () => void; onManageModels: () => void
 }) {
   const [preview, setPreview] = useState<{ state: 'loading' | 'ready' | 'error'; times: number[]; error: string }>({ state: 'loading', times: [], error: '' })
   const [retry, setRetry] = useState(0)
@@ -33,7 +33,7 @@ export function AutomationEditor({ host, form, projects, sessions, providers, pe
     return () => { current = false; window.clearTimeout(timer) }
   }, [host, triggerSignature, active, retry])
   const models = automationModels(providers), model = models.find(model => model.key === form.modelKey)
-  const disabled = saving || readOnly || !active
+  const disabled = saving || readOnly || !active || navigationBusy
   const change = <K extends keyof AutomationForm>(key: K, value: AutomationForm[K]) => onChange({ ...form, [key]: value })
   const projectSessions = sessions.filter(session => session.projectId === form.projectId)
   return <form className="mira-automation-editor" onSubmit={event => { event.preventDefault(); if (!disabled && preview.state === 'ready') onSave() }}>

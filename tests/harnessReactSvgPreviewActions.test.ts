@@ -32,11 +32,11 @@ function findControl(node: React.ReactNode, matches: (element: Control) => boole
   }
 }
 
-function panel(path = 'broken.svg') {
+function panel(path = 'broken.svg', active = true) {
   const onAddFile = vi.fn()
   const render = () => {
     hooks.index = 0
-    return FilePreviewPanel({ controller: {} as PilotController, sessionId: 'alpha', path, active: true, onAddFile })
+    return FilePreviewPanel({ controller: {} as PilotController, sessionId: 'alpha', path, active, onAddFile })
   }
   render()
   const addButton = (tree: React.ReactNode) => findControl(tree, node => node.props['aria-label'] === '将当前文件加入对话')
@@ -65,14 +65,64 @@ describe('Mira SVG preview and source conversation actions', () => {
     expect(addButton(render())!.props.disabled).toBe(true)
   })
 
-  it('does not permit unreadable SVG source or expose a bitmap conversation action', () => {
+  it('does not permit unreadable SVG source', () => {
     const svg = panel()
     hooks.states[0] = { sessionId: 'alpha', path: 'broken.svg', status: 'error', error: '文件不存在' }
     svg.setMode(svg.render(), 'source')
     expect(svg.addButton(svg.render())!.props.disabled).toBe(true)
-    hooks.states = []
-    const bitmap = panel('logo.png')
-    hooks.states[0] = { sessionId: 'alpha', path: 'logo.png', status: 'image', image: { path: 'logo.png', mediaType: 'image/png', dataBase64: 'fixture', byteLength: 8 } }
-    expect(bitmap.addButton(bitmap.render())).toBeUndefined()
+    svg.addButton(svg.render())!.props.onClick()
+    expect(svg.onAddFile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['assets/logo.png', 'image/png'], ['assets/logo.JPG', 'image/jpeg'], ['assets/logo.jpeg', 'image/jpeg'],
+    ['assets/logo.gif', 'image/gif'], ['assets/logo.webp', 'image/webp'],
+  ])('adds authorized supported image %s and disables a failed decode until it recovers', (path, mediaType) => {
+    const bitmap = panel(path)
+    let tree = bitmap.render()
+    expect(bitmap.addButton(tree)!.props.disabled).toBe(true)
+    bitmap.addButton(tree)!.props.onClick()
+    expect(bitmap.onAddFile).not.toHaveBeenCalled()
+    hooks.states[0] = { sessionId: 'alpha', path, status: 'image', image: { path, mediaType, dataBase64: 'fixture', byteLength: 8 } }
+    tree = bitmap.render()
+    expect(bitmap.addButton(tree)!.props.disabled).toBe(false)
+    bitmap.addButton(tree)!.props.onClick()
+    expect(bitmap.onAddFile).toHaveBeenCalledExactlyOnceWith(path)
+    bitmap.onAddFile.mockClear()
+    findControl(tree, node => node.type === MiraImagePreview)!.props.onDecodeChange(true)
+    tree = bitmap.render()
+    expect(bitmap.addButton(tree)!.props.disabled).toBe(true)
+    bitmap.addButton(tree)!.props.onClick()
+    expect(bitmap.onAddFile).not.toHaveBeenCalled()
+    findControl(tree, node => node.type === MiraImagePreview)!.props.onDecodeChange(false)
+    tree = bitmap.render()
+    expect(bitmap.addButton(tree)!.props.disabled).toBe(false)
+    bitmap.addButton(tree)!.props.onClick()
+    expect(bitmap.onAddFile).toHaveBeenCalledExactlyOnceWith(path)
+  })
+
+  it.each([
+    ['logo.avif', 'image/avif'], ['logo.apng', 'image/apng'], ['logo.bmp', 'image/bmp'], ['logo.ico', 'image/x-icon'],
+  ])('keeps unsupported image %s previewable but explains why it cannot be attached', (path, mediaType) => {
+    const bitmap = panel(path)
+    hooks.states[0] = { sessionId: 'alpha', path, status: 'image', image: { path, mediaType, dataBase64: 'fixture', byteLength: 8 } }
+    const tree = bitmap.render()
+    expect(findControl(tree, node => node.type === MiraImagePreview)).toBeDefined()
+    const add = bitmap.addButton(tree)!
+    expect(add.props.disabled).toBe(true)
+    expect(add.props.title).toContain('PNG、JPEG、GIF 或 WebP')
+    add.props.onClick()
+    expect(bitmap.onAddFile).not.toHaveBeenCalled()
+  })
+
+  it.each(['loading', 'error', 'wrong-owner', 'inactive'])('refuses a supported image attachment during %s', state => {
+    const bitmap = panel('logo.png', state !== 'inactive')
+    hooks.states[0] = state === 'loading' ? { sessionId: 'alpha', path: 'logo.png', status: 'loading' }
+      : state === 'error' ? { sessionId: 'alpha', path: 'logo.png', status: 'error', error: '文件不可读取' }
+        : { sessionId: state === 'wrong-owner' ? 'beta' : 'alpha', path: 'logo.png', status: 'image', image: { path: 'logo.png', mediaType: 'image/png', dataBase64: 'fixture', byteLength: 8 } }
+    const add = bitmap.addButton(bitmap.render())!
+    expect(add.props.disabled).toBe(true)
+    add.props.onClick()
+    expect(bitmap.onAddFile).not.toHaveBeenCalled()
   })
 })

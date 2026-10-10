@@ -4,7 +4,7 @@
       <div class="error-code">404</div>
       <h1>页面不存在</h1>
       <p>抱歉，您访问的页面不存在或已被移除</p>
-      <el-button type="primary" size="large" @click="$router.push('/workspace/chat')">
+      <el-button type="primary" size="large" @click="$router.push(getApplicationEntryPath('main'))">
         返回新对话
       </el-button>
     </div>
@@ -12,6 +12,7 @@
 </template>
 
 <script setup lang="ts">
+import { getApplicationEntryPath } from '@/config/navigation'
 </script>
 
 <style scoped lang="scss">

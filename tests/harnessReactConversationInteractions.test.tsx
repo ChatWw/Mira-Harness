@@ -11,10 +11,23 @@ vi.mock('react', async importOriginal => ({
     const slot = hooks.slots[hooks.cursor++] ??= { value: typeof initial === 'function' ? initial() : initial }
     return [slot.value, (value: unknown) => { slot.value = typeof value === 'function' ? value(slot.value) : value }]
   },
+  useRef: (initial: unknown) => (hooks.slots[hooks.cursor++] ??= { value: { current: initial } }).value,
   useMemo: (factory: () => unknown, deps: readonly unknown[]) => {
     const slot = hooks.slots[hooks.cursor++] ??= {}
     if (!slot.deps || deps.some((value, index) => value !== slot.deps![index])) { slot.value = factory(); slot.deps = deps }
     return slot.value
+  },
+  useCallback: (callback: unknown, deps: readonly unknown[]) => {
+    const slot = hooks.slots[hooks.cursor++] ??= {}
+    if (!slot.deps || deps.some((value, index) => value !== slot.deps![index])) { slot.value = callback; slot.deps = deps }
+    return slot.value
+  },
+  useLayoutEffect: (callback: () => (() => void) | undefined, deps: readonly unknown[]) => {
+    const slot = hooks.slots[hooks.cursor++] ??= {}
+    if (!slot.deps || deps.some((value, index) => value !== slot.deps![index])) {
+      slot.deps = deps
+      hooks.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback() })
+    }
   },
   useEffect: (callback: () => (() => void) | undefined, deps: readonly unknown[]) => {
     const slot = hooks.slots[hooks.cursor++] ??= {}
@@ -24,6 +37,12 @@ vi.mock('react', async importOriginal => ({
     }
   },
 }))
+// Callback-only fixture; real scrolling and virtual mounting are covered by the DOM rail suite.
+vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: ({ count, getItemKey }: { count: number; getItemKey: (index: number) => string }) => ({
+  getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, key: getItemKey(index), start: index * 10 })),
+  getTotalSize: () => count * 10,
+  scrollToIndex: () => undefined,
+}) }))
 
 function mount(renderComponent: () => React.ReactNode) {
   let tree: React.ReactNode
@@ -54,24 +73,45 @@ beforeEach(() => {
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Mira conversation real component callbacks', () => {
-  it('previews actual turn text on hover and scrolls to the selected user anchor, not the latest message', () => {
-    const rows = [{ dataset: { userMessageId: 'u1' }, getBoundingClientRect: () => ({ top: -200 }), scrollIntoView: vi.fn() }, { dataset: { userMessageId: 'u2' }, getBoundingClientRect: () => ({ top: 400 }), scrollIntoView: vi.fn() }]
-    const listeners = new Map<string, () => void>()
-    const viewport = { getBoundingClientRect: () => ({ top: 0 }), querySelectorAll: () => rows, addEventListener: (name: string, callback: () => void) => listeners.set(name, callback), removeEventListener: vi.fn() }
+  it('previews actual turn text and requests the selected message through mounted-first navigation', () => {
+    const navigate = vi.fn()
+    let activeId = 'u1'
     const messages = [{ id: 'u1', role: 'user' as const, content: '第一个问题', createdAt: 1 }, { id: 'a1', role: 'assistant' as const, content: '第一轮回复', createdAt: 2 }, { id: 'u2', role: 'user' as const, content: '第二个问题', createdAt: 3 }]
-    const view = mount(() => ConversationTurnRail({ messages, viewportRef: { current: viewport as unknown as HTMLDivElement } }))
+    const view = mount(() => ConversationTurnRail({ messages, activeId, onNavigate: navigate }))
     view.render()
     expect(view.find(props => props['data-turn-id'] === 'u1')['aria-current']).toBe('location')
-    ;(view.find(props => props['data-turn-id'] === 'u1').onMouseEnter as () => void)()
+    ;(view.find(props => props['data-turn-id'] === 'u1').onPointerEnter as () => void)()
     view.render()
     expect(view.find(props => props.children === '第一个问题')).toBeDefined()
     expect(view.find(props => props.children === '第一轮回复')).toBeDefined()
     ;(view.find(props => props['data-turn-id'] === 'u2').onClick as () => void)()
-    expect(rows[1].scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
-    expect(rows[0].scrollIntoView).not.toHaveBeenCalled()
-    rows[1].getBoundingClientRect = () => ({ top: 20 })
-    listeners.get('scroll')!(); view.render()
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('u2')
+    activeId = 'u2'; view.render()
     expect(view.find(props => props['data-turn-id'] === 'u2')['aria-current']).toBe('location')
+  })
+
+  it('exposes accepted guides as query anchors while their execution remains in the original turn', () => {
+    const navigate = vi.fn()
+    let activeId = 'u1'
+    const messages = [
+      { id: 'u1', role: 'user' as const, content: '原任务', createdAt: 1 },
+      { id: 'a1', role: 'assistant' as const, content: '正在执行', runId: 'run', createdAt: 2 },
+      { id: 'guide', role: 'user' as const, content: '补充要求', delivery: 'guide' as const, runId: 'run', createdAt: 3 },
+      { id: 'a2', role: 'assistant' as const, content: '继续执行', runId: 'run', createdAt: 4 },
+      { id: 'u2', role: 'user' as const, content: '下一轮', createdAt: 5 },
+    ]
+    const view = mount(() => ConversationTurnRail({ messages, activeId, onNavigate: navigate }))
+    view.render()
+    expect(view.find(props => props['data-turn-id'] === 'u1')['aria-current']).toBe('location')
+    ;(view.find(props => props['data-turn-id'] === 'guide').onClick as () => void)()
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('guide')
+    activeId = 'guide'; view.render()
+    expect(view.find(props => props['data-turn-id'] === 'guide')['aria-current']).toBe('location')
+    expect(view.find(props => props['data-turn-id'] === 'u2')['aria-current']).toBeUndefined()
+    activeId = 'u2'; view.render()
+    expect(view.find(props => props['data-turn-id'] === 'u2')['aria-current']).toBe('location')
+    activeId = 'u1'; view.render()
+    expect(view.find(props => props['data-turn-id'] === 'u1')['aria-current']).toBe('location')
   })
 
   it('copies the chosen text and exposes success feedback only after clipboard completion', async () => {

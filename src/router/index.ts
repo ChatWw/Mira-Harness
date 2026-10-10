@@ -4,6 +4,7 @@ import { runtimeNavigation } from '@/config/runtime'
 import { APP_NAME, useLayoutStore } from '@/stores/layout'
 import type { MenuItem } from '@/types'
 import { createBusinessRoute } from './pageRegistry'
+import { HARNESS_WORKBENCH_PATH } from '@/platform/firstPartyNavigation'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
@@ -119,12 +120,13 @@ const staticRoutes: RouteRecordRaw[] = [
 
 const layoutRoute: RouteRecordRaw = {
   path: '/',
-  redirect: '/workspace/chat',
+  redirect: HARNESS_WORKBENCH_PATH,
   component: () => import('@/layouts/index.vue'),
   children: [
-    { path: '/workspace/harness-react', name: 'HarnessReact', component: () => import('@/pages/frontend/harness/react/index.vue'), meta: { title: 'Mira Harness', showPageHeader: false, noPageTransition: true } },
+    { path: HARNESS_WORKBENCH_PATH, name: 'HarnessReact', component: () => import('@/pages/frontend/harness/react/index.vue'), meta: { title: 'Mira Harness', showPageHeader: false, noPageTransition: true } },
     {
       path: '/workspace',
+      redirect: HARNESS_WORKBENCH_PATH,
       component: () => import('@/pages/frontend/harness/LegacyHarnessLayout.vue'),
       meta: { noPageTransition: true },
       children: [

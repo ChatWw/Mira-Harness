@@ -9,6 +9,30 @@ function setup() {
 }
 
 describe('HarnessRunCoordinator', () => {
+  it('accepts guidance only for the attached ready engine and its frozen run selection', async () => {
+    const { coordinator } = setup()
+    coordinator.begin('s', 'run')
+    coordinator.setGuidanceAccepting('s', 'run', true)
+    expect(coordinator.guidanceSelection('s', 'run')).toBeUndefined()
+    const selection = { providerId: 'p', modelId: 'm', thinkingLevel: 'high' as const }
+    coordinator.attachAgent('s', { abort: vi.fn() } as any, selection, 'full')
+    selection.modelId = 'changed'
+    expect(coordinator.guidanceSelection('s', 'stale')).toBeUndefined()
+    const snapshot = coordinator.guidanceSelection('s', 'run')!
+    expect(snapshot).toEqual({ providerId: 'p', modelId: 'm', thinkingLevel: 'high', permissionMode: 'full' })
+    snapshot.modelId = 'mutated'
+    expect(coordinator.guidanceSelection('s', 'run')?.modelId).toBe('m')
+    coordinator.setGuidanceAccepting('s', 'stale', false)
+    expect(coordinator.guidanceSelection('s', 'run')).toBeDefined()
+    coordinator.setGuidanceAccepting('s', 'run', false)
+    expect(coordinator.guidanceSelection('s', 'run')).toBeUndefined()
+    coordinator.setGuidanceAccepting('s', 'run', true)
+    coordinator.abort('s', 'run')
+    expect(coordinator.guidanceSelection('s', 'run')).toBeUndefined()
+    await coordinator.finish(undefined, 's', 'run')
+    expect(coordinator.guidanceSelection('s', 'run')).toBeUndefined()
+  })
+
   it('preempts the identified run and waits for actual child teardown without losing the queue reservation', async () => {
     const { coordinator, database } = setup()
     const controller = coordinator.begin('s', 'old')

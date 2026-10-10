@@ -19,6 +19,7 @@ import { PLATFORM_API_VERSION, type FirstPartyAppManifest } from '@/config/first
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '@/platform/firstPartyBridge'
 import { FirstPartyConnectionSession } from '@/platform/firstPartySession'
 import type { HarnessBrowserBounds } from '@/platform/firstPartyHarness'
+import { readMiraAppNavigationCommand, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '@/platform/appNavigation'
 import type { PlatformApi, PlatformContext } from '@/types'
 
 type HostedWebview = HTMLElement & {
@@ -41,8 +42,9 @@ const props = defineProps<{
   context: PlatformContext
   route: string
   navigate: (path: string) => void | Promise<void>
+  navigationSnapshot?: MiraAppNavigationSnapshot
 }>()
-const emit = defineEmits<{ error: [message: string] }>()
+const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: [] }>()
 const stage = ref<HTMLDivElement>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
@@ -52,22 +54,55 @@ let browserSessionId = ''
 let browserLoading = false
 let disposed = false
 let connectedOnce = false
+let commandFocus: { id: string; port: MessagePort; target?: HTMLElement } | undefined
 const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
 
 function removeBrowser() { browser?.remove(); browser = undefined; browserSessionId = ''; browserLoading = false }
-function invalidateConnection() { removeBrowser(); unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined }
+function invalidateConnection() { commandFocus = undefined; removeBrowser(); unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined; emit('navigationReset') }
 
 function send(message: unknown) {
   try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
 }
 
-function openCommandCenter() { if (props.manifest.appId === 'mira-harness' && !disposed) send({ type: 'mira:command-center-open' }) }
+function visibleFocusTarget(target: HTMLElement) {
+  if (!target.isConnected || target.closest('[hidden], [inert], [aria-hidden="true"]') || target.matches(':disabled, [aria-disabled="true"]')) return false
+  for (let element: HTMLElement | null = target; element; element = element.parentElement) {
+    const style = getComputedStyle(element)
+    if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false
+  }
+  return true
+}
+function openCommandCenter() {
+  if (disposed || !port || !hasHarnessNavigation()) return
+  const active = document.activeElement
+  const target = active instanceof HTMLElement && active !== frame.value && active !== document.body && active !== document.documentElement && !stage.value?.contains(active) && visibleFocusTarget(active) ? active : undefined
+  const request = { id: crypto.randomUUID(), port, target }
+  commandFocus = request
+  try { port.postMessage({ type: 'mira:command-center-open', focusRequestId: request.id }) }
+  catch { if (commandFocus === request) commandFocus = undefined }
+}
+function restoreCommandFocus(message: unknown, activePort: MessagePort) {
+  if (!message || typeof message !== 'object' || Array.isArray(message) || !('type' in message) || message.type !== 'mira:command-center-dismiss') return false
+  const request = commandFocus
+  if (Object.keys(message).length !== 2 || !request || request.port !== activePort || port !== activePort || !('focusRequestId' in message) || message.focusRequestId !== request.id) return true
+  commandFocus = undefined
+  const active = document.activeElement
+  if (!request.target || !visibleFocusTarget(request.target) || active !== frame.value && active !== document.body && active !== document.documentElement) return true
+  request.target.focus({ preventScroll: true })
+  return true
+}
+function hasHarnessNavigation() { return props.manifest.appId === 'mira-harness' && props.manifest.capabilities.includes('harness:workbench') }
+function navigateHistory(command: MiraAppNavigationCommand) {
+  const message = readMiraAppNavigationCommand(command)
+  if (disposed || !port || !hasHarnessNavigation() || !message) return false
+  try { port.postMessage(message); return true } catch { return false }
+}
 function prepareLeave() {
   const activePort = port
   if (disposed || !activePort) return Promise.reject(new Error('Harness 连接尚未就绪，无法确认草稿保存'))
   return session.prepareLeave(message => activePort.postMessage(message))
 }
-defineExpose({ prepareLeave, openCommandCenter })
+defineExpose({ prepareLeave, openCommandCenter, navigateHistory })
 
 function browserState(error?: string) {
   if (!browser || !browserSessionId) return
@@ -138,7 +173,9 @@ async function connect() {
     return
   }
   const currentGeneration = session.begin()
+  commandFocus = undefined
   port = undefined
+  emit('navigationReset')
   const target = frame.value?.contentWindow
   if (!target) return
   const channel = new MessageChannel()
@@ -173,6 +210,9 @@ async function connect() {
   }
   activePort.onmessage = async event => {
     if (!session.isActive(nextGrant, activePort)) return
+    if (restoreCommandFocus(event.data, activePort)) return
+    const navigationState = readMiraAppNavigationState(event.data)
+    if (navigationState) { if (hasHarnessNavigation()) emit('navigationState', navigationState); return }
     if (session.receiveLeaveReady(event.data)) return
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
@@ -213,6 +253,7 @@ async function connect() {
   try {
     target.postMessage({ type: 'mira:connect', grantId: nextGrant, apiVersion: { ...PLATFORM_API_VERSION } }, '*', [channel.port2])
     send({ type: 'mira:context', context: props.context })
+    if (hasHarnessNavigation()) send({ type: 'mira:app-navigation-restore', snapshot: props.navigationSnapshot })
   } catch (error) {
     invalidateConnection()
     if (!disposed) emit('error', error instanceof Error ? error.message : '应用连接失败')
@@ -220,8 +261,8 @@ async function connect() {
 }
 
 watch(() => props.url, () => { invalidateConnection(); connectedOnce = false })
-watch(() => props.manifest.appId, invalidateConnection)
-watch(() => props.route, route => send({ type: 'mira:route', route }))
+watch(() => `${props.manifest.appId}:${props.manifest.capabilities.includes('harness:workbench')}`, invalidateConnection)
+watch(() => props.route, route => { commandFocus = undefined; send({ type: 'mira:route', route }) })
 watch(() => props.context, context => send({ type: 'mira:context', context }), { deep: true })
 onBeforeUnmount(() => { disposed = true; invalidateConnection() })
 </script>

@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import { Check, Copy, FileText, GitCompare, Pencil, RotateCw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, CircleAlert, Copy, FileText, GitCompare, LoaderCircle, Pencil, RotateCw } from 'lucide-react'
 import type { HarnessFileChange, HarnessMessage } from '../../../../../src/config/harness'
+import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
+import { MiraAttachmentPreview } from '../composer/MiraAttachmentPreview'
+import type { PilotController } from '../../state/pilot-state'
 
 export function EditIcon() { return <Pencil size={13} /> }
 
@@ -12,13 +15,68 @@ export function MessageCopyButton({ content, label = '复制回复', onError }: 
 }
 
 /** 消息附件使用实际保存的文件引用，不把附件正文再次写入气泡。 */
-export function UserMessageAttachments({ message, onOpen }: { message?: HarnessMessage; onOpen: (path: string) => void }) {
-  if (!message?.attachments?.length) return null
-  return <div className="mira-message-attachments" aria-label="消息附件">{message.attachments.map((attachment, index) => {
+export function UserMessageAttachments({ message, onOpen, sessionId, controller, active = true }: { message?: HarnessMessage; onOpen: (path: string) => void; sessionId?: string; controller?: Pick<PilotController, 'getAttachment'> & Partial<Pick<PilotController, 'saveAttachment' | 'supportsAttachmentSave'>>; active?: boolean }) {
+  const [loaded, setLoaded] = useState<Record<string, { attachment?: HarnessMessageAttachment; error?: string }>>({})
+  const [retry, setRetry] = useState(0)
+  const [preview, setPreview] = useState<{ scope: string; controller?: Pick<PilotController, 'getAttachment'>; attachment: HarnessMessageAttachment }>()
+  const requests = useRef(new Map<string, Promise<HarnessMessageAttachment>>())
+  const currentLoaded = useRef(loaded)
+  currentLoaded.current = loaded
+  const attachments = message?.attachments ?? []
+  const scope = JSON.stringify([sessionId, message?.id])
+  const key = (path: string) => JSON.stringify([scope, path])
+  const paths = JSON.stringify(attachments.map(file => file.path))
+  const current = useRef({ scope, active, controller, keys: new Set<string>() })
+  current.current = { scope, active, controller, keys: new Set(attachments.map(file => key(file.path))) }
+  const isCurrent = (fileKey: string) => current.current.active && current.current.scope === scope && current.current.controller === controller && current.current.keys.has(fileKey)
+  useEffect(() => {
+    current.current.active = active
+    requests.current.clear()
+    currentLoaded.current = {}
+    setLoaded({})
+    return () => { current.current.active = false; requests.current.clear() }
+  }, [scope, controller, active])
+  useEffect(() => {
+    const retained = active ? current.current.keys : new Set<string>()
+    setLoaded(previous => Object.fromEntries(Object.entries(previous).filter(([fileKey]) => retained.has(fileKey))))
+    for (const fileKey of requests.current.keys()) if (!retained.has(fileKey)) requests.current.delete(fileKey)
+    if (!active || !sessionId || !controller) return
+    for (const file of attachments) {
+      const fileKey = key(file.path)
+      if (!file.mediaType || file.content || currentLoaded.current[fileKey] || requests.current.has(fileKey)) continue
+      const request = Promise.resolve().then(() => controller.getAttachment(sessionId, file.path))
+      requests.current.set(fileKey, request)
+      void request.then(attachment => {
+        if (isCurrent(fileKey) && requests.current.get(fileKey) === request) setLoaded(previous => ({ ...previous, [fileKey]: { attachment } }))
+      }, error => {
+        if (isCurrent(fileKey) && requests.current.get(fileKey) === request) setLoaded(previous => ({ ...previous, [fileKey]: { error: error instanceof Error ? error.message : '附件读取失败' } }))
+      }).finally(() => { if (requests.current.get(fileKey) === request) requests.current.delete(fileKey) })
+    }
+  }, [scope, paths, active, controller, retry])
+  useEffect(() => { setPreview(undefined) }, [scope, paths, active, controller])
+  const retryAttachment = (path: string) => {
+    const next = { ...currentLoaded.current }; delete next[key(path)]; currentLoaded.current = next; setLoaded(next); setRetry(value => value + 1)
+  }
+  if (!attachments.length) return null
+  return <><div className="mira-message-attachments" aria-label="消息附件">{attachments.map((attachment, index) => {
     // 工作区预览不接受外部绝对路径；不把已授权的附件读权扩展为任意文件读权。
     const external = attachment.path.startsWith('/') || attachment.path.includes('\\') || /^[a-z]:/i.test(attachment.path)
-    return <button key={`${attachment.path}:${index}`} type="button" title={external ? `${attachment.path}\n外部附件，不在当前工作区中` : attachment.path} disabled={external} onClick={() => { if (!external) onOpen(attachment.path) }}><FileText size={15} /><span>{attachment.name || attachment.path}</span></button>
-  })}</div>
+    const frozenPreview = Boolean(attachment.mediaType || attachment.path.startsWith('mira-attachment:'))
+    const fileKey = key(attachment.path), state = active ? loaded[fileKey] : undefined
+    const ready = state?.error ? undefined : attachment.content || !attachment.mediaType ? attachment : state?.attachment
+    const loading = Boolean(attachment.mediaType && !ready && !state?.error)
+    return <button key={`${attachment.path}:${index}`} type="button" className={attachment.mediaType ? 'mira-message-attachment--image' : undefined} title={state?.error ? `${state.error}\n点击重试` : external && !frozenPreview ? `${attachment.path}\n外部附件，不在当前工作区中` : frozenPreview ? attachment.name : attachment.path} aria-label={`${state?.error ? '重试附件' : loading ? '正在读取附件' : '预览附件'} ${attachment.name || attachment.path}`} aria-busy={loading || undefined} disabled={!active || external && !frozenPreview || loading} onClick={() => {
+      if (!isCurrent(fileKey)) return
+      if (state?.error) retryAttachment(attachment.path)
+      else if (frozenPreview && ready) setPreview({ scope, controller, attachment: ready })
+      else if (!external) onOpen(attachment.path)
+    }}>{state?.error ? <><CircleAlert size={18} className="mx-auto" /><span>重试</span><span className="sr-only" role="alert">{state.error}</span></> : attachment.mediaType ? ready ? <img src={`data:${ready.mediaType};base64,${ready.content}`} alt={attachment.name} onError={() => {
+      if (isCurrent(fileKey)) setLoaded(previous => ({ ...previous, [fileKey]: { error: '图片无法解码，请重试。' } }))
+    }} /> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <><FileText size={15} /><span>{attachment.name || attachment.path}</span></>}</button>
+  })}</div><MiraAttachmentPreview attachment={active && preview?.scope === scope && preview.controller === controller && attachments.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={attachments.filter(file => file.mediaType).map(file => {
+    const state = active ? loaded[key(file.path)] : undefined
+    return { path: file.path, name: file.name, attachment: state?.error ? undefined : file.content ? file : state?.attachment, error: state?.error, onRetry: () => retryAttachment(file.path) }
+  })} onSave={sessionId && controller?.supportsAttachmentSave && controller.saveAttachment ? attachment => controller.saveAttachment!(sessionId, attachment.path) : undefined} onClose={() => setPreview(undefined)} /></>
 }
 
 const CHANGE_LABELS: Record<HarnessFileChange['tool'], string> = { edit: '编辑', write: '写入', delete: '删除' }

@@ -20,11 +20,13 @@ import { validateSnapshot } from '../../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE, isModelProviderAvailable, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../../src/types'
 
-const CURRENT_SCHEMA_VERSION = 27
+const CURRENT_SCHEMA_VERSION = 28
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'enter', assistantTone: DEFAULT_ASSISTANT_TONE }
 const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'headerHeight', 'showBreadcrumb', 'breadcrumbIcon', 'breadcrumbStyle', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
+const HARNESS_COMPOSER_PREFERENCE = 'first-party.mira-harness.harness-react-composer-drafts'
+const HARNESS_SIDEBAR_PREFERENCE = 'first-party.mira-harness.session-drawer'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
@@ -65,6 +67,7 @@ export class PlatformDatabase {
   readonly logs: RunLogStore
   readonly skills: SkillStore
   readonly automations: AutomationStore
+  private readonly deletedHarnessDraftOwners = new Set<string>()
 
   constructor(paths: MiraPaths | string) {
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
@@ -82,30 +85,101 @@ export class PlatformDatabase {
     this.database.pragma('journal_mode = WAL')
     this.migrate()
     // 选择附件会先创建会话；未发送的持久草稿仍需通过原会话恢复，不能当作旧空白会话清理。
-    this.harness.removeEmptySessions(this.harnessDraftSessionIds())
+    const roots = this.harnessDraftRoots()
+    if (roots) {
+      this.harness.removeEmptySessions(roots.sessionIds)
+      // 只在 Runtime 启动前回收：运行中的队列/未确认提交可能还没有写入持久草稿。
+      this.harness.reclaimStagedAttachments(roots.references, roots.protectedOwners)
+    }
   }
 
-  private harnessDraftSessionIds(): ReadonlySet<string> {
+  private harnessDraftRoots() {
     const retained = new Set<string>()
-    const sidebarRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.session-drawer') as { value: string } | undefined
+    const references = new Map<string, Set<string>>()
+    const protectedOwners = new Set<string>()
+    const protect = (owner: string) => { retained.add(owner); protectedOwners.add(owner) }
+    const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value))
+    const sidebarRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get(HARNESS_SIDEBAR_PREFERENCE) as { value: string } | undefined
     try {
-      const sidebar = JSON.parse(sidebarRow?.value ?? 'null') as { groups?: Array<{ sessionIds?: unknown }>; ungroupedSessionOrder?: unknown } | null
-      const retain = (ids: unknown) => { if (Array.isArray(ids)) ids.forEach(id => { if (typeof id === 'string' && id && id.length <= 128) retained.add(id) }) }
-      if (Array.isArray(sidebar?.groups)) sidebar.groups.forEach(group => retain(group?.sessionIds))
-      retain(sidebar?.ungroupedSessionOrder)
-    } catch { /* Invalid sidebar preferences do not change the existing draft cleanup policy. */ }
+      if (sidebarRow) {
+        const sidebar: unknown = JSON.parse(sidebarRow.value)
+        if (!isObject(sidebar) || Object.keys(sidebar).some(key => !['expandedProjectIds', 'collapsedProjectIds', 'view', 'projectView', 'sort', 'groups', 'hiddenProjectIds', 'ungroupedSessionOrder', 'groupedRootOrder'].includes(key))) return
+        const retain = (ids: unknown) => {
+          if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) throw new Error('未知分组格式')
+          ids.forEach(id => { if (id) retained.add(id) })
+        }
+        if (sidebar.groups !== undefined) {
+          if (!Array.isArray(sidebar.groups)) return
+          for (const group of sidebar.groups) {
+            if (!isObject(group)) return
+            retain(group.sessionIds)
+          }
+        }
+        if (sidebar.ungroupedSessionOrder !== undefined) retain(sidebar.ungroupedSessionOrder)
+        if (sidebar.groupedRootOrder !== undefined) {
+          if (!Array.isArray(sidebar.groupedRootOrder)) return
+          for (const item of sidebar.groupedRootOrder) {
+            if (!isObject(item) || !['group', 'session'].includes(String(item.type)) || typeof item.id !== 'string' || !item.id || Object.keys(item).some(key => !['type', 'id'].includes(key))) return
+            if (item.type === 'session') retained.add(item.id)
+          }
+        }
+      }
+    } catch { return }
     const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.harness-react-composer-drafts') as { value: string } | undefined
-    let snapshot: { drafts?: unknown; fileDrafts?: unknown } | null
-    try { snapshot = JSON.parse(row?.value ?? 'null') } catch { return retained }
-    const entries = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : []
+    let snapshot: Record<string, unknown> = {}
+    if (row) {
+      try {
+        const value: unknown = JSON.parse(row.value)
+        // 未来版本可能增加新的引用根；不认识的格式不等于没有附件。
+        if (!isObject(value) || Object.keys(value).some(key => !['drafts', 'fileDrafts', 'config', 'recoveries', 'submissions', 'draft'].includes(key))) return
+        snapshot = value
+      } catch { return }
+    }
+    for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+      if (snapshot[key] !== undefined && !isObject(snapshot[key])) return
+    }
+    const entries = (value: unknown) => isObject(value) ? Object.entries(value) : []
+    if (snapshot.draft !== undefined && snapshot.draft !== null) {
+      const draft = snapshot.draft
+      if (!isObject(draft) || typeof draft.id !== 'string' || !draft.id.trim() || Object.keys(draft).some(key => !['id', 'groupId', 'sessionId', 'visible'].includes(key))
+        || draft.groupId !== undefined && (typeof draft.groupId !== 'string' || !draft.groupId.trim())
+        || draft.sessionId !== undefined && (typeof draft.sessionId !== 'string' || !draft.sessionId.trim())
+        || draft.visible !== undefined && typeof draft.visible !== 'boolean') return
+      if (typeof draft.sessionId === 'string') retained.add(draft.sessionId)
+    }
+    const submissionKeys = ['id', 'text', 'planning', 'references', 'selection', 'options', 'draft']
+    const retainFiles = (owner: string, value: unknown) => {
+      if (!Array.isArray(value)) { protect(owner); return }
+      for (const file of value) {
+        if (!isObject(file) || typeof file.path !== 'string' || !file.path.trim() || typeof file.name !== 'string' || !file.name.trim()) { protect(owner); continue }
+        if (Object.keys(file).some(key => !['path', 'name', 'mediaType', 'size'].includes(key))) protect(owner)
+        retained.add(owner)
+        const paths = references.get(owner) ?? new Set<string>()
+        paths.add(file.path)
+        references.set(owner, paths)
+      }
+    }
     for (const [id, text] of entries(snapshot?.drafts)) {
-      if (id && typeof text === 'string' && text.trim()) retained.add(id)
+      if (typeof text !== 'string') protect(id)
+      else if (text.trim()) retained.add(id)
     }
     for (const [id, files] of entries(snapshot?.fileDrafts)) {
-      if (id && Array.isArray(files) && files.some(file => file && typeof file === 'object' && !Array.isArray(file)
-        && typeof file.path === 'string' && file.path.trim() && typeof file.name === 'string' && file.name.trim())) retained.add(id)
+      retainFiles(id, files)
     }
-    return retained
+    for (const [id, items] of entries(snapshot.recoveries)) {
+      if (!Array.isArray(items)) { protect(id); continue }
+      for (const item of items) {
+        retained.add(id)
+        if (!isObject(item) || item.sessionId !== id || Object.keys(item).some(key => ![...submissionKeys, 'submissionId', 'sessionId', 'permissionMode', 'createdAt', 'delivery', 'targetRunId', 'requestedDelivery', 'fallbackReason'].includes(key))) { protect(id); continue }
+        retainFiles(id, item.references)
+      }
+    }
+    for (const [id, item] of entries(snapshot.submissions)) {
+      retained.add(id)
+      if (!isObject(item) || Object.keys(item).some(key => !submissionKeys.includes(key))) { protect(id); continue }
+      retainFiles(id, item.references)
+    }
+    return { sessionIds: retained, references, protectedOwners }
   }
 
   private migrate() {
@@ -119,7 +193,7 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, draft_state TEXT, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
       CREATE TABLE IF NOT EXISTS harness_tool_calls (session_id TEXT NOT NULL, tool_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, tool_id));
@@ -159,6 +233,7 @@ export class PlatformDatabase {
     if (!sessionColumns.some(column => column.name === 'archived_at')) {
       this.database.exec('ALTER TABLE harness_sessions ADD COLUMN archived_at INTEGER')
     }
+    if (!sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
     const projectOrderMissing = !projectColumns.some(column => column.name === 'sort_order')
     const sessionOrderMissing = !sessionColumns.some(column => column.name === 'sort_order')
     if (projectOrderMissing || sessionOrderMissing) {
@@ -341,7 +416,50 @@ export class PlatformDatabase {
   }
 
   savePreference(key: string, value: unknown) {
+    if (key === HARNESS_COMPOSER_PREFERENCE) value = this.withoutDeletedHarnessDrafts(value)
+    if (key === HARNESS_SIDEBAR_PREFERENCE && value && typeof value === 'object' && !Array.isArray(value) && this.deletedHarnessDraftOwners.size) {
+      const sidebar = value as Record<string, unknown>
+      if (Array.isArray(sidebar.groupedRootOrder)) value = {
+        ...sidebar,
+        groupedRootOrder: sidebar.groupedRootOrder.filter(item => !item || typeof item !== 'object' || item.type !== 'session' || !this.deletedHarnessDraftOwners.has(item.id)),
+      }
+    }
     this.database.prepare('INSERT OR REPLACE INTO preferences(key, value) VALUES (?, ?)').run(key, JSON.stringify(value))
+  }
+
+  hasUnconfirmedHarnessSubmission(id: string) {
+    const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get(HARNESS_COMPOSER_PREFERENCE) as { value: string } | undefined
+    if (!row) return false
+    const value: unknown = JSON.parse(row.value)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('无法确认待发送草稿状态')
+    if (Object.keys(value).some(key => !['drafts', 'fileDrafts', 'recoveries', 'submissions', 'config', 'draft'].includes(key))) throw new Error('无法确认待发送草稿状态')
+    const submissions = (value as Record<string, unknown>).submissions
+    if (submissions === undefined) return false
+    if (!submissions || typeof submissions !== 'object' || Array.isArray(submissions)) throw new Error('无法确认待发送草稿状态')
+    return Object.prototype.hasOwnProperty.call(submissions, id) && (submissions as Record<string, unknown>)[id] != null
+  }
+
+  removeHarnessDraftOwners(ids: readonly string[]) {
+    if (!ids.length) return
+    ids.forEach(id => this.deletedHarnessDraftOwners.add(id))
+    for (const key of [HARNESS_COMPOSER_PREFERENCE, HARNESS_SIDEBAR_PREFERENCE]) {
+      const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get(key) as { value: string } | undefined
+      if (row) {
+        try { this.savePreference(key, JSON.parse(row.value)) }
+        catch { /* A damaged concurrent snapshot stays intact; future valid saves still strip deleted owners. */ }
+      }
+    }
+  }
+
+  private withoutDeletedHarnessDrafts(value: unknown) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !this.deletedHarnessDraftOwners.size) return value
+    const next = { ...value } as Record<string, unknown>
+    for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+      const entries = next[key]
+      if (entries && typeof entries === 'object' && !Array.isArray(entries)) next[key] = Object.fromEntries(Object.entries(entries).filter(([id]) => !this.deletedHarnessDraftOwners.has(id)))
+    }
+    if (next.draft && typeof next.draft === 'object' && !Array.isArray(next.draft) && this.deletedHarnessDraftOwners.has((next.draft as Record<string, unknown>).sessionId as string)) delete next.draft
+    return next
   }
 
   backup() {

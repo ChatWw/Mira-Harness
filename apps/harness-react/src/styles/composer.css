@@ -19,6 +19,7 @@
 .mira-message-queue__row > svg { flex: none; color: var(--color-foreground-subtle); }
 .mira-message-queue__number { width: 20px; flex: none; color: var(--color-foreground-subtlest); font-size: var(--text-ui-sm); text-align: center; font-variant-numeric: tabular-nums; }
 .mira-message-queue__text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-message-queue__fallback { min-width: 0; max-width: 40%; flex: 0 1 auto; overflow: hidden; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); text-overflow: ellipsis; white-space: nowrap; }
 .mira-message-queue__references { display: inline-flex; flex: none; align-items: center; gap: 2px; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); }
 .mira-message-queue__row button { display: grid; width: 28px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; }
 .mira-message-queue__row button:hover { color: var(--color-foreground); background: var(--color-hover); }
@@ -107,6 +108,25 @@
 .harness-composer__attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .harness-composer__attachment button { display: grid; width: 20px; height: 20px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--color-foreground-subtle); background: transparent; }
 .harness-composer__attachment button:hover { color: var(--color-foreground); background: var(--color-hover); }
+
+.mira-attachment-card { position: relative; display: flex; min-width: 0; max-width: 260px; align-items: center; border-radius: 8px; background: var(--color-surface); }
+.mira-attachment-card__open { display: flex; min-width: 0; height: 48px; align-items: center; gap: 8px; padding: 6px 24px 6px 6px; border: 0; border-radius: inherit; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); }
+.mira-attachment-card__open > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-attachment-card__open > svg { flex: none; width: 36px; height: 36px; padding: 10px; border-radius: 6px; background: var(--color-background); }
+.mira-attachment-card__text { display: flex; min-width: 0; flex-direction: column; text-align: left; }
+.mira-attachment-card__text > span { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.mira-attachment-card__text small { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
+.mira-attachment-card--image { width: 48px; height: 48px; }
+.mira-attachment-card--image .mira-attachment-card__open { display: grid; width: 100%; height: 100%; padding: 0; place-items: center; overflow: hidden; }
+.mira-attachment-card--image img { width: 100%; height: 100%; object-fit: cover; }
+.mira-attachment-card__remove { position: absolute; top: 2px; right: 2px; display: grid; width: 14px; height: 14px; padding: 0; border: 0; border-radius: 50%; place-items: center; color: var(--color-on-accent); background: var(--color-brand); opacity: 0; transition: opacity 120ms ease-out; }
+.mira-attachment-card__remove:hover { background: color-mix(in srgb, var(--color-brand) 80%, transparent); }
+.mira-attachment-card:hover .mira-attachment-card__remove, .mira-attachment-card:focus-within .mira-attachment-card__remove { opacity: 1; }
+.mira-attachment-card__open:focus-visible, .mira-attachment-card__remove:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 2px; }
+.mira-attachment-card__error { position: absolute; bottom: 0; left: 0; width: 100%; padding: 2px 4px; border-radius: 0 0 8px 8px; color: var(--color-destructive); background: var(--color-card); font-size: 11px; overflow-wrap: anywhere; }
+.mira-composer--drag-over { position: relative; }
+.mira-composer-drop-hint { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--color-foreground-subtle); border-radius: 16px; color: var(--color-foreground); background: var(--color-card); pointer-events: none; }
+.harness-composer__error .mira-attachment-upload-retry { width: auto; flex: none; padding: 3px 6px; white-space: nowrap; }
 .mira-composer-panel-anchor { position: absolute; top: 0; left: 0; width: 100%; height: 1px; pointer-events: none; }
 .mira-composer-panel-popover { z-index: 80; width: var(--radix-popover-trigger-width); max-width: calc(100vw - 24px); outline: none; }
 .mira-composer-suggestions { overflow: hidden; border: 1px solid var(--color-popover-border); border-radius: 16px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); font-size: var(--text-ui-base); }

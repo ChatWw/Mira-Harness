@@ -6,7 +6,8 @@ import type { MenuItem, MicroApp } from '../src/types'
 
 describe('legacy micro-app navigation', () => {
   it('opens Mira through the Harness entry rather than a legacy main menu', () => {
-    expect(getApplicationEntryPath('main')).toBe('/workspace/chat')
+    expect(getApplicationEntryPath('main')).toBe('/workspace/harness-react')
+    expect(getApplicationEntryPath('mira-harness')).toBe('/workspace/harness-react')
   })
 
   it('uses canonical menus and entry paths for a legacy app code', () => {

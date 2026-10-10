@@ -23,13 +23,15 @@ export interface HarnessMessageQueueDependencies {
   blocked(sessionId: string): boolean
   currentRunId(sessionId: string): string | undefined
   preemptAndWait(sessionId: string, expectedRunId?: string): Promise<void>
+  /** Durable task admission; immediate input persistence participates in the same transaction. */
+  accept?(sessionId: string, persist?: () => void): void
   guideFallback?(item: Submission, scope: HarnessMessageQueueScope, runId: string): HarnessGuideFallbackReason | undefined
   execute(
     item: HarnessQueuedMessage,
     attachments: HarnessMessageAttachment[],
     token: symbol,
     sender: WebContents,
-    started: () => void,
+    started: (persist?: () => void) => void,
     scope: HarnessMessageQueueScope,
   ): Promise<{ interrupted?: boolean }>
   publish(sender: WebContents, snapshot: HarnessMessageQueueSnapshot): void
@@ -96,15 +98,16 @@ export class HarnessMessageQueue {
     const state = this.state(input.sessionId)
     if (state.promotion?.atomic) throw new Error('待发送消息正在提升，请稍后重试')
     if (state.items.length + (state.active && !state.active.started && !state.items.includes(state.active) ? 1 : 0) >= MAX_PENDING) throw new Error('待发送消息已达 32 条上限')
+    const item: HarnessQueuedMessage = { ...frozen.input, id: randomUUID(), createdAt: Date.now() }
     // Reserve before the ACK, including while a previous run is tearing down.
     try {
       if (input.delivery !== 'guide' && !state.paused && !state.token) state.token = this.deps.reserve(input.sessionId)
       if (!state.active && this.deps.isRunning(input.sessionId)) state.waitingForRun = true
+      this.deps.accept?.(input.sessionId)
     } catch (error) {
       this.fail(input.sessionId, state, error)
       throw new Error(queueError(error))
     }
-    const item: HarnessQueuedMessage = { ...frozen.input, id: randomUUID(), createdAt: Date.now() }
     state.items.push({ item, attachments: frozen.attachments, scope: frozen.scope, fingerprint, sender })
     state.sender = sender
     state.revision++
@@ -468,8 +471,10 @@ export class HarnessMessageQueue {
       state.activeDone = new Promise<void>(resolve => { completeActive = resolve })
       state.revision++
       this.notify(sessionId, state)
-      const result = await this.deps.execute(structuredClone(entry.item), structuredClone(entry.attachments), state.token, entry.sender, () => {
+      const result = await this.deps.execute(structuredClone(entry.item), structuredClone(entry.attachments), state.token, entry.sender, persist => {
         if (entry!.started) return
+        if (promotion?.atomic && this.deps.accept) this.deps.accept(sessionId, persist)
+        else persist?.()
         entry!.started = true
         if (promotion) {
           if (promotion.atomic) {

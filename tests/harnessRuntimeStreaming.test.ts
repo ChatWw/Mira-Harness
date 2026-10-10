@@ -12,6 +12,7 @@ describe('runtime text streaming activity persistence', () => {
       getSnapshot: () => ({ preferences: {} }),
       instructions: { resolve: () => [] },
       harness: {
+        getPermissionConfig: () => ({ globalDefaultMode: 'default' }),
         updateSession: (value: any) => value,
         getSession: () => session,
         setActiveRun: vi.fn(), setStatus: vi.fn(),
@@ -40,7 +41,7 @@ describe('runtime text streaming activity persistence', () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', messages: [{ id: 'u', role: 'user', content: '先计划', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
-      harness: { updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
+      harness: { getPermissionConfig: () => ({ globalDefaultMode: 'default' }), updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
@@ -62,6 +63,7 @@ describe('runtime text streaming activity persistence', () => {
     const database: any = {
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
       harness: {
+        getPermissionConfig: () => ({ globalDefaultMode: 'default' }),
         updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(),
         appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn((_id, options) => { session.messages.push({ id: 'a', role: 'assistant', content: options.content, createdAt: 2, run: options.run }); return session }),
       },
@@ -89,7 +91,7 @@ describe('runtime text streaming activity persistence', () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', messages: [{ id: 'u', role: 'user', content: '先计划', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
-      harness: { updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
+      harness: { getPermissionConfig: () => ({ globalDefaultMode: 'default' }), updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
     }
     const runtime = new HarnessRuntime(database, {} as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)

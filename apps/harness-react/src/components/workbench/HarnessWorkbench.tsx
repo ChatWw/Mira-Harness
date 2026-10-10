@@ -1,15 +1,19 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime } from '@assistant-ui/react'
+import { createContext, createElement, memo, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { AssistantRuntimeProvider, MessagePrimitive, ThreadPrimitive, useAuiState, useExternalStoreRuntime, type ExternalStoreAdapter } from '@assistant-ui/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ArrowDown, ArrowLeft, ArrowRight, Blocks, BookOpen, CalendarClock, Check, ChevronDown, CircleAlert, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, MoreHorizontal, PanelRight, Plus, RotateCw, Settings, ShieldCheck, TerminalSquare, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, Blocks, BookOpen, CalendarClock, Check, ChevronDown, CircleAlert, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, MoreHorizontal, PanelRight, Plus, RotateCw, Search, Settings, ShieldCheck, TerminalSquare, X } from 'lucide-react'
 import { type HarnessFileChange, type HarnessMessage, type HarnessRunActivity, type ToolCallRecord } from '../../../../../src/config/harness'
 import type { HarnessBrowserBounds } from '../../../../../src/platform/firstPartyHarness'
+import { miraAppNavigationShortcut, type MiraAppNavigationSnapshot, type MiraAppNavigationTarget } from '../../../../../src/platform/appNavigation'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotTaskTone } from '../../state/pilot-state'
+import { MiraWorkbenchNavigation, type MiraNavigationAction } from '../../state/workbench-navigation'
 import { SessionMenuItems, SessionSidebar, useHarnessSessionShortcuts } from '../session/SessionSidebar'
 import { SIDEBAR_PREFERENCE_KEY, SidebarPreferenceStore } from '../session/sidebar-preferences'
+import { moveSidebarTask, sidebarRootItems } from '../session/session-groups'
+import type { ComposerTaskDraft } from '../../lib/composer-drafts'
 import { HarnessWorkspaceContext } from './HarnessWorkspaceContext'
 import { SkillMarketView } from '../extensions/SkillMarketView'
-import { AutomationsView } from '../automations/AutomationsView'
+import { AutomationsView, type AutomationsNavigationHandle } from '../automations/AutomationsView'
 import { HarnessCommandCenter, type HarnessSearchCommand } from '../search/HarnessCommandCenter'
 import { MessageMarkdown } from '../conversation/markdown'
 import { RunProgressCard } from '../conversation/run-progress'
@@ -17,6 +21,13 @@ import { AssistantMessageParts, findInlinePermissionTarget, PermissionResponseCa
 import { AssistantToolbar, EditIcon, FileChangesCard, MessageCopyButton, UserMessageAttachments, UserMessageEditor } from '../conversation/message-parts'
 import { ConversationTurnRail } from '../conversation/ConversationTurnRail'
 import { MiraPendingGuides } from '../conversation/MiraPendingGuides'
+import { MiraConversationViewport } from '../conversation/MiraConversationViewport'
+import { MiraConversationTimeline } from '../conversation/MiraConversationTimeline'
+import { MiraTaskFind } from '../conversation/MiraTaskFind'
+import { taskFindTargetKey } from '../../lib/conversation-find'
+import type { ConversationTimelineActions } from '../../lib/conversation-timeline'
+import { conversationScrollKey } from '../../lib/conversation-scroll'
+import type { ConversationScrollActions } from '../../hooks/useConversationScroll'
 import { TaskSummary } from '../conversation/TaskSummary'
 import { MiraBranchPicker } from '../git/MiraBranchPicker'
 import { projectTimelineMessages, projectTimelineRenderMessages, toolsForRun, type TimelineRenderMessage } from '../conversation/conversation-model'
@@ -37,8 +48,18 @@ import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs as removeOtherWorkspaceT
 
 const StreamMessageContext = createContext<HarnessMessage | undefined>(undefined)
 const MessageLookupContext = createContext<Map<string, HarnessMessage>>(new Map())
-const WorkbenchContext = createContext<{ controller: PilotController; openChangesTab: () => void; openFile: (path: string) => void; running: boolean; waiting: boolean; latestAssistantId?: string; canRerun: boolean; tools: ToolCallRecord[]; toolsById: ReadonlyMap<string, ToolCallRecord>; permissionResponse?: PermissionResponseCardProps; inlinePermission?: { messageId: string; partId: string } }>({ controller: undefined as unknown as PilotController, openChangesTab: () => undefined, openFile: () => undefined, running: false, waiting: false, canRerun: false, tools: [], toolsById: new Map() })
+const WorkbenchContext = createContext<{ controller: PilotController; sessionId?: string; active: boolean; openChangesTab: () => void; openFile: (path: string) => void; running: boolean; waiting: boolean; latestAssistantId?: string; canRerun: boolean; tools: ToolCallRecord[]; toolsById: ReadonlyMap<string, ToolCallRecord>; permissionResponse?: PermissionResponseCardProps; inlinePermission?: { messageId: string; partId: string } }>({ controller: undefined as unknown as PilotController, active: false, openChangesTab: () => undefined, openFile: () => undefined, running: false, waiting: false, canRerun: false, tools: [], toolsById: new Map() })
 const WORKSPACE_PREFERENCE_KEY = 'harness-react-workspace'
+const ViewportContentsContext = createContext<ReactNode>(null)
+const MemoConversationViewport = memo(MiraConversationViewport)
+
+function MiraViewportContents() { return useContext(ViewportContentsContext) }
+const viewportContents = createElement(MiraViewportContents)
+
+export function MiraWorkbenchViewport({ children, ...props }: ComponentProps<typeof MiraConversationViewport>) {
+  // Messages and approvals update without re-rendering the owning scroll container.
+  return <ViewportContentsContext.Provider value={children}><MemoConversationViewport {...props}>{viewportContents}</MemoConversationViewport></ViewportContentsContext.Provider>
+}
 
 function projectWorkbenchMessage({ original, rendererId }: TimelineRenderMessage) {
   return { ...projectPilotMessage(original), id: rendererId }
@@ -47,16 +68,16 @@ function projectWorkbenchMessage({ original, rendererId }: TimelineRenderMessage
 function UserMessage() {
   const id = useAuiState(state => state.message.id)
   const messageById = useContext(MessageLookupContext)
-  const { controller, running, openFile } = useContext(WorkbenchContext)
+  const { controller, sessionId, active, running, openFile } = useContext(WorkbenchContext)
   const original = messageById.get(id)
   const [editing, setEditing] = useState(false)
   if (editing) return <MessagePrimitive.Root className="message-row flex w-full flex-col items-end gap-1">
     <div className="w-full"><UserMessageEditor original={original} content={original?.content || ''} onCancel={() => setEditing(false)} onConfirm={async next => { setEditing(false); await controller.editAndRerun(id, next) }} /></div>
   </MessagePrimitive.Root>
-  return <MessagePrimitive.Root className="message-row group/user-row mt-7 flex w-full flex-col items-end first:mt-0" data-user-message-id={id}>
-    <div className="flex max-w-full flex-col rounded-xl rounded-tr-xs border border-border bg-surface px-4 py-3 text-ui-base text-foreground @min-[624px]/conversation:max-w-xl"><MessagePrimitive.Content /></div>
-    <UserMessageAttachments message={original} onOpen={openFile} />
-    <div className="mira-message-actions mt-1 opacity-0 transition-opacity group-hover/user-row:opacity-100 group-focus-within/user-row:opacity-100"><MessageCopyButton content={original?.content || ''} label="复制消息" onError={error => controller.reportError(error)} />{!running && <button type="button" className="mira-message-action" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}</div>
+  return <MessagePrimitive.Root className="message-row group/user-row mt-7 flex w-full flex-col items-end first:mt-0" data-user-message-id={id} data-renderer-message-id={id}>
+    <UserMessageAttachments message={original} onOpen={openFile} sessionId={sessionId} controller={controller} active={active} />
+    {(!original || original.content) && <div data-mira-find-target={taskFindTargetKey(id)} className="flex max-w-full flex-col rounded-xl rounded-tr-xs border border-border bg-surface px-4 py-3 text-ui-base text-foreground @min-[624px]/conversation:max-w-xl"><MessagePrimitive.Content /></div>}
+    <div className="mira-message-actions mt-1 opacity-0 transition-opacity group-hover/user-row:opacity-100 group-focus-within/user-row:opacity-100">{original?.content && <MessageCopyButton content={original.content} label="复制消息" onError={error => controller.reportError(error)} />}{!running && <button type="button" className="mira-message-action" aria-label="编辑并重跑" title="编辑并重跑" onClick={() => setEditing(true)}><EditIcon /></button>}</div>
   </MessagePrimitive.Root>
 }
 
@@ -73,9 +94,9 @@ function AssistantMessage() {
   const content = message?.content ?? ''
   const orderedParts = message?.parts !== undefined
   const changes: HarnessFileChange[] = original?.fileChanges || []
-  return <MessagePrimitive.Root className="message-row group/assistant-row w-full min-w-0" data-assistant-message-id={id}>
+  return <MessagePrimitive.Root className="message-row group/assistant-row w-full min-w-0" data-assistant-message-id={id} data-renderer-message-id={rendererId}>
     {!orderedParts && original?.run && <RunProgressCard run={original.run} tools={toolsForRun(tools, original.run)} running={streaming} waiting={streaming && waiting} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
-    {orderedParts && message ? <AssistantMessageParts message={message} toolsById={toolsById} streaming={streaming} permission={inlinePermission?.messageId === id ? permissionResponse : undefined} permissionPartId={inlinePermission?.messageId === id ? inlinePermission.partId : undefined} /> : content && <MessageMarkdown content={content} sources={original?.sources} streaming={streaming} />}
+    {orderedParts && message ? <AssistantMessageParts message={message} rendererId={rendererId} toolsById={toolsById} streaming={streaming} permission={inlinePermission?.messageId === id ? permissionResponse : undefined} permissionPartId={inlinePermission?.messageId === id ? inlinePermission.partId : undefined} /> : content && <div data-mira-find-target={taskFindTargetKey(rendererId)}><MessageMarkdown content={content} sources={original?.sources} streaming={streaming} /></div>}
     {orderedParts && original?.run && <RunProgressCard run={original.run} summaryOnly running={streaming} waiting={streaming && waiting} onStopSubtask={subtaskId => controller.stopSubtasks(subtaskId)} />}
     {changes.length > 0 && <FileChangesCard changes={changes} onOpen={openChangesTab} />}
     {original?.interrupted && <p className="mira-reply-interrupted" role="status">回复已停止，已生成的内容保留。可以继续发送消息。</p>}
@@ -95,14 +116,31 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   }, [controller, sidebarPreferenceStore])
   const editorAccess = useWorkspaceEditors(controller)
   const [mainView, setMainView] = useState<'conversation' | 'extensions' | 'automations'>('conversation')
+  const mainViewRef = useRef(mainView)
+  mainViewRef.current = mainView
+  const navigation = useMemo(() => new MiraWorkbenchNavigation(value => controller.publishNavigationState(value)), [controller])
+  const navigationState = useSyncExternalStore(navigation.subscribe, navigation.getSnapshot)
+  const [navigationRestore, setNavigationRestore] = useState<{ snapshot?: MiraAppNavigationSnapshot }>()
+  const navigationAction = useRef<MiraNavigationAction>(async () => false)
+  navigationAction.current = executeNavigation
   const [automationsMounted, setAutomationsMounted] = useState(false)
+  const automationsRef = useRef<AutomationsNavigationHandle | null>(null)
+  const automationWaiters = useRef(new Set<(handle: AutomationsNavigationHandle | null) => void>())
+  const bindAutomations = useMemo(() => (handle: AutomationsNavigationHandle | null) => {
+    automationsRef.current = handle
+    if (handle) { automationWaiters.current.forEach(resolve => resolve(handle)); automationWaiters.current.clear() }
+  }, [controller])
   const [commandCenterOpen, setCommandCenterOpen] = useState(false)
+  const [commandCenterFocusRequestNumber, setCommandCenterFocusRequestNumber] = useState(0)
+  const [dismissedViewError, setDismissedViewError] = useState<string>()
+  const [findRequest, setFindRequest] = useState(0)
   const [searchTarget, setSearchTarget] = useState<{ sessionId: string; messageId?: string }>()
   const viewRevision = useRef(0)
   const [draftProjectId, setDraftProjectId] = useState<string>()
+  const [taskDraft, setTaskDraft] = useState<ComposerTaskDraft | null>()
   const [sessionsOpen, setSessionsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 1180px)').matches)
   const [sessionsWidth, setSessionsWidth] = useState(264)
-  const [sidebarProjectFiles, setSidebarProjectFiles] = useState<{ projectId: string; directory: string; expandedPaths: string[]; selectedPath?: string }>()
+  const [sidebarFileTarget, setSidebarFileTarget] = useState<{ projectId?: string; sessionId?: string; directory: string; expandedPaths: string[]; selectedPath?: string }>()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceMounted, setWorkspaceMounted] = useState(false)
   const [terminalStartedIds, setTerminalStartedIds] = useState<string[]>([])
@@ -119,6 +157,11 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   }), [controller])
   const composerRef = useRef<HarnessComposerHandle>(null)
   const messageViewportRef = useRef<HTMLDivElement>(null)
+  const conversationScrollActions = useRef<ConversationScrollActions | null>(null)
+  const conversationTimelineActions = useRef<ConversationTimelineActions | null>(null)
+  const changesFindRef = useRef<HTMLDivElement | null>(null)
+  const [activeTurnId, setActiveTurnId] = useState('')
+  const [conversationAtBottom, setConversationAtBottom] = useState(true)
   const [renamingTask, setRenamingTask] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
   useEffect(() => { setRenamingTask(false) }, [state.session?.id])
@@ -129,11 +172,43 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [compactLayout, setCompactLayout] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1180px)').matches)
-  const newConversation = () => { viewRevision.current++; setSearchTarget(undefined); setCommandCenterOpen(false); setMainView('conversation'); controller.newConversation(); setDraftProjectId(undefined); setWorkspaceOpen(false); setPlanning(false) }
-  const openCommandCenter = () => { if (compactLayout) { setSessionsOpen(false); setWorkspaceOpen(false) }; setCommandCenterOpen(true) }
-  useHarnessSessionShortcuts(newConversation, openCommandCenter)
-  useEffect(() => controller.onCommandCenterOpen(openCommandCenter), [controller, compactLayout])
-  useEffect(() => () => { viewRevision.current++ }, [controller])
+  const newConversation = (projectId?: string, groupId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId)).catch(error => { controller.reportError(error); return false })
+  const openDraft = (id: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, undefined, false, undefined, id)).catch(error => { controller.reportError(error); return false })
+  const commandCenterFocusRequest = useRef<string | undefined>(undefined)
+  const openCommandCenter = () => { commandCenterFocusRequest.current = undefined; if (compactLayout) { setSessionsOpen(false); setWorkspaceOpen(false) }; setCommandCenterFocusRequestNumber(value => value + 1); setCommandCenterOpen(true) }
+  useHarnessSessionShortcuts(() => { void newConversation() }, openCommandCenter)
+  useEffect(() => controller.onCommandCenterOpen(focusRequestId => { openCommandCenter(); commandCenterFocusRequest.current = focusRequestId }), [controller, compactLayout])
+  useEffect(() => {
+    navigation.connect()
+    const removeCommand = controller.onNavigationCommand(command => { void navigation.go(command, (...args) => navigationAction.current(...args)).catch(error => controller.reportError(error)) })
+    const removeRestore = controller.onNavigationRestore(snapshot => setNavigationRestore({ snapshot }))
+    const removeDeleted = controller.onSessionDeleted(id => navigation.removeSession(id))
+    const onKeyDown = (event: KeyboardEvent) => {
+      const direction = miraAppNavigationShortcut(event)
+      if (!direction || document.querySelector?.('[role="dialog"][aria-modal="true"], [role="menu"][data-state="open"], dialog[open]')) return
+      const current = navigation.getSnapshot()
+      if (current.busy || !(direction === 'back' ? current.canGoBack : current.canGoForward)) return
+      event.preventDefault()
+      void navigation.go({ type: 'mira:app-navigation-command', direction, expectedRevision: current.revision }, (...args) => navigationAction.current(...args)).catch(error => controller.reportError(error))
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      removeCommand(); removeRestore(); removeDeleted(); window.removeEventListener('keydown', onKeyDown)
+      navigation.disconnect(); viewRevision.current++
+      automationWaiters.current.forEach(resolve => resolve(null)); automationWaiters.current.clear()
+    }
+  }, [controller, navigation])
+  useEffect(() => {
+    if (state.initialized === false || !navigationRestore || navigation.ready || navigation.busy) return
+    const fallback = state.session?.id && state.session.draftState !== 'prepared' ? { kind: 'conversation' as const, sessionId: state.session.id } : undefined
+    const snapshot = navigationRestore.snapshot ?? (!fallback ? { entries: [], cursor: -1, detached: true, draft: 'conversation' as const } : undefined)
+    void navigation.initialize(snapshot, fallback, (...args) => navigationAction.current(...args)).catch(error => controller.reportError(error))
+  }, [controller, navigation, navigationRestore, state.initialized, navigationState.revision])
+  useEffect(() => {
+    if (state.initialized === false || state.sessionLoading || mainView !== 'conversation') return
+    if (state.session?.id && state.session.draftState !== 'prepared') navigation.record({ kind: 'conversation', sessionId: state.session.id })
+    else navigation.detach('conversation')
+  }, [navigation, navigationState.revision, state.initialized, state.sessionLoading, state.session?.id, state.session?.draftState, mainView])
   useModalFocusTrap(compactLayout && sessionsOpen && !commandCenterOpen, 'pilot-sessions')
   useModalFocusTrap(compactLayout && workspaceOpen && !commandCenterOpen, 'pilot-workspace')
   useEffect(() => {
@@ -190,14 +265,16 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const timelineMessages = useMemo(() => projectTimelineMessages(state.messages, state.session?.activeRun), [state.messages, state.session?.activeRun])
   const rendererMessageCache = useMemo(() => new WeakMap<HarnessMessage, TimelineRenderMessage>(), [controller, state.session?.id])
   const rendererMessages = useMemo(() => projectTimelineRenderMessages(timelineMessages, state.session?.id, rendererMessageCache), [timelineMessages, state.session?.id, rendererMessageCache])
-  const runtime = useExternalStoreRuntime({
+  const runtimeSendDisabled = !state.session || !state.selection || state.sessionLoading || !controller.supportsMessageQueue && (state.running || Boolean(state.permission) || state.session.pendingInteraction?.status === 'waiting')
+  const runtimeAdapter = useMemo<ExternalStoreAdapter<TimelineRenderMessage>>(() => ({
     messages: rendererMessages,
     convertMessage: projectWorkbenchMessage,
     isRunning: state.running,
-    isSendDisabled: !state.session || !state.selection || state.sessionLoading || !controller.supportsMessageQueue && (state.running || Boolean(state.permission) || state.session.pendingInteraction?.status === 'waiting'),
+    isSendDisabled: runtimeSendDisabled,
     onNew: async message => { await controller.send(message.content.filter(part => part.type === 'text').map(part => part.text).join(''), planning) },
     onCancel: async () => controller.stop(),
-  })
+  }), [rendererMessages, state.running, runtimeSendDisabled, controller, planning])
+  const runtime = useExternalStoreRuntime(runtimeAdapter)
   const interaction = state.session?.pendingInteraction
   const lastMessage = timelineMessages[timelineMessages.length - 1]
   const streamMessage = lastMessage?.role === 'assistant' && lastMessage.id.startsWith('stream-') ? lastMessage : undefined
@@ -215,12 +292,15 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const workspaceTabs = workspace.tabs
   const selectedChangeId = workspace.selectedChangeId
   const fileDirectory = project?.directory || state.session?.workingDirectory
-  const sidebarFileProject = state.projects.find(item => item.id === sidebarProjectFiles?.projectId && item.directory === sidebarProjectFiles.directory)
-  const sidebarFilesCanUseTask = Boolean(sidebarFileProject && state.session?.projectId === sidebarFileProject.id && !state.sessionLoading && mainView === 'conversation')
-  useEffect(() => { if (sidebarProjectFiles && !sidebarFileProject) setSidebarProjectFiles(undefined) }, [sidebarProjectFiles, sidebarFileProject])
+  const conversationMemoryKey = conversationScrollKey(workspaceSessionId, fileDirectory)
+  const sidebarFileProject = state.projects.find(item => item.id === sidebarFileTarget?.projectId && item.directory === sidebarFileTarget.directory)
+  const sidebarFileSession = state.sessions.find(item => item.id === sidebarFileTarget?.sessionId && item.workingDirectory === sidebarFileTarget.directory)
+  const sidebarFilesOpen = Boolean(sidebarFileProject || sidebarFileSession)
+  const sidebarFilesCanUseTask = Boolean(!state.sessionLoading && mainView === 'conversation' && (sidebarFileProject && state.session?.projectId === sidebarFileProject.id || sidebarFileSession && state.session?.id === sidebarFileSession.id))
+  useEffect(() => { if (sidebarFileTarget && !sidebarFilesOpen) setSidebarFileTarget(undefined) }, [sidebarFileTarget, sidebarFilesOpen])
   const workspaceWatchKey = JSON.stringify([workspaceSessionId, fileDirectory])
   const onWatchDirectoriesChange = useMemo(() => (paths: string[]) => setWatchedTreeDirectories(previous => previous.key === workspaceWatchKey && JSON.stringify(previous.paths) === JSON.stringify(paths) ? previous : { key: workspaceWatchKey, paths }), [workspaceWatchKey])
-  const watchedPaths = workspaceWatchPaths(watchedTreeDirectories.key === workspaceWatchKey ? watchedTreeDirectories.paths : [], workspaceTabs.flatMap(tab => tab.path ? [tab.path] : []), sessionsOpen && workspace.fileTreeOpen, workspaceOpen)
+  const watchedPaths = workspaceWatchPaths(watchedTreeDirectories.key === workspaceWatchKey ? watchedTreeDirectories.paths : [], workspaceTabs.flatMap(tab => tab.path ? [tab.path] : []), sessionsOpen && (sidebarFilesOpen ? Boolean(sidebarFileSession && sidebarFilesCanUseTask) : workspace.fileTreeOpen), workspaceOpen)
   const workspaceWatch = useWorkspaceWatch(controller, workspaceSessionId, fileDirectory, watchedPaths)
   useEffect(() => {
     setTerminalStartedIds(previous => {
@@ -279,6 +359,9 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     if (!workspaceSessionId) return
     setWorkspaceSessions(previous => ({ ...previous, [workspaceSessionId]: update(previous[workspaceSessionId] || createWorkspaceSession()) }))
   }
+  function updateSidebarFiles(patch: { expandedPaths?: string[]; selectedPath?: string }) {
+    setSidebarFileTarget(previous => previous && sidebarFileTarget && previous.projectId === sidebarFileTarget.projectId && previous.sessionId === sidebarFileTarget.sessionId && previous.directory === sidebarFileTarget.directory ? { ...previous, ...patch } : previous)
+  }
 
   async function openWorkspaceTab(id: WorkspaceResourceId, label?: string, isCurrent?: () => boolean) {
     if (preparingWorkspace || state.sessionLoading || isCurrent && !isCurrent()) return
@@ -286,7 +369,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
       const projectId = state.session?.projectId || draftProjectId
       if (projectId) { await openProjectFiles(projectId); return }
       if (!workspaceSessionId) { controller.reportError(new Error('请先在侧栏选择项目')); return }
-      setSidebarProjectFiles(undefined)
+      setSidebarFileTarget(undefined)
     }
     let sessionId = workspaceSessionId
     if (!sessionId) {
@@ -443,49 +526,128 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const messageById = useMemo(() => new Map(rendererMessages.map(({ rendererId, original }) => [rendererId, original])), [rendererMessages])
   useEffect(() => {
     if (!searchTarget || mainView !== 'conversation' || state.sessionLoading || state.session?.id !== searchTarget.sessionId) return
-    const target = [...(messageViewportRef.current?.querySelectorAll<HTMLElement>('[data-user-message-id], [data-assistant-message-id]') || [])].find(element => element.dataset.userMessageId === searchTarget.messageId || element.dataset.assistantMessageId === searchTarget.messageId)
-    if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    setSearchTarget(undefined)
+    // Wait for the external runtime's effect to replace the previous session's message DOM.
+    const frame = window.requestAnimationFrame(() => {
+      if (searchTarget.messageId) conversationTimelineActions.current?.jumpToMessage(searchTarget.messageId, 'center')
+      setSearchTarget(undefined)
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [searchTarget, mainView, state.sessionLoading, state.session?.id, timelineMessages])
 
-  async function showView(view: typeof mainView) {
+  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string, resetDraft = false, groupId?: string, draftId?: string) {
     const revision = ++viewRevision.current
-    setSearchTarget(undefined)
-    await controller.flushBeforeNavigation()
-    if (revision !== viewRevision.current) return undefined
-    if (view === 'automations') setAutomationsMounted(true)
-    setMainView(view); setWorkspaceOpen(false)
-    updateWorkspace(current => ({ ...current, fileTreeOpen: false }))
-    if (compactLayout) setSessionsOpen(false)
-    return revision
+    const current = () => isCurrent() && revision === viewRevision.current
+    try {
+      await controller.flushBeforeNavigation()
+      if (!current()) return false
+      const view = target?.kind ?? (draft === 'automations' ? 'automations' : 'conversation')
+      if (target?.kind === 'conversation') {
+        if (!await controller.open(target.sessionId, current)) {
+          if (!current()) return false
+          throw new Error(controller.getSnapshot().error || '任务打开失败，请重试')
+        }
+      } else if (view === 'automations') {
+        setAutomationsMounted(true)
+        const handle = automationsRef.current ?? await new Promise<AutomationsNavigationHandle | null>(resolve => automationWaiters.current.add(resolve))
+        if (!handle || !current()) return false
+        if (!await handle.navigate(target?.kind === 'automations' ? target : { kind: 'automations' }, current, draft === 'automations')) {
+          if (!current()) return false
+          throw new Error('自动化页面打开失败，请重试或确认任务仍存在')
+        }
+      } else if (!target) {
+        if (draftId) {
+          if (!await composerRef.current?.openDraft?.(draftId, current)) return false
+        } else if (resetDraft) {
+          if (composerRef.current?.startDraft) {
+            if (!await composerRef.current.startDraft(groupId, projectId, current)) return false
+          } else { setDraftProjectId(projectId); setPlanning(false); controller.newConversation() }
+        } else if (composerRef.current?.openDraft) {
+          if (!await composerRef.current.openDraft(undefined, current)) return false
+        } else controller.newConversation()
+      }
+      if (!current()) return false
+      setSearchTarget(undefined); setCommandCenterOpen(false)
+      setMainView(view); setWorkspaceOpen(false)
+      updateWorkspace(current => ({ ...current, fileTreeOpen: false }))
+      if (compactLayout) setSessionsOpen(false)
+      return true
+    } catch (error) {
+      if (!current()) return false
+      controller.reportError(error)
+      throw error
+    }
+  }
+  async function acceptTaskDraft(sessionId: string, draft: ComposerTaskDraft) {
+    await sidebarPreferenceStore.load()
+    const preferences = sidebarPreferenceStore.getSnapshot().preferences
+    const groupId = draft.groupId && preferences.groups.some(group => group.id === draft.groupId) ? draft.groupId : undefined
+    const members = new Set(preferences.groups.flatMap(group => group.sessionIds))
+    const rootIds = controller.getSnapshot().sessions.filter(session => !session.pinned && !members.has(session.id)).map(session => session.id)
+    const near = sidebarRootItems(preferences.groups, rootIds.filter(id => id !== sessionId), preferences.groupedRootOrder)[0]
+    const patch = moveSidebarTask(preferences, rootIds, sessionId, groupId ? { type: 'group', id: groupId, position: 'start' } : { type: 'root', near, position: 'before' })
+    if (!patch) return
+    // Admission is already committed: failed preference writes retain their local placement for retry.
+    sidebarPreferenceStore.change(patch)
+    await sidebarPreferenceStore.save()
+  }
+  async function showView(view: typeof mainView) {
+    const session = controller.getSnapshot().session
+    const id = session?.draftState === 'prepared' ? undefined : session?.id
+    const target: MiraAppNavigationTarget | undefined = view === 'conversation' ? id ? { kind: view, sessionId: id } : undefined : { kind: view }
+    return await navigation.visit(target, (...args) => navigationAction.current(...args)) ? viewRevision.current : undefined
   }
   function currentNavigation(revision: number | undefined) { return revision !== undefined && revision === viewRevision.current }
-  async function openTask(id: string, messageId?: string) {
-    const revision = await showView('conversation')
-    if (!currentNavigation(revision)) return
-    const opened = await controller.open(id, () => currentNavigation(revision))
-    if (!currentNavigation(revision)) return
-    if (!opened) throw new Error(controller.getSnapshot().error || '任务打开失败，请重试')
-    if (messageId) setSearchTarget({ sessionId: id, messageId })
+  async function openTask(id: string, messageId?: string, filePath?: string) {
+    let failure: unknown
+    const opened = await navigation.visit({ kind: 'conversation', sessionId: id }, async (target, current) => {
+      try {
+        if (!await executeNavigation(target, current)) return false
+        if (messageId) setSearchTarget({ sessionId: id, messageId })
+        if (filePath) {
+          const tab = createWorkspaceFileTab(filePath)
+          setWorkspaceSessions(previous => ({ ...previous, [id]: { ...addWorkspaceTab(previous[id] || createWorkspaceSession(), tab), selectedFilePath: filePath } }))
+          setWorkspaceMounted(true); setWorkspaceOpen(true)
+          if (compactLayout) setSessionsOpen(false)
+        }
+        return true
+      } catch (error) { failure = error; throw error }
+    })
+    if (failure) throw failure
+    return opened
   }
   async function openProjectFiles(projectId: string) {
     const selected = controller.getSnapshot().projects.find(item => item.id === projectId)
     if (!selected?.directoryExists) throw new Error('所选项目目录不可用，请重新选择')
-    setSidebarProjectFiles(previous => previous?.projectId === projectId && previous.directory === selected.directory ? previous : { projectId, directory: selected.directory, expandedPaths: [] })
+    setSidebarFileTarget(previous => previous?.projectId === projectId && previous.directory === selected.directory ? previous : { projectId, directory: selected.directory, expandedPaths: [] })
+    setSessionsOpen(true)
+    if (compactLayout) setWorkspaceOpen(false)
+  }
+  async function openSessionFiles(sessionId: string) {
+    const snapshot = controller.getSnapshot()
+    const selected = snapshot.sessions.find(item => item.id === sessionId)
+    if (!selected) throw new Error('任务已不在当前列表，请刷新后重试')
+    if (selected.projectId && snapshot.projects.some(project => project.id === selected.projectId && project.directoryExists)) {
+      await openProjectFiles(selected.projectId)
+      return
+    }
+    if (!selected.workingDirectory) throw new Error('当前任务没有可用工作目录')
+    setSidebarFileTarget(previous => previous?.sessionId === sessionId && previous.directory === selected.workingDirectory ? previous : { sessionId, directory: selected.workingDirectory!, expandedPaths: [] })
     setSessionsOpen(true)
     if (compactLayout) setWorkspaceOpen(false)
   }
   async function openCommandWorkspace(id: WorkspaceResourceId) {
-    if (id === 'files') { await openWorkspaceTab(id); return }
+    if (id === 'files') { await openWorkspaceTab(id); return true }
     const revision = await showView('conversation')
-    if (!currentNavigation(revision)) return
+    if (!currentNavigation(revision)) return false
     await openWorkspaceTab(id, undefined, () => currentNavigation(revision))
+    return currentNavigation(revision)
   }
   const commands: HarnessSearchCommand[] = [
     { id: 'new', label: '新建任务', shortcut: '⌘N', icon: <Plus size={16} />, action: newConversation },
-    { id: 'automations', label: '自动化', icon: <CalendarClock size={16} />, action: async () => { await showView('automations') } },
-    { id: 'extensions', label: '插件市场', icon: <Blocks size={16} />, action: async () => { await showView('extensions') } },
-    { id: 'settings', label: '设置', icon: <Settings size={16} />, action: () => controller.navigate('/settings/general') },
+    { id: 'automations', label: '自动化', icon: <CalendarClock size={16} />, action: async () => currentNavigation(await showView('automations')) },
+    { id: 'extensions', label: '插件市场', icon: <Blocks size={16} />, action: async () => currentNavigation(await showView('extensions')) },
+    { id: 'settings', label: '设置', icon: <Settings size={16} />, action: async () => { await controller.navigate('/settings/general'); if (controller.getSnapshot().error) throw new Error(controller.getSnapshot().error) } },
+    ...(hasTaskProgress ? [{ id: 'find', label: '查找当前任务', shortcut: navigator.platform.toLowerCase().includes('mac') ? '⌘F' : 'Ctrl+F', icon: <Search size={16} />, action: async () => { if (!currentNavigation(await showView('conversation'))) return false; setFindRequest(value => value + 1); return true } }] : []),
     { id: 'files', label: '项目文件', icon: <FolderOpen size={16} />, action: () => openCommandWorkspace('files') },
     { id: 'terminal', label: '终端', icon: <TerminalSquare size={16} />, action: () => openCommandWorkspace('terminal') },
     { id: 'browser', label: '浏览器', icon: <Globe2 size={16} />, action: () => openCommandWorkspace('browser') },
@@ -496,10 +658,11 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const toolsById = useMemo(() => new Map((state.session?.toolCalls || []).map(tool => [tool.id, tool])), [state.session?.toolCalls])
   const inlinePermission = useMemo(() => findInlinePermissionTarget(timelineMessages, state.session?.toolCalls || [], state.permission), [timelineMessages, state.session?.toolCalls, state.permission])
   const permissionResponse: PermissionResponseCardProps | undefined = state.permission ? { request: state.permission, responding: respondingRequestId === state.permission.requestId, error: permissionError?.requestId === state.permission.requestId ? permissionError.message : undefined, placement: inlinePermission ? 'inline' : 'fallback', onRespond: respondPermission } : undefined
-  const workbenchValue = useMemo(() => ({ controller, openChangesTab: () => openWorkspaceTab('changes'), openFile: openFilePreview, running: state.running, waiting, latestAssistantId, canRerun, tools: state.session?.toolCalls || [], toolsById, inlinePermission, permissionResponse }), [controller, state.running, waiting, workspaceSessionId, workspaceTabs.length, latestAssistantId, canRerun, state.session?.toolCalls, toolsById, inlinePermission, state.permission, respondingRequestId, permissionError])
+  const workbenchValue = useMemo(() => ({ controller, sessionId: workspaceSessionId, active: mainView === 'conversation' && !state.sessionLoading, openChangesTab: () => openWorkspaceTab('changes'), openFile: openFilePreview, running: state.running, waiting, latestAssistantId, canRerun, tools: state.session?.toolCalls || [], toolsById, inlinePermission, permissionResponse }), [controller, mainView, state.sessionLoading, state.running, waiting, workspaceSessionId, workspaceTabs.length, latestAssistantId, canRerun, state.session?.toolCalls, toolsById, inlinePermission, state.permission, respondingRequestId, permissionError])
   const currentSummary = state.sessions.find(session => session.id === state.session?.id)
   const currentTaskGroupId = sidebarPreferences.preferences.groups.find(group => group.sessionIds.includes(currentSummary?.id || ''))?.id
   const menuAction = (action: () => Promise<unknown>) => { void action().catch(error => controller.reportError(error)) }
+  const mainViewError = state.error && state.error !== dismissedViewError ? <div className="harness-composer__error mx-4 mt-2" role="alert"><CircleAlert size={15} /><span>{state.error}</span><button type="button" aria-label="关闭页面错误提示" onClick={() => setDismissedViewError(state.error)}><X size={14} /></button></div> : undefined
   return (
     <WorkbenchContext.Provider value={workbenchValue}>
       <MessageLookupContext.Provider value={messageById}>
@@ -507,24 +670,24 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           {compactLayout && (sessionsOpen || workspaceOpen) && <button type="button" className="pilot-pane-backdrop" aria-label="关闭侧边面板" onClick={() => { setSessionsOpen(false); setWorkspaceOpen(false) }} />}
           {sessionsOpen && (
             <>
-              {sidebarFileProject || workspace.fileTreeOpen && workspaceSessionId ? <aside id="pilot-sessions" className="pilot-drawer" style={{ width: sessionsWidth }} aria-label="项目文件" role={compactLayout ? 'dialog' : undefined} aria-modal={compactLayout || undefined}>
+              {sidebarFilesOpen || workspace.fileTreeOpen && workspaceSessionId ? <aside id="pilot-sessions" className="pilot-drawer" style={{ width: sessionsWidth }} aria-label="项目文件" role={compactLayout ? 'dialog' : undefined} aria-modal={compactLayout || undefined}>
                 <ProjectFileDrawer
-                  key={sidebarFileProject ? JSON.stringify([sidebarFileProject.id, sidebarFileProject.directory]) : workspaceSessionId}
-                  controller={controller} projectId={sidebarFileProject?.id} sessionId={sidebarFileProject ? undefined : workspaceSessionId}
-                  directory={sidebarFileProject?.directory || fileDirectory}
-                  selectedPath={sidebarFileProject ? sidebarProjectFiles?.selectedPath : workspace.selectedFilePath}
-                  expandedPaths={sidebarFileProject ? sidebarProjectFiles?.expandedPaths || [] : workspace.expandedFilePaths}
-                  onExpandedPathsChange={paths => { if (sidebarFileProject) setSidebarProjectFiles(previous => previous?.projectId === sidebarFileProject.id && previous.directory === sidebarFileProject.directory ? { ...previous, expandedPaths: paths } : previous); else updateWorkspace(current => ({ ...current, expandedFilePaths: paths })) }}
-                  onOpenFile={!sidebarFileProject || sidebarFilesCanUseTask ? path => { if (sidebarFileProject) setSidebarProjectFiles(previous => previous?.projectId === sidebarFileProject.id ? { ...previous, selectedPath: path } : previous); openFilePreview(path) } : undefined}
-                  onAddFile={!sidebarFileProject || sidebarFilesCanUseTask ? addFileToConversation : undefined}
-                  onBack={() => { setSidebarProjectFiles(undefined); updateWorkspace(current => ({ ...current, fileTreeOpen: false })) }}
-                  onOpenDirectory={() => { if (sidebarFileProject) menuAction(() => controller.openProject(sidebarFileProject.id)); else void controller.openProjectDirectory() }}
-                  openingDirectory={sidebarFileProject ? undefined : state.openingProjectDirectory}
-                  workspaceWatch={sidebarFileProject ? undefined : workspaceWatch} onWatchDirectoriesChange={sidebarFileProject ? undefined : onWatchDirectoriesChange}
-                  editors={!sidebarFileProject || sidebarFilesCanUseTask ? editorAccess.editors : []}
-                  onOpenEditor={workspaceSessionId && (!sidebarFileProject || sidebarFilesCanUseTask) ? (path, editorId) => editorAccess.open(workspaceSessionId, path, editorId) : undefined}
+                  key={sidebarFilesOpen ? JSON.stringify([sidebarFileTarget?.projectId, sidebarFileTarget?.sessionId, sidebarFileTarget?.directory]) : workspaceSessionId}
+                  controller={controller} projectId={sidebarFileProject?.id} sessionId={sidebarFilesOpen ? sidebarFileSession?.id : workspaceSessionId}
+                  directory={sidebarFilesOpen ? sidebarFileTarget?.directory : fileDirectory}
+                  selectedPath={sidebarFilesOpen ? sidebarFileTarget?.selectedPath : workspace.selectedFilePath}
+                  expandedPaths={sidebarFilesOpen ? sidebarFileTarget?.expandedPaths || [] : workspace.expandedFilePaths}
+                  onExpandedPathsChange={paths => { if (sidebarFilesOpen) updateSidebarFiles({ expandedPaths: paths }); else updateWorkspace(current => ({ ...current, expandedFilePaths: paths })) }}
+                  onOpenFile={!sidebarFilesOpen || sidebarFilesCanUseTask ? path => { if (sidebarFilesOpen) updateSidebarFiles({ selectedPath: path }); openFilePreview(path) } : undefined}
+                  onAddFile={!sidebarFilesOpen || sidebarFilesCanUseTask ? addFileToConversation : undefined}
+                  onBack={() => { setSidebarFileTarget(undefined); updateWorkspace(current => ({ ...current, fileTreeOpen: false })) }}
+                  onOpenDirectory={() => { if (sidebarFileProject) menuAction(() => controller.openProject(sidebarFileProject.id)); else if (sidebarFileSession) menuAction(async () => { const error = await controller.openSessionProject(sidebarFileSession.id, 'file-manager'); if (error) throw new Error(error) }); else void controller.openProjectDirectory() }}
+                  openingDirectory={sidebarFilesOpen ? undefined : state.openingProjectDirectory}
+                  workspaceWatch={sidebarFileProject || sidebarFileSession && !sidebarFilesCanUseTask ? undefined : workspaceWatch} onWatchDirectoriesChange={sidebarFileSession && sidebarFilesCanUseTask || !sidebarFilesOpen ? onWatchDirectoriesChange : undefined}
+                  editors={!sidebarFilesOpen || sidebarFilesCanUseTask ? editorAccess.editors : []}
+                  onOpenEditor={workspaceSessionId && (!sidebarFilesOpen || sidebarFilesCanUseTask) ? (path, editorId) => editorAccess.open(workspaceSessionId, path, editorId) : undefined}
                 />
-              </aside> : <SessionSidebar state={state} controller={controller} preferenceStore={sidebarPreferenceStore} width={sessionsWidth} modal={compactLayout} onSearch={openCommandCenter} onNewConversation={newConversation} onNewProjectConversation={projectId => { newConversation(); setDraftProjectId(projectId) }} onOpenProjectFiles={projectId => menuAction(() => openProjectFiles(projectId))} onOpenAutomations={() => menuAction(() => showView('automations'))} automationsActive={mainView === 'automations'} onOpenExtensions={() => menuAction(() => showView('extensions'))} extensionsActive={mainView === 'extensions'} onOpenSession={id => menuAction(() => openTask(id))} onClose={() => setSessionsOpen(false)} />}
+              </aside> : <SessionSidebar state={state} controller={controller} preferenceStore={sidebarPreferenceStore} width={sessionsWidth} modal={compactLayout} onSearch={openCommandCenter} onNewConversation={() => { void newConversation() }} onNewProjectConversation={projectId => { void newConversation(projectId) }} draft={taskDraft && taskDraft.visible !== false ? { draftId: taskDraft.id, groupId: taskDraft.groupId, preparedSessionId: taskDraft.sessionId, selected: mainView === 'conversation' && (taskDraft.sessionId ? state.session?.id === taskDraft.sessionId : !state.session), workspaceLabel: state.projects.find(project => project.id === draftProjectId)?.name } : undefined} onNewGroupConversation={groupId => newConversation(undefined, groupId)} onOpenDraft={id => { void openDraft(id) }} onCloseDraft={id => { void composerRef.current?.closeDraft(id).catch(error => controller.reportError(error)) }} onOpenProjectFiles={projectId => menuAction(() => openProjectFiles(projectId))} onOpenSessionFiles={id => openSessionFiles(id)} onOpenAutomations={() => menuAction(() => showView('automations'))} automationsActive={mainView === 'automations'} onOpenExtensions={() => menuAction(() => showView('extensions'))} extensionsActive={mainView === 'extensions'} onOpenSession={id => menuAction(() => openTask(id))} onClose={() => setSessionsOpen(false)} />}
               <div
                 className="pilot-sessions-resize"
                 role="separator"
@@ -539,8 +702,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               />
             </>
           )}
-          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background"><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div><SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} /></main>}
-          {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div><AutomationsView host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} onOpenSession={id => openTask(id)} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
+          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background"><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} /></main>}
+          {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<AutomationsView ref={bindAutomations} host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} navigationBusy={navigationState.busy} onNavigationChange={target => { if (mainViewRef.current === 'automations') navigation.record(target) }} onDraftNavigation={() => { if (mainViewRef.current === 'automations') navigation.detach('automations') }} onDeleteTask={id => navigation.removeAutomation(id)} onOpenSession={async id => { await openTask(id) }} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
           <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress} hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
             <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>
               <div className="harness-thread-header__leading flex min-w-0 flex-1 items-center gap-1.5">
@@ -562,9 +725,10 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               </div>
             </header>
             <div className="mira-conversation-layout @container/conversation relative flex min-h-0 flex-1 flex-col">
+              <MiraTaskFind active={mainView === 'conversation' && !commandCenterOpen} sessionId={workspaceSessionId} loading={Boolean(state.sessionLoading)} requestId={findRequest} messages={rendererMessages} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} changes={changes} viewportRef={messageViewportRef} timelineRef={conversationTimelineActions} changesRef={changesFindRef} onOpenChanges={async changeId => { try { await openWorkspaceTab('changes'); if (changeId) updateWorkspace(current => ({ ...current, selectedChangeId: changeId })) } catch (error) { controller.reportError(error) } }} />
               {hasTaskProgress && (
                 <div className="pointer-events-none absolute right-4 top-0 z-20 pt-4">
-                  <TaskSummary key={workspaceSessionId} taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} plan={state.session?.activePlan} subtasks={state.session?.activeRun?.subtasks || latestRun?.subtasks || []} changes={new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={mainView === 'conversation'} blocked={Boolean(state.sessionLoading) || state.sessions.some(session => session.projectId === project.id && state.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={() => void openWorkspaceTab('changes')} onOpenProgress={() => { const rows = messageViewportRef.current?.querySelectorAll<HTMLElement>('[data-assistant-message-id]'); rows?.[rows.length - 1]?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }} onReviewPlan={() => { const interaction = messageViewportRef.current?.querySelector<HTMLElement>('[aria-label="计划确认"], .pilot-action'); if (interaction) interaction.scrollIntoView({ block: 'center', behavior: 'smooth' }); else void openWorkspaceTab('overview') }} onStopSubtask={id => controller.stopSubtasks(id)} onError={error => controller.reportError(error)} />
+                  <TaskSummary key={workspaceSessionId} taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} plan={state.session?.activePlan} subtasks={state.session?.activeRun?.subtasks || latestRun?.subtasks || []} changes={new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={mainView === 'conversation'} blocked={Boolean(state.sessionLoading) || state.sessions.some(session => session.projectId === project.id && state.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={() => void openWorkspaceTab('changes')} onOpenProgress={() => { const latest = [...timelineMessages].reverse().find(message => message.role === 'assistant'); if (latest) conversationTimelineActions.current?.jumpToMessage(latest.id, 'center') }} onReviewPlan={() => { if (!conversationTimelineActions.current?.jumpToInteraction()) void openWorkspaceTab('overview') }} onStopSubtask={id => controller.stopSubtasks(id)} onError={error => controller.reportError(error)} />
                 </div>
               )}
               <AssistantRuntimeProvider runtime={runtime}>
@@ -574,12 +738,12 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                     {!hasTaskProgress && !state.sessionLoading && <div className="mira-task-start">
                       <h2>{getMiraGreeting()}</h2>
                     </div>}
-                    <ConversationTurnRail key={workspaceSessionId || 'draft'} messages={timelineMessages} viewportRef={messageViewportRef} />
-                    <ThreadPrimitive.Viewport ref={messageViewportRef} className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasTaskProgress ? { display: 'none' } : undefined}>
+                    <ConversationTurnRail key={workspaceSessionId || 'draft'} messages={timelineMessages} activeId={activeTurnId} onNavigate={id => conversationTimelineActions.current?.jumpToMessage(id)} />
+                    <MiraWorkbenchViewport key={conversationMemoryKey || 'draft'} memoryKey={conversationMemoryKey} viewportRef={messageViewportRef} actionsRef={conversationScrollActions} timelineRef={conversationTimelineActions} active={mainView === 'conversation'} ready={hasTaskProgress && !state.sessionLoading} hasContent={hasTaskProgress} messageWindow={JSON.stringify([rendererMessages.length, rendererMessages[0]?.rendererId, rendererMessages[rendererMessages.length - 1]?.rendererId])} onBottomChange={setConversationAtBottom}>
                       <div className="flex min-h-full flex-col">
                         <div className="relative w-full flex-1">
                           <div className="mira-message-column mx-auto flex w-full flex-col gap-5 px-5 pt-16" style={{ overflowAnchor: 'none' }}>
-                            <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+                            <MiraConversationTimeline messages={rendererMessages} memoryKey={conversationMemoryKey} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} viewportRef={messageViewportRef} scrollActionsRef={conversationScrollActions} actionsRef={conversationTimelineActions} components={{ UserMessage, AssistantMessage }} onActiveTurnChange={setActiveTurnId} />
                             <MiraPendingGuides key={workspaceSessionId} items={state.queue?.items ?? []} promotingItemId={state.queue?.promotingItemId} disabled={Boolean(state.sessionLoading)} onWithdraw={async itemId => { await composerRef.current?.withdrawPendingGuide(itemId) }} />
                             {changes.length > 0 && (
                               <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
@@ -610,10 +774,10 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                           </div>
                         </div>
                       </div>
-                    </ThreadPrimitive.Viewport>
+                    </MiraWorkbenchViewport>
                     <div className="mira-composer-region" data-draft={!hasTaskProgress}>
-                      <ThreadPrimitive.ScrollToBottom className="mira-scroll-latest" aria-label="回到底部" title="回到底部"><ArrowDown size={16} /></ThreadPrimitive.ScrollToBottom>
-                      <HarnessComposer ref={composerRef} active={mainView === 'conversation'} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} />
+                      <button type="button" className="mira-scroll-latest" aria-label="回到底部" title="回到底部" disabled={conversationAtBottom || Boolean(state.sessionLoading)} onClick={() => conversationScrollActions.current?.resume()}><ArrowDown size={16} /></button>
+                      <HarnessComposer ref={composerRef} active={mainView === 'conversation'} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} onDraftChange={setTaskDraft} onDraftAccepted={acceptTaskDraft} />
                       {!hasTaskProgress && <div className="mira-task-suggestions" aria-label="任务示例">
                         {[{ icon: BookOpen, label: '整理资料', prompt: '请整理当前项目资料，先阅读目录和文档，再总结主要内容。' }, { icon: CircleAlert, label: '排查问题', prompt: '帮我分析当前项目，检查运行与构建配置，列出需要处理的问题。' }, { icon: FileText, label: '起草文档', prompt: '帮我写一份项目介绍，先分析已有资料，再给出文档草案。' }].map(({ icon: Icon, label, prompt }) => <button type="button" key={label} onClick={() => window.dispatchEvent(new CustomEvent('mira:compose-draft', { detail: prompt }))}><Icon size={15} />{label}</button>)}
                       </div>}
@@ -644,9 +808,9 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 {workspaceTabs.length === 0 && <WorkspaceLauncher busy={preparingWorkspace || state.sessionLoading} onOpen={id => void openWorkspaceTab(id)} />}
                 {workspaceTabs.filter(tab => tab.id !== 'terminal').map(tab => (
                   <div key={`${workspaceSessionId || 'empty'}:${tab.id}`} className={`pilot-panel-view${workspaceTab === tab.id ? ' is-active' : ''}`} aria-hidden={workspaceTab !== tab.id}>
-                    {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} pending={Boolean(state.permission || state.memoryConfirmation || interaction?.status === 'waiting')} canRerun={Boolean(state.session && state.selection && !state.running)} onReview={() => { setWorkspaceOpen(false); document.querySelector('.pilot-action')?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }} onRerun={() => void controller.rerun()} onOpenTab={openWorkspaceTab} />}
+                    {tab.id === 'overview' && <OverviewPanel taskState={taskState} taskTone={taskTone} latestRun={latestRun} activities={activities} tools={state.session?.toolCalls || []} pending={Boolean(state.permission || state.memoryConfirmation || interaction?.status === 'waiting')} canRerun={Boolean(state.session && state.selection && !state.running)} onReview={() => { setWorkspaceOpen(false); conversationTimelineActions.current?.jumpToInteraction() }} onRerun={() => void controller.rerun()} onOpenTab={openWorkspaceTab} />}
                     {tab.path && workspaceSessionId && <FilePreviewPanel controller={controller} sessionId={workspaceSessionId} path={tab.path} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id} onAddFile={addFileToConversation} workspaceWatch={workspaceWatch} selectedEditor={editorAccess.selectedEditor} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} />}
-                    {tab.id === 'changes' && <ChangesPanel changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { updateWorkspace(current => ({ ...current, selectedChangeId: id })); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
+                    {tab.id === 'changes' && <ChangesPanel rootRef={changesFindRef} changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { updateWorkspace(current => ({ ...current, selectedChangeId: id })); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
                     {tab.id === 'browser' && <BrowserPanel controller={controller} sessionId={state.session?.id} active={workspaceOpen && workspaceTab === 'browser'} initialUrl={workspace.browserUrl} onUrlChange={url => updateWorkspace(current => ({ ...current, browserUrl: url }))} />}
                   </div>
                 ))}
@@ -654,7 +818,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               </div>
             </aside>
           )}
-          <HarnessCommandCenter open={commandCenterOpen} onOpenChange={setCommandCenterOpen} controller={controller} session={state.session} commands={commands} onOpenSession={result => openTask(result.id, result.messageId)} onOpenFile={async (id, path) => { const revision = await showView('conversation'); if (!currentNavigation(revision)) return; if (controller.getSnapshot().session?.id !== id) { const opened = await controller.open(id, () => currentNavigation(revision)); if (!currentNavigation(revision)) return; if (!opened) throw new Error(controller.getSnapshot().error || '文件所在任务打开失败，请重试') }; if (!currentNavigation(revision) || controller.getSnapshot().session?.id !== id) return; const tab = createWorkspaceFileTab(path); setWorkspaceSessions(previous => ({ ...previous, [id]: { ...addWorkspaceTab(previous[id] || createWorkspaceSession(), tab), selectedFilePath: path } })); setWorkspaceMounted(true); setWorkspaceOpen(true); if (compactLayout) setSessionsOpen(false) }} />
+          <HarnessCommandCenter open={commandCenterOpen} focusRequest={commandCenterFocusRequestNumber} onOpenChange={setCommandCenterOpen} onDismiss={() => { const id = commandCenterFocusRequest.current; commandCenterFocusRequest.current = undefined; return id ? controller.dismissCommandCenterFocus(id) : false }} controller={controller} session={state.session} commands={commands} onOpenSession={result => openTask(result.id, result.messageId)} onOpenFile={(id, path) => openTask(id, undefined, path)} />
         </div>
       </MessageLookupContext.Provider>
     </WorkbenchContext.Provider>
@@ -680,9 +844,9 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
 }
 
 
-function ChangesPanel({ changes, selectedChangeId, onSelect }: { changes: Array<HarnessFileChange & { key: string }>; selectedChangeId?: string; onSelect: (id: string | undefined) => void }) {
+function ChangesPanel({ changes, selectedChangeId, onSelect, rootRef }: { changes: Array<HarnessFileChange & { key: string }>; selectedChangeId?: string; onSelect: (id: string | undefined) => void; rootRef?: React.RefObject<HTMLDivElement | null> }) {
   const totals = changes.reduce((count, change) => { const diff = parseDiff(change.diff || ''); return { added: count.added + diff.added, removed: count.removed + diff.removed } }, { added: 0, removed: 0 })
-  return <div className="pilot-panel-stack"><PanelSection title={`本次任务变更 · ${changes.length} 个文件`}>{changes.length ? <><div className="pilot-diff-stats"><span>+{totals.added} 行</span><span>-{totals.removed} 行</span></div>{changes.map(change => { const diff = parseDiff(change.diff || ''); return <div key={change.key}><button type="button" className={`pilot-change ${selectedChangeId === change.key ? 'is-selected' : ''}`} title={`查看 ${change.path} 的变更`} onClick={() => onSelect(selectedChangeId === change.key ? undefined : change.key)}><FileText size={15} /><span>{change.path}</span><small>+{diff.added} -{diff.removed}</small></button>{selectedChangeId === change.key && <ChangePreview change={change} />}</div> })}</> : <EmptyPanel icon={<GitCompare size={20} />} text="暂无文件变更" />}</PanelSection></div>
+  return <div ref={rootRef} className="pilot-panel-stack"><PanelSection title={`本次任务变更 · ${changes.length} 个文件`}>{changes.length ? <><div className="pilot-diff-stats"><span>+{totals.added} 行</span><span>-{totals.removed} 行</span></div>{changes.map(change => { const diff = parseDiff(change.diff || ''); return <div key={change.key}><button type="button" className={`pilot-change ${selectedChangeId === change.key ? 'is-selected' : ''}`} title={`查看 ${change.path} 的变更`} onClick={() => onSelect(selectedChangeId === change.key ? undefined : change.key)}><FileText size={15} /><span>{change.path}</span><small>+{diff.added} -{diff.removed}</small></button>{selectedChangeId === change.key && <ChangePreview change={change} findId={change.key} />}</div> })}</> : <EmptyPanel icon={<GitCompare size={20} />} text="暂无文件变更" />}</PanelSection></div>
 }
 
 function CapabilityPanel({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
@@ -815,7 +979,7 @@ function EmptyPanel({ icon, text }: { icon: ReactNode; text: string }) {
   return <div className="pilot-empty-panel">{icon}<span>{text}</span></div>
 }
 
-function ChangePreview({ change }: { change: HarnessFileChange }) {
+function ChangePreview({ change, findId }: { change: HarnessFileChange; findId?: string }) {
   const lines = parseDiff(change.diff || '').lines
-  return <div className="pilot-diff" aria-label="文件变更预览"><strong>{change.tool === 'delete' ? '删除' : change.tool === 'write' ? '写入' : '编辑'} · {change.path}</strong>{change.diff ? <div className="pilot-diff__lines" role="region" aria-label={`${change.path} 的差异`}>{lines.map((line, index) => <div key={index} className={`pilot-diff__line pilot-diff__line--${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><code>{line.text || ' '}</code></div>)}</div> : <p>此变更没有可显示的 diff。</p>}</div>
+  return <div className="pilot-diff" aria-label="文件变更预览"><strong>{change.tool === 'delete' ? '删除' : change.tool === 'write' ? '写入' : '编辑'} · {change.path}</strong>{change.diff ? <div className="pilot-diff__lines" role="region" aria-label={`${change.path} 的差异`}>{lines.map((line, index) => <div key={index} className={`pilot-diff__line pilot-diff__line--${line.kind}`}><span>{line.oldLine ?? ''}</span><span>{line.newLine ?? ''}</span><code data-mira-find-target={findId ? taskFindTargetKey(findId, String(index)) : undefined}>{line.text || ' '}</code></div>)}</div> : <p>此变更没有可显示的 diff。</p>}</div>
 }

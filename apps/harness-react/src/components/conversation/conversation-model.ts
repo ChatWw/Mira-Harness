@@ -49,11 +49,11 @@ export function completedOperationCount(run: HarnessRunSummary) {
 }
 
 export interface ConversationTurn { id: string; prompt: string; response: string; running: boolean }
-export function buildConversationTurns(messages: HarnessMessage[]): ConversationTurn[] {
+function buildConversationEntries(messages: HarnessMessage[], groupGuides: boolean): ConversationTurn[] {
   const turns: ConversationTurn[] = []
   for (const message of messages) {
     if (message.role === 'user') {
-      if (message.delivery !== 'guide' || !turns.length) turns.push({ id: message.id, prompt: message.content, response: '', running: false })
+      if (!groupGuides || message.delivery !== 'guide' || !turns.length) turns.push({ id: message.id, prompt: message.content || message.attachments?.map(file => file.name || file.path).join('、') || '', response: '', running: false })
     }
     else if (turns.length) {
       const turn = turns[turns.length - 1]
@@ -63,3 +63,7 @@ export function buildConversationTurns(messages: HarnessMessage[]): Conversation
   }
   return turns
 }
+
+export function buildConversationTurns(messages: HarnessMessage[]) { return buildConversationEntries(messages, true) }
+/** ZCode's navigation directory includes every accepted query, even guides within one task turn. */
+export function buildConversationQueries(messages: HarnessMessage[]) { return buildConversationEntries(messages, false) }

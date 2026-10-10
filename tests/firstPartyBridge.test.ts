@@ -157,6 +157,7 @@ describe('first-party capability bridge', () => {
       await expect(entry.request(`harness.${method}`, params)).resolves.toEqual({ method })
     }
     await expectCall('skills.list', {})
+    await expectCall('attachments.save', { sessionId: 's', path: 'mira-attachment:frozen' })
     await expectCall('session.rename', { id: 's', title: '新标题' })
     await expectCall('session.set-pinned', { id: 's', pinned: true })
     await expectCall('session.set-unread', { id: 's', unread: false })
@@ -276,6 +277,15 @@ describe('first-party capability bridge', () => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(source))
     await expect(entry.request('harness.files.search', { sessionId: 's', query: 'src' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: '工作目录搜索未完成，请检查目录访问权限后重试。' })
+  })
+
+  it('forwards only validated prepared creation fields through the owner grant', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.session.create', { prepared: true, projectId: 'project', draft: { groupId: 'group' } })).resolves.toEqual({ method: 'session.create' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'session.create', { prepared: true, projectId: 'project' })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
+    for (const prepared of ['true', null, 1]) await expect(entry.request('harness.session.create', { prepared })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
   })
 
   it.each(harnessModelCalls)('$method preserves every supported reasoning level and strips untrusted model fields', async ({ method, params }) => {

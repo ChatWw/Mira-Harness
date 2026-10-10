@@ -44,6 +44,9 @@ Thumbs.db
 coverage/
 *.lcov
 
+# 隔离 UI 验证时从当前样式生成
+docs/assets/**/fixture.css
+
 # 临时文件
 *.tmp
 *.temp

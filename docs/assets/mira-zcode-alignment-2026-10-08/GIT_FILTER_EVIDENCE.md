@@ -43,7 +43,7 @@
 
 ## 产物与许可
 
-[独立 `write:false` 审计](./git-filter-headless/mira-bundle-audit.mjs) 于 11:58:48.119 通过：[bundle-audit.json](./git-filter-headless/bundle-audit.json) 的 287 JS 内存/磁盘 SHA 一致，缺失/差异/陈旧/孤立产物为 0，239 动态目标完整；7 份许可副本及 NOTICE/HTML 一致。
+当时的独立 `write:false` 审计于 11:58:48.119 通过：[bundle-audit.json](./git-filter-headless/bundle-audit.json) 的 287 JS 内存/磁盘 SHA 一致，缺失/差异/陈旧/孤立产物为 0，239 动态目标完整；7 份许可副本及 NOTICE/HTML 一致。2026-10-10 清理已过时的单入口审计脚本及其清单条目；当前复验使用 [双入口审计脚本](./highlight-worker-production/mira-bundle-audit.mjs)，不将旧结果当作新版通过。
 
 | 范围 | 文件数 | 字节 | 逐文件 gzip9 合计 |
 | --- | ---: | ---: | ---: |

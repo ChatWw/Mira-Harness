@@ -3,6 +3,22 @@ import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
 import { FirstPartyHarnessHost } from '../apps/harness-react/src/platform/first-party-host'
 
 describe('Harness sidebar real host contracts', () => {
+  it('only transports a host-owned frozen archived selection, never renderer-supplied ids or scope', async () => {
+    expect(parseFirstPartyHarnessCall('sessions.archived-snapshot', { ids: ['injected'], projectId: 'narrow' })).toEqual({ method: 'sessions.archived-snapshot' })
+    expect(parseFirstPartyHarnessCall('sessions.delete-archived', { snapshotId: 'frozen', ids: ['injected'] })).toEqual({ method: 'sessions.delete-archived', snapshotId: 'frozen' })
+    for (const snapshotId of ['', null, 'x'.repeat(129), '\0']) expect(() => parseFirstPartyHarnessCall('sessions.delete-archived', { snapshotId })).toThrow()
+    const port = { onmessage: undefined as ((message: { data: unknown }) => void) | undefined, start: vi.fn(), close: vi.fn(), postMessage: vi.fn() }
+    const host = new FirstPartyHarnessHost(port as unknown as MessagePort)
+    const selection = host.getArchivedSnapshot()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.sessions.archived-snapshot', params: undefined })
+    port.onmessage!({ data: { type: 'mira:response', id: '1', ok: true, value: { snapshotId: 'frozen', count: 63 } } })
+    await expect(selection).resolves.toEqual({ snapshotId: 'frozen', count: 63 })
+    const deletion = host.deleteArchivedSessions('frozen')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.sessions.delete-archived', params: { snapshotId: 'frozen' } })
+    port.onmessage!({ data: { type: 'mira:response', id: '2', ok: true, value: { deletedIds: ['a'], skippedIds: ['b'], failedIds: ['c'] } } })
+    await expect(deletion).resolves.toEqual({ deletedIds: ['a'], skippedIds: ['b'], failedIds: ['c'] })
+    host.close()
+  })
   it('bounds archived pagination and only exposes the approved query fields', () => {
     expect(parseFirstPartyHarnessCall('sessions.history', { archiveView: 'archived', sort: 'created-desc', page: 2, pageSize: 50, q: '任务', database: '/private/user.db' })).toEqual({ method: 'sessions.history', query: { archiveView: 'archived', sort: 'created-desc', page: 2, pageSize: 50, q: '任务' } })
     for (const patch of [{ page: 0 }, { page: 1.2 }, { pageSize: 101 }, { sort: 'random' }, { archiveView: 'all' }, { q: '\0' }]) expect(() => parseFirstPartyHarnessCall('sessions.history', patch)).toThrow()

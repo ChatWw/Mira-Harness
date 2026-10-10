@@ -68,7 +68,7 @@ hard link 不可用且不是权限错误时显式失败，不伪造初始化成�
   missing/mismatch/stale/orphan 0，239 动态目标齐全；9/9 许可文件和 NOTICE/HTML 与源一致。
   静态闭包 3 JS / 2,036,882B（逐文件 gzip9 合计 613,067B）；全部 JS 9,561,123B（gzip9 1,911,632B）；
   CSS 129,561B（gzip9 22,939B）。本次 React JS/CSS 字节与前批相同，不据此推算搜索或启动性能。
-- [validation-summary.json](search-ignore-headless/validation-summary.json) 是主 agent 记录的命令观察摘要，不是原始 stdout 日志。
+- 本节为主 agent 记录的命令观察摘要，不是原始 stdout 日志；重复的旧 JSON 汇总于 2026-10-10 清理。
 
 ## 12:51 授权竞态修复与重新验证
 
@@ -102,7 +102,7 @@ API fixture 调用真实 Electron 文件服务，但用隔离 HTTP 替代 preloa
 | 深色个人模板 | [1440](search-ignore-headless/dark-personal-template-1440.png)、[1280](search-ignore-headless/dark-personal-template-1280.png) |
 | 浅色个人模板 | [1710](search-ignore-headless/light-personal-template-1710.png) |
 
-限定评审：[finish-review.md](search-ignore-headless/finish-review.md)。12:39 界面/集成审查是历史批次；其后授权发现及独立服务复核已单独补记。7 图仍为 12:35 原采集，不冒充修复后原生 IPC 证据。
+12:39 历史界面/集成评审仅覆盖当时源码与上述 headless 七图，未发现该范围的可复现 P0/P1/P2；其后授权发现及独立服务复核已单独补记。重复的旧评审副本于 2026-10-10 清理，原结论不放行后续授权/Proxy 改动、原生输入或整体产品。7 图仍为 12:35 原采集，不冒充修复后原生 IPC 证据。
 本批不替代原生 Electron grant/IPC、真实鼠标键盘、同态 ZCode、安装包、Windows、真实模型或冷启动性能验收。
 
 ## 2026-10-09 13:23 Proxy 修复与最终回归
@@ -118,7 +118,7 @@ API fixture 调用真实 Electron 文件服务，但用隔离 HTTP 替代 preloa
 - **最新类型**：`npx vue-tsc --noEmit` 和 `npx tsc --noEmit -p apps/harness-react/tsconfig.json` 均 exit 0。
 - **最新构建**：`npm run harness:build` exit 0（esbuild 247ms、Tailwind 106ms）；`npx electron-vite build` exit 0（main 66/preload 8/renderer 2447 modules，renderer 5.40s）。既有 PURE 注释/图标导入警告保留；没有生成或验收安装包。
 - **最新产物审计**：13:23:15 +08:00，[bundle-audit.json](search-ignore-headless/bundle-audit.json) 为 287/287 JS SHA 一致、239 动态目标完整、9/9 许可及 NOTICE/HTML 一致，无缺失/差异/旧块。静态闭包 3 JS / 2,036,882B（逐文件 gzip9 合计 613,067B），CSS 129,561B（gzip9 22,939B）；字节不变，不据此宣称性能提升。
-- **差异检查**：`git diff --check` exit 0；文档同步后再检查一次。命令结果摘要见 [validation-summary.json](search-ignore-headless/validation-summary.json)，它仍是主 agent 的观察记录，不冒充原始 stdout。
+- **差异检查**：`git diff --check` exit 0；文档同步后再检查一次。命令结果摘要保留在本节，属于主 agent 的观察记录，不冒充原始 stdout。
 
 ## 2026-10-09 13:32 文档收尾
 

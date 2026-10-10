@@ -24,7 +24,9 @@ function setup() {
     memories: { enabled: () => false }, skills: { resolve: () => [] }, instructions: { resolve: () => [] },
     models: { get: () => provider, getSecret: () => '' }, getSnapshot: () => ({ preferences: {} }),
     harness: {
+      getPermissionConfig: () => ({ globalDefaultMode: 'default' }),
       getSession: () => structuredClone(session),
+      acceptPreparedSession: vi.fn((_id, persist) => { session.draftState = 'accepted'; persist?.() }),
       updateSession: (value: any) => { session = structuredClone(value); return structuredClone(session) },
       resolveMessageAttachments: () => [],
       addMessage: vi.fn((_id, role, content) => { session.messages.push({ id: `m-${session.messages.length}`, role, content, createdAt: Date.now() }); return structuredClone(session) }),
@@ -55,6 +57,68 @@ function setup() {
 }
 
 describe('Harness runtime admission', () => {
+  it('promotes prepared owners only after queue admission, with stable replay and no premature history', async () => {
+    const { runtime, memory, database, prompt, sender } = setup()
+    database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
+    const selection = { providerId: 'p', modelId: 'model' }
+    const receipt = runtime.submitMessage(sender, 's', 'first', '开始', [], selection, false)
+    expect(database.harness.acceptPreparedSession).toHaveBeenCalledOnce()
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'accepted', messages: [] })
+    expect(runtime.submitMessage(sender, 's', 'first', '开始', [], selection, false)).toMatchObject({ id: receipt.id })
+    expect(database.harness.acceptPreparedSession).toHaveBeenCalledOnce()
+    memory.resolve()
+    await vi.waitFor(() => expect((runtime as any).runCoordinator.isRunning('s')).toBe(false))
+    expect(prompt).toHaveBeenCalledOnce()
+  })
+
+  it('does not promote prepared owners on validation, stale-run or durable admission failures', async () => {
+    const { runtime, database, sender } = setup()
+    database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
+    const selection = { providerId: 'p', modelId: 'model' }
+    expect(() => runtime.submitMessage(sender, 's', 'invalid', '开始', [], { providerId: 'p', modelId: 'missing' }, false)).toThrow()
+    expect(runtime.submitMessage(sender, 's', 'stale', '开始', [], selection, false, { delivery: 'immediate', expectedRunId: 'old-run' })).toMatchObject({ retryRequired: true })
+    expect(database.harness.acceptPreparedSession).not.toHaveBeenCalled()
+    database.harness.acceptPreparedSession.mockImplementationOnce(() => { throw new Error('存储失败') })
+    expect(() => runtime.submitMessage(sender, 's', 'first', '开始', [], selection, false)).toThrow('待发送消息执行失败')
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'prepared', messages: [] })
+    expect(runtime.getMessageQueue('s').items).toEqual([])
+    expect((runtime as any).messageQueue.hasPending('s')).toBe(false)
+  })
+
+  it('promotes an immediate prepared owner together with first-message persistence only after preflight succeeds', async () => {
+    const { runtime, memory, database, sender } = setup()
+    database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
+    const pending = runtime.submitMessage(sender, 's', 'immediate', '开始', [], { providerId: 'p', modelId: 'model' }, false, { delivery: 'immediate', expectedRunId: null })
+    await vi.waitFor(() => expect(database.harness.setActiveRun).toHaveBeenCalled())
+    expect(database.harness.acceptPreparedSession).not.toHaveBeenCalled()
+    expect(database.harness.addMessage).not.toHaveBeenCalled()
+    memory.resolve()
+    expect(await pending).toMatchObject({ submissionId: 'immediate' })
+    expect(database.harness.acceptPreparedSession).toHaveBeenCalledExactlyOnceWith('s', expect.any(Function))
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'accepted', messages: [{ role: 'user', content: '开始' }] })
+    await vi.waitFor(() => expect((runtime as any).runCoordinator.isRunning('s')).toBe(false))
+  })
+
+  it('admits a prepared owner through legacy runMessage only at successful first-message persistence', async () => {
+    const { memory, database, send } = setup()
+    database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
+    const running = send('直接发送')
+    expect(database.harness.acceptPreparedSession).toHaveBeenCalledExactlyOnceWith('s', expect.any(Function))
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'accepted', messages: [{ role: 'user', content: '直接发送' }] })
+    memory.resolve(); await running
+  })
+
+  it('admits a successful prepared permission command and rejects failed persistence without an Agent or message', async () => {
+    const { database, prompt, send } = setup()
+    database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
+    database.harness.acceptPreparedSession.mockImplementationOnce(() => { throw new Error('存储失败') })
+    await expect(send('/perm full')).rejects.toThrow('存储失败')
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'prepared', permissionMode: 'default', messages: [] })
+    await send('/perm full')
+    expect(database.harness.getSession()).toMatchObject({ draftState: 'accepted', permissionMode: 'full', messages: [] })
+    expect(prompt).not.toHaveBeenCalled()
+    expect(database.harness.addMessage).not.toHaveBeenCalled()
+  })
   it('admits one frozen immediate draft atomically after teardown and replays accepted input without rereading files', async () => {
     const { runtime, memory, database, prompt, sender, send } = setup()
     const first = send('A'), runId = database.harness.getSession().activeRun.id

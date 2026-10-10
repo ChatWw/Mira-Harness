@@ -22,14 +22,14 @@
 
 | 检查 | 结果 | 日志 |
 | --- | --- | --- |
-| `npm test -- --maxWorkers=2` | 11:05:34 开始，14.45s；96 文件 / 909 项通过 | [tests.log](./git-overlay-headless/tests.log) |
-| React `tsc --noEmit` | exit 0，日志 mtime 11:04:20 | [react-typecheck.log](./git-overlay-headless/react-typecheck.log) |
-| Vue `vue-tsc --noEmit` | exit 0，日志 mtime 11:04:55 | [vue-typecheck.log](./git-overlay-headless/vue-typecheck.log) |
-| React 正式构建 | exit 0，最新构建日志 mtime 11:06:59 | [react-build.log](./git-overlay-headless/react-build.log) |
-| `electron-vite build` | exit 0，日志 mtime 11:05:42；不是安装包验收 | [electron-build.log](./git-overlay-headless/electron-build.log) |
-| `git diff --check` | exit 0；文档收尾后另复核 | [diff-check.log](./git-overlay-headless/diff-check.log) |
+| `npm test -- --maxWorkers=2` | 11:05:34 开始，14.45s；96 文件 / 909 项通过 | tests.log（历史原始日志已清理） |
+| React `tsc --noEmit` | exit 0，日志 mtime 11:04:20 | react-typecheck.log（历史原始日志已清理） |
+| Vue `vue-tsc --noEmit` | exit 0，日志 mtime 11:04:55 | vue-typecheck.log（历史原始日志已清理） |
+| React 正式构建 | exit 0，最新构建日志 mtime 11:06:59 | react-build.log（历史原始日志已清理） |
+| `electron-vite build` | exit 0，日志 mtime 11:05:42；不是安装包验收 | electron-build.log（历史原始日志已清理） |
+| `git diff --check` | exit 0；文档收尾后另复核 | diff-check.log（历史原始日志已清理） |
 | 内存构建与磁盘审计 | 11:08:39，287 JS SHA 匹配，无缺失/陈旧/孤立产物，239 动态目标完整 | [bundle-audit.json](./git-overlay-headless/bundle-audit.json) |
-| 许可、HTML 与截图记录 | 11:13:47，7/7 声明、NOTICE/HTML 一致，10 项 SHA 清单 | [evidence-audit.json](./git-overlay-headless/evidence-audit.json) |
+| 许可、HTML 与截图记录 | 11:13:47，7/7 声明、NOTICE/HTML 一致，10 项 SHA 清单 | [产物审计](./git-overlay-headless/bundle-audit.json)、[SHA 清单](./git-overlay-headless/sha256-manifest.json)；重复摘要于 2026-10-10 清理 |
 
 宿主独立 Git 服务 24 项、桥/IPC/host 135 项、drawer/Git/tree/search 64 项定向通过，均已包含于上述全量数字，不相加。默认并发高亮超时历史仍保留，不把受限两 workers 通过写成默认全量通过。
 
@@ -47,7 +47,7 @@ CSS SHA-256：`b066218a995a9219c643bfbe5b1fb1440106632004ee40289e1f62a334be831f`
 
 最终有效采集 11:10:42–46，Chrome `154.0.8037.99`；1440×900、1710×992、1280×800，deviceScaleFactor 1，exit 0。使用实际生产 workbench、FirstPartyHarnessHost/MessageChannel、真实 firstPartyBridge/parser 和真实隔离 Git 仓库/服务。会话与偏好为夹具，grant/IPC 链单测覆盖；watch 是显式协议事件，不冒充原生 fs.watch。没有桌面鼠标键盘操作、Vue Shell 或设置验收。
 
-机器记录：[results.json](./git-overlay-headless/results.json)，[完整日志](./git-overlay-headless/headless.log)。
+机器记录：[results.json](./git-overlay-headless/results.json)，完整日志（历史原始日志已清理）。
 
 - M/A/R/U 字母和名称、deleted 后代点、ignored 目录/文件精确灰色、ignored 不染祖先均实际呈现。删除文件无伪造行，28px 行高、10px 字母栏保持稳定。
 - 720 文件目录滚动时挂载 53 行，status 调用不增加；实际 ignored 最大批为 52，512 上限由回归覆盖。
@@ -65,11 +65,11 @@ CSS SHA-256：`b066218a995a9219c643bfbe5b1fb1440106632004ee40289e1f62a334be831f`
 | [1710 桌面](./git-overlay-headless/mira-git-desktop-1710.png) | 滚动后布局与 264px 侧栏 |
 | [1280 桌面](./git-overlay-headless/mira-git-desktop-1280.png) | 较小桌面窗口，无横向溢出 |
 
-[SHA 清单](./git-overlay-headless/sha256-manifest.json) 固定当前七图、结果和两本机脚本。早期夹具 session.get 使用错误字段与重复 aside locator 的错误已修正，其旧 JSON/日志中间产物已清理；监听补读未等待、虚拟树点击改变选择的两批失效截图已清理。这些夹具失败不列为有效全流程验收，也未据此修改产品代码。[first-1440-success](./git-overlay-headless/first-1440-success.log) 是扩展桌面尺寸前的成功历史。
+[SHA 清单](./git-overlay-headless/sha256-manifest.json) 固定当前七图、结果和两本机脚本。早期夹具 session.get 使用错误字段与重复 aside locator 的错误已修正，其旧 JSON/日志中间产物已清理；监听补读未等待、虚拟树点击改变选择的两批失效截图已清理。这些夹具失败不列为有效全流程验收，也未据此修改产品代码。2026-10-10 清理已被最终多视口结果覆盖的早期单视口 JSON/日志，最终结果及七图保留。
 
 ## 独立评审
 
-一次 [detector](./git-overlay-headless/design-detector.json) 仅报告既有 4px/5px 局部半径的 advisory；这些不由新增 Git 装饰引入，未改全局尺度。独立 fresh reviewer 逐张打开七图，未发现本批源码或视觉 required fix；初次结论为 fix，仅因 DESIGN/surface/sidecar 仍将 Git 写成未实现。
+一次历史样式诊断仅报告既有 4px/5px 局部半径的 advisory；这些不由新增 Git 装饰引入，未改全局尺度。该重复调试输出于 2026-10-10 清理，本段保留观察摘要。独立 fresh reviewer 逐张打开七图，未发现本批源码或视觉 required fix；初次结论为 fix，仅因 DESIGN/surface/sidecar 仍将 Git 写成未实现。
 
 这些当前入口已同步。原 reviewer 仅对该 P2 追加复核：resolved、未观察到此次文档修正引入回归、remaining clear for scored finding、disposition ship。原 fix 历史与新 Verdict/Remaining 保留于 [finish-review.md](./git-overlay-headless/finish-review.md)，没有再次运行 detector、复拍或重建。此 ship 严格限定本批只读 Git 装饰的源码/headless 证据及文档修正，不代表原生 Electron/Vue、ZCode 同态对比、安装包、Windows、性能或整体发布通过。
 

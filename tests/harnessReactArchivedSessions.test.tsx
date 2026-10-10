@@ -24,11 +24,12 @@ function page(ids: string[], total = ids.length, number = 1): HarnessHistoryPage
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done }); return { promise, resolve } }
 function mount(queryHistory = vi.fn(async () => page(['archived']))) {
-  const controller = { queryHistory, restoreSession: vi.fn(async () => undefined), deleteSession: vi.fn(async () => undefined) }
+  const controller = { queryHistory, restoreSession: vi.fn(async () => undefined), deleteSession: vi.fn(async () => undefined), supportsArchivedDeletion: true, getArchivedSnapshot: vi.fn(async () => ({ snapshotId: 'selection', count: 63 })), deleteArchivedSessions: vi.fn(async (_id: string) => ({ deletedIds: ['archived'], skippedIds: [], failedIds: [] } as { deletedIds: string[]; skippedIds: string[]; failedIds: string[]; refreshError?: string })), refreshSessions: vi.fn(async () => undefined) }
   let sort: 'created' | 'updated' = 'updated', refreshKey = 'active'
+  let active = true, currentController = controller
   let tree: React.ReactNode, mounted = true
   const onOpen = vi.fn()
-  const render = () => { hooks.cursor = 0; hooks.dirty = false; tree = ArchivedSessions({ controller: controller as unknown as PilotController, sort, refreshKey, onOpen }); hooks.effects.splice(0).forEach(effect => effect()) }
+  const render = () => { hooks.cursor = 0; hooks.dirty = false; tree = ArchivedSessions({ controller: currentController as unknown as PilotController, sort, refreshKey, onOpen, active }); hooks.effects.splice(0).forEach(effect => effect()) }
   const drain = async () => { for (let i = 0; i < 30; i++) { await Promise.resolve(); if (hooks.dirty && mounted) render() } }
   function props(match: (value: Record<string, unknown>) => boolean) {
     const visit = (node: React.ReactNode): Record<string, unknown> | undefined => Array.isArray(node) ? node.map(visit).find(Boolean) : React.isValidElement<Record<string, unknown>>(node) ? match(node.props) ? node.props : visit(node.props.children as React.ReactNode) : undefined
@@ -36,12 +37,67 @@ function mount(queryHistory = vi.fn(async () => page(['archived']))) {
   }
   const unmount = () => { mounted = false; hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
   render()
-  return { controller, onOpen, drain, props, unmount, setSort: (next: typeof sort) => { sort = next; render() }, setRefresh: (next: string) => { refreshKey = next; render() } }
+  return { controller, onOpen, drain, props, unmount, setSort: (next: typeof sort) => { sort = next; render() }, setRefresh: (next: string) => { refreshKey = next; render() }, setActive: (next: boolean) => { active = next; render() }, setController: (next: typeof controller) => { currentController = next; render() }, prepare: async () => { (props(p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('删除所有归档任务'))!.onSelect as () => void)(); await drain() }, confirm: () => (props(p => p['aria-label'] === '确认删除归档任务')!.onClick as () => void)() }
 }
 beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hooks.effects = []; vi.stubGlobal('React', React); vi.stubGlobal('document', { getElementById: () => null }) })
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals() })
 
 describe('actual archived-list component callbacks', () => {
+  it('confirms the host snapshot count instead of the loaded page and deduplicates preparation/deletion', async () => {
+    const view = mount(); await view.drain()
+    const snapshot = deferred<{ snapshotId: string; count: number }>()
+    view.controller.getArchivedSnapshot.mockReturnValueOnce(snapshot.promise)
+    await view.prepare(); await view.prepare()
+    expect(view.controller.getArchivedSnapshot).toHaveBeenCalledOnce()
+    expect(view.controller.deleteArchivedSessions).not.toHaveBeenCalled()
+    snapshot.resolve({ snapshotId: 'frozen', count: 63 }); await view.drain()
+    expect(view.props(p => Array.isArray(p.children) && p.children.includes(63))).toBeDefined()
+    const deletion = deferred<{ deletedIds: string[]; skippedIds: string[]; failedIds: string[] }>()
+    view.controller.deleteArchivedSessions.mockReturnValueOnce(deletion.promise)
+    view.confirm(); view.confirm()
+    expect(view.controller.deleteArchivedSessions).toHaveBeenCalledExactlyOnceWith('frozen')
+    deletion.resolve({ deletedIds: ['archived'], skippedIds: ['restored'], failedIds: ['failed'] }); await view.drain()
+    expect(view.props(p => p.role === 'status' && p.children === '已删除 1 个，跳过 1 个，失败 1 个。')).toBeDefined()
+  })
+  it.each(['cancel', 'close'] as const)('never deletes on %s', async action => {
+    const view = mount(); await view.drain(); await view.prepare()
+    if (action === 'cancel') (view.props(p => p.children === '取消')!.onClick as () => void)()
+    else (view.props(p => typeof p.onOpenChange === 'function' && 'open' in p && !('onSelect' in p) && JSON.stringify(p.children).includes('确认删除归档任务'))!.onOpenChange as (open: boolean) => void)(false)
+    await view.drain()
+    expect(view.controller.deleteArchivedSessions).not.toHaveBeenCalled()
+  })
+  it('does not reopen a late snapshot after hiding the app, changing controller or unmounting', async () => {
+    for (const leave of ['hide', 'controller', 'unmount']) {
+      hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hooks.effects = []
+      const view = mount(); await view.drain()
+      const waiting = deferred<{ snapshotId: string; count: number }>(); view.controller.getArchivedSnapshot.mockReturnValueOnce(waiting.promise)
+      await view.prepare()
+      if (leave === 'hide') view.setActive(false)
+      else if (leave === 'controller') view.setController({ ...view.controller, getArchivedSnapshot: vi.fn(async () => ({ snapshotId: 'new', count: 2 })) })
+      else view.unmount()
+      hooks.dirty = false; waiting.resolve({ snapshotId: 'old', count: 63 }); await view.drain()
+      expect(view.controller.deleteArchivedSessions).not.toHaveBeenCalled()
+      if (leave === 'unmount') expect(hooks.dirty).toBe(false)
+      view.unmount()
+    }
+  })
+  it('retries only reads after a completed deletion reports list refresh failure', async () => {
+    const view = mount(); await view.drain(); await view.prepare()
+    view.controller.deleteArchivedSessions.mockResolvedValueOnce({ deletedIds: ['archived'], skippedIds: [], failedIds: [], refreshError: '刷新失败' })
+    view.confirm(); await view.drain()
+    expect(view.props(p => p.children === '重试刷新')).toBeDefined()
+    ;(view.props(p => p.children === '重试刷新')!.onClick as () => void)(); await view.drain()
+    expect(view.controller.refreshSessions).toHaveBeenCalledOnce()
+    expect(view.controller.deleteArchivedSessions).toHaveBeenCalledOnce()
+  })
+  it('keeps an already confirmed late deletion response from reviving a hidden modal or message', async () => {
+    const view = mount(); await view.drain(); await view.prepare()
+    const deletion = deferred<{ deletedIds: string[]; skippedIds: string[]; failedIds: string[] }>(); view.controller.deleteArchivedSessions.mockReturnValueOnce(deletion.promise)
+    view.confirm(); view.setActive(false); hooks.dirty = false
+    deletion.resolve({ deletedIds: ['archived'], skippedIds: [], failedIds: [] }); await view.drain()
+    expect(hooks.dirty).toBe(false)
+    expect(view.props(p => p.children === '已删除 1 个，跳过 0 个，失败 0 个。')).toBeUndefined()
+  })
   it('reads an archived page and opens a row without restoring or deleting it', async () => {
     const view = mount(); await view.drain()
     expect(view.controller.queryHistory).toHaveBeenCalledWith({ archiveView: 'archived', sort: 'updated-desc', page: 1, pageSize: 50 })

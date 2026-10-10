@@ -23,6 +23,14 @@
             </button>
           </nav>
         </el-popover>
+        <div v-if="showAppNavigation" class="mira-shell__navigation" role="group" aria-label="应用导航">
+          <el-tooltip :content="`后退 (${navigationShortcut}[)`" placement="bottom">
+            <button type="button" class="mira-shell__navigation-button" aria-label="后退" :disabled="!appNavigation.state?.canGoBack || appNavigation.state?.busy" @click="appNavigation.go('back')"><AppIcon name="lucide:arrow-left" /></button>
+          </el-tooltip>
+          <el-tooltip :content="`前进 (${navigationShortcut}])`" placement="bottom">
+            <button type="button" class="mira-shell__navigation-button" aria-label="前进" :disabled="!appNavigation.state?.canGoForward || appNavigation.state?.busy" @click="appNavigation.go('forward')"><AppIcon name="lucide:arrow-right" /></button>
+          </el-tooltip>
+        </div>
       </div>
       <div class="mira-shell__actions">
         <el-tooltip :content="globalSearchLabel" placement="bottom">
@@ -49,6 +57,7 @@ import miraLogo from '@/asset/mira-logo.png'
 import { applications, findRuntimeMicroApp } from '@/config/runtime'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
+import { useAppNavigationStore } from '@/stores/appNavigation'
 import AppMain from './components/AppMain.vue'
 import WindowsTitlebar from './components/WindowsTitlebar.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
@@ -56,8 +65,11 @@ import SearchBar from '@/components/SearchBar/index.vue'
 const route = useRoute()
 const router = useRouter()
 const commandPaletteStore = useCommandPaletteStore()
+const appNavigation = useAppNavigationStore()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const globalSearchLabel = `全局搜索 (${windowChrome === 'macos-overlay' ? '⌘K' : 'Ctrl+K'})`
+const navigationShortcut = windowChrome === 'macos-overlay' ? '⌘' : 'Ctrl+'
+const showAppNavigation = computed(() => route.path === '/workspace/harness-react' && Boolean(appNavigation.state))
 const appMenuVisible = ref(false)
 const currentAppCode = computed(() => route.path === '/novel' ? 'novel' : getAppCodeFromPath(route.path))
 const currentAppName = computed(() => {
@@ -118,6 +130,11 @@ function openSettings() {
 .mira-shell__app-switch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-shell__app-switch .app-icon { flex: 0 0 auto; font-size: 13px; }
 .mira-shell__icon-button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 16px; }
+.mira-shell__navigation { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.mira-shell__navigation-button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 16px; }
+.mira-shell__navigation-button:hover:not(:disabled) { color: var(--cp-text); background: var(--cp-bg-hover); }
+.mira-shell__navigation-button:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: 2px; }
+.mira-shell__navigation-button:disabled { color: var(--cp-text-tertiary); cursor: default; opacity: .45; }
 .mira-shell__app-switch:hover,
 .mira-shell__app-switch:focus-visible,
 .mira-shell__icon-button:hover,

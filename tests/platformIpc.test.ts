@@ -11,6 +11,8 @@ import * as workspaceGit from '../electron/services/harnessWorkspaceGit'
 import * as workspaceFiles from '../electron/services/harnessWorkspaceFiles'
 import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
+import { PlatformDatabase } from '../electron/storage/database'
+import { HarnessRuntime } from '../electron/services/harnessRuntime'
 
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => unknown>(),
@@ -33,6 +35,7 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
   const database = {
     getSnapshot: vi.fn(() => snapshot),
     savePreference: vi.fn((key, value) => ({ key, value })),
+    removeHarnessDraftOwners: vi.fn(),
     saveMenus: vi.fn(menus => menus),
     saveMicroApps: vi.fn(() => snapshot),
     importSnapshot: vi.fn(() => snapshot),
@@ -60,7 +63,7 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
     getApiBaseUrl: vi.fn(id => `http://localhost/apps/${id}`),
   }
   registerPlatformIpcHandlers({ database, localMicroAppServer, ...options } as unknown as PlatformIpcDependencies)
-  const sender = Object.assign(new EventEmitter(), { id: 1 })
+  const sender = Object.assign(new EventEmitter(), { id: 1, isDestroyed: () => false })
   const invoke = (channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender }, ...args)
   const invokeAs = (id: number, channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender: { id, once: vi.fn() } }, ...args)
   const invokeFromSubframe = (channel: string, ...args: unknown[]) => electron.handlers.get(channel)!({ sender, senderFrame: { parent: {} } }, ...args)
@@ -71,6 +74,59 @@ describe('platform IPC registration', () => {
   beforeEach(() => {
     electron.handlers.clear()
     vi.clearAllMocks()
+  })
+
+  it('binds a complete archive snapshot to its grant and consumes only that frozen scope once', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-archive-ipc-'))
+    const database = new PlatformDatabase(root)
+    try {
+      const runtime = new HarnessRuntime(database, { getTools: () => [] } as never)
+      const workspaceWatch = { closeForSession: vi.fn(), closeForGrant: vi.fn(), closeForWebContents: vi.fn() }
+      const { invoke } = register({ database, harnessRuntime: runtime, workspaceWatch: workspaceWatch as never })
+      const sessions = Array.from({ length: 53 }, () => database.harness.createSession())
+      database.harness.archiveSessions(sessions.map(session => session.id))
+      const first = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const second = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const snapshot = invoke('platform:first-party-harness', first, 'sessions.archived-snapshot') as { snapshotId: string; count: number }
+      expect(snapshot.count).toBe(53)
+      expect(() => invoke('platform:first-party-harness', second, 'sessions.delete-archived', { snapshotId: snapshot.snapshotId })).toThrow('归档快照已失效')
+      database.harness.restoreSessions([sessions[0].id])
+      const later = database.harness.createSession(); database.harness.archiveSessions([later.id])
+      const deletion = invoke('platform:first-party-harness', first, 'sessions.delete-archived', { snapshotId: snapshot.snapshotId }) as Promise<{ deletedIds: string[]; skippedIds: string[]; failedIds: string[] }>
+      expect(() => invoke('platform:first-party-harness', first, 'sessions.delete-archived', { snapshotId: snapshot.snapshotId })).toThrow('归档快照已失效')
+      const result = await deletion
+      expect(result.deletedIds).toHaveLength(52); expect(result.skippedIds).toEqual([sessions[0].id]); expect(result.failedIds).toEqual([])
+      expect(database.harness.archivedSessionIds()).toEqual([later.id])
+      expect(workspaceWatch.closeForSession).toHaveBeenCalledTimes(52)
+      const superseded = invoke('platform:first-party-harness', first, 'sessions.archived-snapshot') as { snapshotId: string }
+      const latest = invoke('platform:first-party-harness', first, 'sessions.archived-snapshot') as { snapshotId: string }
+      expect(() => invoke('platform:first-party-harness', first, 'sessions.delete-archived', { snapshotId: superseded.snapshotId })).toThrow('归档快照已失效')
+      invoke('platform:revoke-first-party-grant', first)
+      expect(() => invoke('platform:first-party-harness', first, 'sessions.delete-archived', { snapshotId: latest.snapshotId })).toThrow('第一方授权无效')
+      expect(database.harness.archivedSessionIds()).toEqual([later.id])
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('retains successful cleanup and reports unprocessed targets when the grant is revoked between real batches', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-archive-revoke-')), database = new PlatformDatabase(root)
+    try {
+      const runtime = new HarnessRuntime(database, { getTools: () => [] } as never)
+      const workspaceWatch = { closeForSession: vi.fn(), closeForGrant: vi.fn(), closeForWebContents: vi.fn() }
+      const { invoke } = register({ database, harnessRuntime: runtime, workspaceWatch: workspaceWatch as never })
+      const sessions = Array.from({ length: 52 }, () => database.harness.createSession())
+      database.harness.archiveSessions(sessions.map(session => session.id))
+      const draftKey = 'first-party.mira-harness.harness-react-composer-drafts'
+      database.savePreference(draftKey, { drafts: Object.fromEntries(sessions.map(session => [session.id, 'draft'])), fileDrafts: {}, config: {} })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const snapshot = invoke('platform:first-party-harness', grant, 'sessions.archived-snapshot') as { snapshotId: string }
+      const deleting = invoke('platform:first-party-harness', grant, 'sessions.delete-archived', { snapshotId: snapshot.snapshotId }) as Promise<{ deletedIds: string[]; skippedIds: string[]; failedIds: string[] }>
+      invoke('platform:revoke-first-party-grant', grant)
+      const result = await deleting
+      expect(result.deletedIds).toHaveLength(50); expect(result.skippedIds).toHaveLength(2); expect(result.failedIds).toEqual([])
+      expect(workspaceWatch.closeForSession).toHaveBeenCalledTimes(50)
+      expect(Object.keys((database.getSnapshot().preferences[draftKey] as { drafts: Record<string, string> }).drafts).sort()).toEqual([...result.skippedIds].sort())
+      expect(database.harness.archivedSessionIds().sort()).toEqual([...result.skippedIds].sort())
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
   })
 
   it('registers the existing platform and local micro-app channels', () => {
@@ -108,6 +164,27 @@ describe('platform IPC registration', () => {
     expect(database.importSnapshot).toHaveBeenCalledWith('{"mainMenus":[],"microApps":[],"preferences":{}}')
     expect(database.restoreDefaults).toHaveBeenCalledOnce()
     expect(localMicroAppServer.setApps).toHaveBeenCalledTimes(2)
+  })
+
+  it('routes first-party session lists through the live runtime snapshot rather than persisted database status', () => {
+    const sessions = [{ id: 'running', isRunning: true }, { id: 'idle', isRunning: false }]
+    const listSessions = vi.fn(() => sessions)
+    const { invoke, database } = register({ harnessRuntime: { listSessions } as never })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grantId, 'sessions.list')).toBe(sessions)
+    expect(listSessions).toHaveBeenCalledExactlyOnceWith()
+    expect(database.harness.listSessions).not.toHaveBeenCalled()
+  })
+
+  it('creates prepared attachment owners only through a validated boolean while preserving ordinary creation', () => {
+    const { invoke, database } = register({ harnessRuntime: {} as never })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    invoke('platform:first-party-harness', grantId, 'session.create', { projectId: 'project', prepared: true })
+    expect(database.harness.createSession).toHaveBeenLastCalledWith('project', undefined, true)
+    invoke('platform:first-party-harness', grantId, 'session.create', { projectId: 'project' })
+    expect(database.harness.createSession).toHaveBeenLastCalledWith('project')
+    for (const prepared of ['true', 1, null, {}]) expect(() => invoke('platform:first-party-harness', grantId, 'session.create', { prepared })).toThrow('草稿准备状态无效')
+    expect(database.harness.createSession).toHaveBeenCalledTimes(2)
   })
 
   it('binds workspace watchers to the host grant and checks session ownership throughout their lifetime', async () => {

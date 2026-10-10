@@ -27,6 +27,76 @@ function createStore() {
 }
 
 describe('HarnessStore', () => {
+  it('hides prepared owners from task queries, counts and order until idempotent admission', async () => {
+    const { root, database, store } = createStore()
+    try {
+      const directory = join(root, 'draft-project'); mkdirSync(directory)
+      const project = store.createProject(directory, '草稿项目')
+      const visible = store.createSession(project.id)
+      const before = store.getProject(project.id)
+      const prepared = store.createSession(project.id, 'default', true)
+      store.renameSession(prepared.id, '未接纳草稿')
+      expect(store.getSession(prepared.id).draftState).toBe('prepared')
+      expect(store.listSessions().map(item => item.id)).toEqual([visible.id])
+      expect(await store.searchConversations('未接纳草稿')).toEqual([])
+      expect(store.queryHistory().total).toBe(1)
+      expect(store.getProject(project.id)).toMatchObject({ sessionCount: 1, lastSessionAt: before.lastSessionAt, updatedAt: before.updatedAt })
+      expect(store.listProjects()[0]?.sessionCount).toBe(1)
+      expect(database.prepare('SELECT sort_order FROM harness_sessions WHERE id = ?').get(prepared.id)).toEqual({ sort_order: 0 })
+      expect(() => store.reorderSessions({ type: 'project', projectId: project.id }, [visible.id])).not.toThrow()
+      expect(() => store.reorderSessions({ type: 'project', projectId: project.id }, [visible.id, prepared.id])).toThrow('无效')
+      store.acceptPreparedSession(prepared.id)
+      const admitted = database.prepare('SELECT sort_order, updated_at FROM harness_sessions WHERE id = ?').get(prepared.id)
+      store.acceptPreparedSession(prepared.id)
+      expect(database.prepare('SELECT sort_order, updated_at FROM harness_sessions WHERE id = ?').get(prepared.id)).toEqual(admitted)
+      expect(store.getSession(prepared.id).draftState).toBe('accepted')
+      expect(store.listSessions().map(item => item.id)).toEqual([prepared.id, visible.id])
+      expect(await store.searchConversations('未接纳草稿')).toMatchObject([{ id: prepared.id }])
+      expect(store.queryHistory().total).toBe(2)
+      expect(store.getProject(project.id).sessionCount).toBe(2)
+      store.updateSession({ ...prepared, title: '后续配置' })
+      expect(store.getSession(prepared.id).draftState).toBe('accepted')
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('rolls back lifecycle, order, project metadata and first-message persistence when admission fails', () => {
+    const { root, database, store } = createStore()
+    try {
+      const directory = join(root, 'draft-project'); mkdirSync(directory)
+      const project = store.createProject(directory)
+      const prepared = store.createSession(project.id, 'default', true)
+      expect(() => store.acceptPreparedSession(prepared.id, () => {
+        store.addMessage(prepared.id, 'user', '未接纳内容')
+        throw new Error('存储失败')
+      })).toThrow('存储失败')
+      expect(store.getSession(prepared.id)).toMatchObject({ draftState: 'prepared', messages: [] })
+      expect(store.listSessions()).toEqual([])
+      expect(store.getProject(project.id)).toMatchObject({ sessionCount: 0, lastSessionAt: undefined, updatedAt: project.updatedAt })
+      expect(database.prepare('SELECT sort_order FROM harness_sessions WHERE id = ?').get(prepared.id)).toEqual({ sort_order: 0 })
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('keeps accepted empty tasks on restart and retains hidden owners named only by draft metadata', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-prepared-restart-'))
+    let database: PlatformDatabase | undefined
+    try {
+      database = new PlatformDatabase(root)
+      const prepared = database.harness.createSession(undefined, 'default', true)
+      const accepted = database.harness.createSession(undefined, 'default', true)
+      database.harness.acceptPreparedSession(accepted.id)
+      const unused = database.harness.createSession(undefined, 'default', true)
+      database.savePreference('first-party.mira-harness.harness-react-composer-drafts', { drafts: {}, fileDrafts: {}, draft: { id: 'anonymous', groupId: 'group', sessionId: prepared.id } })
+      expect(database.hasUnconfirmedHarnessSubmission(prepared.id)).toBe(false)
+      database.close(); database = new PlatformDatabase(root)
+      expect(database.harness.listSessions().map(item => item.id)).toEqual([accepted.id])
+      expect(database.harness.getSession(accepted.id)).toMatchObject({ draftState: 'accepted', messages: [] })
+      expect(database.harness.getSession(prepared.id).draftState).toBe('prepared')
+      expect(() => database!.harness.getSession(unused.id)).toThrow('未找到会话')
+      database.removeHarnessDraftOwners([prepared.id])
+      expect(database.getSnapshot().preferences['first-party.mira-harness.harness-react-composer-drafts']).toEqual({ drafts: {}, fileDrafts: {} })
+    } finally { database?.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('searches the real visible message table, not titles only, and excludes hidden and archived content', async () => {
     const { root, database, store } = createStore()
     try {
@@ -666,7 +736,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it.each(['text', 'attachments', 'group', 'dissolved-group'])('keeps an unsent project session with persisted %s drafts after a database restart', kind => {
+  it.each(['text', 'attachments', 'group', 'dissolved-group', 'grouped-root'])('keeps an unsent project session with persisted %s drafts after a database restart', kind => {
     const root = mkdtempSync(join(tmpdir(), 'mira-harness-draft-restart-'))
     let database: PlatformDatabase | undefined
     try {
@@ -683,6 +753,7 @@ describe('HarnessStore', () => {
       }
       database.savePreference(preferenceKey, preference)
       if (kind === 'group' || kind === 'dissolved-group') database.savePreference('first-party.mira-harness.session-drawer', { groups: kind === 'group' ? [{ id: 'group', name: '研究', sessionIds: [retained.id] }] : [], ungroupedSessionOrder: kind === 'dissolved-group' ? [retained.id] : [] })
+      if (kind === 'grouped-root') database.savePreference('first-party.mira-harness.session-drawer', { groups: [{ id: blank.id, name: '同名组身份', sessionIds: [] }], groupedRootOrder: [{ type: 'group', id: blank.id }, { type: 'session', id: retained.id }] })
       database.close(); database = undefined
 
       database = new PlatformDatabase(root)
@@ -697,7 +768,7 @@ describe('HarnessStore', () => {
     }
   })
 
-  it('still cleans truly empty sessions and does not recreate orphan composer drafts on restart', () => {
+  it('cleans healthy empty sessions while retaining the owner of malformed composer drafts on restart', () => {
     const root = mkdtempSync(join(tmpdir(), 'mira-harness-empty-restart-'))
     let database: PlatformDatabase | undefined
     try {
@@ -712,8 +783,9 @@ describe('HarnessStore', () => {
       database.close(); database = undefined
 
       database = new PlatformDatabase(root)
-      expect(database.harness.listSessions()).toEqual([])
-      for (const id of [blank.id, cleared.id, malformed.id]) expect(existsSync(new MiraPaths(root).session(id))).toBe(false)
+      expect(database.harness.listSessions().map(session => session.id)).toEqual([malformed.id])
+      for (const id of [blank.id, cleared.id]) expect(existsSync(new MiraPaths(root).session(id))).toBe(false)
+      expect(existsSync(new MiraPaths(root).session(malformed.id))).toBe(true)
     } finally {
       database?.close()
       rmSync(root, { recursive: true, force: true })

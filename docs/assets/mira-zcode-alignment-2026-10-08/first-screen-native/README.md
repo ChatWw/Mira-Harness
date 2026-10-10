@@ -43,4 +43,4 @@ Shell 统一搜索入口，搜索内容/授权范围/结果动作由当前应用
 
 按 [首屏总文档](../../../MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md) 的未完成项继续：设置完整往返/浅深同态与其他首屏入口、运行中队列、完整执行事件；真实模型/调度、市场原生公网下载、拖拽、ZCode 同态、性能与正式包仍需各自证据。
 
-复现需先启动独立测试实例、准备隔离项目/会话/归档夹具，再执行本目录 `mira-native-search-smoke.mjs <隔离目录>` 或附加 `sidebar`。脚本依赖本机 `/private/tmp/mira-zcode-cu` 与 9222 调试端口；不能直接针对用户正在使用的实例运行。脚本会更新对应 JSON/截图，再运行前先保留原有批次；不自动创建或删除用户数据。
+复现需先启动独立测试实例、准备隔离项目/会话/归档夹具，再执行本目录 `mira-native-search-smoke.mjs <隔离目录>` 或附加 `sidebar`。脚本依赖本机 `/private/tmp/mira-zcode-cu` 与 9222 调试端口；辅助程序源码保留于 [mira-zcode-cu.swift](../watch-editor-scripts/mira-zcode-cu.swift)，可从仓库根目录执行 `swiftc docs/assets/mira-zcode-alignment-2026-10-08/watch-editor-scripts/mira-zcode-cu.swift -o /tmp/mira-zcode-cu` 重建。不能直接针对用户正在使用的实例运行。脚本会更新对应 JSON/截图，再运行前先保留原有批次；不自动创建或删除用户数据。

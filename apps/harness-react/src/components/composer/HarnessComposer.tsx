@@ -7,7 +7,7 @@ import { ArrowUp, Blocks, Brain, Check, ChevronDown, CircleAlert, FileText, Fold
 import { isModelProviderAvailable, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type ModelSelection, type PermissionMode, type SendShortcut } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
 import { cn } from '../../lib/utils'
-import { appendComposerReferences, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, type ComposerDraftConfig, type ComposerDraftSnapshot, type ComposerDraftSubmission } from '../../lib/composer-drafts'
+import { appendComposerReferences, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, withoutComposerDraftOwners, type ComposerDraftConfig, type ComposerDraftSnapshot, type ComposerDraftSubmission, type ComposerTaskDraft } from '../../lib/composer-drafts'
 import { applyComposerReasoning, COMPOSER_REASONING_CHOICES } from '../../lib/model-reasoning'
 import { filePreviewKind } from '../../lib/file-preview'
 import { filterMiraSuggestions, findMiraPromptToken, formatMiraConversationReference, insertMiraPromptTrigger, miraPromptReplacementRange, nextMiraSuggestionIndex, replaceMiraPromptRange, type MiraPromptRange, type MiraPromptTrigger } from '../../lib/prompt-input-triggers'
@@ -16,6 +16,8 @@ import { ComposerSuggestionPanel, type ComposerSuggestion, type ComposerSuggesti
 import { useComposerCatalogs } from './useComposerCatalogs'
 import { HarnessMessageQueue } from './HarnessMessageQueue'
 import { MiraBranchPicker } from '../git/MiraBranchPicker'
+import { MiraComposerAttachments } from './MiraComposerAttachments'
+import { attachmentImageType, MIRA_PASTED_TEXT_THRESHOLD, MIRA_TEXT_FILE_BYTES, readAttachmentFile, validateAttachmentFiles } from '../../lib/attachment-input'
 
 const PERMISSIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
   { value: 'default', label: '逐次确认', description: '工具执行前由你确认' },
@@ -27,6 +29,10 @@ const DRAFT_PREFERENCE_KEY = 'harness-react-composer-drafts'
 export interface HarnessComposerHandle {
   prepareSession(isCurrent?: () => boolean): Promise<string | undefined>
   addFileReference(sessionId: string, path: string): void
+  withdrawPendingGuide(itemId: string): Promise<void>
+  startDraft(groupId?: string, projectId?: string, isCurrent?: () => boolean): Promise<boolean>
+  openDraft(id?: string, isCurrent?: () => boolean): Promise<boolean>
+  closeDraft(id: string): Promise<void>
 }
 
 type HarnessComposerProps = {
@@ -37,9 +43,11 @@ type HarnessComposerProps = {
   draftProjectId?: string
   onDraftProjectChange?: (projectId?: string) => void
   active?: boolean
+  onDraftChange?: (draft: ComposerTaskDraft | null | undefined) => void
+  onDraftAccepted?: (sessionId: string, draft: ComposerTaskDraft) => Promise<void>
 }
 
-export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposerProps>(function HarnessComposer({ state, controller, planning, setPlanning, draftProjectId, onDraftProjectChange, active = true }, ref) {
+export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposerProps>(function HarnessComposer({ state, controller, planning, setPlanning, draftProjectId, onDraftProjectChange, active = true, onDraftChange, onDraftAccepted }, ref) {
   const sessionId = state.session?.id
   const draftKey = sessionId || 'draft'
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -49,6 +57,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const [draftMcpIds, setDraftMcpIds] = useState<string[]>([])
   const [draftDelegation, setDraftDelegation] = useState(true)
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
+  const [preferencesError, setPreferencesError] = useState(false)
+  const [preferencesRetry, setPreferencesRetry] = useState(0)
   const editedConfig = useRef(new Set<keyof ComposerDraftConfig>())
   const preferencesLoad = useRef<Promise<void> | undefined>(undefined)
   const preferencesReady = useRef(false)
@@ -62,12 +72,14 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const submittingRef = useRef(new Set<string>())
   const [submitting, setSubmitting] = useState<string[]>([])
   const [submissions, setSubmissions] = useState<Record<string, ComposerDraftSubmission | undefined>>({})
+  const [taskDraft, setTaskDraftState] = useState<ComposerTaskDraft | null>()
+  const [draftFocusRequest, setDraftFocusRequest] = useState<{ draftId: string; ownerId?: string; isCurrent?: () => boolean }>()
   const [queueConfirmation, setQueueConfirmation] = useState<{ ownerId: string; revision: number; itemIds: string[]; delivery?: 'immediate' }>()
   const queueConfirmationRef = useRef(queueConfirmation)
   queueConfirmationRef.current = queueConfirmation
   const [primaryModifierPressed, setPrimaryModifierPressed] = useState(false)
   const [sendHintOpen, setSendHintOpen] = useState(false)
-  const pointerImmediateRef = useRef(false)
+  const pointerReverseRef = useRef(false)
   const withdrawalRef = useRef(new Set<string>())
   const [withdrawals, setWithdrawals] = useState<string[]>([])
   const resumeRef = useRef(new Set<string>())
@@ -96,18 +108,33 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const ownerTextRevisions = useRef(new Map<string, number>())
   const referenceRead = useRef(false)
   const [referenceLoading, setReferenceLoading] = useState(false)
+  const [attachmentReadiness, setAttachmentReadiness] = useState<{ ownerId?: string; paths: string; blocked: boolean }>({ paths: '', blocked: true })
+  const [dragOver, setDragOver] = useState(false)
+  const [failedUpload, setFailedUpload] = useState<{ files?: File[]; path?: string }>()
+  const failedUploadRef = useRef(failedUpload)
+  failedUploadRef.current = failedUpload
+  const dragDepth = useRef(0)
+  const attachmentOperation = useRef<Promise<boolean> | undefined>(undefined)
+  const attachmentMounted = useRef(true)
   const [sendShortcut, setSendShortcut] = useState<SendShortcut>('enter')
   const [showContextUsage, setShowContextUsage] = useState(true)
+  const [followupMode, setFollowupMode] = useState<'queue' | 'guide'>('queue')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const contextTriggerRef = useRef<HTMLButtonElement>(null)
   const draftSnapshot = useMemo<ComposerDraftSnapshot>(() => ({
     drafts, fileDrafts, recoveries, submissions,
+    ...(taskDraft !== undefined ? { draft: taskDraft } : {}),
     config: { permission: draftPermission, skillIds: draftSkillIds, mcpIds: draftMcpIds, delegation: draftDelegation, planning, projectId: draftProjectId },
-  }), [drafts, fileDrafts, recoveries, submissions, draftPermission, draftSkillIds, draftMcpIds, draftDelegation, planning, draftProjectId])
+  }), [drafts, fileDrafts, recoveries, submissions, taskDraft, draftPermission, draftSkillIds, draftMcpIds, draftDelegation, planning, draftProjectId])
   const latestDraftSnapshot = useRef(draftSnapshot)
   latestDraftSnapshot.current = draftSnapshot
+  const removedDraftOwners = useRef(new Set<string>())
   const draft = drafts[draftKey] ?? ''
   const references = fileDrafts[draftKey] ?? []
+  const attachmentPaths = JSON.stringify(references.map(file => file.path))
+  const attachmentBlocked = controller.supportsAttachments && references.length > 0 && (attachmentReadiness.ownerId !== sessionId || attachmentReadiness.paths !== attachmentPaths || attachmentReadiness.blocked)
+  const onAttachmentsBlocked = useMemo(() => (blocked: boolean) => setAttachmentReadiness({ ownerId: sessionId, paths: attachmentPaths, blocked }), [sessionId, attachmentPaths])
+  const hasInput = Boolean(draft.trim() || references.length)
   const pendingSubmission = submissions[draftKey]
   const retriesSubmission = Boolean(pendingSubmission && pendingSubmission.text === draft.trim() && JSON.stringify(pendingSubmission.references) === JSON.stringify(references))
   // 会话配置是宿主快照的事实来源；切换任务时不能用本地空数组覆盖已持久化选择。
@@ -150,12 +177,12 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   ].map(command => ({ ...command, disabled: configBlocked && ['skills', 'mcp', 'delegation', 'memory', 'perm'].includes(command.id), id: `command-${command.id}`, action: { type: 'command' as const, value: command.id } }))
   const suggestionSections: ComposerSuggestionSection[] = []
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
-    { id: 'attach-files', label: '添加文件附件', description: selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
+    { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })
   if (kind !== '/' && kind !== '$' && kind !== 'skills' && kind !== 'mcp') {
-    suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' ? '暂不支持图片附件' : file.path, disabled: filePreviewKind(file.path) === 'bitmap', icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId ? '当前草稿尚未关联工作目录' : !state.session?.workingDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
+    suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId ? '当前草稿尚未关联工作目录' : !state.session?.workingDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
     const sessions = state.sessions.filter(session => session.id !== sessionId && session.projectId === (state.session?.projectId ?? draftProjectId))
     suggestionSections.push({ id: 'sessions', title: '对话', items: filterMiraSuggestions(sessions.map(session => ({ id: `session-${session.id}`, label: session.title, description: '引用对话正文', icon: <MessageSquare size={16} />, action: { type: 'session' as const, value: session.id } })), suggestionQuery), empty: '当前工作区暂无可引用对话' })
   }
@@ -167,8 +194,59 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const selectedSuggestion = suggestionItems[suggestionIndex]
 
   useImperativeHandle(ref, () => ({
+    async startDraft(groupId, projectId, isCurrent) {
+      await preferencesLoad.current
+      if (!preferencesReady.current || isCurrent && !isCurrent()) return false
+      const previous = latestDraftSnapshot.current.draft
+      const ownerId = previous?.sessionId || 'draft'
+      const submission = latestDraftSnapshot.current.submissions?.[ownerId]
+      const unconfirmed = previous && (submittingRef.current.has(ownerId) || submission)
+      if (previous?.sessionId && controller.getSnapshot().session?.id !== previous.sessionId && !await controller.open(previous.sessionId, isCurrent)) return false
+      if (isCurrent && !isCurrent()) return false
+      if (previous && latestDraftSnapshot.current.draft?.id !== previous.id) return false
+      if (unconfirmed) { setTaskDraft({ ...(submission?.draft ?? previous), visible: true }); requestDraftFocus(isCurrent); return true }
+      if (previous?.sessionId && projectId && controller.getSnapshot().session?.projectId !== projectId) {
+        await controller.moveSession(previous.sessionId, projectId)
+        if (isCurrent && !isCurrent()) return false
+        const current = controller.getSnapshot()
+        if (current.error || current.session?.id !== previous.sessionId || current.session.projectId !== projectId) return false
+      }
+      const next: ComposerTaskDraft = { ...(previous ?? { id: crypto.randomUUID() }), groupId, visible: true }
+      if (!next.sessionId) controller.newConversation()
+      setTaskDraft(next)
+      selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId ?? latestDraftSnapshot.current.config.projectId)
+      requestDraftFocus(isCurrent)
+      return true
+    },
+    async openDraft(id, isCurrent) {
+      await preferencesLoad.current
+      if (!preferencesReady.current || isCurrent && !isCurrent()) return false
+      const owner = latestDraftSnapshot.current.draft
+      if (!owner) { if (id) return false; controller.newConversation(); return true }
+      if (id && owner.id !== id) return false
+      if (owner.sessionId && controller.getSnapshot().session?.id !== owner.sessionId && !await controller.open(owner.sessionId, isCurrent)) return false
+      if (!owner.sessionId && (!isCurrent || isCurrent())) controller.newConversation()
+      if ((!isCurrent || isCurrent()) && latestDraftSnapshot.current.draft?.id === owner.id) {
+        if (owner.sessionId) selectProject(controller.getSnapshot().session?.projectId)
+        if (id) requestDraftFocus(isCurrent)
+        return true
+      }
+      return false
+    },
+    async closeDraft(id) {
+      const owner = latestDraftSnapshot.current.draft
+      if (!owner || owner.id !== id) return
+      setTaskDraft({ ...owner, groupId: undefined, visible: false })
+      await persistDrafts()
+    },
+    async withdrawPendingGuide(itemId) {
+      const current = controller.getSnapshot()
+      if (!sessionId || current.queue?.sessionId !== sessionId || !current.queue.items.some(item => item.id === itemId && item.sessionId === sessionId && item.delivery === 'guide')) return
+      await withdrawQueuedMessage(itemId, true, true)
+    },
     addFileReference(ownerId, path) {
       if (ownerId !== sessionId || !preferencesReady.current || inputBlocked) return
+      if (controller.supportsAttachments) { void selectFiles(draft, undefined, path); return }
       try {
         const references = appendComposerReferences(latestDraftSnapshot.current.fileDrafts[ownerId] ?? [], [{ path, name: path.split('/').pop() || path }])
         setReferences(references, ownerId)
@@ -185,12 +263,24 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     },
   }))
 
+  useEffect(() => { onDraftChange?.(taskDraft) }, [taskDraft, onDraftChange])
+
   useEffect(() => {
     let mounted = true
     const cycle = ++preferencesCycle.current
+    preferencesReady.current = false
+    setPreferencesLoaded(false); setPreferencesError(false)
+    if (!failedUploadRef.current) setComposerError('')
     preferencesLoad.current = controller.getPreference(DRAFT_PREFERENCE_KEY).then(value => {
       if (cycle !== preferencesCycle.current) return
-      const restored = mergeComposerDrafts(readComposerDrafts(value), latestDraftSnapshot.current, editedConfig.current)
+      const restored = withoutComposerDraftOwners(mergeComposerDrafts(readComposerDrafts(value), latestDraftSnapshot.current, editedConfig.current), removedDraftOwners.current)
+      const ownerId = restored.draft?.sessionId
+      // Input entered before hydration joins the recovered owner instead of becoming an inaccessible anonymous draft.
+      if (ownerId && (ownerTextRevisions.current.get('draft') ?? 0) > 0 && latestDraftSnapshot.current.drafts.draft) {
+        restored.drafts[ownerId] = [restored.drafts[ownerId], latestDraftSnapshot.current.drafts.draft].filter(Boolean).join('\n\n')
+        restored.drafts.draft = ''
+        setDrafts(restored.drafts)
+      }
       latestDraftSnapshot.current = restored
       preferencesReady.current = true
       if (!mounted) return
@@ -198,6 +288,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       setFileDrafts(previous => ({ ...restored.fileDrafts, ...previous }))
       setRecoveries(previous => ({ ...restored.recoveries, ...previous }))
       setSubmissions(previous => ({ ...restored.submissions, ...previous }))
+      setTaskDraftState(restored.draft)
       if (!editedConfig.current.has('permission')) setDraftPermission(restored.config.permission)
       if (!editedConfig.current.has('skillIds')) setDraftSkillIds(restored.config.skillIds)
       if (!editedConfig.current.has('mcpIds')) setDraftMcpIds(restored.config.mcpIds)
@@ -206,20 +297,41 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!editedConfig.current.has('projectId')) onDraftProjectChange?.(restored.config.projectId)
       setPreferencesLoaded(true)
     })
-    void preferencesLoad.current.catch(() => { if (mounted) { setComposerError('草稿读取失败，请重新打开 Harness 后再离开当前编辑'); setPreferencesLoaded(true) } })
+    void preferencesLoad.current.catch(() => { if (mounted) { setComposerError('草稿读取失败，请重试；当前输入会保留。'); setPreferencesError(true) } })
     return () => {
       mounted = false
       void preferencesLoad.current?.then(() => {
         if (cycle === preferencesCycle.current) return controller.setPreference(DRAFT_PREFERENCE_KEY, serializeComposerDrafts(latestDraftSnapshot.current), true)
       }).catch(() => undefined)
     }
-  }, [controller])
+  }, [controller, preferencesRetry])
+  useEffect(() => { attachmentMounted.current = true; return () => { attachmentMounted.current = false } }, [])
+  useEffect(() => {
+    if (!draftFocusRequest || !active || inputBlocked || !preferencesLoaded) return
+    let cancelled = false
+    window.requestAnimationFrame(() => {
+      if (cancelled || !attachmentMounted.current || !activeRef.current || busyRef.current) return
+      const current = controller.getSnapshot()
+      if (current.sessionLoading || current.session?.id !== draftFocusRequest.ownerId || latestDraftSnapshot.current.draft?.id !== draftFocusRequest.draftId || draftFocusRequest.isCurrent && !draftFocusRequest.isCurrent()) return
+      if (textareaRef.current?.closest('[inert], [hidden]')) return
+      textareaRef.current?.focus({ preventScroll: true })
+      setDraftFocusRequest(previous => previous === draftFocusRequest ? undefined : previous)
+    })
+    return () => { cancelled = true }
+  }, [draftFocusRequest, active, inputBlocked, preferencesLoaded, draftKey, taskDraft?.id, controller])
   useEffect(() => {
     if (!preferencesLoaded) return
     const timer = window.setTimeout(() => { void persistDrafts().catch(error => setComposerError(error instanceof Error ? error.message : '草稿保存失败')) }, 250)
     return () => window.clearTimeout(timer)
   }, [controller, draftSnapshot, preferencesLoaded])
   useEffect(() => controller.registerBeforeNavigation(persistDrafts), [controller])
+  useEffect(() => controller.onSessionDeleted?.(id => {
+    removedDraftOwners.current.add(id)
+    const clean = withoutComposerDraftOwners(latestDraftSnapshot.current, removedDraftOwners.current)
+    latestDraftSnapshot.current = clean
+    setDrafts(clean.drafts); setFileDrafts(clean.fileDrafts); setRecoveries(clean.recoveries ?? {}); setSubmissions(clean.submissions ?? {})
+    setTaskDraftState(clean.draft)
+  }), [controller])
   useEffect(() => {
     const flush = () => { void persistDrafts().catch(() => undefined) }
     window.addEventListener('pagehide', flush, true)
@@ -230,19 +342,20 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
   }, [controller])
 
-  useEffect(() => { setContextOpen(false); setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setQueueConfirmation(undefined); setSendHintOpen(false); setPrimaryModifierPressed(false); pointerImmediateRef.current = false; setPanelFilter(null); setComposerError(''); setCaret({ start: draft.length, end: draft.length }); textRevision.current++ }, [draftKey])
+  useEffect(() => { setContextOpen(false); setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setQueueConfirmation(undefined); setSendHintOpen(false); setPrimaryModifierPressed(false); pointerReverseRef.current = false; setPanelFilter(null); if (!failedUploadRef.current && !preferencesError) setComposerError(''); setCaret({ start: draft.length, end: draft.length }); textRevision.current++ }, [draftKey])
   useEffect(() => {
-    if (state.sessionLoading || !active) { closeSuggestions(); setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setProjectOpen(false); setQueueConfirmation(undefined); setSendHintOpen(false); setPrimaryModifierPressed(false); pointerImmediateRef.current = false; textRevision.current++ }
+    if (state.sessionLoading || !active) { closeSuggestions(); setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setProjectOpen(false); setQueueConfirmation(undefined); setSendHintOpen(false); setPrimaryModifierPressed(false); pointerReverseRef.current = false; textRevision.current++ }
   }, [state.sessionLoading, active])
   useEffect(() => { if (!selectedModel?.reasoning || nextConfigBlocked) setReasoningOpen(false) }, [selectedModel?.reasoning, nextConfigBlocked])
   useEffect(() => { setHighlightedSuggestionId(undefined) }, [tokenSignature, contextOpen, panelFilter])
   useEffect(() => {
-    let active = true
+    if (!active) return
+    let mounted = true
     void controller.getComposerPreferences().then(value => {
-      if (active) { setSendShortcut(value.sendShortcut); setShowContextUsage(value.showContextUsage) }
-    }, () => { if (active) setComposerError('输入偏好读取失败，暂使用 Enter 发送；重新打开 Harness 后重试') })
-    return () => { active = false }
-  }, [controller])
+      if (mounted) { setSendShortcut(value.sendShortcut); setShowContextUsage(value.showContextUsage); setFollowupMode('followupMode' in value && value.followupMode === 'guide' ? 'guide' : 'queue') }
+    }, () => { if (mounted) setComposerError('输入偏好读取失败，暂使用 Enter 发送；重新打开 Harness 后重试') })
+    return () => { mounted = false }
+  }, [controller, active])
   useEffect(() => {
     const element = textareaRef.current
     if (!element) return
@@ -263,7 +376,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   useEffect(() => {
     if (!active || !submissionOptionsSupported) return
     const updateModifier = (event: globalThis.KeyboardEvent) => setPrimaryModifierPressed(appleKeyboard ? event.metaKey : event.ctrlKey)
-    const clearModifier = () => setPrimaryModifierPressed(false)
+    const clearModifier = () => { setPrimaryModifierPressed(false); pointerReverseRef.current = false }
     window.addEventListener('keydown', updateModifier)
     window.addEventListener('keyup', updateModifier)
     window.addEventListener('blur', clearModifier)
@@ -273,6 +386,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (!active) return
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || queueConfirmation || !textareaRef.current || textareaRef.current.closest('[inert]')) return
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
       const target = event.target as HTMLElement | null
       const fromComposer = target === textareaRef.current
       if (!fromComposer && target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .xterm')) return
@@ -317,15 +431,26 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     latestDraftSnapshot.current = { ...latestDraftSnapshot.current, submissions: { ...latestDraftSnapshot.current.submissions, [ownerId]: submission } }
     setSubmissions(previous => ({ ...previous, [ownerId]: submission }))
   }
+  function setTaskDraft(value: ComposerTaskDraft | null) {
+    latestDraftSnapshot.current = { ...latestDraftSnapshot.current, draft: value }
+    setTaskDraftState(value)
+  }
+  function requestDraftFocus(isCurrent?: () => boolean) {
+    const owner = latestDraftSnapshot.current.draft
+    if (owner) setDraftFocusRequest({ draftId: owner.id, ownerId: controller.getSnapshot().session?.id, isCurrent })
+  }
   function persistDrafts(): Promise<void> {
     const write = () => {
+      if (failedUploadRef.current) return Promise.reject(new Error('附件尚未添加成功，请重试或取消添加后再离开。'))
       try { return controller.setPreference(DRAFT_PREFERENCE_KEY, serializeComposerDrafts(latestDraftSnapshot.current), true) }
       catch (error) { return Promise.reject(error) }
     }
-    return preferencesReady.current ? write() : (preferencesLoad.current ?? Promise.resolve()).then(write)
+    const ready = () => preferencesReady.current ? write() : (preferencesLoad.current ?? Promise.resolve()).then(write)
+    return attachmentOperation.current ? attachmentOperation.current.then(ready) : ready()
   }
   function selectProject(projectId?: string) {
     editedConfig.current.add('projectId')
+    latestDraftSnapshot.current = { ...latestDraftSnapshot.current, config: { ...latestDraftSnapshot.current.config, projectId } }
     onDraftProjectChange?.(projectId)
   }
   function selectPlanning(value: boolean) {
@@ -352,15 +477,20 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     else if (type === 'skills') { editedConfig.current.add('skillIds'); setDraftSkillIds(next) }
     else { editedConfig.current.add('mcpIds'); setDraftMcpIds(next) }
   }
-  async function ensureSession(draftText = draft, isCurrent?: () => boolean) {
+  async function ensureSession(draftText = draft, isCurrent?: () => boolean, onCreated?: (id: string) => void) {
     const initial = controller.getSnapshot()
     if (initial.sessionLoading || initial.session?.id !== sessionId || isCurrent && !isCurrent()) return undefined
     if (sessionId) return sessionId
+    const owner = latestDraftSnapshot.current.draft ?? { id: crypto.randomUUID() }
+    setTaskDraft(owner)
     const selection = state.selection
-    if (!await controller.create(draftProjectId, isCurrent) || isCurrent && !isCurrent()) return undefined
+    const currentOwner = () => latestDraftSnapshot.current.draft?.id === owner.id && (!isCurrent || isCurrent())
+    if (!await controller.prepare(draftProjectId, currentOwner) || !currentOwner()) return undefined
     const created = controller.getSnapshot()
     const createdId = created.session?.id
     if (!createdId || created.sessionLoading) return undefined
+    setTaskDraft({ ...latestDraftSnapshot.current.draft!, sessionId: createdId })
+    onCreated?.(createdId)
     if (selection) controller.select(selection)
     setDraft(draftText, createdId)
     setReferences(references, createdId)
@@ -381,22 +511,54 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     const current = controller.getSnapshot()
     return !current.sessionLoading && current.session?.id === createdId ? createdId : undefined
   }
-  async function selectFiles(draftText = draft) {
-    if (busyRef.current || controller.getSnapshot().sessionLoading) return
-    if (!(controller.getSnapshot().session?.projectId ?? draftProjectId)) {
+  async function selectFiles(draftText = draft, files?: File[], path?: string): Promise<boolean> {
+    if (!activeRef.current || !preferencesReady.current || busyRef.current || controller.getSnapshot().sessionLoading) return false
+    if (!controller.supportsAttachments && !(controller.getSnapshot().session?.projectId ?? draftProjectId)) {
       setComposerError('请先选择项目，再使用文件选择器；个人工作区内的文件可以从文件树加入对话。')
-      return
+      return false
     }
-    busyRef.current = true; setBusy(true); setComposerError('')
-    try {
-      const id = await ensureSession(draftText)
-      if (!id || controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) return
-      const selected = await controller.selectFiles()
-      if (controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) return
-      const references = appendComposerReferences(latestDraftSnapshot.current.fileDrafts[id] ?? [], selected)
-      setReferences(references, id)
-    } catch (error) { setComposerError(`添加文件失败：${error instanceof Error ? error.message : String(error)}`) }
-    finally { busyRef.current = false; setBusy(false) }
+    busyRef.current = true; setBusy(true); setComposerError(''); setFailedUpload(undefined); failedUploadRef.current = undefined
+    let ownerId = sessionId
+    const ownsOperation = () => attachmentMounted.current && activeRef.current && controller.getSnapshot().session?.id === ownerId
+    const operation = Promise.resolve().then(async () => {
+      if (files) validateAttachmentFiles(files, references.length, references)
+      const id = await ensureSession(draftText, () => attachmentMounted.current && activeRef.current, id => { ownerId = id })
+      if (!ownsOperation()) return false
+      if (!id || controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) throw new Error(controller.getSnapshot().error || '任务准备未完成，请重试。')
+      let selected: HarnessFileReference[]
+      if (path) selected = [await controller.stageAttachment(id, path)]
+      else if (files) {
+        const uploads = []
+        for (const file of files) uploads.push(await readAttachmentFile(file))
+        selected = await controller.importAttachments(id, uploads)
+      } else selected = controller.supportsAttachments ? await controller.selectAttachments(id) : await controller.selectFiles()
+      if (!ownsOperation() || controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) return false
+      setReferences(appendComposerReferences(latestDraftSnapshot.current.fileDrafts[id] ?? [], selected), id)
+      return true
+    }).catch(error => {
+      if (ownsOperation()) { setComposerError(`添加文件失败：${error instanceof Error ? error.message : String(error)}`); setFailedUpload({ files, path }); failedUploadRef.current = { files, path } }
+      return false
+    }).finally(() => {
+      if (attachmentOperation.current === operation) attachmentOperation.current = undefined
+      busyRef.current = false
+      if (attachmentMounted.current) { setBusy(false); setDragOver(false) }
+      dragDepth.current = 0
+    })
+    // Navigation must wait for session creation/configuration as well as the file read.
+    attachmentOperation.current = operation
+    return operation
+  }
+  function pasteAttachments(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    if (!controller.supportsAttachments || inputBlocked || contextBlocked) return
+    const text = event.clipboardData.getData('text/plain')
+    const html = event.clipboardData.getData('text/html')
+    const files = Array.from(event.clipboardData.files)
+    // Spreadsheet clipboard payloads often contain a generated PNG alongside the table.
+    if (files.length && !(text && /<table[\s>]/i.test(html))) {
+      event.preventDefault(); void selectFiles(draft, files)
+    } else if (text.length >= MIRA_PASTED_TEXT_THRESHOLD && new Blob([text]).size <= MIRA_TEXT_FILE_BYTES) {
+      event.preventDefault(); void selectFiles(draft, [new File([text], '粘贴的文本.txt', { type: 'text/plain' })])
+    }
   }
   function closeSuggestions() {
     setContextOpen(false); setPanelFilter(null); setDismissedToken(tokenSignature)
@@ -448,7 +610,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       return
     }
     if (item.action.type === 'file') {
-      try {
+      if (controller.supportsAttachments) { if (!await selectFiles(draft, undefined, item.action.value)) return }
+      else try {
         const next = appendComposerReferences(references, [{ path: item.action.value, name: item.label }])
         setReferences(next); setComposerError('')
       } catch (error) { setComposerError(error instanceof Error ? error.message : String(error)); return }
@@ -492,12 +655,15 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   async function submit(event?: FormEvent, requestedOptions?: HarnessMessageSubmissionOptions) {
     event?.preventDefault()
     const text = draft.trim()
-    if (!text || !activeRef.current || sendingBlocked || busyRef.current || submittingRef.current.has(draftKey) || recoveryWriteRef.current.has(draftKey) || referenceRead.current) return
+    if (!hasInput || attachmentBlocked || failedUploadRef.current || !activeRef.current || sendingBlocked || busyRef.current || submittingRef.current.has(draftKey) || recoveryWriteRef.current.has(draftKey) || referenceRead.current) return
     if (requestedOptions && !submissionOptionsSupported) return
     if (queueConfirmation && !requestedOptions?.pausedQueueDecision) return
     const current = controller.getSnapshot()
-    if (requestedOptions && current.running && !current.session?.activeRun?.id) { setComposerError('当前任务身份尚未同步，请稍后重试'); return }
-    const options = requestedOptions ? { ...requestedOptions, expectedRunId: current.session?.activeRun?.id ?? null } : undefined
+    const intent = requestedOptions ?? (queueSupported && submissionOptionsSupported && current.running && followupMode === 'guide' ? { delivery: 'guide' as const } : undefined)
+    const savedIntent = latestDraftSnapshot.current.submissions?.[draftKey]
+    const retryingIntent = savedIntent && savedIntent.text === text && JSON.stringify(savedIntent.references) === JSON.stringify(references)
+    if (!retryingIntent && intent && current.running && !current.session?.activeRun?.id) { setComposerError('当前任务身份尚未同步，请稍后重试'); return }
+    const options = intent ? { ...intent, expectedRunId: current.session?.activeRun?.id ?? null } : undefined
     busyRef.current = true; setBusy(true); setComposerError(''); setDismissedHostError(undefined)
     let preparing = true
     try {
@@ -505,6 +671,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!id) return
       // 创建或配置期间用户可切换任务，首条消息只能发送到发起它的那份草稿。
       if (controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) return
+      const submittedDraft = controller.getSnapshot().session?.draftState === 'prepared' ? latestDraftSnapshot.current.draft : undefined
       if (queueSupported) {
         const revision = ownerTextRevisions.current.get(id) ?? 0
         const submittedReferences = latestDraftSnapshot.current.fileDrafts[id] ?? references
@@ -513,7 +680,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         const selection = { ...(retry ? previous.selection : controller.getSnapshot().selection!) }
         const submittedPlanning = retry ? previous.planning : planning
         const submittedOptions = retry ? previous.options : options
-        const payload = { text, references: submittedReferences, selection, planning: submittedPlanning, ...(submittedOptions ? { options: submittedOptions } : {}) }
+        const capturedDraft = retry ? previous.draft : submittedDraft
+        const payload = { text, references: submittedReferences, selection, planning: submittedPlanning, ...(submittedOptions ? { options: submittedOptions } : {}), ...(capturedDraft ? { draft: capturedDraft } : {}) }
         const submissionId = retry ? previous.id : crypto.randomUUID()
         setSubmission(id, { id: submissionId, ...payload })
         submittingRef.current.add(id); setSubmitting([...submittingRef.current])
@@ -531,6 +699,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
             setReferences((latestDraftSnapshot.current.fileDrafts[id] ?? []).filter(reference => !submittedReferences.includes(reference)), id)
             setSubmission(id, undefined)
             setQueueConfirmation(previous => previous?.ownerId === id ? undefined : previous)
+            if (payload.draft) await acceptDraft(id, payload.draft)
             try { await persistDrafts(); setRecoverySaveErrors(previous => ({ ...previous, [id]: '' })) }
             catch (error) { setRecoverySaveErrors(previous => ({ ...previous, [id]: `消息已提交，草稿保存失败，发送已暂停：${error instanceof Error ? error.message : String(error)}` })) }
           } else if (sent === 'confirmation-required') {
@@ -539,7 +708,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               const queue = result.queue
               if (queue?.sessionId === id && queue.items.length) {
                 closeSuggestions(); setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setSendHintOpen(false)
-                setQueueConfirmation({ ownerId: id, revision: queue.revision, itemIds: queue.items.map(item => item.id), ...(submittedOptions?.delivery ? { delivery: submittedOptions.delivery } : {}) })
+                setQueueConfirmation({ ownerId: id, revision: queue.revision, itemIds: queue.items.map(item => item.id), ...(submittedOptions?.delivery === 'immediate' ? { delivery: 'immediate' as const } : {}) })
               } else { setQueueConfirmation(undefined); setComposerError('队列状态已变化，请重新发送') }
             }
             try { await persistDrafts() }
@@ -569,8 +738,13 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
           return { ...previous, [id]: [...existing, ...references.filter(item => !existing.some(reference => reference.path === item.path))] }
         })
         if (!result.sessionLoading && result.session?.id === id) setComposerError(result.error || '发送失败，请重试')
-      }
+      } else if (submittedDraft) await acceptDraft(id, submittedDraft)
     } finally { if (preparing) { busyRef.current = false; setBusy(false) } }
+  }
+  async function acceptDraft(sessionId: string, owner: ComposerTaskDraft) {
+    if (latestDraftSnapshot.current.draft?.id === owner.id) setTaskDraft(null)
+    try { await onDraftAccepted?.(sessionId, owner) }
+    catch (error) { controller.reportError(error) }
   }
   function confirmQueueSend(decision: 'retain' | 'discard') {
     const current = controller.getSnapshot()
@@ -590,9 +764,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     textareaRef.current?.focus()
     return true
   }
-  async function withdrawQueuedMessage(itemId: string, edit: boolean) {
+  async function withdrawQueuedMessage(itemId: string, edit: boolean, preserveDraft = false) {
     const ownerId = sessionId, current = controller.getSnapshot()
-    if (!ownerId || !activeRef.current || busyRef.current || current.sessionLoading || current.session?.id !== ownerId || edit && !draftIsEmpty(ownerId)) return
+    if (!ownerId || !activeRef.current || busyRef.current || current.sessionLoading || current.session?.id !== ownerId || edit && !preserveDraft && !draftIsEmpty(ownerId)) return
     const key = `${ownerId}:${itemId}`
     if (withdrawalRef.current.has(key) || sendNowRef.current.has(key) || current.queue?.promotingItemId === itemId) return
     const revision = textRevision.current
@@ -673,14 +847,16 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const usagePercent = usage?.contextWindow ? Math.round(usage.usedTokens / usage.contextWindow * 100) : 0
   const PermissionIcon = permission === 'default' ? Hand : permission === 'auto-approve' ? ShieldCheck : ShieldAlert
   const sendKeyLabel = sendShortcut === 'mod-enter' ? '⌘/Ctrl+Enter' : 'Enter'
-  const immediateSendHint = submissionOptionsSupported && state.running && primaryModifierPressed && !sendingBlocked && Boolean(draft.trim()) && !queueConfirmation
-  const sendTitle = busy ? '正在准备任务' : immediateSendHint ? '立即发送' : state.running || confirmationPending ? '加入待发送' : '发送任务'
+  const reverseSendHint = submissionOptionsSupported && state.running && primaryModifierPressed && !sendingBlocked && hasInput && !queueConfirmation
+  const guideMode = queueSupported && submissionOptionsSupported && followupMode === 'guide'
+  const reverseOptions: HarnessMessageSubmissionOptions = guideMode && state.running ? {} : { delivery: 'immediate' }
+  const sendTitle = busy ? '正在准备任务' : reverseSendHint ? guideMode ? '加入待发送' : '立即发送' : state.running && guideMode ? '引导当前任务' : state.running || confirmationPending ? '加入待发送' : '发送任务'
   const queueConfirmationPending = Boolean(queueConfirmation && submitting.includes(queueConfirmation.ownerId))
   const queueConfirmationError = queueConfirmation ? recoverySaveErrors[queueConfirmation.ownerId] || visibleError : ''
   const placeholder = confirmationPending ? queueSupported ? '等待确认，可继续添加待发送消息' : '先处理上方确认；草稿会保留' : state.running ? '任务运行中，可先写好下一条消息' : state.messages.length ? '继续对话，@ 引用上下文，/ 选择能力' : '向 Mira 提问，@ 引用上下文，/ 选择能力'
 
   return <Tooltip.Provider delayDuration={350}><Popover.Root open={suggestionsOpen} onOpenChange={open => { if (!open) closeSuggestions() }}><div className={cn('harness-composer-region', !sessionId && 'harness-composer-region--draft')}>
-    {visibleError && <div className="harness-composer__error" role="alert"><CircleAlert size={15} /><span>{visibleError}</span><button type="button" aria-label="关闭错误提示" onClick={() => { setComposerError(''); setDismissedHostError(state.error) }}><X size={14} /></button></div>}
+    {visibleError && <div className="harness-composer__error" role="alert"><CircleAlert size={15} /><span>{visibleError}</span>{preferencesError && <button type="button" className="mira-attachment-upload-retry" onClick={() => setPreferencesRetry(value => value + 1)}>重试读取草稿</button>}{failedUpload && <button type="button" className="mira-attachment-upload-retry" disabled={busy} onClick={() => void selectFiles(draft, failedUpload.files, failedUpload.path)}>重试添加</button>}{!preferencesError && <button type="button" aria-label={failedUpload ? '取消附件添加' : '关闭错误提示'} onClick={() => { setFailedUpload(undefined); failedUploadRef.current = undefined; setComposerError(''); setDismissedHostError(state.error) }}><X size={14} /></button>}</div>}
     {queueSupported && sessionId && <HarnessMessageQueue key={sessionId} queue={state.queue?.sessionId === sessionId ? state.queue : undefined} recoveries={recoveries[sessionId] ?? []} pendingItems={withdrawals.filter(key => key.startsWith(`${sessionId}:`)).map(key => key.slice(sessionId.length + 1))} resumePending={resuming.includes(sessionId)} disabled={!active || Boolean(state.sessionLoading) || busy} editDisabled={!draftIsEmpty(sessionId) || submitting.includes(sessionId)} recoveryBlocked={recoveryWrites.includes(sessionId) || Boolean(recoverySaveErrors[sessionId])} confirmationPending={confirmationPending} error={recoverySaveErrors[sessionId] || state.queueError} onRetrySave={recoverySaveErrors[sessionId] ? retryRecoverySave : undefined} onEdit={id => withdrawQueuedMessage(id, true)} onDelete={id => withdrawQueuedMessage(id, false)} onRestore={restoreRecovery} onResume={resumeQueue} onConfirmation={showConfirmation} onMove={controller.supportsQueueReorder ? reorderQueue : undefined} reorderPending={reordering.includes(sessionId)} onSendNow={controller.supportsQueueSendNow ? sendQueuedNow : undefined} sendNowPendingItems={sendingNow.filter(key => key.startsWith(`${sessionId}:`)).map(key => key.slice(sessionId.length + 1))} />}
     {queueSupported && retriesSubmission && !submitting.includes(draftKey) && <div className="mira-composer-pending-submission" role="status">上次提交待确认，重试使用原模型和模式</div>}
     <Popover.Anchor asChild><div className="mira-composer-panel-anchor" /></Popover.Anchor>
@@ -707,9 +883,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         </>}
         <MiraBranchPicker key={selectedProject?.id} controller={controller} project={selectedProject} active={active} blocked={busy || Boolean(state.sessionLoading) || Boolean(selectedProject && state.sessions.some(session => session.projectId === selectedProject.id && state.runningSessionIds.includes(session.id))) || Boolean(state.queue?.items.length)} placement="composer" />
       </div>}
-      <form className="harness-composer" onSubmit={event => { const immediate = pointerImmediateRef.current; pointerImmediateRef.current = false; void submit(event, immediate ? { delivery: 'immediate' } : undefined) }}>
-        {references.length > 0 && <div className="harness-composer__attachments">{references.map(reference => <span key={reference.path} className="harness-composer__attachment" title={reference.path}><Paperclip size={14} /><span>{reference.name}</span><button type="button" aria-label={`移除 ${reference.name}`} title={`移除 ${reference.name}`} disabled={inputBlocked} onClick={() => setReferences(references.filter(item => item.path !== reference.path))}><X size={12} /></button></span>)}</div>}
-        <textarea ref={textareaRef} rows={1} value={draft} readOnly={inputBlocked} aria-busy={inputBlocked || undefined} onSelect={event => { const element = event.currentTarget; setCaret({ start: element.selectionStart, end: element.selectionEnd }) }} onChange={event => { if (active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setDraft(event.target.value, draftKey, { start: event.target.selectionStart, end: event.target.selectionEnd }) } }} onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) { onSuggestionKeyDown(event); return } if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, { delivery: 'immediate' }); return } if (shouldSendWithShortcut(sendShortcut, event.nativeEvent)) { event.preventDefault(); void submit() } }} placeholder={placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? 'mira-composer-suggestions' : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `mira-suggestion-${selectedSuggestion.id}` : undefined} />
+      <form className={`harness-composer${dragOver ? ' mira-composer--drag-over' : ''}`} onDragEnter={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); if (!contextBlocked && controller.supportsAttachments) { dragDepth.current++; setDragOver(true) } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = contextBlocked || !controller.supportsAttachments ? 'none' : 'copy' } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false) } }} onDrop={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); dragDepth.current = 0; setDragOver(false); if (!contextBlocked && controller.supportsAttachments) void selectFiles(draft, Array.from(event.dataTransfer.files)) }} onSubmit={event => { const reverse = pointerReverseRef.current; pointerReverseRef.current = false; void submit(event, reverse ? reverseOptions : undefined) }}>
+        <MiraComposerAttachments references={references} ownerId={sessionId} controller={controller} disabled={inputBlocked} active={active} onRemove={path => setReferences(references.filter(item => item.path !== path))} onBlocked={onAttachmentsBlocked} />
+        {dragOver && <div className="mira-composer-drop-hint" role="status"><Paperclip size={20} /><span>释放以添加图片或文本附件</span></div>}
+        <textarea ref={textareaRef} rows={1} value={draft} readOnly={inputBlocked} aria-busy={inputBlocked || undefined} onPaste={pasteAttachments} onSelect={event => { const element = event.currentTarget; setCaret({ start: element.selectionStart, end: element.selectionEnd }) }} onChange={event => { if (active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setDraft(event.target.value, draftKey, { start: event.target.selectionStart, end: event.target.selectionEnd }) } }} onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) { onSuggestionKeyDown(event); return } if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, reverseOptions); return } if (shouldSendWithShortcut(sendShortcut, event.nativeEvent)) { event.preventDefault(); void submit() } }} placeholder={placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? 'mira-composer-suggestions' : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `mira-suggestion-${selectedSuggestion.id}` : undefined} />
         <div className="harness-composer__footer">
           <div className="harness-composer__controls">
             <ComposerControlHint title="添加上下文与能力"><button ref={contextTriggerRef} type="button" className="harness-composer__icon-button" aria-label="添加上下文" aria-expanded={contextOpen} aria-controls="mira-composer-suggestions" disabled={contextBlocked} onMouseDown={event => { event.preventDefault(); captureMenuSelection() }} onClick={openContext}><Plus size={16} /></button></ComposerControlHint>
@@ -749,7 +926,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>}
             {referenceLoading && <LoaderCircle size={14} className="animate-spin" aria-label="正在读取引用对话" />}
-            {state.running && (!queueSupported || !draft.trim()) ? <ComposerControlHint title="停止任务" shortcut="Esc"><button type="button" className="harness-composer__send" aria-label="停止任务" disabled={!active} onClick={() => void controller.stop()}><Square size={14} fill="currentColor" /></button></ComposerControlHint> : <Tooltip.Root open={immediateSendHint || sendHintOpen} onOpenChange={setSendHintOpen}><Tooltip.Trigger asChild><button type="submit" className="harness-composer__send" aria-label={sendTitle} disabled={sendingBlocked || referenceLoading || !draft.trim()} onClick={event => { pointerImmediateRef.current = submissionOptionsSupported && state.running && (appleKeyboard ? event.metaKey : event.ctrlKey) }}>{busy || submitting.includes(draftKey) ? <LoaderCircle size={16} className="animate-spin" /> : <ArrowUp size={16} />}</button></Tooltip.Trigger><Tooltip.Portal container={portalContainer}><Tooltip.Content className="mira-composer-hint" side="top" sideOffset={6}>{sendTitle}<kbd>{immediateSendHint ? appleKeyboard ? '⌘+Enter' : 'Ctrl+Enter' : sendKeyLabel}</kbd></Tooltip.Content></Tooltip.Portal></Tooltip.Root>}
+            {state.running && (!queueSupported || !hasInput) ? <ComposerControlHint title="停止任务" shortcut="Esc"><button type="button" className="harness-composer__send" aria-label="停止任务" disabled={!active} onClick={() => void controller.stop()}><Square size={14} fill="currentColor" /></button></ComposerControlHint> : <Tooltip.Root open={reverseSendHint || sendHintOpen} onOpenChange={setSendHintOpen}><Tooltip.Trigger asChild><button type="submit" className="harness-composer__send" aria-label={sendTitle} disabled={sendingBlocked || referenceLoading || attachmentBlocked || Boolean(failedUpload) || !hasInput} onClick={event => { pointerReverseRef.current = submissionOptionsSupported && state.running && (appleKeyboard ? event.metaKey : event.ctrlKey) }}>{busy || submitting.includes(draftKey) ? <LoaderCircle size={16} className="animate-spin" /> : <ArrowUp size={16} />}</button></Tooltip.Trigger><Tooltip.Portal container={portalContainer}><Tooltip.Content className="mira-composer-hint" side="top" sideOffset={6}>{sendTitle}<kbd>{reverseSendHint ? appleKeyboard ? '⌘+Enter' : 'Ctrl+Enter' : sendKeyLabel}</kbd></Tooltip.Content></Tooltip.Portal></Tooltip.Root>}
           </div>
         </div>
       </form>

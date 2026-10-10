@@ -1,6 +1,6 @@
 # ZCode → Mira Harness 改编记录
 
-更新日期：2026-10-09 20:46 +08:00（Asia/Shanghai）。
+更新日期：2026-10-10 10:07 +08:00（Asia/Shanghai，分区排序、悬浮组标题与长任务列表适配；验收状态以首屏记录为准）。
 
 当前改编批次为 [首屏实现增量](#2026-10-09-首屏实现增量)，下一入口仍是首屏交互/截图与性能验收，不回到文件支线。前一批 [收尾增量](#2026-10-08-收尾增量) 的 80 文件/458 项及 80/455、后续文件批次继续保留历史身份，不能作为当前首屏验收统计。限定回归与 opaque iframe headless 不等于新的原生 Electron、安装包、Windows 或 P0–P3 放行。本批未提交、未推送。
 
@@ -21,6 +21,18 @@
 
 | Mira 文件/区域 | 上游参考 | Mira 改编内容 |
 | --- | --- | --- |
+| `apps/harness-react/src/components/conversation/ConversationTurnRail.tsx`、`styles/thread.css` | `packages/ui/src/v4/ConversationTurnNavigator.tsx`、`conversationTurnNavigatorHelpers.ts` | 适配 10px 行高/overscan 6 的 TanStack 虚拟轮次栏、120ms/80ms Radix Hover Card、right/start 随项预览和相邻山峰视觉；活动轮次滚入可见窗口。Mira 保留自己的 query/message 身份，并独立增加单一 Tab 停靠、方向/Home/End/Page 键跨窗口移焦与迟到焦点取消，不复制上游 hydration/RPC；真实宿主及性能证据由首屏记录维护 |
+| `apps/harness-react/src/components/session/SessionSidebar.tsx`、`styles/session.css` 与工作台文件树接线 | `packages/ui/src/workspace-grouped-tasks/task-row.tsx`、`TaskListItem.tsx`、`TaskList.tsx`、`WorkspaceSidebar.tsx` | 适配分组行文件树/移到根顶部/X关闭、项目/置顶/时间线原位归档确认及 hover/focus 状态；成熟 Radix tooltip/menu 与按钮默认焦点保留。Mira 独立实现偏好事务、single-flight/失败重试、归档导航生命周期及 project/session owner 文件浏览，不复制上游任务 Runtime；组草稿见下行，跨 owner 预览仍未扩展 |
+| `MiraSidebarSection.tsx`、`SessionSidebar.tsx`、`sidebar-preferences.ts`、`styles/session.css` | `packages/ui/src/WorkspaceSidebar/WorkspacePurposeSection.tsx`、`lib/sidebarPurposeSectionPreferences.ts`、`lib/workspaceTaskPagination.ts` 与 `WorkspaceSidebar.tsx` | 适配项目/个人区独立持久折叠、标题 hover/focus 操作、个人新任务入口、项目内每次 +5 展开和不可见项目的分页清理。使用 Radix Collapsible 与 dnd-kit 分区排序；Mira 独立实现同级键盘路径、一次保存/失败回滚/后续修改保护，偏好继续保存到宿主，添加项目成功才展开分区。未复制远端工作区或 RPC |
+| `MiraSidebarStickyHeader.tsx`、`SidebarCollectionSection.tsx`、`styles/session.css` 与 `SessionSidebar.tsx` 接线 | `packages/ui/src/workspace-grouped-tasks/sticky-group-header.tsx`、`sticky-group-header-slot.tsx`、`WorkspaceGroupedTasksSection.tsx` | 适配组标题越过顶部且组尾仍在视窗时的悬浮副本、150ms 退出和真实颜色/数量/折叠/新建/解散。Mira 使用实际 DOM 几何、resize/mutation 观察与现有偏好/草稿；退出立即 inert，拖拽/切视图卸载菜单，迟到回调按当前组身份校验，不复制上游 Runtime |
+| `MiraSidebarVirtualList.tsx` 与 `SessionSidebar.tsx` | `packages/ui/src/workspace-grouped-tasks/virtualized-group-task-list.tsx`、`virtualized-top-level-list.tsx`、`virtualized-scroll.ts` | 适配 >80 阈值、overscan 12、共享侧栏滚动、实高测量和重新挂载不回顶；小组与未分组完整展示，+5 仅保留在项目任务。Mira 独立保留焦点/菜单/拖拽/重命名/归档确认/异步动作和错误行，沿用已有 TanStack Virtual 许可，无新增依赖；实际页面/性能状态仍由首屏记录维护 |
+| `SessionSidebar.tsx`、`HarnessComposer.tsx`、`HarnessWorkbench.tsx`、`lib/composer-drafts.ts`、`state/pilot-state.ts` 与第一方桥/宿主存储及接纳边界 | `packages/ui/src/workspace-grouped-tasks/group-item.tsx`、`hooks/useGroupedTaskView.ts`、`app-shell/useWorkspaceTaskNavigation.ts` 的组首草稿与接纳后定位交互 | 适配组首/根首临时草稿行、重复入口重定位和关闭保留输入。Mira 独立使用 prepared/accepted SQLite 生命周期：准备附件不进入任务查询/搜索/计数，首次真实接纳后才提升；同 owner 跨项目迁移保留冻结附件，未知首发确认复开捕获位置而不创建隐藏孤儿。恢复统一经导航事务，提交捕获原组/正文/附件/模型，迟到确认不抢导航、不清别的任务输入；分组已删除则根首，偏好失败保留本地位置供重试。未复制 ZCode 草稿 store、RPC 或 Runtime；队列仍仅进程内，原生同态/性能不由源码适配记录放行 |
+| `apps/harness-react/src/components/session/ArchivedSessions.tsx`、`SessionSidebar.tsx`、`styles/session.css` 的归档工具栏与确认流程 | `packages/ui/src/DeleteAllArchivedTasksButton.tsx`、`lib/archivedTaskDeletion.ts`、`WorkspaceArchivedTasksFlatSection.tsx`、`WorkspaceSidebar.tsx` | 适配归档工具栏操作菜单、全量范围/数量确认、逐项删除/跳过/失败反馈及退出 X；Mira 使用 grant 绑定的宿主快照与 SQLite 归档条件写入，独立实现运行/队列保护、一次刷新和草稿清理，不移植上游远端服务或账号逻辑 |
+| `apps/harness-react/src/components/composer/MiraAttachmentPreview.tsx` 及 Composer/消息图片组接线 | `packages/ui/src/components/ai-elements/image-preview-dialog.tsx` | 适配全画布遮罩、圆形前后切换/关闭/保存按钮、方向键循环、50–300% 缩放和拖动画布；切项释放 pointer capture 并重置视图，错误可单项重试。原生保存由 Mira 会话附件令牌与受控 IPC 实现，不复制上游远程下载、视频或账号能力；文本继续用普通内容弹窗 |
+| `apps/harness-react/src/components/composer/MiraComposerAttachments.tsx`、`MiraAttachmentPreview.tsx`、`lib/attachment-input.ts` 与 `HarnessComposer.tsx` 附件入口 | `packages/ui/src/v4/composer/useComposerAttachments.ts`、`packages/ui/src/lib/chatAttachments.ts`、`packages/ui/src/v4/ConversationComposer.tsx`、`packages/ui/src/ChatMediaAttachmentPreviewDialog.tsx` | 适配 Composer 48px 图片缩略图与文本条目、hover/focus 移除、原生选择/拖拽/粘贴、15Ki 字符文本粘贴转附件及附件-only 发送；用 Mira 的不可变会话附件令牌、受控桥与 Radix 预览，未复制上游附件 RPC/临时文件路径。保留 Mira 既有最多 12 个引用（上游 8 个），图片单张 20 MiB/总 40 MiB、文本单个 256 KiB/总 1 MiB；当前模型链只支持真实图像与 UTF-8 文本，不宣称视频/PDF 输入已对齐 |
+| `apps/harness-react/src/components/conversation/message-parts.tsx` 附件展示与工作台用户消息 | `packages/ui/src/v4/ConversationRowView.tsx` | 图片显示为实际持久化内容的 80px 缩略图并打开预览，文件保留 compact pill；附件-only 不生成空文本气泡或复制空正文。图片通过 Mira OpenAI-compatible SDK 的 ImageContent 传入模型，不移植上游 CLI/provider 路由 |
+| `apps/harness-react/src/components/conversation/MiraConversationTimeline.tsx`、`lib/conversation-timeline.ts` | `packages/ui/src/v4/ConversationTimeline.tsx`、`conversationTimelineLiveTail.ts`、`conversationTurnRenderUnits.ts`、`timelineRowHeightCache.ts` | 按 Mira 普通输入建立任务轮次，guide 与助手分段保留原顺序；历史 TanStack overscan 8、72px 估高和实例内 4000 条测高缓存，仅真实运行末轮保留正常流。公开 assistant-ui message index 复用现有渲染器；搜索/rail/摘要先挂载目标再定位，阅读记忆附带轮次锚点。未移植上游 RPC、历史分页或持久化 UI 状态 |
+| `apps/harness-react/src/lib/conversation-scroll.ts`、`hooks/useConversationScroll.ts`、`components/conversation/MiraConversationViewport.tsx` | `packages/ui/src/lib/chatSessionScrollMemory.ts` 与 `packages/ui/src/v4/ConversationTimeline.tsx` 的 scope/阅读恢复 | renderer 内按 Mira 工作目录/会话隔离的 200 条 LRU；切换前保存旧 DOM，等真实消息窗口装载后恢复，主动滚动/轮次与搜索导航取消恢复。复用 assistant-ui 公开跟随 API，不引入上游 RPC 或承诺进程重启后恢复 |
 | `apps/harness-react/src/styles/mira-foundations.css` | `packages/ui/src/styles.css` 的 `.theme-zai-light` / `.theme-zai-dark` | 使用实际浅深色主题值；内部变量改为 `--mira-*`；由宿主 `.dark` 切换，保留 Tailwind 工具类别名；桌面 UI 默认 14px |
 | `apps/harness-react/src/styles/app.css` | 同文件的滚动条与语义配色 | 将区域样式兼容别名桥接至 Mira 主题，滚动条沿用透明轨道与 3px 透明边 |
 | `apps/harness-react/src/lib/utils.ts` | `packages/ui` 的 shadcn 类名合并模式 | 使用本项目的 clsx / tailwind-merge；不引入上游业务状态或 RPC |
@@ -41,14 +53,16 @@
 | `apps/harness-react/src/lib/file-preview.ts` | `packages/ui/src/lib/codeViewer.ts`、`packages/ui/src/lib/path.ts` 与 `packages/ui/src/PreviewPane.tsx` 的文件预览流程 | 参考语言识别、路径呈现与读取生命周期；Mira 独立实现语言映射、面包屑及绝对路径显示、捕获会话的读取助手与响应路径核验；未复制上游完整预览源模型或运行服务 |
 | `apps/harness-react/src/components/workspace/MiraImagePreview.tsx`、`lib/image-preview.ts`、`styles/file-preview.css` 的图片画布、`FilePreviewPanel.tsx` 的 SVG 入口 | `packages/ui/src/previewPaneImageContent.tsx`、`PreviewPane.tsx` | 40px 留白、8px 透明棋盘、自然尺寸与 Retina 文件名折算、SVG 适配画布及 image data URI；Mira 增加原生图片解码状态、失败重试、SVG 源码虚拟行及位图文本动作限制。文件名与状态采用 Mira 命名 |
 | `apps/harness-react/src/components/composer/HarnessComposer.tsx`、`apps/harness-react/src/lib/model-reasoning.ts` | `packages/ui/src/chat-input-toolbar/ThoughtLevelCycleControl.tsx`、`thoughtLevelOptions.ts`、`modelSelection.ts` | 适配模型与推理工具栏、档位显示和焦点返回；仅暴露 Mira Runtime 支持的关闭/低/中/高，第一方桥保留 `thinkingLevel`，不复制上游供应商配置体系 |
-| `apps/harness-react/src/components/git/MiraBranchPicker.tsx`、`git-controls.css`、Composer 项目条与 `TaskSummary.tsx` 的环境区 | `packages/ui/src/WorkspaceShellLayout.tsx`、`ConversationStatusPanel.tsx`、`GitActionMenu.tsx` | 参考 Composer 和悬浮摘要中的分支入口；Header 目录提示保持只读。使用 cmdk 1.1.1、Radix 与 Lucide 实现搜索、当前分支、工作树状态、创建及失败重读；宿主快照和项目忙碌守卫由 Mira 独立实现，不强制切换、不 stash、不丢弃更改；cmdk MIT 原文保留在 `../cmdk/LICENSE.md` |
-| `apps/harness-react/src/components/session/SidebarCollectionSection.tsx`、`SessionSidebar.tsx`、`sidebar-preferences.ts`、`styles/session.css` | `packages/ui/src/workspace-grouped-tasks/group-item.tsx`、`task-context-menu-content.tsx`、`types.ts` 与 `WorkspaceSidebarItem.tsx` | 改编独立自定义组的名称/颜色/折叠/任务移动/解散，以及项目 hover 新任务/文件树/更多的交互结构；组与项目/会话顺序用 Mira 偏好/Controller 保存，保留历史的项目隐藏不调用破坏性删除。Radix/dnd-kit 沿用本地依赖，不复制上游组服务或工作区 Runtime |
+| `apps/harness-react/src/components/git/MiraBranchPicker.tsx`、`git-controls.css`、Composer 项目条与 `TaskSummary.tsx` 的环境区 | `packages/ui/src/app-shell/WorkspaceShellLayout.tsx`、`packages/ui/src/v4/ConversationStatusPanel.tsx`、`packages/ui/src/GitActionMenu.tsx` | 参考 Composer 和悬浮摘要中的分支入口；Header 目录提示保持只读。使用 cmdk 1.1.1、Radix 与 Lucide 实现搜索、当前分支、工作树状态、创建及失败重读；宿主快照和项目忙碌守卫由 Mira 独立实现，不强制切换、不 stash、不丢弃更改；cmdk MIT 原文保留在 `../cmdk/LICENSE.md` |
+| `apps/harness-react/src/components/session/SidebarCollectionSection.tsx`、`SessionSidebar.tsx`、`session-groups.ts`、`sidebar-preferences.ts`、`styles/session.css` | `packages/ui/src/WorkspaceGroupedTasksSection.tsx`、`workspace-grouped-tasks/view.tsx`、`group-item.tsx`、`task-item.tsx`、`hooks/useGroupedTaskView.ts`、`task-context-menu-content.tsx`、`types.ts` 与 `WorkspaceSidebarItem.tsx` | 改编独立自定义组的名称/颜色/折叠/任务移动/解散，以及项目 hover 新任务/文件树/更多的交互结构。2026-10-10 补任务跨组、展开首尾/空组、折叠组前后根层落点及任务/组根层交错排序，拖组仅临时折叠，取消不写入；Mira 使用 dnd-kit 的指针/键盘与 DragOverlay、偏好原子保存/失败回滚和后续修改保护，主进程保留根层草稿并过滤已删除任务 ID。保留历史的项目隐藏不调用破坏性删除，不复制上游组服务或工作区 Runtime；实际页面与性能结论仍以首屏记录为准 |
 | `apps/harness-react/src/components/search/HarnessCommandCenter.tsx`、`command-center-query.ts`、`command-center.css` | `packages/ui/src/command-center/CommandCenterDialog.tsx` | 改编命令/对话/文件分类、搜索结果与键盘选择；Mira 用自己受控桥的正文搜索和授权目录文件搜索，由 Shell 与侧栏共用入口；未移植完整导航/搜索历史 |
 | `apps/harness-react/src/components/automations/AutomationsView.tsx`、`AutomationEditor.tsx` 与对应样式 | `packages/ui/src/settings/AutomationsSection.tsx`、`AutomationEditView.tsx` | 改编任务列表、编辑与运行记录主视图；任务、触发、启停/运行/重试/停止和草稿使用现有 Mira scheduler/存储与第一方桥，不复制 ZCode 云端调度/工作流引擎 |
+| `apps/harness-react/src/lib/app-navigation-history.ts`、`state/workbench-navigation.ts`、`HarnessWorkbench.tsx`、`src/platform/appNavigation.ts` 与 Vue Shell/Frame | `packages/ui/src/lib/taskNavigationHistory.ts`、`app-shell/useWorkspaceTaskNavigation.ts`、`DesktopTopOverlay.tsx` 与 `shared/shortcutCommands.ts` | 改编 50 项任务/自动化/市场历史、前进后退和平台快捷键。Mira 独立实现成功后提交游标、草稿保存与打开失败保护、删除取消、受控 MessageChannel 和设置往返快照；新对话/自动化草稿在历史栈外，快照不含正文，不移植上游任务缓存、RPC 或插件设置业务 |
 | `apps/harness-react/src/components/extensions/SkillMarketView.tsx` 与 `skill-market.css` | `packages/ui/src/settings/PluginStoreListView.tsx`、`PluginStoreDetailView.tsx` | 改编搜索/已安装条带/目录/详情布局；Mira 固定公开 Skill 来源与真实 `SkillStore` 安装，不复制上游私有市场、计费或插件包。市场内容的独立来源/许可见 `third-party-licenses/skill-marketplace/` |
 | `apps/harness-react/src/components/conversation/ConversationTurnRail.tsx`、`TaskSummary.tsx` 与 `conversation-model.ts` | `packages/ui/src/v4/ConversationTurnNavigator.tsx`、`ConversationFileSummaryPanel.tsx` 及用户提供的实际工作台画面 | 参考真实轮次 hover/定位与悬浮摘要交互；状态投影、计划/子任务/变更与操作由 Mira 独立实现，缺失 reasoning/完整工具数据不造假；不复制上游完整 conversation renderer 或反馈/分享后台 |
 | `apps/harness-react/src/components/conversation/AssistantMessageParts.tsx`、`run-progress.tsx` 与 `styles/thread.css` | `packages/ui/src/v4/ConversationRowView.tsx` 的 ReasoningRow/ToolCallRow 及共享工具行 | 参考有序正文/折叠公开思考/工具参数结果与内联审批表现；Mira独立parts契约与数据库JSON持久化，使用实际pi-ai父任务thinking事件和工具调用身份。旧消息兼容，公开思考和工具文本有界，不暴露子任务推理，不移植上游Runtime |
-| `apps/harness-react/src/components/composer/HarnessMessageQueue.tsx`、`HarnessComposer.tsx` 与 `styles/composer.css` | `packages/ui/src/v4/ConversationQueuePanel.tsx`、`ConversationComposer.tsx`、`SessionPane.tsx` 的运行中入队/撤回/排序/立即发送/暂停发送确认交互，以及 CLI `session-flow.ts` 的保留队列语义 | 改编队列面板、dnd-kit键盘排序、修饰键立即发送与Radix暂停确认；Mira独立实现宿主FIFO/完整输入冻结/撤回草稿恢复/原子预占和admission后清空/停止暂停与受控桥，renderer重载复用提交身份。队列仅进程内；guide未移植 |
+| `apps/harness-react/src/components/composer/HarnessMessageQueue.tsx`、`HarnessComposer.tsx` 与 `styles/composer.css` | `packages/ui/src/v4/ConversationQueuePanel.tsx`、`ConversationComposer.tsx`、`SessionPane.tsx` 的运行中入队/撤回/排序/立即发送/暂停发送确认交互，以及 CLI `session-flow.ts` 的保留队列语义 | 改编队列面板、dnd-kit键盘排序、修饰键立即发送与Radix暂停确认；Mira独立实现宿主FIFO/完整输入冻结/撤回草稿恢复/原子预占和admission后清空/停止暂停与受控桥，renderer重载复用提交身份。待发送队列仅进程内；本轮引导适配见下一行 |
+| `apps/harness-react/src/components/conversation/MiraPendingGuides.tsx`、`HarnessComposer.tsx`、`conversation-model.ts` 与 Vue General 设置 | `packages/ui/src/v4/ConversationPendingGuideList.tsx`、`ConversationRowView.tsx`、`ConversationComposer.tsx`、`composer/followupModeSettings.ts`；语义参考 CLI `runtime/methods/turn-guide-drain.ts`、`turn-tools.ts`、`turn-stop.ts` 和 `steering.ts` | 改编运行中引导/队列偏好、修饰键反转与内联待应用用户行，使用 Mira 命名和 Radix/Lucide。实际 Agent.steer、整批工具结束后消费、消费确认、同run分段持久化、停止转暂停队列、权限/模型/附件不兼容回退、快照游标恢复均为 Mira 独立宿主/Controller 实现，不复制上游 Runtime；待应用引导不伪装成已消费消息。验证状态由首屏文档维护，不声明原生或完整同态通过 |
 | `apps/harness-react/src/components/composer/ComposerSuggestionPanel.tsx`、`ComposerControlHint.tsx`、`useComposerCatalogs.ts`、`lib/prompt-input-triggers.ts` | `packages/ui/src/mentions/activePromptInputToken.ts` 及已装载输入框的引用/命令交互 | 参考 caret 触发和替换范围；Mira 使用本地命名与实际文件/Skill/MCP/对话候选，保留前后草稿、方向键/Enter/Tab/Esc，成熟 Radix 菜单/tooltip。发送偏好来自统一宿主，不移植上游多模态、运行队列或插件业务 |
 | `apps/harness-react/src/components/session/`、`components/composer/`、`components/workbench/`、`components/workspace/` | ZCode 桌面应用的任务侧栏、起点、输入区、资源面板；源码 `packages/ui` 对应区域 | 根据 Mira Harness 已有能力适配交互与布局；Mira 组件、文件与业务变量保持本项目命名 |
 
@@ -65,7 +79,7 @@ Mira 原创宿主适配包括第一方参数白名单/双解析、项目原生�
 
 本批限定回归与生产 React opaque iframe headless 有记录，正式桥/parser 在隔离 fixture 下执行；最新检查、截图及最后评审统一见 [首屏总记录](../../docs/MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，不重复旧样本数字。市场浏览器样本通过本机临时显式代理访问真实公开来源并写入隔离 `SkillStore`，不称 raw 直连或 native Electron 下载通过。桌面访问使用 Electron `net.fetch` 遵循已有系统代理，不修改系统设置；当前系统代理关闭，完整原生网络仍需实测。浏览器检查不等于新的 Electron grant/preload/IPC、实体鼠标/键盘、ZCode 同态、真实模型或性能放行。
 
-2026-10-09 20:14追加队列与父任务有序执行数据链，20:46补修饰键原子立即发送与暂停确认，来源见上表；公开思考仅保证当前provider API key跨chunk隐藏，不声明任意凭证全面脱敏。终态渲染身份与会话级WeakMap是Mira独立适配，不复制上游完整renderer或持久化UI状态。剩余guide、多模态、阅读恢复/线程虚拟化、导航/搜索历史、完整同态截图与性能继续留待首屏主线，不宣布完整对齐。未移植的ZCode云账号、订阅、云分享、Goal、远控、画板与工作流不作为已完成能力；历史文件批次的通过范围不扩大。
+2026-10-09 20:14追加队列与父任务有序执行数据链，20:46补修饰键原子立即发送与暂停确认；本轮追加引导偏好与待应用消息，来源见上表。公开思考仅保证当前provider API key跨chunk隐藏，不声明任意凭证全面脱敏。终态渲染身份与会话级WeakMap是Mira独立适配，不复制上游完整renderer或持久化UI状态。多模态、阅读恢复/线程虚拟化、导航/搜索历史、完整同态截图与性能继续留待首屏主线，不宣布完整对齐。未移植的ZCode云账号、订阅、云分享、Goal、远控、画板与工作流不作为已完成能力；历史文件批次的通过范围不扩大。
 
 ## 2026-10-08 第二批增量
 
@@ -142,7 +156,7 @@ Mira 宿主实现，不复制上游 Runtime。外部应用图标在运行时读�
 图片画布的上游来源与改编标识见上表和文件头。`files.read-image` 的固定 4 MiB
 有界 file-handle 读取、前后身份检查、工作目录约束与错误脱敏是 Mira 独立宿主实现；
 SVG 继续使用既有文本读取，并以独立 `<img>` 展示，不作为内联 SVG DOM 执行。
-没有移植上游完整媒体协议、远程工作区、Office 或多模态模型附件。
+该历史批次没有移植上游完整媒体协议、远程工作区、Office 或多模态模型附件；2026-10-10 新增图片/文本模型附件及图片组预览的范围见本表，不扩大为视频/PDF 已完成。
 验证范围及未完成原生桌面验收由 Mira 的阶段证据文档维护，本说明不作功能放行声明。
 
 ## 声明的保留与命名
@@ -168,6 +182,15 @@ SVG 继续使用既有文本读取，并以独立 `<img>` 展示，不作为内�
 10 秒超时和每个输出流 8 MiB 上限；不复制上游行式解析或同步 Git 服务。
 当前刷新来自初次、手动及既有工作目录通知，未移植上游 Git 元数据监听服务。
 自动检查、headless 与原生桌面验收各自以阶段证据为准，本说明不作整体放行声明。
+
+2026-10-10 任务查找与搜索历史增量：`MiraConversationFindBar.tsx` / `conversation-find.css`
+参考 `packages/ui/src/quickpick/TaskFindDialog.tsx` 的 chat 非模态放置与键盘/范围交互；
+`lib/conversation-find.ts` / `conversation-find-dom.ts` 改编自 `packages/ui/src/v4/conversationFindIndex.ts`
+和 `conversationFindHighlightDom.ts`，保留 Apache-2.0 与原版权。Mira 使用实际展示文本投影、跨 Text 节点 Range、
+当前历史虚拟化导航和已有文件差异视图，不复制上游源码计数/单节点高亮不一致的路径。
+Command Center 历史参考 `packages/ui/src/command-center/commandCenterSearchHistory.ts` 与
+`CommandCenterDialog.tsx`；Mira 沿用受控偏好桥、按工作目录隔离、异步保存保护，动作成功才记录。
+原始法律文件保持不变，本来源记录不代表原生同态或整体功能/性能验收完成。
 
 - 本目录 `LICENSE` 与 `NOTICE.md` 是上游根文件的逐字副本，不编辑版权人、条款或正文。
 - 改编源码保留原版权与 Apache-2.0 标识，并链接到此目录。

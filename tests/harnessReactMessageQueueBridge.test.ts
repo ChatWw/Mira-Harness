@@ -96,13 +96,25 @@ describe('React Harness first-party message queue contracts', () => {
     const view = bridge()
     const invalid = [
       { sessionId: '' }, { sessionId: '\0' }, { sessionId: 1 }, { submissionId: '' }, { submissionId: ' '.repeat(3) }, { submissionId: '\0' }, { submissionId: 'x'.repeat(129) },
-      { text: '' }, { text: '\0' }, { text: 'x'.repeat(100_001) }, { text: 12 }, { planning: undefined }, { planning: 'false' },
+      { text: '', references: [] }, { text: '\0' }, { text: 'x'.repeat(100_001) }, { text: 12 }, { planning: undefined }, { planning: 'false' },
       { references: null }, { references: Array(13).fill(submit.references[0]) }, { references: [{ path: '../secret', name: 'secret' }] }, { references: [{ path: 'C:relative', name: 'secret' }] }, { references: [{ path: '\0', name: 'secret' }] }, { references: [{ path: 'README.md', name: '' }] },
       { selection: {} }, { selection: { ...selection, thinkingLevel: 'maximum' } }, { selection: { ...selection, providerId: '\0' } },
     ]
     for (const params of invalid) await expect(view.request('message.submit', { ...submit, ...params })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     expect(view.invokeFirstPartyHarness).not.toHaveBeenCalled()
     expect(parseFirstPartyHarnessCall('message.submit', { ...submit, references: undefined })).toEqual({ method: 'message.submit', ...submit, references: [] })
+  })
+
+  it('preserves an attachment-only submission through the Vue parser and main IPC parser', async () => {
+    const params = { ...submit, text: '', references: [{ path: 'mira-attachment:8ba45489-36c1-4c0f-aa58-f97a8bcb5f08', name: 'a.png', mediaType: 'image/png' as const, size: 68 }] }
+    const parsed = parseFirstPartyHarnessCall('message.submit', params)
+    expect(parsed).toEqual({ method: 'message.submit', ...params })
+    const view = bridge(vi.fn(async () => receipt))
+    await expect(view.request('message.submit', params)).resolves.toBe(receipt)
+    expect(view.invokeFirstPartyHarness).toHaveBeenCalledExactlyOnceWith('host-held-grant', 'message.submit', params)
+    const ipc = ipcFixture()
+    expect(ipc.invoke('platform:first-party-harness', ipc.grantId, 'message.submit', params)).toBe(receipt)
+    expect(ipc.runtime.submitMessage).toHaveBeenCalledExactlyOnceWith(ipc.sender, 'session', 'submission', '', params.references, selection, false)
   })
 
   it.each(calls)('$method rejects missing, NUL and oversized session identities', ({ method, params }) => {
@@ -211,7 +223,7 @@ describe('React Harness first-party message queue contracts', () => {
 
   it('revalidates untrusted submission and withdrawal parameters at Electron even if the renderer parser is bypassed', () => {
     const view = ipcFixture()
-    for (const params of [{ ...submit, text: '' }, { ...submit, submissionId: '\0' }, { ...submit, planning: 'false' }, { ...submit, references: [{ path: '../secret', name: 'secret' }] }]) expect(() => view.invoke('platform:first-party-harness', view.grantId, 'message.submit', params)).toThrow()
+    for (const params of [{ ...submit, text: '', references: [] }, { ...submit, submissionId: '\0' }, { ...submit, planning: 'false' }, { ...submit, references: [{ path: '../secret', name: 'secret' }] }]) expect(() => view.invoke('platform:first-party-harness', view.grantId, 'message.submit', params)).toThrow()
     expect(() => view.invoke('platform:first-party-harness', view.grantId, 'queue.withdraw', { sessionId: 'session', itemId: '\0' })).toThrow()
     for (const callback of Object.values(view.runtime)) expect(callback).not.toHaveBeenCalled()
   })

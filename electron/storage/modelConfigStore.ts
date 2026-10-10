@@ -74,6 +74,7 @@ function normalizeModel(value: unknown): ProviderModelConfig | undefined {
     id,
     enabled: model.enabled !== false,
     reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : inferModelReasoning(id),
+    ...(typeof model.multimodal === 'boolean' ? { multimodal: model.multimodal } : {}),
     contextWindow: contextWindow(model.contextWindow),
     ...(pricing ? { pricing } : {}),
   }

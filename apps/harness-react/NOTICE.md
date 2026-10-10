@@ -17,6 +17,7 @@ Copyright 2026 Z.AI Co., Ltd
 - `third-party-licenses/tanstack/virtual-core/LICENSE`：`@tanstack/virtual-core`
   `3.17.11` 附带的 MIT 许可证全文与原作者版权，原样保留。
 - `third-party-licenses/tanstack/README.md`：TanStack 实际版本、依赖关系与本应用用途。
+- `third-party-licenses/radix/LICENSE`：Radix Hover Card 1.1.24 与 Collapsible 1.1.20 安装包共同的 MIT 许可原文（Copyright (c) 2022 WorkOS），用于轮次悬浮预览及项目/个人区折叠。
 - `third-party-licenses/shiki/LICENSE-MIT`：Shiki 与 Oniguruma engine 3.23.0 的 MIT 原文。
 - `third-party-licenses/oniguruma/LICENSE-MICROSOFT-MIT` 与 `NOTICES.txt`：WASM 中 Microsoft bindings 和原生 Oniguruma 的许可原文。
 - `third-party-licenses/oniguruma/README.md`：实际 466,610-byte WASM、版本来源与 SHA 核验。

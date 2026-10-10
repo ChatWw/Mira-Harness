@@ -2,6 +2,8 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionMenuItems, SessionSidebar, type SessionDrawerProps } from '../apps/harness-react/src/components/session/SessionSidebar'
 import { SidebarPreferenceStore, type SidebarTaskGroup } from '../apps/harness-react/src/components/session/sidebar-preferences'
+import { PilotController, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
+import type { HarnessEvent, HarnessSession } from '../src/config/harness'
 
 const hooks = vi.hoisted(() => ({ cursor: 0, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
 vi.mock('react', async original => ({
@@ -12,7 +14,7 @@ vi.mock('react', async original => ({
   useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
   useEffect: (callback: () => (() => void) | undefined, deps: readonly unknown[]) => { const slot = hooks.slots[hooks.cursor++] ??= {}; if (slot.deps && deps.length === slot.deps.length && deps.every((value, index) => Object.is(value, slot.deps![index]))) return; slot.deps = deps; hooks.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback() }) },
 }))
-vi.mock('@dnd-kit/core', () => ({ DndContext: 'dnd-context', KeyboardSensor: 'keyboard', PointerSensor: 'pointer', closestCenter: vi.fn(), useSensor: vi.fn(), useSensors: vi.fn() }))
+vi.mock('@dnd-kit/core', async original => ({ ...await original<typeof import('@dnd-kit/core')>(), DndContext: 'dnd-context', DragOverlay: 'drag-overlay', KeyboardSensor: 'keyboard', PointerSensor: 'pointer', useSensor: vi.fn(), useSensors: vi.fn() }))
 beforeEach(() => { hooks.cursor = 0; hooks.slots = []; hooks.effects = []; vi.stubGlobal('React', React); vi.stubGlobal('document', { getElementById: () => null }) })
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals() })
 
@@ -21,7 +23,11 @@ const groups = (): SidebarTaskGroup[] => [
   { id: 'writing', name: '写作', color: 'green', collapsed: false, sessionIds: [] },
 ]
 function find(node: React.ReactNode, match: (props: Record<string, unknown>) => boolean): Record<string, unknown> | undefined {
-  return Array.isArray(node) ? node.map(child => find(child, match)).find(Boolean) : React.isValidElement<Record<string, unknown>>(node) ? match(node.props) ? node.props : find(node.props.children as React.ReactNode, match) : undefined
+  if (Array.isArray(node)) return node.map(child => find(child, match)).find(Boolean)
+  if (!React.isValidElement<Record<string, unknown>>(node)) return undefined
+  if (match(node.props)) return node.props
+  const items = Array.isArray(node.props.items) && typeof node.props.renderItem === 'function' ? node.props.items.map((item, index) => (node.props.renderItem as (item: unknown, index: number) => React.ReactNode)(item, index)) : []
+  return find([node.props.children as React.ReactNode, ...items], match)
 }
 const action = (tree: React.ReactNode, label: string) => find(tree, props => typeof props.onSelect === 'function' && JSON.stringify(props.children).includes(label))!
 const makeStore = (write = vi.fn(async (_value: unknown) => undefined)) => ({ write, store: new SidebarPreferenceStore(async () => ({ groups: groups(), view: 'group', hiddenProjectIds: ['hidden'], collapsedProjectIds: ['project'], projectView: 'timeline' }), write) })
@@ -37,9 +43,38 @@ function sidebar(store: SidebarPreferenceStore) {
 }
 
 describe('shared Header and sidebar task group actions', () => {
+  it.each(['context', 'dropdown'] as const)('marks a background completion read through the %s menu without opening it, then can mark it unread again', async kind => {
+    const sessions: HarnessSession[] = ['active', 'background'].map(id => ({ version: 1, id, title: id, permissionMode: 'default', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false, unread: false }))
+    let eventListener!: (event: HarnessEvent) => void
+    const setSessionUnread = vi.fn(async (id: string, unread: boolean) => { sessions.find(session => session.id === id)!.unread = unread })
+    const controller = new PilotController({
+      listSessions: async () => sessions.map(session => ({ ...session })), listProjects: async () => [], listProviders: async () => [],
+      getSession: async (id: string) => sessions.find(session => session.id === id)!, listPendingPermissions: async () => [],
+      onEvent: (listener: (event: HarnessEvent) => void) => { eventListener = listener; return () => undefined }, setSessionUnread,
+    } as unknown as PilotHost)
+    try {
+      await controller.start(); await controller.open('active')
+      eventListener({ sessionId: 'background', type: 'status', payload: { state: 'completed' } })
+      await vi.waitFor(() => expect(controller.getSnapshot().unreadSessionIds).toContain('background'))
+      expect(controller.getSnapshot().sessions.find(session => session.id === 'background')?.unread).toBe(false)
+      let pendingAction!: Promise<unknown>
+      const render = () => SessionMenuItems({ kind, session: controller.getSnapshot().sessions.find(session => session.id === 'background')!, projects: [], controller, onRename: vi.fn(), run: callback => { pendingAction = callback() } })
+      const read = action(render(), '标记为已读')
+      expect(read).toBeDefined()
+      ;(read.onSelect as () => void)(); await pendingAction
+      expect(setSessionUnread).toHaveBeenLastCalledWith('background', false)
+      expect(controller.getSnapshot().unreadSessionIds).not.toContain('background')
+      expect(controller.getSnapshot().session?.id).toBe('active')
+      ;(action(render(), '标记为未读').onSelect as () => void)(); await pendingAction
+      expect(setSessionUnread).toHaveBeenLastCalledWith('background', true)
+      expect(controller.getSnapshot().unreadSessionIds).toContain('background')
+      expect(controller.getSnapshot().session?.id).toBe('active')
+    } finally { controller.dispose() }
+  })
+
   it.each(['context', 'dropdown'] as const)('guards disabled %s grouping callbacks while preferences are loading', kind => {
     const onMoveGroup = vi.fn()
-    const tree = SessionMenuItems({ kind, session: { id: 'task' } as never, projects: [], controller: {} as never, groups: groups(), groupsReady: false, currentGroupId: 'research', onMoveGroup, onRename: vi.fn(), run: vi.fn() })
+    const tree = SessionMenuItems({ kind, session: { id: 'task' } as never, projects: [], controller: { getSnapshot: () => ({ unreadSessionIds: [] }) } as never, groups: groups(), groupsReady: false, currentGroupId: 'research', onMoveGroup, onRename: vi.fn(), run: vi.fn() })
     expect(action(tree, '移出分组').disabled).toBe(true); expect(action(tree, '写作').disabled).toBe(true)
     ;(action(tree, '移出分组').onSelect as () => void)(); (action(tree, '写作').onSelect as () => void)()
     expect(onMoveGroup).not.toHaveBeenCalled()
@@ -47,7 +82,7 @@ describe('shared Header and sidebar task group actions', () => {
 
   it('does not invoke disabled current-group or ungrouped removal callbacks', () => {
     const onMoveGroup = vi.fn()
-    const menu = (currentGroupId?: string) => SessionMenuItems({ session: { id: 'task' } as never, projects: [], controller: {} as never, groups: groups(), currentGroupId, onMoveGroup, onRename: vi.fn(), run: vi.fn() })
+    const menu = (currentGroupId?: string) => SessionMenuItems({ session: { id: 'task' } as never, projects: [], controller: { getSnapshot: () => ({ unreadSessionIds: [] }) } as never, groups: groups(), currentGroupId, onMoveGroup, onRename: vi.fn(), run: vi.fn() })
     ;(action(menu('research'), '研究').onSelect as () => void)(); (action(menu(), '移出分组').onSelect as () => void)()
     expect(onMoveGroup).not.toHaveBeenCalled()
   })

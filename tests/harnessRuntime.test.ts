@@ -19,6 +19,24 @@ function setup(permissionMode: 'default' | 'auto-approve' | 'full' = 'default', 
   return { runtime, sender, registered }
 }
 
+describe('HarnessRuntime session-list snapshots', () => {
+  it('keeps database filtering and order while deriving execution and reservations only from this process', async () => {
+    const rows = [{ id: 'stale', status: 'active', activeRun: { id: 'old-process' } }, { id: 'reserved', status: 'active' }, { id: 'running', status: 'completed' }]
+    const listSessions = vi.fn(() => rows)
+    const runtime = new HarnessRuntime({ harness: { listSessions, getSession: (id: string) => ({ id }), setActiveRun: vi.fn() } } as any, {} as any)
+    const coordinator = (runtime as any).runCoordinator
+    const token = coordinator.reserve('reserved')
+    coordinator.begin('running', 'current')
+    expect(runtime.listSessions('filtered query')).toEqual([{ ...rows[0], isRunning: false }, { ...rows[1], isRunning: true }, { ...rows[2], isRunning: true }])
+    expect(listSessions).toHaveBeenCalledWith('filtered query')
+    expect(rows.every(row => !('isRunning' in row))).toBe(true)
+    await coordinator.finish(undefined, 'running', 'current')
+    coordinator.release('reserved', token)
+    expect(runtime.listSessions().map(session => session.isRunning)).toEqual([false, false, false])
+    expect(listSessions).toHaveBeenLastCalledWith('')
+  })
+})
+
 describe('HarnessRuntime tool approval', () => {
   it('normalizes only valid web citation details', () => {
     expect(sourcesFromWebToolResult('web_search', { details: { results: [

@@ -22,13 +22,13 @@
 
 | 检查 | 时间 | 结果与日志 |
 | --- | --- | --- |
-| React 正式构建 `npm run harness:build` | JS/CSS 最终产物 mtime 10:31:34–35 | exit 0；[构建日志](./image-preview-headless/mira-image-final-react-build.log)；mtime 不是完整构建耗时 |
-| React `tsc --noEmit` | 10:35:23–30 | exit 0；[日志](./image-preview-headless/mira-image-final-react-typecheck.log) |
-| Vue `vue-tsc --noEmit` | 10:35:35–41 | exit 0；[日志](./image-preview-headless/mira-image-final-vue-typecheck.log) |
-| `npm test -- --maxWorkers=2` | 10:35:47 开始，11.81s | 94 文件 / 852 项通过；[日志](./image-preview-headless/mira-image-final-tests.log) |
-| `electron-vite build` | 10:36:08–16 | exit 0；[日志](./image-preview-headless/mira-image-final-electron-build.log)；不是 DMG/NSIS 安装包验收 |
-| `git diff --check` | 10:36:24 | exit 0；[日志](./image-preview-headless/mira-image-final-diff-check.log)，文档收尾后另检查 |
-| 只读 `write:false` 分块/许可审计 | 10:36:24.951–25.315 | 287 JS SHA 全匹配，645 静态边、239 动态目标完整，无缺失/陈旧/孤立产物，7/7 许可及 NOTICE/HTML 一致；[日志](./image-preview-headless/mira-image-final-bundle-audit.log) |
+| React 正式构建 `npm run harness:build` | JS/CSS 最终产物 mtime 10:31:34–35 | exit 0；构建日志（历史原始日志已清理）；mtime 不是完整构建耗时 |
+| React `tsc --noEmit` | 10:35:23–30 | exit 0；日志（历史原始日志已清理） |
+| Vue `vue-tsc --noEmit` | 10:35:35–41 | exit 0；日志（历史原始日志已清理） |
+| `npm test -- --maxWorkers=2` | 10:35:47 开始，11.81s | 94 文件 / 852 项通过；日志（历史原始日志已清理） |
+| `electron-vite build` | 10:36:08–16 | exit 0；日志（历史原始日志已清理）；不是 DMG/NSIS 安装包验收 |
+| `git diff --check` | 10:36:24 | exit 0；日志（历史原始日志已清理），文档收尾后另检查 |
+| 只读 `write:false` 分块/许可审计 | 10:36:24.951–25.315 | 287 JS SHA 全匹配，645 静态边、239 动态目标完整，无缺失/陈旧/孤立产物，7/7 许可及 NOTICE/HTML 一致；日志（历史原始日志已清理） |
 
 定向宿主回归 4 文件/191 项、React 图片/SVG 回归 4 文件/74 项通过。SVG 源码动作回归先红后绿；真实 Tailwind/PostCSS 测试的外壳与错误段落四个断言先红后绿，最后该文件 4 项通过。这些不是另加到全量数字的独立测试项。
 
@@ -45,13 +45,13 @@
 CSS SHA-256：`ff78d4d41790528b7801e4bc6cef9845a624bfe364d7629c0b47030cf0056619`。
 Electron main 为 415,196 B，preload 为 13,203 B，renderer 静态目录合计 245 文件 / 24,068,029 B。gzip 是逐文件估算；静态目录总和不是首屏下载量。此表不证明启动、交互耗时或内存改善。
 
-文档收尾检查：[本地链接、SHA 与结果检查日志](./image-preview-headless/mira-image-final-document-check.log) 校验本批本地链接、8 个 SHA 文件、headless 成功记录与 schema-v2 sidecar，错误为 0；最终 [diff 检查日志](./image-preview-headless/mira-image-final-document-diff-check.log) 另覆盖文档收尾。
+文档收尾检查：本地链接、SHA 与结果检查日志（历史原始日志已清理） 校验本批本地链接、8 个 SHA 文件、headless 成功记录与 schema-v2 sidecar，错误为 0；最终 diff 检查日志（历史原始日志已清理） 另覆盖文档收尾。
 
 ## Headless 确认
 
 最终有效采集：10:36:31–35，Chrome `154.0.8037.99`、1440×900、deviceScaleFactor 1、exit 0。使用实际 `dist/harness-react-app` 的完整工作台及生产 FirstPartyHarnessHost/MessageChannel，宿主 fixture 调用实际参数 parser 与 workspace 文件服务。会话、偏好、模型列表和 watch 通知由隔离夹具提供，没有运行 Electron IPC/grant 链或原生 fs.watch；授权及生命周期由定向/全量测试另覆盖。没有桌面鼠标键盘操作。
 
-日志：[mira-image-final-headless.log](./image-preview-headless/mira-image-final-headless.log)，机器记录：[results.json](./image-preview-headless/results.json)。
+日志：mira-image-final-headless.log（历史原始日志已清理），机器记录：[results.json](./image-preview-headless/results.json)。
 
 - 透明 PNG：640×320 自然尺寸，经 `@2x` 展示 320×160；外壳 padding/border 0，面板/工具栏同宽 418px、工具栏 40px、图片留白 40px。
 - JPEG、JPG、WEBP、GIF、AVIF、ICO、BMP 实际解码成功；PNG 由透明夹具覆盖。超宽/超高均成功解码，超高夹具最终 19.25×721.875 位于 418×802 容器内。
@@ -74,7 +74,7 @@ Electron main 为 415,196 B，preload 为 13,203 B，renderer 静态目录合计
 | [SVG 源码](./image-preview-headless/mira-svg-source.png) | 等宽高亮源码与工具栏 |
 | [读取失败](./image-preview-headless/mira-image-read-error.png) | 浅色文件不存在与重试；Composer 保留损坏 SVG 的文本引用 |
 
-[SHA-256 清单](./image-preview-headless/sha256-manifest.json) 固定六图、结果及本机复现脚本。10:34 的捕获存在 compositor 滞后，dark 图仍浅色、decode 图仍加载，该失效截图批次已清理，不用于放行。测试脚本增加双 requestAnimationFrame、250ms 采集等待和主题像素/错误态断言后重新采集，没有再次改产品 UI。早期会话启动等待和 Retina 错误期待的夹具失败仍保留为 `initial-fixture-*.json`，不改写成产品失败或有效截图。
+[SHA-256 清单](./image-preview-headless/sha256-manifest.json) 固定六图、结果及本机复现脚本。10:34 的捕获存在 compositor 滞后，dark 图仍浅色、decode 图仍加载，该失效截图批次已清理，不用于放行。测试脚本增加双 requestAnimationFrame、250ms 采集等待和主题像素/错误态断言后重新采集，没有再次改产品 UI。早期会话启动等待和 Retina 错误期待属于夹具失败，其两个中间 JSON 已于 2026-10-10 清理；最终六图与结果保留，不将夹具失败改写成产品通过。
 
 ### 限定复评
 

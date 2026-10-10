@@ -1,6 +1,6 @@
 import type { Agent } from '@earendil-works/pi-agent-core'
 import type { WebContents } from 'electron'
-import type { HarnessEvent, HarnessSession, ModelSelection } from '../../src/config/harness'
+import type { HarnessEvent, HarnessSession, ModelSelection, PermissionMode } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 import type { SubtaskRuntime } from './subtaskRuntime'
 import { randomUUID } from 'node:crypto'
@@ -9,7 +9,7 @@ export type HarnessRunOrigin = 'manual' | 'automation'
 export type HarnessRunCompleteEvent = { session: HarnessSession, origin: HarnessRunOrigin, status: 'completed' | 'failed' | 'aborted', content?: string }
 
 type PublishEvent = (sender: WebContents | undefined, event: HarnessEvent) => unknown
-type RunningEntry = { runId: string, controller: AbortController, agent?: Agent, guideSelection?: ModelSelection, acceptsGuidance?: boolean, subtasks?: SubtaskRuntime, finished: Promise<void>, resolveFinished: () => void, finishError?: unknown }
+type RunningEntry = { runId: string, controller: AbortController, agent?: Agent, guideSelection?: ModelSelection, guidePermissionMode?: PermissionMode, acceptsGuidance?: boolean, subtasks?: SubtaskRuntime, finished: Promise<void>, resolveFinished: () => void, finishError?: unknown }
 
 export class HarnessRunCoordinator {
   private readonly running = new Map<string, RunningEntry>()
@@ -63,10 +63,11 @@ export class HarnessRunCoordinator {
     return controller
   }
 
-  attachAgent(sessionId: string, agent: Agent, selection?: ModelSelection) {
+  attachAgent(sessionId: string, agent: Agent, selection?: ModelSelection, permissionMode?: PermissionMode) {
     const entry = this.requireEntry(sessionId)
     entry.agent = agent
     entry.guideSelection = selection ? { ...selection } : undefined
+    entry.guidePermissionMode = permissionMode
   }
 
   setGuidanceAccepting(sessionId: string, runId: string, accepting: boolean) {
@@ -76,7 +77,7 @@ export class HarnessRunCoordinator {
 
   guidanceSelection(sessionId: string, runId: string) {
     const entry = this.running.get(sessionId)
-    return entry?.runId === runId && entry.acceptsGuidance && !entry.controller.signal.aborted && entry.agent && entry.guideSelection ? { ...entry.guideSelection } : undefined
+    return entry?.runId === runId && entry.acceptsGuidance && !entry.controller.signal.aborted && entry.agent && entry.guideSelection ? { ...entry.guideSelection, permissionMode: entry.guidePermissionMode || 'default' } : undefined
   }
 
   attachSubtasks(sessionId: string, subtasks: SubtaskRuntime) {
