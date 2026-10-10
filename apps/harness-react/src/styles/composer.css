@@ -59,10 +59,16 @@
 .harness-composer { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--color-input-border); border-radius: 16px; background: var(--color-input); transition: border-color 120ms ease-out; }
 .harness-composer:hover { border-color: var(--color-input-border-hover); }
 .harness-composer:focus-within { border-color: var(--color-input-border-focused); background: var(--color-input-focused); }
-.harness-composer textarea { display: block; width: 100%; min-height: 40px; max-height: 160px; resize: none; overflow-y: auto; padding: 0; border: 0; outline: 0; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); line-height: 20px; caret-color: var(--color-foreground); }
-.harness-composer textarea:focus-visible { outline: 0; }
-.harness-composer textarea::placeholder { color: var(--color-foreground-subtlest); }
-.harness-composer textarea::selection { color: var(--color-foreground); background: var(--color-selected); }
+.mira-prompt-editor { position: relative; display: block; width: 100%; min-height: 40px; max-height: 160px; overflow-y: auto; padding: 0; border: 0; outline: 0; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); line-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--color-foreground); }
+.mira-prompt-editor > p { margin: 0; }
+.mira-prompt-editor:focus-visible { outline: 0; }
+.mira-prompt-editor[data-empty='true']::before { position: absolute; color: var(--color-foreground-subtlest); content: attr(data-placeholder); pointer-events: none; }
+.mira-prompt-editor ::selection { color: var(--color-foreground); background: var(--color-selected); }
+.mira-prompt-editor[aria-disabled='true'] { cursor: default; }
+.mira-prompt-reference { padding: 1px 5px; border-radius: 4px; color: var(--color-foreground); background: var(--color-surface-hover); box-decoration-break: clone; -webkit-box-decoration-break: clone; font-size: var(--text-ui-sm); }
+.mira-prompt-reference::before { margin-right: 4px; color: var(--color-foreground-subtle); content: '@'; }
+.mira-prompt-reference-session::before { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; background: currentColor; content: ''; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.mira-prompt-reference[data-lexical-selected='true'] { background: var(--color-selected); }
 .harness-composer__footer { display: flex; min-height: 28px; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .harness-composer__controls, .harness-composer__right-actions { display: flex; min-width: 0; align-items: center; gap: 4px; }
 .harness-composer__controls { flex: 1; }

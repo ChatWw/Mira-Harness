@@ -253,7 +253,7 @@ export interface HarnessSubtaskError {
   message: string
 }
 
-/** Public child-task record. It deliberately excludes the child transcript and thinking. */
+/** Public child-task projection; never includes engine messages, prompts or attachment contents. */
 export interface HarnessSubtask {
   id: string
   parentToolCallId: string
@@ -265,6 +265,8 @@ export interface HarnessSubtask {
   startedAt?: number
   completedAt?: number
   activities: HarnessRunActivity[]
+  /** Ordered public assistant output. Undefined on legacy child records. */
+  parts?: HarnessMessagePart[]
   report?: string
   error?: HarnessSubtaskError
   usage?: HarnessTokenUsage

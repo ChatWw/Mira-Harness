@@ -1,8 +1,8 @@
 // Adapted from ZCode ConversationTimeline and conversationTimelineLiveTail (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Mira reuses assistant-ui's public message renderers.
 import { ThreadPrimitive, useAuiState } from '@assistant-ui/react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ComponentType, type RefObject } from 'react'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
 import type { ConversationScrollActions } from '../../hooks/useConversationScroll'
 import { conversationScrollMemory } from '../../lib/conversation-scroll'
 import { buildConversationRenderTurns, createConversationHeightCache, indexConversationTurnMessages, type ConversationRenderTurn, type ConversationTimelineActions } from '../../lib/conversation-timeline'
@@ -32,6 +32,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   const messageIndex = useMemo(() => indexConversationTurnMessages(turns, messages), [turns, messages])
   const heights = useMemo(() => createConversationHeightCache(), [])
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [retainedTurnIds, setRetainedTurnIds] = useState<string[]>([])
   const liveRef = useRef<HTMLDivElement | null>(null)
   const navigationFrame = useRef<number | undefined>(undefined)
   const requestActiveTurnUpdate = useRef<(() => void) | null>(null)
@@ -54,7 +55,9 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
     if (id) heights.save(id, height)
     return height
   }, [heights])
-  const virtualizer = useVirtualizer({ count: history.length, getScrollElement, getItemKey, estimateSize, measureElement, initialOffset, overscan: 8, scrollMargin: 64 })
+  const retainedIndexes = useMemo(() => { const retained = new Set(retainedTurnIds); return history.flatMap((turn, index) => retained.has(turn.id) ? [index] : []) }, [history, retainedTurnIds])
+  const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => [...new Set([...defaultRangeExtractor(range), ...retainedIndexes])].sort((left, right) => left - right), [retainedIndexes])
+  const virtualizer = useVirtualizer({ count: history.length, getScrollElement, getItemKey, estimateSize, measureElement, initialOffset, overscan: 8, scrollMargin: 64, rangeExtractor })
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = item => {
     const scroll = scrollActionsRef.current
     return Boolean(scroll && !scroll.isFollowing() && !scroll.isRestoring() && performance.now() - widthChangedAt.current > 120 && item.end <= (viewportRef.current?.scrollTop ?? 0))
@@ -63,6 +66,24 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   const totalSize = virtualizer.getTotalSize()
   const mountedKey = rows.map(row => row.key).join('|')
   const firstTurnId = turns[0]?.id ?? ''
+
+  const retainInteractions = useCallback(() => {
+    const list = containerRef.current
+    if (!list) return
+    const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement.closest<HTMLElement>('[data-mira-turn-id]')?.dataset.miraTurnId : undefined
+    const ids = [...new Set([...list.querySelectorAll<HTMLElement>('[data-mira-editing]')].map(element => element.closest<HTMLElement>('[data-mira-turn-id]')?.dataset.miraTurnId).filter((id): id is string => Boolean(id)).concat(focused ? [focused] : []))]
+    setRetainedTurnIds(previous => previous.length === ids.length && previous.every((id, index) => id === ids[index]) ? previous : ids)
+  }, [])
+  useLayoutEffect(() => {
+    const list = containerRef.current
+    if (!list) return
+    // Observe only editor state: streaming text and tool payload changes must not
+    // force a full list scan. Active editors survive wheel scrolling even after blur.
+    const observer = new MutationObserver(retainInteractions)
+    observer.observe(list, { subtree: true, attributes: true, attributeFilter: ['data-mira-editing'] })
+    retainInteractions()
+    return () => observer.disconnect()
+  }, [retainInteractions])
 
   useLayoutEffect(() => {
     const column = containerRef.current?.closest('.mira-message-column')
@@ -192,7 +213,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   useEffect(() => { requestActiveTurnUpdate.current?.() }, [mountedKey, totalSize, turns])
 
   const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <TimelineMessage key={messages[index].rendererId} index={index} rendererId={messages[index].rendererId} components={components} />)}</div>
-  return <div ref={containerRef} className="relative w-full">
+  return <div ref={containerRef} className="relative w-full" onFocusCapture={retainInteractions} onBlurCapture={() => queueMicrotask(retainInteractions)}>
     <div data-mira-virtual-history="true" style={{ height: totalSize }} aria-hidden="true" />
     {/* Keep a turn under the same keyed parent when the running tail becomes history. */}
     {[...rows.map(row => ({ turn: history[row.index], row })), ...(liveTurn ? [{ turn: liveTurn, row: undefined }] : [])].map(({ turn, row }) => <div key={turn.id} ref={row ? virtualizer.measureElement : liveRef} data-index={row?.index ?? history.length} data-mira-turn-id={turn.id} data-mira-live-turn={!row || undefined} className={row ? 'absolute left-0 top-0 w-full' : 'relative w-full shrink-0'} style={row ? { transform: `translateY(${row.start - 64}px)` } : undefined}>{renderTurn(turn)}</div>)}

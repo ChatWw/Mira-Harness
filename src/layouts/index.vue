@@ -140,8 +140,8 @@ function openSettings() {
 .mira-shell__icon-button:hover,
 .mira-shell__icon-button:focus-visible { color: var(--cp-text); background: var(--cp-bg-hover); outline: none; }
 
-.mira-shell__stage { flex: 1; min-height: 0; padding: 0 12px 12px; }
-.mira-shell__canvas { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--cp-layout-border); border-radius: var(--cp-radius-md); background: var(--cp-bg); }
+.mira-shell__stage { flex: 1; min-height: 0; padding: 0; }
+.mira-shell__canvas { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; overflow: hidden; border: 0px solid var(--cp-layout-border); border-radius: var(--cp-radius-md); background: var(--cp-bg); }
 </style>
 
 <style lang="scss">

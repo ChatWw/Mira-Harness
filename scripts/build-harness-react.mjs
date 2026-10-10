@@ -38,6 +38,7 @@ async function buildHarnessReact() {
     chunkNames: 'chunks/[name]-[hash]',
     platform: 'browser',
     target: ['chrome110'],
+    loader: { '.svg': 'dataurl' },
     jsx: 'automatic',
     outdir: output,
     minify: true,

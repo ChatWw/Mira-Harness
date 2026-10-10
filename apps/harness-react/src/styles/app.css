@@ -10,6 +10,8 @@
 @import "./file-drawer.css";
 @import "./file-preview.css";
 @import "./workspace-editors.css";
+@import "./mira-subtasks.css";
+@import "./mira-tool-files.css";
 @import "../components/extensions/skill-market.css";
 @import "../components/search/command-center.css";
 @import "../components/automations/automations.css";

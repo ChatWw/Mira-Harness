@@ -6,12 +6,15 @@ import { HarnessComposer, type HarnessComposerHandle } from '../apps/harness-rea
 import { ComposerSuggestionPanel, type ComposerSuggestion, type ComposerSuggestionSection } from '../apps/harness-react/src/components/composer/ComposerSuggestionPanel'
 import { HarnessMessageQueue } from '../apps/harness-react/src/components/composer/HarnessMessageQueue'
 import { MiraComposerAttachments } from '../apps/harness-react/src/components/composer/MiraComposerAttachments'
+import { MiraPromptEditor, type MiraPromptEditorHandle } from '../apps/harness-react/src/components/composer/MiraPromptEditor'
+import { createMiraPromptDocument, replaceMiraPromptDocumentRange, validateMiraPromptDocument, type MiraPromptDocument, type MiraPromptSelectionRange } from '../apps/harness-react/src/lib/prompt-editor-document'
 import type { PilotController, PilotState } from '../apps/harness-react/src/state/pilot-state'
 import type { HarnessQueuedMessage, HarnessWorkspaceFileSearchResult } from '../src/config/harness'
 import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-drafts'
 
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
-// Exercise the shipped composer hooks, async catalogues and callbacks; Radix owns positioning.
+// Exercise shipped Composer hooks/catalogues through an explicit editor handle mock.
+// Lexical DOM behavior has its own real-editor tests; Radix owns positioning.
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {
@@ -42,7 +45,7 @@ const emptyFiles = { entries: [], truncated: false } as HarnessWorkspaceFileSear
 const event = (key: string, modifiers: Record<string, unknown> = {}) => ({ key, keyCode: 0, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...modifiers })
 const listeners = new Map<string, Set<(event: ReturnType<typeof event>) => void>>()
 
-function fixture(options: { search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean; attachments?: boolean; textarea?: HTMLTextAreaElement } = {}) {
+function fixture(options: { search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean; attachments?: boolean; editorElement?: HTMLDivElement } = {}) {
   const session = { version: 1 as const, id: 'current', title: 'Current', projectId: 'project', workingDirectory: '/project', permissionMode: 'default' as const, messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active' as const, pinned: false }
   const state: PilotState = { session, sessions: [session, { ...session, id: 'reference', title: '研究记录' }], projects: [{ id: 'project', name: 'Project', directory: '/project', directoryExists: true, createdAt: 1, updatedAt: 1 }], providers: [{ id: 'provider', providerKey: 'custom', name: 'Provider', endpoint: 'http://localhost', enabled: true, authMode: 'api-key', hasApiKey: true, createdAt: 1, updatedAt: 1, models: [{ id: 'model', enabled: true, reasoning: true, contextWindow: 1000 }] }], selection: { providerId: 'provider', modelId: 'model', thinkingLevel: 'medium' }, messages: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   const api = {
@@ -79,7 +82,23 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
   const onDraftChange = vi.fn<(draft: ComposerTaskDraft | null | undefined) => void>()
   const onDraftAccepted = vi.fn(async (_sessionId: string, _draft: ComposerTaskDraft) => undefined)
   const handle = { current: null as HarnessComposerHandle | null }
-  const textarea = options.textarea ?? { selectionStart: 0, selectionEnd: 0, scrollHeight: 40, style: {} as Record<string, string>, focus: vi.fn(), closest: () => null, setSelectionRange: (start: number, end: number) => { textarea.selectionStart = start; textarea.selectionEnd = end } }
+  const editorElement = options.editorElement ?? { focus: vi.fn(), closest: () => null, contains: (target: unknown) => target === editorElement }
+  const promptSelection: MiraPromptSelectionRange = { start: 0, end: 0 }
+  let promptDocument = createMiraPromptDocument(''), promptDisabled = false
+  const setPromptSelection = (start: number, end: number) => { promptSelection.start = start; promptSelection.end = end }
+  const editorHandle: MiraPromptEditorHandle = {
+    getElement: () => editorElement as HTMLDivElement,
+    focus: (options?: FocusOptions) => { if (!promptDisabled) editorElement.focus(options) },
+    getSelectionRange: () => ({ ...promptSelection }),
+    setSelectionRange: setPromptSelection,
+    replaceRange: (range, parts) => {
+      const replacement = replaceMiraPromptDocumentRange(promptDocument, range, parts)
+      if (!replacement || promptDisabled) return
+      promptDocument = replacement.document; setPromptSelection(replacement.range.start, replacement.range.end)
+      ;(inputProps().onChange as (document: MiraPromptDocument, range: MiraPromptSelectionRange) => void)(promptDocument, { ...promptSelection })
+      return promptDocument
+    },
+  }
   const plusButton = { contains: (target: unknown) => target === plusButton }
   const visit = (node: React.ReactNode, callback: (element: React.ReactElement<Record<string, unknown>>) => void) => {
     if (Array.isArray(node)) { node.forEach(child => visit(child, callback)); return }
@@ -96,25 +115,34 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
     hooks.cursor = 0; hooks.dirty = false
     tree = (HarnessComposer as unknown as { render: (props: unknown, ref: unknown) => React.ReactElement }).render({ state, controller: api as unknown as PilotController, active, planning, setPlanning: (value: boolean) => { planning = value; hooks.dirty = true }, draftProjectId, onDraftProjectChange: (value?: string) => { draftProjectId = value; hooks.dirty = true }, onDraftChange, onDraftAccepted }, handle)
     visit(tree, element => {
-      if (element.type === 'textarea') {
-        (element.props.ref as React.RefObject<unknown>).current = textarea
-        if (options.textarea) { options.textarea.value = element.props.value as string; options.textarea.readOnly = Boolean(element.props.readOnly) }
+      if (element.type === MiraPromptEditor) {
+        (element.props.ref as React.RefObject<unknown>).current = editorHandle
+        const text = element.props.text as string
+        promptDocument = validateMiraPromptDocument(element.props.document, text) ?? createMiraPromptDocument(text)
+        promptDisabled = Boolean(element.props.disabled)
+        setPromptSelection(Math.min(promptSelection.start, text.length), Math.min(promptSelection.end, text.length))
+        if (options.editorElement) { options.editorElement.textContent = text; options.editorElement.contentEditable = String(!promptDisabled) }
       }
       if (element.props['aria-label'] === '添加上下文' && element.props.ref) (element.props.ref as React.RefObject<unknown>).current = plusButton
     })
     hooks.effects.splice(0).forEach(callback => callback())
   }
   const drain = async () => { for (let index = 0; index < 24; index++) { await Promise.resolve(); if (hooks.dirty) render() } }
-  const inputProps = () => props((_, element) => element.type === 'textarea')
+  const inputProps = () => props((_, element) => element.type === MiraPromptEditor)
   const panelProps = () => props((_, element) => element.type === ComposerSuggestionPanel)
   const items = () => (panelProps().sections as ComposerSuggestionSection[]).flatMap(section => section.items)
   const type = async (text: string, position = text.length) => {
-    textarea.selectionStart = position; textarea.selectionEnd = position
-    ;(inputProps().onChange as (event: unknown) => void)({ target: { value: text, selectionStart: position, selectionEnd: position } })
+    setPromptSelection(position, position); promptDocument = createMiraPromptDocument(text)
+    ;(inputProps().onChange as (document: MiraPromptDocument, range: MiraPromptSelectionRange) => void)(promptDocument, { ...promptSelection })
+    await drain()
+  }
+  const append = async (text: string) => {
+    const end = (inputProps().text as string).length
+    editorHandle.replaceRange({ start: end, end }, [{ type: 'text', text }])
     await drain()
   }
   const key = async (value: string, modifiers: Record<string, unknown> = {}) => {
-    const nativeEvent = event(value, modifiers), keyboard = { ...nativeEvent, nativeEvent }
+    const keyboard = event(value, modifiers)
     ;(inputProps().onKeyDown as (event: unknown) => void)(keyboard)
     await drain(); return keyboard
   }
@@ -140,7 +168,7 @@ function fixture(options: { search?: (id: string, query: string) => Promise<Harn
   const queueProps = () => props((_, element) => element.type === HarnessMessageQueue)
   const attachmentProps = () => props((_, element) => element.type === MiraComposerAttachments)
   const attachmentPaths = () => (attachmentProps().references as Array<{ path: string }>).map(item => item.path)
-  return { state, api, handle, onDraftChange, onDraftAccepted, render, drain, type, key, plus, select, dispatch, compose, setActive, formSubmit, dialogProps, confirm, cancel, openPopups, textarea, plusButton, props, inputProps, panelProps, queueProps, attachmentProps, attachmentPaths, items, text: () => inputProps().value as string }
+  return { state, api, handle, onDraftChange, onDraftAccepted, render, drain, type, append, key, plus, select, dispatch, compose, setActive, formSubmit, dialogProps, confirm, cancel, openPopups, editorElement, promptSelection, plusButton, props, inputProps, panelProps, queueProps, attachmentProps, attachmentPaths, items, text: () => inputProps().text as string }
 }
 
 function queued(id = 'queued-1'): HarnessQueuedMessage {
@@ -157,27 +185,28 @@ beforeEach(() => {
 describe('group draft lifecycle in the shipped Composer', () => {
   function focusFixture(options: Parameters<typeof fixture>[0] = {}) {
     const dom = new Window(), frames = new Map<number, () => void>()
-    const textarea = dom.document.createElement('textarea'), outside = dom.document.createElement('button')
-    dom.document.body.append(outside, textarea); outside.focus()
+    const editorElement = dom.document.createElement('div'), outside = dom.document.createElement('button')
+    editorElement.contentEditable = 'true'; editorElement.tabIndex = 0
+    dom.document.body.append(outside, editorElement); outside.focus()
     vi.stubGlobal('document', dom.document)
     let nextFrame = 0
     window.requestAnimationFrame = (callback: FrameRequestCallback) => { const id = ++nextFrame; frames.set(id, () => callback(0)); return id }
-    const view = fixture({ ...options, textarea: textarea as unknown as HTMLTextAreaElement })
+    const view = fixture({ ...options, editorElement: editorElement as unknown as HTMLDivElement })
     const frame = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback()) }
-    return { ...view, textarea, dom, outside, frame, unmount: () => hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
+    return { ...view, editorElement, dom, outside, frame, unmount: () => hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
   }
 
-  it('focuses the real textarea after explicit new-task entries, including repeated entries in the same draft', async () => {
+  it('focuses the editor element after explicit new-task entries, including repeated entries in the same draft', async () => {
     const view = focusFixture(); await view.drain()
     expect(view.dom.document.activeElement).toBe(view.outside)
     expect(await view.handle.current!.startDraft('research', undefined, () => true)).toBe(true)
     await view.drain(); view.frame()
-    expect(view.dom.document.activeElement).toBe(view.textarea)
+    expect(view.dom.document.activeElement).toBe(view.editorElement)
     await view.type('保留输入和光标'); view.outside.focus()
     expect(await view.handle.current!.startDraft('writing', undefined, () => true)).toBe(true)
     await view.drain(); view.frame()
-    expect(view.dom.document.activeElement).toBe(view.textarea)
-    expect(view.textarea.value).toBe('保留输入和光标')
+    expect(view.dom.document.activeElement).toBe(view.editorElement)
+    expect(view.editorElement.textContent).toBe('保留输入和光标')
     expect(view.api.prepare).not.toHaveBeenCalled()
   })
 
@@ -198,9 +227,11 @@ describe('group draft lifecycle in the shipped Composer', () => {
     expect(await view.handle.current!.openDraft('saved', () => true)).toBe(true)
     view.state.sessionLoading = true; view.render(); await view.setActive(true); view.frame()
     expect(view.dom.document.activeElement).toBe(view.outside)
+    expect(view.editorElement.contentEditable).toBe('false')
     view.state.sessionLoading = false; view.render(); await view.drain(); view.frame()
-    expect(view.dom.document.activeElement).toBe(view.textarea)
-    expect(view.textarea.value).toBe('附件草稿')
+    expect(view.dom.document.activeElement).toBe(view.editorElement)
+    expect(view.editorElement.contentEditable).toBe('true')
+    expect(view.editorElement.textContent).toBe('附件草稿')
     expect(view.api.prepare).not.toHaveBeenCalled()
   })
 
@@ -540,9 +571,9 @@ describe('shipped Mira Composer contextual interactions', () => {
   it('passes attachments, planning and captured model through guide admission for an honest backend fallback', async () => {
     const view = fixture({ queue: true, submissionOptions: true, followupMode: 'guide', search: async () => ({ entries: [{ path: 'guide.md', name: 'guide.md', type: 'file' }], truncated: false }) }); await view.drain()
     await view.type('@guide'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-guide.md')
-    await view.type('/plan'); await view.select('command-plan'); await view.type('带完整配置的指导')
+    await view.append('/plan'); await view.select('command-plan'); await view.append('带完整配置的指导')
     view.state.running = true; view.state.session!.activeRun = { id: 'guide-run', startedAt: 1, activities: [], subtasks: [] }; view.render(); await view.drain(); await view.key('Enter')
-    expect(view.api.send).toHaveBeenCalledExactlyOnceWith('带完整配置的指导', true, [{ path: 'guide.md', name: 'guide.md' }], expect.any(String), view.state.selection, { delivery: 'guide', expectedRunId: 'guide-run' })
+    expect(view.api.send).toHaveBeenCalledExactlyOnceWith('@guide.md 带完整配置的指导', true, [{ path: 'guide.md', name: 'guide.md' }], expect.any(String), view.state.selection, { delivery: 'guide', expectedRunId: 'guide-run' })
   })
 
   it('freezes guide ID and target across uncertain ACK and reload instead of converting to immediate', async () => {
@@ -739,7 +770,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     await view.type('等待期间新草稿'); ack.resolve(true); await view.drain()
     expect(view.dialogProps().open).toBe(false); expect(view.text()).toBe('等待期间新草稿')
     ;(view.props(props => props['data-testid'] === 'mira-paused-queue-confirmation').onCloseAutoFocus as (event: unknown) => void)({ preventDefault: vi.fn() })
-    expect(view.textarea.focus).toHaveBeenCalled()
+    expect(view.editorElement.focus).toHaveBeenCalled()
   })
 
   it('closes hidden confirmations and rejects their old callbacks without changing another session', async () => {
@@ -901,13 +932,13 @@ describe('shipped Mira Composer contextual interactions', () => {
     const ack = deferred<boolean>()
     const view = fixture({ queue: true, search: async (_id, query) => ({ entries: [{ path: `${query}.md`, name: `${query}.md`, type: 'file' }], truncated: false }) }); await view.drain()
     await view.type('@old'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-old.md')
-    await view.type('先发这一条'); view.api.send.mockReturnValueOnce(ack.promise); await view.key('Enter')
-    expect(view.text()).toBe('先发这一条')
-    expect(view.inputProps().readOnly).toBe(false)
+    await view.append('先发这一条'); view.api.send.mockReturnValueOnce(ack.promise); await view.key('Enter')
+    expect(view.text()).toBe('@old.md 先发这一条')
+    expect(view.inputProps().disabled).toBe(false)
     await view.type('@new'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-new.md')
-    await view.type('ACK 期间的新草稿')
+    await view.append('ACK 期间的新草稿')
     ack.resolve(true); await view.drain()
-    expect(view.text()).toBe('ACK 期间的新草稿')
+    expect(view.text()).toBe('@new.md ACK 期间的新草稿')
     expect(view.attachmentPaths()).toContain('new.md')
     expect(view.attachmentPaths()).not.toContain('old.md')
   })
@@ -1103,13 +1134,13 @@ describe('shipped Mira Composer contextual interactions', () => {
 
   it('preserves a newly re-added attachment at the same path when the earlier identity is ACKed', async () => {
     const ack = deferred<boolean>(), view = fixture({ queue: true, search: async () => ({ entries: [{ path: 'same.md', name: 'same.md', type: 'file' }], truncated: false }) }); await view.drain()
-    await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.type('发这条')
+    await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.append('发这条')
     view.api.send.mockReturnValueOnce(ack.promise); await view.key('Enter')
     ;(view.attachmentProps().onRemove as (path: string) => void)('same.md'); await view.drain()
-    await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.type('保留新正文')
+    await view.type('@same'); await vi.advanceTimersByTimeAsync(120); await view.drain(); await view.select('file-same.md'); await view.append('保留新正文')
     ack.resolve(true); await view.drain()
     expect(view.attachmentPaths()).toContain('same.md')
-    expect(view.text()).toBe('保留新正文')
+    expect(view.text()).toBe('@same.md 保留新正文')
   })
 
   it('does not withdraw into an occupied draft and saves cross-session ACK recovery for its owner', async () => {
@@ -1188,15 +1219,15 @@ describe('shipped Mira Composer contextual interactions', () => {
     const view = fixture(); await view.drain()
     await view.type('已有草稿 后续正文', 5); await view.plus(); await view.select('open-commands')
     expect(view.text()).toBe('已有草稿 /后续正文')
-    expect(view.textarea.selectionStart).toBe(6)
+    expect(view.promptSelection.start).toBe(6)
     expect(view.api.send).not.toHaveBeenCalled()
   })
 
-  it('captures the current textarea selection when the + button is activated from the keyboard', async () => {
+  it('captures the current canonical selection when the + button is activated from the keyboard', async () => {
     const view = fixture(); await view.drain()
     await view.type('已有草稿 后续正文', 5); await view.plus(true); await view.select('open-commands')
     expect(view.text()).toBe('已有草稿 /后续正文')
-    expect(view.textarea.selectionStart).toBe(6)
+    expect(view.promptSelection.start).toBe(6)
     expect(view.api.send).not.toHaveBeenCalled()
   })
 
@@ -1215,7 +1246,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     await view.type('检查 @RE 后续正文', 6); await vi.advanceTimersByTimeAsync(120); await view.drain()
     expect(view.api.searchFilesFor).toHaveBeenCalledWith('current', 'RE')
     await view.key('Tab')
-    expect(view.text()).toBe('检查  后续正文')
+    expect(view.text()).toBe('检查 @docs/README.md  后续正文')
     expect(view.attachmentPaths()).toContain('docs/README.md')
     expect(view.api.send).not.toHaveBeenCalled()
   })
@@ -1278,7 +1309,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     failed = false; section.onRetry!(); await view.drain(); await vi.advanceTimersByTimeAsync(120); await view.drain()
     expect(view.items().find(item => item.id === 'file-image.png')?.disabled).toBe(true)
     expect(view.items()[view.panelProps().selectedIndex as number].id).toBe('file-source.svg')
-    await view.key('Enter'); expect(view.text()).toBe('')
+    await view.key('Enter'); expect(view.text()).toBe('@source.svg ')
     expect(view.attachmentPaths()).toContain('source.svg')
   })
 
@@ -1296,7 +1327,7 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.text()).toContain('真实需求'); expect(view.text()).toContain('真实结论')
     expect(view.text()).not.toContain('internal secret')
     expect(view.text()).toMatch(/^结合 【引用对话：研究记录】/)
-    expect(view.text()).toMatch(/【引用结束】\n 来回答$/)
+    expect(view.text()).toMatch(/【引用结束】\n  来回答$/)
     await view.key('Enter')
     expect(view.api.send).toHaveBeenCalledWith(expect.stringContaining('真实结论'), false, [])
   })
@@ -1313,11 +1344,11 @@ describe('shipped Mira Composer contextual interactions', () => {
   it('uses the host send preference, cycles real reasoning and stops only the focused idle menu state', async () => {
     const view = fixture({ preference: 'mod-enter' }); await view.drain(); await view.type('请处理资料')
     await view.key('Enter'); expect(view.api.send).not.toHaveBeenCalled()
-    await view.dispatch('t', { ctrlKey: true, target: view.textarea })
+    await view.dispatch('t', { ctrlKey: true, target: view.editorElement })
     expect(view.api.select).toHaveBeenCalledWith({ providerId: 'provider', modelId: 'model', thinkingLevel: 'high' })
     await view.key('Enter', { ctrlKey: true }); expect(view.api.send).toHaveBeenCalledOnce()
     view.state.running = true; view.render(); await view.drain()
-    await view.dispatch('Escape', { target: view.textarea }); expect(view.api.stop).toHaveBeenCalledOnce()
+    await view.dispatch('Escape', { target: view.editorElement }); expect(view.api.stop).toHaveBeenCalledOnce()
     expect(view.inputProps().placeholder).toContain('任务运行中')
     expect(view.props(props => props['aria-label'] === '停止任务')).toBeDefined()
   })
@@ -1374,11 +1405,11 @@ describe('shipped Mira Composer contextual interactions', () => {
   it('stops only for bare Escape and ignores IME keyboard events', async () => {
     const view = fixture(); await view.drain(); view.state.running = true; view.render(); await view.drain()
     for (const modifiers of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }, { keyCode: 229 }]) {
-      const keyboard = await view.dispatch('Escape', { target: view.textarea, ...modifiers })
+      const keyboard = await view.dispatch('Escape', { target: view.editorElement, ...modifiers })
       expect(keyboard.preventDefault).not.toHaveBeenCalled()
     }
     expect(view.api.stop).not.toHaveBeenCalled()
-    await view.dispatch('Escape', { target: view.textarea }); expect(view.api.stop).toHaveBeenCalledOnce()
+    await view.dispatch('Escape', { target: view.editorElement }); expect(view.api.stop).toHaveBeenCalledOnce()
   })
 
   it('closes popups and ignores shortcuts and compose events while the conversation is hidden', async () => {
@@ -1387,17 +1418,17 @@ describe('shipped Mira Composer contextual interactions', () => {
     await view.setActive(false)
     expect(view.inputProps()['aria-expanded']).toBe(false)
     expect(view.openPopups()).toBe(0)
-    await view.dispatch('m', { ctrlKey: true, target: view.textarea })
-    await view.dispatch('t', { ctrlKey: true, target: view.textarea })
+    await view.dispatch('m', { ctrlKey: true, target: view.editorElement })
+    await view.dispatch('t', { ctrlKey: true, target: view.editorElement })
     await view.compose('隐藏页不能替换草稿')
     expect(view.openPopups()).toBe(0)
     expect(view.api.select).not.toHaveBeenCalled()
     expect(view.text()).toBe('@')
     view.state.running = true; view.render(); await view.drain()
-    await view.dispatch('Escape', { target: view.textarea }); expect(view.api.stop).not.toHaveBeenCalled()
+    await view.dispatch('Escape', { target: view.editorElement }); expect(view.api.stop).not.toHaveBeenCalled()
     await view.setActive(true)
     view.state.running = false; view.render(); await view.drain()
-    await view.dispatch('m', { ctrlKey: true, target: view.textarea }); expect(view.openPopups()).toBe(1)
+    await view.dispatch('m', { ctrlKey: true, target: view.editorElement }); expect(view.openPopups()).toBe(1)
     await view.setActive(false); expect(view.openPopups()).toBe(0)
   })
 

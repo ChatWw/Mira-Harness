@@ -10,7 +10,7 @@ import { cn } from '../../lib/utils'
 import { appendComposerReferences, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, withoutComposerDraftOwners, type ComposerDraftConfig, type ComposerDraftSnapshot, type ComposerDraftSubmission, type ComposerTaskDraft } from '../../lib/composer-drafts'
 import { applyComposerReasoning, COMPOSER_REASONING_CHOICES } from '../../lib/model-reasoning'
 import { filePreviewKind } from '../../lib/file-preview'
-import { filterMiraSuggestions, findMiraPromptToken, formatMiraConversationReference, insertMiraPromptTrigger, miraPromptReplacementRange, nextMiraSuggestionIndex, replaceMiraPromptRange, type MiraPromptRange, type MiraPromptTrigger } from '../../lib/prompt-input-triggers'
+import { filterMiraSuggestions, findMiraPromptToken, formatMiraConversationReference, insertMiraPromptTrigger, miraPromptReplacementRange, nextMiraSuggestionIndex, type MiraPromptRange, type MiraPromptTrigger } from '../../lib/prompt-input-triggers'
 import { ComposerControlHint } from './ComposerControlHint'
 import { ComposerSuggestionPanel, type ComposerSuggestion, type ComposerSuggestionSection } from './ComposerSuggestionPanel'
 import { useComposerCatalogs } from './useComposerCatalogs'
@@ -18,6 +18,8 @@ import { HarnessMessageQueue } from './HarnessMessageQueue'
 import { MiraBranchPicker } from '../git/MiraBranchPicker'
 import { MiraComposerAttachments } from './MiraComposerAttachments'
 import { attachmentImageType, MIRA_PASTED_TEXT_THRESHOLD, MIRA_TEXT_FILE_BYTES, readAttachmentFile, validateAttachmentFiles } from '../../lib/attachment-input'
+import { MiraPromptEditor, type MiraPromptEditorHandle } from './MiraPromptEditor'
+import { createMiraPromptDocument, replaceMiraPromptDocumentRange, serializeMiraPromptDocument, validateMiraPromptDocument, type MiraPromptDocument, type MiraPromptPart } from '../../lib/prompt-editor-document'
 
 const PERMISSIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
   { value: 'default', label: '逐次确认', description: '工具执行前由你确认' },
@@ -52,6 +54,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const draftKey = sessionId || 'draft'
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [fileDrafts, setFileDrafts] = useState<Record<string, HarnessFileReference[]>>({})
+  const [documents, setDocuments] = useState<Record<string, MiraPromptDocument | undefined>>({})
   const [draftPermission, setDraftPermission] = useState<PermissionMode>('default')
   const [draftSkillIds, setDraftSkillIds] = useState<string[]>([])
   const [draftMcpIds, setDraftMcpIds] = useState<string[]>([])
@@ -110,7 +113,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const [referenceLoading, setReferenceLoading] = useState(false)
   const [attachmentReadiness, setAttachmentReadiness] = useState<{ ownerId?: string; paths: string; blocked: boolean }>({ paths: '', blocked: true })
   const [dragOver, setDragOver] = useState(false)
-  const [failedUpload, setFailedUpload] = useState<{ files?: File[]; path?: string }>()
+  const [failedUpload, setFailedUpload] = useState<{ files?: File[]; path?: string; onSelected?: (files: HarnessFileReference[], owner: string) => void }>()
   const failedUploadRef = useRef(failedUpload)
   failedUploadRef.current = failedUpload
   const dragDepth = useRef(0)
@@ -119,17 +122,27 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const [sendShortcut, setSendShortcut] = useState<SendShortcut>('enter')
   const [showContextUsage, setShowContextUsage] = useState(true)
   const [followupMode, setFollowupMode] = useState<'queue' | 'guide'>('queue')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<MiraPromptEditorHandle>(null)
+  const programmaticPromptChange = useRef(false)
+  const migratingDraft = useRef<string | undefined>(undefined)
+  const editorIdentity = useRef({ owner: draftKey, key: draftKey })
+  const inlineAttachmentCache = useRef(new Map<string, HarnessFileReference>())
   const contextTriggerRef = useRef<HTMLButtonElement>(null)
   const draftSnapshot = useMemo<ComposerDraftSnapshot>(() => ({
-    drafts, fileDrafts, recoveries, submissions,
+    drafts, fileDrafts, documents, recoveries, submissions,
     ...(taskDraft !== undefined ? { draft: taskDraft } : {}),
     config: { permission: draftPermission, skillIds: draftSkillIds, mcpIds: draftMcpIds, delegation: draftDelegation, planning, projectId: draftProjectId },
-  }), [drafts, fileDrafts, recoveries, submissions, taskDraft, draftPermission, draftSkillIds, draftMcpIds, draftDelegation, planning, draftProjectId])
+  }), [drafts, fileDrafts, documents, recoveries, submissions, taskDraft, draftPermission, draftSkillIds, draftMcpIds, draftDelegation, planning, draftProjectId])
   const latestDraftSnapshot = useRef(draftSnapshot)
   latestDraftSnapshot.current = draftSnapshot
   const removedDraftOwners = useRef(new Set<string>())
   const draft = drafts[draftKey] ?? ''
+  const editorDocument = useMemo(() => documents[draftKey] ?? createMiraPromptDocument(draft), [documents, draftKey, draft])
+  if (editorIdentity.current.owner !== draftKey) {
+    const migration = editorIdentity.current.owner === 'draft' && state.session?.draftState === 'prepared' && Boolean(taskDraft && (taskDraft.sessionId === sessionId || taskDraft.id === migratingDraft.current))
+    editorIdentity.current = { owner: draftKey, key: migration ? editorIdentity.current.key : draftKey }
+  }
+  const editorKey = editorIdentity.current.key
   const references = fileDrafts[draftKey] ?? []
   const attachmentPaths = JSON.stringify(references.map(file => file.path))
   const attachmentBlocked = controller.supportsAttachments && references.length > 0 && (attachmentReadiness.ownerId !== sessionId || attachmentReadiness.paths !== attachmentPaths || attachmentReadiness.blocked)
@@ -157,13 +170,24 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const contextBlocked = nextConfigBlocked
   const inputBlocked = !active || state.sessionLoading || busy
   const visibleError = composerError || (state.error !== dismissedHostError ? state.error : '')
-  const activeToken = findMiraPromptToken(draft, caret.start, caret.end)
+  const activeToken = useMemo(() => {
+    const token = findMiraPromptToken(draft, caret.start, caret.end)
+    if (!token) return null
+    let offset = 0
+    for (const part of editorDocument.parts) {
+      const length = part.type === 'text' ? part.text.length : part.reference.text.length
+      if (part.type === 'reference' && token.start < offset + length && token.end > offset) return null
+      offset += length
+    }
+    return token
+  }, [draft, caret, editorDocument])
   const tokenSignature = activeToken ? `${draftKey}:${activeToken.start}:${activeToken.end}:${activeToken.trigger}:${activeToken.query}` : ''
   const suggestionsOpen = !contextBlocked && (contextOpen || Boolean(activeToken && dismissedToken !== tokenSignature))
   const suggestionQuery = contextOpen ? '' : activeToken?.query || ''
   const kind = contextOpen ? panelFilter : activeToken?.trigger
   const includeFiles = kind === '@' || contextOpen && !panelFilter
-  const catalogs = useComposerCatalogs(controller, sessionId, state.session?.workingDirectory, suggestionQuery, suggestionsOpen, includeFiles)
+  const fileDirectory = sessionId ? state.session?.workingDirectory : selectedProject?.directory
+  const catalogs = useComposerCatalogs(controller, { sessionId, projectId: sessionId ? undefined : selectedProject?.id, directory: fileDirectory, draftId: sessionId ? undefined : taskDraft?.id }, suggestionQuery, suggestionsOpen, includeFiles)
   const slashCommands = [
     { id: 'files', label: '/files', description: '添加文件附件', icon: <Paperclip size={16} /> },
     { id: 'skills', label: '/skills', description: '选择当前任务技能', icon: <Wrench size={16} /> },
@@ -182,7 +206,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })
   if (kind !== '/' && kind !== '$' && kind !== 'skills' && kind !== 'mcp') {
-    suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId ? '当前草稿尚未关联工作目录' : !state.session?.workingDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
+    suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId && !selectedProject ? '请先选择项目，再引用工作区文件' : !fileDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
     const sessions = state.sessions.filter(session => session.id !== sessionId && session.projectId === (state.session?.projectId ?? draftProjectId))
     suggestionSections.push({ id: 'sessions', title: '对话', items: filterMiraSuggestions(sessions.map(session => ({ id: `session-${session.id}`, label: session.title, description: '引用对话正文', icon: <MessageSquare size={16} />, action: { type: 'session' as const, value: session.id } })), suggestionQuery), empty: '当前工作区暂无可引用对话' })
   }
@@ -252,7 +276,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         setReferences(references, ownerId)
         setComposerError('')
       } catch (error) { setComposerError(error instanceof Error ? error.message : String(error)); return }
-      textareaRef.current?.focus()
+      editorRef.current?.focus()
     },
     async prepareSession(isCurrent) {
       if (configurationUnavailable || !active && !isCurrent || isCurrent && !isCurrent() || busyRef.current || controller.getSnapshot().sessionLoading) return undefined
@@ -278,6 +302,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       // Input entered before hydration joins the recovered owner instead of becoming an inaccessible anonymous draft.
       if (ownerId && (ownerTextRevisions.current.get('draft') ?? 0) > 0 && latestDraftSnapshot.current.drafts.draft) {
         restored.drafts[ownerId] = [restored.drafts[ownerId], latestDraftSnapshot.current.drafts.draft].filter(Boolean).join('\n\n')
+        // This merge joins independently edited texts; keep the text authoritative instead of guessing token ownership.
+        restored.documents = { ...restored.documents, [ownerId]: undefined, draft: undefined }
         restored.drafts.draft = ''
         setDrafts(restored.drafts)
       }
@@ -286,6 +312,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!mounted) return
       setDrafts(previous => ({ ...restored.drafts, ...previous }))
       setFileDrafts(previous => ({ ...restored.fileDrafts, ...previous }))
+      setDocuments(previous => ({ ...restored.documents, ...previous }))
       setRecoveries(previous => ({ ...restored.recoveries, ...previous }))
       setSubmissions(previous => ({ ...restored.submissions, ...previous }))
       setTaskDraftState(restored.draft)
@@ -313,8 +340,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (cancelled || !attachmentMounted.current || !activeRef.current || busyRef.current) return
       const current = controller.getSnapshot()
       if (current.sessionLoading || current.session?.id !== draftFocusRequest.ownerId || latestDraftSnapshot.current.draft?.id !== draftFocusRequest.draftId || draftFocusRequest.isCurrent && !draftFocusRequest.isCurrent()) return
-      if (textareaRef.current?.closest('[inert], [hidden]')) return
-      textareaRef.current?.focus({ preventScroll: true })
+      if (editorRef.current?.getElement()?.closest('[inert], [hidden]')) return
+      editorRef.current?.focus({ preventScroll: true })
       setDraftFocusRequest(previous => previous === draftFocusRequest ? undefined : previous)
     })
     return () => { cancelled = true }
@@ -329,7 +356,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     removedDraftOwners.current.add(id)
     const clean = withoutComposerDraftOwners(latestDraftSnapshot.current, removedDraftOwners.current)
     latestDraftSnapshot.current = clean
-    setDrafts(clean.drafts); setFileDrafts(clean.fileDrafts); setRecoveries(clean.recoveries ?? {}); setSubmissions(clean.submissions ?? {})
+    setDrafts(clean.drafts); setFileDrafts(clean.fileDrafts); setDocuments(clean.documents ?? {}); setRecoveries(clean.recoveries ?? {}); setSubmissions(clean.submissions ?? {})
     setTaskDraftState(clean.draft)
   }), [controller])
   useEffect(() => {
@@ -356,19 +383,14 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }, () => { if (mounted) setComposerError('输入偏好读取失败，暂使用 Enter 发送；重新打开 Harness 后重试') })
     return () => { mounted = false }
   }, [controller, active])
-  useEffect(() => {
-    const element = textareaRef.current
-    if (!element) return
-    element.style.height = 'auto'
-    element.style.height = `${Math.min(160, Math.max(40, element.scrollHeight))}px`
-  }, [draft])
+  useEffect(() => { inlineAttachmentCache.current.clear() }, [editorKey])
   useEffect(() => {
     if (!active) return
     const insertSuggestion = (event: Event) => {
       const text = (event as CustomEvent<string>).detail
       if (typeof text !== 'string' || busyRef.current || controller.getSnapshot().sessionLoading) return
       setDraft(text)
-      textareaRef.current?.focus()
+      editorRef.current?.focus()
     }
     window.addEventListener('mira:compose-draft', insertSuggestion)
     return () => window.removeEventListener('mira:compose-draft', insertSuggestion)
@@ -385,10 +407,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   useEffect(() => {
     if (!active) return
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || queueConfirmation || !textareaRef.current || textareaRef.current.closest('[inert]')) return
+      const input = editorRef.current?.getElement()
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || queueConfirmation || !input || input.closest('[inert]')) return
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
       const target = event.target as HTMLElement | null
-      const fromComposer = target === textareaRef.current
+      const fromComposer = target === input || Boolean(target && input.contains(target))
       if (!fromComposer && target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .xterm')) return
       const key = event.key.toLowerCase()
       if (event.ctrlKey && !event.metaKey && !event.altKey && (key === 'm' || key === 't' && fromComposer && !event.shiftKey)) {
@@ -413,11 +436,37 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [active, configBlocked, nextConfigBlocked, controller, sessionId, permission, selectedModel, reasoningLevel, state.running, suggestionsOpen, modeOpen, modelOpen, reasoningOpen, queueConfirmation])
 
-  function setDraft(value: string, key = draftKey, selection: MiraPromptRange = { start: value.length, end: value.length }) {
-    latestDraftSnapshot.current = { ...latestDraftSnapshot.current, drafts: { ...latestDraftSnapshot.current.drafts, [key]: value } }
+  function setDraft(value: string, key = draftKey, selection: MiraPromptRange = { start: value.length, end: value.length }, document?: MiraPromptDocument) {
+    latestDraftSnapshot.current = { ...latestDraftSnapshot.current, drafts: { ...latestDraftSnapshot.current.drafts, [key]: value }, documents: { ...latestDraftSnapshot.current.documents, [key]: document } }
     setDrafts(previous => ({ ...previous, [key]: value }))
+    setDocuments(previous => ({ ...previous, [key]: document }))
     ownerTextRevisions.current.set(key, (ownerTextRevisions.current.get(key) ?? 0) + 1)
-    if (key === draftKey) { textRevision.current++; setCaret(selection); setDismissedToken('') }
+    if (key === (controller.getSnapshot().session?.id || 'draft')) { textRevision.current++; setCaret(selection); setDismissedToken('') }
+  }
+  function setPromptDocument(document: MiraPromptDocument, selection: MiraPromptRange, key = draftKey) {
+    const previous = latestDraftSnapshot.current.documents?.[key]
+    const files = latestDraftSnapshot.current.fileDrafts[key] ?? []
+    for (const file of files) inlineAttachmentCache.current.set(file.path, file)
+    const previousPaths = new Set(previous?.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'file' ? [part.reference.value] : []) ?? [])
+    const nextPaths = new Set(document.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'file' ? [part.reference.value] : []))
+    const retained = files.filter(file => !previousPaths.has(file.path) || nextPaths.has(file.path))
+    const restored = [...nextPaths].flatMap(path => inlineAttachmentCache.current.has(path) ? [inlineAttachmentCache.current.get(path)!] : [])
+    try {
+      const nextFiles = appendComposerReferences(retained, restored)
+      setReferences(nextFiles, key)
+      setDraft(serializeMiraPromptDocument(document), key, selection, document)
+    } catch (error) {
+      setDocuments(value => ({ ...value, [key]: { ...(previous ?? createMiraPromptDocument(latestDraftSnapshot.current.drafts[key] ?? '')) } }))
+      setComposerError(error instanceof Error ? error.message : String(error))
+    }
+  }
+  function removeReference(path: string) {
+    const document = latestDraftSnapshot.current.documents?.[draftKey]
+    if (document) {
+      const next: MiraPromptDocument = { ...document, parts: document.parts.filter(part => part.type !== 'reference' || part.reference.kind !== 'file' || part.reference.value !== path) }
+      applyPromptParts({ start: 0, end: draft.length }, next.parts)
+    }
+    setReferences(references.filter(file => file.path !== path))
   }
   function setReferences(value: HarnessFileReference[], key = draftKey) {
     latestDraftSnapshot.current = { ...latestDraftSnapshot.current, fileDrafts: { ...latestDraftSnapshot.current.fileDrafts, [key]: value } }
@@ -458,7 +507,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     editedConfig.current.add('planning')
     setPlanning(value)
   }
-  function restoreInputFocus(event: Event) { event.preventDefault(); textareaRef.current?.focus() }
+  function restoreInputFocus(event: Event) { event.preventDefault(); editorRef.current?.focus() }
   async function updateConfiguration(change: () => Promise<void>) {
     if (busyRef.current || controller.getSnapshot().sessionLoading) return
     busyRef.current = true; setBusy(true)
@@ -482,6 +531,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (initial.sessionLoading || initial.session?.id !== sessionId || isCurrent && !isCurrent()) return undefined
     if (sessionId) return sessionId
     const owner = latestDraftSnapshot.current.draft ?? { id: crypto.randomUUID() }
+    migratingDraft.current = owner.id
     setTaskDraft(owner)
     const selection = state.selection
     const currentOwner = () => latestDraftSnapshot.current.draft?.id === owner.id && (!isCurrent || isCurrent())
@@ -492,7 +542,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setTaskDraft({ ...latestDraftSnapshot.current.draft!, sessionId: createdId })
     onCreated?.(createdId)
     if (selection) controller.select(selection)
-    setDraft(draftText, createdId)
+    setDraft(draftText, createdId, caret, validateMiraPromptDocument(latestDraftSnapshot.current.documents?.draft, draftText))
     setReferences(references, createdId)
     setDraft('', 'draft')
     setReferences([], 'draft')
@@ -511,7 +561,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     const current = controller.getSnapshot()
     return !current.sessionLoading && current.session?.id === createdId ? createdId : undefined
   }
-  async function selectFiles(draftText = draft, files?: File[], path?: string): Promise<boolean> {
+  async function selectFiles(draftText = draft, files?: File[], path?: string, onSelected?: (files: HarnessFileReference[], owner: string) => void): Promise<boolean> {
     if (!activeRef.current || !preferencesReady.current || busyRef.current || controller.getSnapshot().sessionLoading) return false
     if (!controller.supportsAttachments && !(controller.getSnapshot().session?.projectId ?? draftProjectId)) {
       setComposerError('请先选择项目，再使用文件选择器；个人工作区内的文件可以从文件树加入对话。')
@@ -519,10 +569,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
     busyRef.current = true; setBusy(true); setComposerError(''); setFailedUpload(undefined); failedUploadRef.current = undefined
     let ownerId = sessionId
-    const ownsOperation = () => attachmentMounted.current && activeRef.current && controller.getSnapshot().session?.id === ownerId
+    const ownsWorkspace = () => Boolean(sessionId) || latestDraftSnapshot.current.config.projectId === draftProjectId && (!selectedProject || controller.getSnapshot().projects.find(project => project.id === selectedProject.id)?.directory === selectedProject.directory)
+    const ownsOperation = () => attachmentMounted.current && activeRef.current && ownsWorkspace() && controller.getSnapshot().session?.id === ownerId
     const operation = Promise.resolve().then(async () => {
       if (files) validateAttachmentFiles(files, references.length, references)
-      const id = await ensureSession(draftText, () => attachmentMounted.current && activeRef.current, id => { ownerId = id })
+      const id = await ensureSession(draftText, () => attachmentMounted.current && activeRef.current && ownsWorkspace(), id => { ownerId = id })
       if (!ownsOperation()) return false
       if (!id || controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) throw new Error(controller.getSnapshot().error || '任务准备未完成，请重试。')
       let selected: HarnessFileReference[]
@@ -534,9 +585,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       } else selected = controller.supportsAttachments ? await controller.selectAttachments(id) : await controller.selectFiles()
       if (!ownsOperation() || controller.getSnapshot().sessionLoading || controller.getSnapshot().session?.id !== id) return false
       setReferences(appendComposerReferences(latestDraftSnapshot.current.fileDrafts[id] ?? [], selected), id)
+      onSelected?.(selected, id)
       return true
     }).catch(error => {
-      if (ownsOperation()) { setComposerError(`添加文件失败：${error instanceof Error ? error.message : String(error)}`); setFailedUpload({ files, path }); failedUploadRef.current = { files, path } }
+      if (ownsOperation()) { setComposerError(`添加文件失败：${error instanceof Error ? error.message : String(error)}`); setFailedUpload({ files, path, onSelected }); failedUploadRef.current = { files, path, onSelected } }
       return false
     }).finally(() => {
       if (attachmentOperation.current === operation) attachmentOperation.current = undefined
@@ -548,8 +600,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     attachmentOperation.current = operation
     return operation
   }
-  function pasteAttachments(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+  function pasteAttachments(event: globalThis.ClipboardEvent) {
     if (!controller.supportsAttachments || inputBlocked || contextBlocked) return
+    if (!event.clipboardData) return
     const text = event.clipboardData.getData('text/plain')
     const html = event.clipboardData.getData('text/html')
     const files = Array.from(event.clipboardData.files)
@@ -564,7 +617,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setContextOpen(false); setPanelFilter(null); setDismissedToken(tokenSignature)
   }
   function captureMenuSelection() {
-    menuSelection.current = { start: textareaRef.current?.selectionStart ?? caret.start, end: textareaRef.current?.selectionEnd ?? caret.end }
+    menuSelection.current = editorRef.current?.getSelectionRange() ?? caret
   }
   function openContext() {
     if (contextBlocked) return
@@ -572,23 +625,35 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     captureMenuSelection()
     setModeOpen(false); setModelOpen(false); setReasoningOpen(false); setPanelFilter(null); setContextOpen(true)
   }
-  function focusInput(position = caret.start) {
-    const owner = draftKey, revision = textRevision.current
+  function focusInput(position = caret.start, owner = draftKey) {
+    const revision = textRevision.current
     window.requestAnimationFrame(() => {
       if ((controller.getSnapshot().session?.id || 'draft') !== owner || textRevision.current !== revision) return
-      textareaRef.current?.focus(); textareaRef.current?.setSelectionRange(position, position)
+      editorRef.current?.focus(); editorRef.current?.setSelectionRange(position, position)
     })
   }
-  function applyPromptText(next: { text: string; caret: number }) {
-    setDraft(next.text, draftKey, { start: next.caret, end: next.caret })
-    menuSelection.current = { start: next.caret, end: next.caret }
-    focusInput(next.caret)
+  function applyPromptParts(range: MiraPromptRange, parts: MiraPromptPart[], owner = draftKey) {
+    const text = latestDraftSnapshot.current.drafts[owner] ?? ''
+    const document = validateMiraPromptDocument(latestDraftSnapshot.current.documents?.[owner], text) ?? createMiraPromptDocument(text)
+    const next = replaceMiraPromptDocumentRange(document, range, parts)
+    if (!next) { setComposerError('引用内容超过编辑器上限，请精简草稿'); return false }
+    if (serializeMiraPromptDocument(next.document).length > Math.max(100_000, text.length)) { setComposerError('引用后消息超过 100000 字符，请缩短草稿或引用较短的对话'); return false }
+    // Use the mounted editor's transaction when it still represents this owner, preserving undo.
+    let edited: MiraPromptDocument | undefined
+    programmaticPromptChange.current = true
+    try { if (editorIdentity.current.owner === owner) edited = editorRef.current?.replaceRange(range, parts) }
+    finally { programmaticPromptChange.current = false }
+    setPromptDocument(edited ?? next.document, next.range, owner)
+    menuSelection.current = next.range
+    focusInput(next.range.start, owner)
+    return true
   }
   function openPromptTrigger(trigger: MiraPromptTrigger) {
     if (contextBlocked) return
     const range = contextOpen ? menuSelection.current : activeToken || caret
     setContextOpen(false); setPanelFilter(null)
-    applyPromptText(insertMiraPromptTrigger(draft, range, trigger))
+    const next = insertMiraPromptTrigger(draft, range, trigger)
+    applyPromptParts(range, [{ type: 'text', text: next.text.slice(range.start, next.caret) }])
   }
   async function selectSuggestion(item: ComposerSuggestion) {
     if (contextBlocked || item.disabled || referenceRead.current) return
@@ -596,31 +661,44 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     const range = contextOpen ? menuSelection.current : activeToken ? miraPromptReplacementRange(draft, activeToken, [item.label, item.action.value]) : caret
     if (item.action.type === 'session') {
       const owner = draftKey, revision = textRevision.current
+      const scope = { projectId: state.session?.projectId ?? draftProjectId, directory: fileDirectory }
+      const currentScope = () => {
+        const current = controller.getSnapshot(), projectId = current.session?.projectId ?? latestDraftSnapshot.current.config.projectId
+        return (current.session?.id || 'draft') === owner && projectId === scope.projectId && (current.session?.workingDirectory ?? current.projects.find(project => project.id === projectId)?.directory) === scope.directory
+      }
       referenceRead.current = true; setReferenceLoading(true); setComposerError('')
       try {
         const referenced = await controller.getSession(item.action.value)
-        if ((controller.getSnapshot().session?.id || 'draft') !== owner) return
+        if (!currentScope()) return
         // 异步读取不能用旧光标范围覆盖刚输入的内容；用户可重新选择后重试。
         if (textRevision.current !== revision) throw new Error('读取对话期间草稿已修改，请重新选择引用')
-        const next = replaceMiraPromptRange(draft, range, formatMiraConversationReference(referenced))
-        if (next.text.length > 100_000) throw new Error('引用后消息超过 100000 字符，请缩短草稿或引用较短的对话')
-        closeSuggestions(); applyPromptText(next)
-      } catch (error) { if ((controller.getSnapshot().session?.id || 'draft') === owner) setComposerError(error instanceof Error ? error.message : '引用对话失败，请重试') }
+        const text = formatMiraConversationReference(referenced)
+        if (!applyPromptParts(range, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'session', label: item.label, value: item.action.value, text } }, { type: 'text', text: ' ' }])) return
+        closeSuggestions()
+      } catch (error) { if (currentScope()) setComposerError(error instanceof Error ? error.message : '引用对话失败，请重试') }
       finally { referenceRead.current = false; setReferenceLoading(false) }
       return
     }
     if (item.action.type === 'file') {
-      if (controller.supportsAttachments) { if (!await selectFiles(draft, undefined, item.action.value)) return }
+      const insertFile = (file: HarnessFileReference, owner: string) => {
+        if ((latestDraftSnapshot.current.drafts[owner] ?? '') !== draft) { closeSuggestions(); setComposerError('文件已添加；草稿已修改，保留当前输入。'); return }
+        if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'file', label: item.label, value: file.path, text: `@${item.action.value}` } }, { type: 'text', text: ' ' }], owner)) closeSuggestions()
+      }
+      if (controller.supportsAttachments) {
+        await selectFiles(draft, undefined, item.action.value, (selected, owner) => { if (selected[0]) insertFile(selected[0], owner) })
+      }
       else try {
         const next = appendComposerReferences(references, [{ path: item.action.value, name: item.label }])
         setReferences(next); setComposerError('')
+        insertFile(next.find(file => file.path === item.action.value)!, draftKey)
       } catch (error) { setComposerError(error instanceof Error ? error.message : String(error)); return }
+      return
     }
-    const next = replaceMiraPromptRange(draft, contextOpen ? { start: range.start, end: range.start } : range, '')
-    closeSuggestions(); applyPromptText(next)
+    if (!applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [])) return
+    closeSuggestions()
     if (item.action.type === 'skill') toggleTool('skills', item.action.value)
     if (item.action.type === 'mcp') toggleTool('mcp', item.action.value)
-    if (item.action.type === 'command') await runSlash(item.action.value, next.text)
+    if (item.action.type === 'command') await runSlash(item.action.value, latestDraftSnapshot.current.drafts[draftKey])
   }
   async function runSlash(commandId: string, draftText = draft) {
     if (contextBlocked || configBlocked && ['skills', 'mcp', 'delegation', 'memory', 'perm'].includes(commandId)) return
@@ -640,8 +718,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     try { await controller.saveMemory() }
     catch (error) { setComposerError(`保存记忆失败：${error instanceof Error ? error.message : String(error)}`) }
   }
-  function onSuggestionKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+  function onSuggestionKeyDown(event: KeyboardEvent<HTMLElement> | globalThis.KeyboardEvent) {
+    if (('nativeEvent' in event ? event.nativeEvent.isComposing : event.isComposing) || event.keyCode === 229) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault(); event.stopPropagation()
       const next = nextMiraSuggestionIndex(suggestionIndex, event.key === 'ArrowDown' ? 1 : -1, suggestionItems)
@@ -696,7 +774,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
             // Admission belongs to its draft owner even after navigation; newer owner edits remain intact.
             if ((ownerTextRevisions.current.get(id) ?? 0) === revision) setDraft('', id)
             // 附件对象是本次草稿身份；移除后重新添加同一路径不属于已提交附件。
-            setReferences((latestDraftSnapshot.current.fileDrafts[id] ?? []).filter(reference => !submittedReferences.includes(reference)), id)
+            const retainedInline = new Set(latestDraftSnapshot.current.documents?.[id]?.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'file' ? [part.reference.value] : []) ?? [])
+            setReferences((latestDraftSnapshot.current.fileDrafts[id] ?? []).filter(reference => !submittedReferences.includes(reference) || retainedInline.has(reference.path)), id)
             setSubmission(id, undefined)
             setQueueConfirmation(previous => previous?.ownerId === id ? undefined : previous)
             if (payload.draft) await acceptDraft(id, payload.draft)
@@ -724,6 +803,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         } finally { submittingRef.current.delete(id); setSubmitting([...submittingRef.current]) }
         return
       }
+      const submittedText = latestDraftSnapshot.current.drafts[id] ?? text
+      const submittedDocument = latestDraftSnapshot.current.documents?.[id]
       setDraft('', id)
       setReferences([], id)
       const sending = controller.send(text, planning, references)
@@ -732,11 +813,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       const sent = await sending
       const result = controller.getSnapshot()
       if (!sent) {
-        setDrafts(previous => ({ ...previous, [id]: previous[id] || text }))
-        setFileDrafts(previous => {
-          const existing = previous[id] ?? []
-          return { ...previous, [id]: [...existing, ...references.filter(item => !existing.some(reference => reference.path === item.path))] }
-        })
+        if (!latestDraftSnapshot.current.drafts[id]) setDraft(submittedText, id, undefined, submittedDocument)
+        const existing = latestDraftSnapshot.current.fileDrafts[id] ?? []
+        setReferences([...existing, ...references.filter(item => !existing.some(reference => reference.path === item.path))], id)
         if (!result.sessionLoading && result.session?.id === id) setComposerError(result.error || '发送失败，请重试')
       } else if (submittedDraft) await acceptDraft(id, submittedDraft)
     } finally { if (preparing) { busyRef.current = false; setBusy(false) } }
@@ -761,7 +840,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setReferences(item.references.map(reference => ({ ...reference })), item.sessionId)
     controller.select({ ...item.selection })
     editedConfig.current.add('planning'); setPlanning(item.planning)
-    textareaRef.current?.focus()
+    editorRef.current?.focus()
     return true
   }
   async function withdrawQueuedMessage(itemId: string, edit: boolean, preserveDraft = false) {
@@ -856,11 +935,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const placeholder = confirmationPending ? queueSupported ? '等待确认，可继续添加待发送消息' : '先处理上方确认；草稿会保留' : state.running ? '任务运行中，可先写好下一条消息' : state.messages.length ? '继续对话，@ 引用上下文，/ 选择能力' : '向 Mira 提问，@ 引用上下文，/ 选择能力'
 
   return <Tooltip.Provider delayDuration={350}><Popover.Root open={suggestionsOpen} onOpenChange={open => { if (!open) closeSuggestions() }}><div className={cn('harness-composer-region', !sessionId && 'harness-composer-region--draft')}>
-    {visibleError && <div className="harness-composer__error" role="alert"><CircleAlert size={15} /><span>{visibleError}</span>{preferencesError && <button type="button" className="mira-attachment-upload-retry" onClick={() => setPreferencesRetry(value => value + 1)}>重试读取草稿</button>}{failedUpload && <button type="button" className="mira-attachment-upload-retry" disabled={busy} onClick={() => void selectFiles(draft, failedUpload.files, failedUpload.path)}>重试添加</button>}{!preferencesError && <button type="button" aria-label={failedUpload ? '取消附件添加' : '关闭错误提示'} onClick={() => { setFailedUpload(undefined); failedUploadRef.current = undefined; setComposerError(''); setDismissedHostError(state.error) }}><X size={14} /></button>}</div>}
+    {visibleError && <div className="harness-composer__error" role="alert"><CircleAlert size={15} /><span>{visibleError}</span>{preferencesError && <button type="button" className="mira-attachment-upload-retry" onClick={() => setPreferencesRetry(value => value + 1)}>重试读取草稿</button>}{failedUpload && <button type="button" className="mira-attachment-upload-retry" disabled={busy} onClick={() => void selectFiles(draft, failedUpload.files, failedUpload.path, failedUpload.onSelected)}>重试添加</button>}{!preferencesError && <button type="button" aria-label={failedUpload ? '取消附件添加' : '关闭错误提示'} onClick={() => { setFailedUpload(undefined); failedUploadRef.current = undefined; setComposerError(''); setDismissedHostError(state.error) }}><X size={14} /></button>}</div>}
     {queueSupported && sessionId && <HarnessMessageQueue key={sessionId} queue={state.queue?.sessionId === sessionId ? state.queue : undefined} recoveries={recoveries[sessionId] ?? []} pendingItems={withdrawals.filter(key => key.startsWith(`${sessionId}:`)).map(key => key.slice(sessionId.length + 1))} resumePending={resuming.includes(sessionId)} disabled={!active || Boolean(state.sessionLoading) || busy} editDisabled={!draftIsEmpty(sessionId) || submitting.includes(sessionId)} recoveryBlocked={recoveryWrites.includes(sessionId) || Boolean(recoverySaveErrors[sessionId])} confirmationPending={confirmationPending} error={recoverySaveErrors[sessionId] || state.queueError} onRetrySave={recoverySaveErrors[sessionId] ? retryRecoverySave : undefined} onEdit={id => withdrawQueuedMessage(id, true)} onDelete={id => withdrawQueuedMessage(id, false)} onRestore={restoreRecovery} onResume={resumeQueue} onConfirmation={showConfirmation} onMove={controller.supportsQueueReorder ? reorderQueue : undefined} reorderPending={reordering.includes(sessionId)} onSendNow={controller.supportsQueueSendNow ? sendQueuedNow : undefined} sendNowPendingItems={sendingNow.filter(key => key.startsWith(`${sessionId}:`)).map(key => key.slice(sessionId.length + 1))} />}
     {queueSupported && retriesSubmission && !submitting.includes(draftKey) && <div className="mira-composer-pending-submission" role="status">上次提交待确认，重试使用原模型和模式</div>}
     <Popover.Anchor asChild><div className="mira-composer-panel-anchor" /></Popover.Anchor>
-    <Popover.Portal container={portalContainer}><Popover.Content className="mira-composer-panel-popover" side="top" align="start" sideOffset={4} onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()} onInteractOutside={event => { const target = event.target as Node | null; if (target === textareaRef.current || target && contextTriggerRef.current?.contains(target)) event.preventDefault() }} onEscapeKeyDown={event => { event.preventDefault(); closeSuggestions(); focusInput() }} onKeyDown={onSuggestionKeyDown}>
+    <Popover.Portal container={portalContainer}><Popover.Content className="mira-composer-panel-popover" side="top" align="start" sideOffset={4} onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()} onInteractOutside={event => { const target = event.target as Node | null; if (target && (editorRef.current?.getElement()?.contains(target) || contextTriggerRef.current?.contains(target))) event.preventDefault() }} onEscapeKeyDown={event => { event.preventDefault(); closeSuggestions(); focusInput() }} onKeyDown={onSuggestionKeyDown}>
       <ComposerSuggestionPanel sections={suggestionSections} selectedIndex={suggestionIndex} onHighlight={index => setHighlightedSuggestionId(suggestionItems[index]?.id)} onSelect={item => void selectSuggestion(item)} onTrigger={openPromptTrigger} />
     </Popover.Content></Popover.Portal>
     <div className="harness-composer__surface">
@@ -884,9 +963,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         <MiraBranchPicker key={selectedProject?.id} controller={controller} project={selectedProject} active={active} blocked={busy || Boolean(state.sessionLoading) || Boolean(selectedProject && state.sessions.some(session => session.projectId === selectedProject.id && state.runningSessionIds.includes(session.id))) || Boolean(state.queue?.items.length)} placement="composer" />
       </div>}
       <form className={`harness-composer${dragOver ? ' mira-composer--drag-over' : ''}`} onDragEnter={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); if (!contextBlocked && controller.supportsAttachments) { dragDepth.current++; setDragOver(true) } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = contextBlocked || !controller.supportsAttachments ? 'none' : 'copy' } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false) } }} onDrop={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); dragDepth.current = 0; setDragOver(false); if (!contextBlocked && controller.supportsAttachments) void selectFiles(draft, Array.from(event.dataTransfer.files)) }} onSubmit={event => { const reverse = pointerReverseRef.current; pointerReverseRef.current = false; void submit(event, reverse ? reverseOptions : undefined) }}>
-        <MiraComposerAttachments references={references} ownerId={sessionId} controller={controller} disabled={inputBlocked} active={active} onRemove={path => setReferences(references.filter(item => item.path !== path))} onBlocked={onAttachmentsBlocked} />
+        <MiraComposerAttachments references={references} ownerId={sessionId} controller={controller} disabled={inputBlocked} active={active} onRemove={removeReference} onBlocked={onAttachmentsBlocked} />
         {dragOver && <div className="mira-composer-drop-hint" role="status"><Paperclip size={20} /><span>释放以添加图片或文本附件</span></div>}
-        <textarea ref={textareaRef} rows={1} value={draft} readOnly={inputBlocked} aria-busy={inputBlocked || undefined} onPaste={pasteAttachments} onSelect={event => { const element = event.currentTarget; setCaret({ start: element.selectionStart, end: element.selectionEnd }) }} onChange={event => { if (active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setDraft(event.target.value, draftKey, { start: event.target.selectionStart, end: event.target.selectionEnd }) } }} onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) { onSuggestionKeyDown(event); return } if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, reverseOptions); return } if (shouldSendWithShortcut(sendShortcut, event.nativeEvent)) { event.preventDefault(); void submit() } }} placeholder={placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? 'mira-composer-suggestions' : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `mira-suggestion-${selectedSuggestion.id}` : undefined} />
+        <MiraPromptEditor key={editorKey} ref={editorRef} text={draft} document={editorDocument} disabled={inputBlocked} onPaste={pasteAttachments} onSelectionChange={setCaret} onChange={(document, range) => { if (!programmaticPromptChange.current && active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setPromptDocument(document, range) } }} onError={error => setComposerError(`输入编辑器出错：${error.message}；草稿会保留`)} onKeyDown={event => { if (event.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) { onSuggestionKeyDown(event); return } if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, reverseOptions); return } if (shouldSendWithShortcut(sendShortcut, event)) { event.preventDefault(); void submit() } }} placeholder={placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? 'mira-composer-suggestions' : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `mira-suggestion-${selectedSuggestion.id}` : undefined} />
         <div className="harness-composer__footer">
           <div className="harness-composer__controls">
             <ComposerControlHint title="添加上下文与能力"><button ref={contextTriggerRef} type="button" className="harness-composer__icon-button" aria-label="添加上下文" aria-expanded={contextOpen} aria-controls="mira-composer-suggestions" disabled={contextBlocked} onMouseDown={event => { event.preventDefault(); captureMenuSelection() }} onClick={openContext}><Plus size={16} /></button></ComposerControlHint>
@@ -933,7 +1012,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     </div>
     <Dialog.Root open={active && !state.sessionLoading && Boolean(queueConfirmation && queueConfirmation.ownerId === sessionId)} onOpenChange={open => { if (!open && !submittingRef.current.has(queueConfirmation?.ownerId ?? '')) setQueueConfirmation(previous => previous === queueConfirmation ? undefined : previous) }}><Dialog.Portal container={portalContainer}>
       <Dialog.Overlay className="mira-composer-confirm-overlay" />
-      <Dialog.Content className="mira-composer-confirm" data-testid="mira-paused-queue-confirmation" onCloseAutoFocus={event => { event.preventDefault(); if (activeRef.current && !controller.getSnapshot().sessionLoading && controller.getSnapshot().session?.id === sessionId) textareaRef.current?.focus() }} onEscapeKeyDown={event => { if (queueConfirmationPending) event.preventDefault() }} onInteractOutside={event => { if (queueConfirmationPending) event.preventDefault() }}>
+      <Dialog.Content className="mira-composer-confirm" data-testid="mira-paused-queue-confirmation" onCloseAutoFocus={event => { event.preventDefault(); if (activeRef.current && !controller.getSnapshot().sessionLoading && controller.getSnapshot().session?.id === sessionId) editorRef.current?.focus() }} onEscapeKeyDown={event => { if (queueConfirmationPending) event.preventDefault() }} onInteractOutside={event => { if (queueConfirmationPending) event.preventDefault() }}>
         <Dialog.Close asChild><button type="button" className="mira-composer-confirm__close" aria-label="关闭发送确认" disabled={queueConfirmationPending}><X size={18} /></button></Dialog.Close>
         <Dialog.Title className="mira-composer-confirm__title">发送消息？</Dialog.Title>
         <Dialog.Description className="mira-composer-confirm__description">你即将发送一条消息。要清除之前已排队的 {queueConfirmation?.itemIds.length ?? 0} 条消息吗？</Dialog.Description>

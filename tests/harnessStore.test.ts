@@ -436,6 +436,23 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('recovers child public parts and tools only for their active run owner', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    store.setActiveRun(session.id, { id: 'run-current', startedAt: 1, activities: [], subtasks: [{
+      id: 'child', parentToolCallId: 'delegate', role: 'reviewer', task: '检查', status: 'stopping', createdAt: 1,
+      activities: [{ id: 'activity', label: 'read', kind: 'tool', status: 'running', startedAt: 1 }],
+      parts: [{ id: 'done', type: 'text', text: 'Completed text', state: 'complete', startedAt: 1, completedAt: 2 }, { id: 'live', type: 'reasoning', text: 'Recorded public partial', state: 'streaming', startedAt: 3 }, { id: 'tool', type: 'tool', toolCallId: 'current-tool' }],
+    }] })
+    for (const [id, runId, subtaskId] of [['current-tool', 'run-current', 'child'], ['old-tool', 'run-old', 'child'], ['parent-tool', 'run-current', undefined]]) store.recordTool(session.id, { id: id!, tool: 'read', runId, subtaskId, status: 'running', createdAt: 1 })
+    store.recoverInterruptedSubtasks()
+    const value = store.getSession(session.id)
+    expect(value.activeRun?.subtasks[0]).toMatchObject({ status: 'interrupted', activities: [{ status: 'failed' }], parts: [{ text: 'Completed text', state: 'complete' }, { text: 'Recorded public partial', state: 'interrupted' }, { toolCallId: 'current-tool' }] })
+    expect(value.toolCalls.map(tool => [tool.id, tool.status])).toEqual([['current-tool', 'cancelled'], ['old-tool', 'running'], ['parent-tool', 'running']])
+    expect(store.getSession(session.id)).toEqual(value)
+    database.close(); rmSync(root, { recursive: true, force: true })
+  })
+
   it('stores project sessions and trash outside the project directory', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')

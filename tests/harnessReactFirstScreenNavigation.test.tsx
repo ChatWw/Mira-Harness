@@ -4,13 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HarnessWorkbench } from '../apps/harness-react/src/components/workbench/HarnessWorkbench'
 import { HarnessCommandCenter, type HarnessCommandCenterProps } from '../apps/harness-react/src/components/search/HarnessCommandCenter'
 import { HarnessComposer, type HarnessComposerHandle } from '../apps/harness-react/src/components/composer/HarnessComposer'
+import { MiraPromptEditor, type MiraPromptEditorHandle, type MiraPromptEditorProps } from '../apps/harness-react/src/components/composer/MiraPromptEditor'
+import { createMiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-drafts'
 import { AutomationsView, type AutomationsNavigationHandle } from '../apps/harness-react/src/components/automations/AutomationsView'
 import { PilotController, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
-import type { HarnessSession } from '../src/config/harness'
+import type { HarnessActiveRun, HarnessRunSummary, HarnessSession, HarnessSubtask } from '../src/config/harness'
 import { parseFirstPartyNavigationPath } from '../src/platform/firstPartyNavigation'
 import { SidebarPreferenceStore } from '../apps/harness-react/src/components/session/sidebar-preferences'
 import { ProjectFileDrawer } from '../apps/harness-react/src/components/workspace/ProjectFileDrawer'
+import { MiraTaskTitleEditor } from '../apps/harness-react/src/components/workbench/MiraTaskTitleEditor'
+import { TaskSummary } from '../apps/harness-react/src/components/conversation/TaskSummary'
+import { WorkspaceTabs } from '../apps/harness-react/src/components/workspace/WorkspaceTabs'
+import { OverviewPanel } from '../apps/harness-react/src/components/workspace/OverviewPanel'
+import { MiraSubtaskPanel } from '../apps/harness-react/src/components/workspace/MiraSubtaskPanel'
 import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNavigationState, MiraAppNavigationTarget } from '../src/platform/appNavigation'
 
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
@@ -591,11 +598,25 @@ describe('Header and sidebar own one persisted grouping store', () => {
     expect(view.controller.getSnapshot().session).toMatchObject({ id: 'a', projectId: 'project-a' })
     expect(view.host.getSession).not.toHaveBeenCalled()
   })
+  it('binds the Header rename menu to its original task and removes the editor on task switch', async () => {
+    const view = headerFixture(); await view.drain()
+    const rename = view.header().onRename as () => void
+    rename(); await view.drain()
+    const editor = view.props((_, element) => element.type === MiraTaskTitleEditor)
+    expect(editor).toMatchObject({ sessionId: 'a', title: 'a', controller: view.controller })
+    await view.controller.open('b'); await view.drain()
+    expect(() => view.props((_, element) => element.type === MiraTaskTitleEditor)).toThrow('Missing workbench element')
+    // A queued callback from the old Header menu cannot start renaming B.
+    rename(); (editor.onClose as () => void)(); await view.drain()
+    expect(view.controller.getSnapshot().session?.id).toBe('b')
+    expect(() => view.props((_, element) => element.type === MiraTaskTitleEditor)).toThrow('Missing workbench element')
+  })
   it('preserves the same store while the sidebar is closed and reopens with Header changes and collapse preferences', async () => {
     const view = headerFixture(); await view.drain()
     const store = view.sidebar().preferenceStore as SidebarPreferenceStore
     ;(view.props(p => p['aria-label'] === '会话').onClick as () => void)(); await view.drain()
-    expect(() => view.sidebar()).toThrow('Missing workbench element')
+    expect(view.props(p => p.className === 'mira-sidebar-panel')).toMatchObject({ 'aria-hidden': true, inert: true })
+    expect(view.sidebar().preferenceStore).toBe(store)
     ;(view.header().onMoveGroup as (id?: string) => void)(); await view.drain()
     expect(view.header().currentGroupId).toBeUndefined()
     ;(view.props(p => p['aria-label'] === '会话').onClick as () => void)(); await view.drain()
@@ -788,17 +809,19 @@ describe('Workbench admits the captured group draft without changing navigation'
 function mountComposer(controller: PilotController) {
   let active = true, tree: React.ReactNode
   const handle = { current: null as HarnessComposerHandle | null }
-  const textarea = { style: {} as Record<string, string>, scrollHeight: 40, selectionStart: 0, selectionEnd: 0, focus: vi.fn(), closest: () => null }
-  const visit = (node: React.ReactNode): Record<string, unknown> | undefined => { if (Array.isArray(node)) return node.map(visit).find(Boolean); if (!React.isValidElement<Record<string, unknown>>(node)) return; return node.type === 'textarea' ? node.props : visit(node.props.children as React.ReactNode) }
+  let range = { start: 0, end: 0 }
+  const element = { style: {} as Record<string, string>, scrollHeight: 40, focus: vi.fn(), closest: () => null, contains: () => false }
+  const editor: MiraPromptEditorHandle = { getElement: () => element as unknown as HTMLDivElement, focus: element.focus, getSelectionRange: () => range, setSelectionRange: (start, end) => { range = { start, end } }, replaceRange: () => undefined }
+  const visit = (node: React.ReactNode): Record<string, unknown> | undefined => { if (Array.isArray(node)) return node.map(visit).find(Boolean); if (!React.isValidElement<Record<string, unknown>>(node)) return; return node.type === MiraPromptEditor ? node.props : visit(node.props.children as React.ReactNode) }
   const render = () => {
     hooks.cursor = 0; hooks.dirty = false
     tree = (HarnessComposer as unknown as { render(props: unknown, ref: unknown): React.ReactElement }).render({ state: controller.getSnapshot(), controller, active, planning: false, setPlanning: vi.fn() }, handle)
-    const input = visit(tree)!; (input.ref as React.RefObject<unknown>).current = textarea
+    const input = visit(tree)!; (input.ref as React.RefObject<unknown>).current = editor
     hooks.effects.splice(0).forEach(callback => callback())
   }
   const drain = async () => { for (let i = 0; i < 30; i++) { await Promise.resolve(); render() } }
   render()
-  return { handle, drain, text: () => visit(tree)!.value, type: async (value: string) => { textarea.selectionStart = value.length; textarea.selectionEnd = value.length; (visit(tree)!.onChange as (event: unknown) => void)({ target: { value, selectionStart: value.length, selectionEnd: value.length } }); await drain() }, hide: async () => { active = false; render(); await drain() } }
+  return { handle, drain, text: () => visit(tree)!.text, type: async (value: string) => { range = { start: value.length, end: value.length }; (visit(tree)!.onChange as MiraPromptEditorProps['onChange'])(createMiraPromptDocument(value), range); await drain() }, hide: async () => { active = false; render(); await drain() } }
 }
 
 describe('real Composer imperative preparation keeps navigation ownership', () => {
@@ -830,5 +853,158 @@ describe('real Composer imperative preparation keeps navigation ownership', () =
     const preparing = view.handle.current!.prepareSession(() => current); await view.drain()
     current = false; created.resolve(task('created')); await preparing; await view.drain()
     expect(controller.getSnapshot().session).toBeUndefined(); expect(host.getSession).not.toHaveBeenCalled(); expect(view.text()).toBe('未发送原稿')
+  })
+})
+
+describe('Workbench run and child panels keep their captured owners', () => {
+  const child = (id: string): HarnessSubtask => ({ id, parentToolCallId: `public-${id}`, role: 'reviewer', task: `检查 ${id}`, status: 'running', createdAt: 2, activities: [] })
+  const activeRun = (id: string, subtasks = [child('shared-child')]): HarnessActiveRun => ({ id, startedAt: 1, activities: [{ id: 'activity', label: '检查中', status: 'running', startedAt: 1 }], subtasks })
+  const completedRun = (active: HarnessActiveRun): HarnessRunSummary => ({ startedAt: active.startedAt, completedAt: 10, durationMs: 9, status: 'completed', activities: active.activities.map(activity => ({ ...activity, status: 'completed' })), subtasks: active.subtasks.map(subtask => ({ ...subtask, status: 'completed' })) })
+  function runFixture() {
+    const api = fixture(), selected = { ...task('a', 'project-a'), activeRun: activeRun('run-a', [child('shared-child'), child('other-child')]) }
+    const stop = vi.fn(async (_sessionId: string, _subtaskId?: string) => undefined)
+    Object.assign(api.host, { stopSubtasks: stop })
+    Object.assign(api.controller.getSnapshot(), { session: selected, messages: selected.messages, running: true, runningSessionIds: ['a'] })
+    const view = mount(api.controller)
+    const summary = () => view.props((_, element) => element.type === TaskSummary) as unknown as React.ComponentProps<typeof TaskSummary>
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    const overview = () => view.props((_, element) => element.type === OverviewPanel) as unknown as React.ComponentProps<typeof OverviewPanel>
+    const panel = (subtaskId = 'shared-child') => view.props((props, element) => element.type === MiraSubtaskPanel && props.subtaskId === subtaskId) as unknown as React.ComponentProps<typeof MiraSubtaskPanel>
+    const nextRun = () => {
+      const session = api.controller.getSnapshot().session!
+      const previous = session.activeRun!
+      const messages = [...session.messages, { id: `reply-${previous.id}`, role: 'assistant' as const, content: '已完成', runId: previous.id, run: completedRun(previous), createdAt: 1 }]
+      Object.assign(api.controller.getSnapshot(), { session: { ...session, messages, activeRun: activeRun('run-next') }, messages, running: true })
+      view.render()
+    }
+    const openOtherSession = async () => {
+      api.host.getSession.mockResolvedValueOnce({ ...task('b', 'project-b'), activeRun: activeRun('run-b') })
+      await api.controller.open('b'); await view.drain()
+    }
+    return { ...api, view, summary, tabs, overview, panel, stop, nextRun, openOtherSession }
+  }
+
+  it('opens a real overview tab from TaskSummary with the exact current run metadata', async () => {
+    const api = runFixture(); await api.view.drain()
+    api.summary().onOpenProgress!(); await api.view.drain()
+    expect(api.tabs()).toMatchObject({ active: 'overview', tabs: [{ id: 'overview', runId: 'run-a' }] })
+    expect(api.overview()).toMatchObject({ sessionId: 'a', runId: 'run-a', active: true, session: api.controller.getSnapshot().session })
+    expect(api.view.props(props => props.id === 'pilot-workspace')['aria-hidden']).toBe(false)
+    expect(api.host.prepareSession).not.toHaveBeenCalled(); expect(api.host.createSession).not.toHaveBeenCalled()
+  })
+
+  it('opens independent dynamic child tabs and binds panel actions to each child owner', async () => {
+    const api = runFixture(); await api.view.drain()
+    api.summary().onOpenSubtask!('shared-child'); await api.view.drain()
+    const first = api.tabs().tabs[0]
+    expect(first).toMatchObject({ runId: 'run-a', subtaskId: 'shared-child', label: '检查 shared-child' })
+    expect(first.id).toMatch(/^subtask:/)
+    expect(api.panel()).toMatchObject({ sessionId: 'a', runId: 'run-a', subtaskId: 'shared-child', active: true })
+    api.summary().onOpenSubtask!('other-child'); await api.view.drain()
+    const second = api.tabs().tabs[1]
+    expect(second.id).not.toBe(first.id)
+    expect(second).toMatchObject({ runId: 'run-a', subtaskId: 'other-child' })
+    expect(api.tabs().active).toBe(second.id)
+    expect(api.panel().active).toBe(false)
+    expect(api.panel('other-child').active).toBe(true)
+    await api.panel('other-child').onStopSubtask('other-child')
+    expect(api.stop).toHaveBeenCalledExactlyOnceWith('a', 'other-child')
+  })
+
+  it('retains the historical overview owner when a newer run begins until an explicit opening replaces it', async () => {
+    const api = runFixture(); await api.view.drain()
+    api.summary().onOpenProgress!(); await api.view.drain()
+    api.nextRun(); await api.view.drain()
+    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-a' }])
+    expect(api.overview()).toMatchObject({ runId: 'run-a', session: { activeRun: { id: 'run-next' } } })
+    api.summary().onOpenProgress!(); await api.view.drain()
+    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-next' }])
+    expect(api.overview().runId).toBe('run-next')
+  })
+
+  it('preserves child metadata through closing and reopening after the parent run changes', async () => {
+    const api = runFixture(); await api.view.drain()
+    api.summary().onOpenSubtask!('shared-child'); await api.view.drain()
+    const original = api.tabs().tabs[0]
+    api.tabs().onClose(original.id); await api.view.drain()
+    expect(api.tabs().tabs).toEqual([])
+    expect(api.tabs().recentClosedTabs).toEqual([original])
+    api.nextRun(); await api.view.drain()
+    api.tabs().onReopen(original.id); await api.view.drain()
+    expect(api.tabs()).toMatchObject({ active: original.id, tabs: [original], recentClosedTabs: [] })
+    expect(api.panel()).toMatchObject({ sessionId: 'a', runId: 'run-a', subtaskId: 'shared-child', active: true })
+    await api.panel().onStopSubtask('shared-child')
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+
+  it('does not let retained session-A summary or panel callbacks open or stop session-B children', async () => {
+    const api = runFixture(); await api.view.drain()
+    const oldSummary = api.summary()
+    oldSummary.onOpenSubtask!('shared-child'); await api.view.drain()
+    const oldPanel = api.panel()
+    await api.openOtherSession()
+    expect(api.controller.getSnapshot().session?.id).toBe('b')
+    oldSummary.onOpenProgress!(); oldSummary.onOpenSubtask!('shared-child')
+    await oldSummary.onStopSubtask('shared-child'); await oldPanel.onStopSubtask('shared-child'); await api.view.drain()
+    expect(api.tabs().tabs).toEqual([])
+    expect(api.stop).not.toHaveBeenCalled()
+    api.summary().onOpenSubtask!('shared-child'); await api.view.drain()
+    expect(api.tabs().tabs[0]).toMatchObject({ runId: 'run-b', subtaskId: 'shared-child' })
+    expect(api.panel()).toMatchObject({ sessionId: 'b', runId: 'run-b' })
+  })
+
+  it('keeps old openings historical and never stops a newer run that reuses the same child ID', async () => {
+    const api = runFixture(); await api.view.drain()
+    const oldSummary = api.summary()
+    oldSummary.onOpenSubtask!('shared-child'); await api.view.drain()
+    const oldPanel = api.panel()
+    api.nextRun(); await api.view.drain()
+    oldSummary.onOpenProgress!(); oldSummary.onOpenSubtask!('shared-child'); await api.view.drain()
+    expect(api.tabs().tabs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'overview', runId: 'run-a' }),
+      expect.objectContaining({ runId: 'run-a', subtaskId: 'shared-child' }),
+    ]))
+    await oldSummary.onStopSubtask('shared-child'); await oldPanel.onStopSubtask('shared-child')
+    expect(api.stop).not.toHaveBeenCalled()
+    api.summary().onOpenSubtask!('shared-child'); await api.view.drain()
+    expect(api.tabs().tabs.filter(tab => tab.subtaskId === 'shared-child').map(tab => tab.runId)).toEqual(['run-a', 'run-next'])
+    await api.summary().onStopSubtask('shared-child')
+    expect(api.stop).toHaveBeenCalledExactlyOnceWith('a', 'shared-child')
+  })
+
+  it.each(['session', 'run', 'main-view'] as const)('does not publish a late stop failure after the %s owner changes', async owner => {
+    const api = runFixture(); await api.view.drain()
+    const pending = deferred<void>(), original = api.summary(), onError = vi.fn(original.onError)
+    api.stop.mockReturnValueOnce(pending.promise)
+    const stopping = original.onStopSubtask('shared-child').catch(onError)
+    expect(api.stop).toHaveBeenCalledExactlyOnceWith('a', 'shared-child')
+    if (owner === 'session') await api.openOtherSession()
+    else if (owner === 'run') { api.nextRun(); await api.view.drain() }
+    else { api.view.view('extensions'); await api.view.drain() }
+    pending.reject(new Error('旧停止请求失败'))
+    await stopping; await api.view.drain()
+    expect(onError).not.toHaveBeenCalled()
+    expect(api.controller.getSnapshot().error).toBeUndefined()
+  })
+
+  it('still reports a stop failure while its original run remains current', async () => {
+    const api = runFixture(); await api.view.drain()
+    const original = api.summary(), failure = new Error('停止失败'), onError = vi.fn(original.onError)
+    api.stop.mockRejectedValueOnce(failure)
+    await original.onStopSubtask('shared-child').catch(onError); await api.view.drain()
+    expect(onError).toHaveBeenCalledExactlyOnceWith(failure)
+    expect(api.controller.getSnapshot().error).toBe('停止失败')
+  })
+
+  it('does not prepare or create a session when a draft opens overview from the workspace launcher', async () => {
+    const api = fixture(); api.controller.newConversation()
+    const view = mount(api.controller); await view.drain()
+    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    tabs().onOpen('overview'); await view.drain()
+    expect(tabs().tabs).toEqual([])
+    expect(api.controller.getSnapshot().session).toBeUndefined()
+    expect(view.composer.prepareSession).not.toHaveBeenCalled()
+    expect(api.host.prepareSession).not.toHaveBeenCalled(); expect(api.host.createSession).not.toHaveBeenCalled()
   })
 })

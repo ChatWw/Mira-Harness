@@ -1,7 +1,43 @@
 import { describe, expect, it } from 'vitest'
 import { appendComposerReferences, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, withoutComposerDraftOwners } from '../apps/harness-react/src/lib/composer-drafts'
+import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 describe('React Harness composer draft preferences', () => {
+  const reference: MiraPromptDocument = { version: 1, parts: [{ type: 'reference', reference: { id: 'readme', kind: 'file', label: 'README.md', value: 'mira-attachment:frozen', text: '@src/README.md' } }] }
+
+  it('restores rich references only against matching owner text and actual attachment metadata', () => {
+    const saved = readComposerDrafts({ drafts: { a: '@src/README.md', b: 'other text', missing: '@src/README.md' }, fileDrafts: { a: [{ path: 'mira-attachment:frozen', name: 'README.md' }] }, documents: { a: reference, b: reference, missing: reference, orphan: reference } })
+    expect(saved.documents).toEqual({ a: reference })
+    expect(readComposerDrafts(JSON.parse(JSON.stringify(serializeComposerDrafts(saved)))).documents).toEqual(saved.documents)
+    expect(saved.drafts.missing).toBe('@src/README.md')
+    expect(withoutComposerDraftOwners(saved, new Set(['a'])).documents).toEqual({})
+  })
+
+  it('does not resurrect saved pills after a local plain-text edit with identical canonical text', () => {
+    const saved = readComposerDrafts({ drafts: { a: '@src/README.md' }, fileDrafts: { a: [{ path: 'mira-attachment:frozen', name: 'README.md' }] }, documents: { a: reference } })
+    const local = { ...readComposerDrafts(null), drafts: { a: '@src/README.md' } }
+    expect(serializeComposerDrafts(mergeComposerDrafts(saved, local, new Set())).documents).toBeUndefined()
+    expect(serializeComposerDrafts(mergeComposerDrafts(saved, readComposerDrafts(null), new Set())).documents).toEqual({ a: reference })
+  })
+
+  it('omits corrupt editor structures while preserving legacy text and file drafts', () => {
+    const saved = readComposerDrafts({ drafts: { a: '@src/README.md' }, fileDrafts: { a: [{ path: 'mira-attachment:frozen', name: 'README.md' }] }, documents: { a: { ...reference, privateHTML: '<script>bad</script>' } } })
+    expect(saved.documents).toBeUndefined()
+    expect(saved.drafts.a).toBe('@src/README.md'); expect(saved.fileDrafts.a).toHaveLength(1)
+    expect(JSON.stringify(saved)).not.toContain('privateHTML')
+  })
+
+  it('keeps a valid long submission when optional rich metadata would exceed the shared preference budget', () => {
+    const text = '完整会话'.repeat(22_000)
+    const document: MiraPromptDocument = { version: 1, parts: [{ type: 'reference', reference: { id: 'session', kind: 'session', label: '长对话', value: 'session', text } }] }
+    const snapshot = { ...readComposerDrafts(null), drafts: { a: text }, documents: { a: document }, submissions: { a: { id: 'intent', text, references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false } } }
+    const saved = serializeComposerDrafts(snapshot)
+    expect(saved.documents).toBeUndefined()
+    expect(saved.drafts.a).toBe(text); expect(saved.submissions?.a?.text).toBe(text)
+    expect(snapshot.documents.a).toBe(document)
+    expect(JSON.stringify(saved).length).toBeLessThanOrEqual(262_144)
+  })
+
   it('drops only deleted owners after a late saved draft response, including files, recoveries and submissions', () => {
     const intent = { id: 'submission', text: 'old', references: [], selection: { providerId: 'provider', modelId: 'model' }, planning: false }
     const saved = readComposerDrafts({

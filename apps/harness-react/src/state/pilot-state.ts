@@ -198,6 +198,7 @@ export class PilotController {
   private terminalListeners = new Set<(event: HarnessEvent) => void>()
   private workspaceFileListeners = new Set<(event: PilotWorkspaceFileEvent) => void>()
   private beforeNavigation = new Set<() => Promise<void> | void>()
+  private pendingEditSettlements = new Set<(accepted: boolean) => void>()
   private preferenceWrites = new Map<string, Promise<void>>()
   private unsubscribe?: () => void
   private generation = 0
@@ -557,7 +558,16 @@ export class PilotController {
   }
   /** 会话管理操作统一走这里：宿主失败落到 state.error，成功后刷新列表。 */
   private run(action: () => Promise<void>) { return action().catch(error => this.fail(error)) }
-  renameSession(id: string, title: string) { return this.run(async () => { await this.require('renameSession')(id, title); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation, false) }) }
+  async renameSession(id: string, title: string): Promise<boolean> {
+    const generation = this.generation
+    try {
+      await this.require('renameSession')(id, title)
+      this.update({ ...(generation === this.generation ? { error: undefined } : {}), sessions: this.state.sessions.map(session => session.id === id ? { ...session, title } : session), ...(this.state.session?.id === id ? { session: { ...this.state.session, title } } : {}) })
+    } catch (error) { if (generation === this.generation) this.fail(error); return false }
+    // 已保存的标题不因列表刷新失败而重复提交；刷新错误仍通过现有页面提示呈现。
+    try { await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation, false) } catch (error) { if (generation === this.generation) this.fail(error) }
+    return true
+  }
   setSessionPinned(id: string, pinned: boolean) { return this.run(async () => { await this.require('setSessionPinned')(id, pinned); await this.refreshList() }) }
   setSessionUnread(id: string, unread: boolean) {
     const unreadIds = unread ? [...new Set([...this.state.unreadSessionIds, id])] : this.state.unreadSessionIds.filter(item => item !== id)
@@ -765,21 +775,41 @@ export class PilotController {
     if (!id) return Promise.reject(new Error('尚未选择任务'))
     return this.require('stopSubtasks')(id, subtaskId)
   }
-  rerun() {
-    return this.restartMessage((session, selection) => this.require('rerun')(session.id, selection))
+  async rerun(): Promise<void> {
+    await this.restartMessage((session, selection) => this.require('rerun')(session.id, selection))
   }
-  editAndRerun(messageId: string, content: string) {
-    return this.restartMessage((session, selection) => this.require('editAndRerun')(session.id, messageId, content, selection))
+  editAndRerun(messageId: string, content: string): Promise<boolean> {
+    if (!this.canRestartMessage()) return Promise.resolve(false)
+    const session = this.state.session
+    const generation = this.generation
+    return new Promise(resolve => {
+      let settled = false
+      const settle = (accepted: boolean) => { if (settled) return; settled = true; unsubscribe(); this.pendingEditSettlements.delete(settle); resolve(accepted) }
+      // IPC 会等待整轮生成；只有新运行中的权威消息确实保存了编辑内容，才提前关闭编辑器。
+      const unsubscribe = this.subscribe(() => {
+        const current = this.state.session
+        if (this.generation !== generation || current?.id !== session?.id) { settle(false); return }
+        if (current?.activeRun && current.activeRun.id !== session?.activeRun?.id && current.messages.some(message => message.id === messageId && message.role === 'user' && message.content === content.trim())) settle(true)
+      })
+      this.pendingEditSettlements.add(settle)
+      void this.restartMessage((session, selection) => this.require('editAndRerun')(session.id, messageId, content, selection)).then(settle, error => { if (generation === this.generation) this.fail(error); settle(false) })
+    })
   }
-  private async restartMessage(action: (session: HarnessSession, selection: ModelSelection) => Promise<void>) {
-    const { session, selection } = this.state
-    if (this.state.running || this.state.permission || session?.pendingInteraction?.status === 'waiting') return
-    if (!session || !selection) { this.fail(new Error('尚未选择任务或模型')); return }
+  private canRestartMessage() {
+    if (this.disposed || this.state.sessionLoading || this.state.running || this.state.permission || this.state.queue?.items.length || this.state.session?.pendingInteraction?.status === 'waiting') return false
+    if (!this.state.session || !this.state.selection) { this.fail(new Error('尚未选择任务或模型')); return false }
+    return true
+  }
+  private async restartMessage(action: (session: HarnessSession, selection: ModelSelection) => Promise<void>): Promise<boolean> {
+    if (!this.canRestartMessage()) return false
+    const session = this.state.session!, selection = this.state.selection!
     const generation = this.generation
     this.update({ running: true, error: undefined })
+    let accepted = true
     try { await action(session, selection) }
-    catch (error) { if (generation === this.generation) this.fail(error) }
+    catch (error) { accepted = false; if (generation === this.generation) this.fail(error) }
     await this.refreshSession(session.id, generation)
+    return accepted
   }
   cancelPlan(planId: string) {
     const id = this.state.session?.id
@@ -1173,5 +1203,5 @@ export class PilotController {
     this.update({ runningSessionIds: [...runningIds], unreadSessionIds: [...unreadIds], pendingPermissions })
   }
   private fail(error: unknown) { this.update({ error: error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : '操作失败' }) }
-  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.deletedSessionListeners.clear(); this.listeners.clear() }
+  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.pendingEditSettlements.forEach(settle => settle(false)); this.pendingEditSettlements.clear(); this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.deletedSessionListeners.clear(); this.listeners.clear() }
 }

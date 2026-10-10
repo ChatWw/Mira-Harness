@@ -19,6 +19,7 @@ const bundler = await context({
   define: { MIRA_HIGHLIGHT_WORKER_PATH: JSON.stringify('/harness-react-dev/mira-code-highlight.worker.js') },
   platform: 'browser',
   target: ['chrome110'],
+  loader: { '.svg': 'dataurl' },
   jsx: 'automatic',
   outdir: output,
   sourcemap: 'inline',

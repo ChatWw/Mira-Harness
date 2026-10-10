@@ -377,7 +377,11 @@ describe('Harness workspace search', () => {
     await symlink(join(outside, 'secret.md'), join(root, 'secret-link.md'))
     expect((await searchHarnessWorkspaceFiles(root, 'note')).entries.map(entry => entry.path)).toEqual(['src/note.md', 'note-link.md'])
     expect((await searchHarnessWorkspaceFiles(root, 'src-link')).entries[0]).toEqual({ name: 'src-link', path: 'src-link', type: 'directory' })
-    expect((await searchHarnessWorkspaceFiles(root, 'loop')).entries).toEqual([{ name: 'loop', path: 'src/loop', type: 'directory' }])
+    const loopEntries = (await searchHarnessWorkspaceFiles(root, 'loop')).entries
+    // Absolute-path fuzzy search can also match the random temporary root name.
+    expect(loopEntries[0]).toEqual({ name: 'loop', path: 'src/loop', type: 'directory' })
+    expect(loopEntries.filter(entry => entry.path === 'src/loop')).toHaveLength(1)
+    expect(loopEntries.every(entry => !entry.path.includes('src/loop/') && !entry.path.startsWith('src-link/'))).toBe(true)
     for (const query of ['external', 'secret', 'broken', 'src-link/note']) expect((await searchHarnessWorkspaceFiles(root, query)).entries.every(entry => !/external|secret|broken|src-link\//.test(entry.path))).toBe(true)
   })
 

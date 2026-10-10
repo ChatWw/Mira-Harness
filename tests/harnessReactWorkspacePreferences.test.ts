@@ -110,7 +110,7 @@ function mount(controller: PilotController) {
 beforeEach(() => {
   hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hooks.effects = []
   vi.stubGlobal('React', React)
-  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn(), matchMedia: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) })
+  vi.stubGlobal('window', { setTimeout, clearTimeout, addEventListener: vi.fn(), removeEventListener: vi.fn(), matchMedia: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) })
 })
 afterEach(() => { vi.unstubAllGlobals() })
 

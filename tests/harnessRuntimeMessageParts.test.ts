@@ -2,11 +2,14 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Agent } from '@earendil-works/pi-agent-core'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PlatformDatabase } from '../electron/storage/database'
 import { HarnessRuntime, finalizeAssistantCitations } from '../electron/services/harnessRuntime'
 import { HARNESS_PUBLIC_TEXT_BYTES, publicHarnessText, publicHarnessToolInput, publicHarnessToolOutput } from '../electron/services/agentTools'
 import { McpManager } from '../electron/adapters/mcpManager'
+import { HarnessSubtaskCoordinator } from '../electron/services/harnessSubtaskCoordinator'
+import { SubtaskRuntime } from '../electron/services/subtaskRuntime'
 import type { HarnessEvent, HarnessMessagePart } from '../src/config/harness'
 
 const resources: Array<{ root: string; database: PlatformDatabase }> = []
@@ -27,20 +30,21 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
   const runtime = new HarnessRuntime(database, mcpManager as any)
   const sender: any = { isDestroyed: () => false, send: (_channel: string, event: HarnessEvent) => events.push(structuredClone(event)) }
   let notify!: (event: any) => void
-  vi.spyOn(Agent.prototype, 'subscribe').mockImplementation(listener => { notify = event => { void listener(event, new AbortController().signal) }; return () => {} })
+  const subscribe = Agent.prototype.subscribe
+  vi.spyOn(Agent.prototype, 'subscribe').mockImplementation(function (this: Agent, listener) { if (!notify) notify = event => { void listener(event, new AbortController().signal) }; return subscribe.call(this, listener) })
   vi.spyOn(runtime as any, 'compactContext').mockImplementation(async (_sender, session) => session)
   const provider = { id: 'p', name: 'Test', endpoint: 'http://127.0.0.1:1', models: [{ id: 'test', reasoning: true }] }
   const run = () => (runtime as any).runAgent(sender, created.id, database.harness.getSession(created.id), { providerId: 'p', modelId: 'test', thinkingLevel: 'high' }, provider, 'platform-private-key')
   const update = (type: string, delta?: string, contentIndex = 0) => notify({ type: 'message_update', assistantMessageEvent: { type, delta, contentIndex } })
   const response = () => notify({ type: 'message_start', message: { role: 'assistant' } })
-  const tool = async (agent: any, id: string, name: string, args: any) => {
+  const tool = async (agent: any, id: string, name: string, args: any, onUpdate?: (partial: unknown) => void) => {
     notify({ type: 'message_update', assistantMessageEvent: { type: 'toolcall_end', toolCall: { id, name, arguments: args } } })
     notify({ type: 'tool_execution_start', toolCallId: id, toolName: name, args })
     const decision = await agent.beforeToolCall({ toolCall: { id, name }, args })
     let result: any, isError = false
     if (decision?.block) { result = { content: [{ type: 'text', text: decision.reason }] }; isError = true }
     else {
-      try { result = await agent.state.tools.find((entry: any) => entry.name === name).execute(id, args, (runtime as any).runCoordinator.running.get(created.id)?.controller?.signal) }
+      try { result = await agent.state.tools.find((entry: any) => entry.name === name).execute(id, args, (runtime as any).runCoordinator.running.get(created.id)?.controller?.signal, onUpdate) }
       catch (error) { result = { content: [{ type: 'text', text: String(error) }] }; isError = true }
     }
     notify({ type: 'tool_execution_end', toolCallId: id, toolName: name, result, isError })
@@ -50,6 +54,74 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
 }
 
 describe('authoritative ordered Harness message parts', () => {
+  it('publishes real bash output before completion, sanitizes it, and preserves the upstream progress callback', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    const upstream = vi.fn()
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      const attempt = fixture.tool(this, 'streaming-command', 'bash', { command: "printf 'platform-private-key first\\n'; sleep 0.15; printf 'last\\n'" }, upstream)
+      await vi.waitFor(() => {
+        const record = fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]
+        expect(record).toMatchObject({ status: 'running', output: { text: '[已隐藏] first\n' } })
+      })
+      expect(fixture.events.some(event => event.type === 'tool-call' && event.payload.status === undefined && event.payload.output?.text === '[已隐藏] first\n')).toBe(true)
+      await attempt
+      fixture.response()
+      fixture.update('text_delta', 'Done')
+    })
+    await fixture.run()
+    const record = fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]!
+    expect(record).toMatchObject({ status: 'ok', output: { text: '[已隐藏] first\nlast\n', truncated: false } })
+    expect(upstream).toHaveBeenCalled()
+    expect(JSON.stringify(fixture.events.filter(event => event.type === 'tool-call'))).not.toContain('platform-private-key')
+  })
+
+  it('ignores a captured progress callback after the tool finishes and after another response reuses its provider id', async () => {
+    let publish!: (partial: unknown) => void
+    const fixture = setup({ getTools: () => [{ name: 'mcp_progress', label: 'Progress', parameters: {}, execute: async (_id: string, _args: unknown, _signal: AbortSignal, onUpdate: typeof publish) => {
+      publish = onUpdate
+      onUpdate({ content: [{ type: 'text', text: 'partial' }] })
+      return { content: [{ type: 'text', text: 'final' }] }
+    } }] })
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      await fixture.tool(this, 'same-provider-id', 'mcp_progress', {})
+      const oldPublish = publish
+      fixture.response()
+      await fixture.tool(this, 'same-provider-id', 'mcp_progress', {})
+      const count = fixture.events.length
+      oldPublish({ content: [{ type: 'text', text: 'late-old-result' }] })
+      publish({ content: [{ type: 'text', text: 'late-new-result' }] })
+      expect(fixture.events).toHaveLength(count)
+      fixture.response()
+      fixture.update('text_delta', 'Done')
+    })
+    await fixture.run()
+    const records = fixture.database.harness.getSession(fixture.sessionId).toolCalls
+    expect(records).toHaveLength(2)
+    expect(records.map(record => record.output?.text)).toEqual(['final', 'final'])
+    expect(records[0].id).not.toBe(records[1].id)
+  })
+
+  it('keeps the last public output when cancellation precedes a late progress callback', async () => {
+    const fixture = setup({ getTools: () => [{ name: 'mcp_progress', label: 'Progress', parameters: {}, execute: async (_id: string, _args: unknown, _signal: AbortSignal, onUpdate: (partial: unknown) => void) => {
+      onUpdate({ content: [{ type: 'text', text: 'recorded partial' }] })
+      fixture.runtime.abort(fixture.sessionId)
+      onUpdate({ content: [{ type: 'text', text: 'late after stop' }] })
+      throw new Error('stopped')
+    } }] })
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      await fixture.tool(this, 'cancelled-command', 'mcp_progress', {})
+    })
+    await fixture.run()
+    expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]).toMatchObject({ status: 'cancelled', output: { text: 'recorded partial' } })
+    expect(JSON.stringify(fixture.events)).not.toContain('late after stop')
+  })
+
   it('keeps parent thinking and text/tool/text/tool/text in both live events and persisted reload', async () => {
     const fixture = setup()
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
@@ -217,6 +289,14 @@ describe('authoritative ordered Harness message parts', () => {
     expect(mixed.text).not.toContain('RAW-MCP-IMAGE-BLOB')
   })
 
+  it.each([true, false, 'true'])('preserves explicit upstream truncation %s without exposing raw details', truncated => {
+    const details = { truncation: { truncated }, fullOutputPath: 'private-output-path' }
+    for (const content of ['last output window', [{ type: 'text', text: 'last output window' }]]) {
+      expect(publicHarnessToolOutput({ content, details })).toEqual({ text: 'last output window', truncated: truncated === true })
+    }
+    expect(publicHarnessToolOutput({ content: [{ type: 'image', data: 'blob' }], details })).toBeUndefined()
+  })
+
   it('treats a real MCP server error as a failed parent tool and activity', async () => {
     const manager = new McpManager()
     const callTool = vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'MCP server rejected the request' }] })
@@ -248,6 +328,88 @@ describe('authoritative ordered Harness message parts', () => {
     expect(session.toolCalls.map(tool => tool.providerCallId)).toEqual(['call', 'call'])
     expect(new Set(session.toolCalls.map(tool => tool.id)).size).toBe(2)
     expect(session.messages.at(-1)?.parts?.filter(part => part.type === 'tool').map(part => part.toolCallId)).toEqual(session.toolCalls.map(tool => tool.id))
+  })
+
+  it('links each delegated child to its real public parent when responses reuse a provider ID', async () => {
+    const fixture = setup()
+    fixture.database.harness.setDelegationEnabled(fixture.sessionId, true)
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      if (this.state.systemPrompt.startsWith('你是 Mira 的')) {
+        this.state.messages.push({ role: 'assistant', content: [{ type: 'text', text: '子任务已检查' }], timestamp: Date.now() })
+        return
+      }
+      fixture.response()
+      await fixture.tool(this, 'same-delegate', 'delegate_task', { role: 'reviewer', task: '检查第一处' })
+      fixture.response()
+      await fixture.tool(this, 'same-delegate', 'delegate_task', { role: 'reviewer', task: '检查第二处' })
+      await fixture.tool(this, 'wait', 'wait_for_tasks', {})
+      fixture.response(); fixture.update('text_delta', '已整合报告')
+    })
+    await fixture.run()
+    const session = fixture.database.harness.getSession(fixture.sessionId)
+    const delegates = session.toolCalls.filter(tool => tool.tool === 'delegate_task')
+    const children = session.messages.at(-1)!.run!.subtasks!
+    expect(delegates.map(tool => tool.providerCallId)).toEqual(['same-delegate', 'same-delegate'])
+    expect(delegates[0].id).not.toBe(delegates[1].id)
+    expect(children.map(task => task.parentToolCallId)).toEqual(delegates.map(tool => tool.id))
+    expect(children.map(task => task.status)).toEqual(['completed', 'completed'])
+    const published = fixture.events.filter(event => event.type === 'run-activity').at(-1)!.payload.subtasks as typeof children
+    expect(published.map(task => task.parentToolCallId)).toEqual(delegates.map(tool => tool.id))
+    expect(new Set(children.map(task => task.id)).size).toBe(2)
+  })
+
+  it('keeps coordinator callers without an identity resolver compatible', async () => {
+    const fixture = setup()
+    const create = vi.spyOn(SubtaskRuntime.prototype, 'create').mockReturnValue({ id: 'child', parentToolCallId: 'raw-call', role: 'reviewer', task: '检查', status: 'queued', createdAt: 1, activities: [] })
+    const coordinator = new HarnessSubtaskCoordinator(fixture.database)
+    const created = coordinator.create({ sender: fixture.sender, sessionId: fixture.sessionId, session: fixture.database.harness.getSession(fixture.sessionId), model: {}, streamFn: vi.fn(), thinkingLevel: 'off', pricing: undefined, publishActivities: vi.fn(), toolsForTask: () => [], preflightToolCall: async () => undefined, getParentAgent: () => undefined })
+    await created.tools.find(tool => tool.name === 'delegate_task')!.execute!('raw-call', { role: 'reviewer', task: '检查' })
+    expect(create.mock.calls[0][0].parentToolCallId).toBe('raw-call')
+  })
+
+  it('closes a real streaming child before persisting a stopped parent and rejects late publication into a newer run', async () => {
+    const fixture = setup()
+    fixture.database.harness.setDelegationEnabled(fixture.sessionId, true)
+    const create = HarnessSubtaskCoordinator.prototype.create
+    let publishOld!: () => void, childTurn = 0
+    vi.spyOn(HarnessSubtaskCoordinator.prototype, 'create').mockImplementation(function (this: HarnessSubtaskCoordinator, options) {
+      publishOld = options.publishActivities
+      return create.call(this, { ...options, streamFn: (_model: any, _context: any, request: any) => {
+        const stream = createAssistantMessageEventStream()
+        const message: any = { role: 'assistant', api: 'openai-completions', provider: 'fixture', model: 'child', content: [], usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: childTurn++ === 0 ? 'toolUse' : 'stop', timestamp: Date.now() }
+        stream.push({ type: 'start', partial: message })
+        if (message.stopReason === 'toolUse') {
+          message.content = [{ type: 'text', text: 'Before actual read' }, { type: 'toolCall', id: 'child-read', name: 'read', arguments: { path: 'note.txt' } }]
+          stream.push({ type: 'done', reason: 'toolUse', message }); stream.end()
+        } else {
+          message.content = [{ type: 'text', text: 'Child partial platform-' }]
+          stream.push({ type: 'text_delta', contentIndex: 0, delta: 'Child partial platform-', partial: message })
+          request.signal.addEventListener('abort', () => { message.stopReason = 'aborted'; stream.push({ type: 'error', reason: 'aborted', error: message }); stream.end() }, { once: true })
+        }
+        return stream
+      } })
+    })
+    const prompt = Agent.prototype.prompt
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any, ...args: any[]) {
+      if (this.state.systemPrompt.startsWith('你是 Mira 的')) return prompt.apply(this, args as any)
+      fixture.response()
+      await fixture.tool(this, 'delegate', 'delegate_task', { role: 'reviewer', task: 'Actual child cancellation' })
+      await vi.waitFor(() => expect(fixture.database.harness.getSession(fixture.sessionId).activeRun?.subtasks[0].parts?.at(-1)).toMatchObject({ type: 'text', text: 'Child partial ' }))
+      fixture.runtime.abort(fixture.sessionId)
+    })
+    await fixture.run()
+    const state = fixture.database.harness.getSession(fixture.sessionId)
+    expect(state.activeRun).toBeUndefined()
+    expect(state.messages.at(-1)?.run).toMatchObject({ status: 'stopped', subtasks: [{ status: 'stopped', parts: [{ type: 'text', state: 'complete' }, { type: 'tool' }, { type: 'text', state: 'interrupted', text: 'Child partial [已隐藏]' }] }] })
+    expect(state.toolCalls.find(tool => tool.subtaskId)).toMatchObject({ status: 'ok', output: { text: 'Read output' } })
+    const coordinator = (fixture.runtime as any).runCoordinator
+    coordinator.begin(fixture.sessionId, 'new-owner-run')
+    fixture.database.harness.setActiveRun(fixture.sessionId, { id: 'new-owner-run', startedAt: Date.now(), activities: [], subtasks: [] })
+    const count = fixture.events.length
+    publishOld()
+    expect(fixture.events).toHaveLength(count)
+    expect(fixture.database.harness.getSession(fixture.sessionId).activeRun?.id).toBe('new-owner-run')
+    await coordinator.finish(fixture.sender, fixture.sessionId, 'new-owner-run')
   })
 
   it('withholds a platform-key prefix across thinking chunks and keeps live/persisted text identical', async () => {

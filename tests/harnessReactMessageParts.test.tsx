@@ -4,18 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HarnessMessage, HarnessPermissionRequest, HarnessRunSummary, ToolCallRecord } from '../src/config/harness'
 import { AssistantMessageParts, findInlinePermissionTarget, PermissionResponseCard } from '../apps/harness-react/src/components/conversation/AssistantMessageParts'
 import { RunProgressCard, ToolRecord } from '../apps/harness-react/src/components/conversation/run-progress'
+import { MiraConversationDetailMemory, MiraConversationDetails } from '../apps/harness-react/src/components/conversation/MiraConversationDetails'
 
-const hooks = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[] }))
-vi.mock('react', async importOriginal => ({
-  ...await importOriginal<typeof import('react')>(),
-  useState: (initial: unknown) => {
-    const index = hooks.cursor++
-    if (!(index in hooks.slots)) hooks.slots[index] = typeof initial === 'function' ? initial() : initial
-    return [hooks.slots[index], (value: unknown) => { hooks.slots[index] = typeof value === 'function' ? value(hooks.slots[index]) : value }]
-  },
-}))
-
-beforeEach(() => { hooks.cursor = 0; hooks.slots = []; vi.stubGlobal('React', React) })
+beforeEach(() => { vi.stubGlobal('React', React) })
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 const tool: ToolCallRecord = { id: 'read-call', runId: 'run-one', tool: 'read', target: 'README.md', status: 'ok', input: { text: '{"path":"README.md"}', truncated: false }, output: { text: 'read output', truncated: false }, createdAt: 2 }
@@ -31,12 +22,9 @@ const message: HarnessMessage = {
 const request: HarnessPermissionRequest = { requestId: 'approval', sessionId: 'session', toolCallId: 'read-call', runId: 'run-one', title: '允许读取', detail: 'README.md' }
 
 function renderExpandedTool(record: ToolCallRecord) {
-  hooks.cursor = 0
-  const collapsed = ToolRecord({ tool: record })
-  const onToggle = collapsed.props.onToggle as (event: { currentTarget: { open: boolean } }) => void
-  onToggle({ currentTarget: { open: true } })
-  hooks.cursor = 0
-  return renderToStaticMarkup(ToolRecord({ tool: record }))
+  const memory = new MiraConversationDetailMemory()
+  memory.setOpen('test-session', JSON.stringify(['tool', record.runId, record.id]), true)
+  return renderToStaticMarkup(<MiraConversationDetails memory={memory} scope="test-session"><ToolRecord tool={record} /></MiraConversationDetails>)
 }
 
 function responseButtons(node: React.ReactNode): Array<React.ReactElement<{ children?: React.ReactNode; onClick: () => void }>> {
@@ -90,10 +78,27 @@ describe('Mira ordered assistant message parts', () => {
 })
 
 describe('Mira tool payload presentation', () => {
+  it.each(['edit', 'write'])('presents %s recorded changes before optional call details without inventing counts for unknown diffs', name => {
+    const record = { ...tool, tool: name, target: 'main.ts', diff: '- 9 const old = 1;\n+12 const next = 2;' }
+    const html = renderExpandedTool(record)
+    expect(html).toContain('aria-label="记录变更新增 1 行，删除 1 行"')
+    expect(html).toContain('data-mira-tool-diff="numbered"')
+    expect(html).toContain('data-diff-number="9"')
+    expect(html).toContain('data-diff-number="12"')
+    expect(html.indexOf('data-mira-tool-diff')).toBeLessThan(html.indexOf('查看调用记录'))
+    expect(html).toContain('read output')
+    const unknown = renderExpandedTool({ ...record, diff: '<script>unknown</script>\n+no line number' })
+    expect(unknown).toContain('data-mira-tool-diff="raw"')
+    expect(unknown).not.toContain('记录变更新增')
+    expect(unknown).toContain('&lt;script&gt;unknown&lt;/script&gt;')
+    const missing = renderExpandedTool({ ...record, diff: undefined })
+    expect(missing).not.toContain('data-mira-tool-diff')
+    expect(missing).toContain('data-tool-payload="output"')
+  })
+
   it('mounts real escaped input/output and truncation notes only after expansion', () => {
     const record = { ...tool, input: { text: '<script>input</script>', truncated: true }, output: { text: '<img src=x onerror=alert(1)>', truncated: true }, diff: '+<safe>' }
     expect(renderToStaticMarkup(<ToolRecord tool={record} />)).not.toContain('data-tool-payload')
-    hooks.slots = []
     const html = renderExpandedTool(record)
     expect(html).toContain('data-tool-payload="input"')
     expect(html).toContain('&lt;script&gt;input&lt;/script&gt;')
@@ -148,7 +153,8 @@ describe('Mira tool-local permission placement', () => {
     const html = renderToStaticMarkup(<AssistantMessageParts message={message} toolsById={new Map([[waiting.id, waiting]])} permissionPartId="read-part" permission={{ request, responding: false, placement: 'inline', onRespond: vi.fn() }} />)
     expect(html).toContain('data-permission-placement="inline"')
     expect(html.match(/data-permission-request-id="approval"/g)).toHaveLength(1)
-    expect(html.indexOf('</details><section')).toBeGreaterThan(-1)
+    expect(html.indexOf('data-permission-placement="inline"')).toBeGreaterThan(html.indexOf('mira-tool-summary'))
+    expect(html).not.toContain('mira-tool-content')
     expect(html.indexOf('data-permission-request-id')).toBeLessThan(html.indexOf('data-message-part-id="after"'))
   })
 

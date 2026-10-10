@@ -1,4 +1,5 @@
 import type { HarnessFileReference, HarnessMessageSubmissionOptions, HarnessQueuedMessage, ModelSelection, PermissionMode, ThinkingLevel } from '../../../../src/config/harness'
+import { validateMiraPromptDocument, type MiraPromptDocument } from './prompt-editor-document'
 
 export interface ComposerDraftConfig {
   permission: PermissionMode
@@ -12,6 +13,7 @@ export interface ComposerDraftConfig {
 export interface ComposerDraftSnapshot {
   drafts: Record<string, string>
   fileDrafts: Record<string, HarnessFileReference[]>
+  documents?: Record<string, MiraPromptDocument | undefined>
   config: ComposerDraftConfig
   recoveries?: Record<string, HarnessQueuedMessage[]>
   submissions?: Record<string, ComposerDraftSubmission | undefined>
@@ -124,8 +126,17 @@ export function readComposerDrafts(value: unknown): ComposerDraftSnapshot {
     const item = submission(value)
     return owner && item ? [[owner, item]] : []
   }))
+  const documents = Object.fromEntries(Object.entries(object(raw.documents)).flatMap(([owner, value]) => {
+    if (!Object.prototype.hasOwnProperty.call(drafts, owner)) return []
+    const document = validateMiraPromptDocument(value, drafts[owner])
+    if (!document) return []
+    // A restored file pill must still have an attachment owned by this draft.
+    document.parts = document.parts.map(part => part.type === 'reference' && part.reference.kind === 'file' && !fileDrafts[owner]?.some(file => file.path === part.reference.value) ? { type: 'text' as const, text: part.reference.text } : part)
+    return document.parts.some(part => part.type === 'reference') ? [[owner, document]] : []
+  }))
   return {
     drafts, fileDrafts,
+    ...(Object.keys(documents).length ? { documents } : {}),
     ...(raw.draft === null ? { draft: null } : taskDraft(raw.draft) ? { draft: taskDraft(raw.draft) } : {}),
     ...(Object.keys(recoveries).length ? { recoveries } : {}),
     ...(Object.keys(submissions).length ? { submissions } : {}),
@@ -151,6 +162,7 @@ export function mergeComposerDrafts(saved: ComposerDraftSnapshot, local: Compose
   return {
     drafts: { ...saved.drafts, ...local.drafts },
     fileDrafts: { ...saved.fileDrafts, ...local.fileDrafts },
+    ...(saved.documents || local.documents ? { documents: { ...saved.documents, ...Object.fromEntries(Object.keys(local.drafts).map(owner => [owner, local.documents?.[owner]])), ...local.documents } } : {}),
     ...(saved.recoveries || local.recoveries ? { recoveries: { ...saved.recoveries, ...local.recoveries } } : {}),
     ...(saved.submissions || local.submissions ? { submissions: { ...saved.submissions, ...local.submissions } } : {}),
     ...(Object.prototype.hasOwnProperty.call(local, 'draft') ? { draft: local.draft } : saved.draft ? { draft: saved.draft } : {}),
@@ -160,6 +172,8 @@ export function mergeComposerDrafts(saved: ComposerDraftSnapshot, local: Compose
 
 export function serializeComposerDrafts(value: ComposerDraftSnapshot): ComposerDraftSnapshot {
   const snapshot = readComposerDrafts(value)
+  // Rich labels are optional; duplicated canonical bodies must never prevent saving a valid submission.
+  if (JSON.stringify(snapshot).length > 262_144) delete snapshot.documents
   if (JSON.stringify(snapshot).length > 262_144) throw new Error('草稿超过宿主保存上限，请先发送或精简部分草稿后再离开')
   return snapshot
 }
@@ -167,6 +181,7 @@ export function serializeComposerDrafts(value: ComposerDraftSnapshot): ComposerD
 export function withoutComposerDraftOwners(value: ComposerDraftSnapshot, ids: ReadonlySet<string>): ComposerDraftSnapshot {
   const keep = <T,>(items: Record<string, T>) => Object.fromEntries(Object.entries(items).filter(([id]) => !ids.has(id)))
   return { ...value, drafts: keep(value.drafts), fileDrafts: keep(value.fileDrafts),
+    ...(value.documents ? { documents: keep(value.documents) } : {}),
     ...(value.draft?.sessionId && ids.has(value.draft.sessionId) ? { draft: null } : {}),
     ...(value.recoveries ? { recoveries: keep(value.recoveries) } : {}),
     ...(value.submissions ? { submissions: keep(value.submissions) } : {}) }

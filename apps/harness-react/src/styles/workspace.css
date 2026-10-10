@@ -1,7 +1,6 @@
 /* Workspace side pane: tabs, task overview, files, changes, tools, terminal
    and the hosted browser. */
-.pilot-inspector { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--color-background); }
-.pilot-inspector.is-collapsed { display: none; }
+.pilot-inspector { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--color-background); }
 .pilot-inspector__head { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; background: var(--surface); }
 .pilot-inspector__head > div { display: grid; min-width: 0; gap: 3px; }
 .pilot-inspector__head strong, .pilot-inspector__head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -175,7 +174,3 @@
 .pilot-panel-shortcuts button:hover, .pilot-panel-shortcuts button:focus-visible { color: var(--accent); background: var(--hover); }
 .pilot-panel-shortcuts button span { white-space: nowrap; }
 .pilot-empty-panel { min-height: 220px; padding: 48px 24px; }
-@media (max-width: 1180px) {
-  .pilot-summary { right: 20px; width: min(320px, calc(100% - 40px)); }
-  .pilot-inspector__head { min-height: 60px; }
-}

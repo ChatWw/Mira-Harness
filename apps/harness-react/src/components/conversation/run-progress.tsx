@@ -1,8 +1,16 @@
-import { useState } from 'react'
-import { Check, ChevronDown, CircleAlert, LoaderCircle, Square } from 'lucide-react'
+import { ArrowUpRight, Bot, Check, ChevronDown, ChevronRight, CircleAlert, Ellipsis, FilePlus2, FileText, FolderOpen, Globe2, LoaderCircle, Pencil, Search, Square, TerminalSquare, Wrench } from 'lucide-react'
+import * as Collapsible from '@radix-ui/react-collapsible'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HarnessRunActivity, HarnessRunSummary, HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'
 import { cn } from '../../lib/utils'
 import { completedOperationCount } from './conversation-model'
+import { useMiraConversationDetail, useMiraToolFilePath } from './MiraConversationDetails'
+import { MiraToolFailure } from './MiraToolFailure'
+import { MiraToolCommand } from './MiraToolCommand'
+import { MiraToolDiff } from './MiraToolDiff'
+import { miraToolDiffStats } from '../../lib/tool-diff'
+import { isMiraExplorationTool } from '../../lib/tool-exploration'
+import { MiraToolFileChip } from './MiraToolFileChip'
 
 const ROLE_LABELS: Record<HarnessSubtask['role'], string> = { explorer: '探索', reviewer: '审查', tester: '测试', implementer: '实现' }
 const SUBTASK_STATUS: Partial<Record<HarnessSubtask['status'], string>> = {
@@ -27,7 +35,7 @@ function statusDotClass(status: string) {
  * 消息内运行轨迹（ZCode 密度）：运行中是一条轻量 live 行，结束折叠为一行摘要，
  * 点开才展开计划步骤 / 活动列表 / 子任务 / 用量。
  */
-export function RunProgressCard({ run, running, waiting = false, tools = [], summaryOnly = false, onStopSubtask }: { run: HarnessRunSummary; running: boolean; waiting?: boolean; tools?: ToolCallRecord[]; summaryOnly?: boolean; onStopSubtask?: (subtaskId: string) => Promise<void> }) {
+export function RunProgressCard({ run, running, waiting = false, tools = [], summaryOnly = false, onStopSubtask, onOpenFile, onOpenProgress, onOpenSubtask }: { run: HarnessRunSummary; running: boolean; waiting?: boolean; tools?: ToolCallRecord[]; summaryOnly?: boolean; onStopSubtask?: (subtaskId: string) => Promise<void>; onOpenFile?: (path: string) => void; onOpenProgress?: () => void; onOpenSubtask?: (subtaskId: string) => void }) {
   const planSteps = run.activities.filter(activity => activity.kind === 'plan')
   const toolActivities = summaryOnly ? [] : run.activities.filter(activity => activity.kind !== 'plan')
   const visibleTools = summaryOnly ? [] : tools
@@ -46,15 +54,16 @@ export function RunProgressCard({ run, running, waiting = false, tools = [], sum
         <span>{waiting ? '等待确认后继续' : (!summaryOnly && current?.label) || '正在处理…'}</span>
         {!summaryOnly && !waiting && current?.detail && <small className="min-w-0 truncate text-foreground-subtle">{current.detail}</small>}
       </div>
-      {visibleTools.length > 0 && <div className="mira-tool-records" aria-label="正在执行的工具">{visibleTools.map(tool => <ToolRecord key={tool.id} tool={tool} />)}</div>}
+      {visibleTools.length > 0 && <div className="mira-tool-records" aria-label="正在执行的工具">{visibleTools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={onOpenFile} />)}</div>}
       {hasBody && <details className="mt-1.5">
         <summary className="cursor-pointer list-none select-none text-ui-xs hover:text-foreground">查看过程</summary>
-        <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={[]} usage={usage} onStopSubtask={onStopSubtask} />
+        <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={[]} usage={usage} onStopSubtask={onStopSubtask} onOpenSubtask={onOpenSubtask} />
       </details>}
+      {onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看本轮执行过程<ArrowUpRight size={12} aria-hidden="true" /></button>}
     </div>
   }
   const state = run.status === 'failed' ? 'failed' : run.status === 'stopped' ? 'stopped' : totalOps > completedCount ? 'partial' : 'completed'
-  return <details className="mt-2 text-ui-sm text-foreground-subtle">
+  return <div className="mt-2 text-ui-sm text-foreground-subtle"><details>
     <summary className="inline-flex cursor-pointer list-none select-none items-center gap-1.5 hover:text-foreground">
       {state === 'completed' ? <Check size={13} className="text-emerald-400" /> : <CircleAlert size={13} className={state === 'failed' ? 'text-red-400' : 'text-foreground-subtlest'} />}
       <span>{state === 'failed' ? '运行失败' : state === 'stopped' ? '已停止' : state === 'partial' ? '部分操作未完成' : '已完成'}{totalOps > 0 ? ` ${completedCount}/${totalOps} 项操作` : ''}{run.durationMs > 0 ? ` · ${formatDuration(run.durationMs)}` : ''}</span>
@@ -62,17 +71,19 @@ export function RunProgressCard({ run, running, waiting = false, tools = [], sum
       <ChevronDown size={13} className="transition-transform [[open]>&]:rotate-180" />
     </summary>
     {run.error && <p className="mt-1.5 text-red-400" role="alert">{run.error}</p>}
-    {hasBody && <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={visibleTools} usage={usage} onStopSubtask={onStopSubtask} />}
-  </details>
+    {hasBody && <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={visibleTools} usage={usage} onStopSubtask={onStopSubtask} onOpenFile={onOpenFile} onOpenSubtask={onOpenSubtask} />}
+  </details>{onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看本轮执行过程<ArrowUpRight size={12} aria-hidden="true" /></button>}</div>
 }
 
-function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubtask }: {
+function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubtask, onOpenFile, onOpenSubtask }: {
   planSteps: HarnessRunActivity[]
   toolActivities: HarnessRunActivity[]
   subtasks: HarnessSubtask[]
   tools: ToolCallRecord[]
   usage?: { totalTokens: number; cost?: { priced: boolean; total: number; currency: string } }
   onStopSubtask?: (subtaskId: string) => Promise<void>
+  onOpenFile?: (path: string) => void
+  onOpenSubtask?: (subtaskId: string) => void
 }) {
   return <div className="mt-2 grid gap-2.5 rounded-xl bg-background-alt px-3 py-2.5">
     {planSteps.length > 0 && <ol className="grid list-decimal gap-1 pl-4">{planSteps.map(step => <li key={step.id} className={cn('flex items-center gap-1.5', step.status === 'completed' && 'text-foreground-subtle')}><span className={cn('size-1.5 shrink-0 rounded-full', statusDotClass(step.status))} />{step.label}</li>)}</ol>}
@@ -85,8 +96,8 @@ function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubt
       </div>
       {activity.status !== 'running' && activity.completedAt && <small className="text-foreground-subtlest">{formatDuration(activity.completedAt - activity.startedAt)}</small>}
     </div>)}</div>}
-    {tools.length > 0 && <div className="mira-tool-records" aria-label="本轮工具调用">{tools.map(tool => <ToolRecord key={tool.id} tool={tool} />)}</div>}
-    {subtasks.length > 0 && <div className="grid gap-1.5">{subtasks.map(subtask => <details key={subtask.id}>
+    {tools.length > 0 && <div className="mira-tool-records" aria-label="本轮工具调用">{tools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={onOpenFile} />)}</div>}
+    {subtasks.length > 0 && <div className="grid gap-1.5">{subtasks.map(subtask => onOpenSubtask ? <MiraSubtaskRecord key={subtask.id} subtask={subtask} onOpen={() => onOpenSubtask(subtask.id)} onStop={onStopSubtask ? () => onStopSubtask(subtask.id) : undefined} /> : <details key={subtask.id}>
       <summary className="flex cursor-pointer list-none select-none items-center gap-1.5">
         <span className={cn('size-1.5 shrink-0 rounded-full', statusDotClass(subtask.status === 'completed' ? 'completed' : subtask.status === 'failed' ? 'failed' : subtask.status === 'running' || subtask.status === 'queued' ? 'running' : 'idle'))} />
         <strong className="font-medium text-foreground">{ROLE_LABELS[subtask.role]} · {SUBTASK_STATUS[subtask.status] || subtask.status}</strong>
@@ -103,18 +114,73 @@ function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubt
   </div>
 }
 
-export function ToolRecord({ tool }: { tool: ToolCallRecord }) {
-  const [expanded, setExpanded] = useState(false)
+/** ZCode's parent conversation uses a summary action; child details live in a side tab. */
+export function MiraSubtaskRecord({ subtask, onOpen, onStop }: { subtask: HarnessSubtask; onOpen: () => void; onStop?: () => Promise<void> }) {
+  const stoppable = subtask.status === 'running' || subtask.status === 'queued'
+  const [stopping, setStopping] = useState(false)
+  const [stopError, setStopError] = useState<string>()
+  const live = useRef({ id: subtask.id, mounted: false, pending: undefined as object | undefined })
+  live.current.id = subtask.id
+  useEffect(() => { live.current.mounted = true; return () => { live.current.mounted = false } }, [])
+  useEffect(() => { live.current.pending = undefined; setStopping(false); setStopError(undefined) }, [subtask.id])
+  const stop = async () => {
+    if (!stoppable || !onStop || live.current.pending) return
+    const request = {}, id = subtask.id
+    live.current.pending = request
+    setStopping(true); setStopError(undefined)
+    try { await onStop() } catch (failure) {
+      if (live.current.mounted && live.current.id === id && live.current.pending === request) setStopError(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      if (live.current.mounted && live.current.id === id && live.current.pending === request) { live.current.pending = undefined; setStopping(false) }
+    }
+  }
+  const error = stopError ?? subtask.error?.message
+  return <div className="mira-subtask-record" data-subtask-id={subtask.id}>
+    <Bot size={16} aria-hidden="true" />
+    <button type="button" className="mira-subtask-open" onClick={onOpen} aria-label={`打开${ROLE_LABELS[subtask.role]}子任务活动`} title={subtask.task}><strong>{ROLE_LABELS[subtask.role]}智能体</strong><span>{subtask.task}</span><ArrowUpRight size={13} aria-hidden="true" /></button>
+    <small>{error ? <MiraToolFailure error={error} /> : SUBTASK_STATUS[subtask.status] || subtask.status}</small>
+    {stoppable && onStop && <button type="button" className="mira-tool-record-action" disabled={stopping} aria-busy={stopping} aria-label="停止子任务" title="停止子任务" onClick={() => void stop()}>{stopping ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : <Square size={12} aria-hidden="true" />}</button>}
+  </div>
+}
+
+const TOOL_PRESENTATION = {
+  read: { label: '读取', icon: FileText }, edit: { label: '编辑', icon: Pencil }, write: { label: '写入', icon: FilePlus2 },
+  list_files: { label: '列出文件', icon: FolderOpen }, bash: { label: '终端', icon: TerminalSquare },
+  web_fetch: { label: '抓取网页', icon: Globe2 }, web_search: { label: '网页搜索', icon: Search },
+}
+
+export function ToolRecord({ tool, onOpenFile, hideIcon = false }: { tool: ToolCallRecord; onOpenFile?: (path: string) => void; hideIcon?: boolean }) {
+  const [expanded, setExpanded] = useMiraConversationDetail(JSON.stringify(['tool', tool.runId, tool.id]))
   const label = tool.status === 'running' ? '执行中' : tool.status === 'ok' ? '已完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已取消' : '等待确认'
-  return <details className="mira-tool-record" data-tool-call-id={tool.id} data-tool-status={tool.status} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary>{tool.status === 'running' ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" /> : tool.status === 'ok' ? <Check size={13} aria-hidden="true" /> : tool.status === 'cancelled' ? <Square size={12} aria-hidden="true" /> : <CircleAlert size={13} aria-hidden="true" />}<strong>{tool.tool}</strong><span title={tool.target}>{tool.target}</span><small>{label}</small><ChevronDown size={13} aria-hidden="true" /></summary>
-    {expanded && <div>
-      {tool.target && <p className="mira-tool-target">{tool.target}</p>}
-      {tool.input && <section className="mira-tool-payload" aria-label="工具输入" data-tool-payload="input"><strong>输入</strong><pre>{tool.input.text}</pre>{tool.input.truncated && <p className="mira-payload-truncated" role="note">输入超过记录上限，仅显示已记录部分。</p>}</section>}
-      {tool.output && <section className="mira-tool-payload" aria-label="工具输出" data-tool-payload="output"><strong>输出</strong><pre>{tool.output.text}</pre>{tool.output.truncated && <p className="mira-payload-truncated" role="note">输出超过记录上限，仅显示已记录部分。</p>}</section>}
+  const presentation = TOOL_PRESENTATION[tool.tool as keyof typeof TOOL_PRESENTATION]
+  const Icon = presentation?.icon ?? Wrench
+  const lightweight = isMiraExplorationTool(tool)
+  const kindLabel = tool.status === 'running' && lightweight ? ({ read: '读取中', list_files: '查询目录', web_search: '搜索中', web_fetch: '抓取中' }[tool.tool] ?? presentation?.label) : presentation?.label ?? tool.tool
+  const filePath = useMiraToolFilePath(tool.target)
+  const file = ['read', 'edit', 'write'].includes(tool.tool) && tool.target
+  const fileDiff = ['edit', 'write'].includes(tool.tool) ? tool.diff : undefined
+  const changes = useMemo(() => fileDiff ? miraToolDiffStats(fileDiff) : undefined, [fileDiff])
+  const payload = <>
+    {tool.input && <section className="mira-tool-payload" aria-label="工具输入" data-tool-payload="input"><strong>输入</strong><pre>{tool.input.text}</pre>{tool.input.truncated && <p className="mira-payload-truncated" role="note">输入超过记录上限，仅显示已记录部分。</p>}</section>}
+    {tool.output && <section className="mira-tool-payload" aria-label="工具输出" data-tool-payload="output"><strong>输出</strong><pre>{tool.output.text}</pre>{tool.output.truncated && <p className="mira-payload-truncated" role="note">输出超过记录上限，仅显示已记录部分。</p>}</section>}
+  </>
+  const summary = <div role={lightweight ? undefined : 'button'} tabIndex={lightweight ? undefined : 0} className={cn('mira-tool-summary', lightweight && 'mira-tool-summary--lightweight')} data-tool-record-toggle={lightweight ? undefined : true} aria-label={lightweight ? undefined : `${expanded ? '收起' : '展开'}${presentation?.label ?? tool.tool}详情`} onKeyDown={event => {
+      if (lightweight) return
+      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.currentTarget.click() }
+    }}>
+      {!hideIcon && <Icon size={16} aria-hidden="true" />}<strong title={tool.tool}>{kindLabel}</strong>
+      {file ? <MiraToolFileChip path={filePath ?? tool.target!} onOpen={filePath && onOpenFile ? () => onOpenFile(filePath) : undefined} /> : <span title={tool.target}>{tool.target}</span>}
+      {changes && <span className="mira-tool-change-count" aria-label={`记录变更新增 ${changes.added} 行，删除 ${changes.removed} 行`}><b>+{changes.added}</b><b>−{changes.removed}</b></span>}
+      {tool.status !== 'ok' && !(lightweight && tool.status === 'running') && <small>{tool.status === 'failed' && tool.error ? <MiraToolFailure key={JSON.stringify([tool.id, tool.error])} error={tool.error} /> : label}</small>}
+      {lightweight ? <Collapsible.Trigger asChild><button type="button" className="mira-tool-record-action" data-tool-record-toggle aria-label={`${expanded ? '收起' : '查看'}${presentation?.label ?? tool.tool}调用记录`} title="查看调用记录"><Ellipsis size={14} aria-hidden="true" /></button></Collapsible.Trigger> : <ChevronRight size={16} className="mira-tool-chevron" aria-hidden="true" />}
+    </div>
+  return <Collapsible.Root className="mira-tool-record" open={expanded} onOpenChange={setExpanded} data-tool-call-id={tool.id} data-tool-status={tool.status}>
+    {lightweight ? summary : <Collapsible.Trigger asChild>{summary}</Collapsible.Trigger>}
+    {expanded && <Collapsible.Content className="mira-tool-content">{tool.tool === 'bash' ? <MiraToolCommand key={JSON.stringify([tool.runId, tool.id])} tool={tool} /> : <>
+      {fileDiff ? <><MiraToolDiff diff={fileDiff} path={filePath ?? tool.target} identity={JSON.stringify([tool.runId, tool.id])} />{(tool.input || tool.output) && <details className="mira-command-parameters mt-2"><summary>查看调用记录</summary>{payload}</details>}</> : <>{tool.target && <p className="mira-tool-target">{tool.target}</p>}{payload}</>}
       {tool.error && <p role="alert" className="mira-tool-error">{tool.error}</p>}
-      {tool.diff && <section className="mira-tool-payload" aria-label="工具变更"><strong>变更</strong><pre>{tool.diff}</pre></section>}
+      {tool.diff && !fileDiff && <section className="mira-tool-payload" aria-label="工具变更"><strong>变更</strong><pre>{tool.diff}</pre></section>}
       {!tool.output && !tool.diff && !tool.error && <p>{tool.status === 'running' ? '工具正在执行。' : tool.status === 'waiting-confirm' ? '等待权限确认。' : tool.status === 'cancelled' ? '工具调用已取消，未记录执行结果。' : tool.status === 'failed' ? '工具执行失败，当前记录未提供错误详情。' : '工具执行已完成，当前记录未提供输出详情。'}</p>}
-    </div>}
-  </details>
+    </>}</Collapsible.Content>}
+  </Collapsible.Root>
 }

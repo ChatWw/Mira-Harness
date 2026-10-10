@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "apps/harness-react/src/styles/thread.css"
+        ],
+        "createdAt": "2026-10-10T06:55:52.741Z",
+        "reason": "Agent: the gradient is a running-tool state shimmer matching ZCode ToolLayout.tsx lines 139-146 for the requested replica; reduced motion removes it, and completed labels remain solid."
+      }
+    ]
+  }
+}

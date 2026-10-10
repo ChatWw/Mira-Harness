@@ -122,10 +122,10 @@
 .mira-reasoning > summary { display: flex; min-height: 28px; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
 .mira-reasoning > summary::-webkit-details-marker { display: none; }
 .mira-reasoning > summary > svg { flex: none; }
-.mira-reasoning > summary > svg:last-child, .mira-tool-record > summary > svg:last-child { transition: transform 150ms ease-out; }
-.mira-reasoning[open] > summary > svg:last-child, .mira-tool-record[open] > summary > svg:last-child { transform: rotate(180deg); }
+.mira-reasoning > summary > svg:last-child { transition: transform 150ms ease-out; }
+.mira-reasoning[open] > summary > svg:last-child { transform: rotate(180deg); }
 .mira-reasoning > summary:hover { color: var(--color-foreground); }
-.mira-reasoning > summary:focus-visible, .mira-tool-record > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
+.mira-reasoning > summary:focus-visible, .mira-tool-summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
 .mira-reasoning > summary > small { font-size: 11px; }
 .mira-reasoning__content { max-height: 320px; margin-top: 7px; padding-inline-start: 21px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
 .mira-payload-truncated { color: var(--color-foreground-subtle); font-size: 12px; }
@@ -135,21 +135,74 @@
 .mira-tool-permission > svg { flex: none; }
 .mira-tool-permission .mira-tool-error { color: var(--color-destructive); }
 .mira-tool-records { display: grid; gap: 6px; }
-.mira-tool-record { color: var(--color-foreground-subtle); font-size: 12px; }
-.mira-tool-record summary { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 4px 0; cursor: pointer; list-style: none; }
-.mira-tool-record summary::-webkit-details-marker { display: none; }
-.mira-tool-record summary > svg { flex-shrink: 0; }
-.mira-tool-record summary strong { min-width: 0; max-width: 40%; overflow: hidden; color: var(--color-foreground); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.mira-tool-record summary span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mira-tool-record summary small { flex-shrink: 0; font-size: 11px; }
-.mira-tool-record > div { padding: 6px 0 6px 20px; }
+.mira-tool-record { color: var(--color-foreground-subtle); font-size: var(--text-ui-base); }
+.mira-tool-summary { display: flex; width: fit-content; max-width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.mira-tool-summary > svg { flex-shrink: 0; }
+.mira-tool-summary > strong { flex: none; min-width: 0; max-width: 40%; overflow: hidden; color: var(--color-foreground-subtle); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.mira-tool-summary > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-tool-summary > small { flex-shrink: 0; font-size: inherit; }
+.mira-tool-summary--lightweight { width: 100%; cursor: default; }
+.mira-tool-summary--lightweight > strong { color: var(--color-foreground-subtle); }
+.mira-tool-summary > .mira-tool-chevron { flex: none; opacity: 0; transition: transform 200ms ease-out, opacity 200ms ease-out; }
+.mira-tool-summary:hover > .mira-tool-chevron, .mira-tool-summary:focus-within > .mira-tool-chevron { opacity: 1; }
+.mira-tool-record[data-state='open'] > .mira-tool-summary > .mira-tool-chevron { opacity: 1; transform: rotate(90deg); }
+.mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong { background-image: linear-gradient(100deg, var(--color-foreground-subtle) 30%, var(--color-foreground) 50%, var(--color-foreground-subtle) 70%); background-size: 220% 100%; background-clip: text; -webkit-text-fill-color: transparent; animation: mira-tool-working 2s linear infinite; }
+@keyframes mira-tool-working { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.mira-tool-record-action { display: inline-flex; flex: none; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--color-foreground-subtle); opacity: 0; cursor: pointer; }
+.mira-tool-summary:hover .mira-tool-record-action, .mira-tool-summary:focus-within .mira-tool-record-action { opacity: 1; }
+.mira-tool-record-action:hover { color: var(--color-foreground); background: var(--color-hover); }
+.mira-tool-record-action:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.mira-tool-exploration > .mira-tool-summary { padding: 4px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; }
+.mira-tool-exploration > .mira-tool-summary:hover { color: var(--color-foreground); }
+.mira-tool-current { display: inline-flex; min-width: 0; align-items: center; gap: 8px; }
+.mira-tool-current > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-exploration-content { display: grid; min-width: 0; gap: 8px; margin: 6px 0 0 8px; padding-inline-start: 14px; border-inline-start: 1px solid var(--color-border); }
+.mira-run-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 3px 0; border: 0; color: var(--color-foreground-subtle); background: transparent; font: inherit; cursor: pointer; }
+.mira-run-open:hover, .mira-subtask-open:hover { color: var(--color-foreground); }
+.mira-run-open:focus-visible, .mira-subtask-open:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
+.mira-subtask-record { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; color: var(--color-foreground-subtle); font-size: var(--text-ui-base); }
+.mira-subtask-record > svg { flex: none; }
+.mira-subtask-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 7px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: start; cursor: pointer; }
+.mira-subtask-open > strong { flex: none; font-weight: 500; }
+.mira-subtask-open > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-subtask-open > svg { flex: none; }
+.mira-subtask-record > small { flex: none; font-size: 11px; }
+.mira-subtask-record:hover .mira-tool-record-action, .mira-subtask-record:focus-within .mira-tool-record-action { opacity: 1; }
+.mira-tool-record-action:disabled { opacity: .55; cursor: default; }
+.mira-subtask-record .mira-tool-failure { padding: 0; border: 0; background: transparent; color: var(--color-destructive); font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.mira-tool-summary .mira-tool-failure { overflow: visible; padding: 0; border: 0; background: transparent; color: var(--color-destructive); font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.mira-tool-failure:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
+.mira-tool-failure-popover { z-index: 100; display: flex; max-width: min(360px, calc(100vw - 32px)); flex-wrap: wrap; align-items: start; gap: 8px; padding: 10px 12px; border-radius: 8px; background: var(--color-card); color: var(--color-foreground); box-shadow: 0 4px 16px color-mix(in srgb, black 16%, transparent); font-size: 12px; }
+.mira-tool-failure-popover > p { flex: 1; min-width: 0; max-height: 160px; overflow: auto; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
+.mira-tool-failure-popover > small { flex-basis: 100%; color: var(--color-destructive); }
+.mira-tool-content { padding: 6px 0 6px 20px; }
 .mira-tool-record p { margin: 0 0 6px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .mira-tool-record pre { max-width: 100%; max-height: 240px; margin: 6px 0; overflow: auto; padding: 10px; border-radius: 7px; background: var(--color-card); font-family: var(--font-mono); font-size: 12px; line-height: 1.65; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
 .mira-tool-payload { min-width: 0; margin-bottom: 10px; }
 .mira-tool-payload > strong { color: var(--color-foreground); font-size: 12px; font-weight: 500; }
-.mira-tool-record[data-tool-status='failed'] > summary > svg:first-child, .mira-tool-error { color: var(--color-destructive); }
-.mira-tool-record[data-tool-status='ok'] > summary > svg:first-child { color: var(--color-success); }
-@media (prefers-reduced-motion: reduce) { .mira-reasoning > summary > svg:last-child, .mira-tool-record > summary > svg:last-child { transition: none; } }
+.mira-command-box { display: grid; min-width: 0; gap: 8px; padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-card); }
+.mira-command-line { display: flex; min-width: 0; align-items: start; gap: 8px; color: var(--color-foreground); }
+.mira-command-line > span { flex: none; line-height: 20px; color: var(--color-foreground-subtle); }
+.mira-tool-record .mira-command-line > pre { flex: 1; min-width: 0; max-height: 60px; margin: 0; padding: 0; background: transparent; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-command-output { min-width: 0; max-width: 100%; max-height: 100px; overflow: auto; line-height: 20px; scrollbar-width: thin; }
+.mira-command-output[data-scroll-mask='top'] { mask-image: linear-gradient(to bottom, transparent 0, black 24px, black 100%); }
+.mira-command-output[data-scroll-mask='bottom'] { mask-image: linear-gradient(to bottom, black 0, black calc(100% - 24px), transparent 100%); }
+.mira-command-output[data-scroll-mask='both'] { mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); }
+.mira-command-output:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 3px; }
+.mira-tool-record .mira-command-output > pre { max-height: none; margin: 0; padding: 0; background: transparent; line-height: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-command-parameters { min-width: 0; color: var(--color-foreground-subtle); }
+.mira-command-parameters > summary { cursor: pointer; font-size: 11px; }
+.mira-tool-summary > .mira-tool-change-count { display: inline-flex; flex: none; gap: 6px; font-family: var(--font-mono); font-size: 11px; }
+.mira-tool-change-count > b { color: var(--color-diff-added); font-weight: 400; }
+.mira-tool-change-count > b + b { color: var(--color-diff-removed); }
+.mira-tool-diff [data-diff-kind='added'] { background: color-mix(in srgb, var(--color-diff-added) 14%, transparent); }
+.mira-tool-diff [data-diff-kind='removed'] { background: color-mix(in srgb, var(--color-diff-removed) 14%, transparent); }
+.mira-tool-diff [data-diff-number] { background: var(--color-card); }
+.mira-tool-diff [data-diff-kind='added'] [data-diff-number] { color: var(--color-diff-added); background: color-mix(in srgb, var(--color-diff-added) 18%, var(--color-card)); }
+.mira-tool-diff [data-diff-kind='removed'] [data-diff-number] { color: var(--color-diff-removed); background: color-mix(in srgb, var(--color-diff-removed) 18%, var(--color-card)); }
+.dark .mira-tool-diff [data-diff-token] { color: var(--shiki-dark, inherit) !important; font-style: var(--shiki-dark-font-style, inherit) !important; font-weight: var(--shiki-dark-font-weight, inherit) !important; text-decoration: var(--shiki-dark-text-decoration, inherit) !important; }
+.mira-tool-record[data-tool-status='failed'] > .mira-tool-summary > svg:first-child, .mira-tool-error { color: var(--color-destructive); }
+@media (prefers-reduced-motion: reduce) { .mira-reasoning > summary > svg:last-child, .mira-tool-summary > .mira-tool-chevron { transition: none; } .mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong { animation: none; background: none; -webkit-text-fill-color: currentColor; } }
 .mira-context-menu { width: 290px; max-width: min(290px, calc(100vw - 24px)); }
 .mira-context-path { margin: 0; padding: 4px 8px 10px; overflow-wrap: anywhere; color: var(--color-foreground); font-size: 12px; }
 .mira-context-info { padding: 8px; }

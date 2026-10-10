@@ -1505,6 +1505,42 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('returns an explicit rename failure and permits a later successful retry', async () => {
+    const { controller, host, snapshots } = fixture()
+    await controller.start()
+    host.renameSession = vi.fn().mockRejectedValueOnce(new Error('标题保存失败')).mockImplementationOnce(async (id, title) => { snapshots.set(id, { ...snapshots.get(id)!, title }) })
+    expect(await controller.renameSession('a', '新的任务名称')).toBe(false)
+    expect(controller.getSnapshot().session?.title).toBe('a')
+    expect(controller.getSnapshot().error).toBe('标题保存失败')
+    expect(await controller.renameSession('a', '新的任务名称')).toBe(true)
+    expect(controller.getSnapshot().session?.title).toBe('新的任务名称')
+    controller.dispose()
+  })
+
+  it('acknowledges a saved title even when refreshing the task list fails', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    host.renameSession = vi.fn(async () => undefined)
+    vi.mocked(host.listSessions).mockRejectedValueOnce(new Error('列表刷新失败'))
+    expect(await controller.renameSession('a', '已保存的标题')).toBe(true)
+    expect(host.renameSession).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot()).toMatchObject({ session: { id: 'a', title: '已保存的标题' }, error: '列表刷新失败' })
+    controller.dispose()
+  })
+
+  it('does not publish a delayed rename failure into a different active task', async () => {
+    const { controller, host } = fixture()
+    let reject!: (error: Error) => void
+    host.renameSession = vi.fn(() => new Promise<void>((_resolve, no) => { reject = no }))
+    await controller.start()
+    const request = controller.renameSession('a', 'A 的标题')
+    await controller.open('b')
+    reject(new Error('A 保存失败'))
+    expect(await request).toBe(false)
+    expect(controller.getSnapshot()).toMatchObject({ session: { id: 'b', title: 'b' }, error: undefined })
+    controller.dispose()
+  })
+
   it('refreshes the active project after moving a task', async () => {
     const { controller, host, snapshots } = fixture()
     await controller.start()
@@ -1887,6 +1923,98 @@ describe('React Harness pilot controller', () => {
     expect(rerun).toHaveBeenCalledOnce()
     expect(editAndRerun).not.toHaveBeenCalled()
     controller.dispose()
+  })
+
+  it('returns false for a refused history edit and keeps the canonical message available for retry', async () => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'user', role: 'user', content: '原始要求', createdAt: 1 }] })
+    host.editAndRerun = vi.fn().mockRejectedValueOnce(new Error('模型未配置')).mockImplementationOnce(async (_id, _messageId, content) => { snapshots.set('a', { ...session('a'), messages: [{ id: 'user', role: 'user', content, createdAt: 1 }] }) })
+    await controller.start()
+    expect(await controller.editAndRerun('user', '修改后的要求')).toBe(false)
+    expect(controller.getSnapshot()).toMatchObject({ running: false, error: '模型未配置', messages: [{ content: '原始要求' }] })
+    expect(await controller.editAndRerun('user', '修改后的要求')).toBe(true)
+    expect(controller.getSnapshot().messages[0].content).toBe('修改后的要求')
+    controller.dispose()
+  })
+
+  it('does not admit a history edit while a permission, queue, or question is waiting', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    host.editAndRerun = vi.fn(async () => undefined)
+    await controller.start()
+    emit('permission-request', { requestId: 'approval', title: '确认写入' })
+    expect(await controller.editAndRerun('user', '修改')).toBe(false)
+    await controller.open('b')
+    emit('queue-updated', { queue: { sessionId: 'b', revision: 1, items: [{ id: 'queued' }] } }, 'b')
+    expect(await controller.editAndRerun('user', '修改')).toBe(false)
+    snapshots.set('a', { ...session('a'), pendingInteraction: { id: 'question', kind: 'question', status: 'waiting', questions: [], createdAt: 1 } as HarnessSession['pendingInteraction'] })
+    await controller.open('a')
+    expect(await controller.editAndRerun('user', '修改')).toBe(false)
+    expect(host.editAndRerun).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('acknowledges only a canonical edited message in a fresh run before the long-running IPC finishes', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const oldMessage: HarnessMessage = { id: 'user', role: 'user', content: '原始要求', createdAt: 1 }
+    const oldReply: HarnessMessage = { id: 'old-reply', role: 'assistant', content: '旧回复', createdAt: 2 }
+    snapshots.set('a', { ...session('a'), messages: [oldMessage, oldReply] })
+    let finish!: () => void
+    host.editAndRerun = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    await controller.start()
+    const unsubscribe = vi.fn()
+    const originalSubscribe = controller.subscribe
+    vi.spyOn(controller, 'subscribe').mockImplementation(listener => { const stop = originalSubscribe(listener); return () => { unsubscribe(); stop() } })
+    const outcomes: unknown[] = []
+    const request = controller.editAndRerun('user', '修改后的要求').then(result => outcomes.push(result))
+    const activeRun = { id: 'run-edit', startedAt: 10, activities: [], subtasks: [] }
+    // A run-start alone does not prove that this edit has been accepted.
+    snapshots.set('a', { ...session('a'), messages: [oldMessage, oldReply], activeRun })
+    emit('run-start', { startedAt: 10 }, 'a', 'run-edit')
+    for (let i = 0; i < 12; i++) await Promise.resolve()
+    expect(outcomes).toEqual([])
+    snapshots.set('a', { ...session('a'), messages: [{ ...oldMessage, content: '修改后的要求' }], activeRun })
+    emit('run-activity', { activities: [] }, 'a', 'run-edit')
+    for (let i = 0; i < 12; i++) await Promise.resolve()
+    try {
+      expect(outcomes).toEqual([true])
+      expect(unsubscribe).toHaveBeenCalledOnce()
+      expect(controller.getSnapshot().running).toBe(true)
+    } finally {
+      snapshots.set('a', { ...session('a'), messages: [{ ...oldMessage, content: '修改后的要求' }] })
+      finish(); await request; controller.dispose()
+    }
+  })
+
+  it('unsubscribes a pending history edit on navigation and consumes the old IPC rejection', async () => {
+    const { controller, host } = fixture()
+    let reject!: (error: Error) => void
+    host.editAndRerun = vi.fn(() => new Promise<void>((_resolve, no) => { reject = no }))
+    await controller.start()
+    const unsubscribe = vi.fn(), subscribe = controller.subscribe
+    vi.spyOn(controller, 'subscribe').mockImplementation(listener => { const stop = subscribe(listener); return () => { unsubscribe(); stop() } })
+    const request = controller.editAndRerun('user', '修改')
+    await controller.open('b')
+    expect(await request).toBe(false)
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    reject(new Error('旧任务提交失败'))
+    for (let i = 0; i < 12; i++) await Promise.resolve()
+    expect(controller.getSnapshot()).toMatchObject({ session: { id: 'b' }, error: undefined })
+    controller.dispose()
+  })
+
+  it('settles a pending history edit on disposal without waiting for the long-running IPC', async () => {
+    const { controller, host } = fixture()
+    let reject!: (error: Error) => void
+    host.editAndRerun = vi.fn(() => new Promise<void>((_resolve, no) => { reject = no }))
+    await controller.start()
+    const unsubscribe = vi.fn(), subscribe = controller.subscribe
+    vi.spyOn(controller, 'subscribe').mockImplementation(listener => { const stop = subscribe(listener); return () => { unsubscribe(); stop() } })
+    const outcomes: boolean[] = []
+    const request = controller.editAndRerun('user', '修改').then(result => outcomes.push(result))
+    controller.dispose()
+    for (let i = 0; i < 8; i++) await Promise.resolve()
+    try { expect(outcomes).toEqual([false]); expect(unsubscribe).toHaveBeenCalledOnce() }
+    finally { reject(new Error('窗口已关闭')); await request }
   })
 
   it('deletes the active session and falls back to the next remaining session', async () => {

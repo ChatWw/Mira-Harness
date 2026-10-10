@@ -48,6 +48,7 @@ try {
     define: { MIRA_HIGHLIGHT_WORKER_PATH: JSON.stringify('./mira-code-highlight.worker.js') },
     bundle: true, format: 'esm', splitting: true, chunkNames: 'chunks/[name]-[hash]',
     platform: 'browser', target: ['chrome110'], jsx: 'automatic', outdir: output,
+    loader: { '.svg': 'dataurl' },
     minify: true, metafile: true, logLevel: 'info', write: false,
   }
   const result = await build(options)

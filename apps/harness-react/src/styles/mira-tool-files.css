@@ -1,0 +1,8 @@
+.mira-tool-file-chip { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: 8px; vertical-align: middle; color: var(--color-foreground-subtle); }
+.mira-tool-file-chip > .mira-tool-file-chip__name { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; align-items: center; gap: 6px; overflow: hidden; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; white-space: nowrap; cursor: default; }
+.mira-tool-file-chip > button.mira-tool-file-chip__name { cursor: pointer; }
+.mira-tool-file-chip > button.mira-tool-file-chip__name:hover { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+.mira-tool-file-chip > button.mira-tool-file-chip__name:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 2px; border-radius: 3px; }
+.mira-tool-file-chip__name > img { display: block; flex: none; width: 16px; height: 16px; pointer-events: none; user-select: none; }
+.mira-tool-file-chip__basename { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-tool-file-chip__directory { flex: 0 3 auto; min-width: 0; overflow: hidden; color: var(--color-foreground-subtlest); text-overflow: ellipsis; white-space: nowrap; }

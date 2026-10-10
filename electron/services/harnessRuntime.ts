@@ -625,25 +625,56 @@ export class HarnessRuntime {
     return this.permissionPolicy.preflightSubtask(name, args)
   }
 
-  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number, onTool?: (id: string) => void, secrets?: string[] } = {}) {
+  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number, toolCallIndex?: () => number, onTool?: (id: string) => void, secrets?: string[] } = {}) {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const executionRecord = new AsyncLocalStorage<string>()
     const publicIds = new Map<string, string>()
     const publicStates = new Map<string, Pick<ToolCallRecord, 'status' | 'approvalRequestId'>>()
     const secrets = options.secrets || []
+    const publicOutput = (result: unknown, final = true) => {
+      const output = publicHarnessToolOutput(result, secrets)
+      if (!output || !options.subtaskId) return output
+      let suffix = 0
+      for (const secret of secrets.filter(Boolean)) for (let size = Math.min(secret.length - 1, output.text.length); size > suffix; size--) {
+        if (output.text.endsWith(secret.slice(0, size))) { suffix = size; break }
+      }
+      return suffix ? { ...output, text: output.text.slice(0, -suffix) + (final ? '[已隐藏]' : '') } : output
+    }
+    const pendingOutputs = new Map<string, Partial<ToolCallRecord>>()
+    let outputTimer: ReturnType<typeof setTimeout> | undefined
+    const flushOutputs = () => {
+      if (outputTimer) clearTimeout(outputTimer)
+      outputTimer = undefined
+      for (const [id, patch] of pendingOutputs) { pendingOutputs.delete(id); commitPublic(id, patch) }
+    }
     const updatePublic = (id: string, patch: Partial<ToolCallRecord>) => {
+      if (options.subtaskId && !patch.status && patch.output) {
+        pendingOutputs.set(id, patch)
+        if (!outputTimer) outputTimer = setTimeout(() => {
+          outputTimer = undefined
+          for (const [id, patch] of pendingOutputs) { pendingOutputs.delete(id); commitPublic(id, patch) }
+        }, ASSISTANT_PERSIST_INTERVAL_MS)
+        return
+      }
+      const pending = pendingOutputs.get(id)
+      if (pending) { pendingOutputs.delete(id); patch = { ...pending, ...patch } }
+      if (!pendingOutputs.size && outputTimer) { clearTimeout(outputTimer); outputTimer = undefined }
+      commitPublic(id, patch)
+    }
+    const commitPublic = (id: string, patch: Partial<ToolCallRecord>) => {
       const state = publicStates.get(id)
+      if (options.subtaskId && state && (state.status === 'ok' || state.status === 'failed' || state.status === 'cancelled') && (patch.status || patch.output || patch.error)) return
       if (state) {
         if (patch.status) state.status = patch.status
         if (patch.approvalRequestId) state.approvalRequestId = patch.approvalRequestId
       }
-      const linked = { runId: options.runId, ...(state?.approvalRequestId ? { approvalRequestId: state.approvalRequestId } : {}), ...patch }
+      const linked = { runId: options.runId, ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}), ...(state?.approvalRequestId ? { approvalRequestId: state.approvalRequestId } : {}), ...patch }
       this.database.harness.updateTool(sessionId, id, linked)
       this.emit(sender, { sessionId, type: 'tool-call', payload: { id, ...linked } })
     }
     const prepareTool = (providerCallId: string, name: string, args: unknown) => {
-      const identity = `response-${options.toolScope?.() || 0}:${providerCallId}`
+      const identity = `${options.subtaskId ? `child-${options.subtaskId}:` : ''}response-${options.toolScope?.() || 0}:${options.subtaskId ? `call-${options.toolCallIndex?.() || 0}:` : ''}${providerCallId}`
       const existing = publicIds.get(identity)
       const input = publicHarnessToolInput(name === 'remember_memory' && args && typeof args === 'object' ? { ...args, content: '[记忆原文不记录]', redactedContent: '[记忆原文不记录]' } : args, secrets)
       if (existing) { if (args !== undefined) updatePublic(existing, { input }); return existing }
@@ -652,7 +683,7 @@ export class HarnessRuntime {
       const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
       const target = publicHarnessText(String(values.path ?? values.command ?? values.url ?? values.query ?? ''), secrets).text
       const createdAt = Date.now()
-      const record: ToolCallRecord = { id, tool, target, status: 'running', createdAt, runId: options.runId, providerCallId, input }
+      const record: ToolCallRecord = { id, tool, target, status: 'running', createdAt, runId: options.runId, providerCallId, input, ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}) }
       publicIds.set(identity, id)
       publicStates.set(id, { status: record.status })
       recordedTools.set(id, { tool, target, startedAt: createdAt })
@@ -673,10 +704,11 @@ export class HarnessRuntime {
       const id = prepareTool(providerCallId, name, args)
       const status = publicStates.get(id)?.status
       if (status === 'cancelled' || status === 'ok' || status === 'failed') return
-      const output = publicHarnessToolOutput(result, secrets)
+      const output = publicOutput(result)
       updatePublic(id, { status: stopped ? 'cancelled' : isError ? 'failed' : 'ok', ...(output ? { output } : {}), ...(stopped || isError ? { error: stopped ? '运行已停止' : output?.text || '工具执行失败' } : {}), completedAt: Date.now() })
     }
     const cancelPending = (reason: string) => {
+      flushOutputs()
       for (const [id, state] of publicStates) if (state.status === 'running' || state.status === 'waiting-confirm') updatePublic(id, { status: 'cancelled', error: reason, completedAt: Date.now() })
     }
     const register = <T extends { name: string }>(tool: T, descriptor: ToolDescriptor) => {
@@ -789,8 +821,16 @@ export class HarnessRuntime {
         return executionRecord.run(id, async () => {
           try {
             signal?.throwIfAborted()
-            const result = await tool.execute(providerCallId, args, signal, onUpdate)
-            const output = publicHarnessToolOutput(result, secrets)
+            const publishOutput = (partial: unknown) => {
+              // Capture the execution identity, not a later model response's reused call ID.
+              if (!signal?.aborted && publicStates.get(id)?.status === 'running') {
+                const output = publicOutput(partial, false)
+                if (output) updatePublic(id, { output })
+              }
+              if (typeof onUpdate === 'function') onUpdate(partial)
+            }
+            const result = await tool.execute(providerCallId, args, signal, publishOutput)
+            const output = signal?.aborted && options.subtaskId ? undefined : publicOutput(result)
             const status = signal?.aborted ? 'cancelled' : result?.isError ? 'failed' : 'ok'
             updatePublic(id, { status, ...(output ? { output } : {}), ...(status === 'failed' ? { error: output?.text || '工具执行失败' } : status === 'cancelled' ? { error: '运行已停止' } : {}), completedAt: Date.now() })
             return result
@@ -1137,6 +1177,7 @@ export class HarnessRuntime {
     }
     let subtasks: SubtaskRuntime | undefined
     const publishActivities = () => {
+      if (this.runCoordinator.currentRunId(sessionId) !== runId) return
       const currentSubtasks = subtasks?.list() || []
       this.database.harness.setActiveRun(sessionId, { id: runId, messageId: assistantMessageId, startedAt, activities, subtasks: currentSubtasks })
       this.emit(sender, { sessionId, type: 'run-activity', payload: { messageId: assistantMessageId, activities, subtasks: currentSubtasks } })
@@ -1226,10 +1267,11 @@ export class HarnessRuntime {
       let taskTools: any[] = []
       if (!options.planning && origin === 'manual' && session.delegationEnabled !== false && session.workingDirectory) {
         const created = this.subtaskCoordinator.create({
-          sender, sessionId, session, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: modelConfig.pricing,
+          sender, sessionId, session, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: modelConfig.pricing, secrets: [apiKey],
           publishActivities,
-          toolsForTask: (role, taskId) => this.tools(sender, sessionId, { role, subtaskId: taskId }).tools,
-          preflightToolCall: (name, args) => this.preflightSubtaskToolCall(name, args),
+          toolsForTask: (role, taskId, scope) => this.tools(sender, sessionId, { role, subtaskId: taskId, runId, toolScope: scope.responseIndex, toolCallIndex: scope.callIndex, onTool: scope.onTool, secrets: [apiKey] }),
+          preflightToolCall: async (name, args) => this.preflightSubtaskToolCall(name, args),
+          resolveParentToolCallId: (providerCallId, args) => registeredTools!.prepareTool(providerCallId, 'delegate_task', args),
           getParentAgent: () => agent,
         })
         subtasks = created.runtime
@@ -1442,6 +1484,7 @@ export class HarnessRuntime {
         this.emit(sender, { sessionId, type: 'message-delta', payload: { messageId: assistantMessageId, delta: output } })
       }
       if (!output) throw new Error('模型没有返回文本')
+      await subtasks?.close('interrupted')
       for (const part of parts) if (part.type !== 'tool') finishPart(part)
       finishRunningActivities('completed')
       const completedAt = Date.now()
@@ -1474,6 +1517,7 @@ export class HarnessRuntime {
       }
       return { content: completedOutput + output, run }
     } catch (error) {
+      await subtasks?.close(controller.signal.aborted ? 'stopped' : 'interrupted')
       finishRunningActivities('failed')
       publishActivities()
       const aborted = controller.signal.aborted

@@ -7,6 +7,7 @@ import type { PlatformDatabase } from '../storage/database'
 import { buildMiraSystemPrompt } from '../prompts/mira-system-prompt'
 import { ProjectTaskLock } from './projectTaskLock'
 import { SubtaskRuntime, subtaskMayMutate } from './subtaskRuntime'
+import type { SubtaskToolRegistry, SubtaskToolScope } from './subtaskRuntime'
 import { withUsageCost } from './usageCost'
 
 type CreateSubtasksOptions = {
@@ -17,9 +18,11 @@ type CreateSubtasksOptions = {
   streamFn: any
   thinkingLevel: string
   pricing: any
+  secrets?: string[]
   publishActivities: () => void
-  toolsForTask: (role: HarnessSubtaskRole, taskId: string) => any[]
+  toolsForTask: (role: HarnessSubtaskRole, taskId: string, scope: SubtaskToolScope) => any[] | SubtaskToolRegistry
   preflightToolCall: (name: string, args: unknown) => Promise<any>
+  resolveParentToolCallId?: (providerCallId: string, args: unknown) => string
   getParentAgent: () => Agent | undefined
 }
 
@@ -56,10 +59,10 @@ export class HarnessSubtaskCoordinator {
           })
           const attachments = this.database.harness.resolveMessageAttachments(sessionId, references)
           const child = runtime.create({
-            parentToolCallId: toolCallId, role: params.role, task: params.task.trim(),
+            parentToolCallId: options.resolveParentToolCallId?.(toolCallId, params) ?? toolCallId, role: params.role, task: params.task.trim(),
             prompt: `${params.task.trim()}${attachments.length ? `\n\n已附带文件：\n${attachments.map(file => `[${file.path}]\n${file.content}`).join('\n\n')}` : ''}`,
-            files: references, systemPrompt: childPrompt(params.role), model: options.model, streamFn: options.streamFn, thinkingLevel: options.thinkingLevel,
-            toolsForTask: taskId => options.toolsForTask(params.role, taskId),
+            files: references, systemPrompt: childPrompt(params.role), model: options.model, streamFn: options.streamFn, thinkingLevel: options.thinkingLevel, secrets: options.secrets,
+            toolsForTask: (taskId, scope) => options.toolsForTask(params.role, taskId, scope),
             beforeToolCall: async ({ toolCall, args }) => options.preflightToolCall(toolCall.name, args),
             onChanged: options.publishActivities,
             onFinished: childTask => {

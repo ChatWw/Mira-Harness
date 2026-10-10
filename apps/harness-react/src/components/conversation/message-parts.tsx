@@ -114,14 +114,25 @@ export function AssistantToolbar({ message, latestAssistantId, canRerun = true, 
 }
 
 /** 用户消息行内编辑：确认后截断后续并重跑。 */
-export function UserMessageEditor({ original, content, onCancel, onConfirm }: { original?: HarnessMessage; content: string; onCancel: () => void; onConfirm: (next: string) => Promise<void> }) {
+export function UserMessageEditor({ original, content, onCancel, onConfirm, disabled = false }: { original?: HarnessMessage; content: string; onCancel: () => void; onConfirm: (next: string) => Promise<boolean>; disabled?: boolean }) {
   const [value, setValue] = useState(content)
   const [submitting, setSubmitting] = useState(false)
-  return <div className="grid w-full gap-2">
-    <textarea autoFocus value={value} onChange={event => setValue(event.target.value)} aria-label="编辑消息" rows={Math.min(8, value.split('\n').length + 1)} className="w-full rounded-xl border border-brand bg-card px-2.5 py-2 text-ui-base text-foreground" />
+  const [error, setError] = useState('')
+  const pending = useRef(false)
+  const composing = useRef(false)
+  const submit = async () => {
+    if (disabled || pending.current || !original || !value.trim()) return
+    pending.current = true; setSubmitting(true); setError('')
+    try { if (!await onConfirm(value.trim())) setError('消息未能重新发送，请检查任务状态或模型后重试。') }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '重新发送失败，请重试。') }
+    finally { pending.current = false; setSubmitting(false) }
+  }
+  return <div className="grid w-full gap-2" aria-busy={submitting || undefined}>
+    <textarea autoFocus value={value} disabled={submitting} onChange={event => setValue(event.target.value)} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }} onKeyDown={event => { if (event.key !== 'Escape') return; event.stopPropagation(); if (!composing.current && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !pending.current) { event.preventDefault(); onCancel() } }} aria-label="编辑消息" aria-invalid={Boolean(error)} rows={Math.min(8, value.split('\n').length + 1)} className="w-full rounded-xl border border-brand bg-card px-2.5 py-2 text-ui-base text-foreground" />
+    {error && <p role="alert" className="text-ui-sm text-destructive wrap-anywhere">{error}</p>}
     <div className="flex justify-end gap-2">
       <button type="button" className="rounded-lg border border-border bg-card px-3 py-1.5 text-ui-sm text-foreground" onClick={onCancel} disabled={submitting}>取消</button>
-      <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1.5 text-ui-sm text-on-accent disabled:opacity-50" disabled={!value.trim() || !original || submitting} onClick={() => { setSubmitting(true); void onConfirm(value.trim()).finally(() => setSubmitting(false)) }}>{submitting ? '重新发送中…' : '保存并重跑'}</button>
+      <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1.5 text-ui-sm text-on-accent disabled:opacity-50" disabled={disabled || !value.trim() || !original || submitting} onClick={() => void submit()}>{submitting ? '重新发送中…' : '保存并重跑'}</button>
     </div>
   </div>
 }

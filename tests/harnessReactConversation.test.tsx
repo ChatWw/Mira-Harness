@@ -35,11 +35,12 @@ describe('Mira conversation rendered progress', () => {
 
   it.each([
     { status: 'waiting-confirm' as const, label: '等待确认' },
-    { status: 'ok' as const, label: '已完成' },
+    { status: 'ok' as const, label: undefined },
     { status: 'failed' as const, label: '失败' },
   ])('retains the actual $status record without inventing input or output', ({ status, label }) => {
     const html = renderToStaticMarkup(<ToolRecord tool={{ id: 'call', tool: 'read', target: 'README.md', status, createdAt: 1, ...(status === 'failed' ? { error: '没有读取权限' } : {}) }} />)
-    expect(html).toContain(label)
+    if (label) expect(html).toContain(label)
+    else expect(html).not.toContain('已完成')
     expect(html).toContain('README.md')
     expect(html).toContain(`data-tool-status="${status}"`)
     expect(html).not.toContain('<pre>')

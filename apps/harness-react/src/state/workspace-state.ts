@@ -3,8 +3,8 @@
  * Mira changes: session-owned state and host resource lifecycle.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 export type WorkspaceResourceId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files'> | `file:${string}`
-export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string }
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files'> | `file:${string}` | `subtask:${string}`
+export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; runId?: string; subtaskId?: string }
 export type WorkspaceSessionState = {
   tabs: WorkspaceTab[]
   activeTab: WorkspaceTabId
@@ -20,6 +20,7 @@ const RECENT_WORKSPACE_LIMIT = 8
 
 export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (id.startsWith('file:')) return id.slice(5).split('/').pop() || '文件'
+  if (id.startsWith('subtask:')) return '智能体'
   return { overview: '任务活动', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器' }[id as WorkspaceResourceId]
 }
 
@@ -33,6 +34,14 @@ export function createWorkspaceFileTab(path: string): WorkspaceTab {
   return { id: `file:${path}`, label: path.split('/').pop()!, path }
 }
 
+export function createWorkspaceRunTab(runId: string): WorkspaceTab {
+  return { id: 'overview', label: '任务活动', runId }
+}
+
+export function createWorkspaceSubtaskTab(runId: string, subtaskId: string, label: string): WorkspaceTab {
+  return { id: `subtask:${JSON.stringify([runId, subtaskId])}`, label, runId, subtaskId }
+}
+
 export function createWorkspaceSession(): WorkspaceSessionState {
   return { tabs: [], activeTab: 'overview', fileTreeOpen: false, expandedFilePaths: [], browserUrl: '', recentClosedTabs: [] }
 }
@@ -40,7 +49,9 @@ export function createWorkspaceSession(): WorkspaceSessionState {
 export function openWorkspaceTab(state: WorkspaceSessionState, tab: WorkspaceTab): WorkspaceSessionState {
   return {
     ...state,
-    tabs: state.tabs.some(item => item.id === tab.id) ? state.tabs : [...state.tabs, tab],
+    // An explicit run opening replaces the overview owner; restoring a child keeps
+    // its original run metadata instead of following whichever run is latest.
+    tabs: state.tabs.some(item => item.id === tab.id) ? state.tabs.map(item => item.id === tab.id && tab.runId ? { ...item, ...tab } : item) : [...state.tabs, tab],
     activeTab: tab.id,
     recentClosedTabs: state.recentClosedTabs.filter(item => item.id !== tab.id),
   }
@@ -102,7 +113,9 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
         if (!tab || typeof tab !== 'object' || typeof tab.id !== 'string' || typeof tab.label !== 'string' || tabs.some(item => item.id === tab.id)) continue
         if (tab.id.startsWith('file:')) {
           if (isWorkspaceRelativePath(tab.path) && tab.id === `file:${tab.path}`) tabs.push({ id: tab.id, label: tab.label, path: tab.path })
-        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label })
+        } else if (tab.id.startsWith('subtask:')) {
+          if (typeof tab.runId === 'string' && tab.runId && typeof tab.subtaskId === 'string' && tab.subtaskId && tab.id === createWorkspaceSubtaskTab(tab.runId, tab.subtaskId, tab.label).id) tabs.push({ id: tab.id, label: tab.label, runId: tab.runId, subtaskId: tab.subtaskId })
+        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })
       }
       return tabs
     }

@@ -7,7 +7,7 @@ import { closestCenter, DndContext, KeyboardCode, KeyboardSensor, PointerSensor,
 import { horizontalListSortingStrategy, sortableKeyboardCoordinates, SortableContext, useSortable } from '@dnd-kit/sortable'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Activity, Check, ChevronsDown, FileCode2, GitCompare, Globe2, Plus, TerminalSquare, X } from 'lucide-react'
+import { Activity, Check, ChevronsDown, FileCode2, GitCompare, Globe2, Plus, TerminalSquare, Users, X } from 'lucide-react'
 import { workspaceTabLabel, type WorkspaceResourceId, type WorkspaceTab, type WorkspaceTabId } from '../../state/workspace-state'
 
 type WorkspaceTabsProps = {
@@ -26,7 +26,7 @@ type WorkspaceTabsProps = {
 }
 
 const resourceIcons = { overview: Activity, files: FileCode2, changes: GitCompare, terminal: TerminalSquare, browser: Globe2 }
-const resourceIcon = (tab: WorkspaceTab) => tab.path ? FileCode2 : resourceIcons[tab.id as Exclude<WorkspaceResourceId, 'files'>]
+const resourceIcon = (tab: WorkspaceTab) => tab.path ? FileCode2 : tab.subtaskId ? Users : resourceIcons[tab.id as Exclude<WorkspaceResourceId, 'files'>]
 
 export function WorkspaceTabs({ tabs, active, changes, recentClosedTabs, onOpen, onActivate, onClose, onCloseOthers, onCloseAll, onReopen, onReorder, onDismiss }: WorkspaceTabsProps) {
   const rootRef = useRef<HTMLElement>(null)

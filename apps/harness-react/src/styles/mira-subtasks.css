@@ -1,0 +1,80 @@
+.mira-subtask-panel { padding: 20px; color: var(--color-foreground); font-size: var(--text-ui-sm); line-height: 1.6; }
+.mira-subtask-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.mira-subtask-heading > svg { flex: 0 0 auto; color: var(--color-foreground-subtle); }
+.mira-subtask-heading h2 { min-width: 0; margin: 0; font-size: 14px; font-weight: 600; }
+.mira-subtask-status { margin-left: auto; flex-shrink: 0; color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-subtask-status[data-status="running"], .mira-subtask-status[data-status="queued"] { color: var(--color-brand); }
+.mira-subtask-status[data-status="failed"], .mira-subtask-status[data-status="timed_out"], .mira-subtask-status[data-status="turn_limit"] { color: var(--color-danger, #dc4d52); }
+.mira-subtask-task { margin: 0 0 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-subtask-metadata { display: grid; gap: 5px; margin: 0; font-size: 12px; color: var(--color-foreground-subtle); }
+.mira-subtask-metadata > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.mira-subtask-metadata dt { flex-shrink: 0; }
+.mira-subtask-metadata dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.mira-subtask-section { margin-top: 24px; }
+.mira-subtask-section h3 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--color-foreground-subtle); }
+.mira-subtask-section .message-markdown { font-size: 13px; line-height: 1.7; }
+.mira-subtask-empty { color: var(--color-foreground-subtle); }
+.mira-subtask-error { color: var(--color-danger, #dc4d52); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-subtask-stop { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: var(--color-foreground-subtle); font-size: 12px; cursor: pointer; }
+.mira-subtask-stop:hover { color: var(--color-danger, #dc4d52); }
+.mira-subtask-panel button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.mira-subtask-panel button:disabled { opacity: .55; cursor: default; }
+.mira-subtask-files { display: grid; gap: 5px; }
+.mira-subtask-files button { display: flex; align-items: center; gap: 7px; width: fit-content; max-width: 100%; padding: 2px 0; border: 0; background: transparent; color: var(--color-foreground-subtle); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.mira-subtask-files button:hover { color: var(--color-foreground); }
+.mira-subtask-files svg { flex-shrink: 0; }
+.mira-run-activities { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.mira-run-activities li { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.mira-run-activities strong { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.mira-run-activities p { margin: 2px 0; color: var(--color-foreground-subtle); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-run-activities small { color: var(--color-foreground-subtle); font-size: 11px; }
+.mira-subtask-status-dot { width: 5px; height: 5px; margin-top: 8px; border-radius: 50%; background: var(--color-foreground-subtlest); }
+.mira-run-activities [data-status="running"] .mira-subtask-status-dot { background: var(--color-brand); }
+.mira-run-activities [data-status="completed"] .mira-subtask-status-dot { background: var(--color-success, #4c9b75); }
+.mira-run-activities [data-status="failed"] .mira-subtask-status-dot { background: var(--color-danger, #dc4d52); }
+.mira-run-subtasks { display: grid; gap: 6px; }
+.mira-run-subtasks button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px; border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: var(--color-foreground-subtle); text-align: left; cursor: pointer; }
+.mira-run-subtasks button:hover { background: var(--color-hover); }
+.mira-run-subtasks button > svg { flex: 0 0 auto; }
+.mira-run-subtasks button > span { flex: 1; min-width: 0; }
+.mira-run-subtasks strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-foreground); font-weight: 500; }
+.mira-run-subtasks small { font-size: 11px; }
+
+/* Read-only child timeline: the same message/tool grammar, with its own viewport. */
+.mira-subtask-conversation { display: flex; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; }
+.mira-subtask-conversation > .mira-subtask-heading { min-height: 42px; flex: none; margin: 0; padding: 8px 16px; }
+.mira-subtask-conversation .mira-subtask-error { color: var(--color-destructive); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-subtask-conversation > .mira-subtask-stop-error { flex: none; margin: 0 16px 8px; }
+.mira-subtask-conversation-body { position: relative; min-height: 0; flex: 1; overflow: hidden; }
+.mira-subtask-viewport { height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.mira-subtask-viewport:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: -2px; }
+.mira-subtask-messages { display: grid; max-width: 75ch; margin: 0 auto; padding: calc(var(--mira-child-summary-height) + 32px) 20px 48px; gap: 28px; }
+.mira-subtask-request { min-width: 0; width: fit-content; max-width: 100%; justify-self: end; padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 14px 2px 14px 14px; background: var(--color-background-alt); }
+.mira-subtask-request p { margin: 0; color: var(--color-foreground); font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-subtask-reply { min-width: 0; color: var(--text); font-size: 14px; line-height: 1.7; }
+.mira-subtask-reply .message-markdown p { margin: 0 0 1em; color: inherit; font-size: inherit; line-height: inherit; }
+.mira-subtask-reply .message-markdown p:last-child { margin-bottom: 0; }
+.mira-subtask-reply > .mira-subtask-empty { margin-top: 8px; font-size: 13px; }
+.mira-subtask-reply > .mira-subtask-error { margin-top: 16px; }
+.mira-subtask-error > small { display: block; color: var(--color-foreground-subtle); }
+.mira-subtask-summary-layer { position: absolute; z-index: 2; top: 12px; right: 16px; max-width: calc(100% - 32px); pointer-events: none; }
+.mira-subtask-summary { width: fit-content; max-width: 100%; overflow: hidden; border-radius: 16px; color: var(--color-foreground); background: var(--color-popover); box-shadow: 0 4px 14px rgb(0 0 0 / 10%); font-size: 13px; pointer-events: auto; }
+.mira-subtask-summary > summary { display: flex; min-height: 34px; align-items: center; gap: 8px; padding: 5px 12px; list-style: none; cursor: pointer; }
+.mira-subtask-summary > summary::-webkit-details-marker { display: none; }
+.mira-subtask-summary > summary:hover { background: var(--color-hover); }
+.mira-subtask-summary > summary:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: -2px; border-radius: inherit; }
+.mira-subtask-summary > summary strong { min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mira-subtask-summary > summary > svg { flex: none; }
+.mira-subtask-summary > summary > svg:last-child { transition: transform 150ms ease-out; }
+.mira-subtask-summary[open] > summary > svg:last-child { transform: rotate(180deg); }
+.mira-subtask-summary .mira-subtask-status-dot { flex: 0 0 5px; margin: 0; }
+.mira-subtask-status-dot[data-status="running"], .mira-subtask-status-dot[data-status="queued"], .mira-subtask-status-dot[data-status="stopping"] { background: var(--color-warning); }
+.mira-subtask-status-dot[data-status="completed"] { background: var(--color-success); }
+.mira-subtask-status-dot[data-status="failed"], .mira-subtask-status-dot[data-status="timed_out"], .mira-subtask-status-dot[data-status="turn_limit"] { background: var(--color-destructive); }
+.mira-subtask-summary-content { display: grid; width: 300px; max-width: 100%; max-height: min(40vh, 360px); gap: 16px; overflow: auto; padding: 8px 12px 12px; }
+.mira-subtask-summary-content .mira-run-activities li { grid-template-columns: 5px minmax(0, 1fr) auto; }
+.mira-subtask-summary-content .mira-run-activities .mira-subtask-status-dot { margin-top: 8px; }
+.mira-subtask-summary-content .mira-subtask-files { padding-top: 8px; border-top: 1px solid var(--color-border); }
+.mira-subtask-scroll-latest { position: absolute; z-index: 2; bottom: 16px; left: 50%; display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; color: var(--color-foreground); background: var(--color-card); transform: translateX(-50%); cursor: pointer; }
+.mira-subtask-scroll-latest:hover { background: var(--color-hover); }
+@media (prefers-reduced-motion: reduce) { .mira-subtask-summary > summary > svg:last-child { transition: none; } }

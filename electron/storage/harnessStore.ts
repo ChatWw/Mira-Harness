@@ -932,10 +932,17 @@ export class HarnessStore {
       try { session = this.getSession(row.id) } catch { continue }
       if (!session.activeRun) continue
       let changed = false
+      const interrupted = new Set<string>()
       for (const task of session.activeRun.subtasks) {
         if (task.status === 'queued' || task.status === 'running' || task.status === 'stopping') {
           task.status = 'interrupted'; task.completedAt = now(); changed = true
+          interrupted.add(task.id)
+          for (const activity of task.activities) if (activity.status === 'running') { activity.status = 'failed'; activity.completedAt = task.completedAt }
+          for (const part of task.parts || []) if (part.type !== 'tool' && part.state === 'streaming') { part.state = 'interrupted'; part.completedAt = task.completedAt }
         }
+      }
+      for (const tool of session.toolCalls) if (tool.runId === session.activeRun.id && tool.subtaskId && interrupted.has(tool.subtaskId) && (tool.status === 'running' || tool.status === 'waiting-confirm')) {
+        tool.status = 'cancelled'; tool.completedAt = now(); tool.error = '应用重启，子任务已中断'; changed = true
       }
       if (changed) this.saveSession(session)
     }

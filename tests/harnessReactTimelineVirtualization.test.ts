@@ -21,6 +21,10 @@ vi.mock('react', async importOriginal => {
   }
   return {
     ...await importOriginal<typeof import('react')>(),
+    useState: (initial: unknown) => {
+      const slot = hooks.slots[hooks.cursor++] ??= { value: typeof initial === 'function' ? initial() : initial }
+      return [slot.value, (next: unknown) => { slot.value = typeof next === 'function' ? next(slot.value) : next }]
+    },
     useRef: (initial: unknown) => (hooks.slots[hooks.cursor++] ??= { value: { current: initial } }).value,
     useMemo: memo,
     useCallback: (callback: unknown, deps: readonly unknown[]) => memo(() => callback, deps),
@@ -29,7 +33,7 @@ vi.mock('react', async importOriginal => {
   }
 })
 vi.mock('@assistant-ui/react', () => ({ ThreadPrimitive: { MessageByIndex: () => null }, useAuiState: () => true }))
-vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: (options: unknown) => { hooks.virtualOptions = options; return hooks.virtualizer } }))
+vi.mock('@tanstack/react-virtual', async importOriginal => ({ ...await importOriginal<typeof import('@tanstack/react-virtual')>(), useVirtualizer: (options: unknown) => { hooks.virtualOptions = options; return hooks.virtualizer } }))
 
 let nextFrame = 0
 const frames = new Map<number, FrameRequestCallback>()
@@ -39,6 +43,9 @@ beforeEach(() => {
   vi.stubGlobal('React', React)
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame })
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id))
+  vi.stubGlobal('MutationObserver', class { observe() {} disconnect() {} })
+  vi.stubGlobal('document', { activeElement: null })
+  vi.stubGlobal('HTMLElement', class {})
   vi.stubGlobal('ResizeObserver', class {
     targets = new Set<Element>()
     constructor(public callback: ResizeObserverCallback) { resizeObservers.add(this) }
@@ -62,7 +69,12 @@ function mountTimeline(messages = projected([message('task-1', 'user'), message(
   }
   const column = { getBoundingClientRect: vi.fn(() => ({ width: 760 })) }
   const viewportRef = { current: viewport as unknown as HTMLDivElement }, actionsRef = { current: null }
-  const container = { closest: (selector: string) => selector === '.mira-message-column' ? column : viewportRef.current }
+  let editingTurnIds: string[] = [], focusedTurnId: string | undefined
+  const container = {
+    closest: (selector: string) => selector === '.mira-message-column' ? column : viewportRef.current,
+    querySelectorAll: () => editingTurnIds.map(id => ({ closest: () => ({ dataset: { miraTurnId: id } }) })),
+    contains: () => Boolean(focusedTurnId),
+  }
   const onActiveTurnChange = vi.fn()
   const props = { messages, memoryKey: null, liveMessageId, viewportRef, scrollActionsRef: { current: null }, actionsRef, components: { UserMessage: () => null, AssistantMessage: () => null }, onActiveTurnChange }
   let totalSize = 1200
@@ -71,11 +83,13 @@ function mountTimeline(messages = projected([message('task-1', 'user'), message(
     getTotalSize: () => (hooks.virtualOptions as { count: number }).count ? totalSize : 0,
     measureElement: vi.fn(), scrollToIndex: vi.fn(),
   }
+  let retainInteractions: () => void = () => undefined
   const attach = (node: React.ReactNode) => {
     if (Array.isArray(node)) { node.forEach(attach); return }
     if (!React.isValidElement<Record<string, unknown>>(node)) return
     const ref = node.props.ref as { current: unknown } | undefined
     if (ref && typeof ref !== 'function') ref.current = node.props['data-mira-live-turn'] ? first : container
+    if (node.props.onFocusCapture) retainInteractions = node.props.onFocusCapture as () => void
     attach(node.props.children as React.ReactNode)
   }
   const render = (updates: Partial<typeof props> = {}) => {
@@ -86,6 +100,13 @@ function mountTimeline(messages = projected([message('task-1', 'user'), message(
   render()
   return {
     viewport, viewportRef, first, second, users, turns, onActiveTurnChange, render,
+    editing: (ids: string[]) => { editingTurnIds = ids; retainInteractions(); render() },
+    focusTurn: (id?: string) => {
+      focusedTurnId = id
+      document.activeElement = id ? Object.assign(new HTMLElement(), { closest: () => ({ dataset: { miraTurnId: id } }) }) : null
+      retainInteractions(); render()
+    },
+    retainedRange: (startIndex: number, endIndex: number, count: number) => (hooks.virtualOptions as { rangeExtractor: (range: unknown) => number[] }).rangeExtractor({ startIndex, endIndex, count, overscan: 0 }),
     setTotalSize: (height: number) => { totalSize = height },
     frame: () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback(0)) },
     scroll: () => listeners.get('scroll')?.({} as Event),
@@ -232,6 +253,26 @@ describe('Mira bounded virtual turn measurements', () => {
     expect(cache.estimate('first')).toBe(72)
     expect(cache.estimate('second')).toBe(240)
     expect(cache.estimate('third')).toBe(320)
+  })
+})
+
+describe('Mira virtual history retains only active editing and keyboard interactions', () => {
+  it('keeps an offscreen editor through blur, releases it after cancel, and ignores deleted turn identities', () => {
+    const view = mountTimeline()
+    expect(view.retainedRange(1, 1, 2)).toEqual([1])
+    view.editing(['task-1']); expect(view.retainedRange(1, 1, 2)).toEqual([0, 1])
+    view.focusTurn('task-1'); view.focusTurn(); expect(view.retainedRange(1, 1, 2)).toEqual([0, 1])
+    view.editing([]); expect(view.retainedRange(1, 1, 2)).toEqual([1])
+    view.editing(['deleted-task']); expect(view.retainedRange(1, 1, 2)).toEqual([1])
+  })
+
+  it('keeps a focused tool in its owning turn and releases it when focus moves outside the conversation', () => {
+    const view = mountTimeline()
+    view.focusTurn('task-1'); expect(view.retainedRange(1, 1, 2)).toEqual([0, 1])
+    view.focusTurn(); expect(view.retainedRange(1, 1, 2)).toEqual([1])
+    view.focusTurn('task-2'); expect(view.retainedRange(0, 0, 2)).toEqual([0, 1])
+    view.render({ messages: projected([message('task-1', 'user'), message('answer-1', 'assistant')]) })
+    expect(view.retainedRange(0, 0, 1)).toEqual([0])
   })
 })
 

@@ -185,7 +185,7 @@
   --mira-selected: rgba(13, 13, 13, 0.05);
   --mira-header: #ffffff;
   --mira-panel: #ffffff;
-  --mira-sidebar: #f0f0f0;
+  --mira-sidebar: #fafafa;
   --mira-surface: rgba(13, 13, 13, 0.03);
   --mira-surface-hover: rgba(13, 13, 13, 0.05);
   --mira-card: #ffffff;
@@ -330,7 +330,7 @@
   --mira-selected: rgba(255, 255, 255, 0.1);
   --mira-header: #202020;
   --mira-panel: #202020;
-  --mira-sidebar: #161616;
+  --mira-sidebar: #292a2e;
   --mira-surface: rgba(255, 255, 255, 0.05);
   --mira-surface-hover: rgba(255, 255, 255, 0.1);
   --mira-card: #2b2b2b;

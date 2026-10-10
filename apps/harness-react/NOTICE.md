@@ -12,11 +12,13 @@ Copyright 2026 Z.AI Co., Ltd
 - `third-party-licenses/zcode/NOTICE.md`：上游声明全文，原样保留；其中关于 ZCode
   功能、发行形态与网络行为的说明描述其上游产品，不代表 Mira 提供这些功能。
 - `third-party-licenses/zcode/ADAPTATIONS.md`：来源路径、基线与 Mira 改编范围。
+- `third-party-licenses/material-icon-theme/LICENSE` 与 `README.md`：16 个本地文件类型图标的 MIT 原文、Material Extensions 版权及固定提交来源；图标静态内联，不请求远程素材。
 - `third-party-licenses/tanstack/react-virtual/LICENSE`：`@tanstack/react-virtual`
   `3.14.13` 附带的 MIT 许可证全文与原作者版权，原样保留。
 - `third-party-licenses/tanstack/virtual-core/LICENSE`：`@tanstack/virtual-core`
   `3.17.11` 附带的 MIT 许可证全文与原作者版权，原样保留。
 - `third-party-licenses/tanstack/README.md`：TanStack 实际版本、依赖关系与本应用用途。
+- `third-party-licenses/lexical/README.md` 与该目录内的 LICENSE：Lexical 0.42.0 及本次新增依赖的实际版本和 MIT 许可原文。输入编辑器使用其公开 API；安装依赖中的协同模块不代表 Mira 已实现协同编辑。
 - `third-party-licenses/radix/LICENSE`：Radix Hover Card 1.1.24 与 Collapsible 1.1.20 安装包共同的 MIT 许可原文（Copyright (c) 2022 WorkOS），用于轮次悬浮预览及项目/个人区折叠。
 - `third-party-licenses/shiki/LICENSE-MIT`：Shiki 与 Oniguruma engine 3.23.0 的 MIT 原文。
 - `third-party-licenses/oniguruma/LICENSE-MICROSOFT-MIT` 与 `NOTICES.txt`：WASM 中 Microsoft bindings 和原生 Oniguruma 的许可原文。
@@ -60,6 +62,13 @@ Retina 文件名折算及 SVG 的独立 image 数据源。Mira 增加解码失�
 ZCode 品牌、账号服务和完整 Agent Runtime 不属于本应用的改编范围。
 Mira 原创代码继续适用仓库根 MIT LICENSE；该许可不替代上述 Apache-2.0 条款，
 也不替代各直接依赖组件自己的许可证。
+
+工作台主体分栏使用 `react-resizable-panels` 4.8.0 的公开 Group/Panel/Separator API，
+原 MIT 许可保留于 `third-party-licenses/react-resizable-panels/LICENSE-MIT`。
+`useMiraPaneGeometry.ts` 和 `lib/pane-geometry.ts` 的比例边界、显式开合动画与
+窗口缩放空闲后收起策略参考 ZCode `useAnimatedResizablePanel.ts`、
+`animatedSidePanePanelModel.ts`、`WorkspaceShellLayout.tsx`（Apache-2.0）；
+Mira 适配第一方宿主偏好、旧像素宽度迁移和侧栏生命周期，不移植上游完整应用壳。
 
 工作区搜索的 `.miraignore` 模板、默认规则与分区交互参考上游
 `packages/services/src/file/workspaceFileIgnore.ts` 和 `WorkspaceFileSearchSection.tsx`，
