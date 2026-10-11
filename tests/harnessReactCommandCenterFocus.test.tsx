@@ -95,6 +95,24 @@ describe('real React and Radix command-center dismissal focus', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it.each([{ isComposing: true }, { keyCode: 229 }])('keeps search open when Escape belongs to IME: %j', async ime => {
+    const view = await mount(), opener = view.element('侧栏搜索')
+    await view.open()
+    const input = view.element('搜索命令、对话和文件') as HTMLInputElement
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '中文')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true, ...ime }))
+    })
+    await view.settle()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.activeElement).toBe(input)
+    expect(input.value).toBe('中文')
+    await view.dismiss('escape'); await view.settle()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('leaves the destination Composer focused when choosing a new task closes search inside navigation', async () => {
     const view = await mount(); await view.open(); await view.select(); await view.settle()
     expect(document.activeElement).toBe(view.element('任务内容'))

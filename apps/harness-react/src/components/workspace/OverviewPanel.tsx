@@ -10,7 +10,7 @@ export function OverviewPanel({ session, sessionId, runId, active, onOpenSubtask
   onOpenSubtask: (runId: string, subtaskId: string) => void; onOpenFile: (path: string) => void
 }) {
   const run = session?.id === sessionId && runId ? selectMiraRunActivity(session, runId) : undefined
-  if (!run) return <div className="mira-subtask-panel" role="status"><h2>任务活动</h2><p className="mira-subtask-empty">{runId ? '这轮运行的记录已不可用。' : '从任务摘要或回复中的“查看本轮执行过程”打开对应运行。'}</p></div>
+  if (!run) return <div className="mira-subtask-panel" role="status"><h2>任务活动</h2><p className="mira-subtask-empty">{runId ? '这轮运行的记录已不可用。' : '当前任务尚无可查看的执行记录。发送任务后，可从标题栏、侧栏任务菜单或任务摘要查看执行详情。'}</p></div>
   const statusLabel = { running: '执行中', completed: '已完成', failed: '失败', stopped: '已停止' }[run.status]
   return <article className="mira-subtask-panel" data-run-activity-id={run.runId}>
     <header className="mira-subtask-heading">{run.status === 'running' ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : <Activity size={17} aria-hidden="true" />}<h2>本轮执行过程</h2><span className="mira-subtask-status" data-status={run.status}>{statusLabel}</span></header>

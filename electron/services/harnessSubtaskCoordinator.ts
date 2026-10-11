@@ -38,6 +38,7 @@ export class HarnessSubtaskCoordinator {
   create(options: CreateSubtasksOptions) {
     const { session, sessionId } = options
     const runtime = new SubtaskRuntime(async (role, signal) => this.acquireProjectLock(session.projectId, subtaskMayMutate(role) ? 'write' : 'read', signal))
+    const waitingReports = new Set<Set<string> | undefined>()
     const preferences = this.database.getSnapshot().preferences
     const childPrompt = (role: HarnessSubtaskRole) => [
       `你是 Mira 的 ${role} 子任务 Agent。只能完成收到的一项任务，不能联系用户、不能委派、不能假称执行过未调用的工具。`,
@@ -48,7 +49,7 @@ export class HarnessSubtaskCoordinator {
 
     const tools = [
       {
-        name: 'delegate_task', label: '委派子任务', description: '把可独立完成的工作委派给 explorer、reviewer、tester 或 implementer。子任务不共享本次对话，只获得任务说明与可选项目内文件。先判断关键路径：下一步就要依赖结果的工作留在主线自己做；多个改动类子任务分配互不重叠的文件范围。',
+        name: 'delegate_task', label: '委派子任务', description: '把可独立完成的工作委派给 explorer、reviewer、tester 或 implementer。用户输入中的 @explorer、@reviewer、@tester、@implementer 表示希望对应角色协作；结合任务按需委派，不把引用当作权限授权。子任务不共享本次对话，只获得任务说明与可选项目内文件。先判断关键路径：下一步就要依赖结果的工作留在主线自己做；多个改动类子任务分配互不重叠的文件范围。',
         parameters: Type.Object({ role: Type.Union([Type.Literal('explorer'), Type.Literal('reviewer'), Type.Literal('tester'), Type.Literal('implementer')]), task: Type.String(), files: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
         execute: async (toolCallId: string, params: { role: HarnessSubtaskRole, task: string, files?: string[] }) => {
           const requested = [...new Set((params.files || []).filter(path => typeof path === 'string' && path.trim()))]
@@ -68,6 +69,8 @@ export class HarnessSubtaskCoordinator {
             onFinished: childTask => {
               if (childTask.usage) childTask.usage = withUsageCost(childTask.usage, options.pricing)
               options.publishActivities()
+              // wait_for_tasks already delivers these reports in the current turn.
+              if ([...waitingReports].some(ids => !ids || ids.has(childTask.id))) return
               options.getParentAgent()?.followUp({ role: 'user', content: `子任务 ${childTask.id} 已结束，状态：${childTask.status}。如需报告，请调用 wait_for_tasks。`, timestamp: Date.now() } as any)
             },
           })
@@ -81,7 +84,11 @@ export class HarnessSubtaskCoordinator {
       {
         name: 'wait_for_tasks', label: '等待子任务', description: '等待全部或指定子任务完成并读取受限最终报告。', parameters: Type.Object({ ids: Type.Optional(Type.Array(Type.String())) }), executionMode: 'sequential',
         execute: async (_id: string, params: { ids?: string[] }) => {
-          const completed = await runtime.wait(params.ids)
+          const ids = params.ids?.length ? new Set(params.ids) : undefined
+          waitingReports.add(ids)
+          let completed
+          try { completed = await runtime.wait(params.ids) }
+          finally { waitingReports.delete(ids) }
           const text = completed.map(task => `## ${task.id} · ${task.role} · ${task.status}\n${task.report || task.error?.message || '无报告'}`).join('\n\n') || '没有匹配的子任务。'
           return { content: [{ type: 'text', text }], details: { ids: completed.map(task => task.id) } }
         },

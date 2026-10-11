@@ -1,8 +1,89 @@
-import { describe, expect, it } from 'vitest'
-import { appendComposerReferences, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, withoutComposerDraftOwners } from '../apps/harness-react/src/lib/composer-drafts'
+import { describe, expect, it, vi } from 'vitest'
+import { appendComposerReferences, createMiraComposerDraftWriter, mergeComposerDraftChanges, mergeComposerDrafts, readComposerDrafts, serializeComposerDrafts, withoutComposerDraftOwners } from '../apps/harness-react/src/lib/composer-drafts'
 import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 describe('React Harness composer draft preferences', () => {
+  it('merges disjoint task edits and explicit clears without restoring stale owners or global configuration', () => {
+    const before = readComposerDrafts({ drafts: { a: 'original A', b: 'original B' }, permissions: { a: 'default', b: 'default' } })
+    const current = readComposerDrafts({ drafts: { b: 'edited B' }, permissions: { b: 'full' }, config: { planning: true } })
+    const next = { ...before, drafts: { a: 'edited A', b: 'original B' }, permissions: { a: 'auto-approve' as const, b: 'default' as const } }
+    const merged = mergeComposerDraftChanges(current, before, next)
+    expect(merged.drafts).toEqual({ a: 'edited A', b: 'edited B' })
+    expect(merged.permissions).toEqual({ a: 'auto-approve', b: 'full' })
+    expect(merged.config.planning).toBe(true)
+    expect(mergeComposerDraftChanges(merged, next, { ...next, drafts: { b: 'original B' } }).drafts).toEqual({ b: 'edited B' })
+  })
+
+  it('serializes two controllers on one host while preserving different tasks and immutable queued snapshots', async () => {
+    let stored: unknown = { drafts: { a: 'A', b: 'B' } }, finish!: () => void
+    const scope = {}, host = { composerDraftScope: scope, getPreference: vi.fn(async () => structuredClone(stored)), setPreference: vi.fn(async (_key: string, value: unknown) => { stored = structuredClone(value) }) }
+    const main = createMiraComposerDraftWriter(host, 'drafts'), side = createMiraComposerDraftWriter({ ...host }, 'drafts')
+    const a = await main.load(), b = await side.load()
+    host.setPreference.mockImplementationOnce(async (_key, value) => { await new Promise<void>(resolve => { finish = resolve }); stored = structuredClone(value) })
+    a.drafts.a = 'new A'; const savingA = main.save(a)
+    b.drafts.b = 'new B'; const savingB = side.save(b); b.drafts.b = 'uncommitted B'
+    for (let i = 0; i < 8; i++) await Promise.resolve()
+    expect(host.setPreference).toHaveBeenCalledTimes(1)
+    finish(); await Promise.all([savingA, savingB])
+    expect(readComposerDrafts(stored).drafts).toEqual({ a: 'new A', b: 'new B' })
+  })
+
+  it('reads another pane edits while preserving unsaved local changes and the next save delta', async () => {
+    let stored: unknown = { drafts: { a: 'A', b: 'B' } }
+    const host = { getPreference: vi.fn(async () => structuredClone(stored)), setPreference: vi.fn(async (_key: string, value: unknown) => { stored = structuredClone(value) }) }
+    const main = createMiraComposerDraftWriter(host, 'drafts'), side = createMiraComposerDraftWriter(host, 'drafts')
+    const a = await main.load(), b = await side.load()
+    b.drafts.b = '侧任务保存'; await side.save(b)
+    a.drafts.a = '主任务尚未保存'
+    const merged = await main.readMerged(a)
+    expect(merged.drafts).toEqual({ a: '主任务尚未保存', b: '侧任务保存' })
+    expect(host.setPreference).toHaveBeenCalledTimes(1)
+    await main.save(merged)
+    expect(readComposerDrafts(stored).drafts).toEqual(merged.drafts)
+  })
+
+  it('preserves another pane after failed writes and retains the failed delta for retry', async () => {
+    let stored: unknown = { drafts: { a: 'A', b: 'B' } }
+    const host = { getPreference: vi.fn(async () => structuredClone(stored)), setPreference: vi.fn(async (_key: string, value: unknown) => { stored = structuredClone(value) }) }
+    const main = createMiraComposerDraftWriter(host, 'drafts'), side = createMiraComposerDraftWriter(host, 'drafts')
+    const a = await main.load(), b = await side.load(); a.drafts.a = 'retry A'; b.drafts.b = 'saved B'
+    host.setPreference.mockRejectedValueOnce(new Error('write failed'))
+    await expect(main.save(a)).rejects.toThrow('write failed')
+    await side.save(b); await main.save(a)
+    expect(readComposerDrafts(stored).drafts).toEqual({ a: 'retry A', b: 'saved B' })
+    host.getPreference.mockRejectedValueOnce(new Error('read failed'))
+    a.drafts.a = 'later A'; await expect(main.save(a)).rejects.toThrow('read failed')
+    await main.save(a)
+    expect(readComposerDrafts(stored).drafts).toEqual({ a: 'later A', b: 'saved B' })
+  })
+
+  it('checks the combined host budget rather than only the edited pane', async () => {
+    let stored: unknown = { drafts: { a: 'A' } }
+    const host = { getPreference: vi.fn(async () => structuredClone(stored)), setPreference: vi.fn(async (_key: string, value: unknown) => { stored = structuredClone(value) }) }
+    const writer = createMiraComposerDraftWriter(host, 'drafts'), local = await writer.load()
+    stored = { drafts: { a: 'A', b: 'B'.repeat(150_000) } }; local.drafts.a = 'A'.repeat(150_000)
+    await expect(writer.save(local)).rejects.toThrow('保存上限')
+    expect(host.setPreference).not.toHaveBeenCalled()
+    local.drafts.a = 'small A'; await writer.save(local)
+    expect(readComposerDrafts(stored).drafts.b).toHaveLength(150_000)
+  })
+  it('keeps pending and withdrawn skill intent through reload and drops malformed identities', () => {
+    const intent = { id: 'intent', text: 'retry', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { skillIds: ['research'] } }
+    const recovery = { ...intent, submissionId: 'submit', sessionId: 'a', permissionMode: 'default', skillIds: ['research'], createdAt: 1 }
+    const snapshot = readComposerDrafts({ submissions: { a: intent, bad: { ...intent, options: { skillIds: [123] } } }, recoveries: { a: [recovery] } })
+    const restored = readComposerDrafts(JSON.parse(JSON.stringify(serializeComposerDrafts(snapshot))))
+    expect(restored.submissions).toEqual({ a: intent }); expect(restored.recoveries?.a[0].skillIds).toEqual(['research'])
+  })
+
+  it('preserves per-owner permissions and the original permission of a pending submission', () => {
+    const intent = { id: 'intent', text: 'retry', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { permissionMode: 'full' } }
+    const saved = readComposerDrafts({ permissions: { a: 'full', b: 'auto-approve', invalid: 'admin' }, submissions: { a: intent, bad: { ...intent, options: { permissionMode: 'admin' } } } })
+    expect(saved.permissions).toEqual({ a: 'full', b: 'auto-approve' }); expect(saved.submissions).toEqual({ a: intent })
+    const merged = mergeComposerDrafts(saved, readComposerDrafts({ permissions: { a: 'default' } }), new Set())
+    expect(serializeComposerDrafts(merged).permissions).toEqual({ a: 'default', b: 'auto-approve' })
+    expect(serializeComposerDrafts(merged).submissions?.a).toEqual(intent)
+    expect(withoutComposerDraftOwners(merged, new Set(['a'])).permissions).toEqual({ b: 'auto-approve' })
+  })
   const reference: MiraPromptDocument = { version: 1, parts: [{ type: 'reference', reference: { id: 'readme', kind: 'file', label: 'README.md', value: 'mira-attachment:frozen', text: '@src/README.md' } }] }
 
   it('restores rich references only against matching owner text and actual attachment metadata', () => {

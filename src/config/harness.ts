@@ -1,3 +1,5 @@
+import type { MiraPluginCommandInput, MiraPluginSnapshot } from './miraPlugins'
+
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 
 export function isPermissionMode(value: unknown): value is PermissionMode {
@@ -182,6 +184,11 @@ export interface HarnessContextUsage {
   updatedAt: number
 }
 
+export type HarnessContextCompactionResult = {
+  status: 'compacted' | 'unchanged'
+  usage: HarnessContextUsage
+} | { status: 'queued'; queue: HarnessMessageQueueSnapshot }
+
 export interface HarnessContextState {
   usage?: HarnessContextUsage
   summary?: string
@@ -238,7 +245,7 @@ export interface HarnessRunActivity {
   id: string
   label: string
   detail?: string
-  status: HarnessRunStatus
+  status: HarnessRunStatus | 'stopped'
   /** 用于区分「计划步骤」与「实际工具活动」等，前端按类型分组展示。 */
   kind?: 'plan' | 'tool' | 'thought' | 'subtask'
   startedAt: number
@@ -280,6 +287,8 @@ export interface HarnessRunUsage {
 
 export interface HarnessActiveRun {
   id: string
+  /** Context maintenance has progress, but does not create an assistant reply. */
+  kind?: 'context-compaction'
   /** Stable identity of the current assistant segment within this run. */
   messageId?: string
   startedAt: number
@@ -299,9 +308,6 @@ export interface HarnessRunSummary {
   contextUsage?: HarnessContextUsage
 }
 
-/** 计划步骤上限，避免模型一次性输出过长清单。 */
-export const MAX_PLAN_STEPS = 6
-
 export interface HarnessPlanStep {
   label: string
   detail?: string
@@ -309,14 +315,13 @@ export interface HarnessPlanStep {
 
 /**
  * 将 `set_plan` 工具传入的未知结构归一化为计划步骤。
- * 过滤非法 / 空 label，截断到上限；纯函数，便于单测。
+ * 过滤非法 / 空 label，保留完整顺序；长清单由工作台折叠展示。
  */
 export function normalizePlanSteps(steps: unknown): HarnessPlanStep[] {
   if (!Array.isArray(steps)) return []
   return steps
     .map(step => (step && typeof step === 'object' ? step as Record<string, unknown> : {}))
     .filter(step => typeof step.label === 'string' && step.label.trim())
-    .slice(0, MAX_PLAN_STEPS)
     .map(step => ({
       label: (step.label as string).trim(),
       detail: typeof step.detail === 'string' && step.detail.trim() ? step.detail.trim() : undefined,
@@ -393,10 +398,14 @@ export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  /** Original slash stays visible; the host-resolved prompt is frozen for model history. */
+  command?: MiraPluginCommandInput
   /** Optional on legacy history; never infer old text/tool ordering from timestamps. */
   runId?: string
   delivery?: 'guide'
   submissionId?: string
+  /** Copied branch history is displayed, but does not incur usage again. */
+  inherited?: boolean
   parts?: HarnessMessagePart[]
   attachments?: HarnessMessageAttachment[]
   run?: HarnessRunSummary
@@ -449,6 +458,7 @@ export interface HarnessMessageAttachment extends HarnessFileReference {
 }
 
 export interface HarnessQueuedMessage {
+  operation?: 'context-compaction'
   id: string
   submissionId: string
   sessionId: string
@@ -457,6 +467,9 @@ export interface HarnessQueuedMessage {
   selection: ModelSelection
   planning: boolean
   permissionMode: PermissionMode
+  skillIds?: string[]
+  pluginIds?: string[]
+  command?: MiraPluginCommandInput
   createdAt: number
   delivery?: 'guide'
   targetRunId?: string
@@ -464,7 +477,7 @@ export interface HarnessQueuedMessage {
   fallbackReason?: HarnessGuideFallbackReason
 }
 
-export type HarnessGuideFallbackReason = 'attachments' | 'planning' | 'model-mismatch' | 'permission-mismatch' | 'run-unavailable' | 'confirmation' | 'run-ended'
+export type HarnessGuideFallbackReason = 'attachments' | 'skills' | 'plugins' | 'planning' | 'model-mismatch' | 'permission-mismatch' | 'run-unavailable' | 'confirmation' | 'run-ended'
 
 export interface HarnessMessageQueueSnapshot {
   sessionId: string
@@ -483,6 +496,12 @@ export interface HarnessMessageSubmissionReceipt {
 }
 
 export interface HarnessMessageSubmissionOptions {
+  /** Composer intent, frozen with this submission rather than changing a live run. */
+  permissionMode?: PermissionMode
+  /** Explicit prompt references; empty means quoted content must not activate skills. */
+  skillIds?: string[]
+  /** Explicit plugin chips; quoted conversation content never activates a plugin hint. */
+  pluginIds?: string[]
   delivery?: 'immediate' | 'guide'
   pausedQueueDecision?: 'retain' | 'discard'
   expectedQueueRevision?: number
@@ -495,7 +514,7 @@ export type HarnessMessageSubmissionResult = HarnessMessageSubmissionReceipt | {
   queue: HarnessMessageQueueSnapshot
 } | {
   retryRequired: true
-  reason?: 'image-model-unsupported'
+  reason?: 'image-model-unsupported' | 'permission-mode-disabled' | 'skill-unavailable'
   queue: HarnessMessageQueueSnapshot
 }
 
@@ -523,6 +542,12 @@ export interface ToolCallRecord {
 
 export interface HarnessSession {
   version: 1
+  /** Plugin identity/capability declarations frozen at first runtime creation. */
+  pluginCatalog?: MiraPluginSnapshot[]
+  /** Independent side conversation; hidden from the main task collections. */
+  parentSessionId?: string
+  /** Independent visible task copied through a settled assistant reply. */
+  forkSource?: { sessionId: string; messageId: string; title: string }
   id: string
   /** Attachment owners stay hidden until the first message is accepted. Older sessions omit this field. */
   draftState?: 'prepared' | 'accepted'
@@ -533,6 +558,8 @@ export interface HarnessSession {
   workingDirectory?: string
   modelProviderId?: string
   modelId?: string
+  /** Effective reasoning level from the last admitted run, distinct from Composer drafts. */
+  modelThinkingLevel?: ThinkingLevel
   permissionMode: PermissionMode
   messages: HarnessMessage[]
   toolCalls: ToolCallRecord[]

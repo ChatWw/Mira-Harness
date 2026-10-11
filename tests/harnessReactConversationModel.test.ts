@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { HarnessMessage, HarnessRunSummary, ToolCallRecord } from '../src/config/harness'
 import { buildConversationTurns, completedOperationCount, projectTimelineMessages, projectTimelineRenderMessages, toolsForRun, type TimelineRenderMessage } from '../apps/harness-react/src/components/conversation/conversation-model'
 
+it('keeps a context compaction out of the assistant reply timeline', () => {
+  const messages = [{ id: 'u', role: 'user' as const, content: 'Original question', createdAt: 1 }, { id: 'a', role: 'assistant' as const, content: 'Original reply', createdAt: 2 }]
+  const operation = { id: 'compact', kind: 'context-compaction' as const, startedAt: 3, activities: [{ id: 'context-compaction', label: '正在压缩上下文', status: 'running' as const, startedAt: 3 }], subtasks: [] }
+  expect(projectTimelineMessages(messages, operation, 4)).toBe(messages)
+})
+
 const run: HarnessRunSummary = { status: 'completed', startedAt: 100, completedAt: 200, durationMs: 100, activities: [] }
 const user = (id: string, createdAt: number): HarnessMessage => ({ id, createdAt, role: 'user', content: `问题 ${id}` })
 const assistant = (id: string, createdAt: number): HarnessMessage => ({ id, createdAt, role: 'assistant', content: `回复 ${id}`, run })

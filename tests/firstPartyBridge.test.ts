@@ -65,6 +65,60 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
 }
 
 describe('first-party capability bridge', () => {
+  it.each([false, true])('explains a vanished selected project directory, Electron wrapper=%s', async wrapped => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const message = '项目目录不存在'
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${message}` : message))
+    await expect(entry.request('harness.projects.select')).rejects.toMatchObject({ code: 'PROJECT_SELECTION_FAILED', message: '所选目录已不存在，请重新选择目录后重试。' })
+  })
+
+  it('gives a project selection recovery without exposing unknown host errors or paths', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/Users/mira/private/secret token=credentials'))
+    const error = await entry.request('harness.projects.select').catch(error => error)
+    expect(error).toBeInstanceOf(FirstPartyBridgeError)
+    expect(error).toMatchObject({ code: 'PROJECT_SELECTION_FAILED', message: '添加项目失败，请重新选择目录后重试。' })
+    expect(error.stack).not.toContain('credentials')
+  })
+
+  it('maps branch recovery without exposing unknown host errors', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const params = { id: 'source', messageId: 'reply', requestId: '55cabc22-257e-41d4-8ec2-9fc83671dd12' }
+    entry.api.invokeFirstPartyHarness = vi.fn(async () => { throw new Error('请先处理待发送消息') })
+    await expect(entry.request('harness.session.fork', params)).rejects.toMatchObject({ code: 'FORK_FAILED', message: '请先处理待发送消息' })
+    entry.api.invokeFirstPartyHarness = vi.fn(async () => { throw new Error('/private/credentials secret') })
+    await expect(entry.request('harness.session.fork', params)).rejects.toMatchObject({ code: 'FORK_FAILED', message: '分支创建失败，请重试；原任务保持不变。' })
+  })
+
+  it('preserves compaction recovery and redacts provider details on unknown failure', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const params = { sessionId: 'task', selection: { providerId: 'provider', modelId: 'model' } }
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error("Error invoking remote method 'platform:first-party-harness': Error: 上下文压缩已停止，原上下文保留"))
+    await expect(entry.request('harness.context.compact', params)).rejects.toMatchObject({ code: 'COMPACTION_FAILED', message: '上下文压缩已停止，原上下文保留' })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/model key=secret'))
+    await expect(entry.request('harness.context.compact', params)).rejects.toMatchObject({ code: 'COMPACTION_FAILED', message: '上下文压缩失败，请检查模型配置后重试；原上下文保留。' })
+  })
+
+  it.each(['marketplace.browse', 'plugin-marketplace.browse', 'plugin-marketplace.install'])('provides actionable market errors without leaking main-process details for %s', async method => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const params = method.endsWith('.install') ? { id: 'discernment-nudge@anthropic-agent-skills' } : { refresh: false }
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error("Error invoking remote method 'platform:first-party-harness': Error: Skill 市场读取超时，请检查网络后重试"))
+    await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message: '插件市场读取超时，请检查网络后重试。' })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/client/token=secret'))
+    await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message: method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查网络后重试。' })
+  })
+
+  it('preserves explicit browser resource and hidden creation through the double parse, while rejecting malformed identities', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] }), bounds = { x: 0, y: 0, width: 400, height: 300 }
+    await entry.request('harness.browser.navigate', { sessionId: 'a', browserId: 'browser:first', url: 'https://mira.test/', bounds, visible: false })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'browser.navigate', { sessionId: 'a', browserId: 'browser:first', url: 'https://mira.test/', bounds, visible: false })
+    for (const method of ['browser.bounds', 'browser.control']) {
+      await entry.request(`harness.${method}`, { sessionId: 'a', browserId: 'browser:second', bounds, action: 'hide' })
+      expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', method, expect.objectContaining({ sessionId: 'a', browserId: 'browser:second' }))
+    }
+    for (const browserId of ['', 'terminal:one', 'browser:../other', 'browser:' + 'x'.repeat(129), 12, null]) await expect(entry.request('harness.browser.control', { sessionId: 'a', browserId, action: 'close' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(entry.request('harness.browser.navigate', { sessionId: 'a', browserId: 'browser:one', url: 'https://mira.test/', bounds, visible: 'false' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
   it('accepts only bounded request envelopes and reports the host API version', async () => {
     expect(isFirstPartyRequest({ type: 'mira:request', id: '1', method: 'context.get' })).toBe(true)
     expect(isFirstPartyRequest({ type: 'mira:request', id: '1', method: '' })).toBe(false)
@@ -210,6 +264,10 @@ describe('first-party capability bridge', () => {
     await expect(entry.request('harness.browser.control', { sessionId: 's', action: 'reload' })).resolves.toEqual({ method: 'browser.control' })
     await expect(entry.request('harness.browser.control', { sessionId: 's', action: 'hide' })).resolves.toEqual({ method: 'browser.control' })
     await expect(entry.request('harness.browser.control', { sessionId: 's', action: 'show' })).resolves.toEqual({ method: 'browser.control' })
+    await expect(entry.request('harness.browser.control', { sessionId: 's', browserId: 'browser:one', action: 'devtools' })).resolves.toEqual({ method: 'browser.control' })
+    await expect(entry.request('harness.browser.external', { sessionId: 's', browserId: 'browser:one', url: 'https://example.com/redirect' })).resolves.toEqual({ method: 'browser.external' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'browser.external', { sessionId: 's', browserId: 'browser:one', url: 'https://example.com/redirect' })
+    for (const url of ['file:///tmp/secret', 'javascript:alert(1)', 'https://user:secret@example.com']) await expect(entry.request('harness.browser.external', { sessionId: 's', url })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(entry.request('harness.browser.control', { sessionId: 's', action: 'openDevTools' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(entry.request('harness.terminal.resize', { sessionId: 's', terminalId: 't', columns: 100, rows: 30 })).resolves.toEqual({ method: 'terminal.resize' })
     await expect(entry.request('harness.terminal.resize', { sessionId: 's', terminalId: 't', columns: 1, rows: 30 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
@@ -286,6 +344,13 @@ describe('first-party capability bridge', () => {
     vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
     for (const prepared of ['true', null, 1]) await expect(entry.request('harness.session.create', { prepared })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+  })
+
+  it('validates side creation using parent identity and drops renderer-authored history', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.session.create-side', { parentId: 'parent', messages: ['fake'], permissionMode: 'full' })).resolves.toEqual({ method: 'session.create-side' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'session.create-side', { parentId: 'parent' })
+    for (const parentId of ['', null, 123]) await expect(entry.request('harness.session.create-side', { parentId })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   })
 
   it.each(harnessModelCalls)('$method preserves every supported reasoning level and strips untrusted model fields', async ({ method, params }) => {
@@ -406,6 +471,17 @@ describe('first-party capability bridge', () => {
       await expect(entry.request('harness.terminal.write', params)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     }
     for (const data of [null, false, 42, ['raw']]) await expect(entry.request('harness.terminal.write', { sessionId: 's', terminalId: 't', data })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+  })
+
+  it('validates context paste identity and mode without accepting renderer clipboard contents', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await entry.request('harness.terminal.paste', { sessionId: 's', terminalId: 't', bracketed: true, data: 'must not cross bridge' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'terminal.paste', { sessionId: 's', terminalId: 't', bracketed: true })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockClear()
+    for (const params of [{ sessionId: 's', terminalId: 't', bracketed: 'true' }, { sessionId: 's', terminalId: 't' }, { sessionId: 's\0', terminalId: 't', bracketed: true }]) {
+      await expect(entry.request('harness.terminal.paste', params)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
     expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
   })
 })

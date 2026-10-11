@@ -1,19 +1,17 @@
 // Adapted from ZCode ConversationTimeline and conversationTimelineLiveTail (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira reuses assistant-ui's public message renderers.
-import { ThreadPrimitive, useAuiState } from '@assistant-ui/react'
-import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+// Copyright 2026 Z.AI Co., Ltd. Mira renders its authoritative messages in visible turns.
+import { defaultRangeExtractor, measureElement as measureVirtualElement, useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
 import type { ConversationScrollActions } from '../../hooks/useConversationScroll'
 import { conversationScrollMemory } from '../../lib/conversation-scroll'
 import { buildConversationRenderTurns, createConversationHeightCache, indexConversationTurnMessages, type ConversationRenderTurn, type ConversationTimelineActions } from '../../lib/conversation-timeline'
 import type { TimelineRenderMessage } from './conversation-model'
+import { MIRA_REVEAL_PROCESS } from '../../lib/mira-assistant-process'
 
-type MessageComponents = { UserMessage: ComponentType; AssistantMessage: ComponentType }
+type MessageComponents = { UserMessage: ComponentType<TimelineRenderMessage>; AssistantMessage: ComponentType<TimelineRenderMessage & { streaming: boolean }> }
 
-function TimelineMessage({ index, rendererId, components }: { index: number; rendererId: string; components: MessageComponents }) {
-  // External-store updates commit after the parent's render; never mount a stale index provider.
-  const available = useAuiState(state => state.thread.messages[index]?.id === rendererId)
-  return available ? <ThreadPrimitive.MessageByIndex index={index} components={components} /> : null
+function TimelineMessage({ message, liveMessageId, components }: { message: TimelineRenderMessage; liveMessageId?: string; components: MessageComponents }) {
+  return message.original.role === 'user' ? <components.UserMessage {...message} /> : message.original.role === 'assistant' ? <components.AssistantMessage {...message} streaming={message.original.id === liveMessageId} /> : null
 }
 
 export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange }: {
@@ -34,6 +32,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [retainedTurnIds, setRetainedTurnIds] = useState<string[]>([])
   const liveRef = useRef<HTMLDivElement | null>(null)
+  const previousLiveTurn = useRef<string | undefined>(undefined)
   const navigationFrame = useRef<number | undefined>(undefined)
   const requestActiveTurnUpdate = useRef<(() => void) | null>(null)
   const widthChangedAt = useRef(0)
@@ -49,15 +48,22 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
     const initialTurns = index >= 0 ? history.slice(0, index) : history
     return 64 + initialTurns.reduce((height, turn) => height + heights.estimate(turn.id), 0)
   }
-  const measureElement = useCallback((element: Element, entry: ResizeObserverEntry | undefined) => {
-    const height = Math.round(entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height)
+  const measureElement = useCallback((element: Element, entry: ResizeObserverEntry | undefined, instance?: Virtualizer<HTMLDivElement, Element>) => {
     const id = (element as HTMLElement).dataset.miraTurnId
+    // Commit refs must not force layout for every newly mounted history row.
+    // ResizeObserver supplies real heights; restore/jump batch their reads below.
+    // A collapsed pane can report zero width with enormous wrapped text heights.
+    // A previously historical turn can grow as the live tail. On completion
+    // its keyed element may not resize again; prefer its latest live measurement.
+    if (instance && !entry || entry?.borderBoxSize?.[0]?.inlineSize === 0) return heights.read(id ?? '') ?? (instance && instance.itemSizeCache.get(instance.options.getItemKey(instance.indexFromElement(element)))) ?? heights.estimate(id ?? '')
+    // The live tail is measured directly so its final height survives completion.
+    const height = Math.round(instance ? measureVirtualElement(element, entry, instance) : entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height)
     if (id) heights.save(id, height)
     return height
   }, [heights])
   const retainedIndexes = useMemo(() => { const retained = new Set(retainedTurnIds); return history.flatMap((turn, index) => retained.has(turn.id) ? [index] : []) }, [history, retainedTurnIds])
   const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => [...new Set([...defaultRangeExtractor(range), ...retainedIndexes])].sort((left, right) => left - right), [retainedIndexes])
-  const virtualizer = useVirtualizer({ count: history.length, getScrollElement, getItemKey, estimateSize, measureElement, initialOffset, overscan: 8, scrollMargin: 64, rangeExtractor })
+  const virtualizer = useVirtualizer({ count: history.length, getScrollElement, getItemKey, estimateSize, measureElement, initialOffset, overscan: 4, scrollMargin: 64, rangeExtractor })
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = item => {
     const scroll = scrollActionsRef.current
     return Boolean(scroll && !scroll.isFollowing() && !scroll.isRestoring() && performance.now() - widthChangedAt.current > 120 && item.end <= (viewportRef.current?.scrollTop ?? 0))
@@ -106,6 +112,13 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
     const { original, rendererId } = messages[member]
     return [...(viewportRef.current?.querySelectorAll<HTMLElement>('[data-user-message-id], [data-assistant-message-id]') ?? [])].find(element => element.dataset.rendererMessageId === rendererId || element.dataset.userMessageId === rendererId || element.dataset.assistantMessageId === original.id)
   }
+  const measureMountedHistory = (viewport: HTMLElement) => {
+    // Read before resizeItem can notify React or correct the scroll offset.
+    const measurements = [...viewport.querySelectorAll<HTMLElement>('[data-mira-turn-id]:not([data-mira-live-turn])')].map(element => ({
+      id: element.dataset.miraTurnId!, index: Number(element.dataset.index), height: Math.round(element.getBoundingClientRect().height),
+    }))
+    for (const { id, index, height } of measurements) { heights.save(id, height); virtualizer.resizeItem(index, height) }
+  }
 
   useLayoutEffect(() => {
     const live = liveRef.current
@@ -121,6 +134,18 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   }, [liveTurn?.id, measureElement])
 
   useLayoutEffect(() => {
+    const completedId = previousLiveTurn.current
+    previousLiveTurn.current = liveTurn?.id
+    if (!completedId || completedId === liveTurn?.id) return
+    const index = history.findIndex(turn => turn.id === completedId)
+    const element = [...(containerRef.current?.querySelectorAll<HTMLElement>('[data-mira-turn-id]') ?? [])].find(row => row.dataset.miraTurnId === completedId)
+    if (index < 0 || !element || (getScrollElement()?.clientHeight ?? 0) <= 0) return
+    // The final reply can commit with completion. The preserved keyed row
+    // need not emit another resize event when it becomes absolute history.
+    virtualizer.resizeItem(index, measureElement(element, undefined))
+  }, [liveTurn?.id, history, getScrollElement, measureElement, virtualizer])
+
+  useLayoutEffect(() => {
     const actions: ConversationTimelineActions = {
       restore(position, viewport) {
         if (!position.anchor || position.following) return undefined
@@ -131,7 +156,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
         if (target.querySelectorAll('[data-renderer-message-id]').length !== turns[index].messageIndexes.length) return false
         // Runtime messages can appear after the wrapper's ref measured an empty turn.
         // Wait for both measured sizes and their new transforms to reach the DOM.
-        for (const row of viewport.querySelectorAll<HTMLElement>('[data-mira-turn-id]:not([data-mira-live-turn])')) virtualizer.measureElement(row)
+        measureMountedHistory(viewport)
         const measured = virtualizer.getVirtualItems().find(row => row.index === index)
         const container = containerRef.current
         const spacerHeight = Number.parseFloat((container?.firstElementChild as HTMLElement | undefined)?.style.height ?? '')
@@ -139,7 +164,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
         viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - position.anchor.offset
         return true
       },
-      jumpToMessage(id, align = 'start', onMounted) {
+      jumpToMessage(id, align = 'start', onMounted, findTargetKey) {
         const index = messageIndex.get(id)
         if (index === undefined) return
         scrollActionsRef.current?.pause()
@@ -149,10 +174,15 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
         const land = () => {
           if (cancelled) return
           const target = messageElement(id)
+          if (target && findTargetKey && ![...target.querySelectorAll<HTMLElement>('[data-mira-find-target]')].some(element => element.dataset.miraFindTarget === findTargetKey)) {
+            target.querySelector('.mira-assistant-process-layout')?.dispatchEvent(new CustomEvent(MIRA_REVEAL_PROCESS, { detail: findTargetKey }))
+            if (++frames < 30) navigationFrame.current = requestAnimationFrame(land)
+            return
+          }
           const turn = turns[index]
           const wrapper = turnElement(turn.id)
           if (onMounted && target && index < history.length) {
-            for (const row of viewportRef.current?.querySelectorAll<HTMLElement>('[data-mira-turn-id]:not([data-mira-live-turn])') ?? []) virtualizer.measureElement(row)
+            if (viewportRef.current) measureMountedHistory(viewportRef.current)
             const measured = virtualizer.getVirtualItems().find(row => row.index === index)
             const container = containerRef.current
             const spacerHeight = Number.parseFloat((container?.firstElementChild as HTMLElement | undefined)?.style.height ?? '')
@@ -171,18 +201,43 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
         navigationFrame.current = requestAnimationFrame(land)
         return () => { cancelled = true }
       },
-      jumpToInteraction() {
-        const target = viewportRef.current?.querySelector<HTMLElement>('[aria-label="计划确认"], .pilot-action')
-        if (!target) return false
-        scrollActionsRef.current?.pause()
-        target.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      jumpToInteraction(confirmation) {
+        const interactionRoot = () => viewportRef.current?.closest('.mira-conversation-root') ?? viewportRef.current
+        const findCard = () => confirmation
+          ? [...(interactionRoot()?.querySelectorAll<HTMLElement>(confirmation.kind === 'permission' ? '[data-permission-request-id]' : '[data-interaction-id]') ?? [])].find(element => (confirmation.kind === 'permission' ? element.dataset.permissionRequestId : element.dataset.interactionId) === confirmation.id)
+          : interactionRoot()?.querySelector<HTMLElement>('[aria-label="计划确认"]')
+        const reveal = () => {
+          const card = findCard()
+          if (!card) return false
+          if (card.closest('.mira-interaction-dock')) {
+            // The fixed dock already belongs to this pane. Keep the transcript's
+            // reading position and follow mode; reveal only the dock's own top.
+            const scroller = card.closest<HTMLElement>('.harness-composer-region')
+            if (scroller) scroller.scrollTop = 0
+            const body = card.querySelector<HTMLElement>('.mira-interaction-body, .mira-tool-permission__detail')
+            if (body) body.scrollTop = 0
+          } else {
+            scrollActionsRef.current?.pause()
+            card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+          }
+          card.focus({ preventScroll: true })
+          return true
+        }
+        if (findCard()) {
+          if (navigationFrame.current !== undefined) { cancelAnimationFrame(navigationFrame.current); navigationFrame.current = undefined }
+          return reveal()
+        }
+        if (!confirmation?.messageId || !messageIndex.has(confirmation.messageId)) return false
+        // Inline approvals can be outside the mounted virtual range. Mount their
+        // owning message before looking for the exact card in this pane only.
+        actions.jumpToMessage(confirmation.messageId, 'center', reveal)
         return true
       },
     }
     actionsRef.current = actions
     return () => { if (actionsRef.current === actions) actionsRef.current = null }
   })
-  useLayoutEffect(() => () => { if (navigationFrame.current !== undefined) cancelAnimationFrame(navigationFrame.current) }, [])
+  useLayoutEffect(() => () => { if (navigationFrame.current !== undefined) { cancelAnimationFrame(navigationFrame.current); navigationFrame.current = undefined } }, [memoryKey])
 
   useEffect(() => {
     const viewport = getScrollElement()
@@ -212,7 +267,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   }, [firstTurnId, getScrollElement, onActiveTurnChange])
   useEffect(() => { requestActiveTurnUpdate.current?.() }, [mountedKey, totalSize, turns])
 
-  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <TimelineMessage key={messages[index].rendererId} index={index} rendererId={messages[index].rendererId} components={components} />)}</div>
+  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <TimelineMessage key={messages[index].rendererId} message={messages[index]} liveMessageId={liveMessageId} components={components} />)}</div>
   return <div ref={containerRef} className="relative w-full" onFocusCapture={retainInteractions} onBlurCapture={() => queueMicrotask(retainInteractions)}>
     <div data-mira-virtual-history="true" style={{ height: totalSize }} aria-hidden="true" />
     {/* Keep a turn under the same keyed parent when the running tail becomes history. */}

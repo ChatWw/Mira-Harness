@@ -23,7 +23,7 @@ export function projectTimelineRenderMessages(messages: HarnessMessage[], sessio
 
 /** 当前运行属于最后一轮；未开始输出时也提供真实进度的挂载位置。 */
 export function projectTimelineMessages(messages: HarnessMessage[], activeRun?: HarnessActiveRun, now = Date.now()): HarnessMessage[] {
-  if (!activeRun) return messages
+  if (!activeRun || activeRun.kind === 'context-compaction') return messages
   const run: HarnessRunSummary = { startedAt: activeRun.startedAt, completedAt: now, durationMs: Math.max(0, now - activeRun.startedAt), activities: activeRun.activities, subtasks: activeRun.subtasks }
   if (activeRun.messageId) {
     const streamId = `stream-${activeRun.messageId}`

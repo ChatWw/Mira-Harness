@@ -29,7 +29,8 @@ describe('Harness generated chunks', () => {
     }
     expect(declaration('.pilot-side-tab__close', 'position')).toBe('absolute')
     expect(declaration('.pilot-side-tab__close', 'pointer-events')).toBe('none')
-    expect(declaration('.pilot-side-tab.is-active', 'min-width')).toBe('128px')
+    // 选中态沿用统一收缩宽度，避免挤窄其他资源标题。
+    expect(declaration('.pilot-side-tab.is-active', 'min-width')).toBeUndefined()
     expect(declaration('.pilot-side-tab', 'min-width')).toBe('60px')
     expect(declaration('.pilot-side-tab.is-active .pilot-side-tab__select', 'padding-right')).toBe('27px')
     expect(declaration('.pilot-side-tab:hover .pilot-side-tab__select', 'padding-right')).toBe('27px')

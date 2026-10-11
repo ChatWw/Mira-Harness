@@ -132,6 +132,7 @@ export class HarnessStore {
   private ensureStructuredSchema() {
     const sessionColumns = this.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
     if (sessionColumns.length && !sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
+    if (sessionColumns.length && !sessionColumns.some(column => column.name === 'parent_session_id')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN parent_session_id TEXT')
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
@@ -261,22 +262,23 @@ export class HarnessStore {
 
   private saveSession(session: HarnessSession, preserveUpdatedAt = false) {
     // An old configuration/run snapshot cannot demote a task after admission.
-    const stored = this.database.prepare('SELECT draft_state FROM harness_sessions WHERE id = ?').get(session.id) as { draft_state: HarnessSession['draftState'] | null } | undefined
+    const stored = this.database.prepare('SELECT draft_state, parent_session_id FROM harness_sessions WHERE id = ?').get(session.id) as { draft_state: HarnessSession['draftState'] | null; parent_session_id: string | null } | undefined
     if (stored?.draft_state) session = { ...session, draftState: stored.draft_state }
+    if (stored?.parent_session_id) session = { ...session, parentSessionId: stored.parent_session_id }
     const path = this.sessionPath(session)
     mkdirSync(dirname(path), { recursive: true })
     if (!preserveUpdatedAt) session.updatedAt = now()
     const persist = this.database.transaction(() => {
       session = this.freezeSessionImages(session)
-      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, draft_state, path, working_directory, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, draft_state, path, working_directory, created_at, updated_at, parent_session_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
       model_id = excluded.model_id, permission_mode = excluded.permission_mode, status = excluded.status, pinned = excluded.pinned, unread = excluded.unread, archived_at = excluded.archived_at, path = excluded.path,
-      draft_state = excluded.draft_state, working_directory = excluded.working_directory, updated_at = excluded.updated_at`)
+      draft_state = excluded.draft_state, working_directory = excluded.working_directory, updated_at = excluded.updated_at, parent_session_id = excluded.parent_session_id`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
-        session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, session.draftState || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt)
+        session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, session.draftState || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt, session.parentSessionId || null)
       this.persistStructuredSession(session)
-      if (session.projectId && session.draftState !== 'prepared') this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
+      if (session.projectId && session.draftState !== 'prepared' && !session.parentSessionId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     })
     persist()
     const temporaryPath = `${path}.${process.pid}.tmp`
@@ -362,16 +364,16 @@ export class HarnessStore {
 
   private sessionOrderWhere(scope: HarnessSessionOrderScope) {
     if (!scope || typeof scope !== 'object' || !['pinned', 'recent', 'project'].includes(scope.type)) throw new Error('会话排序范围无效')
-    if (scope.type === 'pinned') return { where: "pinned = 1 AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [] as string[] }
-    if (scope.type === 'recent') return { where: "pinned = 0 AND project_id IS NULL AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [] as string[] }
+    if (scope.type === 'pinned') return { where: "pinned = 1 AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL", parameters: [] as string[] }
+    if (scope.type === 'recent') return { where: "pinned = 0 AND project_id IS NULL AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL", parameters: [] as string[] }
     if (!scope.projectId) throw new Error('项目排序范围无效')
     this.getProject(scope.projectId)
-    return { where: "pinned = 0 AND project_id = ? AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared'", parameters: [scope.projectId] }
+    return { where: "pinned = 0 AND project_id = ? AND archived_at IS NULL AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL", parameters: [scope.projectId] }
   }
 
   private promoteSessionOrder(id: string) {
-    const row = this.database.prepare('SELECT project_id, pinned, archived_at, draft_state FROM harness_sessions WHERE id = ?').get(id) as Pick<SessionRow, 'project_id' | 'pinned' | 'archived_at' | 'draft_state'> | undefined
-    if (!row || row.archived_at || row.draft_state === 'prepared') return
+    const row = this.database.prepare('SELECT project_id, pinned, archived_at, draft_state, parent_session_id FROM harness_sessions WHERE id = ?').get(id) as Pick<SessionRow, 'project_id' | 'pinned' | 'archived_at' | 'draft_state'> & { parent_session_id: string | null } | undefined
+    if (!row || row.archived_at || row.draft_state === 'prepared' || row.parent_session_id) return
     const scope: HarnessSessionOrderScope = row.pinned ? { type: 'pinned' } : row.project_id ? { type: 'project', projectId: row.project_id } : { type: 'recent' }
     const { where, parameters } = this.sessionOrderWhere(scope)
     const maximum = (this.database.prepare(`SELECT COALESCE(MAX(sort_order), 0) AS value FROM harness_sessions WHERE ${where}`).get(...parameters) as { value: number }).value
@@ -379,7 +381,7 @@ export class HarnessStore {
   }
 
   listProjects(): HarnessProject[] {
-    const counts = this.database.prepare("SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' GROUP BY project_id").all() as Array<{ project_id: string, count: number }>
+    const counts = this.database.prepare("SELECT project_id, COUNT(*) AS count FROM harness_sessions WHERE project_id IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL GROUP BY project_id").all() as Array<{ project_id: string, count: number }>
     const countMap = new Map(counts.map(row => [row.project_id, row.count]))
     return (this.database.prepare('SELECT * FROM harness_projects ORDER BY sort_order DESC, created_at DESC').all() as ProjectRow[]).map(row => {
       const directoryExists = existsSync(row.directory)
@@ -409,7 +411,7 @@ export class HarnessStore {
   getProject(id: string): HarnessProject {
     const row = this.database.prepare('SELECT * FROM harness_projects WHERE id = ?').get(id) as ProjectRow | undefined
     if (!row) throw new Error('未找到项目')
-    const sessionCount = (this.database.prepare("SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ? AND COALESCE(draft_state, '') <> 'prepared'").get(id) as { count: number }).count
+    const sessionCount = (this.database.prepare("SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ? AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL").get(id) as { count: number }).count
     const directoryExists = existsSync(row.directory)
     return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, ...(directoryExists ? gitMetadata(row.directory) : {}), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
   }
@@ -496,6 +498,77 @@ export class HarnessStore {
     return saved
   }
 
+  forkConversation(sourceId: string, messageId: string, requestId: string): HarnessSession {
+    const id = `fork-${requestId}`
+    const existing = this.database.prepare('SELECT id FROM harness_sessions WHERE id = ?').get(id)
+    if (existing) {
+      const previous = this.getSession(id)
+      if (previous.forkSource?.sessionId !== sourceId || previous.forkSource.messageId !== messageId || previous.archivedAt) throw new Error('分支请求已失效，请重新打开任务')
+      return previous
+    }
+    const source = this.getSession(sourceId)
+    if (source.archivedAt || source.parentSessionId || source.draftState === 'prepared' || source.activeRun || source.pendingInteraction?.status === 'waiting') throw new Error('请先结束当前任务的运行或确认，再创建分支')
+    const index = source.messages.findIndex(message => message.id === messageId)
+    const target = source.messages[index]
+    if (!target || target.role !== 'assistant' || target.internal || target.interrupted || !target.content.trim() || target.id.startsWith('stream-') || target.run?.status === 'failed' || target.run?.status === 'stopped' || target.parts?.some(part => part.type !== 'tool' && part.state !== 'complete')) throw new Error('只能从已完成的助手回复创建分支')
+    const messages = source.messages.slice(0, index + 1).map(message => {
+      const copy = this.hydrateMessageAttachments(source.id, message)
+      // Composite SQLite keys scope historical identities to this new task.
+      return { ...copy, inherited: true, submissionId: undefined, attachments: copy.attachments?.map(file => file.mediaType ? { ...file, path: `fork-image-${randomUUID()}` } : file) }
+    })
+    const runIds = new Set(messages.flatMap(message => message.runId ? [message.runId] : []))
+    const toolIds = new Set(messages.flatMap(message => (message.parts || []).flatMap(part => part.type === 'tool' ? [part.toolCallId] : [])))
+    const toolCalls = source.toolCalls.filter(tool => toolIds.has(tool.id) || Boolean(tool.runId && runIds.has(tool.runId)))
+    if (toolCalls.some(tool => tool.status === 'running' || tool.status === 'waiting-confirm')) throw new Error('请等待工具执行结束后创建分支')
+    const compactedIndex = source.context?.compactedThroughMessageId ? source.messages.findIndex(message => message.id === source.context!.compactedThroughMessageId) : -1
+    const context = compactedIndex >= 0 && compactedIndex <= index ? { summary: source.context?.summary, compactedThroughMessageId: source.context?.compactedThroughMessageId, compactedAt: source.context?.compactedAt } : undefined
+    const time = now()
+    const fork = this.saveSession({
+      version: 1, id, forkSource: { sessionId: source.id, messageId, title: source.title }, draftState: 'accepted',
+      title: `${source.title} · 分支`.slice(0, 120), titleSource: 'manual', titleRevision: 0,
+      projectId: source.projectId, workingDirectory: source.workingDirectory,
+      modelProviderId: source.modelProviderId, modelId: source.modelId, modelThinkingLevel: source.modelThinkingLevel,
+      permissionMode: source.permissionMode, activeSkillIds: source.activeSkillIds, activeMcpServerIds: source.activeMcpServerIds,
+      pluginCatalog: source.pluginCatalog, delegationEnabled: source.delegationEnabled,
+      messages, toolCalls, context,
+      createdAt: time, updatedAt: time, status: 'completed', pinned: false, unread: false,
+    })
+    this.promoteSessionOrder(fork.id)
+    return fork
+  }
+
+  /** Fork only settled history; inherited messages are model context, never child bubbles. */
+  createSideConversation(parentId: string): HarnessSession {
+    const parent = this.getSession(parentId)
+    if (parent.archivedAt || parent.parentSessionId || parent.draftState === 'prepared') throw new Error('请先打开一个可用的主任务')
+    let boundary = parent.messages.length
+    if (parent.activeRun) {
+      const start = parent.messages.findIndex(message => message.runId === parent.activeRun!.id || message.createdAt >= parent.activeRun!.startedAt)
+      if (start >= 0) {
+        boundary = start
+        while (boundary > 0 && parent.messages[boundary - 1].role !== 'assistant') boundary--
+      }
+    }
+    const compacted = parent.context?.compactedThroughMessageId ? parent.messages.findIndex(message => message.id === parent.context!.compactedThroughMessageId) + 1 : 0
+    const inherited = parent.messages.slice(compacted, boundary).filter(message => !message.id.startsWith('stream-'))
+    const id = createSessionId(), time = now()
+    const messages = inherited.map(message => {
+      const hydrated = this.hydrateMessageAttachments(parent.id, message)
+      // Runtime history uses message content and attachments; run/part/tool identities stay in the parent.
+      return { id: randomUUID(), role: message.role, content: message.content, createdAt: message.createdAt, internal: true,
+        ...(message.command ? { command: message.command } : {}),
+        ...(hydrated.attachments?.length ? { attachments: hydrated.attachments.map(file => ({ ...file, path: file.mediaType ? `inherited-${randomUUID()}` : file.path })) } : {}) }
+    })
+    if (parent.context?.summary) messages.unshift({ id: randomUUID(), role: 'user', content: parent.context.summary, createdAt: parent.createdAt, internal: true })
+    return this.saveSession({
+      version: 1, id, parentSessionId: parent.id, draftState: 'accepted', title: '旁路对话', titleSource: 'manual', titleRevision: 0,
+      projectId: parent.projectId, workingDirectory: parent.workingDirectory, modelProviderId: parent.modelProviderId, modelId: parent.modelId,
+      modelThinkingLevel: parent.modelThinkingLevel,
+      permissionMode: parent.permissionMode, activeSkillIds: parent.activeSkillIds, activeMcpServerIds: parent.activeMcpServerIds,
+      delegationEnabled: parent.delegationEnabled, messages, toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false,
+    })
+  }
+
   /** Lifecycle and optional first-message persistence share one admission transaction. */
   acceptPreparedSession(id: string, persist?: () => void) {
     this.database.transaction(() => {
@@ -516,7 +589,7 @@ export class HarnessStore {
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
-      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -540,12 +613,12 @@ export class HarnessStore {
       SELECT m.session_id, m.message_id, m.content,
         ROW_NUMBER() OVER (PARTITION BY m.session_id ORDER BY m.created_at, m.rowid) AS position
       FROM harness_messages m JOIN harness_sessions s ON s.id = m.session_id
-      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND m.role IN ('user', 'assistant')
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND m.role IN ('user', 'assistant')
         AND COALESCE(json_extract(m.payload, '$.internal'), 0) = 0 AND instr(mira_search_fold(m.content), @query) > 0
     ) SELECT s.id, s.title, s.updated_at, p.name AS project_name, m.message_id, m.content
       FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
       LEFT JOIN matches m ON m.session_id = s.id AND m.position = 1
-      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND (m.message_id IS NOT NULL OR instr(mira_search_fold(s.title), @query) > 0 OR instr(mira_search_fold(p.name), @query) > 0)
+      WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND (m.message_id IS NOT NULL OR instr(mira_search_fold(s.title), @query) > 0 OR instr(mira_search_fold(p.name), @query) > 0)
       ORDER BY s.updated_at DESC LIMIT 50`).all({ query: needle }) as Array<Pick<SessionRow, 'id' | 'title' | 'updated_at'> & { project_name: string | null; message_id: string | null; content: string | null }>
     return rows.map(row => {
       const text = row.content ?? `${row.title} ${row.project_name || ''}`
@@ -561,7 +634,7 @@ export class HarnessStore {
     const sort: HarnessHistorySort = ['created-desc', 'title-asc'].includes(query.sort || '') ? query.sort as HarnessHistorySort : 'updated-desc'
     const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize || 20)))
     const page = Math.max(1, Math.floor(query.page || 1))
-    const where = [archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL', "COALESCE(s.draft_state, '') <> 'prepared'"]
+    const where = [archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL', "COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL"]
     const parameters: Array<string | number> = []
     const search = query.q?.trim()
     if (search) {
@@ -613,7 +686,7 @@ export class HarnessStore {
       }
       return result
     })
-    const facetRows = this.database.prepare(`SELECT DISTINCT s.project_id, p.name AS project_name, p.icon AS project_icon, s.model_id, s.model_provider_id FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL'} AND COALESCE(s.draft_state, '') <> 'prepared'`).all() as Array<{ project_id: string | null, project_name: string | null, project_icon: string | null, model_id: string | null, model_provider_id: string | null }>
+    const facetRows = this.database.prepare(`SELECT DISTINCT s.project_id, p.name AS project_name, p.icon AS project_icon, s.model_id, s.model_provider_id FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id WHERE ${archiveView === 'archived' ? 's.archived_at IS NOT NULL' : 's.archived_at IS NULL'} AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL`).all() as Array<{ project_id: string | null, project_name: string | null, project_icon: string | null, model_id: string | null, model_provider_id: string | null }>
     const projects = facetRows.flatMap(row => row.project_id && row.project_name ? [{ id: row.project_id, name: row.project_name, icon: projectIcon(row.project_icon || undefined) }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
     const models = facetRows.flatMap(row => row.model_id ? [{ id: row.model_id, providerKey: row.model_provider_id ? providerKeys.get(row.model_provider_id) as HarnessHistoryRow['providerKey'] : undefined }] : []).filter((item, index, source) => source.findIndex(candidate => candidate.id === item.id) === index)
     return {
@@ -649,7 +722,7 @@ export class HarnessStore {
       const projectId = row.project_id || TEMPORARY_PROJECT_ID
       const projectLabel = row.project_name || '未关联项目'
       for (const message of session.messages) {
-        if (message.role !== 'assistant' || !message.usage) continue
+        if (message.role !== 'assistant' || message.inherited || !message.usage) continue
         add(total, message.usage)
         add(get(providers, providerId, providerLabel), message.usage)
         add(get(projects, projectId, projectLabel), message.usage)
@@ -710,7 +783,7 @@ export class HarnessStore {
     if (!saved.pinned) this.promoteSessionOrder(id)
     if (previousProjectId && previousProjectId !== project.id) {
       this.database.prepare(`UPDATE harness_projects SET last_session_at = (
-        SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared'
+        SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL
       ) WHERE id = ?`).run(previousProjectId)
     }
     return saved
@@ -762,9 +835,10 @@ export class HarnessStore {
     })
   }
 
-  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false) {
+  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false, permissionMode?: PermissionMode, command?: HarnessMessage['command']) {
     const session = this.getSession(id)
-    session.messages.push({ id: randomUUID(), role, content, ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), createdAt: now() })
+    if (permissionMode !== undefined) session.permissionMode = permissionMode
+    session.messages.push({ id: randomUUID(), role, content, ...(command ? { command } : {}), ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), createdAt: now() })
     if (!internal && role === 'user' && session.titleSource === 'auto' && session.title === '新对话') session.title = titleFor(content)
     const saved = this.saveSession(session)
     if (!internal && role === 'user') this.promoteSessionOrder(id)
@@ -832,13 +906,15 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  editUserMessageAndTruncate(id: string, messageId: string, content: string) {
+  editUserMessageAndTruncate(id: string, messageId: string, content: string, command?: HarnessMessage['command']) {
     const value = content.trim()
     if (!value) throw new Error('消息不能为空')
     const session = this.getSession(id)
     const index = session.messages.findIndex(message => message.id === messageId)
     if (index < 0 || session.messages[index].role !== 'user') throw new Error('只能编辑用户消息')
     session.messages[index].content = value
+    if (command) session.messages[index].command = command
+    else delete session.messages[index].command
     session.messages = session.messages.slice(0, index + 1)
     session.context = undefined
     return this.saveSession(session)
@@ -1086,7 +1162,7 @@ export class HarnessStore {
     if (!emptyIds.length) return 0
     this.deleteSessions(emptyIds)
     this.database.prepare(`UPDATE harness_projects SET last_session_at = (
-      SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared'
+      SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL
     )`).run()
     return emptyIds.length
   }
@@ -1131,16 +1207,15 @@ export class HarnessStore {
     })()
   }
 
-  deleteSession(id: string) {
-    const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
-    if (row?.path) rmSync(row.path, { force: true })
-    this.deleteStructuredSession(id)
-    this.database.prepare('DELETE FROM harness_sessions WHERE id = ?').run(id)
+  sideConversationIds(parentId: string): string[] {
+    return (this.database.prepare('SELECT id FROM harness_sessions WHERE parent_session_id = ?').all(parentId) as Array<{ id: string }>).map(row => row.id)
   }
+
+  deleteSession(id: string) { this.deleteSessions([id]) }
 
   archivedSessionIds() {
     // Selection is independent of sidebar pages, hidden projects, pinning and title filters.
-    return (this.database.prepare("SELECT id FROM harness_sessions WHERE archived_at IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' ORDER BY id").all() as Array<{ id: string }>).map(row => row.id)
+    return (this.database.prepare("SELECT id FROM harness_sessions WHERE archived_at IS NOT NULL AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL ORDER BY id").all() as Array<{ id: string }>).map(row => row.id)
   }
 
   isSessionArchived(id: string) {
@@ -1152,6 +1227,7 @@ export class HarnessStore {
       // Conditional write and dependent cleanup share one synchronous transaction.
       const row = this.database.prepare('DELETE FROM harness_sessions WHERE id = ? AND archived_at IS NOT NULL RETURNING path').get(id) as { path?: string } | undefined
       if (!row) return false
+      this.deleteSessions(this.sideConversationIds(id))
       if (row.path) rmSync(row.path, { force: true })
       this.deleteStructuredSession(id)
       return true
@@ -1161,6 +1237,11 @@ export class HarnessStore {
   deleteSessions(ids: string[]) {
     const uniqueIds = [...new Set(ids.filter(id => typeof id === 'string' && id))]
     if (!uniqueIds.length) return
+    // Parent deletion also removes its hidden conversations and frozen attachments.
+    for (let index = 0; index < uniqueIds.length; index++) {
+      const children = this.database.prepare('SELECT id FROM harness_sessions WHERE parent_session_id = ?').all(uniqueIds[index]) as Array<{ id: string }>
+      children.forEach(child => { if (!uniqueIds.includes(child.id)) uniqueIds.push(child.id) })
+    }
     const placeholders = uniqueIds.map(() => '?').join(', ')
     const rows = this.database.prepare(`SELECT path FROM harness_sessions WHERE id IN (${placeholders})`).all(...uniqueIds) as Array<{ path: string }>
     const remove = this.database.transaction(() => {

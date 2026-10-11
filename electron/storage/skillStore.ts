@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
+import MarkdownIt from 'markdown-it'
+import { parse as parseYaml } from 'yaml'
 import type { HarnessSkill, HarnessSkillSettings } from '../../src/config/harness'
 import { MiraPaths } from './miraPaths'
 
@@ -16,12 +18,14 @@ export function parseSkill(path: string, source: string, enabled = false): Harne
   const frontmatter = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(body)
   if (frontmatter) {
     body = body.slice(frontmatter[0].length).trim()
-    for (const line of frontmatter[1].split(/\r?\n/)) {
-      const match = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.+?)\s*$/.exec(line)
-      if (!match) continue
-      if (match[1] === 'name') name = match[2].replace(/^['"]|['"]$/g, '').trim()
-      if (match[1] === 'description') description = match[2].replace(/^['"]|['"]$/g, '').trim()
-    }
+    try {
+      const fields = parseYaml(frontmatter[1], { maxAliasCount: 0 })
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields)
+        || (fields.name !== undefined && typeof fields.name !== 'string')
+        || (fields.description !== undefined && typeof fields.description !== 'string')) throw new Error('Invalid Skill metadata')
+      name = fields.name?.trim() ?? ''
+      description = fields.description?.trim() ?? ''
+    } catch { return { id: skillId(path), name: '', description: '', instructions: body, path, enabled, valid: false, error: 'Skill 元数据格式无效，请检查名称与描述' } }
   }
   const heading = /^#\s+(.+)$/m.exec(body)
   if (!name && heading) name = heading[1].trim()
@@ -86,5 +90,25 @@ export class SkillStore {
   resolve(ids: string[]) {
     const selected = new Set(ids)
     return this.list().filter(skill => skill.valid && skill.enabled && selected.has(skill.id))
+  }
+
+  resolvePrompt(ids: string[], prompt: string, referencedIds?: string[]) {
+    const mentioned = new Set<string>(referencedIds)
+    let quoteDepth = 0
+    for (const token of referencedIds === undefined ? new MarkdownIt().parse(prompt, {}) : []) {
+      if (token.type === 'blockquote_open') quoteDepth++
+      if (token.type === 'blockquote_close') quoteDepth--
+      if (quoteDepth || token.type !== 'inline') continue
+      for (const child of token.children || []) {
+        if (child.type !== 'link_open') continue
+        const destination = child.attrGet('href') || ''
+        if (!destination.startsWith('mira-skill:')) continue
+        try { mentioned.add(decodeURIComponent(destination.slice('mira-skill:'.length))) } catch { throw new Error('引用的技能已停用或不可用，请移除引用后重新选择') }
+      }
+    }
+    const skills = this.list()
+    if ([...mentioned].some(id => !skills.some(skill => skill.id === id && skill.valid && skill.enabled))) throw new Error('引用的技能已停用或不可用，请移除引用后重新选择')
+    const selected = new Set([...ids, ...mentioned])
+    return skills.filter(skill => skill.valid && skill.enabled && selected.has(skill.id))
   }
 }

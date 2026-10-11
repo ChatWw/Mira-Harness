@@ -1,9 +1,38 @@
 import { describe, expect, it } from 'vitest'
 import { createMiraPromptDocument, replaceMiraPromptDocumentRange, serializeMiraPromptDocument, validateMiraPromptDocument, type MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
+import { miraSkillReference, restoreMiraSkillPromptDocument } from '../apps/harness-react/src/lib/mira-skill-reference'
+import { miraAgentReference, restoreMiraAgentReferences } from '../apps/harness-react/src/lib/mira-agent-reference'
+import { miraPluginCommandReference, restoreMiraPluginCommand } from '../apps/harness-react/src/lib/mira-plugin-reference'
 
 const reference = { id: 'session-one', kind: 'session' as const, label: '相关对话', value: 'one', text: '用户：完整问题\n助手：实际已读取正文\n'.repeat(500) }
 
 describe('Mira prompt document boundary', () => {
+  it('restores only a leading plugin command and preserves argument text and casing across serialization', () => {
+    const text = '  /Mira-Review:check:nested "中文 value" $1'
+    const restored = restoreMiraPluginCommand(createMiraPromptDocument(text))
+    expect(serializeMiraPromptDocument(restored)).toBe(text)
+    expect(validateMiraPromptDocument(restored, text)).toEqual(restored)
+    expect(restored.parts[1]).toMatchObject({ type: 'reference', reference: { kind: 'command', value: 'mira-review:check:nested' } })
+    for (const text of ['Explain /mira-review:check', '`/mira-review:check`', '> /mira-review:check', '/model', '/mira-review:check?bad']) expect(restoreMiraPluginCommand(createMiraPromptDocument(text))).toEqual(createMiraPromptDocument(text))
+    expect(() => miraPluginCommandReference('bad args:command')).toThrow('无效')
+  })
+  it('restores exact built-in agent hints without changing ordinary text, emails or unknown roles', () => {
+    const text = 'Ask @reviewer and @explorer，user@reviewer.example @reviewers @unknown; @tester-test'
+    const restored = restoreMiraAgentReferences(createMiraPromptDocument(text))
+    expect(serializeMiraPromptDocument(restored)).toBe(text)
+    expect(restored.parts.flatMap(part => part.type === 'reference' ? [part.reference.value] : [])).toEqual(['reviewer', 'explorer'])
+    const reference = miraAgentReference('implementer')
+    expect(validateMiraPromptDocument({ version: 1, parts: [{ type: 'reference', reference }] }, '@implementer')).toBeDefined()
+  })
+  it('restores exact skill identity, escaped labels and a queue whitelist without changing canonical text', () => {
+    const skill = miraSkillReference('skill-one', 'Review [中文] \\ exact')
+    const text = `Before ${skill.text} after [$Other](mira-skill:other)`
+    const restored = restoreMiraSkillPromptDocument(text, ['skill-one'])
+    expect(serializeMiraPromptDocument(restored)).toBe(text)
+    expect(restored.parts.filter(part => part.type === 'reference')).toEqual([{ type: 'reference', reference: expect.objectContaining({ value: 'skill-one', label: skill.label, text: skill.text }) }])
+    expect(restoreMiraSkillPromptDocument(text, []).parts).toEqual([{ type: 'text', text }])
+  })
+
   it('serializes the actual referenced conversation, never the display label', () => {
     const document: MiraPromptDocument = { version: 1, parts: [{ type: 'text', text: '比较\n' }, { type: 'reference', reference }, { type: 'text', text: '\n结论' }] }
     expect(serializeMiraPromptDocument(document)).toBe(`比较\n${reference.text}\n结论`)
@@ -24,7 +53,7 @@ describe('Mira prompt document boundary', () => {
     { version: 2, parts: [] },
     { version: 1, parts: [], editorState: { root: {} } },
     { version: 1, parts: [{ type: 'text', text: 'safe', html: '<script>bad</script>' }] },
-    { version: 1, parts: [{ type: 'reference', reference: { ...reference, kind: 'plugin' } }] },
+    { version: 1, parts: [{ type: 'reference', reference: { ...reference, kind: 'unknown-plugin' } }] },
     { version: 1, parts: [{ type: 'reference', reference: { ...reference, text: 123 } }] },
     { version: 1, parts: [{ type: 'reference', reference: { ...reference, html: '<img src=x>' } }] },
     { version: 1, parts: [{ type: 'reference', reference: { ...reference, label: '' } }] },

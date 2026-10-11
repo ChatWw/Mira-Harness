@@ -113,7 +113,11 @@ export class HarnessPlanCoordinator {
     this.publish(sender, { sessionId, type: 'interaction-resolved', payload: { interactionId, status: 'answered', answers } })
     const { provider, apiKey } = this.options.requireProvider(selection)
     const questionById = new Map(interaction.questions.map(question => [question.id, question] as const))
-    const text = `用户对澄清问题的回答：\n${answers.map(answer => `- ${questionById.get(answer.id)?.question || answer.id}：${answer.custom || answer.selected.join('、') || '（用户跳过）'}`).join('\n')}`
+    const text = `用户对澄清问题的回答：\n${answers.map(answer => {
+      const selected = answer.selected.join('、'), custom = answer.custom?.trim()
+      const content = selected && custom ? `${selected}；补充：${custom}` : selected || custom || '（用户跳过）'
+      return `- ${questionById.get(answer.id)?.question || answer.id}：${content}`
+    }).join('\n')}`
     const resumed = this.database.harness.addMessage(sessionId, 'user', text, undefined, true)
     return this.options.runAgent(sender, sessionId, resumed, selection!, provider, apiKey, { planning: true })
   }

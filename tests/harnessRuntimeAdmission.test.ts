@@ -21,15 +21,19 @@ function setup() {
   let session: any = { version: 1, id: 's', title: 'Admission', titleSource: 'manual', permissionMode: 'default', status: 'active', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1 }
   const provider = { id: 'p', providerKey: 'openai-compatible', name: 'Test', endpoint: 'http://127.0.0.1:1', enabled: true, authMode: 'none', models: [{ id: 'model', enabled: true, reasoning: false }] }
   const database: any = {
+    promptHistory: { append: vi.fn() },
     memories: { enabled: () => false }, skills: { resolve: () => [] }, instructions: { resolve: () => [] },
+    plugins: { snapshots: () => [], reminder: () => '' },
     models: { get: () => provider, getSecret: () => '' }, getSnapshot: () => ({ preferences: {} }),
     harness: {
+      sideConversationIds: vi.fn(() => []),
       getPermissionConfig: () => ({ globalDefaultMode: 'default' }),
       getSession: () => structuredClone(session),
+      getProject: (id: string) => ({ id, directory: '/project' }),
       acceptPreparedSession: vi.fn((_id, persist) => { session.draftState = 'accepted'; persist?.() }),
       updateSession: (value: any) => { session = structuredClone(value); return structuredClone(session) },
       resolveMessageAttachments: () => [],
-      addMessage: vi.fn((_id, role, content) => { session.messages.push({ id: `m-${session.messages.length}`, role, content, createdAt: Date.now() }); return structuredClone(session) }),
+      addMessage: vi.fn((_id, role, content, _attachments, _internal, permissionMode) => { if (permissionMode !== undefined) session.permissionMode = permissionMode; session.messages.push({ id: `m-${session.messages.length}`, role, content, createdAt: Date.now() }); return structuredClone(session) }),
       setActiveRun: vi.fn((_id, run) => { session.activeRun = run; return structuredClone(session) }),
       setStatus: vi.fn((_id, status) => { session.status = status }),
       setPermission: vi.fn((_id, mode) => { session.permissionMode = mode; return structuredClone(session) }),
@@ -57,6 +61,170 @@ function setup() {
 }
 
 describe('Harness runtime admission', () => {
+  it('records accepted input once, excludes rejected intent and ignores submission replay', () => {
+    const view = setup(), selection = { providerId: 'p', modelId: 'model' }
+    const receipt = view.runtime.submitMessage(view.sender, 's', 'recall-one', '  Accepted  ', [], selection, false)
+    expect(receipt).toHaveProperty('submissionId', 'recall-one')
+    expect(view.database.promptHistory.append).toHaveBeenCalledExactlyOnceWith(undefined, 'Accepted')
+    view.runtime.submitMessage(view.sender, 's', 'recall-one', 'Accepted', [], selection, false)
+    expect(view.database.promptHistory.append).toHaveBeenCalledOnce()
+    expect(view.runtime.submitMessage(view.sender, 's', 'recall-rejected', 'Not accepted', [], selection, false, { delivery: 'guide', expectedRunId: 'foreign-run' })).toHaveProperty('retryRequired', true)
+    expect(view.database.promptHistory.append).toHaveBeenCalledOnce()
+  })
+
+  it('waits for asynchronous admission and retains its original directory across late acknowledgement', async () => {
+    const view = setup(), pending = deferred()
+    const session = view.database.harness.getSession()
+    vi.spyOn(view.database.harness, 'getSession').mockReturnValue({ ...session, workingDirectory: '/original' })
+    vi.spyOn((view.runtime as any).messageQueue, 'submit').mockReturnValue(pending.promise.then(() => ({ id: 'accepted', submissionId: 'late', queue: { sessionId: 's', revision: 1, items: [] } })))
+    const result = view.runtime.submitMessage(view.sender, 's', 'late', 'Late input', [], { providerId: 'p', modelId: 'model' }, false, { delivery: 'immediate', expectedRunId: null })
+    expect(view.database.promptHistory.append).not.toHaveBeenCalled()
+    vi.mocked(view.database.harness.getSession).mockReturnValue({ ...session, workingDirectory: '/other' })
+    pending.resolve(); await result
+    expect(view.database.promptHistory.append).toHaveBeenCalledExactlyOnceWith('/original', 'Late input')
+  })
+
+  it('does not record rejected async admission or turn a history write error into send failure', async () => {
+    const view = setup(), warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const submit = vi.spyOn((view.runtime as any).messageQueue, 'submit')
+    submit.mockReturnValueOnce(Promise.reject(new Error('Rejected')))
+    await expect(view.runtime.submitMessage(view.sender, 's', 'rejected', 'Not accepted', [], { providerId: 'p', modelId: 'model' }, false, { expectedRunId: null })).rejects.toThrow('Rejected')
+    expect(view.database.promptHistory.append).not.toHaveBeenCalled()
+    view.database.promptHistory.append.mockImplementationOnce(() => { throw new Error('Disk unavailable') })
+    submit.mockReturnValueOnce({ id: 'accepted', submissionId: 'saved', queue: { sessionId: 's', revision: 1, items: [] } })
+    expect(view.runtime.submitMessage(view.sender, 's', 'saved', 'Accepted input', [], { providerId: 'p', modelId: 'model' }, false)).toHaveProperty('id', 'accepted')
+    expect(warn).toHaveBeenCalledOnce()
+  })
+  function compactionFixture() {
+    const view = setup()
+    vi.mocked((view.runtime as any).compactContext).mockRestore()
+    view.database.harness.addMessage('s', 'user', 'Earlier request')
+    view.database.harness.addMessage('s', 'assistant', 'Earlier response')
+    view.database.harness.addMessage('s', 'user', 'Recent request')
+    view.database.harness.addMessage('s', 'assistant', 'Recent response')
+    vi.mocked(generateSummaryWithUsage).mockResolvedValue({ ok: true, value: { text: 'Earlier context summary' } } as any)
+    return view
+  }
+
+  it('queues a typed compaction between real messages with frozen selection, no command in history, and no parallel model request', async () => {
+    const { runtime, database, sender, memory, prompt, send } = compactionFixture()
+    vi.spyOn(runtime as any, 'publishContextUsage').mockRestore()
+    const running = send('Current turn'), gate = deferred()
+    vi.mocked(generateSummaryWithUsage).mockImplementationOnce(async () => { await gate.promise; return { ok: true, value: { text: 'Queued summary' } } as any })
+    const selection = { providerId: 'p', modelId: 'model' }, authorize = vi.fn()
+    const receipt = await runtime.compactConversation(sender, 's', selection, authorize, 'compact-id')
+    expect(receipt).toMatchObject({ status: 'queued', queue: { items: [{ operation: 'context-compaction', selection }] } })
+    selection.modelId = 'changed-after-ack'
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize, 'compact-id')).resolves.toMatchObject({ status: 'queued' })
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize, 'other-id')).rejects.toThrow('已在运行或排队')
+    await runtime.submitMessage(sender, 's', 'next-id', 'After compression', [], { providerId: 'p', modelId: 'model' }, false)
+    expect(generateSummaryWithUsage).not.toHaveBeenCalled()
+    memory.resolve(); await running
+    await vi.waitFor(() => expect(generateSummaryWithUsage).toHaveBeenCalledOnce())
+    expect(prompt).toHaveBeenCalledOnce()
+    expect(database.harness.getSession('s').activeRun.kind).toBe('context-compaction')
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize, 'compact-id')).resolves.toMatchObject({ status: 'queued' })
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize, 'other-id')).rejects.toThrow('已在运行或排队')
+    gate.resolve()
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(runtime.getMessageQueue('s').items).toHaveLength(0))
+    expect(database.harness.getSession('s').context.summary).toBe('Queued summary')
+    expect(database.harness.getSession('s').messages.some((message: any) => message.content === '/compact')).toBe(false)
+    expect(authorize.mock.calls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it.each(['revoked', 'moved', 'failed', 'stopped'] as const)('retains the queued compaction and pauses following inputs when %s', async mode => {
+    const { runtime, database, sender, memory, send } = compactionFixture()
+    vi.spyOn(runtime as any, 'publishContextUsage').mockRestore()
+    const running = send('Current turn'), selection = { providerId: 'p', modelId: 'model' }, authorize = vi.fn()
+    await runtime.compactConversation(sender, 's', selection, authorize, 'compact-id')
+    await runtime.submitMessage(sender, 's', 'next-id', 'After compression', [], selection, false)
+    const gate = deferred()
+    vi.mocked(generateSummaryWithUsage).mockImplementationOnce(async () => { await gate.promise; return { ok: false, error: { message: 'Model error' } } as any })
+    if (mode === 'revoked') authorize.mockImplementation(() => { throw new Error('Grant revoked') })
+    if (mode === 'moved') database.harness.updateSession({ ...database.harness.getSession('s'), workingDirectory: '/changed' })
+    memory.resolve(); await running.catch(() => undefined)
+    if (mode === 'failed' || mode === 'stopped') {
+      await vi.waitFor(() => expect(generateSummaryWithUsage).toHaveBeenCalledOnce())
+      if (mode === 'stopped') expect(runtime.abort('s')).toBe(true)
+      gate.resolve()
+    }
+    await vi.waitFor(() => expect(runtime.getMessageQueue('s').paused).toBe(mode === 'stopped' ? 'stopped' : 'failed'))
+    await vi.waitFor(() => expect(runtime.getMessageQueue('s').items).toHaveLength(2))
+    expect(runtime.getMessageQueue('s').items.map(item => item.submissionId)).toEqual(['compact-id', 'next-id'])
+    expect(database.harness.getSession('s').context?.summary).not.toBe('Queued summary')
+    const withdrawn = runtime.withdrawMessage('s', runtime.getMessageQueue('s').items[0].id)
+    expect(withdrawn.item.operation).toBe('context-compaction')
+  })
+
+  it('manually compacts below the automatic threshold without appending a command or overwriting history', async () => {
+    const { runtime, database, sender } = compactionFixture()
+    vi.spyOn(runtime as any, 'publishContextUsage').mockRestore()
+    const before = database.harness.getSession('s'), authorize = vi.fn()
+    const result = await runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize)
+    expect(result).toMatchObject({ status: 'compacted', usage: { source: 'estimated' } })
+    expect(database.harness.getSession('s')).toMatchObject({ messages: before.messages, context: { summary: 'Earlier context summary', compactedThroughMessageId: 'm-1' } })
+    expect(database.harness.getSession('s').activeRun).toBeUndefined()
+    expect(generateSummaryWithUsage).toHaveBeenCalledOnce()
+    expect(authorize).toHaveBeenCalledTimes(3)
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize)).resolves.toMatchObject({ status: 'unchanged' })
+    expect(generateSummaryWithUsage).toHaveBeenCalledOnce()
+  })
+
+  it.each(['stopped', 'revoked', 'moved', 'archived', 'history', 'failed', 'empty'] as const)('keeps the previous context intact when manual compaction is %s', async mode => {
+    const { runtime, database, sender } = compactionFixture()
+    const previous = { summary: 'Keep existing context', compactedAt: 123 }
+    database.harness.updateSession({ ...database.harness.getSession('s'), context: previous })
+    const gate = deferred(), requested = deferred(), authorize = vi.fn()
+    vi.mocked(generateSummaryWithUsage).mockImplementationOnce(async () => { requested.resolve(); await gate.promise; return mode === 'failed' ? { ok: false, error: { message: 'Model error' } } as any : { ok: true, value: { text: mode === 'empty' ? ' ' : 'Changed summary' } } as any })
+    const pending = runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize)
+    const outcome = pending.catch(error => error)
+    await requested.promise
+    expect(() => runtime.assertSessionMutable('s')).toThrow('正在运行')
+    await expect(runtime.compactConversation(sender, 's', { providerId: 'p', modelId: 'model' }, authorize)).rejects.toThrow('上下文压缩已在运行或排队')
+    if (mode === 'stopped') expect(runtime.abort('s')).toBe(true)
+    if (mode === 'revoked') authorize.mockImplementation(() => { throw new Error('Grant revoked') })
+    if (mode === 'moved') database.harness.updateSession({ ...database.harness.getSession('s'), workingDirectory: '/new-project' })
+    if (mode === 'archived') database.harness.updateSession({ ...database.harness.getSession('s'), archivedAt: 100 })
+    if (mode === 'history') database.harness.addMessage('s', 'user', 'Changed history')
+    gate.resolve()
+    expect(await outcome).toBeInstanceOf(Error)
+    expect(database.harness.getSession('s').context).toEqual(previous)
+    expect(database.harness.getSession('s').activeRun).toBeUndefined()
+    expect(() => runtime.assertSessionMutable('s')).not.toThrow()
+  })
+
+  it('freezes explicit next-message permissions without changing the running session on admission', async () => {
+    const { runtime, database, memory, sender, prompt } = setup()
+    vi.spyOn(database.harness, 'getPermissionConfig').mockReturnValue({ globalDefaultMode: 'default', autoApproveEnabled: true, fullAccessEnabled: true })
+    const selection = { providerId: 'p', modelId: 'model' }, options = { permissionMode: 'full' as const }
+    const receipt = await runtime.submitMessage(sender, 's', 'permission-intent', 'Next', [], selection, false, options)
+    expect(receipt.queue.items[0]?.permissionMode).toBe('full')
+    expect(database.harness.getSession().permissionMode).toBe('default')
+    expect(() => runtime.submitMessage(sender, 's', 'permission-intent', 'Next', [], selection, false, { permissionMode: 'default' })).toThrow('内容不同')
+    vi.spyOn(database.harness, 'getPermissionConfig').mockReturnValue({ globalDefaultMode: 'default', autoApproveEnabled: false, fullAccessEnabled: false })
+    expect(await runtime.submitMessage(sender, 's', 'permission-intent', 'Next', [], selection, false, options)).toMatchObject({ id: receipt.id })
+    memory.resolve()
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
+    expect(database.harness.getSession().permissionMode).toBe('full')
+    expect((runtime as any).environmentContext).toHaveBeenCalledWith(expect.anything(), 'manual', 'full')
+  })
+
+  it.each(['full', 'auto-approve'])('rejects a disabled permission intent before admission and permits a changed retry (%s)', mode => {
+    const { runtime, database, sender } = setup()
+    expect(runtime.submitMessage(sender, 's', 'invalid-mode', 'Next', [], { providerId: 'p', modelId: 'model' }, false, { permissionMode: mode as any })).toMatchObject({ retryRequired: true, reason: 'permission-mode-disabled' })
+    expect(runtime.getMessageQueue('s').items).toEqual([])
+    expect(database.harness.setPermission).not.toHaveBeenCalled()
+    expect(database.harness.addMessage).not.toHaveBeenCalled()
+    expect(runtime.submitMessage(sender, 's', 'invalid-mode', 'Next', [], { providerId: 'p', modelId: 'model' }, false, { permissionMode: 'default' })).toHaveProperty('id')
+  })
+
+  it('rejects malformed permission intent before admission', () => {
+    const { runtime, database, sender } = setup()
+    expect(() => runtime.submitMessage(sender, 's', 'invalid-mode', 'Next', [], { providerId: 'p', modelId: 'model' }, false, { permissionMode: 'invalid' as any })).toThrow('无效的权限档位')
+    expect(runtime.getMessageQueue('s').items).toEqual([])
+    expect(database.harness.addMessage).not.toHaveBeenCalled()
+  })
   it('promotes prepared owners only after queue admission, with stable replay and no premature history', async () => {
     const { runtime, memory, database, prompt, sender } = setup()
     database.harness.updateSession({ ...database.harness.getSession(), draftState: 'prepared' })
@@ -142,7 +310,7 @@ describe('Harness runtime admission', () => {
     child.resolve(); await first; memory.resolve()
     const receipt = await accepted
     expect('id' in receipt).toBe(true)
-    expect(database.harness.addMessage).toHaveBeenCalledWith('s', 'user', 'New', [{ path: 'note.md', name: 'note.md', content: 'Frozen content' }])
+    expect(database.harness.addMessage).toHaveBeenCalledWith('s', 'user', 'New', [{ path: 'note.md', name: 'note.md', content: 'Frozen content' }], false, 'default', undefined)
     expect(await runtime.submitMessage(sender, 's', 'immediate-new', 'New', [{ path: 'note.md', name: 'note.md' }], { providerId: 'p', modelId: 'model', thinkingLevel: 'high' }, true, options)).toMatchObject({ id: 'id' in receipt ? receipt.id : 'unexpected' })
     expect(resolveFiles).toHaveBeenCalledOnce()
     await vi.waitFor(() => expect((runtime as any).runCoordinator.isRunning('s')).toBe(false))
@@ -205,7 +373,7 @@ describe('Harness runtime admission', () => {
     const snapshot = await promoted
     expect(snapshot.items.map(item => item.id)).toEqual([b.id])
     expect(snapshot.paused).toBeUndefined()
-    expect(database.harness.addMessage).toHaveBeenCalledWith('s', 'user', 'C', [{ path: 'note.md', name: 'note.md', content: 'Frozen note' }])
+    expect(database.harness.addMessage).toHaveBeenCalledWith('s', 'user', 'C', [{ path: 'note.md', name: 'note.md', content: 'Frozen note' }], false, 'default', undefined)
     expect(database.harness.getSession().modelId).toBe('model')
     expect(prompt).toHaveBeenCalledExactlyOnceWith('C')
     expect(runtime.abort('s', oldRun)).toBe(false)
@@ -493,7 +661,7 @@ describe('Harness runtime admission', () => {
     runtime.resumeMessageQueue('s')
     await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect((runtime as any).runCoordinator.isRunning('s')).toBe(false))
-    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Frozen', [])
+    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Frozen', [], false, 'default', undefined)
   })
 
   it.each(['memory', 'compaction'] as const)('does not recreate an archived or deleted session during %s preparation', async phase => {
@@ -567,7 +735,7 @@ describe('Harness runtime admission', () => {
     runtime.resumeMessageQueue('s')
     await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect(completion).toHaveBeenCalledOnce())
-    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Queued', [])
+    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Queued', [], false, 'default', undefined)
   })
 
   it.each(['memory', 'compaction'] as const)('retains stopped queued input before history admission during %s', async phase => {
@@ -594,7 +762,7 @@ describe('Harness runtime admission', () => {
     runtime.resumeMessageQueue('s')
     await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect((runtime as any).runCoordinator.isRunning('s')).toBe(false))
-    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Pending', [])
+    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', 'Pending', [], false, 'default', undefined)
   })
 
   it('keeps legacy sends and planning=true from bypassing stopped backlog', async () => {
@@ -651,6 +819,25 @@ describe('Harness runtime admission', () => {
     expect(runtime.getMessageQueue('s')).toMatchObject({ paused: 'stopped', items: [{ id: receipt.id }] })
     expect((runtime as any).runCoordinator.isRunning('s')).toBe(false)
     expect(database.harness.getSession().messages.some((message: any) => message.content === 'B')).toBe(false)
+  })
+
+  it.each([
+    { selected: ['资料', '代码'], custom: '保留引用\n附上摘要', expected: '资料、代码；补充：保留引用\n附上摘要' },
+    { selected: ['资料'], custom: undefined, expected: '资料' },
+    { selected: [], custom: '只整理资料', expected: '只整理资料' },
+    { selected: ['资料'], custom: '   ', expected: '资料' },
+    { selected: [], custom: '', expected: '（用户跳过）' },
+  ])('passes the full clarification answer to the Agent: $expected', async ({ selected, custom, expected }) => {
+    const { runtime, memory, database, prompt, sender } = setup()
+    database.harness.setActivePlan('s', { id: 'plan', status: 'awaiting_input', request: '整理', understanding: '', steps: [], risks: [], createdAt: 1, updatedAt: 1 })
+    database.harness.setPendingInteraction('s', { id: 'interaction', kind: 'question', status: 'waiting', questions: [{ id: 'scope', question: '处理范围？', multiSelect: true, options: [{ label: '资料' }, { label: '代码' }] }], createdAt: 1 })
+    const answers = [{ id: 'scope', selected, ...(custom !== undefined ? { custom } : {}) }]
+    prompt.mockImplementation(async () => { database.harness.setPendingInteraction('s', { id: 'next-review', kind: 'plan-review', status: 'waiting', planId: 'plan', createdAt: 1 }) })
+    memory.resolve()
+    await runtime.answerInteraction(sender, 's', 'interaction', answers, { providerId: 'p', modelId: 'model' })
+    expect(database.harness.resolvePendingInteraction).toHaveBeenCalledExactlyOnceWith('s', 'interaction', 'answered', answers)
+    expect(database.harness.addMessage).toHaveBeenCalledExactlyOnceWith('s', 'user', `用户对澄清问题的回答：\n- 处理范围？：${expected}`, undefined, true)
+    expect(prompt).toHaveBeenCalledExactlyOnceWith(`用户对澄清问题的回答：\n- 处理范围？：${expected}`)
   })
 
   it('keeps automation out of a project while manual backlog is paused and releases it after withdrawal', async () => {

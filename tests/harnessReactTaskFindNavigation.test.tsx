@@ -117,7 +117,7 @@ function mount(complete = false) {
 describe('task find navigation lifecycle across live and virtual history', () => {
   it('waits for row readiness again before revealing a text part that became complete', () => {
     const view = mount(); view.query()
-    expect(view.bar().count).toBe(2); expect(view.jumpToMessage).toHaveBeenCalledExactlyOnceWith('task-a-answer', 'center', expect.any(Function))
+    expect(view.bar().count).toBe(2); expect(view.jumpToMessage).toHaveBeenCalledExactlyOnceWith('task-a-answer', 'center', expect.any(Function), JSON.stringify(['task-a-answer', 'body']))
     view.flush(); expect(highlight.reveal).not.toHaveBeenCalled()
     view.ready(); view.flush(); expect(highlight.reveal).toHaveBeenCalledWith(expect.anything(), view.viewport)
     highlight.reveal.mockClear()

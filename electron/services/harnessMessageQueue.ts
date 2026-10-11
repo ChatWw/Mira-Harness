@@ -33,6 +33,7 @@ export interface HarnessMessageQueueDependencies {
     sender: WebContents,
     started: (persist?: () => void) => void,
     scope: HarnessMessageQueueScope,
+    assertAuthorized?: () => void,
   ): Promise<{ interrupted?: boolean }>
   publish(sender: WebContents, snapshot: HarnessMessageQueueSnapshot): void
   settled(sessionId: string): void
@@ -40,8 +41,8 @@ export interface HarnessMessageQueueDependencies {
 
 type PauseReason = NonNullable<HarnessMessageQueueSnapshot['paused']>
 type Submission = Omit<HarnessQueuedMessage, 'id' | 'createdAt'>
-type SubmissionIntent = Pick<Submission, 'text' | 'references' | 'selection' | 'planning'>
-type Entry = { item: HarnessQueuedMessage, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, fingerprint: string, sender: WebContents, started?: boolean }
+type SubmissionIntent = Pick<Submission, 'text' | 'references' | 'selection' | 'planning' | 'operation'>
+type Entry = { item: HarnessQueuedMessage, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, fingerprint: string, sender: WebContents, started?: boolean, assertAuthorized?: () => void }
 type Promotion = { entry: Entry, controller: AbortController, sourceRunId?: string, admit: () => void, reject: (error: Error) => void, atomic?: boolean, discardIds?: string[] }
 type QueueState = {
   revision: number
@@ -69,6 +70,11 @@ const QUEUE_BUSINESS_ERRORS = new Set([
   '模型未提交可确认的计划或澄清问题，请重新描述任务后重试',
   '待发送消息正在提升，请稍后重试', '当前任务已变化，请刷新后重试', '立即发送已取消，消息仍在队列中',
   '立即发送已取消，内容已保留',
+  '引用的技能已停用或不可用，请移除引用后重新选择',
+  '插件命令已停用、已移除或不属于当前会话，请重新选择',
+  '插件命令内容已变化，请撤回后重新发送',
+  '插件命令需要的 Skill 已停用或不可用',
+  '计划模式暂不能调用需要 Skill 的插件命令，请关闭计划模式后发送',
   '待发送消息已开始或已撤回', '请先处理当前任务的确认',
 ])
 
@@ -84,6 +90,18 @@ export class HarnessMessageQueue {
 
   constructor(private readonly deps: HarnessMessageQueueDependencies) {}
 
+  enqueueCompaction(sender: WebContents, input: Submission & { operation: 'context-compaction' }, scope: HarnessMessageQueueScope, assertAuthorized: () => void) {
+    const replay = this.replay(input.sessionId, input.submissionId, input)
+    if (replay) return replay
+    if (this.hasCompaction(input.sessionId)) throw new Error('上下文压缩已在运行或排队')
+    return this.enqueue(sender, input, [], scope, this.fingerprint(input.sessionId, input), assertAuthorized)
+  }
+
+  hasCompaction(sessionId: string) {
+    const state = this.sessions.get(sessionId)
+    return Boolean(state && [...state.items, ...(state.active ? [state.active] : [])].some(entry => entry.item.operation === 'context-compaction'))
+  }
+
   submit(sender: WebContents, input: Submission, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope): HarnessMessageSubmissionReceipt
   submit(sender: WebContents, input: Submission, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, options: HarnessMessageSubmissionOptions): HarnessMessageSubmissionResult | Promise<HarnessMessageSubmissionReceipt>
   submit(sender: WebContents, input: Submission, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, options?: HarnessMessageSubmissionOptions) {
@@ -93,7 +111,7 @@ export class HarnessMessageQueue {
     return this.enqueue(sender, input, attachments, scope, this.fingerprint(input.sessionId, input))
   }
 
-  private enqueue(sender: WebContents, input: Submission, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, fingerprint: string) {
+  private enqueue(sender: WebContents, input: Submission, attachments: HarnessMessageAttachment[], scope: HarnessMessageQueueScope, fingerprint: string, assertAuthorized?: () => void) {
     const frozen = structuredClone({ input, attachments, scope })
     const state = this.state(input.sessionId)
     if (state.promotion?.atomic) throw new Error('待发送消息正在提升，请稍后重试')
@@ -108,7 +126,7 @@ export class HarnessMessageQueue {
       this.fail(input.sessionId, state, error)
       throw new Error(queueError(error))
     }
-    state.items.push({ item, attachments: frozen.attachments, scope: frozen.scope, fingerprint, sender })
+    state.items.push({ item, attachments: frozen.attachments, scope: frozen.scope, fingerprint, sender, assertAuthorized })
     state.sender = sender
     state.revision++
     this.remember(item, fingerprint)
@@ -142,7 +160,7 @@ export class HarnessMessageQueue {
         return { confirmationRequired: true, queue: this.get(input.sessionId) }
       }
     }
-    if (!options.delivery && !options.pausedQueueDecision) return this.submit(sender, input, attachments, scope)
+    if (!options.delivery && !options.pausedQueueDecision) return this.enqueue(sender, input, attachments, scope, fingerprint)
     if (this.deps.blocked(input.sessionId)) throw new Error('请先处理当前任务的确认')
     const frozen = structuredClone({ input, attachments, scope, options })
     const entry: Entry = { item: { ...frozen.input, id: randomUUID(), createdAt: Date.now() }, attachments: frozen.attachments, scope: frozen.scope, fingerprint, sender }
@@ -377,6 +395,10 @@ export class HarnessMessageQueue {
       sessionId, text: input.text, references: input.references.map(({ path, name }) => ({ path, name })),
       selection: { providerId: input.selection.providerId, modelId: input.selection.modelId, thinkingLevel: input.selection.thinkingLevel },
       planning: input.planning,
+      ...(input.operation ? { operation: input.operation } : {}),
+      ...(options?.permissionMode === undefined ? {} : { permissionMode: options.permissionMode }),
+      ...(options?.skillIds === undefined ? {} : { skillIds: options.skillIds }),
+      ...(options?.pluginIds === undefined ? {} : { pluginIds: options.pluginIds }),
       ...(options && (options.delivery || options.pausedQueueDecision) ? { options: {
         delivery: options.delivery, pausedQueueDecision: options.pausedQueueDecision,
         expectedQueueRevision: options.expectedQueueRevision, expectedQueueItemIds: options.expectedQueueItemIds, expectedRunId: options.expectedRunId,
@@ -490,7 +512,7 @@ export class HarnessMessageQueue {
           this.notify(sessionId, state)
           promotion.admit()
         }
-      }, structuredClone(entry.scope))
+      }, structuredClone(entry.scope), ...(entry.assertAuthorized ? [entry.assertAuthorized] : []))
       if (result.interrupted) {
         if (!entry.started && !promotion) state.items.unshift(entry)
         if (!state.promotion || state.promotion.controller.signal.aborted) this.pause(sessionId, 'stopped')

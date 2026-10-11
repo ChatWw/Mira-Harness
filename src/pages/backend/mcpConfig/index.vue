@@ -2,7 +2,7 @@
   <SettingsPageShell title="MCP 服务" wide>
     <div class="mcp-page">
       <h2 class="mcp-page__title">MCP 服务器</h2>
-      <p class="mcp-page__desc">配置 MCP（Model Context Protocol）服务器后，它们提供的工具会自动接入 Agent 工作台。</p>
+      <p class="mcp-page__desc">启用的 MCP（Model Context Protocol）服务器会在后台连接。回到工作台，通过 /mcp 查看连接状态并选择当前会话可用的服务。</p>
 
       <div class="mcp-toolbar">
         <el-button type="primary" @click="openCreate"><AppIcon name="Plus" />添加服务器</el-button>
@@ -26,7 +26,7 @@
       </div>
       <div v-else class="mcp-empty">
         <strong>还没有配置 MCP 服务器</strong>
-        <p>支持 stdio 协议（本地进程）。添加后，MCP 服务器提供的工具会自动出现在 Agent 工作台。</p>
+        <p>支持 stdio 协议（本地进程）。添加并启用后，可在工作台的 /mcp 面板中选择供当前会话使用。</p>
       </div>
     </div>
 

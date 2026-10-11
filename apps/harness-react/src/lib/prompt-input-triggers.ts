@@ -1,6 +1,6 @@
 // Caret-based discovery and replacement follows ZCode's prompt input interaction.
 // Source and license: third-party-licenses/zcode. Names and payloads belong to Mira.
-export type MiraPromptTrigger = '@' | '/' | '$'
+export type MiraPromptTrigger = '@' | '/' | '$' | '#'
 export interface MiraPromptRange { start: number; end: number }
 export interface MiraPromptToken extends MiraPromptRange { trigger: MiraPromptTrigger; query: string }
 
@@ -8,7 +8,7 @@ export function findMiraPromptToken(text: string, start: number, end = start): M
   if (start !== end) return null
   const prefix = text.slice(0, start)
   const match = /(^|[\s\p{Script=Han}\u3000-\u303f\uff00-\uffef])(@)([^\s/@$#¥￥]*)$/u.exec(prefix)
-    ?? /(^|\s)([/@$¥￥])([^\s/@$#¥￥]*)$/.exec(prefix)
+    ?? /(^|\s)([/@$#¥￥])([^\s/@$#¥￥]*)$/.exec(prefix)
   if (!match || /\p{Script=Han}/u.test(match[1]) && /\S\.\S/.test(match[3])) return null
   const rawTrigger = match[2]
   const trigger = rawTrigger === '¥' || rawTrigger === '￥' ? '$' : rawTrigger as MiraPromptTrigger
@@ -26,7 +26,7 @@ export function miraPromptReplacementRange(text: string, token: MiraPromptToken,
   const query = token.query.toLocaleLowerCase()
   let consumed = 0
   for (const candidate of candidates) {
-    const value = candidate.replace(/^[/@$]+/, '')
+    const value = candidate.replace(/^[/@$#¥￥]+/, '')
     if (!value.toLocaleLowerCase().startsWith(query)) continue
     const suffix = value.slice(token.query.length)
     const length = Math.min(tail.length, suffix.length)
@@ -49,9 +49,9 @@ export function nextMiraSuggestionIndex(current: number, direction: 1 | -1, item
   return -1
 }
 
-export function filterMiraSuggestions<T extends { label: string; description?: string; keywords?: string }>(items: T[], query: string): T[] {
+function miraSuggestionScore(item: { label: string; description?: string; keywords?: string }, query: string) {
   const term = query.trim().toLocaleLowerCase()
-  if (!term) return items
+  if (!term) return 0
   const score = (text: string) => {
     const value = text.toLocaleLowerCase()
     if (value.startsWith(term)) return 0
@@ -64,7 +64,21 @@ export function filterMiraSuggestions<T extends { label: string; description?: s
     }
     return distance
   }
-  return items.map((item, index) => ({ item, index, score: Math.min(score(item.label), score(item.description || ''), score(item.keywords || '')) }))
+  return Math.min(score(item.label.replace(/^[/@$#]+/, '')), score(item.description || '') + 250, score(item.keywords || '') + 450)
+}
+
+export function bestMiraSuggestionIndex(items: ReadonlyArray<{ label: string; description?: string; keywords?: string; disabled?: boolean }>, query: string) {
+  let best = -1, score = Infinity
+  items.forEach((item, index) => {
+    if (item.disabled) return
+    const next = miraSuggestionScore(item, query)
+    if (next < score) { best = index; score = next }
+  })
+  return best >= 0 ? best : items.findIndex(item => !item.disabled)
+}
+
+export function filterMiraSuggestions<T extends { label: string; description?: string; keywords?: string }>(items: T[], query: string): T[] {
+  return items.map((item, index) => ({ item, index, score: miraSuggestionScore(item, query) }))
     .filter(item => Number.isFinite(item.score)).sort((a, b) => a.score - b.score || a.index - b.index).map(({ item }) => item)
 }
 

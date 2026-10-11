@@ -31,10 +31,12 @@ export interface MiraPromptEditorProps extends Pick<AriaAttributes, 'aria-label'
   document?: MiraPromptDocument
   onChange(document: MiraPromptDocument, range: MiraPromptSelectionRange): void
   onSelectionChange?(range: MiraPromptSelectionRange): void
+  onFocusChange?(focused: boolean): void
   disabled?: boolean
   placeholder?: string
   className?: string
   onKeyDown?(event: KeyboardEvent): void
+  onHistoryNavigate?(direction: 'up' | 'down'): boolean
   onPaste?(event: ClipboardEvent): void
   onError?(error: Error): void
 }
@@ -200,8 +202,13 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
     })
     const unregisterKeys = editor.registerCommand(KEY_DOWN_COMMAND, event => {
       // A native composition confirmation must not become a submit or Lexical newline.
-      const composingEnter = event.key === 'Enter' && (event.isComposing || editor.isComposing())
-      if (!composingEnter || event.isComposing) current.current.onKeyDown?.(event)
+      const composing = event.isComposing || editor.isComposing() || event.keyCode === 229
+      const composingEnter = event.key === 'Enter' && composing
+      if (!composing || event.isComposing) current.current.onKeyDown?.(event)
+      if (!event.defaultPrevented && !composing && editor.isEditable() && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && current.current.onHistoryNavigate?.(event.key === 'ArrowUp' ? 'up' : 'down')) {
+        event.preventDefault()
+        return true
+      }
       return event.defaultPrevented || composingEnter
     }, COMMAND_PRIORITY_HIGH)
     const unregisterDelete = editor.registerCommand(DELETE_CHARACTER_COMMAND, backward => {
@@ -266,6 +273,7 @@ export const MiraPromptEditor = forwardRef<MiraPromptEditorHandle, MiraPromptEdi
       className={['mira-prompt-editor', props.className].filter(Boolean).join(' ')} role="textbox" aria-multiline="true"
       aria-label={props['aria-label']} aria-describedby={props['aria-describedby']} aria-expanded={props['aria-expanded']}
       aria-controls={props['aria-controls']} aria-activedescendant={props['aria-activedescendant']}
+      onFocus={() => props.onFocusChange?.(true)} onBlur={() => props.onFocusChange?.(false)}
       data-placeholder={props.placeholder} data-empty={props.text.length === 0 ? true : undefined} spellCheck
     />} />
     <HistoryPlugin />

@@ -4,10 +4,11 @@ import type { TimelineRenderMessage } from '../components/conversation/conversat
 import type { ConversationScrollPosition } from './conversation-scroll'
 
 export interface ConversationRenderTurn { id: string; messageIndexes: number[]; running: boolean }
+export interface ConversationConfirmationTarget { kind: 'permission' | 'interaction'; id: string; messageId?: string }
 export interface ConversationTimelineActions {
   restore: (position: ConversationScrollPosition, viewport: HTMLElement) => boolean | undefined
-  jumpToMessage: (messageId: string, align?: ScrollLogicalPosition, onMounted?: () => void) => void | (() => void)
-  jumpToInteraction: () => boolean
+  jumpToMessage: (messageId: string, align?: ScrollLogicalPosition, onMounted?: () => void, findTargetKey?: string) => void | (() => void)
+  jumpToInteraction: (target?: ConversationConfirmationTarget) => boolean
 }
 
 /** Guides and assistant segments belong to the original task turn, in canonical order. */
@@ -37,6 +38,7 @@ export function indexConversationTurnMessages(turns: ConversationRenderTurn[], m
 export function createConversationHeightCache(limit = 4000) {
   const heights = new Map<string, number>()
   return {
+    read: (key: string) => heights.get(key),
     estimate: (key: string) => heights.get(key) ?? 72,
     save(key: string, height: number) {
       if (!Number.isFinite(height) || height <= 0) return

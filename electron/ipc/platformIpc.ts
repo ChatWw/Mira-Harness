@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell, webContents, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
@@ -22,6 +22,9 @@ import { readHarnessWorkspaceGit, readHarnessWorkspaceIgnored } from '../service
 import type { SkillMarketplaceService } from '../services/skillMarketplace'
 import type { AutomationScheduler } from '../services/automationScheduler'
 import { automationRunWithSessionState, saveAutomationTask } from './automationIpc'
+import { MiraBrowserViewports } from '../services/miraBrowserViewports'
+import { MiraBrowserProtection } from '../services/miraBrowserProtection'
+import type { McpManager } from '../adapters/mcpManager'
 
 export interface PlatformIpcDependencies {
   database: PlatformDatabase
@@ -34,6 +37,7 @@ export interface PlatformIpcDependencies {
   terminalSessions?: HarnessTerminalSessions
   workspaceWatch?: HarnessWorkspaceWatch
   mcpConfigStore?: McpConfigStore
+  mcpManager?: Pick<McpManager, 'getStatus'> & Partial<Pick<McpManager, 'reconnect'>>
   skillMarketplace?: SkillMarketplaceService
   automationScheduler?: AutomationScheduler
 }
@@ -59,8 +63,10 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const firstPartyGrantOwners = new WeakSet<object>()
+  const browserViewports = new MiraBrowserViewports()
+  const browserProtection = new MiraBrowserProtection()
   const archivedSelections = new Map<string, { snapshotId: string; ids: readonly string[]; webContentsId: number }>()
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => {
@@ -173,6 +179,12 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       if (fileWorkspace(scope).identity !== expected.identity) throw new Error('工作目录已变化，请重新打开文件工作区。')
     }
     switch (call.method) {
+      case 'input-history.list': {
+        const session = call.sessionId ? database.harness.getSession(call.sessionId) : undefined
+        const projectId = session?.projectId ?? call.projectId
+        const directory = session?.workingDirectory || (projectId ? database.harness.getProject(projectId).directory : undefined)
+        return database.promptHistory.list(directory)
+      }
       case 'permissions.config': return database.harness.getPermissionConfig()
       case 'automations.list': {
         if (!automationScheduler) throw new Error('自动化服务不可用')
@@ -215,6 +227,18 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'marketplace.browse': {
         if (!skillMarketplace) throw new Error('插件市场服务不可用')
         return skillMarketplace.browse(call.refresh).then(result => { assertMarketAuthorized(); return result })
+      }
+      case 'plugin-marketplace.browse': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.browsePlugins(call.refresh).then(result => { assertMarketAuthorized(); return result })
+      }
+      case 'plugin-marketplace.detail': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.pluginDetail(call.id).then(result => { assertMarketAuthorized(); return result })
+      }
+      case 'plugin-marketplace.install': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.installPlugin(call.id, assertMarketAuthorized)
       }
       case 'marketplace.detail': {
         if (!skillMarketplace) throw new Error('插件市场服务不可用')
@@ -263,6 +287,11 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'providers.list': return database.models.list()
       case 'editors.list': return getInstalledHarnessEditors(call.refresh)
+      case 'session.create-side': return database.harness.createSideConversation(call.parentId)
+      case 'session.fork': {
+        harnessRuntime.assertSessionMutable(call.id)
+        return database.harness.forkConversation(call.id, call.messageId, call.requestId)
+      }
       case 'session.get': return harnessRuntime.getSession(call.id)
       case 'session.create': return call.prepared === undefined ? database.harness.createSession(call.projectId) : database.harness.createSession(call.projectId, undefined, call.prepared)
       case 'session.rename': return database.harness.renameSession(call.id, call.title)
@@ -277,8 +306,9 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'session.restore': return database.harness.restoreSessions([call.id])
       case 'session.delete': {
         harnessRuntime.assertSessionMutable(call.id)
+        const owners = [call.id, ...database.harness.sideConversationIds(call.id)]
         const result = database.harness.deleteSession(call.id)
-        database.removeHarnessDraftOwners([call.id])
+        database.removeHarnessDraftOwners(owners)
         workspaceWatch?.closeForSession(call.id)
         return result
       }
@@ -303,11 +333,35 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'session.set-delegation': return database.harness.setDelegationEnabled(call.id, call.enabled)
       case 'projects.reorder': return database.harness.reorderProjects(call.ids)
+      case 'plugins.list': return database.plugins.list()
+      case 'plugins.catalog': {
+        const frozen = call.sessionId ? database.harness.getSession(call.sessionId).pluginCatalog : undefined
+        return database.plugins.catalog(frozen)
+      }
+      case 'plugins.set-enabled': return database.plugins.setEnabled(call.id, call.enabled)
+      case 'plugins.remove': return database.plugins.remove(call.id)
+      case 'plugins.import': {
+        const options: OpenDialogOptions = { title: '添加本地插件包', properties: ['openDirectory'] }
+        const owner = BrowserWindow.fromWebContents(event.sender)
+        return (owner ? dialog.showOpenDialog(owner, options) : dialog.showOpenDialog(options)).then(selected => {
+          assertMarketAuthorized()
+          return selected.canceled || !selected.filePaths[0] ? null : database.plugins.register(selected.filePaths[0])
+        })
+      }
       case 'skills.list': return database.skills.list()
       case 'mcp.list': {
         if (!mcpConfigStore) throw new Error('MCP 服务不可用')
-        // 仅暴露工作台需要的字段：名称、启用状态与工具数量，不透出启动命令等配置。
-        return mcpConfigStore.list().map(server => ({ id: server.id, name: server.name, enabled: server.enabled }))
+        // Status inspection never connects a server or exposes launch commands/arguments.
+        return mcpConfigStore.list().map(server => ({ id: server.id, name: server.name, enabled: server.enabled, ...(mcpManager && server.enabled ? { connection: mcpManager.getStatus(server.id) } : {}) }))
+      }
+      case 'mcp.reconnect': {
+        if (!mcpConfigStore || !mcpManager?.reconnect) throw new Error('MCP 重连不可用')
+        const server = mcpConfigStore.list().find(server => server.id === call.id)
+        if (!server?.enabled) throw new Error('只能重连已配置且启用的 MCP 服务')
+        return mcpManager.reconnect(server).then(() => {
+          assertMarketAuthorized()
+          return mcpManager.getStatus(server.id)
+        })
       }
       case 'files.select': {
         const session = database.harness.getSession(call.sessionId)
@@ -366,6 +420,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'permissions.pending': return harnessRuntime.listPendingPermissions(call.sessionId)
       case 'permission.respond': return harnessRuntime.resolvePermission(call.requestId, call.allowed)
       case 'memory.respond': return harnessRuntime.respondMemoryConfirmation(call.requestId, call.approved)
+      case 'context.compact': return harnessRuntime.compactConversation(event.sender, call.sessionId, call.selection, assertMarketAuthorized, call.submissionId)
       case 'memory.save': return harnessRuntime.saveProjectMemory(event.sender, call.sessionId, call.selection)
       case 'subtask.stop': return harnessRuntime.stopSubtasks(call.sessionId, call.subtaskId ? [call.subtaskId] : undefined)
       case 'run.abort': return harnessRuntime.abort(call.sessionId, call.expectedRunId)
@@ -443,6 +498,12 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         terminalSessions.write(event.sender, call.sessionId, call.terminalId, call.data)
         return undefined
       }
+      case 'terminal.paste': {
+        if (!terminalSessions) throw new Error('终端服务不可用')
+        database.harness.getSession(call.sessionId)
+        terminalSessions.paste(event.sender, call.sessionId, call.terminalId, () => clipboard.readText(), call.bracketed)
+        return undefined
+      }
       case 'terminal.resize': {
         if (!terminalSessions) throw new Error('终端服务不可用')
         terminalSessions.resize(event.sender, call.sessionId, call.terminalId, call.columns, call.rows)
@@ -455,11 +516,31 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'browser.navigate': {
         database.harness.getSession(call.sessionId)
-        return { sessionId: call.sessionId, url: call.url, bounds: call.bounds }
+        browserProtection.start()
+        return { sessionId: call.sessionId, url: call.url, bounds: call.bounds, ...('browserId' in call ? { browserId: call.browserId } : {}), ...('visible' in call ? { visible: call.visible } : {}) }
       }
       case 'browser.bounds': {
         database.harness.getSession(call.sessionId)
         return call
+      }
+      case 'browser.viewport': {
+        database.harness.getSession(call.sessionId)
+        return browserViewports.update(event.sender, call.guestId, call.viewport)
+      }
+      case 'browser.protection': {
+        database.harness.getSession(call.sessionId)
+        return browserProtection.read(event.sender, call.guestId)
+      }
+      case 'browser.pick': {
+        if (call.action === 'start') database.harness.getSession(call.sessionId)
+        const guest = call.guestId === undefined ? undefined : webContents.fromId(call.guestId)
+        if (!guest || guest.isDestroyed() || guest.getType() !== 'webview' || guest.hostWebContents !== event.sender) throw new Error('浏览器目标不属于当前窗口')
+        // The Vue resource registry injects only Mira's fixed picker; React cannot submit JavaScript.
+        return null
+      }
+      case 'browser.external': {
+        database.harness.getSession(call.sessionId)
+        return shell.openExternal(call.url)
       }
       case 'browser.control': {
         // A removed task must still be able to release its own hosted view.

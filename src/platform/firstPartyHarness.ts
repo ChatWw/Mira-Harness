@@ -1,4 +1,6 @@
 import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessImageMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
+import { isMiraBrowserDimension } from '../config/miraBrowserViewport'
+import { isMiraPluginId } from '../config/miraPlugins'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
@@ -31,6 +33,7 @@ function idList(value: unknown, name: string, max = 64) {
 
 function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptions {
   const input = fields(value)
+  if (input.pluginIds !== undefined && (!Array.isArray(input.pluginIds) || input.pluginIds.length > 8 || input.pluginIds.some(id => typeof id !== 'string' || !isMiraPluginId(id)))) throw new Error('插件 ID无效')
   if (input.delivery !== undefined && input.delivery !== 'immediate' && input.delivery !== 'guide') throw new Error('消息投递方式无效')
   if (input.pausedQueueDecision !== undefined && input.pausedQueueDecision !== 'retain' && input.pausedQueueDecision !== 'discard') throw new Error('暂停队列选择无效')
   const expectedRunId = input.expectedRunId === null ? null : optionalString(input.expectedRunId, '运行 ID')
@@ -43,6 +46,9 @@ function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptio
   if (input.pausedQueueDecision && (revision === undefined || ids === undefined)) throw new Error('暂停队列确认无效')
   if (!input.pausedQueueDecision && (revision !== undefined || ids !== undefined)) throw new Error('暂停队列确认无效')
   return {
+    ...(input.permissionMode === undefined ? {} : { permissionMode: permissionMode(input.permissionMode) }),
+    ...(input.skillIds === undefined ? {} : { skillIds: [...new Set(idList(input.skillIds, '技能 ID', 64))] }),
+    ...(input.pluginIds === undefined ? {} : { pluginIds: [...new Set(input.pluginIds as string[])] }),
     ...(input.delivery === undefined ? {} : { delivery: input.delivery }),
     ...(input.pausedQueueDecision === undefined ? {} : { pausedQueueDecision: input.pausedQueueDecision }),
     ...(revision === undefined ? {} : { expectedQueueRevision: Number(revision) }),
@@ -136,16 +142,22 @@ function browserUrl(value: unknown) {
 }
 
 export interface HarnessBrowserBounds { x: number; y: number; width: number; height: number }
+export interface HarnessBrowserPresentation { bounds: HarnessBrowserBounds; clip: HarnessBrowserBounds; viewport: { width: number; height: number } | null; scale: number }
+function browserResource(params: Record<string, unknown>) {
+  if (params.browserId === undefined) return {}
+  if (typeof params.browserId !== 'string' || !/^browser(?::[\w-]{1,128})?$/.test(params.browserId)) throw new Error('浏览器资源 ID 无效')
+  return { browserId: params.browserId }
+}
 export type HarnessAttachmentSaveResult = { status: 'saved' } | { status: 'canceled' }
 
-function browserBounds(value: unknown): HarnessBrowserBounds {
+function browserBounds(value: unknown, positionMin = 0): HarnessBrowserBounds {
   const bounds = fields(value)
   const dimension = (field: keyof HarnessBrowserBounds, min: number) => {
     const result = bounds[field]
     if (typeof result !== 'number' || !Number.isFinite(result) || result < min || result > 10_000) throw new Error('浏览器视图位置无效')
     return Math.round(result)
   }
-  return { x: dimension('x', 0), y: dimension('y', 0), width: dimension('width', 16), height: dimension('height', 16) }
+  return { x: dimension('x', positionMin), y: dimension('y', positionMin), width: dimension('width', 16), height: dimension('height', 16) }
 }
 
 function terminalDimension(value: unknown, name: string) {
@@ -181,8 +193,21 @@ function automationTask(value: unknown): AutomationTaskInput {
 }
 
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
+  if (method === 'input-history.list') {
+    const params = raw === undefined ? {} : fields(raw)
+    const sessionId = optionalString(params.sessionId, '会话 ID'), projectId = optionalString(params.projectId, '项目 ID')
+    if (sessionId && projectId) throw new Error('输入历史范围无效')
+    return { method, sessionId, projectId } as const
+  }
+  if (method === 'plugins.list' || method === 'plugins.import') return { method } as const
+  if (method === 'plugins.catalog') return { method, sessionId: optionalString(raw === undefined ? undefined : fields(raw).sessionId, '会话 ID') } as const
+  if (method === 'plugins.remove' || method === 'plugins.set-enabled') {
+    const params = fields(raw), id = string(params.id, '插件 ID', 256)
+    if (!isMiraPluginId(id)) throw new Error('插件 ID无效')
+    return method === 'plugins.remove' ? { method, id } as const : { method, id, enabled: boolean(params.enabled, '启用状态') } as const
+  }
   if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'mcp.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
-  if (method === 'marketplace.browse') {
+  if (method === 'marketplace.browse' || method === 'plugin-marketplace.browse') {
     const params = raw === undefined ? {} : fields(raw)
     return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
   }
@@ -205,6 +230,8 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, id: string(params.id, '自动化 ID'), status: status as AutomationRunStatus | undefined } as const
     }
     case 'marketplace.detail':
+    case 'plugin-marketplace.detail':
+    case 'plugin-marketplace.install':
     case 'marketplace.install': return { method, id: string(params.id, '市场条目 ID') } as const
     case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     case 'attachments.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
@@ -244,17 +271,41 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'files.list': return { method, ...workspaceScope(params), path: workspacePath(params.path, true) } as const
     case 'files.read':
       return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path) } as const
-    case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), url: browserUrl(params.url), bounds: browserBounds(params.bounds) } as const
-    case 'browser.bounds': return { method, sessionId: string(params.sessionId, '会话 ID'), bounds: browserBounds(params.bounds) } as const
-    case 'browser.control': {
-      if (!['back', 'forward', 'reload', 'hide', 'show', 'close'].includes(String(params.action))) throw new Error('浏览器操作无效')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), action: params.action as 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close' } as const
+    case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), url: browserUrl(params.url), bounds: browserBounds(params.bounds), ...(params.visible === undefined ? {} : { visible: boolean(params.visible, '浏览器可见状态') }) } as const
+    case 'browser.bounds': return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), bounds: browserBounds(params.bounds) } as const
+    case 'browser.protection': {
+      if (params.guestId !== undefined && (!Number.isSafeInteger(params.guestId) || Number(params.guestId) < 1)) throw new Error('浏览器目标无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), ...(params.guestId === undefined ? {} : { guestId: params.guestId as number }) } as const
     }
+    case 'browser.pick': {
+      if (params.action !== 'start' && params.action !== 'cancel') throw new Error('元素选择操作无效')
+      if (params.guestId !== undefined && (!Number.isSafeInteger(params.guestId) || Number(params.guestId) <= 0)) throw new Error('浏览器目标无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), action: params.action, ...(params.guestId === undefined ? {} : { guestId: params.guestId as number }) } as const
+    }
+    case 'browser.viewport': {
+      const viewport = params.viewport === null ? null : fields(params.viewport)
+      if (viewport && (!isMiraBrowserDimension('width', viewport.width) || !isMiraBrowserDimension('height', viewport.height))) throw new Error('浏览器尺寸无效')
+      if (typeof params.scale !== 'number' || !Number.isFinite(params.scale) || params.scale <= 0 || params.scale > 2) throw new Error('浏览器缩放无效')
+      if (params.guestId !== undefined && (!Number.isSafeInteger(params.guestId) || Number(params.guestId) <= 0)) throw new Error('浏览器目标无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), bounds: browserBounds(params.bounds, -10_000), clip: browserBounds(params.clip), viewport: viewport ? { width: viewport.width as number, height: viewport.height as number } : null, scale: params.scale, ...(params.guestId === undefined ? {} : { guestId: params.guestId as number }) } as const
+    }
+    case 'browser.control': {
+      if (!['back', 'forward', 'reload', 'devtools', 'hide', 'show', 'close'].includes(String(params.action))) throw new Error('浏览器操作无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), action: params.action as 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close' } as const
+    }
+    case 'browser.external': return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), url: browserUrl(params.url) } as const
     case 'terminal.open': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
     // PTY 数据流必须保留 Enter/Tab/空格和 Ctrl+Space 的 NUL，不能按普通文案裁剪或拒绝。
     case 'terminal.write': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), data: terminalData(params.data) } as const
+    case 'terminal.paste': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), bracketed: boolean(params.bracketed, '括号粘贴状态') } as const
     case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const
     case 'terminal.close': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID') } as const
+    case 'session.create-side': return { method, parentId: string(params.parentId, '主任务 ID') } as const
+    case 'session.fork': {
+      const requestId = string(params.requestId, '分支请求 ID', 36)
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) throw new Error('分支请求 ID 无效')
+      return { method, id: string(params.id, '会话 ID'), messageId: string(params.messageId, '回复 ID'), requestId } as const
+    }
     case 'session.get': return { method, id: string(params.id, '会话 ID') } as const
     case 'session.create': return { method, projectId: params.projectId === undefined ? undefined : string(params.projectId, '项目 ID'), ...(params.prepared === undefined ? {} : { prepared: boolean(params.prepared, '草稿准备状态') }) } as const
     case 'session.rename': return { method, id: string(params.id, '会话 ID'), title: string(params.title, '会话标题', 120) } as const
@@ -282,6 +333,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'session.set-permission': return { method, id: string(params.id, '会话 ID'), mode: permissionMode(params.mode) } as const
     case 'session.set-skills': return { method, id: string(params.id, '会话 ID'), skillIds: idList(params.skillIds, 'Skill 列表') } as const
     case 'session.set-mcp-servers': return { method, id: string(params.id, '会话 ID'), serverIds: idList(params.serverIds, 'MCP 服务列表') } as const
+    case 'mcp.reconnect': return { method, id: string(params.id, 'MCP 服务 ID') } as const
     case 'session.set-delegation': return { method, id: string(params.id, '会话 ID'), enabled: boolean(params.enabled, '委派开关') } as const
     case 'projects.reorder': return { method, ids: idList(params.ids, '项目 ID 列表') } as const
     case 'projects.rename': return { method, id: string(params.id, '项目 ID'), name: string(params.name, '项目名称', 120) } as const
@@ -303,6 +355,8 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (typeof params.approved !== 'boolean') throw new Error('记忆确认响应无效')
       return { method, requestId: string(params.requestId, '记忆请求 ID'), approved: params.approved } as const
     }
+    case 'context.compact':
+      return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection), ...(params.submissionId === undefined ? {} : { submissionId: string(params.submissionId, '提交 ID') }) } as const
     case 'memory.save': return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection) } as const
     case 'subtask.stop': return { method, sessionId: string(params.sessionId, '会话 ID'), subtaskId: optionalString(params.subtaskId, '子任务 ID') } as const
     case 'run.abort': return { method, sessionId: string(params.sessionId, '会话 ID'), ...(params.expectedRunId === undefined ? {} : { expectedRunId: string(params.expectedRunId, '运行 ID') }) } as const
@@ -334,10 +388,11 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       const answers: HarnessUserAnswer[] = params.answers.map(value => {
         const answer = fields(value)
         if (!Array.isArray(answer.selected) || answer.selected.length > 16) throw new Error('澄清选项无效')
+        if (answer.custom !== undefined && (typeof answer.custom !== 'string' || answer.custom.length > 20_000 || answer.custom.includes('\0'))) throw new Error('自定义回答无效')
         return {
           id: string(answer.id, '问题 ID'),
           selected: answer.selected.map(item => string(item, '澄清选项', 1000)),
-          ...(answer.custom === undefined ? {} : { custom: string(answer.custom, '自定义回答', 20_000) }),
+          ...(answer.custom === undefined ? {} : { custom: answer.custom as string }),
         }
       })
       return { method, sessionId: string(params.sessionId, '会话 ID'), interactionId: string(params.interactionId, '交互 ID'), answers, selection: selection(params.selection) } as const

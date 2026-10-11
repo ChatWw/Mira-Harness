@@ -14,13 +14,15 @@ import { FileMemoryStore } from './fileMemoryStore'
 import { InstructionStore } from './instructionStore'
 import { RunLogStore } from './runLogStore'
 import { SkillStore } from './skillStore'
+import { MiraPluginStore } from './miraPluginStore'
+import { MiraPromptHistoryStore } from './miraPromptHistory'
 import { AutomationStore } from './automationStore'
 import { MiraPaths } from './miraPaths'
 import { validateSnapshot } from '../../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE, isModelProviderAvailable, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../../src/types'
 
-const CURRENT_SCHEMA_VERSION = 28
+const CURRENT_SCHEMA_VERSION = 30
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
 const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'enter', assistantTone: DEFAULT_ASSISTANT_TONE }
@@ -66,6 +68,8 @@ export class PlatformDatabase {
   readonly instructions: InstructionStore
   readonly logs: RunLogStore
   readonly skills: SkillStore
+  readonly plugins: MiraPluginStore
+  readonly promptHistory: MiraPromptHistoryStore
   readonly automations: AutomationStore
   private readonly deletedHarnessDraftOwners = new Set<string>()
 
@@ -81,6 +85,8 @@ export class PlatformDatabase {
     this.instructions = new InstructionStore(this.paths)
     this.logs = new RunLogStore(this.paths)
     this.skills = new SkillStore(this.paths)
+    this.plugins = new MiraPluginStore(this.paths)
+    this.promptHistory = new MiraPromptHistoryStore(this.database)
     this.automations = new AutomationStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
@@ -125,17 +131,29 @@ export class PlatformDatabase {
         }
       }
     } catch { return }
-    const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('first-party.mira-harness.harness-react-composer-drafts') as { value: string } | undefined
+    const rows = this.database.prepare('SELECT key, value FROM preferences WHERE key = ? OR key GLOB ?').all(HARNESS_COMPOSER_PREFERENCE, `${HARNESS_COMPOSER_PREFERENCE}.side.*`) as Array<{ key: string; value: string }>
     let snapshot: Record<string, unknown> = {}
-    if (row) {
+    for (const row of rows) {
       try {
         const value: unknown = JSON.parse(row.value)
         // 未来版本可能增加新的引用根；不认识的格式不等于没有附件。
         if (!isObject(value) || Object.keys(value).some(key => !['drafts', 'fileDrafts', 'config', 'recoveries', 'submissions', 'draft'].includes(key))) return
-        snapshot = value
+        if (row.key !== HARNESS_COMPOSER_PREFERENCE) {
+          const owner = row.key.slice(`${HARNESS_COMPOSER_PREFERENCE}.side.`.length)
+          if (!owner || value.draft) return
+          for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+            const entries = value[key]
+            if (entries !== undefined && (!isObject(entries) || Object.keys(entries).some(id => id !== owner))) return
+          }
+        }
+        for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+          if (value[key] !== undefined && !isObject(value[key])) return
+          snapshot[key] = { ...(isObject(snapshot[key]) ? snapshot[key] : {}), ...(isObject(value[key]) ? value[key] : {}) }
+        }
+        if (row.key === HARNESS_COMPOSER_PREFERENCE) snapshot.draft = value.draft
       } catch { return }
     }
-    for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+    for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions', 'permissions']) {
       if (snapshot[key] !== undefined && !isObject(snapshot[key])) return
     }
     const entries = (value: unknown) => isObject(value) ? Object.entries(value) : []
@@ -188,12 +206,13 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_input_history (workspace_key TEXT PRIMARY KEY, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, draft_state TEXT, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, draft_state TEXT, parent_session_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
       CREATE TABLE IF NOT EXISTS harness_tool_calls (session_id TEXT NOT NULL, tool_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, tool_id));
@@ -234,6 +253,7 @@ export class PlatformDatabase {
       this.database.exec('ALTER TABLE harness_sessions ADD COLUMN archived_at INTEGER')
     }
     if (!sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
+    if (!sessionColumns.some(column => column.name === 'parent_session_id')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN parent_session_id TEXT')
     const projectOrderMissing = !projectColumns.some(column => column.name === 'sort_order')
     const sessionOrderMissing = !sessionColumns.some(column => column.name === 'sort_order')
     if (projectOrderMissing || sessionOrderMissing) {
@@ -416,7 +436,7 @@ export class PlatformDatabase {
   }
 
   savePreference(key: string, value: unknown) {
-    if (key === HARNESS_COMPOSER_PREFERENCE) value = this.withoutDeletedHarnessDrafts(value)
+    if (key === HARNESS_COMPOSER_PREFERENCE || key.startsWith(`${HARNESS_COMPOSER_PREFERENCE}.side.`)) value = this.withoutDeletedHarnessDrafts(value)
     if (key === HARNESS_SIDEBAR_PREFERENCE && value && typeof value === 'object' && !Array.isArray(value) && this.deletedHarnessDraftOwners.size) {
       const sidebar = value as Record<string, unknown>
       if (Array.isArray(sidebar.groupedRootOrder)) value = {
@@ -428,21 +448,23 @@ export class PlatformDatabase {
   }
 
   hasUnconfirmedHarnessSubmission(id: string) {
-    const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get(HARNESS_COMPOSER_PREFERENCE) as { value: string } | undefined
-    if (!row) return false
-    const value: unknown = JSON.parse(row.value)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('无法确认待发送草稿状态')
-    if (Object.keys(value).some(key => !['drafts', 'fileDrafts', 'recoveries', 'submissions', 'config', 'draft'].includes(key))) throw new Error('无法确认待发送草稿状态')
-    const submissions = (value as Record<string, unknown>).submissions
-    if (submissions === undefined) return false
-    if (!submissions || typeof submissions !== 'object' || Array.isArray(submissions)) throw new Error('无法确认待发送草稿状态')
-    return Object.prototype.hasOwnProperty.call(submissions, id) && (submissions as Record<string, unknown>)[id] != null
+    const rows = this.database.prepare('SELECT value FROM preferences WHERE key IN (?, ?)').all(HARNESS_COMPOSER_PREFERENCE, `${HARNESS_COMPOSER_PREFERENCE}.side.${id}`) as Array<{ value: string }>
+    for (const row of rows) {
+      const value: unknown = JSON.parse(row.value)
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('无法确认待发送草稿状态')
+      if (Object.keys(value).some(key => !['drafts', 'fileDrafts', 'recoveries', 'submissions', 'config', 'draft'].includes(key))) throw new Error('无法确认待发送草稿状态')
+      const submissions = (value as Record<string, unknown>).submissions
+      if (submissions === undefined) continue
+      if (!submissions || typeof submissions !== 'object' || Array.isArray(submissions)) throw new Error('无法确认待发送草稿状态')
+      if (Object.prototype.hasOwnProperty.call(submissions, id) && (submissions as Record<string, unknown>)[id] != null) return true
+    }
+    return false
   }
 
   removeHarnessDraftOwners(ids: readonly string[]) {
     if (!ids.length) return
     ids.forEach(id => this.deletedHarnessDraftOwners.add(id))
-    for (const key of [HARNESS_COMPOSER_PREFERENCE, HARNESS_SIDEBAR_PREFERENCE]) {
+    for (const key of [HARNESS_COMPOSER_PREFERENCE, HARNESS_SIDEBAR_PREFERENCE, ...ids.map(id => `${HARNESS_COMPOSER_PREFERENCE}.side.${id}`)]) {
       const row = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get(key) as { value: string } | undefined
       if (row) {
         try { this.savePreference(key, JSON.parse(row.value)) }

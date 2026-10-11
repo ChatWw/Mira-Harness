@@ -7,11 +7,13 @@ import { Type, createModels, type ImageContent, type TextContent, type UserMessa
 import { type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { setImmediate as yieldToMain } from 'node:timers/promises'
-import type { HarnessArchivedDeletionResult } from '../../src/config/harness'
+import type { HarnessArchivedDeletionResult, HarnessContextCompactionResult } from '../../src/config/harness'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isMiraPluginId, parseMiraPluginInvocation } from '../../src/config/miraPlugins'
+import { miraPluginPromptIds } from '../storage/miraPluginStore'
 import { DEFAULT_CONTEXT_WINDOW, isModelProviderAvailable, normalizeAssistantTone, normalizeAutoTitle, normalizePlanSteps, providerModel, resolveMiraIdentity, shouldAutoCompactContext, shouldGenerateAutoTitle, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessMessagePart, type HarnessRunActivity, type HarnessRunSummary, type HarnessSession, type HarnessSource, type HarnessSubtaskRole, type HarnessTokenUsage, type ModelSelection, type PermissionMode, type HarnessUserAnswer, type ToolCallRecord } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 import { buildMiraSystemPrompt, type MiraEnvironmentContext } from '../prompts/mira-system-prompt'
@@ -39,6 +41,7 @@ import { HarnessRunCoordinator, type HarnessRunCompleteEvent, type HarnessRunOri
 import { createHarnessModelProvider, supportsHarnessImages } from './harnessModelProvider'
 import { HarnessMessageQueue, type HarnessMessageQueueScope } from './harnessMessageQueue'
 import { changeHarnessGitBranch, readHarnessGitContext } from './harnessWorkspaceGit'
+import { executeMiraPluginShell } from './miraPluginShell'
 
 export { parseMemoryExtraction }
 
@@ -50,10 +53,13 @@ const ASSISTANT_PERSIST_INTERVAL_MS = 250
 type RunOptions = {
   origin?: HarnessRunOrigin
   permissionMode?: PermissionMode
+  skillIds?: string[]
+  pluginIds?: string[]
+  command?: HarnessMessage['command']
   planning?: boolean
   laneToken?: symbol
   scope?: HarnessMessageQueueScope
-  input?: { text: string, attachments: HarnessMessageAttachment[], started?: (persist?: () => void) => void }
+  input?: { text: string, attachments: HarnessMessageAttachment[], command?: HarnessMessage['command'], started?: (persist?: () => void) => void }
 }
 
 function normalizeHarnessSource(value: unknown): HarnessSource | undefined {
@@ -142,10 +148,11 @@ export function finalizeAssistantCitations(content: string, candidates: HarnessS
 }
 
 function messageContent(message: HarnessMessage) {
-  if (!message.attachments?.length) return message.content
+  const content = message.command?.expandedPrompt ?? message.command?.prompt ?? message.content
+  if (!message.attachments?.length) return content
   const files = message.attachments.filter(file => !file.mediaType).map(file => `\n\n[引用文件：${file.path}]\n\`\`\`\n${file.content}\n\`\`\``).join('')
   const images = message.attachments.filter(file => file.mediaType)
-  const text = `${message.content}${files}`
+  const text = `${content}${files}`
   if (!images.length) return text
   return [
     ...(text ? [{ type: 'text', text } satisfies TextContent] : []),
@@ -235,7 +242,7 @@ function activityDetail(toolName: string, args: unknown) {
   return `${prefix}：${safeTarget}`
 }
 
-const TOOL_LABELS: Record<string, string> = { read: '读取文件', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆', ask_user: '需要你的输入', present_plan: '等待方案确认' }
+const TOOL_LABELS: Record<string, string> = { read: '读取文件', load_plugin_skill: '读取插件技能', read_plugin_resource: '读取插件参考文件', list_plugin_skills: '查看插件技能', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆', ask_user: '需要你的输入', present_plan: '等待方案确认', delegate_task: '委派子任务', list_tasks: '查看子任务', wait_for_tasks: '等待子任务', stop_tasks: '停止子任务' }
 
 function sanitizeToolTarget(target: string) {
   return target
@@ -305,6 +312,8 @@ export class HarnessRuntime {
       guideFallback: (item, scope, runId) => {
         if (this.permissionCommand(item.text)) return 'run-unavailable'
         if (item.references.length) return 'attachments'
+        if (item.skillIds?.length) return 'skills'
+        if (item.pluginIds?.length || item.command) return 'plugins'
         if (item.planning) return 'planning'
         const current = this.database.harness.getSession(item.sessionId)
         this.assertQueuedScope(current, scope)
@@ -314,16 +323,20 @@ export class HarnessRuntime {
         if (selection.providerId !== item.selection.providerId || selection.modelId !== item.selection.modelId || (selection.thinkingLevel || 'medium') !== (item.selection.thinkingLevel || 'medium')) return 'model-mismatch'
         if (selection.permissionMode !== item.permissionMode) return 'permission-mismatch'
       },
-      execute: (item, attachments, token, sender, started, scope) => {
+      execute: (item, attachments, token, sender, started, scope, assertAuthorized) => {
         const session = this.database.harness.getSession(item.sessionId)
         this.assertQueuedScope(session, scope)
+        if (item.operation === 'context-compaction') return this.runContextCompaction(sender, item.sessionId, item.selection, assertAuthorized!, { token, scope }).then(() => { started(); return {} }, error => {
+          if (error instanceof Error && error.message === '上下文压缩已停止，原上下文保留') return { interrupted: true }
+          throw error
+        })
         const mode = this.permissionCommand(item.text)
         if (mode) {
           started(() => { this.database.harness.setPermission(item.sessionId, mode) })
           this.emit(sender, { sessionId: item.sessionId, type: 'status', payload: { permissionMode: mode } })
           return Promise.resolve({})
         }
-        return this.runPreparedMessage(sender, item.sessionId, item.text, attachments, item.selection, item.planning, { laneToken: token, permissionMode: item.permissionMode, scope }, started)
+        return this.runPreparedMessage(sender, item.sessionId, item.text, attachments, item.selection, item.planning, { laneToken: token, permissionMode: item.permissionMode, skillIds: item.skillIds, pluginIds: item.pluginIds, command: item.command, scope }, started)
       },
       publish: (sender, queue) => this.emit(sender, { sessionId: queue.sessionId, type: 'queue-updated', payload: { queue } }),
       settled: sessionId => this.runCoordinator.flushComplete(sessionId),
@@ -350,9 +363,10 @@ export class HarnessRuntime {
   getSession(sessionId: string) {
     const session = this.database.harness.getSession(sessionId)
     const flush = !session.archivedAt && this.assistantSnapshotFlushers.get(sessionId)
-    if (!flush) return session
-    flush()
-    return this.database.harness.getSession(sessionId)
+    flush && flush()
+    // Package paths and provenance remain runtime-owned, outside the renderer session projection.
+    const { pluginCatalog: _pluginCatalog, ...publicSession } = flush ? this.database.harness.getSession(sessionId) : session
+    return publicSession
   }
 
   isProjectRunning(projectId: string) {
@@ -518,18 +532,23 @@ export class HarnessRuntime {
     return session
   }
 
-  private async compactContext(sender: WebContents | undefined, session: HarnessSession, model: any, models: ReturnType<typeof createModels>, controller: AbortController, thinkingLevel: string, activities: HarnessRunActivity[], publishActivities: () => void, pendingInput?: RunOptions['input']) {
+  private async compactContext(sender: WebContents | undefined, session: HarnessSession, model: any, models: ReturnType<typeof createModels>, controller: AbortController, thinkingLevel: string, activities: HarnessRunActivity[], publishActivities: () => void, pendingInput?: RunOptions['input'], options: { manual?: boolean, assertCurrent?: () => void } = {}) {
     const messagesForContext = () => [
       ...this.agentMessages(session, model),
-      ...(pendingInput ? [{ role: 'user', content: messageContent({ content: pendingInput.text, attachments: pendingInput.attachments } as HarnessMessage), timestamp: Date.now() }] : []),
+      ...(pendingInput ? [{ role: 'user', content: messageContent({ content: pendingInput.text, attachments: pendingInput.attachments, command: pendingInput.command } as HarnessMessage), timestamp: Date.now() }] : []),
     ]
     const before = contextUsage(messagesForContext(), model.contextWindow || DEFAULT_CONTEXT_WINDOW)
-    if (!shouldAutoCompactContext(before.usedTokens, before.contextWindow)) return this.publishContextUsage(sender, session, before)
+    if (!options.manual && !shouldAutoCompactContext(before.usedTokens, before.contextWindow)) return this.publishContextUsage(sender, session, before)
 
     const start = this.historyStart(session)
     const candidates = session.messages.slice(start)
-    const keepFrom = this.retainedStart(candidates, model)
-    if (keepFrom === 0) throw new Error('上下文过长，无法在保留最近对话的情况下自动压缩')
+    let keepFrom = this.retainedStart(candidates, model)
+    // Manual compaction can summarize a short conversation too, but keeps the latest user turn intact.
+    if (options.manual && keepFrom === 0) keepFrom = candidates.findLastIndex(message => message.role === 'user')
+    if (keepFrom <= 0) {
+      if (options.manual) return this.publishContextUsage(sender, session, before)
+      throw new Error('上下文过长，无法在保留最近对话的情况下自动压缩')
+    }
     const activity: HarnessRunActivity = { id: 'context-compaction', label: '正在压缩上下文', status: 'running', startedAt: Date.now() }
     activities.unshift(activity)
     publishActivities()
@@ -558,7 +577,10 @@ export class HarnessRuntime {
       session.context?.summary,
       thinkingLevel as any,
     )
+    controller.signal.throwIfAborted()
+    options.assertCurrent?.()
     if (!result.ok) throw new Error(`上下文压缩失败：${result.error.message}`)
+    if (!result.value.text.trim()) throw new Error('上下文压缩失败：模型未返回摘要')
     const compactedThrough = candidates[keepFrom - 1]
     session = this.database.harness.getSession(session.id)
     session.context = {
@@ -573,6 +595,65 @@ export class HarnessRuntime {
     activity.detail = `已将较早对话压缩为摘要，保留最近 ${candidates.length - keepFrom} 条消息。`
     publishActivities()
     return this.publishContextUsage(sender, session, contextUsage(messagesForContext(), before.contextWindow))
+  }
+
+  async compactConversation(sender: WebContents, sessionId: string, selection: ModelSelection, assertAuthorized: () => void, submissionId = randomUUID()): Promise<HarnessContextCompactionResult> {
+    assertAuthorized()
+    this.assertGitAdmission(sessionId)
+    const session = this.database.harness.getSession(sessionId)
+    if (session.archivedAt || session.draftState === 'prepared') throw new Error('请先打开已有对话，再压缩上下文')
+    const input = { sessionId, submissionId, operation: 'context-compaction' as const, text: '/compact', references: [], selection, planning: false, permissionMode: session.permissionMode }
+    const replay = this.messageQueue.replay(sessionId, submissionId, input)
+    if (replay) return { status: 'queued', queue: replay.queue }
+    if (session.activeRun?.kind === 'context-compaction' || this.messageQueue.hasCompaction(sessionId)) throw new Error('上下文压缩已在运行或排队')
+    const { model } = this.requireProvider(selection)
+    this.assertImageModel(session, model)
+    if (this.runCoordinator.isExecuting(sessionId) || this.messageQueue.hasPending(sessionId) || session.pendingInteraction?.status === 'waiting' || this.permissionPolicy.listPending(sessionId).length) {
+      const receipt = this.messageQueue.enqueueCompaction(sender, input, { projectId: session.projectId, workingDirectory: session.workingDirectory }, assertAuthorized)
+      return { status: 'queued', queue: receipt.queue }
+    }
+    this.assertSessionMutable(sessionId)
+    return this.runContextCompaction(sender, sessionId, selection, assertAuthorized)
+  }
+
+  private async runContextCompaction(sender: WebContents, sessionId: string, selection: ModelSelection, assertAuthorized: () => void, queued?: { token: symbol; scope: HarnessMessageQueueScope }): Promise<Exclude<HarnessContextCompactionResult, { status: 'queued' }>> {
+    assertAuthorized()
+    const session = this.database.harness.getSession(sessionId)
+    if (session.archivedAt || session.draftState === 'prepared') throw new Error('请先打开已有对话，再压缩上下文')
+    if (queued) this.assertQueuedScope(session, queued.scope)
+    if (session.pendingInteraction?.status === 'waiting' || this.permissionPolicy.listPending(sessionId).length) throw new Error('请先完成当前确认，再压缩上下文')
+    const { provider, model: configuredModel, apiKey } = this.requireProvider(selection)
+    this.assertImageModel(session, configuredModel)
+    const runId = randomUUID(), controller = this.runCoordinator.begin(sessionId, runId, queued?.token)
+    const activities: HarnessRunActivity[] = []
+    const publish = () => {
+      this.database.harness.setActiveRun(sessionId, { id: runId, kind: 'context-compaction', startedAt, activities, subtasks: [] })
+      this.emit(sender, { sessionId, runId, type: 'run-activity', payload: { activities } })
+    }
+    const startedAt = Date.now()
+    let status: HarnessRunCompleteEvent['status'] = 'failed'
+    try {
+      publish()
+      this.emit(sender, { sessionId, runId, type: 'status', payload: { state: 'running', kind: 'context-compaction' } })
+      const { model, models } = createHarnessModelProvider(provider, configuredModel, apiKey)
+      const assertCurrent = () => {
+        assertAuthorized()
+        controller.signal.throwIfAborted()
+        const current = this.database.harness.getSession(sessionId)
+        if (current.archivedAt || current.projectId !== session.projectId || current.workingDirectory !== session.workingDirectory
+          || current.context?.compactedThroughMessageId !== session.context?.compactedThroughMessageId
+          || current.messages.length !== session.messages.length || current.messages.some((message, index) => message.id !== session.messages[index].id)) throw new Error('对话已变化，请重新打开任务后重试')
+      }
+      const updated = await this.compactContext(sender, session, model, models, controller, configuredModel.reasoning ? selection.thinkingLevel || 'medium' : 'off', activities, publish, undefined, { manual: true, assertCurrent })
+      status = 'completed'
+      return { status: updated.context?.compactedThroughMessageId !== session.context?.compactedThroughMessageId ? 'compacted' : 'unchanged', usage: updated.context!.usage! }
+    } catch (error) {
+      if (controller.signal.aborted) { status = 'aborted'; throw new Error('上下文压缩已停止，原上下文保留') }
+      throw error
+    } finally {
+      await this.runCoordinator.finish(sender, sessionId, runId)
+      if (!queued) this.messageQueue.onRunSettled(sessionId, status)
+    }
   }
 
   private assertProjectPath(directory: string | undefined, value: string) {
@@ -597,9 +678,7 @@ export class HarnessRuntime {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       workingDirectory: session.workingDirectory,
       gitBranch,
-      permissionMode: origin === 'automation'
-        ? automationPermissionMode || session.permissionMode
-        : this.database.harness.getPermissionConfig().globalDefaultMode,
+      permissionMode: automationPermissionMode ?? (origin === 'manual' ? this.database.harness.getPermissionConfig().globalDefaultMode : session.permissionMode),
       origin,
     }
   }
@@ -625,7 +704,7 @@ export class HarnessRuntime {
     return this.permissionPolicy.preflightSubtask(name, args)
   }
 
-  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number, toolCallIndex?: () => number, onTool?: (id: string) => void, secrets?: string[] } = {}) {
+  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number, toolCallIndex?: () => number, onTool?: (id: string) => void, secrets?: string[], pluginShell?: boolean } = {}) {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const executionRecord = new AsyncLocalStorage<string>()
@@ -688,8 +767,8 @@ export class HarnessRuntime {
       publicStates.set(id, { status: record.status })
       recordedTools.set(id, { tool, target, startedAt: createdAt })
       this.database.harness.recordTool(sessionId, record)
-      options.onTool?.(id)
       this.emit(sender, { sessionId, type: 'tool-call', payload: { ...record } })
+      options.onTool?.(id)
       return id
     }
     const preflight = async (providerCallId: string, name: string, args: unknown, automation: boolean, mode: PermissionMode | undefined, signal: AbortSignal) => {
@@ -746,7 +825,7 @@ export class HarnessRuntime {
       ? wrapHarnessTool(createWriteTool(), { env }, { record, finish, target: params => params.path ?? '' }, '写入项目内文本文件（不存在则创建，存在则覆盖，自动创建父目录）')
       : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() })), { risk: 'write', title: () => '允许 Mira 写入这个文件？', detail: args => String(args.path ?? '') })
     const bashTool = register(env
-      ? wrapHarnessTool(createBashTool(), { env }, { record, finish, target: params => params.command ?? '' }, '在项目目录中执行命令（返回 stdout/stderr，输出过长会截断）')
+      ? wrapHarnessTool(options.pluginShell ? { ...createBashTool(), execute: (_id: string, params: { command: string }, signal: AbortSignal, onUpdate: any) => executeMiraPluginShell(env, params.command, signal, onUpdate) } : createBashTool(), { env }, { record, finish, target: params => params.command ?? '' }, '在项目目录中执行命令（返回 stdout/stderr，输出过长会截断）')
       : fallbackTool('bash', '执行命令', '在项目目录中执行非危险命令', Type.Object({ command: Type.String() })), { risk: 'command', title: args => permissionTitle('bash', args), detail: args => String(args.command ?? '') })
     const wrapRecordTool = (tool: any, target: (params: any) => string) => ({
       ...tool,
@@ -799,6 +878,23 @@ export class HarnessRuntime {
       ...(options.planning ? [askUserTool, presentPlanTool] : [planTool]),
       ...memoryTools,
       ...mcpTools,
+      ...(session().pluginCatalog?.length && !options.planning && !options.role ? [register({
+        name: 'list_plugin_skills', label: '查看插件技能', description: '列出当前会话内已启用插件的可用 Skill 和描述；不安装、启用或连接插件。',
+        parameters: Type.Object({}), executionMode: 'sequential',
+        execute: async () => ({ content: [{ type: 'text', text: JSON.stringify(this.database.plugins.liveSkills(session().pluginCatalog || []).map(({ name, description }) => ({ name, description }))) }] }),
+      }, { risk: 'read', title: () => '', detail: () => '' }), register({
+        name: 'load_plugin_skill', label: '读取插件技能', description: '按插件限定名称（plugin:skill）读取已注册且已启用的 Skill 指令。用 read_plugin_resource 读取同一 Skill 内的参考文件。不能安装或启用插件。',
+        parameters: Type.Object({ name: Type.String() }), executionMode: 'sequential',
+        execute: async (_id: string, params: { name: string }) => {
+          const frozen = session().pluginCatalog || []
+          const source = this.database.plugins.readSkill(frozen, params.name)
+          return { content: [{ type: 'text', text: `Skill: ${params.name}\nUse read_plugin_resource with this qualified name for bundled reference files.\n\n${source}` }] }
+        },
+      }, { risk: 'read', title: () => '', detail: () => '' }), register({
+        name: 'read_plugin_resource', label: '读取插件参考文件', description: '读取已启用插件 Skill 目录内的参考文本。path 是相对该 Skill 目录的路径，不能越界或经过符号链接。',
+        parameters: Type.Object({ name: Type.String(), path: Type.String({ maxLength: 2048 }) }), executionMode: 'sequential',
+        execute: async (_id: string, params: { name: string; path: string }) => ({ content: [{ type: 'text', text: this.database.plugins.readSkill(session().pluginCatalog || [], params.name, params.path) }] }),
+      }, { risk: 'read', title: () => '', detail: () => '' })] : []),
     ] as any[]
     const allowed = options.role ? new Set(SUBTASK_ROLE_TOOLS[options.role]) : undefined
     const lockable = new Set(['read', 'list_files', 'edit', 'write', 'delete_file', 'bash'])
@@ -892,14 +988,45 @@ export class HarnessRuntime {
     this.assertProjectGitAvailable(session.projectId)
     if (session.archivedAt) throw new Error('目标会话不可用')
     if (options?.delivery === 'guide' && options.expectedRunId !== this.runCoordinator.currentRunId(sessionId)) return { retryRequired: true as const, queue: this.messageQueue.get(sessionId) }
+    const permissionMode = options?.permissionMode ?? session.permissionMode
+    if (options?.permissionMode !== undefined) {
+      if (!['default', 'auto-approve', 'full'].includes(permissionMode)) throw new Error('无效的权限档位')
+      const config = this.database.harness.getPermissionConfig()
+      if (permissionMode === 'auto-approve' && !config.autoApproveEnabled || permissionMode === 'full' && !config.fullAccessEnabled) return { retryRequired: true as const, reason: 'permission-mode-disabled' as const, queue: this.messageQueue.get(sessionId) }
+    }
+    if (options?.skillIds !== undefined && (!Array.isArray(options.skillIds) || options.skillIds.length > 64 || options.skillIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 256 || id.includes('\0')))) throw new Error('技能 ID无效')
+    let skillIds = options?.skillIds
+    if (options?.pluginIds !== undefined && (!Array.isArray(options.pluginIds) || options.pluginIds.length > 8 || options.pluginIds.some(id => typeof id !== 'string' || !isMiraPluginId(id)))) throw new Error('插件 ID无效')
+    const pluginIds = options?.pluginIds ?? miraPluginPromptIds(text)
+    if (!planning && (skillIds !== undefined || text.includes('(mira-skill:'))) {
+      try { skillIds = this.database.skills.resolvePrompt([], text, skillIds).map(skill => skill.id) }
+      catch { return { retryRequired: true as const, reason: 'skill-unavailable' as const, queue: this.messageQueue.get(sessionId) } }
+    }
     const mode = this.permissionCommand(text)
     const configured = mode ? undefined : this.requireProvider(selection)
     const attachments = mode ? [] : this.database.harness.resolveMessageAttachments(sessionId, references)
     const hasImages = attachments.some(file => file.mediaType) || session.messages?.some(message => message.attachments?.some(file => file.mediaType))
     if (configured && hasImages && !supportsHarnessImages(configured.model)) return { retryRequired: true as const, reason: 'image-model-unsupported' as const, queue: this.messageQueue.get(sessionId) }
-    const input = { sessionId, submissionId, text, references, selection, planning, permissionMode: session.permissionMode }
+    const command = parseMiraPluginInvocation(text) ? this.database.plugins.resolveCommand(session.pluginCatalog ?? this.database.plugins.snapshots(), text, true, !planning) : undefined
+    const input = { sessionId, submissionId, text, references, selection, planning, permissionMode, ...(command ? { command } : {}), ...(skillIds === undefined ? {} : { skillIds }), ...(options?.pluginIds === undefined && !pluginIds.length ? {} : { pluginIds }) }
     const scope = { projectId: session.projectId, workingDirectory: session.workingDirectory }
-    return options ? this.messageQueue.submit(sender, input, attachments, scope, options) : this.messageQueue.submit(sender, input, attachments, scope)
+    const directory = scope.workingDirectory || (scope.projectId ? this.database.harness.getProject(scope.projectId).directory : undefined)
+    const result = options ? this.messageQueue.submit(sender, input, attachments, scope, options) : this.messageQueue.submit(sender, input, attachments, scope)
+    const remember = <T extends HarnessMessageSubmissionResult>(receipt: T): T => {
+      if ('submissionId' in receipt) {
+        // Replay returns above; confirmation, rejection and compaction never become new input history.
+        // History persistence cannot turn an already admitted message into an apparent send failure.
+        try { this.database.promptHistory.append(directory, text) }
+        catch (error) { console.warn('[Mira] 输入历史保存失败', error) }
+      }
+      return receipt
+    }
+    if (result instanceof Promise) {
+      // Preserve queue replay's original admission promise and register persistence before callers await it.
+      void result.then(remember, () => undefined)
+      return result
+    }
+    return remember(result)
   }
 
   getMessageQueue(sessionId: string) {
@@ -931,10 +1058,15 @@ export class HarnessRuntime {
     this.assertGitAdmission(sessionId)
     if (this.runCoordinator.isRunning(sessionId)) throw new Error('该会话正在运行')
     if (this.messageQueue.hasPending(sessionId)) throw new Error('请先处理待发送消息')
+    for (const childId of this.database.harness.sideConversationIds(sessionId)) {
+      if (this.runCoordinator.isRunning(childId)) throw new Error('该会话正在运行')
+      if (this.messageQueue.hasPending(childId) || this.database.hasUnconfirmedHarnessSubmission(childId)) throw new Error('请先处理待发送消息')
+    }
   }
 
   async deleteArchivedSessions(ids: readonly string[], assertAuthorized: () => void) {
     const result: HarnessArchivedDeletionResult = { deletedIds: [], skippedIds: [], failedIds: [] }
+    const deletedOwners: string[] = []
     const targets = [...new Set(ids)]
     for (let index = 0; index < targets.length; index++) {
       // Let other windows and cancellation run between batches, never between a target's check/write.
@@ -945,7 +1077,11 @@ export class HarnessRuntime {
         if (!this.database.harness.isSessionArchived(id)) { result.skippedIds.push(id); continue }
         if (this.database.hasUnconfirmedHarnessSubmission(id)) { result.skippedIds.push(id); continue }
         this.assertSessionMutable(id)
-        if (this.database.harness.deleteArchivedSession(id)) result.deletedIds.push(id)
+        const children = this.database.harness.sideConversationIds(id)
+        if (this.database.harness.deleteArchivedSession(id)) {
+          result.deletedIds.push(id)
+          deletedOwners.push(id, ...children)
+        }
         else result.skippedIds.push(id)
       } catch (error) {
         const message = error instanceof Error ? error.message : ''
@@ -953,7 +1089,7 @@ export class HarnessRuntime {
         else result.failedIds.push(id)
       }
     }
-    this.database.removeHarnessDraftOwners(result.deletedIds)
+    this.database.removeHarnessDraftOwners(deletedOwners)
     return result
   }
 
@@ -961,7 +1097,13 @@ export class HarnessRuntime {
     const { provider, model, apiKey } = this.requireProvider(selection)
     const session = this.database.harness.getSession(sessionId)
     this.assertImageModel(session, model, attachments)
-    return this.runAgent(sender, sessionId, session, selection!, provider, apiKey, { ...options, input: { text, attachments, started }, ...(planning ? { planning: true } : {}) })
+    let command = options.command
+    if (command || parseMiraPluginInvocation(text)) {
+      const catalog = session.pluginCatalog ?? this.database.plugins.snapshots()
+      if (command) this.database.plugins.assertCommand(catalog, text, command, !planning)
+      else command = this.database.plugins.resolveCommand(catalog, text, true, !planning)
+    }
+    return this.runAgent(sender, sessionId, session, selection!, provider, apiKey, { ...options, input: { text, attachments, command, started }, ...(planning ? { planning: true } : {}) })
   }
 
   private assertImageModel(session: HarnessSession, model: Parameters<typeof supportsHarnessImages>[0], attachments: HarnessMessageAttachment[] = []) {
@@ -1000,7 +1142,10 @@ export class HarnessRuntime {
     if (this.messageQueue.hasPending(sessionId)) throw new Error('请先处理待发送消息')
     if (this.runCoordinator.isRunning(sessionId)) throw new Error('该会话正在运行')
     const { provider, model, apiKey } = this.requireProvider(selection)
-    this.assertImageModel(this.database.harness.getSession(sessionId), model)
+    const session = this.database.harness.getSession(sessionId)
+    this.assertImageModel(session, model)
+    const last = [...session.messages].reverse().find(message => message.role === 'user')
+    if (last?.command) this.database.plugins.assertCommand(session.pluginCatalog ?? this.database.plugins.snapshots(), last.content, last.command)
     return this.runAgent(sender, sessionId, this.database.harness.regenerate(sessionId), selection, provider, apiKey)
   }
 
@@ -1010,7 +1155,9 @@ export class HarnessRuntime {
     if (this.runCoordinator.isRunning(sessionId)) throw new Error('该会话正在运行')
     const { provider, model, apiKey } = this.requireProvider(selection)
     this.assertImageModel(this.database.harness.getSession(sessionId), model)
-    return this.runAgent(sender, sessionId, this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content), selection, provider, apiKey)
+    const session = this.database.harness.getSession(sessionId)
+    const command = parseMiraPluginInvocation(content) ? this.database.plugins.resolveCommand(session.pluginCatalog ?? this.database.plugins.snapshots(), content) : undefined
+    return this.runAgent(sender, sessionId, this.database.harness.editUserMessageAndTruncate(sessionId, messageId, content, command), selection, provider, apiKey)
   }
 
   async runAutomation(sessionId: string, message: string, selection: ModelSelection, permissionMode: PermissionMode) {
@@ -1019,7 +1166,9 @@ export class HarnessRuntime {
     if (this.runCoordinator.isRunning(sessionId)) throw new Error('该会话正在运行')
     const { provider, model, apiKey } = this.requireProvider(selection)
     this.assertImageModel(this.database.harness.getSession(sessionId), model)
-    const updated = this.database.harness.addMessage(sessionId, 'user', message.trim())
+    const session = this.database.harness.getSession(sessionId)
+    const command = parseMiraPluginInvocation(message) ? this.database.plugins.resolveCommand(session.pluginCatalog ?? this.database.plugins.snapshots(), message, false) : undefined
+    const updated = this.database.harness.addMessage(sessionId, 'user', message.trim(), undefined, false, undefined, command)
     return this.runAgent(undefined, sessionId, updated, selection, provider, apiKey, { origin: 'automation', permissionMode })
   }
 
@@ -1077,13 +1226,15 @@ export class HarnessRuntime {
 
   private async executeAgent(sender: WebContents | undefined, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string, options: RunOptions, runId: string, controller: AbortController) {
     const origin = options.origin || 'manual'
-    const input = options.input ? { content: options.input.text, attachments: options.input.attachments } : [...session.messages].reverse().find(message => message.role === 'user')
+    const input = options.input ? { content: options.input.text, attachments: options.input.attachments, command: options.input.command } : [...session.messages].reverse().find(message => message.role === 'user')
     if (!input || !input.content.trim() && !input.attachments?.length) throw new Error('没有可运行的对话')
     const text = messageRequest(input)
     let inputStarted = !options.input
     const appendInput = () => {
       if (!options.input) return
-      const persist = () => { session = this.database.harness.addMessage(sessionId, 'user', options.input!.text, options.input!.attachments) }
+      const persist = () => {
+        session = this.database.harness.addMessage(sessionId, 'user', options.input!.text, options.input!.attachments, false, options.permissionMode, options.input!.command)
+      }
       if (options.input.started) options.input.started(persist)
       else this.acceptInput(sessionId, persist)
       inputStarted = true
@@ -1210,7 +1361,7 @@ export class HarnessRuntime {
       activities.splice(0, activities.length, ...planActivities, ...others)
       planCursor = 0
     }
-    const advancePlan = (status: 'running' | 'completed' | 'failed') => {
+    const advancePlan = (status: 'running' | 'completed' | 'failed' | 'stopped') => {
       const current = planSteps()[planCursor]
       if (!current) return
       if (status === 'running' && current.status === 'pending') {
@@ -1218,8 +1369,8 @@ export class HarnessRuntime {
       } else if (status === 'completed' && (current.status === 'pending' || current.status === 'running')) {
         Object.assign(current, { status: 'completed', completedAt: Date.now() })
         planCursor++
-      } else if (status === 'failed' && current.status === 'running') {
-        Object.assign(current, { status: 'failed', completedAt: Date.now() })
+      } else if ((status === 'failed' || status === 'stopped') && current.status === 'running') {
+        Object.assign(current, { status, completedAt: Date.now() })
         planCursor++
       }
     }
@@ -1228,12 +1379,16 @@ export class HarnessRuntime {
     let model: any
     let models!: ReturnType<typeof createModels>
     let agent!: Agent
-    let imagePrompt: UserMessage | undefined
+    let inputPrompt: string | UserMessage = text
     const guidanceMessages = new WeakMap<object, NonNullable<ReturnType<HarnessMessageQueue['stageGuide']>>>()
     let registeredTools: ReturnType<HarnessRuntime['tools']> | undefined
     try {
       if (!options.laneToken) appendInput()
-      session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, status: 'active' })
+      if (session.pluginCatalog === undefined) {
+        // Freeze identity once; live enablement and filesystem provenance are rechecked on use.
+        session = this.database.harness.updateSession({ ...session, pluginCatalog: this.database.plugins.snapshots() })
+      }
+      session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, modelThinkingLevel: modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off', status: 'active' })
       const autoTitleInput = origin === 'manual' && !options.laneToken ? firstTurnTitleInput(session) : undefined
       autoTitleRevision = autoTitleInput && session.titleSource === 'auto' ? this.database.harness.reserveAutoTitle(sessionId) : undefined
       this.emit(sender, { sessionId, runId, type: 'status', payload: { state: 'running' } })
@@ -1252,6 +1407,7 @@ export class HarnessRuntime {
       if (options.scope) {
         session = this.database.harness.getSession(sessionId)
         this.assertQueuedScope(session, options.scope)
+        if (options.input?.command) this.database.plugins.assertCommand(session.pluginCatalog!, options.input.text, options.input.command, !options.planning)
         appendInput()
         publishActivities()
         const autoTitleInput = origin === 'manual' ? firstTurnTitleInput(session) : undefined
@@ -1260,9 +1416,68 @@ export class HarnessRuntime {
       const memory = options.planning ? { globalMemory: '', projectMemory: '', loaded: false } : this.memoryCoordinator.loadForRun(sender, sessionId, session, text, activities)
       const { globalMemory, projectMemory } = memory
       if (memory.loaded) publishActivities()
+      if (input.command?.shellParts) {
+        if (options.planning) throw new Error('计划模式不能执行动态插件命令，请关闭计划模式后发送')
+        const frozen = structuredClone(input.command)
+        const scope = { projectId: session.projectId, workingDirectory: session.workingDirectory }
+        const directory = scope.workingDirectory && realpathSync(scope.workingDirectory)
+        if (!directory) throw new Error('动态插件命令需要项目工作目录')
+        const userId = [...session.messages].reverse().find(message => message.role === 'user')!.id
+        let expanded = ''
+        const saveExpansion = (status: NonNullable<typeof frozen.expansionStatus>, suffix = '') => {
+          session = this.database.harness.getSession(sessionId)
+          const user = session.messages.find(message => message.id === userId)
+          if (!user?.command) throw new Error('插件命令所属消息已变化')
+          user.command = { ...frozen, expandedPrompt: expanded + suffix, expansionStatus: status }
+          session = this.database.harness.updateSession(session)
+        }
+        const assertCurrent = () => {
+          controller.signal.throwIfAborted()
+          if (this.runCoordinator.currentRunId(sessionId) !== runId) throw new Error('插件命令所属运行已变化')
+          const current = this.database.harness.getSession(sessionId)
+          this.assertQueuedScope(current, scope)
+          if (realpathSync(current.workingDirectory!) !== directory) throw new Error('工作目录已变化，请重新发送')
+          this.database.plugins.assertCommand(current.pluginCatalog!, input.content, frozen)
+        }
+        // A fresh send/edit/regeneration executes once. Later model history uses the saved output.
+        saveExpansion('running')
+        registeredTools = this.tools(sender, sessionId, { runId, toolScope: () => responseIndex, onTool: appendToolPart, secrets: [apiKey], pluginShell: true })
+        const shell = registeredTools.tools.find((tool: any) => tool.name === 'bash')!
+        try {
+          for (let index = 0; index < frozen.shellParts!.length; index++) {
+            const part = frozen.shellParts![index]
+            assertCurrent()
+            if ('text' in part) { expanded += part.text; continue }
+            if (!part.command.trim()) continue
+            const id = `plugin-expansion-${index}`, args = { command: part.command }
+            activities.filter(item => item.status === 'running' && item.label === '正在思考').forEach(item => finishActivity(item.id))
+            startActivity(id, '展开插件命令', publicHarnessText(part.command, [apiKey]).text)
+            publishActivities()
+            try {
+              const decision = await registeredTools.preflight(id, 'bash', args, origin === 'automation', options.permissionMode, controller.signal)
+              assertCurrent()
+              if (decision?.block) throw new Error(decision.reason)
+              const result = await shell.execute(id, args, controller.signal)
+              assertCurrent()
+              expanded += result.content.filter((block: any) => block.type === 'text').map((block: any) => block.text).join('\n').trimEnd()
+              saveExpansion('running')
+              finishActivity(id)
+            } catch (error) {
+              finishActivity(id, controller.signal.aborted ? 'stopped' : 'failed')
+              throw error
+            } finally { publishActivities() }
+          }
+          saveExpansion('complete')
+          startActivity(`thinking-${activities.length}`, '正在思考')
+          publishActivities()
+        } catch (error) {
+          saveExpansion('failed', '\n\n[插件命令展开未完成；未执行的动态片段已省略。]')
+          throw error
+        }
+      }
       registeredTools = this.tools(sender, sessionId, { planning: options.planning, runId, toolScope: () => responseIndex, onTool: appendToolPart, secrets: [apiKey] })
       const preferences = this.database.getSnapshot().preferences
-      const activeSkills = options.planning ? [] : this.database.skills.resolve(session.activeSkillIds || [])
+      const activeSkills = options.planning ? [] : options.skillIds !== undefined || text.includes('(mira-skill:') ? this.database.skills.resolvePrompt(session.activeSkillIds || [], text, options.skillIds) : this.database.skills.resolve(session.activeSkillIds || [])
       const thinkingLevel = modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off'
       let taskTools: any[] = []
       if (!options.planning && origin === 'manual' && session.delegationEnabled !== false && session.workingDirectory) {
@@ -1279,9 +1494,11 @@ export class HarnessRuntime {
         taskTools = created.tools
       }
       const history = this.agentMessages(session, model, true)
-      const latestMessage = session.messages.at(-1)
-      imagePrompt = latestMessage?.role === 'user' && latestMessage.attachments?.some(file => file.mediaType)
-        ? history.at(-1) as UserMessage : undefined
+      const latestInput = history.at(-1)
+      if (latestInput?.role === 'user') {
+        inputPrompt = typeof latestInput.content === 'string' ? latestInput.content : latestInput as UserMessage
+        history.pop()
+      }
       agent = new Agent({
           initialState: {
           systemPrompt: buildMiraSystemPrompt({
@@ -1298,11 +1515,12 @@ export class HarnessRuntime {
               globalMemory,
               projectMemory,
             },
-          }) + runPromptSuffix({ planning: options.planning, activePlan: session.activePlan, origin }),
+          }) + runPromptSuffix({ planning: options.planning, activePlan: session.activePlan, origin })
+            + (options.planning ? '' : this.database.plugins.reminder(session.pluginCatalog || [], options.pluginIds ?? miraPluginPromptIds(text))),
           model,
           thinkingLevel,
-          // prompt appends its input; the latest image message must enter the model only once.
-          messages: imagePrompt ? history.slice(0, -1) : history,
+          // prompt appends the complete current input, including text files or images, once.
+          messages: history,
           tools: options.planning ? registeredTools.tools : [...registeredTools.tools, ...taskTools],
         } as any,
         streamFn: models.streamSimple.bind(models) as any,
@@ -1322,8 +1540,9 @@ export class HarnessRuntime {
       this.runCoordinator.attachAgent(sessionId, agent, selection, options.permissionMode || this.database.harness.getPermissionConfig().globalDefaultMode || 'default')
     } catch (error) {
       const aborted = controller.signal.aborted
+      registeredTools?.cancelPending(aborted ? '运行已停止' : '插件命令或运行准备失败')
       if (inputStarted) {
-        finishRunningActivities('failed')
+        finishRunningActivities(aborted ? 'stopped' : 'failed')
         publishActivities()
         const completedAt = Date.now()
         const run: HarnessRunSummary = { startedAt, completedAt, durationMs: completedAt - startedAt, activities, status: aborted ? 'stopped' : 'failed', ...(aborted ? {} : { error: error instanceof Error ? error.message : String(error) }) }
@@ -1422,10 +1641,11 @@ export class HarnessRuntime {
             if (!sources.some(item => item.index === source.index)) sources.push(source)
           }
         }
-        advancePlan(event.isError ? 'failed' : 'completed')
-        const suffix = event.isError ? '执行失败' : '执行完成'
+        const status = controller.signal.aborted ? 'stopped' : event.isError ? 'failed' : 'completed'
+        advancePlan(status)
+        const suffix = status === 'stopped' ? '执行已停止' : status === 'failed' ? '执行失败' : '执行完成'
         const activity = activities.find(item => item.id === `tool-${event.toolCallId}`)
-        finishActivity(`tool-${event.toolCallId}`, event.isError ? 'failed' : 'completed', `${activity?.detail || '工具调用'}\n${suffix}`)
+        finishActivity(`tool-${event.toolCallId}`, status, `${activity?.detail || '工具调用'}\n${suffix}`)
         publishActivities()
       }
     })
@@ -1440,7 +1660,7 @@ export class HarnessRuntime {
     this.assistantSnapshotFlushers.set(sessionId, flushAssistantDelta)
     try {
       controller.signal.throwIfAborted()
-      await prompt(imagePrompt ?? text)
+      await prompt(inputPrompt)
       if (options.planning && !controller.signal.aborted && !agent.state.errorMessage && this.database.harness.getSession(sessionId).pendingInteraction?.status !== 'waiting') {
         await prompt('系统提醒：当前仍处于计划模式。请调用 ask_user 提出必要澄清，或调用 present_plan 提交可确认的完整方案；不要只在普通回复中写问题或计划。')
         planningInteractionCanonical = this.database.harness.getSession(sessionId).pendingInteraction?.status === 'waiting'
@@ -1518,7 +1738,7 @@ export class HarnessRuntime {
       return { content: completedOutput + output, run }
     } catch (error) {
       await subtasks?.close(controller.signal.aborted ? 'stopped' : 'interrupted')
-      finishRunningActivities('failed')
+      finishRunningActivities(controller.signal.aborted ? 'stopped' : 'failed')
       publishActivities()
       const aborted = controller.signal.aborted
       for (const part of parts) if (part.type !== 'tool') finishPart(part, 'interrupted')

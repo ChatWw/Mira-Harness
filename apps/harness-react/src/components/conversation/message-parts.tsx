@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, CircleAlert, Copy, FileText, GitCompare, LoaderCircle, Pencil, RotateCw } from 'lucide-react'
+import { Check, CircleAlert, Copy, FileText, GitCompare, GitFork, LoaderCircle, Pencil, RotateCw } from 'lucide-react'
 import type { HarnessFileChange, HarnessMessage } from '../../../../../src/config/harness'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
 import { MiraAttachmentPreview } from '../composer/MiraAttachmentPreview'
@@ -102,15 +102,35 @@ function formatUsage(message: HarnessMessage) {
 }
 
 /** 消息工具栏（ZCode 模式：hover 才显现）。 */
-export function AssistantToolbar({ message, latestAssistantId, canRerun = true, onRerun, onError }: { message?: HarnessMessage; latestAssistantId?: string; canRerun?: boolean; onRerun?: () => Promise<void>; onError?: (error: unknown) => void }) {
+export function AssistantToolbar({ message, latestAssistantId, canRerun = true, onRerun, onFork, onError }: { message?: HarnessMessage; latestAssistantId?: string; canRerun?: boolean; onRerun?: () => Promise<void>; onFork?: (requestId: string) => Promise<boolean>; onError?: (error: unknown) => void }) {
   if (!message) return null
   const usage = formatUsage(message)
   return <div className="mt-1 flex items-center gap-1 text-foreground-subtlest">
     {message.createdAt ? <span className="text-ui-xs">{formatTime(message.createdAt)}</span> : null}
     {usage && <span className="text-ui-xs">{usage}</span>}
     <MessageCopyButton content={message.content} onError={onError} />
+    {onFork && <MiraForkAction onFork={onFork} />}
     {onRerun && message.id === latestAssistantId && <button type="button" className="mira-message-action" disabled={!canRerun} aria-label="重新生成最新回复" title="重新生成最新回复" onClick={() => { if (canRerun) void onRerun().catch(error => onError?.(error)) }}><RotateCw size={13} /></button>}
   </div>
+}
+
+function MiraForkAction({ onFork }: { onFork: (requestId: string) => Promise<boolean> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const pending = useRef(false)
+  const request = useRef('')
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  async function fork() {
+    if (pending.current) return
+    pending.current = true
+    request.current ||= crypto.randomUUID()
+    setBusy(true); setError('')
+    try { if (await onFork(request.current)) request.current = '' }
+    catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : '分支创建失败，请重试。') }
+    finally { pending.current = false; if (mounted.current) setBusy(false) }
+  }
+  return <><button type="button" className="mira-message-action" disabled={busy} aria-label={busy ? '正在创建分支' : '从这里分支'} title={busy ? '正在创建分支' : '从这里分支；保留当前项目文件'} onClick={() => void fork()}>{busy ? <LoaderCircle size={13} className="animate-spin" /> : <GitFork size={13} />}</button>{error && <span role="alert" className="text-ui-xs text-destructive">{error}</span>}</>
 }
 
 /** 用户消息行内编辑：确认后截断后续并重跑。 */

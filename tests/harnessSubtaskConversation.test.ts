@@ -47,6 +47,7 @@ function setup(streamFn: any, preflight?: (name: string, args: any) => Promise<a
   database.harness.addMessage(session.id, 'user', 'Parent public request')
   database.harness.setActiveRun(session.id, { id: runId, startedAt: 1, activities: [], subtasks: [] })
   const events: HarnessEvent[] = [], runtime = new HarnessRuntime(database, { getTools: () => [] } as any, event => events.push(structuredClone(event)))
+  const parent = { followUp: vi.fn() }
   const publish = vi.fn(() => {
     const state = database.harness.getSession(session.id)
     if (state.activeRun?.id !== runId) return
@@ -56,16 +57,45 @@ function setup(streamFn: any, preflight?: (name: string, args: any) => Promise<a
   })
   const created = new HarnessSubtaskCoordinator(database).create({ sender: undefined, sessionId: session.id, session: database.harness.getSession(session.id), model, streamFn, thinkingLevel: 'high', pricing: undefined, secrets: [secret], publishActivities: publish,
     toolsForTask: (role, subtaskId, scope) => (runtime as any).tools(undefined, session.id, { role, subtaskId, runId, toolScope: scope.responseIndex, toolCallIndex: scope.callIndex, onTool: scope.onTool, secrets: [secret] }),
-    preflightToolCall: preflight || ((name, args) => (runtime as any).preflightSubtaskToolCall(name, args)), getParentAgent: () => undefined,
+    preflightToolCall: preflight || ((name, args) => (runtime as any).preflightSubtaskToolCall(name, args)), getParentAgent: () => parent as any,
   })
   const child = async (task: string, files?: string[], role: 'reviewer' | 'tester' = 'reviewer') => {
     const result: any = await created.tools.find(tool => tool.name === 'delegate_task')!.execute('parent-delegate', { role, task, files })
     return created.runtime.list().find(task => task.id === result.details.id)!
   }
-  return { home, directory, database, runtime, sessionId: session.id, runId, events, publish, child, children: created.runtime, session: () => database.harness.getSession(session.id) }
+  return { home, directory, database, runtime, sessionId: session.id, runId, events, publish, child, children: created.runtime, tools: created.tools, parent, session: () => database.harness.getSession(session.id) }
 }
 
 describe('real child Agent public conversation', () => {
+  it.each([false, true])('does not queue redundant parent turns for children whose reports are being awaited (selected=%s)', async selected => {
+    const completions: Array<() => void> = []
+    const fixture = setup(() => {
+      const stream = createAssistantMessageEventStream()
+      completions.push(() => {
+        stream.push({ type: 'done', reason: 'stop', message: { role: 'assistant', api: model.api, provider: model.provider, model: model.id, content: [text('Public report')], usage, stopReason: 'stop', timestamp: Date.now() } } as any)
+        stream.end()
+      })
+      return stream
+    })
+    const first = await fixture.child('First task'), second = await fixture.child('Second task')
+    await vi.waitFor(() => expect(completions).toHaveLength(2))
+    const waiting = fixture.tools.find(tool => tool.name === 'wait_for_tasks')!.execute('wait', selected ? { ids: [first.id] } : {})
+    try {
+      completions[1]()
+      await fixture.children.wait([second.id])
+      expect(fixture.parent.followUp).toHaveBeenCalledTimes(selected ? 1 : 0)
+      completions[0]()
+      const reports: any = await waiting
+      expect(reports.details.ids).toEqual(selected ? [first.id] : [first.id, second.id])
+      expect(reports.content[0].text).toContain('Public report')
+      expect(fixture.parent.followUp).toHaveBeenCalledTimes(selected ? 1 : 0)
+      const third = await fixture.child('Later task')
+      await vi.waitFor(() => expect(completions).toHaveLength(3))
+      completions[2](); await fixture.children.wait([third.id])
+      expect(fixture.parent.followUp).toHaveBeenCalledTimes(selected ? 2 : 1)
+    } finally { completions.forEach(complete => complete()); await fixture.children.close() }
+  })
+
   it('projects real thinking/text/tools in order with canonical identities for repeated calls, children and responses', async () => {
     const turns = new Map<string, number>(), actualResults: any[] = []
     const fixture = setup((_model: any, context: any) => {
@@ -172,7 +202,16 @@ describe('real child Agent public conversation', () => {
     expect(fixture.session().toolCalls.find(tool => tool.subtaskId === child.id)?.status).toBe('cancelled')
     await fixture.children.wait()
     expect(child.status).toBe('stopped')
+    expect(child.activities).toEqual([expect.objectContaining({ status: 'stopped', label: 'bash', completedAt: child.completedAt })])
     expect(fixture.session().toolCalls.find(tool => tool.subtaskId === child.id)).toMatchObject({ status: 'cancelled', output: { text: 'recorded ' } })
+    expect(fixture.session().activeRun?.subtasks[0]).toEqual(child)
+    const published = fixture.events.filter(event => event.type === 'run-activity').at(-1)!.payload.subtasks
+    expect(published).toEqual([child])
+    const reopened = new PlatformDatabase(fixture.home)
+    try {
+      expect(reopened.harness.getSession(fixture.sessionId).activeRun?.subtasks[0]).toEqual(child)
+      expect(reopened.harness.getSession(fixture.sessionId).toolCalls.find(tool => tool.subtaskId === child.id)).toMatchObject({ status: 'cancelled', output: { text: 'recorded ' } })
+    } finally { reopened.close() }
     expect(JSON.stringify(fixture.events.filter(event => event.payload.output))).not.toContain('LATE')
     expect(JSON.stringify(fixture.events.filter(event => event.payload.output))).not.toContain('platform-')
   })

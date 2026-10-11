@@ -7,21 +7,29 @@ import { useMiraConversationDetail } from './MiraConversationDetails'
 import { taskFindTargetKey } from '../../lib/conversation-find'
 import { miraAssistantWorkItems } from '../../lib/tool-exploration'
 import { MiraToolExploration } from './MiraToolExploration'
+import { MiraToolCommandGroup } from './MiraToolCommandGroup'
 
 export interface PermissionResponseCardProps {
   request: HarnessPermissionRequest
   responding: boolean
   error?: string
-  placement: 'inline' | 'fallback'
+  placement: 'inline' | 'fallback' | 'dock'
   onRespond: (requestId: string, allowed: boolean) => Promise<void>
 }
 
 export function PermissionResponseCard({ request, responding, error, placement, onRespond }: PermissionResponseCardProps) {
-  return <section className="pilot-action mira-tool-permission" aria-label="权限确认" aria-busy={responding} data-permission-request-id={request.requestId} data-permission-placement={placement}>
+  return <section className="pilot-action mira-tool-permission" aria-label="权限确认" tabIndex={-1} aria-busy={responding} data-permission-request-id={request.requestId} data-permission-placement={placement} onKeyDown={event => {
+    if (responding || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+    const index = buttons.indexOf(event.target as HTMLButtonElement)
+    const next = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? Math.min(index + 1, buttons.length - 1) : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? Math.max(index - 1, 0) : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : -1
+    if (next < 0 || !buttons[next]) return
+    event.preventDefault(); event.stopPropagation(); buttons[next].focus()
+  }}>
     <ShieldCheck size={19} aria-hidden="true" />
     <div>
       <strong>{request.title}</strong>
-      <p>{request.detail}</p>
+      <p className="mira-tool-permission__detail">{request.detail}</p>
       {error && <p className="mira-tool-error" role="alert">{error}</p>}
       {responding && <p role="status">正在提交确认…</p>}
       <div className="pilot-action__buttons">
@@ -56,7 +64,7 @@ const AssistantReasoning = memo(function AssistantReasoning({ part, memoryKey }:
       {part.truncated && <small>内容已截断</small>}
       <ChevronDown size={13} aria-hidden="true" />
     </summary>
-    {expanded && <div className="mira-reasoning__content">{part.text}{part.truncated && <p className="mira-payload-truncated" role="note">思考内容超过记录上限，仅保留已记录部分。</p>}</div>}
+    {expanded && <div className="mira-reasoning__content"><div data-mira-selectable="reasoning" data-mira-selection-region={part.id}>{part.text}</div>{part.truncated && <p className="mira-payload-truncated" role="note">思考内容超过记录上限，仅保留已记录部分。</p>}</div>}
   </details>
 })
 
@@ -75,11 +83,12 @@ export function AssistantMessageParts({ message, toolsById, streaming = false, p
 }) {
   return <div className="mira-assistant-parts">{miraAssistantWorkItems(message, toolsById, streaming, permissionPartId).map(item => {
     if (item.kind === 'exploration') return <MiraToolExploration key={`exploration:${item.firstId}`} item={item} onOpenFile={onOpenFile} />
+    if (item.kind === 'commands') return <MiraToolCommandGroup key={`commands:${item.firstId}`} item={item} />
     const { part, tool } = item
     if (hasPlan && tool?.tool === 'set_plan' && tool.status === 'ok') return null
     const child = tool?.tool === 'delegate_task' ? subtaskForTool?.(tool.id) : undefined
     return <div key={part.id} className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
-      {part.type === 'text' ? <MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /> : part.type === 'reasoning' ? <AssistantReasoning part={part} memoryKey={JSON.stringify(['reasoning', message.runId ?? message.id, part.id])} /> : <>
+      {part.type === 'text' ? <div data-mira-selectable="assistant" data-mira-selection-region={part.id}><MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /></div> : part.type === 'reasoning' ? <AssistantReasoning part={part} memoryKey={JSON.stringify(['reasoning', message.runId ?? message.id, part.id])} /> : <>
         {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
         {permission && permissionPartId === part.id && <PermissionResponseCard {...permission} />}
       </>}

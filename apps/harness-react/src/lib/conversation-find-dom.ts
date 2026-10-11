@@ -4,13 +4,16 @@ import { taskFindOffsets, type TaskFindMatch } from './conversation-find'
 
 const MATCH_HIGHLIGHT = 'mira-task-find'
 const ACTIVE_HIGHLIGHT = 'mira-task-find-active'
+let highlightOwner: object | undefined
 type HighlightSet = Set<Range> & { priority: number }
 const support = () => ({ registry: (globalThis.CSS as typeof CSS & { highlights?: Map<string, HighlightSet> })?.highlights, Constructor: (globalThis as typeof globalThis & { Highlight?: new () => HighlightSet }).Highlight })
 
-export function clearTaskFindHighlights() {
+export function clearTaskFindHighlights(owner?: object) {
+  if (owner && owner !== highlightOwner) return
   const { registry } = support()
   registry?.delete(MATCH_HIGHLIGHT)
   registry?.delete(ACTIVE_HIGHLIGHT)
+  highlightOwner = undefined
 }
 
 export function taskFindRanges(element: HTMLElement, query: string): Range[] {
@@ -41,7 +44,7 @@ export function taskFindRanges(element: HTMLElement, query: string): Range[] {
   })
 }
 
-export function applyTaskFindHighlights(root: HTMLElement, query: string, active?: TaskFindMatch) {
+export function applyTaskFindHighlights(root: HTMLElement, query: string, active?: TaskFindMatch, owner: object = root) {
   const { registry, Constructor } = support()
   if (!registry || !Constructor) return undefined
   const all = new Constructor(), selected = new Constructor()
@@ -57,6 +60,7 @@ export function applyTaskFindHighlights(root: HTMLElement, query: string, active
   }
   registry.set(MATCH_HIGHLIGHT, all)
   registry.set(ACTIVE_HIGHLIGHT, selected)
+  highlightOwner = owner
   return activeRange
 }
 

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { AssistantRuntimeProvider, ThreadPrimitive, useExternalStoreRuntime } from '@assistant-ui/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraWorkbenchViewport } from '../apps/harness-react/src/components/workbench/HarnessWorkbench'
 import { ConversationTurnRail } from '../apps/harness-react/src/components/conversation/ConversationTurnRail'
@@ -86,22 +85,19 @@ async function mountReactViewport() {
   const actionsRef = { current: null as ConversationScrollActions | null }, timelineRef = { current: null as ConversationTimelineActions | null }
   const onBottomChange = vi.fn(), onNavigate = vi.fn()
   const memoryPrefix = 'react-viewport-' + ++nextMemory
-  const options = { parentVersion: 0, text: '原回复', approval: '', owner: 'first', ready: true, count: 3 }
+  const options = { parentVersion: 0, text: '原回复', approval: '', owner: 'first', ready: true }
   const railMessages = [{ id: 'u1', role: 'user' as const, content: '第一轮', createdAt: 1 }, { id: 'a1', role: 'assistant' as const, content: '回复', createdAt: 2 }, { id: 'u2', role: 'user' as const, content: '第二轮', createdAt: 3 }]
   function Host() {
-    const messages = React.useMemo(() => railMessages.slice(0, options.count).map(message => ({ id: message.id, role: message.role, content: [{ type: 'text' as const, text: message.content }], createdAt: new Date(message.createdAt) })), [options.count])
-    const adapter = React.useMemo(() => ({ messages, convertMessage: (message: typeof messages[number]) => message, onNew: async () => undefined }), [messages])
-    const runtime = useExternalStoreRuntime(adapter)
     const [activeId, setActiveId] = React.useState('u1')
-    return React.createElement(AssistantRuntimeProvider, { runtime }, React.createElement(ThreadPrimitive.Root, null,
+    return React.createElement('div', null,
       React.createElement('span', null, options.parentVersion),
       React.createElement(ConversationTurnRail, { messages: railMessages, activeId, onNavigate: id => { onNavigate(id, options.parentVersion); setActiveId(id); actionsRef.current?.pause(); if (node) { node.scrollTop = id === 'u1' ? 0 : 400; node.dispatchEvent(new Event('scroll')) } } }),
       React.createElement(MiraWorkbenchViewport, {
         key: options.owner, memoryKey: memoryPrefix + options.owner, viewportRef, actionsRef, timelineRef, active: true, ready: options.ready, hasContent: true,
-        messageWindow: JSON.stringify([messages.length, messages[0]?.id, messages.at(-1)?.id]), onBottomChange,
+        onBottomChange,
         children: React.createElement('div', null, React.createElement('article', { 'aria-label': '回复正文' }, options.text), options.approval && React.createElement('section', { 'aria-label': '审批确认' }, options.approval)),
       }),
-    ))
+    )
   }
   const container = document.createElement('div')
   document.body.append(container)
@@ -126,8 +122,10 @@ async function mountReactViewport() {
 
 function mount(saved?: ConversationScrollPosition, timelineRef?: { current: ConversationTimelineActions | null }) {
   const listeners = new Map<string, (event: unknown) => void>()
+  const column = { clientWidth: 840 }
   const node = {
     scrollTop: 0, scrollHeight: 2400, clientHeight: 600, firstElementChild: {},
+    querySelector: vi.fn(() => column),
     getBoundingClientRect: vi.fn(() => ({ top: 0 })), querySelectorAll: vi.fn(() => []),
     addEventListener: (name: string, listener: (event: unknown) => void) => listeners.set(name, listener),
     removeEventListener: (name: string) => listeners.delete(name),
@@ -147,8 +145,8 @@ function mount(saved?: ConversationScrollPosition, timelineRef?: { current: Conv
   hooks.effects.splice(0).forEach(effect => effect())
   for (let frame = 0; frame < 2; frame++) { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback(frame)) }
   return {
-    node, actionsRef, onBottomChange,
-    following: () => render().autoScroll,
+    node, column, actionsRef, onBottomChange,
+    following: () => actionsRef.current!.isFollowing(),
     saved: () => conversationScrollMemory.read(memoryKey),
     emit: (name: string, event: unknown = {}) => listeners.get(name)!(event),
     resize: () => resizeCallbacks.forEach(callback => callback()),
@@ -170,7 +168,7 @@ describe('conversation follow intent across streamed layout changes', () => {
     expect(view.node.getBoundingClientRect).not.toHaveBeenCalled()
   })
 
-  it('does not read layout or replace saved history when assistant-ui recomposes the same viewport ref', () => {
+  it('does not read layout or replace saved history when React recomposes the same viewport ref', () => {
     const view = mount()
     view.emit('wheel', { deltaY: -400 }); view.node.scrollTop = 900; view.emit('scroll')
     const saved = view.saved()
@@ -235,6 +233,39 @@ describe('conversation follow intent across streamed layout changes', () => {
     view.node.scrollHeight = 3600; view.resize()
     expect(view.node.scrollTop).toBe(1000)
     expect(view.following()).toBe(false)
+  })
+
+  it('restores the reading turn after a column reflow without overwriting its pre-resize offset', async () => {
+    let top = -120
+    const turn = { dataset: { miraTurnId: 'reading-turn' }, getBoundingClientRect: () => ({ top, bottom: top + 600 }) }
+    const restore = vi.fn((position: ConversationScrollPosition, node: HTMLElement) => { node.scrollTop += top - position.anchor!.offset; top = position.anchor!.offset; return true })
+    const view = mount(undefined, { current: { restore, jumpToMessage: vi.fn(), jumpToInteraction: () => false } })
+    view.node.querySelectorAll.mockReturnValue([turn] as never)
+    view.emit('wheel', { deltaY: -500 }); view.node.scrollTop = 1000; view.emit('scroll')
+    const before = view.saved()
+    view.column.clientWidth = 500; view.node.scrollHeight = 3600; top = 300
+    view.resize(); view.emit('scroll')
+    expect(view.saved()).toEqual(before)
+    await new Promise(resolve => window.setTimeout(resolve, 150)); view.frame(); view.frame()
+    expect(view.node.scrollTop).toBe(1420)
+    expect(view.saved()).toMatchObject({ following: false, anchor: { turnId: 'reading-turn', offset: -120 } })
+    expect(restore).toHaveBeenCalled()
+    expect(view.actionsRef.current!.isRestoring()).toBe(false)
+  })
+
+  it('lets a new reading gesture cancel the pending column correction', async () => {
+    let top = -120
+    const turn = { dataset: { miraTurnId: 'reading-turn' }, getBoundingClientRect: () => ({ top, bottom: top + 600 }) }
+    const restore = vi.fn(() => true)
+    const view = mount(undefined, { current: { restore, jumpToMessage: vi.fn(), jumpToInteraction: () => false } })
+    view.node.querySelectorAll.mockReturnValue([turn] as never)
+    view.emit('wheel', { deltaY: -500 }); view.node.scrollTop = 1000; view.emit('scroll')
+    view.column.clientWidth = 500; top = 300; view.resize()
+    view.emit('wheel', { deltaY: -100 }); view.node.scrollTop = 900; top = 400; view.emit('scroll')
+    await new Promise(resolve => window.setTimeout(resolve, 150)); view.frame()
+    expect(restore).not.toHaveBeenCalled()
+    expect(view.node.scrollTop).toBe(900)
+    expect(view.saved()).toMatchObject({ following: false, anchor: { turnId: 'reading-turn', offset: 400 } })
   })
 
   it('resumes from a multi-event wheel scroll that reaches the bottom and follows later growth', () => {
@@ -310,13 +341,14 @@ describe('Workbench viewport real React lifecycle', () => {
     expect(view.viewportRef.current!.scrollTop).toBe(2000)
   })
 
-  it('allows readiness and message-window updates, replaces a keyed owner, and cleans up the real unmount', async () => {
+  it('allows readiness and content updates, replaces a keyed owner, and cleans up the real unmount', async () => {
     const view = await mountReactViewport()
     const original = view.viewportRef.current!
     await view.render({ ready: false })
     expect(original.style.visibility).toBe('hidden')
-    await view.render({ ready: true, count: 2 })
+    await view.render({ ready: true, text: '更新后的完整回复' })
     expect(original.style.visibility).toBe('')
+    expect(original.textContent).toContain('更新后的完整回复')
     view.refs.length = 0
     await view.render({ owner: 'second' })
     expect(original.isConnected).toBe(false)

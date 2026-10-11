@@ -18,6 +18,7 @@ class ProjectLock {
         const index = this.queue.indexOf(waiter)
         if (index >= 0) this.queue.splice(index, 1)
         reject(new Error('任务已停止'))
+        this.drain()
       }
       signal?.addEventListener('abort', abort, { once: true })
       const originalResolve = resolve

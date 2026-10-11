@@ -296,7 +296,8 @@ function focusInput() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (!event.defaultPrevented && !event.isComposing && !event.repeat && !event.altKey && !event.shiftKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+  const key = event.key.toLowerCase()
+  if (!event.defaultPrevented && !event.isComposing && event.keyCode !== 229 && !event.repeat && !event.altKey && (event.ctrlKey || event.metaKey) && (event.shiftKey ? key === 'p' : key === 'k')) {
     event.preventDefault()
     paletteStore.open()
   } else if (event.key === 'Escape' && paletteStore.visible) {

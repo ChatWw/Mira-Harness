@@ -63,6 +63,99 @@ function rootOrder(view: ReturnType<typeof sidebar>) {
 }
 
 describe('Mira sidebar collections through actual component callbacks', () => {
+  it('selects the explicitly focused side task rather than the primary task in both sidebar modes', async () => {
+    const view = sidebar('group', { activeSessionId: 's2' }); view.state.session = { id: 's1' }; await view.drain()
+    expect(view.props(p => p.session && (p.session as HarnessSessionSummary).id === 's2').active).toBe(true)
+    expect(view.props(p => p.session && (p.session as HarnessSessionSummary).id === 's1').active).toBe(false)
+  })
+
+  it('explains a missing project directory without hiding history or disabling metadata actions', async () => {
+    const view = sidebar('project'); view.state.projects[0].directoryExists = false; await view.drain()
+    const collection = view.props(p => p.id === 'sidebar-project:p')
+    expect(collection.unavailableReason).toContain('项目目录不可用')
+    expect(collection.onBeginRename).toBeTypeOf('function'); expect(collection.onHide).toBeTypeOf('function')
+    expect(view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's2')).toBeDefined()
+    ;(collection.onToggle as () => void)(); await view.drain()
+    expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it.each(['context', 'dropdown'] as const)('explains disabled directory actions in the %s menu but allows rename and hide', kind => {
+    const reason = '项目目录不可用，请恢复原路径后重新打开项目；历史任务仍可查看。'
+    const menu = SidebarCollectionMenu({ kind, name: 'Mira', unavailableReason: reason, onNewTask: vi.fn(), onBeginRename: vi.fn(), onOpenFiles: vi.fn(), onOpenDirectory: vi.fn(), onHide: vi.fn() })
+    const items = findAll(menu, p => typeof p.onSelect === 'function')
+    expect(items.filter(item => item.disabled).map(item => JSON.stringify(item.children))).toHaveLength(4)
+    expect(find(menu, p => JSON.stringify(p.children) === JSON.stringify(reason))).toBeDefined()
+    expect(items.filter(item => !item.disabled).map(item => JSON.stringify(item.children)).join(' ')).toContain('重命名')
+    expect(items.filter(item => !item.disabled).map(item => JSON.stringify(item.children)).join(' ')).toContain('从侧栏隐藏')
+  })
+
+  it('keeps a focusable unavailable marker in expanded and collapsed projects and guards disabled actions', async () => {
+    const onNewTask = vi.fn(), onOpenFiles = vi.fn()
+    let expanded = false, unavailableReason: string | undefined = '项目目录不可用，请恢复原路径后重新打开项目；历史任务仍可查看。'
+    const view = mount(() => SidebarCollectionSection({ id: 'p', name: 'Mira', count: 1, directory: '/missing', unavailableReason, expanded, renaming: false, sortable: false, onToggle: vi.fn(), onBeginRename: vi.fn(), onCancelRename: vi.fn(), onRename: vi.fn(), onNewTask, onOpenFiles, children: null }))
+    const marker = () => view.props(p => p.role === 'img' && String(p['aria-label']).includes('目录不可用'))
+    const create = () => view.props(p => p['aria-label'] === '在 Mira 新建任务')
+    const files = () => view.props(p => p['aria-label'] === '显示 Mira 的文件树')
+    expect(marker()?.tabIndex).toBe(0); expect(create().disabled).toBe(true); expect(files().disabled).toBe(true)
+    ;(create().onClick as () => void)(); (files().onClick as () => void)(); await view.drain()
+    expect(onNewTask).not.toHaveBeenCalled(); expect(onOpenFiles).not.toHaveBeenCalled()
+    expanded = true; view.render(); expect(marker()?.tabIndex).toBe(0)
+    unavailableReason = undefined; view.render(); expect(marker()).toBeUndefined()
+    expect(create().disabled).toBe(false); expect(files().disabled).toBe(false)
+    ;(create().onClick as () => void)(); (files().onClick as () => void)(); await view.drain()
+    expect(onNewTask).toHaveBeenCalledOnce(); expect(onOpenFiles).toHaveBeenCalledOnce()
+  })
+
+  it.each(['group', 'project'] as const)('summarizes hidden task state in the %s header without opening or reading tasks', async mode => {
+    const view = sidebar(mode); await view.drain()
+    view.state.sessions = [...view.state.sessions, { id: 's3', title: '等待确认', projectId: 'p', createdAt: 3, updatedAt: 4, status: 'active', planStatus: 'awaiting_confirmation' }]
+    view.state.runningSessionIds = ['s2', 's3']
+    view.state.sessions = view.state.sessions.map(session => session.id === 's2' ? { ...session, unread: true } : session)
+    if (mode === 'group') {
+      ;(view.props(p => p.id === 'sidebar-group:g1').onToggle as () => void)()
+      // The third task belongs to another collection and must not inflate this one.
+    } else (view.props(p => p.id === 'sidebar-project:p').onToggle as () => void)()
+    await view.drain()
+    const header = () => view.props(p => p.id === (mode === 'group' ? 'sidebar-group:g1' : 'sidebar-project:p'))
+    expect(header()).toMatchObject({ hasUnread: true, runningCount: 1, waitingCount: mode === 'group' ? 0 : 1, expanded: false })
+    expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
+    view.state.runningSessionIds = []
+    view.state.sessions = view.state.sessions.map(session => ({ ...session, unread: false, planStatus: session.id === 's3' ? 'completed' : session.planStatus }))
+    await view.drain()
+    expect(header()).toMatchObject({ hasUnread: false, runningCount: 0, waitingCount: 0, expanded: false })
+  })
+
+  it('shows collapsed state markers independently and removes them when expanded or renaming', () => {
+    let expanded = false, renaming = false
+    const view = mount(() => SidebarCollectionSection({ id: 'g', name: '研究', count: 8, hasUnread: true, runningCount: 2, waitingCount: 1, expanded, renaming, sortable: false, onToggle: vi.fn(), onBeginRename: vi.fn(), onCancelRename: vi.fn(), onRename: vi.fn(), onNewTask: vi.fn(), children: null }))
+    expect(view.allProps(p => p.role === 'img').map(p => p['aria-label'])).toEqual(['研究 有未读回复', '研究 有 2 个任务执行中', '研究 有 1 个任务待确认'])
+    expanded = true; view.render(); expect(view.allProps(p => p.role === 'img')).toHaveLength(0)
+    expanded = false; renaming = true; view.render(); expect(view.allProps(p => p.role === 'img')).toHaveLength(0)
+  })
+
+  it('retains the collection action anchor while its portalled menu is open', () => {
+    const view = mount(() => SidebarCollectionSection({ id: 'p', name: '项目', count: 0, expanded: false, sortable: false, renaming: false, onToggle: vi.fn(), onBeginRename: vi.fn(), onCancelRename: vi.fn(), onRename: vi.fn(), onNewTask: vi.fn(), children: null }))
+    const head = () => view.props(p => 'data-collection-header' in p)
+    const menu = () => view.props(p => typeof p.onOpenChange === 'function' && p.open !== undefined)
+    expect(head()['data-menu-open']).toBeUndefined()
+    ;(menu().onOpenChange as (open: boolean) => void)(true); view.render()
+    expect(head()['data-menu-open']).toBe(true); expect(menu().open).toBe(true)
+    ;(menu().onOpenChange as (open: boolean) => void)(false); view.render()
+    expect(head()['data-menu-open']).toBeUndefined()
+  })
+
+  it.each(['context', 'dropdown'] as const)('routes the %s execution action through the shared action runner and disables it while busy', async kind => {
+    const opening = vi.fn(async () => undefined), run = vi.fn((action: () => Promise<unknown>) => { void action() })
+    const props = { kind, session: { id: 's1' } as HarnessSessionSummary, projects: [], controller: { getSnapshot: () => ({ unreadSessionIds: [] }) } as never, onRename: vi.fn(), onOpenExecution: opening, run }
+    const action = (busy = false) => find(SessionMenuItems({ ...props, busy }), item => typeof item.onSelect === 'function' && JSON.stringify(item.children).includes('查看执行详情'))!
+    expect(action(true).disabled).toBe(true)
+    ;(action().onSelect as () => void)()
+    expect(run).toHaveBeenCalledExactlyOnceWith(opening); expect(opening).toHaveBeenCalledOnce()
+    const sidebarOpening = vi.fn(async (_id: string) => undefined)
+    const view = sidebar('project', { onOpenExecution: sidebarOpening }); await view.drain()
+    await (view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's2').onOpenExecution as () => Promise<unknown>)()
+    expect(sidebarOpening).toHaveBeenCalledExactlyOnceWith('s2'); expect(view.onOpenSession).not.toHaveBeenCalled()
+  })
   it.each([
     ['projects', 'personal', 'ArrowDown', 'ArrowUp'],
     ['personal', 'projects', 'ArrowUp', 'ArrowDown'],
@@ -145,7 +238,7 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     ;(projectRow().onOpenFiles as () => void)()
     expect(onOpenSessionFiles).toHaveBeenCalledExactlyOnceWith('s2')
     expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('项目')).onClick as () => void)(); await view.drain()
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('project'); await view.drain()
     expect(projectRow().groupedActions).toBe(false); expect(projectRow().onMoveTop).toBeUndefined()
     ;(view.props(p => p.value === 'collections' && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('timeline'); await view.drain()
     expect(projectRow()).toMatchObject({ groupedActions: false, showProject: true })
@@ -159,7 +252,7 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(personalRow().archiveConfirming).toBe(true)
     ;(projectRow().onArchiveConfirmation as (confirming: boolean) => void)(true); await view.drain()
     expect(projectRow().archiveConfirming).toBe(true); expect(personalRow().archiveConfirming).toBe(false)
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('分组')).onClick as () => void)(); await view.drain()
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('group'); await view.drain()
     expect(projectRow().archiveConfirming).toBe(false)
   })
   it.each([-10, 10])('inserts a task before/after a task in another group (direction %s), previews without saving and persists once', async direction => {
@@ -397,6 +490,18 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     complete(null); await view.drain()
     expect(view.props(p => p['aria-label'] === '添加项目').disabled).toBe(false)
   })
+  it('shows selection failure beside the sidebar entry and clears it on retry without navigating', async () => {
+    const view = sidebar('project', { extensionsActive: true }); await view.drain()
+    view.controller.selectProject.mockRejectedValueOnce(new Error('所选目录已不存在，请重新选择目录后重试。'))
+    const add = () => (view.props(p => p['aria-label'] === '添加项目').onClick as () => void)()
+    add(); await view.drain()
+    expect(view.props(p => p.role === 'alert').children).toBe('所选目录已不存在，请重新选择目录后重试。')
+    expect(view.controller.reportError).not.toHaveBeenCalled()
+    expect(view.props(p => p['aria-label'] === '添加项目').disabled).toBe(false)
+    add(); await view.drain()
+    expect(view.props(p => p.role === 'alert')).toBeUndefined()
+    expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
+  })
   it('uses the host search and React automation callbacks without a second local search entry or task highlight', async () => {
     const onSearch = vi.fn(), onOpenAutomations = vi.fn()
     const view = sidebar('group', { onSearch, onOpenAutomations, automationsActive: true }); view.state.session = { id: 's1' }; await view.drain()
@@ -437,11 +542,11 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     ;(view.props(p => p['aria-label'] === '全部折叠').onClick as () => void)(); await view.drain()
     expect(view.saved().groups.every(group => group.collapsed)).toBe(true)
     expect(view.saved().expandedProjectIds).toEqual(['p'])
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('项目')).onClick as () => void)(); await view.drain()
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('project'); await view.drain()
     ;(view.props(p => p['aria-label'] === '全部折叠').onClick as () => void)(); await view.drain()
     expect(view.saved()).toMatchObject({ expandedProjectIds: [], collapsedProjectIds: ['p'] })
     expect(view.saved().groups.every(group => group.collapsed)).toBe(true)
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('分组')).onClick as () => void)(); await view.drain()
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('group'); await view.drain()
     ;(view.props(p => p['aria-label'] === '全部展开').onClick as () => void)(); await view.drain()
     expect(view.saved().groups.every(group => !group.collapsed)).toBe(true)
     expect(view.saved().collapsedProjectIds).toEqual(['p'])
@@ -467,10 +572,10 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(view.props(p => p['aria-label'] === '任务时间线')).toBeDefined()
     expect(view.props(p => p['aria-label'] === '全部折叠')).toBeUndefined()
     expect(view.props(p => p.id === 'sidebar-project:p')).toBeUndefined()
-    expect(view.allProps(p => p['aria-pressed'] !== undefined && Array.isArray(p.children))).toHaveLength(2)
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('分组')).onClick as () => void)(); await view.drain()
+    expect(view.allProps(p => ['group', 'project'].includes(p.value as string) && typeof p.onClick === 'function')).toHaveLength(2)
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('group'); await view.drain()
     expect(view.props(p => p.id === 'sidebar-group:g1')).toBeDefined()
-    ;(view.props(p => p['aria-pressed'] !== undefined && JSON.stringify(p.children).includes('项目')).onClick as () => void)(); await view.drain()
+    ;(view.props(p => p.asChild && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('project'); await view.drain()
     expect(view.props(p => p['aria-label'] === '任务时间线')).toBeDefined()
     ;(view.props(p => p['aria-label'] === '查看已归档任务').onClick as () => void)(); await view.drain()
     expect(view.props(p => p['aria-label'] === '任务时间线')).toBeUndefined()

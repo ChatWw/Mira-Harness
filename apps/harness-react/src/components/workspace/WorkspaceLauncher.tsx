@@ -1,8 +1,9 @@
 // Layout adapted from ZCode; see third-party-licenses/zcode/ADAPTATIONS.md.
-import { Activity, FileCode2, GitCompare, Globe2, LoaderCircle, TerminalSquare } from 'lucide-react'
+import { Activity, FileCode2, GitCompare, Globe2, LoaderCircle, MessageSquare, TerminalSquare } from 'lucide-react'
 import { workspaceTabLabel, type WorkspaceResourceId } from '../../state/workspace-state'
 
 const choices: Array<{ id: WorkspaceResourceId; icon: typeof Activity }> = [
+  { id: 'side-chat', icon: MessageSquare },
   { id: 'files', icon: FileCode2 },
   { id: 'changes', icon: GitCompare },
   { id: 'terminal', icon: TerminalSquare },

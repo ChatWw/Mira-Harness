@@ -57,6 +57,29 @@ export async function handleFirstPartyRequest(options: {
     try {
       return await api.invokeFirstPartyHarness(grantId, method, params)
     } catch (error) {
+      if (method === 'context.compact') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['上下文压缩已在运行或排队', '待发送消息已存在且内容不同', '待发送消息已达 32 条上限', '该会话正在运行', '请先处理待发送消息', '请先打开已有对话，再压缩上下文', '请先完成当前确认，再压缩上下文', '对话已变化，请重新打开任务后重试', '上下文压缩已停止，原上下文保留', '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型', '请先选择一个可用模型', '当前 Agent 模型不可用，请检查 Provider 配置']
+        throw new FirstPartyBridgeError('COMPACTION_FAILED', known.includes(failure) ? failure : '上下文压缩失败，请检查模型配置后重试；原上下文保留。')
+      }
+      if (method === 'session.fork') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['分支请求已失效，请重新打开任务', '请先结束当前任务的运行或确认，再创建分支', '只能从已完成的助手回复创建分支', '请等待工具执行结束后创建分支', '该会话正在运行', '请先处理待发送消息']
+        throw new FirstPartyBridgeError('FORK_FAILED', known.includes(failure) ? failure : '分支创建失败，请重试；原任务保持不变。')
+      }
+      if (method.startsWith('marketplace.') || method.startsWith('plugin-marketplace.')) {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const recovery: Record<string, string> = {
+          'Skill 市场读取超时，请检查网络后重试': '插件市场读取超时，请检查网络后重试。',
+          '无法连接 Skill 市场，请检查网络后刷新重试': '无法连接插件市场，请检查网络后刷新重试。',
+          'GitHub 公开请求额度暂时用完，请稍后刷新重试': 'GitHub 公开请求额度暂时用完，请稍后刷新重试。',
+          'Skill 文件完整性校验失败，请刷新重试': '下载文件完整性校验失败，请刷新市场后重试。',
+          '已下载插件内容已变化，请保留原目录后重试；不会覆盖现有文件': '已下载插件内容已变化，请保留原目录后重试；不会覆盖现有文件。',
+          '此插件已安装，请到已安装页面管理': '此插件已安装，请到已安装页面管理。',
+          '此插件正在安装，请稍后查看结果': '此插件正在安装，请稍后查看结果。',
+        }
+        throw new FirstPartyBridgeError('MARKETPLACE_FAILED', recovery[failure] ?? (method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查网络后重试。'))
+      }
       // 只映射已知文件失败，避免把主进程异常、堆栈或模型凭据透出到应用。
       if (method.startsWith('attachments.') || method.startsWith('queue.') || method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
@@ -129,6 +152,12 @@ export async function handleFirstPartyRequest(options: {
         if (method === 'files.git-status' || method === 'files.git-ignored') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', 'Git 状态读取失败，请检查 Git 是否安装或稍后刷新重试。')
       }
       if (method === 'editors.list') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '无法检测已安装应用，请重试。')
+      if (method === 'projects.select') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        throw new FirstPartyBridgeError('PROJECT_SELECTION_FAILED', failure === '项目目录不存在'
+          ? '所选目录已不存在，请重新选择目录后重试。'
+          : '添加项目失败，请重新选择目录后重试。')
+      }
       if (method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {
         const message = error instanceof Error ? error.message : ''
         if (message.includes('引用文件不存在：')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '引用文件已不可读取，请重新选择文件后发送。')

@@ -5,6 +5,8 @@ import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillM
 import type { MiraPaths } from '../storage/miraPaths'
 import { parseSkill, type SkillStore } from '../storage/skillStore'
 import curatedSource from './marketplace/curated-skill-source.json'
+import { MiraPluginStore } from '../storage/miraPluginStore'
+import type { MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../src/config/miraPlugins'
 
 const SOURCE_ID = 'anthropic-skills'
 const SOURCE_NAME = 'Anthropic Skills'
@@ -21,6 +23,10 @@ type TreeEntry = { path: string; type: string; mode: string; sha: string; size?:
 type Candidate = { item: HarnessSkillMarketItem; files: TreeEntry[]; instructions: string; licenseText: string }
 type Snapshot = { commit: string; refreshedAt: number; excludedCount: number; candidates: Map<string, Candidate>; notice?: TreeEntry }
 type InstalledMeta = HarnessSkillMarketItem & { version: 1; files: Array<{ path: string; sha: string; size: number }> }
+type PluginPackage = { item: MiraPluginMarketItem; files: TreeEntry[]; licenses: MiraPluginMarketDetail['licenses']; manifest: string }
+type PluginCatalog = { snapshot: Snapshot; upstream: Buffer; packages: Map<string, PluginPackage> }
+const PLUGIN_SOURCE = 'anthropic-agent-skills'
+const PLUGIN_SOURCE_NAME = 'Anthropic Agent Skills'
 
 function safePath(path: string) {
   return path.length > 0 && path.length <= 1024 && path.split('/').every(part => part && part !== '.' && part !== '..'
@@ -46,6 +52,8 @@ export class SkillMarketplaceService {
   private browsing?: Promise<Snapshot>
   private blobs = new Map<string, Promise<Buffer>>()
   private installing = new Set<string>()
+  private pluginCatalog?: { snapshot: Snapshot; pending: Promise<PluginCatalog> }
+  private plugins = new MiraPluginStore(this.paths)
 
   constructor(private readonly paths: MiraPaths, private readonly skills: SkillStore, private readonly fetcher: typeof fetch = fetch, private readonly source: { commit: string; tree: TreeEntry[] } = curatedSource) {}
 
@@ -136,6 +144,109 @@ export class SkillMarketplaceService {
     const installed = new Map(this.installed().map(item => [item.id, item]))
     return { sourceId: SOURCE_ID, sourceName: SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit: snapshot.commit, refreshedAt: snapshot.refreshedAt, excludedCount: snapshot.excludedCount,
       items: [...snapshot.candidates.values()].map(({ item }) => ({ ...item, installed: installed.has(item.id), enabled: installed.get(item.id)?.enabled ?? false, skillId: installed.get(item.id)?.skillId })).sort((a, b) => a.name.localeCompare(b.name)) }
+  }
+
+  private async pluginPackages(refresh = false): Promise<PluginCatalog> {
+    const snapshot = await this.catalog(refresh)
+    if (this.pluginCatalog?.snapshot === snapshot) return this.pluginCatalog.pending
+    const pending = (async () => {
+      const upstream = await this.download(`${DOWNLOAD_ROOT}/${snapshot.commit}/.claude-plugin/marketplace.json`, 256 * 1024)
+      const manifest = JSON.parse(upstream.toString('utf8'))
+      if (manifest?.name !== PLUGIN_SOURCE || !Array.isArray(manifest.plugins) || manifest.plugins.length > 128) throw new Error('公开插件目录格式无效')
+      const packages = new Map<string, PluginPackage>()
+      for (const entry of manifest.plugins) {
+        if (!entry || typeof entry.name !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.name) || entry.name.length > 80) throw new Error('公开插件名称无效')
+        const id = `${entry.name}@${PLUGIN_SOURCE}`
+        if (packages.has(id)) throw new Error('公开插件目录存在重复名称')
+        const paths: string[] = Array.isArray(entry.skills) && entry.skills.length <= 64 && entry.skills.every((path: unknown) => typeof path === 'string' && /^\.\/skills\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path)) ? [...new Set<string>(entry.skills.map((path: string) => path.slice(2)))] : []
+        const candidates = paths.map(path => snapshot.candidates.get(`${SOURCE_ID}:${path.split('/')[1]}`))
+        const unsupported = ['agents', 'commands', 'hooks', 'mcpServers', 'lspServers', 'dependencies', 'settings', 'outputStyles', 'channels', 'userConfig'].filter(key => entry[key] !== undefined)
+        const files = candidates.flatMap(candidate => candidate?.files ?? [])
+        const unavailableReason = entry.source !== './' ? '此来源需要另一种插件下载方式' : !paths.length ? '此插件没有可用的 Skill 组件' : candidates.some(candidate => !candidate) ? '部分 Skill 缺少可用的开源许可或完整文件，暂不可安装' : files.length > 512 || files.reduce((total, file) => total + file.size!, 0) > 64 * 1024 * 1024 ? '插件包超过安装大小限制' : undefined
+        const item: MiraPluginMarketItem = { id, name: entry.name, description: typeof entry.description === 'string' ? entry.description.slice(0, 2048) : '', marketplace: PLUGIN_SOURCE, sourceName: PLUGIN_SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit: snapshot.commit,
+          skills: paths.map((path, index) => ({ name: candidates[index]?.item.name ?? path.split('/')[1], description: candidates[index]?.item.description ?? '此 Skill 尚不可安装' })), unsupported, installed: false, enabled: false, ...(unavailableReason ? { unavailableReason } : {}) }
+        packages.set(id, { item, files, licenses: candidates.flatMap(candidate => candidate ? [{ path: candidate.files.find(file => /\/LICENSE(?:\.txt|\.md)?$/.test(file.path))!.path, text: candidate.licenseText }] : []), manifest: `${JSON.stringify({ name: entry.name, description: item.description, skills: paths, ...Object.fromEntries(unsupported.map(key => [key, entry[key]])) }, null, 2)}\n` })
+      }
+      return { snapshot, upstream, packages }
+    })()
+    this.pluginCatalog = { snapshot, pending }
+    void pending.catch(() => { if (this.pluginCatalog?.pending === pending) this.pluginCatalog = undefined })
+    return pending
+  }
+
+  async browsePlugins(refresh = false): Promise<MiraPluginMarketCatalog> {
+    const catalog = await this.pluginPackages(refresh), installed = this.plugins.list()
+    return { sourceName: PLUGIN_SOURCE_NAME, items: [...catalog.packages.values()].map(({ item }) => {
+      const plugin = installed.find(plugin => plugin.id === item.id)
+      return { ...item, installed: Boolean(plugin), enabled: Boolean(plugin?.enabled && !plugin.error) }
+    }) }
+  }
+
+  async pluginDetail(id: string): Promise<MiraPluginMarketDetail> {
+    const catalog = await this.pluginPackages(), plugin = catalog.packages.get(id)
+    if (!plugin) throw new Error('公开插件不存在，请刷新后重试')
+    const item = (await this.browsePlugins()).items.find(item => item.id === id)!
+    return { ...item, files: plugin.files.map(file => ({ path: file.path, size: file.size! })), totalBytes: plugin.files.reduce((total, file) => total + file.size!, 0), licenses: plugin.licenses }
+  }
+
+  async installPlugin(id: string, assertAuthorized: () => void = () => undefined): Promise<MiraPluginMarketItem> {
+    if (this.installing.has(id)) throw new Error('此插件正在安装，请稍后查看结果')
+    this.installing.add(id)
+    let stage: string | undefined, published: string | undefined
+    try {
+      const catalog = await this.pluginPackages(), plugin = catalog.packages.get(id)
+      assertAuthorized()
+      if (!plugin || plugin.item.unavailableReason) throw new Error(plugin?.item.unavailableReason ?? '公开插件不存在')
+      const existing = this.plugins.list().find(item => item.id === id)
+      if (existing) throw new Error('此插件已安装，请到已安装页面管理')
+      for (const path of [this.paths.root, this.paths.config]) assertDirectory(path)
+      const root = join(this.paths.root, 'plugins'); assertDirectory(root)
+      const market = join(root, PLUGIN_SOURCE); assertDirectory(market)
+      const target = join(realpathSync(market), `${plugin.item.name}-${catalog.snapshot.commit}`)
+      const generated = '.mira-plugin/plugin.json'
+      const verify = (directory: string, path: string, expected: Buffer) => {
+        const file = resolve(directory, path)
+        if (!lstatSync(file).isFile() || lstatSync(file).size !== expected.length || realpathSync(file) !== file || !readFileSync(file).equals(expected)) throw new Error('已下载插件内容已变化，请保留原目录后重试；不会覆盖现有文件')
+      }
+      if (existsSync(target)) {
+        if (lstatSync(target).isSymbolicLink()) throw new Error('插件安装目录不能是符号链接')
+        const directory = join(target, 'package')
+        verify(directory, generated, Buffer.from(plugin.manifest))
+        verify(directory, '.claude-plugin/marketplace.json', catalog.upstream)
+        for (const file of plugin.files) { const content = await this.blob(file); assertAuthorized(); verify(directory, file.path, content) }
+        if (catalog.snapshot.notice) verify(directory, NOTICE_FILE, await this.blob(catalog.snapshot.notice))
+      } else {
+        stage = mkdtempSync(join(this.paths.config, '.market-plugin-'))
+        const write = (path: string, content: Buffer | string) => { const file = resolve(stage!, path); mkdirSync(resolve(file, '..'), { recursive: true }); writeFileSync(file, content, { flag: 'wx', mode: 0o644 }) }
+        for (let offset = 0; offset < plugin.files.length; offset += 6) {
+          const files = plugin.files.slice(offset, offset + 6)
+          const downloaded = await Promise.allSettled(files.map(file => this.blob(file)))
+          assertAuthorized()
+          for (let index = 0; index < downloaded.length; index++) {
+            const result = downloaded[index]
+            if (result.status === 'rejected') throw result.reason
+            write(files[index].path, result.value)
+          }
+        }
+        if (catalog.snapshot.notice) { const content = await this.blob(catalog.snapshot.notice); assertAuthorized(); write(NOTICE_FILE, content) }
+        write(generated, plugin.manifest)
+        write('.claude-plugin/marketplace.json', catalog.upstream)
+        write(META_FILE, `${JSON.stringify({ id, repositoryUrl: REPOSITORY_URL, commit: catalog.snapshot.commit, files: plugin.files }, null, 2)}\n`)
+        assertAuthorized()
+        // Reserve the destination before publishing; existing directories are never replaced.
+        mkdirSync(target); published = target
+        renameSync(stage, join(target, 'package')); stage = undefined
+      }
+      assertAuthorized()
+      this.plugins.register(join(target, 'package'), PLUGIN_SOURCE)
+      return { ...plugin.item, installed: true, enabled: true }
+    } catch (error) {
+      if (published) rmSync(published, { recursive: true, force: true })
+      throw error
+    } finally {
+      if (stage) rmSync(stage, { recursive: true, force: true })
+      this.installing.delete(id)
+    }
   }
 
   async detail(id: string): Promise<HarnessSkillMarketDetail> {

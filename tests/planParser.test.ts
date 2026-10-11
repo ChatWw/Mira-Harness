@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_PLAN_STEPS, normalizePlanSteps } from '../src/config/harness'
+import { normalizePlanSteps } from '../src/config/harness'
 
 describe('normalizePlanSteps', () => {
   it('returns an empty list for non-array or missing input', () => {
@@ -30,11 +30,12 @@ describe('normalizePlanSteps', () => {
     expect(result).toEqual([{ label: '有效步骤', detail: undefined }])
   })
 
-  it('caps the number of steps at MAX_PLAN_STEPS', () => {
+  it('preserves a long plan in original order rather than silently losing later steps', () => {
     const steps = Array.from({ length: 12 }, (_, index) => ({ label: `步骤 ${index}` }))
     const result = normalizePlanSteps(steps)
-    expect(result).toHaveLength(MAX_PLAN_STEPS)
+    expect(result).toHaveLength(12)
     expect(result[0]).toEqual({ label: '步骤 0', detail: undefined })
+    expect(result[11]).toEqual({ label: '步骤 11', detail: undefined })
   })
 
   it('only keeps string details and trims empty ones', () => {

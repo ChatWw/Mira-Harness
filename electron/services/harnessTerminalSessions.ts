@@ -76,6 +76,14 @@ export class HarnessTerminalSessions {
     entry.process.write(boundedText(data))
   }
 
+  paste(sender: WebContents, sessionId: string, terminalId: string, readClipboard: () => string, bracketed: boolean) {
+    const entry = this.authorize(sender, sessionId, terminalId)
+    const text = boundedText(readClipboard()).replace(/\r?\n/g, '\r')
+    if (!text) return
+    // Match xterm's paste encoding; clipboard contents stay in the main process.
+    entry.process.write(boundedText(bracketed ? `\x1b[200~${text}\x1b[201~` : text))
+  }
+
   resize(sender: WebContents, sessionId: string, terminalId: string, columns: number, rows: number) {
     const entry = this.authorize(sender, sessionId, terminalId)
     entry.process.resize(boundedDimension(columns, '终端列数'), boundedDimension(rows, '终端行数'))

@@ -1,10 +1,10 @@
 import { Agent } from '@earendil-works/pi-agent-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectTaskLock } from '../electron/services/projectTaskLock'
-import { MAX_SUBTASK_REPORT_CHARS, SUBTASK_ROLE_TOOLS, SubtaskRuntime, boundedSubtaskReport, subtaskMayMutate } from '../electron/services/subtaskRuntime'
+import { MAX_SUBTASK_DURATION_MS, MAX_SUBTASK_REPORT_CHARS, SUBTASK_ROLE_TOOLS, SubtaskRuntime, boundedSubtaskReport, subtaskMayMutate } from '../electron/services/subtaskRuntime'
 import type { SubtaskRuntimeOptions } from '../electron/services/subtaskRuntime'
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 function activityFixture() {
   const listeners = new WeakMap<Agent, (event: any) => void>()
@@ -24,6 +24,42 @@ function activityFixture() {
 }
 
 describe('subtask runtime policy', () => {
+  it('cancels a child waiting for the project lock without restarting it after release', async () => {
+    const lock = new ProjectTaskLock(), release = await lock.acquire('project', 'write')
+    const runtime = new SubtaskRuntime((_role, signal) => lock.acquire('project', 'read', signal))
+    const finished = vi.fn(), states: string[] = [], changed = vi.fn(record => states.push(record.status))
+    const prompt = vi.spyOn(Agent.prototype, 'prompt').mockResolvedValue(undefined)
+    const task = runtime.create({ parentToolCallId: 'parent', role: 'reviewer', task: '等待项目锁', systemPrompt: '', model: {} as any, streamFn: vi.fn() as any, thinkingLevel: 'off', onChanged: changed, onFinished: finished })
+    expect(task.status).toBe('queued')
+    try {
+      runtime.stop([task.id])
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(task.status).toBe('stopped')
+      expect(finished).toHaveBeenCalledOnce()
+      release()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(prompt).not.toHaveBeenCalled()
+      expect(task.startedAt).toBeUndefined()
+      expect(task.status).toBe('stopped')
+      expect(finished).toHaveBeenCalledOnce()
+      expect(states).not.toContain('running')
+    } finally { release(); await runtime.close() }
+  })
+
+  it('removes a cancelled waiting writer so newer readers can proceed without waiting for the current reader', async () => {
+    const lock = new ProjectTaskLock(), release = await lock.acquire('project', 'read')
+    const abort = new AbortController()
+    const writer = lock.acquire('project', 'write', abort.signal)
+    const rejected = expect(writer).rejects.toThrow('任务已停止')
+    let readerRelease: (() => void) | undefined
+    const reader = lock.acquire('project', 'read').then(value => { readerRelease = value })
+    try {
+      abort.abort(); await rejected
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(readerRelease).toBeTypeOf('function')
+    } finally { release(); await reader; readerRelease?.() }
+  })
+
   it('keeps every role inside its fixed tool allowlist', () => {
     expect(SUBTASK_ROLE_TOOLS.explorer).toEqual(['list_files', 'read', 'web_fetch', 'web_search'])
     expect(SUBTASK_ROLE_TOOLS.reviewer).toEqual(['list_files', 'read'])
@@ -129,7 +165,7 @@ describe('subtask activity invocation identity', () => {
     fixture.emit(agent, { type: 'tool_execution_end', toolCallId: 'call', toolName: 'read', args: {}, isError: false })
     release(); await fixture.runtime.wait()
     expect(task.status).toBe('stopped')
-    expect(task.activities[0]).toMatchObject({ status: 'failed', completedAt: task.completedAt })
+    expect(task.activities[0]).toMatchObject({ status: 'stopped', completedAt: task.completedAt })
     const snapshot = structuredClone(task), calls = fixture.changed.mock.calls.length
     fixture.captured[0]({ type: 'tool_execution_start', toolCallId: 'call', toolName: 'read', args: {} })
     fixture.captured[0]({ type: 'tool_execution_end', toolCallId: 'call', toolName: 'read', args: {}, isError: false })
@@ -138,5 +174,27 @@ describe('subtask activity invocation identity', () => {
     expect(fixture.ended).not.toHaveBeenCalled()
     expect(fixture.unsubscribe).toHaveBeenCalledOnce()
     expect(fixture.finished).toHaveBeenCalledOnce()
+  })
+
+  it.each(['timeout', 'error'] as const)('keeps an unfinished tool failed after a child %s', async reason => {
+    vi.useFakeTimers()
+    const fixture = activityFixture()
+    let release!: () => void
+    const pending = new Promise<void>(resolve => { release = resolve })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: Agent) {
+      fixture.emit(this, { type: 'tool_execution_start', toolCallId: 'call', toolName: 'read', args: {} })
+      await pending
+      if (reason === 'error') throw new Error('Child runtime failed')
+      fixture.report(this)
+    })
+    const task = fixture.create()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(task.activities).toHaveLength(1)
+    if (reason === 'timeout') await vi.advanceTimersByTimeAsync(MAX_SUBTASK_DURATION_MS)
+    release(); await vi.advanceTimersByTimeAsync(0)
+    expect(task.status).toBe(reason === 'timeout' ? 'timed_out' : 'failed')
+    expect(task.activities[0]).toMatchObject({ status: 'failed', completedAt: task.completedAt })
+    expect(fixture.finished).toHaveBeenCalledOnce()
+    expect(fixture.unsubscribe).toHaveBeenCalledOnce()
   })
 })

@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Window } from 'happy-dom'
 import type { PilotController, PilotState } from '../apps/harness-react/src/state/pilot-state'
 import type { HarnessWorkspaceFileSearchResult } from '../src/config/harness'
+import type { HarnessComposerHandle } from '../apps/harness-react/src/components/composer/HarnessComposer'
+import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (reason: unknown) => void
@@ -29,15 +31,16 @@ afterEach(async () => {
   dom.happyDOM.abort(); vi.unstubAllGlobals()
 })
 
-async function fixture(savedPreference?: unknown, queue = false) {
+async function fixture(savedPreference?: unknown, queue = false, paneProps: { draftPreferenceKey?: string; selectionSourceSessionId?: string; keyboardActive?: boolean } = {}) {
   const { HarnessComposer } = await import('../apps/harness-react/src/components/composer/HarnessComposer')
-  const { $createParagraphNode, $createTextNode, $getRoot, $isElementNode, getNearestEditorFromDOMNode } = await import('lexical')
+  const { $createParagraphNode, $createTextNode, $getRoot, $isElementNode, $isTextNode, getNearestEditorFromDOMNode } = await import('lexical')
   const { $isMiraPromptReferenceNode } = await import('../apps/harness-react/src/components/composer/MiraPromptReferenceNode')
   const { createRoot } = await import('react-dom/client')
   const projects = ['a', 'b'].map(id => ({ id, name: `Project ${id}`, directory: `/project-${id}`, directoryExists: true, createdAt: 1, updatedAt: 1 }))
   const state: PilotState = { sessions: [], projects, providers: [{ id: 'provider', providerKey: 'custom', name: 'Provider', endpoint: 'http://localhost', enabled: true, authMode: 'api-key', hasApiKey: true, createdAt: 1, updatedAt: 1, models: [{ id: 'model', enabled: true }] }], selection: { providerId: 'provider', modelId: 'model' }, messages: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   let projectId: string | undefined, planning = false
   const root = createRoot(document.getElementById('root')!)
+  const composer = React.createRef<HarnessComposerHandle>()
   const api = {
     getSnapshot: () => state,
     getPreference: vi.fn(async () => savedPreference ?? null), setPreference: vi.fn(async (_key: string, _value: unknown, _replace?: boolean) => undefined),
@@ -47,6 +50,8 @@ async function fixture(savedPreference?: unknown, queue = false) {
     searchProjectFiles: vi.fn(async (_id: string, _query: string) => result('src/README.md')),
     listFilesFor: vi.fn(async () => ({ path: '', ...result('session.md') })), searchFilesFor: vi.fn(async () => result('session-match.md')),
     listSkills: vi.fn(async () => []), listMcp: vi.fn(async () => []), supportsAttachments: true,
+    supportsPlugins: true,
+    listPluginCatalog: vi.fn(async () => [{ id: 'mira-review@local', name: 'mira-review', description: 'Review', enabled: true, skills: [], commands: [{ name: 'check', description: 'Review actual behavior', argumentHint: '[target]' }, { name: 'dynamic', description: 'Dynamic', unavailableReason: 'Shell 动态展开尚未接入' }], unsupported: [], conflicts: [] }]),
     supportsMessageQueue: queue,
     getSession: vi.fn(async (id: string) => ({ version: 1, id, title: '相关对话', messages: [{ role: 'user', content: '真实正文' }] })),
     prepare: vi.fn(async (id: string | undefined, isCurrent: () => boolean) => {
@@ -58,7 +63,7 @@ async function fixture(savedPreference?: unknown, queue = false) {
     getAttachment: vi.fn(async (_id: string, path: string) => ({ path, name: 'README.md', content: 'frozen contents', type: 'text', size: 15 })),
     send: vi.fn(async (..._args: unknown[]) => true), select: vi.fn(),
   }
-  function render() { root.render(React.createElement(HarnessComposer, { state: { ...state }, controller: api as unknown as PilotController, planning, setPlanning: value => { planning = value; render() }, draftProjectId: projectId, onDraftProjectChange: value => { projectId = value; render() } })) }
+  function render() { root.render(React.createElement(HarnessComposer, { ...paneProps, ref: composer, state: { ...state }, controller: api as unknown as PilotController, planning, setPlanning: value => { planning = value; render() }, draftProjectId: projectId, onDraftProjectChange: value => { projectId = value; render() } })) }
   const settle = async (delay = 0) => { await act(async () => { await new Promise(resolve => setTimeout(resolve, delay)) }) }
   await act(async () => { render() }); await settle()
   unmount = async () => { await act(async () => root.unmount()) }
@@ -76,6 +81,13 @@ async function fixture(savedPreference?: unknown, queue = false) {
     })
     await settle(140)
   }
+  const select = async (start: number, end = start) => {
+    await act(async () => editor().update(() => {
+      const node = $getRoot().getFirstDescendant()
+      if ($isTextNode(node)) node.select(start, end)
+    }, { discrete: true }))
+    await settle()
+  }
   const click = async (node: Element | null) => {
     expect(node).not.toBeNull()
     await act(async () => { node!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); (node as HTMLElement).click() }); await settle()
@@ -90,10 +102,278 @@ async function fixture(savedPreference?: unknown, queue = false) {
   const files = () => [...document.querySelectorAll('[data-suggestion-id^="file-"]')].map(node => node.getAttribute('data-suggestion-id'))
   const fileGroup = () => document.querySelector('[role="group"][aria-label^="文件"]')
   const key = async (key: string, options: KeyboardEventInit = {}) => { await act(async () => input().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options }))); await settle() }
-  return { api, state, render, settle, input, editor, text, type, click, scope, files, fileGroup, key }
+  return { api, state, render, composer, settle, input, editor, text, type, select, click, scope, files, fileGroup, key }
 }
 
 describe('project file mentions in the real React Composer', () => {
+  it('inserts an atomic plugin command with a trailing argument space without sending, keeps unavailable commands disabled and never scans files', async () => {
+    const view = await fixture(); await view.scope('a', 'current'); await view.type('/mira-review:')
+    const candidate = document.querySelector<HTMLButtonElement>('[data-suggestion-id="plugin-command-mira-review@local-check"]')!
+    expect(candidate.textContent).toContain('[target]')
+    expect(document.querySelector<HTMLButtonElement>('[data-suggestion-id="plugin-command-mira-review@local-dynamic"]')!.disabled).toBe(true)
+    await view.click(candidate)
+    expect(view.text()).toBe('/mira-review:check ')
+    expect(view.input().querySelector('[data-mira-prompt-reference="command"]')?.textContent).toBe('/mira-review:check')
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    expect(view.api.send).not.toHaveBeenCalled()
+    expect(view.api.listFilesFor).not.toHaveBeenCalled(); expect(view.api.listMcp).not.toHaveBeenCalled()
+    const { $getRoot, $createTextNode } = await import('lexical')
+    await act(async () => view.editor().update(() => { const node = $createTextNode('"中文 target"'); $getRoot().getFirstChildOrThrow().append(node); node.selectEnd() }, { discrete: true }))
+    await view.settle(); await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('/mira-review:check "中文 target"', false, [])
+  })
+
+  it('keeps plugin commands out of middle-of-message suggestions and restores a withdrawn command chip with exact text', async () => {
+    const view = await fixture({ version: 1, drafts: { current: '/Mira-Review:check "two words"' }, fileDrafts: {} })
+    await view.scope('a', 'current')
+    expect(view.text()).toBe('/Mira-Review:check "two words"')
+    expect(view.input().querySelector('[data-mira-prompt-reference="command"]')).not.toBeNull()
+    await view.type('Explain /mira-review:')
+    expect(document.querySelector('[data-suggestion-id^="plugin-command-"]')).toBeNull()
+    expect(document.querySelector('[aria-label="插件命令"]')?.textContent).toContain('消息开头')
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+  it.each(['/', '@', '$', '#'])('keeps restored %s suggestions closed until the editor receives focus and closes them on blur', async trigger => {
+    const view = await fixture({ version: 1, drafts: { current: trigger }, fileDrafts: {}, config: { projectId: 'a' } })
+    await view.scope('a', 'current')
+    await view.settle(160)
+    expect(view.text()).toBe(trigger)
+    expect(document.activeElement).not.toBe(view.input())
+    expect(view.input().getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('[role="listbox"][aria-label="上下文与能力"]')).toBeNull()
+    await act(async () => view.input().focus()); await view.settle(160)
+    expect(view.input().getAttribute('aria-expanded')).toBe('true')
+    const outside = document.createElement('button'); outside.textContent = 'Outside'; document.body.append(outside)
+    await act(async () => outside.focus()); await view.settle()
+    expect(document.querySelector('[role="listbox"][aria-label="上下文与能力"]')).toBeNull()
+    expect(document.activeElement).toBe(outside)
+    expect(view.text()).toBe(trigger)
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('restores web contexts alongside atomic file and conversation references and removes only web contexts', async () => {
+    const { miraBrowserPrompt } = await import('../apps/harness-react/src/lib/mira-browser-reference')
+    const { serializeMiraPromptDocument } = await import('../apps/harness-react/src/lib/prompt-editor-document')
+    const promptDocument: MiraPromptDocument = { version: 1, parts: [
+      { type: 'text' as const, text: '检查 ' },
+      { type: 'reference' as const, reference: { id: 'file', kind: 'file' as const, label: 'README.md', value: 'mira-attachment:readme', text: '@README.md' } },
+      { type: 'text' as const, text: ' 和 ' },
+      { type: 'reference' as const, reference: { id: 'conversation', kind: 'session' as const, label: '研究', value: 'other', text: '【研究对话】' } },
+    ] }
+    const selection = { sessionId: 'current', browserId: 'browser:one', element: { pageUrl: 'https://mira.test/page', pageTitle: 'Mira', tagName: 'button', role: 'button', accessibleName: '继续', selector: '#go', xpath: '/html/body/button', text: '继续', nearbyText: '页面正文', htmlExcerpt: '<button>继续</button>', attributes: '', style: '', rect: { x: 0, y: 0, width: 80, height: 28 } } }
+    const web = miraBrowserPrompt(selection, promptDocument)
+    if ('error' in web) throw Error(web.error)
+    promptDocument.parts.push({ type: 'reference', reference: web.reference })
+    const view = await fixture({ drafts: { current: serializeMiraPromptDocument(promptDocument) }, documents: { current: promptDocument }, fileDrafts: { current: [{ path: 'mira-attachment:readme', name: 'README.md' }] } })
+    await view.scope('a', 'current')
+    expect(view.text()).toBe('检查 @README.md 和 【研究对话】')
+    expect(view.input().querySelectorAll('[data-mira-prompt-reference]')).toHaveLength(2)
+    const clear = document.querySelector<HTMLButtonElement>('[aria-label="移除全部网页元素上下文"]')!
+    clear.focus()
+    await view.click(clear); await view.settle(40)
+    expect(document.activeElement).toBe(view.input())
+    expect(view.text()).toBe('检查 @README.md 和 【研究对话】')
+    expect(view.input().querySelectorAll('[data-mira-prompt-reference]')).toHaveLength(2)
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('检查 @README.md 和 【研究对话】', false, [expect.objectContaining({ path: 'mira-attachment:readme' })])
+  })
+
+  it('saves a side quote under the child owner while retaining the original source and rejecting other parents', async () => {
+    const key = 'harness-react-composer-drafts.side.child'
+    const view = await fixture(undefined, false, { draftPreferenceKey: key, selectionSourceSessionId: 'parent', keyboardActive: false })
+    await view.scope('a', 'child'); await view.type('侧边原草稿')
+    const reference = { sessionId: 'parent', messageId: 'reply', regionId: 'body', kind: 'assistant' as const, text: '父任务结论' }
+    let accepted = false
+    await act(async () => { accepted = view.composer.current!.addConversationSelection(reference) }); await view.settle(300)
+    expect(accepted).toBe(true)
+    expect(view.text()).toContain('侧边原草稿【引用片段：助手回复】')
+    expect(view.api.getPreference).toHaveBeenCalledWith(key)
+    expect(view.api.setPreference.mock.calls.every(call => call[0] === key)).toBe(true)
+    const editorState = view.editor().getEditorState()
+    const { $nodesOfType } = await import('lexical')
+    const { MiraPromptReferenceNode } = await import('../apps/harness-react/src/components/composer/MiraPromptReferenceNode')
+    expect(editorState.read(() => $nodesOfType(MiraPromptReferenceNode)[0].getReference().value)).toBe(JSON.stringify(['parent', 'reply', 'body', 'assistant']))
+    await act(async () => { accepted = view.composer.current!.addConversationSelection({ ...reference, sessionId: 'other' }) })
+    expect(accepted).toBe(false)
+    await view.key('m', { ctrlKey: true })
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+    const previous = view.text()
+    await act(async () => window.dispatchEvent(new CustomEvent('mira:compose-draft', { detail: '主任务示例不能覆盖旁路' })))
+    expect(view.text()).toBe(previous)
+  })
+
+  it('inserts a selected conversation snapshot without overwriting selected draft text and keeps atomic undo', async () => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type('前文已有草稿后文'); await view.select(2, 6)
+    const reference = { sessionId: 'current', messageId: 'reply', regionId: 'part-1', kind: 'assistant' as const, text: '真实结论\n保留原始换行' }
+    let accepted = false
+    await act(async () => { accepted = view.composer.current!.addConversationSelection(reference) }); await view.settle(30)
+    expect(accepted).toBe(true)
+    const expected = '前文已有草稿【引用片段：助手回复】\n真实结论\n保留原始换行\n【引用结束】 后文'
+    expect(view.text()).toBe(expected)
+    expect(view.input().querySelector('[data-mira-prompt-reference="selection"]')?.textContent).toBe('引用 · 真实结论 保留原始换行')
+    expect(view.api.stageAttachment).not.toHaveBeenCalled()
+    await act(async () => { view.composer.current!.addConversationSelection(reference) }); await view.settle()
+    expect(view.text()).toBe(expected)
+    const { $nodesOfType } = await import('lexical')
+    const { MiraPromptReferenceNode } = await import('../apps/harness-react/src/components/composer/MiraPromptReferenceNode')
+    await act(async () => view.editor().update(() => $nodesOfType(MiraPromptReferenceNode)[0].selectEnd(), { discrete: true }))
+    await view.key('Backspace')
+    expect(view.input().querySelector('[data-mira-prompt-reference="selection"]')).toBeNull()
+    expect(view.text()).toBe('前文已有草稿 后文')
+    await view.key('z', { ctrlKey: true }); expect(view.text()).toBe(expected)
+    await act(async () => { accepted = view.composer.current!.addConversationSelection({ ...reference, sessionId: 'another' }) })
+    expect(accepted).toBe(false); expect(view.text()).toBe(expected)
+  })
+
+  it('restores a selected-text pill and sends its original snapshot after reload', async () => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type('解释这段：')
+    await act(async () => { view.composer.current!.addConversationSelection({ sessionId: 'current', messageId: 'reply', regionId: 'reasoning', kind: 'reasoning', text: '当时真实的思考原文' }) }); await view.settle(280)
+    const saved = view.api.setPreference.mock.calls.at(-1)![1]
+    const expected = view.text().trim()
+    await unmount?.(); unmount = undefined
+    const restored = await fixture(saved)
+    await restored.scope('a', 'current'); await restored.settle(30)
+    expect(restored.input().querySelector('[data-mira-prompt-reference="selection"]')?.getAttribute('title')).toContain('当时真实的思考原文')
+    expect(restored.text().trim()).toBe(expected)
+    await restored.click(document.querySelector('[aria-label="发送任务"]'))
+    expect(restored.api.send).toHaveBeenCalledWith(expected, false, [])
+    expect(restored.text()).toBe('')
+    restored.input().focus(); await restored.key('z', { ctrlKey: true }); expect(restored.text()).toBe('')
+  })
+
+  it('focuses the + menu on keyboard activation, navigates with arrows and inserts slash at the saved caret', async () => {
+    const view = await fixture()
+    await view.scope('a'); await view.type('已有草稿 后续正文', 5)
+    const plus = document.querySelector<HTMLButtonElement>('[aria-label="添加上下文"]')!
+    await act(async () => {
+      plus.focus()
+      plus.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+      plus.click() // happy-dom does not synthesize the browser's native button activation.
+    }); await view.settle(20)
+    const panel = document.querySelector<HTMLElement>('.mira-composer-panel-popover')!
+    expect(document.activeElement).toBe(panel)
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))); await view.settle()
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('open-commands')
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))); await view.settle()
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('attach-files')
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))); await view.settle()
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))); await view.settle(30)
+    expect(view.text()).toBe('已有草稿 /后续正文')
+    expect(document.activeElement).toBe(view.input())
+    expect(document.getSelection()?.anchorOffset).toBe(6)
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('keeps typed @ and / suggestions in the editor, but lets mouse + use Space without editing the draft', async () => {
+    const view = await fixture()
+    await view.scope('a')
+    for (const trigger of ['@', '/']) {
+      await view.type(trigger)
+      expect(document.querySelector('.mira-composer-panel-popover')).not.toBeNull()
+      expect(document.activeElement).toBe(view.input())
+    }
+    const mountedPanel = document.querySelector('.mira-composer-panel-popover')
+    await view.click(document.querySelector('[aria-label="添加上下文"]')); await view.settle(20)
+    expect(document.querySelector('.mira-composer-panel-popover')).toBe(mountedPanel)
+    expect(document.activeElement).toBe(mountedPanel)
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))); await view.settle(30)
+    await view.type('保留正文', 2)
+    await view.click(document.querySelector('[aria-label="添加上下文"]')); await view.settle(20)
+    expect(document.activeElement).toBe(document.querySelector('.mira-composer-panel-popover'))
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))); await view.settle()
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }))); await view.settle(30)
+    expect(view.text()).toBe('保留 /正文')
+    expect(document.activeElement).toBe(view.input())
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('retains @ query and keyboard highlight while moving inside the token, then replaces the whole token', async () => {
+    const view = await fixture()
+    view.api.searchFilesFor.mockResolvedValue({ entries: [...result('src/README.md').entries, ...result('src/README-other.md').entries], truncated: false })
+    await view.scope('a', 'task-a'); await view.type('分析 @README 保留尾句', 10)
+    await view.key('ArrowDown')
+    const selected = () => document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')
+    expect(selected()).toBe('file-src/README-other.md')
+    const searches = view.api.searchFilesFor.mock.calls.length
+    let selectionOnly = false
+    const stop = view.editor().registerUpdateListener(({ dirtyElements, dirtyLeaves }) => { selectionOnly = !dirtyElements.size && !dirtyLeaves.size })
+    await view.select(6); stop(); await view.settle(140)
+    expect(selectionOnly).toBe(true)
+    expect(view.api.searchFilesFor).toHaveBeenCalledTimes(searches)
+    expect(selected()).toBe('file-src/README-other.md')
+    expect(document.activeElement).toBe(view.input())
+    await view.key('Enter'); await view.settle(30)
+    expect(view.api.stageAttachment).toHaveBeenCalledWith('task-a', 'src/README-other.md')
+    expect(view.text()).toBe('分析 @src/README-other.md  保留尾句')
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('README-other.md')
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('retains a slash token at its nonterminal caret and leaves both sides of the draft intact', async () => {
+    const view = await fixture()
+    await view.scope('a', 'task-a'); await view.type('before /plan after', 12)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('command-plan')
+    await view.select(8)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('command-plan')
+    await view.key('Enter'); await view.settle(30)
+    expect(view.text()).toBe('before  after')
+    expect(document.querySelector('[aria-label="关闭计划模式"]')).not.toBeNull()
+    expect(document.activeElement).toBe(view.input())
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('discards retained tokens on text edits, a range selection, moving outside, and owner changes', async () => {
+    const view = await fixture()
+    await view.scope('a', 'task-a'); await view.type('before /plan after', 12); await view.select(10)
+    await view.type('before /plax after', 12)
+    expect(document.querySelector('[data-suggestion-id="command-plan"]')).toBeNull()
+    await view.type('before /plan after', 12); await view.select(10)
+    await view.select(8, 10)
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    await view.type('before /plan after', 12); await view.select(10); await view.select(7)
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    await view.type('before /plan after', 12); await view.select(10)
+    await view.scope('b', 'task-b')
+    expect(view.text()).toBe('')
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    await view.type('before /model after', 13)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('command-model')
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('restores the saved selection on Escape, ignores IME keys, and does not refocus after an owner switch', async () => {
+    const view = await fixture()
+    await view.scope('a', 'task-a'); await view.type('完整保留正文', 2)
+    const { $getSelection, $isRangeSelection } = await import('lexical')
+    await act(async () => view.editor().update(() => {
+      const selection = $getSelection()
+      if ($isRangeSelection(selection)) selection.focus.set(selection.focus.key, 4, 'text')
+    }, { discrete: true })); await view.settle()
+    await view.click(document.querySelector('[aria-label="添加上下文"]')); await view.settle(20)
+    const panel = document.querySelector<HTMLElement>('.mira-composer-panel-popover')!
+    for (const key of ['ArrowDown', 'Enter', ' ', 'Escape']) {
+      const event = new KeyboardEvent('keydown', { key, isComposing: true, bubbles: true, cancelable: true })
+      await act(async () => panel.dispatchEvent(event)); await view.settle()
+      expect(event.defaultPrevented).toBe(key === 'Escape')
+    }
+    expect(view.text()).toBe('完整保留正文')
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('attach-files')
+    await act(async () => panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))); await view.settle(30)
+    expect(document.activeElement).toBe(view.input())
+    expect(document.getSelection()?.anchorOffset).toBe(2)
+    expect(document.getSelection()?.focusOffset).toBe(4)
+    await view.click(document.querySelector('[aria-label="添加上下文"]')); await view.settle(20)
+    const outside = document.createElement('button'); document.body.append(outside)
+    await act(async () => outside.focus())
+    await view.scope('b', 'task-b'); await view.settle(30)
+    expect(document.activeElement).toBe(outside)
+    expect(view.text()).toBe('')
+    expect(document.querySelector('.mira-composer-panel-popover')).toBeNull()
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
   it('keeps a resolved root-file pill out of @ suggestions and preserves it through / and + actions', async () => {
     const view = await fixture()
     await view.scope('a'); await view.type('@')

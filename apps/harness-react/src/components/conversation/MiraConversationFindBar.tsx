@@ -7,6 +7,8 @@ import './conversation-find.css'
 
 export interface MiraConversationFindBarProps {
   open: boolean
+  keyboardActive?: boolean
+  allowChanges?: boolean
   focusRequestId: number
   query: string
   scope: 'conversation' | 'changes'
@@ -18,7 +20,7 @@ export interface MiraConversationFindBarProps {
   onClose: () => void
 }
 
-export function MiraConversationFindBar({ open, focusRequestId, query, scope, count, index, onQueryChange, onScopeChange, onNavigate, onClose }: MiraConversationFindBarProps) {
+export function MiraConversationFindBar({ open, keyboardActive = true, allowChanges = true, focusRequestId, query, scope, count, index, onQueryChange, onScopeChange, onNavigate, onClose }: MiraConversationFindBarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const composing = useRef(false)
   const descriptionId = useId()
@@ -33,7 +35,7 @@ export function MiraConversationFindBar({ open, focusRequestId, query, scope, co
     return () => window.cancelAnimationFrame(frame)
   }, [open, focusRequestId])
   useEffect(() => {
-    if (!open) return
+    if (!open || !keyboardActive) return
     const closeOnEscape = (event: KeyboardEvent) => {
       // Radix layers consume Escape in document capture; let the active menu/dialog close first.
       if (event.defaultPrevented || event.key !== 'Escape' || event.isComposing || event.keyCode === 229 || composing.current) return
@@ -42,7 +44,7 @@ export function MiraConversationFindBar({ open, focusRequestId, query, scope, co
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [open, onClose])
+  }, [open, keyboardActive, onClose])
 
   if (!open) return null
   const navigate = (direction: -1 | 1) => { if (hasMatches) onNavigate(direction) }
@@ -61,7 +63,7 @@ export function MiraConversationFindBar({ open, focusRequestId, query, scope, co
     <div className="mira-conversation-find__controls">
       {control('上一处匹配', 'Shift+Enter / ↑', () => navigate(-1), <ArrowUp size={14} aria-hidden="true" />, !hasMatches)}
       {control('下一处匹配', 'Enter / ↓', () => navigate(1), <ArrowDown size={14} aria-hidden="true" />, !hasMatches)}
-      {control(`切换到${nextScopeLabel}查找`, undefined, () => onScopeChange(nextScope), scope === 'conversation' ? <MessageCircle size={14} aria-hidden="true" /> : <FileDiff size={14} aria-hidden="true" />)}
+      {allowChanges && control(`切换到${nextScopeLabel}查找`, undefined, () => onScopeChange(nextScope), scope === 'conversation' ? <MessageCircle size={14} aria-hidden="true" /> : <FileDiff size={14} aria-hidden="true" />)}
     </div>
     <div className="mira-conversation-find__close">{control('关闭查找', 'Esc', onClose, <X size={14} aria-hidden="true" />)}</div>
   </div></Tooltip.Provider>

@@ -1,5 +1,77 @@
 # ZCode → Mira Harness 改编记录
 
+2026-10-11 动态插件命令：参考 ZCode `apps/zcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts` 的 inline/fenced Shell 语法、顺序执行、30 秒超时、128 KiB 输出上限及 stdout 替换。Mira 使用自有 `miraPluginCommands.ts`、`miraPluginShell.ts` 和现有 Electron 工具/项目锁/审批/取消/SQLite，不移植上游 CLI 执行器。先识别原模板再一次替换参数，参数和 stdout 不产生新执行片段；显式重新生成重新执行，普通历史与 submission 重放复用结果。保留冻结模板校验与失败时的部分结果，计划模式及无人值守权限限制仍生效。model/allowed-tools 的解析不被当成上游已生效的能力。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-11 首版收尾：参照当前 `WorkspaceSidebar.tsx` / `button.tsx` 的 32px 入口、14px 字号和 16px 图标，及 `MentionPanel` 的候选列表几何，校准 Mira 侧栏与 Composer；多任务候选列表使用 Mira 自有稳定实例 ID，保留第一方目录、模型和引用协议。没有把上游当前全宽 `+` Popover 改成旧版菜单。
+
+参照 `SessionPane.tsx` 与 `composer/escapeStop.ts` 的聚焦停止语义，Mira 在审批隐藏输入时仍可 Esc 停止所属 run，关闭弹窗不误停，旧停止失败不污染新任务。工具记录直接合并 Mira 已脱敏公开事件，宿主先发布工具元数据再发布 message part；不以占位文字伪造工具结果。当前上游拒绝拖入已放置任务，不把窗格内部重排列为缺失功能。原 Apache LICENSE/NOTICE 与版权声明保持。
+
+2026-10-11 组合删除与草稿恢复：参考 `v4/WorkbenchPane.tsx` 的 `handleSessionDeleted` 与 primary 不显示关闭按钮规则。Mira 删除组合主任务后解散布局回空白任务，侧任务仍可独立打开；不隐式提升侧任务。侧任务删除收拢原布局，归档保留草稿占位。Mira 自有 Controller 对可见侧任务增加保存门禁，保留新加载；自有 Composer 切换 owner 时合并本机最新草稿并拒绝迟到读取覆盖新输入。没有复制上游 store、变量名或跨 Host 协议，Apache LICENSE/NOTICE保持。
+
+2026-10-11 匿名分屏侧栏选择增量：参考 `v4/workbenchSessionPlacement.ts` 的匿名主任务/focused secondary 选择规则。Mira 在匿名主输入旁点击未入组合的侧栏任务时，仅替换当前侧面任务叶子，保留分割节点/方向/比例、主输入节点和资源身份；旧任务进入现有最近关闭历史，替换前保存各任务草稿。已有组合恢复、明确消息/文件/执行详情导航保持既有路径。晚结果受布局、焦点、owner与请求版本约束，保存失败不切任务。使用Mira自有Controller、偏好和命名，Apache LICENSE/NOTICE不变。
+
+2026-10-11 任务分屏增量：参考当前启用的TaskListItem、V4WorkspaceChatArea、workbenchSessionPlacement及paneLayoutTree/workbenchDragDrop。Mira独立实现4叶二叉布局、四边32%拖入预览、25%–75%分割比例、键盘/鼠标缩放与稳定叶子DOM；使用Mira任务身份、原Controller和现有workspace偏好。已有侧面任务标签作为兼容元数据迁移到对话区的任务布局，资源面板独立开合；关闭收拢布局但不停止任务，侧栏选择恢复原owner组合。未复制ZCode自定义store、跨Host协议或远程身份，未恢复下线的chrome split按钮。原Apache LICENSE/NOTICE保持。
+
+Mira补充：匿名首发准备/接纳时保留主Composer与已有任务Controller，将原draft布局归属迁移到真实任务；旧版超过四窗格的标签转入既有最近关闭列表（最多8项），不删除会话或消息，其他会话仍可从侧栏打开。拖动只更新叶子/分隔条DOM几何，松开后持久化一次；窄任务单元内控件使用现有明暗token并换行保留入口。
+
+2026-10-11 侧面任务摘要增量：参考SessionPane中每窗格的ConversationStatusPanel与ConversationTimeline/TurnNavigator组织方式，复用Mira现有TaskSummary、ConversationTurnRail、MiraBranchPicker；原Mira变更列表提取为MiraTaskChangesPanel供主/侧共用。计划/活动/智能体/变更/轮次导航均绑定所属任务Controller和消息身份，详情在本窗格查看并保留原Composer，跨工作区徽标与关闭不变。小任务单元摘要避开浮动关闭；宽任务单元沿用同一摘要空间保留规则，不引入第三方状态协议。
+
+2026-10-11 侧面任务 chrome 增量：参考 `v4/ConversationHeader.tsx` 的实际可见实现，Mira 已有任务窗格取消重复标题横条，保留可访问标题与资源标签标题；左上角悬浮关闭和仅跨工作区的目录徽标，长目录截断并保留完整路径提示。未恢复上游已注释的拆分按钮或虚构远程标识。文件/执行详情保留返回标头，旁路子对话结构不变。关闭复用 Mira 的草稿 flush、owner/revision 门禁与最近关闭资源记录，只移除窗格，不停止 runtime；失败保留原窗格，并在所属窗格说明保稿和提供重试，不覆盖主任务错误。嵌套保存链传递局部错误模式；Composer 自动保存失败明确说明输入保留，关闭失败已有提示时不重复显示，其他输入错误仍保留，后续保存成功清除自动保存提示。移除后的键盘焦点回到选中资源或标签列表，不抢用户新输入焦点。使用 Mira 文件/变量与既有主题 token，Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 已有任务侧面打开增量：参考 `TaskActionMenuContent.tsx`、`v4/splitPaneEntryContext.tsx` 与 `v4/workbenchSessionPlacement.ts` 的任务菜单和已打开任务定位规则。Mira 使用自有 task 标签、绑定既有会话的 Controller、真实第一方桥及 SQLite；不复制对话、不创建替代子会话，主/侧任务按 owner 合并草稿保存，保留各自运行、审批及项目目录。已打开目标定位现有面板，主任务可从侧面返回焦点；采用 Mira 文件/变量命名。当前适配既有右侧标签面板，尚未移植上游任意多分屏/组归属/拖拽放置；Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 手动上下文压缩增量：参考 `v4/slashCommands.ts` 的 `/compact`、`/compress` 与 `SessionPane.tsx` 的压缩入口，Mira 复用自身摘要器、冻结图片、上下文边界及第一方桥。命令不成为用户消息，不删除历史或重新执行工具；最近一轮保持原文，运行/审批/待发送消息门禁、真实进度、停止与失败保留上下文由既有运行协调器提供。Composer 只在成功且草稿归属/版本未变化时消费命令，未移植上游CLI命令队列/CAS/账户协议。Apache LICENSE/NOTICE 原文保留。
+
+2026-10-11 对话分支增量：参考 `v4/ConversationRowView.tsx` 的完成回复 ghost 分支动作/边界分隔线，以及 `v4/SessionPane.tsx` 的创建后任务导航。Mira 使用自有 `session.fork` 受控协议、幂等请求 ID 和 SQLite 会话快照；只复制截至准确助手回复的历史及冻结图片，不移植上游 CLI/CAS/rowId 协议、不回滚文件、不复制在途运行或审批。源/分支任务独立保存，复制历史不重复计费；分支边界可返回原任务的准确消息。文件/变量采用 Mira 命名，Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 Composer工具栏增量：参考 `prompt-editor/useComposerToolbarFit.ts`、`V4ComposerModeControls.tsx`、`V4ComposerToolbar.tsx`、`ThoughtLevelCycleControl.tsx` 与 `ModelConfigSelect.tsx`。Mira自有 `useMiraComposerToolbar.ts` 在不可见/inert副本上测量并按权限→计划→推理文字→推理纯图标→模型图标分档投影；空间恢复时回到完整标签。保持真实Radix触发器、焦点、菜单与输入编辑器身份，不按固定窗口断点裁掉功能。推理紧凑态绿色标尺只显示既有off/low/medium/high配置；模型使用Package图标与完整悬浮提示。属性和文件采用Mira命名，没有引入上游商业供应商前缀、CUA入口或Runtime。当前第一方队列入口的权限草稿/下次Submission快照原本已经存在，本批不重复改写该协议；旧宿主兼容分支保留。Apache LICENSE/NOTICE原文保持。
+
+2026-10-11 底部终端增量：参考 `Terminal.tsx`、`TerminalTabTrigger.tsx`、`app-shell/AnimatedTerminalPanel.tsx`、`WorkspaceTerminalToggleButton.tsx` 与 `shortcutCommands.ts`。Mira 自有 `MiraBottomTerminal.tsx` 在主对话下方提供独立可调整高度的终端面板，标头与 Cmd/Ctrl+J 切换面板，右侧＋继续新建独立资源标签。底部支持多个终端、键盘选中和单项关闭；最后一个标签与面板关闭只收起并保活，真实进程退出移除标签，删除任务释放其终端。使用既有 xterm、react-resizable-panels、Electron PTY 和授权桥，按 Mira task grant 隔离会话，不复制上游 workspace/RPC。显式展开/选中转交终端焦点，资源焦点不触发主对话查找与模型快捷键；链接仅由当前可见所属终端打开独立浏览器。Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 工作过程增量：参考 `v4/ConversationTurnGroup.tsx` 与 `conversationTurnRenderUnits.ts` 的工作过程/轮尾回复分离。Mira 使用自有 `MiraAssistantProcess.tsx`、`mira-assistant-process.ts`，保留 canonical message/part/run 身份、已有工具分组及 Radix Collapsible；连续末尾文本独立显示，之前的文本、公开思考和工具调用进入过程。运行中默认展开，成功结束默认折叠，已完成过程手动展开按会话记忆；审批/工具失败保持展开，run 错误独立可见。查找传入明确片段身份，先挂载虚拟轮次、展开命中过程再测量定位；完成折叠回收工具焦点，不抢最终回复焦点。移除有序消息重复的 RunProgressCard，历史执行详情仍通过明确 run 打开。未移植上游 lane/RPC/runtime；无有序 parts 的旧历史沿用原渲染，不推断时间顺序。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-11 安装导航增量：Mira 的公开插件安装在切换详情或已安装页后仍更新登记清单，释放本页忙状态，并按当前页重读真实安装结果；不把 UI 导航等同于撤销后台下载。沿用原来源声明与许可。
+
+2026-10-11 公开插件包校验增量：实际页面核查发现上游多行 Skill 描述被显示为 YAML 的 `>`；Mira 使用显式依赖 yaml 2.9.0 解析标准 frontmatter，限制 alias 展开，只读取顶层名称/描述，非法元数据返回固定错误。市场授权桥仅映射已知网络、完整性与已安装失败，未知主进程错误保持脱敏并给出重试入口。该解析与错误恢复属于 Mira 实现，不复制 ZCode 解析器；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-11 公开插件包增量：参考 `PluginStoreListView.tsx`、`PluginStoreDetailView.tsx` 与 `PluginComponentGroups.tsx` 的列表/详情、已安装条和组件分类。Mira 自有 `MiraPublicPlugins.tsx` 与既有 SkillMarketplaceService 读取固定版本 Anthropic Agent Skills 的真实 marketplace manifest，完整下载声明的 Skill 目录和资源、保留逐文件许可、第三方声明与原 manifest，并生成 Mira 适配 manifest。分块六路下载/逐文件 Git blob 校验/先暂存后发布，登记使用独立市场命名空间；失败或授权撤销不留半包，再安装校验原文件且不覆盖改动。Skill 发现不再误把深层资源目录算成嵌套 Skill，资源读取仍经过原边界校验。没有移植上游商用CDN、账户、付费资产或CLI；非Skill组件继续明确列出未支持。Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 `/side` 增量：参考 `packages/ui/src/slashCommandHelpers.ts` 的 App 本地命令及 `shouldOfferSideSlashCommand` 门禁，主 Composer 的 `/side` 连接 Mira 已有 `openSideConversation`、父子会话与资源标签；只消费命令 token，保留前后正文，不自动发送或改变权限。草稿/prepared/旁路 Composer 不提供嵌套入口，重复操作新建独立标签。未移植 CLI 命令目录或新增运行器；原 Apache LICENSE/NOTICE 保留。
+
+2026-10-11 子智能体引用增量：参考 `slashCommandPanelSections.tsx`、`mentions/providers/subagentsMentionProvider.ts`、`lib/slashApplyMentionPayload.ts` 的独立分类与 @agent mention，以及 `SlashCommandPlugin.tsx` / `lib/promptInputTriggers.ts` 的跨组最佳匹配。Mira 自有 `miraAgents.ts` 将已有四种运行角色/工具范围作为共同事实源，`mira-agent-reference.ts` 插入/恢复原子 @role 提示，既有 Lexical/草稿/队列承载。不是点选即运行，不改变委派或权限配置，运行仍由实际 delegate_task/正常权限处理；没有复制上游 Agent 配置/插件 runtime 或伪造远程角色。原 Apache LICENSE/NOTICE 保留，完整原生同态仍待验。
+
+2026-10-11 MCP 状态增量：参考 `packages/ui/src/slashCommandPanelSections.tsx` 的命令/Skill/子智能体分类，`settings/McpServerList.tsx` 的连接状态点与工具数量，以及 CLI `command-center/handlers/mcp.ts` 的状态读取语义。Mira 在原 Composer 增加独立 /mcp 状态/会话选择面板、刷新与统一 Vue 设置入口；Mira 自有 `miraMcp.ts` 和既有 McpManager 提供真实状态投影，读取不连接、不开放启动配置，刷新版本/断连清理避免旧连接复活。启动后台连接不阻塞工作台，连接中的客户端也由退出/刷新立即关闭，设置文案明确会话选择范围。并未复制上游账户、远程来源、OAuth 或 CLI connect/disconnect 控制。原 Apache LICENSE/NOTICE 保留；完整 MCP 功能同态继续待验。
+
+2026-10-11 06:12 +08:00 插件引用增量：参考 `apps/zcode-cli/packages/adapters/src/plugins/index.ts` 的 `.zcode-plugin/.claude-plugin/.codex-plugin` manifest、Skill 根与命名空间，`core/src/plugin-reference/catalog.ts` / `reminder.ts` 的会话冻结目录、同名冲突和 live 能力交集，以及 `packages/ui/src/mentions/providers/pluginsMentionProvider.ts` 的插件优先分类和 canonical `plugin://name@marketplace` 引用。Mira 使用自有 `miraPluginStore.ts`、`miraPlugins.ts`、`mira-plugin-reference.ts`、`MiraInstalledPlugins.tsx`，经原第一方桥/SQLite 会话/消息队列实现本地包登记、Skill 能力读取和消息引用；不复制上游 runtime、商用市场资产或账户服务。仅 Skill 执行已接入；其他组件明确显示尚未支持，公开市场仍为既有独立 Skill 下载，不冒称完整插件包市场。Apache LICENSE/NOTICE 原文保持；移除登记不删除用户原包或原许可文件。
+
+2026-10-11 05:15 +08:00 权限提交增量：参考 `packages/ui/src/v4/composer/useDraftConfigControl.ts` 的 `handleDraftSwitchMode`：计划独立、权限仅改下一次 submission intent。Mira 使用自有 `HarnessComposer`、`composer-drafts` 所属权限映射和既有第一方桥/运行队列；新增明确 `permissionMode` 白名单与 fingerprint，接纳验证/入队冻结/重试原快照/撤回恢复/旁路隔离。执行时权限与用户消息同一次保存；不修改已运行轮次，保留旧直接运行的动态全局策略。明确禁用返回可重新采样结果而不丢草稿；没有移植上游 RPC、账户或 runtime。192文件3167项、明暗真实隐藏Electron14项及4图通过，使用受控本地模型协议，非原生/远端/完整性能验收。Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 04:55 +08:00 配置菜单增量：参考 `packages/ui/src/v4/composer/V4ComposerModeControls.tsx` 的独立计划勾选、三档权限单选、52px最小行/12px间距/18px图标与右侧标记，以及 `chat-input-toolbar/ThoughtLevelCycleControl.tsx` 的档位选择和关闭返回。Mira 自有 `useMiraComposerMenuFocus.ts` 为权限/推理/项目菜单绑定所属 Lexical、非模态外部交互与 IME保护；保存返回后等待Lexical可编辑DOM更新帧，菜单移除焦点项保持正常恢复，外部已聚焦后才到达的关闭回调不安排新恢复，外部操作/任务切换/隐藏撤销延后焦点。最终192文件3147项、明暗真实隐藏Electron18项和4图复核通过。继续使用现有Radix/Mira协议，没有复制上游Select/账户/RPC。此批权限仍立即保存会话、运行中禁止修改且保存时输入暂锁，与上游下一次Submission intent的差异单列后续，未宣称完整对齐；Apache LICENSE/NOTICE原文保持。
+
+2026-10-11 模型选择增量：参考 `packages/ui/src/ModelConfigSelect.tsx` 的供应商 SubTrigger/SubContent、当前供应商标记、32px 模型行与固定管理入口。Mira 自有 `MiraModelMenu.tsx` 使用现有 Radix 和主题 token，保留跨供应商搜索，图片/推理图标只取 Mira 已配置能力；以供应商 ID 与模型 ID 的二元组区分身份。选中接回 Mira 原有 controller/草稿/下一次提交协议；没有复制上游账户、商业连接或 RPC。搜索支持方向键进入菜单、左右键子菜单、Enter 选择、Escape 回所属 Lexical，IME 组合事件不导航或关闭，外部交互不抢焦点；Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 浏览器驻留增量：参考 `packages/desktop/src/main/browserView/browserTabResidencyPolicy.ts`、`browserTabResidencyCoordinator.ts` 与 `browserGuestManager.ts` 的窗口级 32 个逻辑标签上限、后台活动排序与 durable close。Mira 自有 `mira-browser-residency.ts` 跨任务计数，保护当前可见标签及加载/媒体/下载/捕获/在途 viewport 或 picker；先保存工作区关闭和最近关闭记录，重新校验活动、选择和 native 保护后才释放 guest，状态变化则恢复存储。Vue 按任务/资源解析真实 guest，`miraBrowserProtection.ts` 只在既有第一方授权桥返回保护布尔值，不开放任意 guest 操作。全部受到保护时允许暂时超限，保护解除后重试；32 个以内不轮询。删除任务同时移除工作区记录。原 Apache LICENSE/NOTICE 保留；没有复制上游 RPC 或 suspended runtime，不代表原生 ZCode 对照或性能上限验收。
+
+2026-10-11 元素选择增量：参考 `hooks/useWebElementPicker.ts`、`lib/webElementPickerScript.ts`、`lib/webElementContext.ts` 与 `EmbeddedBrowserPaneParts.tsx`。Mira 自有 `miraBrowserPicker.ts`、`useMiraBrowserPicker.ts`、`mira-browser-reference.ts`，保留蓝色网页选区及深色属性浮层、工具栏选择/取消、Escape、网页上下文引用；仅允许固定 picker 操作，Vue 从任务/资源解析真实 guest，主进程校验 grant、主 frame、session/embedder。选中内容进入 Mira 原子引用与现有草稿/提交协议，不复制上游全局事件、workspace 身份或 RPC。取消清除监听并恢复原光标；导航/隐藏/关闭/任务切换取消在途选择，按 run 丢弃迟到结果。页面数据限长校验，快照移除输入值、textarea 正文和脚本事件属性。Apache LICENSE/NOTICE 原文保持；Composer 与已发送消息的网页元素复用 MiraBrowserContexts 聚合胶囊，布局与 HoverCard 详情改编自 ContextAttachmentPill.tsx / WebElementContextAttachmentChip.tsx；使用现有 Radix，保留单项/全部删除、键盘展开与 Escape，正文、文件和会话引用继续由 Mira canonical 文档持有。只含快照的消息及省略元数据的旧草稿仍可恢复；没有移植上游 runtime。
+
+2026-10-11 自由尺寸增量：参考 `browser-use/BrowserViewportToolbar.tsx`、`ResponsiveBrowserViewport.tsx`、`ResponsiveBrowserResizeHandles.tsx`、`browserViewportZoom.ts` 及主进程 `browserGuestManager.ts` 的固定 viewport/CDP metrics 策略。Mira 自有命名为 `MiraBrowserViewport.tsx`、`miraBrowserViewport.ts`、`miraBrowserViewports.ts`，复用既有 Radix DropdownMenu 和 Mira 视觉 token。宽 320–3840、高 320–2160，默认 393×852，适应及 50–200% 预览；Enter/失焦提交、Escape 恢复，保留非法草稿并反馈。网页由 Vue 固定容器托管，React 只交尺寸/比例；宿主解析资源 ID 并覆盖 guest 目标，主进程校验 grant/主 frame/session/embedder，串行执行明确的 CDP metrics，不开放任意 CDP。模式不重建 guest，桌面 zoom 补偿、画布裁剪、边/角拖拽、200ms 偏好保存沿用上游行为并按 Mira 授权/导航体系改编。人类显示偏好不接管 Agent viewport，元素选择和 residency 尚待接入。Apache LICENSE/NOTICE 原文保持；本段记录实现，验收见首屏对齐文档。
+
+2026-10-11 浏览器资源增量：继续参考 `packages/ui/src/hooks/useAppPanels.ts` 的 `handleOpenBrowserUrl`、`handleOpenBrowserTab` 和 `handleReopenClosedSidePaneTab`：普通终端网址及空浏览器入口每次创建独立资源，最近关闭恢复创建新身份并保留地址/标题。参考 `browser-use/UnifiedBrowserView.tsx` 的实际页面标题更新。Mira 使用自有 `MiraBrowserPanel.tsx`、`workspace-state.ts`、`miraHostedBrowsers.ts` 和既有第一方授权桥；按主任务与资源共同管理 WebView、独立历史、隐藏保活、精确关闭、背景事件归属和授权在途关闭保护，不复制上游 RPC、registry 或浏览器 Runtime。00:20 批次的单浏览器复用只属历史实现，不再作为当前对齐行为。旧 `browser` 偏好/无资源参数调用仍兼容；完整 favicon、viewport 偏好和上游 residency 管理尚未移植。Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 00:20 +08:00：参考 ZCode `terminal/terminalLinks.ts` 与 `terminal/TerminalSession.tsx` 的 plain URL provider/OSC 8 linkHandler，新增 Mira 命名的 `lib/mira-terminal-links.ts`，保留 Apache 来源，按逻辑换行读取缓冲区并映射 UTF-16 到实际宽字符/组合字符单元格，链接末尾包含完整宽字符列；清理正文尾标点和多余括号。终端仅把 HTTP(S) 交给当前主任务的资源浏览器，不直接打开系统窗口；隐藏/卸载/过期 owner 不发导航。浏览器从 Workbench 内移入 `workspace/MiraBrowserPanel.tsx`，使用 Mira 自有一次性导航请求，已打开和重复同 URL 均可响应，观察到的 URL/重定向不触发循环导航。原宿主协议和 Apache LICENSE/NOTICE 原文保持。
+
+2026-10-11 00:04 +08:00：`TerminalPanel.tsx` 继续参考 ZCode `terminal/TerminalSession.tsx` 的 Radix 复制/粘贴菜单，复用 Mira 菜单视觉/图标、选区与焦点。Mira 不移植浏览器 `clipboard.readText`：新增自己的 `terminal.paste` 授权调用，主进程先校验 grant/session/PTY owner，再读取一次系统文本并按 xterm 6 的换行/括号粘贴语义写入指定 PTY，返回 void，不把内容交给 renderer。空内容不写，超限/读取失败反馈；原 Ctrl/Cmd+V 单 native paste 路径不变。原 Apache 声明保留，本段只描述实现，不代替运行验收。
+
+2026-10-10 23:53 +08:00：资源标签继续遵循 `app-shell/SidePaneTabTrigger.tsx` 的 156px 等宽/最小 60px 收缩，移除 Mira 选中标签额外 128px 下限。终端排除旧 inspector section 的额外内边距/底边线，实际内容仅保留 `SidePaneTerminalPane.tsx` 对应的单层 12px。悬停后关闭动作沿用既有结构；旧关闭失败来自夹具没有先悬停后台标签，不作为产品缺陷或按钮层级改造依据。
+
+2026-10-10 23:46 +08:00：按 `packages/ui/src/SidePaneTerminalPane.tsx` 明确的单 shell/不嵌套 tabs 结构，以及 `hooks/useAppPanels.ts` 的独立终端资源、目录标题去重和关闭 release，Mira 把每个 PTY 移到自身统一资源条中。`TerminalPanel.tsx` 不再提供内层终端栏/常驻连接头，使用上游 12px 内边距；`workspace-state.ts` 为 Mira 独立终端资源创建身份和目录标题，保留旧 `terminal` 偏好与最近关闭恢复。Workbench 按主会话/资源独立保活、关闭释放和局部重启；标签菜单提供重启，不复制 ZCode registry/RPC。`WorkspaceTabs.tsx` 回收已移除关闭按钮的焦点，保留用户已切去的输入焦点。23:35 的内层 tabs 行为是历史结构，不能再宣称当前一致。
+
+2026-10-10 23:32 +08:00：`TerminalPanel.tsx` 参考 ZCode `terminal/TerminalSession.tsx` 的可见 session 下一帧聚焦及有选区 Ctrl/Cmd+C 复制规则。Mira 保留自己的 PTY/Controller、连接/隐藏/卸载生命周期与输入焦点保护；复制失败公开反馈且不发送 SIGINT。粘贴由 xterm 原生 paste 事件处理，Ctrl/Cmd+V 只让出 xterm 按键处理，不复制上游 clipboard.readText 路径或开放 iframe 剪贴板读取权限，避免双重写入。代码保留 Apache 来源声明，原终端字体栈补录 DESIGN，不更换视觉。
+
+2026-10-10 23:23 +08:00：参考 `packages/ui/src/v4/SessionPane.tsx` 的 focused pane 停止归属和 `packages/ui/src/terminal/TerminalSession.tsx` 的终端按键边界，Mira Workbench 为资源面板独立记录焦点，旁路内部捕获指定 child；资源页签切换不重置 main。`MiraTaskFind.tsx` 检查实际资源事件目标，避免终端/文件/浏览器误开主查找，保留自身任务变更查找与全局搜索。仅适配 Mira 自有焦点/事件状态，不复制上游终端输入 fallback、RPC 或配置协议。原 Apache 声明与许可保留；定向及隔离宿主结果见首屏文档，不宣称原生/完整性能验收。
+
+2026-10-11 审批定位增量：继续参照 ZCode `v4/SessionPane.tsx` 的 pane 归属与 `v4/ConversationQueuePanel.tsx` 的确认门禁，Mira Composer 将“查看确认”交给当前会话所属的 Timeline。权限与计划/澄清按请求身份、局部 viewport 定位；长历史中的行内权限先用既有虚拟消息导航挂载，再将键盘焦点交给确认卡。计划摘要只查找计划确认，不命中记忆保存或其他权限卡；会话切换取消在途定位。工具仍在运行但实际待审批时亦显示确认入口，不伪造queue.paused。`TaskInteraction.tsx` 与局部 `mira-task-interaction` 样式参考 `ElicitationDialog.tsx` 的中性popover、16px轮廓、12px留白、选项hover/selected与主按钮；移除计划/澄清旧整块warning背景，保留Mira的实际计划/问题协议。不复制上游 RPC/队列实现，原 Apache LICENSE/NOTICE 保留。验收以本批首屏记录为准。
+
 更新日期：2026-10-10 16:32 +08:00（Asia/Shanghai，追加比例分栏与真实公开子对话适配；验收状态以首屏记录为准）。
 
 当前改编批次为 [首屏实现增量](#2026-10-09-首屏实现增量)，下一入口仍是首屏交互/截图与性能验收，不回到文件支线。前一批 [收尾增量](#2026-10-08-收尾增量) 的 80 文件/458 项及 80/455、后续文件批次继续保留历史身份，不能作为当前首屏验收统计。限定回归与 opaque iframe headless 不等于新的原生 Electron、安装包、Windows 或 P0–P3 放行。本批未提交、未推送。
@@ -19,10 +91,17 @@
 
 ## 改编范围
 
+2026-10-11：标签概览参考 `SidePaneTabOverview.tsx`、`sidePaneTabSearch.ts`、`sidePaneTabPresentation.ts`，使用已有 Radix Popover 与 cmdk，实现打开/最近关闭分组、标题/类型/路径/URL 多词搜索和排序、逐项关闭、恢复及键盘操作。Mira 以自身资源 ID 区分同名项；打开/关闭时间来自真实状态转换，旧偏好不补造时间；保留宿主授权与浏览器资源回收，不移植上游 RPC、全局 store 或商业服务。`MiraWorkspaceOverview.tsx`、`lib/mira-workspace-tab-presentation.ts` 及 WorkspaceTabs/state/CSS 为本批改编位置。
+
+2026-10-10 23:00：主/旁对话的可见轮次直接消费 Mira canonical 消息，不再为整份历史建立第二套 assistant-ui 消息运行时与订阅。保留上游参考的布局和交互、完整历史、renderer 身份、TanStack 虚拟轮次、Streamdown/Shiki 正文、Radix 工具折叠、Lexical 输入与 Mira 自有滚动恢复。未移植上游消息引擎，不修改 node_modules；本项性能与交互验收以首屏记录为准。
+
+2026-10-10 21:55：参考 `SessionPane.tsx` 的 focused/visible 分离及 `useConversationTimelineFind.ts`，Mira主/旁对话查找使用各自查询状态，当前焦点独占Cmd/Ctrl+F、Escape与高亮；全局CSS Highlight采用当前owner保护，避免旧面板cleanup清掉新结果。侧对话只显示实际接通的对话查找，不提供尚未接通的文件变更查找入口；不移植上游RPC或find全局store。功能验收以首屏文档为准。
+
 | Mira 文件/区域 | 上游参考 | Mira 改编内容 |
 | --- | --- | --- |
 | `hooks/useMiraPaneGeometry.ts`、`lib/pane-geometry.ts`、Workbench 与 layout/workspace CSS | `app-shell/useAnimatedResizablePanel.ts`、`sidePaneLayout.ts`、`animatedSidePanePanelModel.ts`、`WorkspaceShellLayout.tsx` | 参考主体右侧默认 45%/最小 240px/最大 65% 比例分栏、显式 200ms 开合与窗口缩放空闲后收栏，复用 `react-resizable-panels` 4.8.0 公开 API，其 MIT 原文另存 `../react-resizable-panels/`。Mira 保留桌面 Shell，移除 1180px 模态浮层；像素侧栏、旧偏好迁移、串行保存/失败导航阻断与重试、拖拽期间 CSS 更新、动画取消和内容锁宽为 Mira 适配，不复制上游 RPC/偏好存储 |
 | `MiraToolExploration.tsx`、`lib/tool-exploration.ts`、`AssistantMessageParts.tsx`、`run-progress.tsx` 与 `styles/thread.css` | `packages/ui/src/v4/conversationAssistantWorkItems.ts`、`ToolCallBlocks/renderers/explore.tsx`、`renderers/read.tsx`、`renderers/search.tsx`、`ToolSummaryRow.tsx` 与 `ToolLayout.tsx` | 适配连续只读工具“查阅”聚合、首项身份与阶段流式状态、按需挂载、轻量读取/搜索摘要和运行文字扫光；工具类别/统计来自 Mira 明确公开记录，不把任意 shell 推断为只读。成功状态隐藏，失败/取消与原始记录仍可发现；运行收起态的文件可独立预览，键盘子动作不展开父组。14px/16px 与悬浮右箭头参考上游。成功计划只有实际计划活动存在时才去重，审批和失败记录保留 |
+| `MiraToolCommandGroup.tsx` 与上述对话工具接线 | `packages/ui/src/ToolCallBlocks/renderers/execute-group.tsx`、`renderers/execute.tsx`、`renderers/explore.tsx` 与 `v4/conversationAssistantWorkItems.ts` | 适配连续执行分组、当前活动命令优先、按需展开与展开后不重复命令摘要。Mira 原创 `lib/mira-command-presentation.ts` 只从完整公开输入提取命令；有限静态规则必须识别复合命令的全部片段，未知、动态或复杂命令保持执行类别，缺失或截断输入不聚合。查阅按一次真实公开调用计一个类别，阶段状态由可见时间线尾部决定；运行/子任务边界及审批记录不合并。分类只用于 UI，不改变 Runtime、风险或授权策略 |
 | `MiraToolFileChip.tsx`、`styles/mira-tool-files.css` 与 `assets/file-types/` | `packages/ui/src/ToolCallBlocks/renderers/read.tsx` 的 `ReadFileChip`、`lib/fileDisplay.tsx` | 改编文件名独立操作与旁侧目录显示，Mira 保留自己的路径授权和预览协议；不可授权的路径只显示。16 个静态图标来自上游使用的 Material Icon Theme，原图逐项固定提交核验、MIT 原文与 Material Extensions 版权独立保留于 `../material-icon-theme/`，不使用 ZCode Apache-2.0 替代图标许可；Mira 名称、末尾换行及内联打包见其来源说明 |
 | `MiraSubtaskRecord`、`MiraSubtaskPanel.tsx`、`OverviewPanel.tsx`、`TaskSummary.tsx`、Workbench 接线与 workspace-state | `packages/ui/src/ToolCallBlocks/renderers/agent.tsx`、`v4/ConversationAgentToolCallRow.tsx`、`app-shell/SubagentSessionSidePane.tsx`、`SessionPane.tsx` | 参考父对话单行智能体入口、独立右侧可关闭页签、运行过程入口及子对话布局。新 Mira 子记录通过自身公开 parts 契约显示实际有序正文/思考/工具，复用 Mira renderer，保留独立滚动/展开记忆及不遮挡首行的悬浮摘要；旧记录仍显示真实活动/报告，不补造历史对话。tab 保存明确 session/run/child 身份；停止 single-flight、迟到导航回执保护、canonical 调用关联、跨 response/同 response 重复 provider ID 隔离、250ms 发布合并、多响应用量累计和恢复中断均为 Mira 原创 Runtime 适配，不复制上游 Runtime、系统提示或私有引擎消息 |
 | `MiraToolCommand.tsx`、`MiraToolDiff.tsx`、`lib/tool-diff.ts`、`run-progress.tsx` 与 `styles/thread.css` | `packages/ui/src/ToolCallBlocks/renderers/execute.tsx`、`ExecuteOutput.tsx`、`EditInlineDiffContent.tsx`；`components/ui/scroll-fade-viewport.tsx`、`highlighted-lightweight-diff-preview.tsx`、`lightweight-diff-preview.tsx`；`lib/patchDiffPreview.ts` | 改编命令盒、五行输出窗口、上滚冻结/回底跟随、滚动边缘渐隐与轻量 diff。Mira 原创工具进度投影复用现有有界脱敏、忽略取消/终态后的迟到结果，保留上游严格布尔截断标志；diff 读取真实公开记录，编号/unified 双格式按实际范围显示单行号，未知/不完整记录保持原文、不造统计；全记录经已有取消/重试 Worker 高亮，不读取当前磁盘冒充历史变更，不移植 ZCode RPC/快照后台。输入/输出原记录仍可展开查看，文件动作继续经原授权桥 |
@@ -32,6 +111,8 @@
 | `HarnessComposer.tsx`、`useComposerCatalogs.ts` 与 `lib/composer-drafts.ts` | `packages/ui/src/v4/ConversationComposer.tsx`、`prompt-editor/ChatPromptEditor.tsx`、`mentions/MentionPlugin.tsx` 的项目引用与输入消费链 | 新项目草稿可在首次发送前浏览/搜索文件，选择前不创建任务；Mira 复用已授权 project files 和真实 stage，选择后唯一 prepared owner 冻结附件。行内文件引用关联该次 DTO，删除/撤销与当前 owner 附件同步；独立上传保留。失败重试保存原范围，新输入不被迟到 continuation 覆盖；对话读取按 owner/项目/目录/revision 保护。版本 1 文档白名单、owner 生命周期、偏好容量降级与草稿/队列/ACK 均为 Mira 适配，不复制上游 store/RPC/Runtime；Skill/MCP 仍使用 Mira 实际配置协议 |
 | `apps/harness-react/src/components/composer/MiraPromptEditor.tsx`、`MiraPromptReferenceNode.ts` | `packages/ui/src/LexicalChatInput.tsx`、`mentions/nodes/PromptMentionNode.ts`、`mentions/promptSerialization.ts`、`mentions/PromptClipboardPlugin.tsx` | 改编 Lexical shell、真实 TextNode token、短标签与 canonical 原文分离、原子选择/删除和纯文本剪贴板；保留 Apache-2.0 标识及原版权。Mira 使用公开 PlainText/History API、原生中文合成保护、受控回传/历史隔离和剪切失败保稿，不恢复上游插件 URI、任意 Lexical JSON 或 HTML。Lexical 0.42.0 及新增依赖的原始 MIT 许可另存 `../lexical/`；未修改运行库 |
 | `apps/harness-react/src/lib/prompt-editor-document.ts` | 上述 canonical 引用/选区交互；Mira 独立数据契约 | Mira 独立实现 version 1 text/reference parts、字段/大小白名单、canonical 序列化与不可拆分的引用 offset/range 替换；不复制上游内部节点 JSON 或后端引用解析器。正文匹配失败回退纯文本，文件 pill 恢复需 owner DTO；来源记录不声明完整 ZCode 同态、性能或发布验收 |
+| `MiraSelectionActions.tsx`、`lib/mira-conversation-selection.ts`、Composer 和正文/思考/工具区域接线 | `packages/ui/src/v4/ConversationSelectionTooltip.tsx`、`SelectionActionMenu.tsx`、`hooks/useTextSelection.ts`、`lib/conversationSelectionGuard.ts`、`conversationSelectionReference.ts` | 改编单 row/region 选区门禁、悬浮动作定位与 scroll/resize/Escape 生命周期、8000/8/16000 引用限制。Mira 独立使用 session/message/part 身份及 canonical Lexical selection pill，保存选中快照、去重、保留已有草稿选区和原子撤销；不复制上游全局引用 store、RPC 或 userselect 解析协议。提供添加当前任务和旁路提问，后者见下行 |
+| `MiraSideConversation.tsx`、共享 `MiraConversationMessages.tsx`、Workbench/Composer/工作区状态与 Electron 会话适配 | `packages/ui/src/app-shell/SelectionSideChatPane.tsx`、`v4/SessionPane.tsx` 的 `handleOpenSelectionSideConversation`、`lib/selectionSideInheritedModel.ts`、`apps/zcode-cli/packages/core/src/runtime/methods/session-fork.ts`、`bootstrap/src/zcode-protocol/v4-bridge.ts` 与 `commands/handlers/selection-side-session.ts` | 改编独立可编辑侧对话、选中时复用/固定入口新建、单在途创建和失效替换。Mira 使用自己的 parentSessionId、第一方 session.create-side、独立 Controller/草稿 namespace/审批/队列/停止及父生命周期守卫；只复制稳定正文、附件与压缩摘要作为隐藏模型上下文，不复制 ZCode 全量 parts/tool history/runtime/goal/queue。继承已生效模型与推理档位，不带入主 Composer 未提交配置。复用 Mira 同一消息/工具/引用渲染与待应用指导组件，资源面板 CSS 不覆盖对话正文；不移植上游全局 store、RPC、商业服务或 telemetry |
 | `apps/harness-react/src/components/conversation/ConversationTurnRail.tsx`、`styles/thread.css` | `packages/ui/src/v4/ConversationTurnNavigator.tsx`、`conversationTurnNavigatorHelpers.ts` | 适配 10px 行高/overscan 6 的 TanStack 虚拟轮次栏、120ms/80ms Radix Hover Card、right/start 随项预览和相邻山峰视觉；活动轮次滚入可见窗口。Mira 保留自己的 query/message 身份，并独立增加单一 Tab 停靠、方向/Home/End/Page 键跨窗口移焦与迟到焦点取消，不复制上游 hydration/RPC；真实宿主及性能证据由首屏记录维护 |
 | `apps/harness-react/src/components/session/SessionSidebar.tsx`、`styles/session.css` 与工作台文件树接线 | `packages/ui/src/workspace-grouped-tasks/task-row.tsx`、`TaskListItem.tsx`、`TaskList.tsx`、`WorkspaceSidebar.tsx` | 适配分组行文件树/移到根顶部/X关闭、项目/置顶/时间线原位归档确认及 hover/focus 状态；成熟 Radix tooltip/menu 与按钮默认焦点保留。Mira 独立实现偏好事务、single-flight/失败重试、归档导航生命周期及 project/session owner 文件浏览，不复制上游任务 Runtime；组草稿见下行，跨 owner 预览仍未扩展 |
 | `MiraSidebarSection.tsx`、`SessionSidebar.tsx`、`sidebar-preferences.ts`、`styles/session.css` | `packages/ui/src/WorkspaceSidebar/WorkspacePurposeSection.tsx`、`lib/sidebarPurposeSectionPreferences.ts`、`lib/workspaceTaskPagination.ts` 与 `WorkspaceSidebar.tsx` | 适配项目/个人区独立持久折叠、标题 hover/focus 操作、个人新任务入口、项目内每次 +5 展开和不可见项目的分页清理。使用 Radix Collapsible 与 dnd-kit 分区排序；Mira 独立实现同级键盘路径、一次保存/失败回滚/后续修改保护，偏好继续保存到宿主，添加项目成功才展开分区。未复制远端工作区或 RPC |
@@ -42,8 +123,10 @@
 | `apps/harness-react/src/components/composer/MiraAttachmentPreview.tsx` 及 Composer/消息图片组接线 | `packages/ui/src/components/ai-elements/image-preview-dialog.tsx` | 适配全画布遮罩、圆形前后切换/关闭/保存按钮、方向键循环、50–300% 缩放和拖动画布；切项释放 pointer capture 并重置视图，错误可单项重试。原生保存由 Mira 会话附件令牌与受控 IPC 实现，不复制上游远程下载、视频或账号能力；文本继续用普通内容弹窗 |
 | `apps/harness-react/src/components/composer/MiraComposerAttachments.tsx`、`MiraAttachmentPreview.tsx`、`lib/attachment-input.ts` 与 `HarnessComposer.tsx` 附件入口 | `packages/ui/src/v4/composer/useComposerAttachments.ts`、`packages/ui/src/lib/chatAttachments.ts`、`packages/ui/src/v4/ConversationComposer.tsx`、`packages/ui/src/ChatMediaAttachmentPreviewDialog.tsx` | 适配 Composer 48px 图片缩略图与文本条目、hover/focus 移除、原生选择/拖拽/粘贴、15Ki 字符文本粘贴转附件及附件-only 发送；用 Mira 的不可变会话附件令牌、受控桥与 Radix 预览，未复制上游附件 RPC/临时文件路径。保留 Mira 既有最多 12 个引用（上游 8 个），图片单张 20 MiB/总 40 MiB、文本单个 256 KiB/总 1 MiB；当前模型链只支持真实图像与 UTF-8 文本，不宣称视频/PDF 输入已对齐 |
 | `apps/harness-react/src/components/conversation/message-parts.tsx` 附件展示与工作台用户消息 | `packages/ui/src/v4/ConversationRowView.tsx` | 图片显示为实际持久化内容的 80px 缩略图并打开预览，文件保留 compact pill；附件-only 不生成空文本气泡或复制空正文。图片通过 Mira OpenAI-compatible SDK 的 ImageContent 传入模型，不移植上游 CLI/provider 路由 |
-| `apps/harness-react/src/components/conversation/MiraConversationTimeline.tsx`、`lib/conversation-timeline.ts` | `packages/ui/src/v4/ConversationTimeline.tsx`、`conversationTimelineLiveTail.ts`、`conversationTurnRenderUnits.ts`、`timelineRowHeightCache.ts` | 按 Mira 普通输入建立任务轮次，guide 与助手分段保留原顺序；历史 TanStack overscan 8、72px 估高和实例内 4000 条测高缓存，仅真实运行末轮保留正常流。公开 assistant-ui message index 复用现有渲染器；搜索/rail/摘要先挂载目标再定位，阅读记忆附带轮次锚点。未移植上游 RPC、历史分页或持久化 UI 状态 |
-| `apps/harness-react/src/lib/conversation-scroll.ts`、`hooks/useConversationScroll.ts`、`components/conversation/MiraConversationViewport.tsx` | `packages/ui/src/lib/chatSessionScrollMemory.ts` 与 `packages/ui/src/v4/ConversationTimeline.tsx` 的 scope/阅读恢复 | renderer 内按 Mira 工作目录/会话隔离的 200 条 LRU；切换前保存旧 DOM，等真实消息窗口装载后恢复，主动滚动/轮次与搜索导航取消恢复。复用 assistant-ui 公开跟随 API，不引入上游 RPC 或承诺进程重启后恢复 |
+| `apps/harness-react/src/components/conversation/MiraConversationTimeline.tsx`、`lib/conversation-timeline.ts` | `packages/ui/src/v4/ConversationTimeline.tsx`、`conversationTimelineLiveTail.ts`、`conversationTurnRenderUnits.ts`、`timelineRowHeightCache.ts` | 按 Mira 普通输入建立任务轮次，guide 与助手分段保留原顺序；历史 TanStack overscan 4、72px 估高和实例内 4000 条测高缓存，仅真实运行末轮保留正常流。可见轮次直接渲染 canonical 消息；搜索/rail/摘要先挂载目标再定位，阅读记忆附带轮次锚点。未移植上游 RPC、历史分页或持久化 UI 状态 |
+| `apps/harness-react/src/lib/conversation-scroll.ts`、`hooks/useConversationScroll.ts`、`components/conversation/MiraConversationViewport.tsx` | `packages/ui/src/lib/chatSessionScrollMemory.ts` 与 `packages/ui/src/v4/ConversationTimeline.tsx` 的 scope/阅读恢复 | renderer 内按 Mira 工作目录/会话隔离的 200 条 LRU；切换前保存旧 DOM，等 canonical 消息提交后恢复，主动滚动/轮次与搜索导航取消恢复。Mira 自有跟随/ResizeObserver/宽度补偿管理原生 viewport，不引入上游 RPC 或承诺进程重启后恢复 |
+| `MiraSidebarTaskTitle.tsx`、`styles/session.css` 与任务/项目菜单接线 | `packages/ui/src/components/TaskTitleOverflowText.tsx` | 改编原始文字测宽、溢出mask、24px双份间距、40px/s/最短6秒移动/2秒暂停及1秒延迟。Mira增加键盘聚焦、菜单暂停、页面隐藏和减少动态效果生命周期，按钮保留完整可访问名称，重复文字隐藏；右键和更多菜单共享提示暂停身份，不复制上游业务store |
+| `SessionSidebar.tsx` 的前置置顶按钮与 `styles/session.css` | `packages/ui/src/TaskListItem.tsx` 的 leading pin action | 适配16px前置槽、hover/focus显示、置顶常显及无导航切换；保留Mira独立拖拽柄、分组行语义和既有置顶IPC/SQLite。失败由Controller返回所属行并允许重试，错误在行内展开，不复制上游远端或移动端标记 |
 | `apps/harness-react/src/styles/mira-foundations.css` | `packages/ui/src/styles.css` 的 `.theme-zai-light` / `.theme-zai-dark` | 使用实际浅深色主题值；内部变量改为 `--mira-*`；由宿主 `.dark` 切换，保留 Tailwind 工具类别名；桌面 UI 默认 14px |
 | `apps/harness-react/src/styles/app.css` | 同文件的滚动条与语义配色 | 将区域样式兼容别名桥接至 Mira 主题，滚动条沿用透明轨道与 3px 透明边 |
 | `apps/harness-react/src/lib/utils.ts` | `packages/ui` 的 shadcn 类名合并模式 | 使用本项目的 clsx / tailwind-merge；不引入上游业务状态或 RPC |
@@ -74,7 +157,8 @@
 | `apps/harness-react/src/components/conversation/AssistantMessageParts.tsx`、`run-progress.tsx` 与 `styles/thread.css` | `packages/ui/src/v4/ConversationRowView.tsx` 的 ReasoningRow/ToolCallRow 及共享工具行 | 参考有序正文/折叠公开思考/工具参数结果与内联审批表现；Mira 独立 parts 契约与数据库 JSON 持久化，使用实际 pi-ai 公开事件及工具调用身份；子对话复用相同渲染器和严格 run/child 归属。旧消息兼容，公开思考和工具文本有界，不暴露系统提示、私有引擎消息或附件临时 prompt，不移植上游 Runtime |
 | `apps/harness-react/src/components/composer/HarnessMessageQueue.tsx`、`HarnessComposer.tsx` 与 `styles/composer.css` | `packages/ui/src/v4/ConversationQueuePanel.tsx`、`ConversationComposer.tsx`、`SessionPane.tsx` 的运行中入队/撤回/排序/立即发送/暂停发送确认交互，以及 CLI `session-flow.ts` 的保留队列语义 | 改编队列面板、dnd-kit键盘排序、修饰键立即发送与Radix暂停确认；Mira独立实现宿主FIFO/完整输入冻结/撤回草稿恢复/原子预占和admission后清空/停止暂停与受控桥，renderer重载复用提交身份。待发送队列仅进程内；本轮引导适配见下一行 |
 | `apps/harness-react/src/components/conversation/MiraPendingGuides.tsx`、`HarnessComposer.tsx`、`conversation-model.ts` 与 Vue General 设置 | `packages/ui/src/v4/ConversationPendingGuideList.tsx`、`ConversationRowView.tsx`、`ConversationComposer.tsx`、`composer/followupModeSettings.ts`；语义参考 CLI `runtime/methods/turn-guide-drain.ts`、`turn-tools.ts`、`turn-stop.ts` 和 `steering.ts` | 改编运行中引导/队列偏好、修饰键反转与内联待应用用户行，使用 Mira 命名和 Radix/Lucide。实际 Agent.steer、整批工具结束后消费、消费确认、同run分段持久化、停止转暂停队列、权限/模型/附件不兼容回退、快照游标恢复均为 Mira 独立宿主/Controller 实现，不复制上游 Runtime；待应用引导不伪装成已消费消息。验证状态由首屏文档维护，不声明原生或完整同态通过 |
-| `apps/harness-react/src/components/composer/ComposerSuggestionPanel.tsx`、`ComposerControlHint.tsx`、`useComposerCatalogs.ts`、`lib/prompt-input-triggers.ts` | `packages/ui/src/mentions/activePromptInputToken.ts` 及已装载输入框的引用/命令交互 | 参考 caret 触发和替换范围；Mira 使用本地命名与实际文件/Skill/MCP/对话候选，canonical token 替换保留前后草稿和既有行内引用，方向键/Enter/Tab/Esc 使用成熟 Radix 菜单/tooltip。发送偏好来自统一宿主，不移植上游多模态或插件业务；运行队列/引导的独立适配见前两行 |
+| `apps/harness-react/src/components/composer/ComposerSuggestionPanel.tsx`、`ComposerControlHint.tsx`、`useComposerCatalogs.ts`、`HarnessComposer.tsx` 与 `lib/prompt-input-triggers.ts` | `packages/ui/src/mentions/activePromptInputToken.ts`、`MentionPlugin.tsx`、`SlashCommandPlugin.tsx` 及已装载输入框的引用/命令交互 | 参考 caret 触发、同 token 内纯光标移动保留查询/替换范围/高亮与完整范围确认；Mira 快照独立绑定 owner/正文，canonical token 替换保留前后草稿和既有行内引用。显式 `+` 将焦点交给同一 Radix Popover，Escape 恢复原选区，键盘和输入法/迟到焦点保护由 Mira 实现。发送偏好来自统一宿主，不移植上游多模态或插件业务；运行队列/引导的独立适配见前两行 |
+| `SessionSidebar.tsx` 的工作台快捷键、`HarnessWorkbench.tsx` 提示与 Vue `SearchBar/index.vue` 搜索别名 | `packages/shared/src/shortcutCommands.ts`、`packages/ui/src/hooks/useAppKeyboard.ts` 与 `App.tsx` 的 toggleSidebar/command center 绑定 | 参考 B 切侧栏与 Shift+P 搜索别名，Mira 复用 K/Shell/侧栏的应用所属搜索与 MessagePort。普通 Lexical PlainText Composer 的 B 在 capture 一次消费；文件编辑器/终端保留原生 B，是明确的 Mira 差异。模态/菜单、输入法、repeat/已消费事件守卫和 hover/focus 提示独立实现，不复制上游完整键盘注册体系 |
 | `apps/harness-react/src/components/session/`、`components/composer/`、`components/workbench/`、`components/workspace/` | ZCode 桌面应用的任务侧栏、起点、输入区、资源面板；源码 `packages/ui` 对应区域 | 根据 Mira Harness 已有能力适配交互与布局；Mira 组件、文件与业务变量保持本项目命名 |
 
 本表最后一行记录界面参考范围，不声称完整复制了上游 Agent Runtime、账号服务、
@@ -204,6 +288,110 @@ SVG 继续使用既有文本读取，并以独立 `<img>` 展示，不作为内�
 Command Center 历史参考 `packages/ui/src/command-center/commandCenterSearchHistory.ts` 与
 `CommandCenterDialog.tsx`；Mira 沿用受控偏好桥、按工作目录隔离、异步保存保护，动作成功才记录。
 原始法律文件保持不变，本来源记录不代表原生同态或整体功能/性能验收完成。
+
+2026-10-10 主/旁 Escape 停止作用域：参考 `packages/ui/src/v4/composer/escapeStop.ts`
+的焦点及已消费键盘事件边界。Mira 沿用已有 Controller 和停止桥；只有当前对话的非模态查找
+阻止停止，另一对话的查找不阻止。模态窗口、其他 dialog 和打开的 menu 继续保护。
+
+2026-10-10 旁路消息操作：对齐 `SessionPane.tsx` 的 `selectionSideChat` 约束，
+旁路保留复制与继续发送，不提供历史编辑或回复重新生成；主任务的相应操作保持。
+
+2026-10-10 主动停止活动状态：参考 `conversationTurnWorkSegments.ts` 与
+`conversationAssistantWorkItems.ts` 对中断/取消和错误的区分。Mira 的运行器自行将主动
+停止的活动结算为stopped，执行详情显示“已停止”，摘要用中性停止图标；真实失败活动不改写。
+委派智能体也按同一语义结算正在执行的工具活动；超时、真实失败和意外中断仍保留异常，
+迟到事件不重新激活已经停止的智能体。
+
+2026-10-11 工作区浏览器工具栏与失败恢复：参考 `EmbeddedBrowserPaneParts.tsx`、
+`embeddedBrowserHelpers.ts` 与 `browser-use/UnifiedBrowserView.tsx`。
+`MiraBrowserToolbar.tsx`、`mira-browser-address.ts` 保留 Apache-2.0 归因；Mira 用
+Radix 菜单与提示、现有设计令牌及按任务/资源授权的桥适配导航、默认浏览器和开发者工具。
+本机/私网地址默认 HTTP，公网默认 HTTPS；Mira 继续限制 HTTP(S) 和无凭据地址。
+主页面失败保留到下一次加载，子框架失败与取消导航不覆盖页面；错误画布支持原地址重试。
+自由尺寸、元素选择和 favicon 尚未在此批次接入；此记录不代表浏览器整体对齐完成。
+
+2026-10-11 浏览器页签图标续批：参考 `UnifiedBrowserView.tsx` 的同步 guest
+`page-favicon-updated` 监听与 metadata 归属，Mira 使用 HTTP(S) 无凭据图标、按任务/资源
+事件与既有 workspace 偏好保存；完整导航清旧图标，图片失败回退地球图标，最近关闭恢复
+保留图标。未引入上游 residency API，不扩大为自由尺寸/元素选择或驻留验收。
+
+本批验证：Mira 图标事件、URL 归属与恢复已在明暗隐藏 Electron 中通过；OS 外部窗口、前台 DevTools、自由尺寸/zoom 和元素选择仍不算原生同态验收。
+
+2026-10-11 Composer 技能引用：参考 `mentions/providers/skillsMentionProvider.ts`、
+`MentionPlugin.tsx`、`lib/slashApplyMentionPayload.ts` 与 `services/src/skills/skillsService.ts`
+的“选择后插入引用、随消息激活”交互。Mira 使用自己的 `mira-skill:` 稳定目录身份、
+Lexical 引用节点、第一方白名单 `skillIds` 与队列 fingerprint；不复制上游变量/文件名或
+把目录路径当作执行授权。输入和已发送正文显示技能标签，删除/撤销、重试/重载与撤回恢复
+保留身份；引用对话中的技能文字不自动激活。运行中新技能引导降为下一任务，旧会话选择
+兼容保留；计划模式继续沿用现有不注入技能的策略。本段记录实现范围，不宣称原生同态验收。
+
+2026-10-11 对话引用入口：参考 `lib/promptInputTriggers.ts` 与 `MentionPlugin.tsx`
+的 `#` 对话候选入口。Mira 扩展现有 caret token/替换与分类面板，以同项目的真实对话正文
+和已有 owner/revision 保护插入；不扫描文件或加载技能/MCP目录，不自动发送。
+保留现有 `@` 对话选择作为兼容入口，不直接采用上游 session 协议或任意跨项目查询。
+
+2026-10-11 对话范围续作：参考 `mentions/mentionPanelRouting.ts` 与
+`mentions/providers/sessionsMentionProvider.ts` 的同authority跨workspace候选、当前workspace
+优先、更新时间排序和每workspace 20项上限。Mira仅使用既有本地Controller索引，不查询
+其他Host；`@` 保持当前项目，`#` 展示本地项目名称并可搜索，过滤后按项目限制候选。
+引用仍读取Mira正文，保留当前草稿owner/revision校验，不移植上游store/protocol。
+
+2026-10-11 任务摘要长待办：参考 `v4/ConversationStatusPanel.tsx` 的六项折叠阈值、
+三项当前窗口、临近结尾回补和前后分组 HoverCard。Mira 用真实 run activities，
+移除 `set_plan` 归一化的六步静默截断；保留简洁计划建议，不移植上游 TodoWrite 协议。
+预览随计划快照和任务切换销毁，支持悬浮、焦点打开、方向键/翻页键滚动与 Escape 返回。
+
+2026-10-11 上下文用量与排队压缩：参考 `chat-input-toolbar/contextUsage.tsx`、
+`v4/SessionPane.tsx` 和 `zcode-protocol-v4/commands/handlers/goal-compact.ts`。
+Mira 使用已有 Radix Popover、真实上下文用量和 SDK 摘要器，独立实现悬浮/焦点/点击详情、
+估算/实测说明和压缩入口，不移植商业配额、TokenLens 或第三方 Context 组件源码。
+压缩操作采用明确队列类型，运行中/审批中/暂停队列按 FIFO 追加，冻结模型和目录并重验
+第一方授权；失败/停止保留原上下文与命令，不添加聊天消息。队列仍为进程内，非原生同态验收。
+
+2026-10-11 标题栏/侧栏执行详情：参考 `WorkspaceHeaderSections.tsx` 的
+`onViewModelTrajectory` 任务菜单入口。Mira 复用既有运行活动面板及导航事务，
+展示当前/最近历史运行的活动、工具、子智能体和真实用量；不移植商业反馈接口，
+不将运行活动冒称完整模型请求/响应轨迹。两类 Radix 菜单共用入口，迟到导航
+不能覆盖新任务；无记录显示空态，不创建会话或执行模型。
+
+2026-10-11 摘要阅读区域边界：参考 `v4/ConversationStatusPanel.tsx` 的限高与
+两层滚动结构。Mira 将悬浮摘要置于实际对话阅读区域，使用CSS flex限制外层高度，
+保留内部各区块滚动、mini/panel/auto及独立键盘焦点；多行Composer和底部终端
+变化时不遮挡输入。空间不足140px时以container query显示胶囊，保留所选模式；
+ResizeObserver仅在被隐藏面板拥有焦点时归还胶囊，不执行React逐帧尺寸更新。
+
+2026-10-11 Composer补全焦点：参考 `SlashCommandPlugin.tsx` 与
+`mentions/MentionPlugin.tsx` 的失焦关闭行为。Mira将键入触发的候选面板绑定到
+实际Lexical编辑器焦点和编辑器身份；刷新或切任务恢复草稿不主动打开候选，
+失焦收起且不抢外部焦点。显式＋菜单继续独立持有焦点和插入选区，保留
+匿名草稿提升时的编辑器身份、原子引用、键盘/IME与草稿协议。
+
+2026-10-11 插件命令：参考 `packages/services/src/commands/commandsService.ts`、
+`packages/ui/src/SlashCommandPlugin.tsx` 及 CLI contracts/commands、
+custom-command-prompt/expand 的目录、命名空间、原子命令和参数语义。
+Mira 使用自有注册存储、YAML读取、单次参数替换及受控宿主发送；命令选择
+不执行，原始斜线保留在对话，展开正文随消息保存为模型上下文。队列执行前
+复核启用状态、目录和正文；重试/编辑/旁路/自动化复用原有权限和审批。
+模型/工具覆盖、Shell动态展开及未支持元数据明确禁用，不执行安装Hook。
+
+2026-10-11 目录不可用提示：参考 `WorkspaceSidebarItem.tsx` 的readOnlyReason、
+可键盘聚焦的目录警告及禁用原因。Mira使用实际directoryExists快照，保持
+历史可读、元数据改名/隐藏；新任务/文件树/原生打开禁用并给出恢复原路径提示。
+不复制远程重连、RPC或工作区权限实现。
+
+2026-10-11 折叠集合提示：参考 `WorkspaceSidebarItem.tsx` 的折叠未读指示。
+Mira按集合实际成员汇总未读，并扩展现有任务的执行中/待确认状态；不移植
+上游workflow计数或伪造工作流能力。展开后恢复逐任务提示，折叠/查看提示
+不打开任务、不标记已读；标记复用已有token、图标和Radix Tooltip。
+项目/分组操作只在悬浮、焦点或菜单展开时占用宽度，空闲时让出项目名称空间。
+
+2026-10-11 Composer历史输入：参考 `packages/ui/src/lib/promptHistory.ts`、
+`promptHistoryStorage.ts` 和 `LexicalChatInput.tsx` 的空输入/翻阅状态及键盘优先级。
+Mira独立实现Electron SQLite按实际目录存储、最近30条、连续去重和有界载荷；
+仅记录已接纳输入，发送重放不重复记忆，保留原Admission Promise。
+React只在空正文或翻阅状态处理无修饰↑/↓，编辑退出、候选与IME优先，
+回忆斜线不自动展开候选；主/旁对话共享目录历史但保持独立草稿及现有附件。
+不复制上游localStorage、不回放旧网页快照和附件，不新增渲染器任意目录读写。
 
 - 本目录 `LICENSE` 与 `NOTICE.md` 是上游根文件的逐字副本，不编辑版权人、条款或正文。
 - 改编源码保留原版权与 Apache-2.0 标识，并链接到此目录。

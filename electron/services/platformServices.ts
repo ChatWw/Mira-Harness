@@ -55,7 +55,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   const harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent)
   const automationScheduler = new AutomationScheduler(database, harnessRuntime)
   const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init))
-  await mcpManager.refresh(mcpConfigStore.list())
+  void mcpManager.refresh(mcpConfigStore.list())
   automationScheduler.start()
   const pythonEnvironment = new PythonEnvironment()
   const localMicroAppServer = new LocalMicroAppServer({

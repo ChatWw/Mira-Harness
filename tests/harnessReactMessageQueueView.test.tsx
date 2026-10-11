@@ -102,6 +102,18 @@ describe('Mira queue panel controls', () => {
     expect(view.button('恢复待发送').disabled).toBe(true)
   })
 
+  it('shows live tool confirmation even before the running queue has a pause flag', () => {
+    const view = mount(1)
+    view.props.confirmationPending = true; view.render()
+    expect(view.button('查看任务确认')).toBeDefined()
+    ;(view.button('查看任务确认').onClick as () => void)()
+    expect(view.props.onConfirmation).toHaveBeenCalledOnce(); expect(view.props.onResume).not.toHaveBeenCalled()
+    expect(view.props.queue!.paused).toBeUndefined()
+    view.props.disabled = true; view.render(); expect(view.button('查看任务确认').disabled).toBe(true)
+    view.props.disabled = false; view.props.confirmationPending = false; view.render()
+    expect(view.button('查看任务确认')).toBeUndefined(); expect(view.button('恢复待发送')).toBeUndefined()
+  })
+
   it('shows recoveries even with an empty queue but does not restore until saving is confirmed', () => {
     const view = mount(0)
     expect(view.tree()).toBeNull()

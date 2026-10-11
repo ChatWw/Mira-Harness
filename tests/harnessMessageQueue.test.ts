@@ -42,6 +42,65 @@ async function flush() {
 }
 
 describe('HarnessMessageQueue', () => {
+  it('keeps control identity separate from literal text, blocks duplicate compact, and releases its guard on withdrawal', async () => {
+    const { queue, deps, setRunning } = setup(); setRunning(true)
+    const guard = vi.fn(), command = { ...input('compact'), text: '/compact', references: [], planning: false, operation: 'context-compaction' as const }
+    const receipt = queue.enqueueCompaction(sender, command, scope, guard)
+    expect(queue.enqueueCompaction(sender, command, scope, guard).id).toBe(receipt.id)
+    expect(() => queue.replay('s', 'compact', { ...command, operation: undefined })).toThrow('内容不同')
+    expect(() => queue.enqueueCompaction(sender, { ...command, submissionId: 'duplicate' }, scope, guard)).toThrow('已在运行或排队')
+    expect(queue.withdraw('s', receipt.id).item.operation).toBe('context-compaction')
+    expect(queue.hasCompaction('s')).toBe(false)
+    queue.enqueueCompaction(sender, { ...command, submissionId: 'replacement' }, scope, guard)
+    setRunning(false); queue.onRunSettled('s', 'completed'); await flush()
+    expect(deps.execute).toHaveBeenCalledWith(expect.objectContaining({ operation: 'context-compaction' }), [], expect.any(Symbol), sender, expect.any(Function), scope, guard)
+    expect(queue.hasCompaction('s')).toBe(false)
+  })
+
+  it('appends compact to a paused queue without bypassing its older input', async () => {
+    const { queue, submit, deps, setRunning } = setup()
+    setRunning(true); submit('older'); queue.pause('s', 'stopped')
+    queue.enqueueCompaction(sender, { ...input('compact'), text: '/compact', references: [], operation: 'context-compaction' }, scope, vi.fn())
+    await flush(); expect(deps.execute).not.toHaveBeenCalled()
+    expect(queue.get('s')).toMatchObject({ paused: 'stopped', items: [{ submissionId: 'older' }, { operation: 'context-compaction' }] })
+    setRunning(false); queue.onRunSettled('s', 'completed'); queue.resume('s'); await flush()
+    expect(vi.mocked(deps.execute).mock.calls.map(call => call[0].submissionId)).toEqual(['older', 'compact'])
+  })
+
+  it('freezes plugin IDs independently of user text and preserves them in retry/withdrawal', () => {
+    const { queue, setRunning } = setup(); setRunning(true)
+    const pluginIds = ['review-kit@local'], value = { ...input(), pluginIds }, options = { pluginIds }
+    const receipt = queue.submit(sender, value, attachments, scope, options) as any
+    pluginIds.push('later@local')
+    expect(queue.get('s').items[0].pluginIds).toEqual(['review-kit@local'])
+    expect(() => queue.replayWithOptions('s', 'one', value, { pluginIds: [] })).toThrow('内容不同')
+    expect(queue.withdraw('s', receipt.id).item.pluginIds).toEqual(['review-kit@local'])
+  })
+  it('freezes explicit skill intent and includes it in retries and withdrawal', () => {
+    const { queue, setRunning } = setup(); setRunning(true)
+    const skillIds = ['research'], value = { ...input(), skillIds }, options = { skillIds }
+    const receipt = queue.submit(sender, value, attachments, scope, options) as any
+    skillIds.push('later')
+    expect(queue.get('s').items[0].skillIds).toEqual(['research'])
+    expect(() => queue.replayWithOptions('s', 'one', value, { skillIds: [] })).toThrow('内容不同')
+    expect(queue.withdraw('s', receipt.id).item.skillIds).toEqual(['research'])
+  })
+
+  it('freezes permission-only options in ordinary queue receipts and rejects changed retry intent', () => {
+    const { queue, setRunning, deps } = setup()
+    setRunning(true)
+    const value = { ...input(), permissionMode: 'full' as const }
+    const options = { permissionMode: 'full' as const }
+    const receipt = queue.submit(sender, value, attachments, scope, options) as any
+    expect(receipt.queue.items[0].permissionMode).toBe('full')
+    expect(queue.replayWithOptions('s', 'one', value, options)?.id).toBe(receipt.id)
+    expect(queue.submit(sender, value, attachments, scope, options)).toMatchObject({ id: receipt.id })
+    expect(() => queue.replayWithOptions('s', 'one', value, { permissionMode: 'default' })).toThrow('内容不同')
+    expect(() => queue.submit(sender, { ...value, permissionMode: 'default' }, attachments, scope, { permissionMode: 'default' })).toThrow('内容不同')
+    expect(deps.accept).toHaveBeenCalledOnce()
+    expect(queue.get('s').items).toHaveLength(1)
+  })
+
   it('commits admission before ordinary ACK and replays without a second lifecycle commit', async () => {
     const { queue, deps, submit, setRunning } = setup()
     setRunning(true)

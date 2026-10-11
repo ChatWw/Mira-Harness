@@ -33,6 +33,34 @@ async function mount(saved: Record<string, unknown> = {}, projectIds = ['p', 'q'
 }
 
 describe('sidebar purpose sections through real React DOM', () => {
+  it('uses keyboard tabs to change only the sidebar view while preserving timeline and group preferences', async () => {
+    const view = await mount({ projectView: 'timeline', groups: [{ id: 'g', name: '研究', color: 'blue', collapsed: true, sessionIds: ['p0'] }] })
+    const list = document.querySelector<HTMLElement>('[role="tablist"][aria-label="任务视图"]')!
+    expect(list).not.toBeNull()
+    const group = list.querySelector<HTMLElement>('[role="tab"][data-state="inactive"]')!
+    const project = list.querySelector<HTMLElement>('[role="tab"][data-state="active"]')!
+    const key = async (target: HTMLElement, value: string) => { await act(async () => { target.focus(); target.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true })); await new Promise(resolve => setTimeout(resolve, 5)) }); await view.store.save() }
+    expect(project.getAttribute('aria-selected')).toBe('true')
+    expect(group.tabIndex).toBe(-1)
+    await key(project, 'ArrowLeft')
+    expect(document.activeElement).toBe(group)
+    expect(group.getAttribute('aria-selected')).toBe('true')
+    expect(document.querySelector('[data-sidebar-root]')).not.toBeNull()
+    expect(document.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(group.id)
+    expect(view.store.getSnapshot().preferences).toMatchObject({ view: 'group', projectView: 'timeline', groups: [{ collapsed: true }] })
+    await key(group, 'End')
+    expect(document.activeElement).toBe(project)
+    expect(document.querySelector('[aria-label="任务时间线"]')).not.toBeNull()
+    await key(project, 'ArrowRight')
+    expect(document.activeElement).toBe(group)
+    await key(group, 'Home')
+    expect(document.activeElement).toBe(group)
+    expect(view.open).not.toHaveBeenCalled(); expect(view.newTask).not.toHaveBeenCalled()
+    const restored = new SidebarPreferenceStore(async () => view.write.mock.calls.at(-1)?.[0], async () => undefined)
+    await restored.load()
+    expect(restored.getSnapshot().preferences).toMatchObject({ view: 'group', projectView: 'timeline', groups: [{ collapsed: true }] })
+  })
+
   it('restores the saved section order without changing expansion, project order or navigation', async () => {
     const view = await mount({ sectionOrder: ['personal', 'projects'], personalSectionOpen: false })
     expect([...document.querySelectorAll('[data-sidebar-section]')].map(node => node.getAttribute('data-sidebar-section'))).toEqual(['personal', 'projects'])

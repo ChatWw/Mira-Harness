@@ -4,6 +4,7 @@ import type { Model } from '@earendil-works/pi-ai'
 import { randomUUID } from 'node:crypto'
 import type { HarnessMessagePart, HarnessRunActivity, HarnessSubtask, HarnessSubtaskRole, HarnessSubtaskStatus, HarnessTokenUsage } from '../../src/config/harness'
 import { publicHarnessText, redactHarnessText } from './agentTools'
+import { MIRA_SUBTASK_AGENTS } from '../../src/config/miraAgents'
 
 export const MAX_SUBTASKS_PER_RUN = 5
 export const MAX_SUBTASK_DURATION_MS = 15 * 60 * 1000
@@ -19,12 +20,7 @@ export type SubtaskToolRegistry = {
   cancelPending: (reason: string) => void
 }
 
-export const SUBTASK_ROLE_TOOLS: Record<HarnessSubtaskRole, readonly string[]> = {
-  explorer: ['list_files', 'read', 'web_fetch', 'web_search'],
-  reviewer: ['list_files', 'read'],
-  tester: ['list_files', 'read', 'bash'],
-  implementer: ['list_files', 'read', 'edit', 'write', 'delete_file', 'bash'],
-}
+export const SUBTASK_ROLE_TOOLS = Object.fromEntries(Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => [role, agent.tools])) as Record<HarnessSubtaskRole, readonly string[]>
 
 export function subtaskMayMutate(role: HarnessSubtaskRole) {
   return role === 'tester' || role === 'implementer'
@@ -107,12 +103,16 @@ export class SubtaskRuntime {
     const target = ids?.length ? new Set(ids) : undefined
     for (const entry of this.entries.values()) {
       if (target && !target.has(entry.task.id)) continue
-      if (!['queued', 'running', 'stopping'].includes(entry.task.status)) continue
-      if (entry.task.status === 'queued') {
+      if (!['queued', 'running'].includes(entry.task.status)) continue
+      const queuedIndex = this.queue.indexOf(entry.task.id)
+      if (entry.task.status === 'queued' && queuedIndex >= 0) {
+        entry.controller.abort()
         entry.task.status = 'stopped'; entry.task.completedAt = Date.now()
-        this.queue.splice(this.queue.indexOf(entry.task.id), 1)
+        this.queue.splice(queuedIndex, 1)
         entry.opts.onChanged(entry.task); entry.opts.onFinished(entry.task)
       } else {
+        // drain() already owns a queued task while it waits for the project lock.
+        // Abort that wait; run() publishes its terminal state exactly once.
         entry.task.status = 'stopping'; entry.opts.onChanged(entry.task)
         entry.controller.abort(); entry.agent?.abort(); entry.cancelTools?.()
       }
@@ -320,7 +320,7 @@ export class SubtaskRuntime {
       if (timer) clearTimeout(timer)
       entry.release?.()
       task.completedAt = Date.now()
-      if (currentTool) { currentTool.activity.status = 'failed'; currentTool.activity.completedAt = task.completedAt }
+      if (currentTool) { currentTool.activity.status = task.status === 'stopped' ? 'stopped' : 'failed'; currentTool.activity.completedAt = task.completedAt }
       for (const value of textParts.values()) finishPart(value.part, task.status === 'completed' ? 'complete' : 'interrupted')
       registry?.cancelPending(task.status === 'completed' ? '子任务已结束' : '子任务已停止或中断')
       changed()

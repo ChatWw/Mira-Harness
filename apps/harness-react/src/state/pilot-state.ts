@@ -1,16 +1,17 @@
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type HarnessWorkspaceFileSearchResult, type HarnessWorkspaceGitSnapshot, type HarnessWorkspaceImagePreview, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
-import type { HarnessAttachmentSaveResult, HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
+import type { HarnessAttachmentSaveResult, HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../src/platform/firstPartyHarness'
 import type { HarnessHistoryPage, HarnessHistoryQuery } from '../../../../src/config/harness'
-import type { SendShortcut } from '../../../../src/config/harness'
+import type { HarnessContextCompactionResult, SendShortcut } from '../../../../src/config/harness'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../../../src/config/harness'
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
 import type { HarnessGitContext, HarnessMessagePart, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
 import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNavigationState } from '../../../../src/platform/appNavigation'
-import type { HarnessMessageAttachment } from '../../../../src/config/harness'
+import type { HarnessMessageAttachment, ToolCallRecord } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
+import type { MiraBrowserPickResult } from '../../../../src/platform/miraBrowserPicker'
 
-export interface PilotBrowserEvent { sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string }
+export interface PilotBrowserEvent { sessionId: string; browserId?: string; url: string; title?: string; ready?: boolean; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string; errorCode?: number; faviconUrl?: string | null }
 export interface PilotWorkspaceFileEvent { sessionId: string; watchId: string; directory: string; paths: string[]; error?: string }
 
 export interface PilotHost {
@@ -18,6 +19,9 @@ export interface PilotHost {
   listProjects(): Promise<HarnessProject[]>
   getSession(id: string): Promise<HarnessSession>
   createSession(projectId?: string): Promise<HarnessSession>
+  createSideConversation?(parentId: string): Promise<HarnessSession>
+  forkConversation?(id: string, messageId: string, requestId: string): Promise<HarnessSession>
+  compactConversation?(id: string, selection: ModelSelection): Promise<HarnessContextCompactionResult>
   prepareSession?(projectId?: string): Promise<HarnessSession>
   listProviders(): Promise<ModelProviderSummary[]>
   runMessage(id: string, text: string, selection: ModelSelection, planning: boolean, references?: HarnessFileReference[]): Promise<void>
@@ -51,11 +55,16 @@ export interface PilotHost {
   readImage?(id: string, path: string): Promise<HarnessWorkspaceImagePreview>
   openTerminal(id: string): Promise<{ terminalId: string; sessionId: string; cwd: string }>
   writeTerminal(id: string, terminalId: string, data: string): Promise<void>
+  pasteTerminal?(id: string, terminalId: string, bracketed: boolean): Promise<void>
   resizeTerminal(id: string, terminalId: string, columns: number, rows: number): Promise<void>
   closeTerminal(id: string, terminalId: string): Promise<void>
-  navigateBrowser(id: string, url: string, bounds: HarnessBrowserBounds): Promise<string>
-  setBrowserBounds(id: string, bounds: HarnessBrowserBounds): Promise<void>
-  controlBrowser(id: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close'): Promise<void>
+  navigateBrowser(id: string, url: string, bounds: HarnessBrowserBounds, browserId?: string, visible?: boolean): Promise<string>
+  setBrowserBounds(id: string, bounds: HarnessBrowserBounds, browserId?: string): Promise<void>
+  setBrowserViewport?(id: string, presentation: HarnessBrowserPresentation, browserId?: string): Promise<{ desktopZoomFactor: number }>
+  pickBrowserElement?(id: string, action: 'start' | 'cancel', browserId: string): Promise<MiraBrowserPickResult>
+  browserProtected?(id: string, browserId: string): Promise<{ protected: boolean }>
+  controlBrowser(id: string, action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close', browserId?: string): Promise<void>
+  openBrowserExternal?(id: string, url: string, browserId?: string): Promise<void>
   onBrowserEvent(listener: (event: PilotBrowserEvent) => void): () => void
   navigate?(path: string): Promise<void>
   getComposerPreferences?(): Promise<{ sendShortcut: SendShortcut; showContextUsage: boolean; followupMode?: 'queue' | 'guide' }>
@@ -63,8 +72,12 @@ export interface PilotHost {
   getSkillMarketDetail?(id: string): Promise<HarnessSkillMarketDetail>
   installMarketSkill?(id: string): Promise<HarnessSkillMarketItem>
   listInstalledMarketSkills?(): Promise<HarnessSkillMarketItem[]>
+  browsePluginMarket?(refresh?: boolean): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketCatalog>
+  getPluginMarketDetail?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketDetail>
+  installMarketPlugin?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketItem>
   /** 宿主偏好读写（第一方命名空间）；开发态宿主可以缺省。 */
   getPreference?(key: string): Promise<unknown>
+  listPromptHistory?(scope: { sessionId?: string; projectId?: string }): Promise<string[]>
   setPreference?(key: string, value: unknown): Promise<void>
   /** 会话管理面（完整第一方宿主都支持；开发态 props 宿主可逐步接入）。 */
   renameSession?(id: string, title: string): Promise<void>
@@ -104,7 +117,13 @@ export interface PilotHost {
   setSessionMcpServers?(id: string, serverIds: string[]): Promise<void>
   setSessionDelegation?(id: string, enabled: boolean): Promise<void>
   listSkills?(): Promise<unknown[]>
-  listMcp?(): Promise<Array<{ id: string; name: string; enabled: boolean }>>
+  listPluginCatalog?(sessionId?: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  listPlugins?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  importLocalPlugin?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[] | null>
+  setPluginEnabled?(id: string, enabled: boolean): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  removePlugin?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  listMcp?(): Promise<import('../../../../src/config/miraMcp').MiraMcpItem[]>
+  reconnectMcp?(id: string): Promise<import('../../../../src/config/miraMcp').MiraMcpConnection>
   selectFiles?(id: string): Promise<HarnessFileReference[]>
   importAttachments?(id: string, files: Array<{ name: string; mediaType: string; data: string }>): Promise<HarnessFileReference[]>
   getAttachment?(id: string, path: string): Promise<HarnessMessageAttachment>
@@ -145,6 +164,7 @@ export interface PilotState {
   memoryConfirmation?: { requestId: string; candidateId?: string; content: string }
   queue?: HarnessMessageQueueSnapshot
   queueError?: string
+  promptHistoryRevision?: number
 }
 
 export function projectPilotMessage(message: HarnessMessage) {
@@ -197,16 +217,21 @@ export class PilotController {
   private deletedSessionListeners = new Set<(id: string) => void>()
   private terminalListeners = new Set<(event: HarnessEvent) => void>()
   private workspaceFileListeners = new Set<(event: PilotWorkspaceFileEvent) => void>()
-  private beforeNavigation = new Set<() => Promise<void> | void>()
+  private beforeNavigation = new Set<(reportFailure?: boolean) => Promise<void> | void>()
   private pendingEditSettlements = new Set<(accepted: boolean) => void>()
   private preferenceWrites = new Map<string, Promise<void>>()
   private unsubscribe?: () => void
+  private unsubscribeDeleted?: () => void
   private generation = 0
   private snapshotVersion = 0
   private permissionRevision = 0
   private runningRevision = 0
   private runningRevisions = new Map<string, number>()
+  private unreadRevision = 0
+  private unreadRevisions = new Map<string, number>()
   private activeSessionId?: string
+  private visibleSessionIds?: Set<string>
+  private splitPrimarySessionId?: string
   private loadingSessionId?: string
   private disposed = false
   private archivedDeletion?: { snapshotId: string; promise: Promise<HarnessArchivedDeletionResult & { refreshError?: string }> }
@@ -219,7 +244,43 @@ export class PilotController {
   private gitContextRevisions = new Map<string, number>()
   private gitMutationRevisions = new Map<string, number>()
 
-  constructor(private host: PilotHost) {}
+  constructor(private host: PilotHost, private sideSession?: { sessionId: string; parentId?: string }) {}
+  get composerDraftScope() { return this.host }
+  private createBoundController(binding: { sessionId: string; parentId?: string }) {
+    const pane = new PilotController(this.host, binding)
+    // The workbench owns read state; mounting a retained, hidden pane is not reading it.
+    pane.visibleSessionIds = new Set()
+    pane.unsubscribeDeleted = this.onSessionDeleted(id => pane.removeDeletedSessions([id]))
+    return pane
+  }
+  createSideController(sessionId: string, parentId: string) { return this.createBoundController({ sessionId, parentId }) }
+  createTaskPaneController(sessionId: string) { return this.createBoundController({ sessionId }) }
+  createSideConversation(parentId: string) { return this.require('createSideConversation')(parentId) }
+  get supportsSideConversations() { return Boolean(this.host.createSideConversation) }
+  get supportsConversationFork() { return !this.sideSession && Boolean(this.host.forkConversation) }
+  get supportsContextCompaction() { return Boolean(this.host.compactConversation) }
+  async compactConversation(id: string) {
+    if (this.disposed || this.state.sessionLoading || id !== this.activeSessionId || !this.state.selection) throw new Error('请先打开已有对话并选择模型')
+    if (this.state.session?.activeRun?.kind === 'context-compaction' || this.state.queue?.items.some(item => item.operation === 'context-compaction')) throw new Error('上下文压缩已在运行或排队')
+    const generation = this.generation
+    const result = await this.require('compactConversation')(id, { ...this.state.selection })
+    if (!this.disposed && generation === this.generation && id === this.activeSessionId) {
+      if (result.status === 'queued') {
+        if (result.queue.sessionId !== id) throw new Error('压缩确认与原任务不匹配，请重试')
+        this.applyQueue(result.queue)
+      }
+      else await this.refreshSession(id, generation)
+    }
+    return result
+  }
+  async forkConversation(id: string, messageId: string, requestId: string) {
+    const session = await this.require('forkConversation')(id, messageId, requestId)
+    if (this.disposed) throw new Error('Harness 连接已关闭')
+    try { await this.refreshList() }
+    catch { throw new Error('分支已创建，任务列表刷新失败；重试会恢复同一分支') }
+    return session
+  }
+  get supportsBrowserResidency() { return Boolean(this.host.browserProtected) }
   getSnapshot = () => this.state
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   private update(patch: Partial<PilotState>) {
@@ -240,6 +301,7 @@ export class PilotController {
     this.unsubscribe = this.host.onEvent(this.handleEvent)
     const generation = this.generation
     const runningRevision = this.runningRevision
+    const unreadRevision = this.unreadRevision
     try {
       const [sessions, projects, providers] = await Promise.all([this.host.listSessions(), this.host.listProjects(), this.host.listProviders()])
       if (this.disposed) return
@@ -251,8 +313,9 @@ export class PilotController {
       ])
       if (this.disposed) return
       this.defaultSelection = this.availableSelection(storedSelection, providers) ?? available[0]
-      this.applySessionList(sessions, runningRevision)
+      this.applySessionList(sessions, runningRevision, unreadRevision)
       this.update({ projects, providers, selection: this.defaultSelection })
+      if (this.sideSession) { await this.open(this.sideSession.sessionId); return }
       if (generation !== this.generation || storedSession === null) return
       const restore = typeof storedSession === 'string' ? sessions.find(session => session.id === storedSession) : undefined
       if (restore || sessions[0]) await this.open((restore || sessions[0])!.id)
@@ -260,6 +323,7 @@ export class PilotController {
     finally { this.update({ initialized: true }) }
   }
   async open(id: string, isCurrent?: () => boolean) {
+    if (this.sideSession && id !== this.sideSession.sessionId) return false
     if (isCurrent && !isCurrent()) return false
     const generation = ++this.generation
     this.loadingSessionId = id
@@ -278,12 +342,13 @@ export class PilotController {
         if (attempt >= 3) throw new Error('任务快照尚未同步，请重新打开任务')
         session = await this.host.getSession(id)
       }
+      if (this.sideSession && (this.sideSession.parentId !== undefined && session.parentSessionId !== this.sideSession.parentId || session.archivedAt || session.draftState === 'prepared')) throw new Error(this.sideSession.parentId ? '旁路对话已不可用，请新建对话' : '任务已不可用，请重新选择')
       if (generation !== this.generation || this.disposed) return false
       if (isCurrent && !isCurrent()) { this.update({ sessionLoading: false }); return false }
-      const lastUsedSelection = this.availableSelection({ providerId: session.modelProviderId, modelId: session.modelId })
+      const lastUsedSelection = this.availableSelection({ providerId: session.modelProviderId, modelId: session.modelId, thinkingLevel: session.modelThinkingLevel })
       const defaultSelection = this.availableSelection(this.defaultSelection)
-      const legacySelection = lastUsedSelection && defaultSelection?.providerId === lastUsedSelection.providerId && defaultSelection.modelId === lastUsedSelection.modelId ? defaultSelection : lastUsedSelection
-      // 会话元数据只保存模型 ID；未发送的模型选择和推理档位必须从该会话偏好恢复。
+      const legacySelection = !this.sideSession && session.modelThinkingLevel === undefined && lastUsedSelection && defaultSelection?.providerId === lastUsedSelection.providerId && defaultSelection.modelId === lastUsedSelection.modelId ? defaultSelection : lastUsedSelection
+      // 未发送配置恢复当前 owner 偏好；新旁路只继承主任务已生效的配置。
       const selection = this.availableSelection(savedSelection) ?? legacySelection ?? (session.modelProviderId || session.modelId ? undefined : defaultSelection)
       if (selection) this.sessionSelections.set(id, selection)
       const permissions = { ...this.state.pendingPermissions }
@@ -297,8 +362,8 @@ export class PilotController {
       if (queueResult && 'queue' in queueResult) this.applyQueue(queueResult.queue)
       this.update({ session, sessionLoading: false, selection, messages: session.messages.filter(message => !message.internal).map(projectPartContent), running: Boolean(session.activeRun), openingProjectDirectory: false, memoryConfirmation: undefined, queue: this.queues.get(id), queueError: queueResult && 'error' in queueResult ? queueResult.error : undefined, permission: permissionRevision === this.permissionRevision ? pendingPermissions[0] : this.state.permission, pendingPermissions: permissions })
       if (selection) this.writePreference(`session-model-selection.${id}`, selection)
-      this.writePreference('active-session', session.draftState === 'prepared' ? null : id)
-      void this.markSessionRead(id)
+      this.writeMainPreference('active-session', session.draftState === 'prepared' ? null : id)
+      if (this.isSessionVisible(id)) void this.markSessionRead(id)
       return generation === this.generation && !this.disposed && (!isCurrent || isCurrent()) && this.state.session?.id === id
     } catch (error) { if (generation === this.generation && (!isCurrent || isCurrent())) { this.update({ sessionLoading: false }); this.fail(error) } else if (generation === this.generation) this.update({ sessionLoading: false }); return false }
     finally { if (generation === this.generation) this.loadingSessionId = undefined }
@@ -312,17 +377,26 @@ export class PilotController {
     this.activeSessionId = undefined
     this.loadingSessionId = undefined
     this.update({ session: undefined, sessionLoading: false, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined, error: undefined })
-    this.writePreference('active-session', null)
+    this.writeMainPreference('active-session', null)
   }
-  /** 打开会话即视为已读：本地清除徽标并通知宿主。 */
-  private async markSessionRead(id: string) {
+  /** Visible task panes share read state without changing the primary runtime owner. */
+  setVisibleSessionIds(ids: string[], splitPrimaryId?: string) {
+    const previous = this.visibleSessionIds
+    this.visibleSessionIds = new Set(ids)
+    this.splitPrimarySessionId = splitPrimaryId
+    for (const id of this.visibleSessionIds) if (!previous?.has(id)) void this.markSessionRead(id)
+  }
+  private isSessionVisible(id: string) { return this.visibleSessionIds ? this.visibleSessionIds.has(id) : id === this.activeSessionId }
+  /** 用户实际打开或再次选择会话时清除徽标并通知宿主。 */
+  async markSessionRead(id: string) {
     if (!this.state.unreadSessionIds.includes(id) && !this.state.sessions.find(item => item.id === id)?.unread) return
+    this.unreadRevisions.set(id, ++this.unreadRevision)
     const unreadIds = this.state.unreadSessionIds.filter(item => item !== id)
     this.update({ unreadSessionIds: unreadIds, sessions: this.state.sessions.map(item => item.id === id ? { ...item, unread: false } : item) })
     if (this.host.setSessionUnread) { try { await this.host.setSessionUnread(id, false) } catch { /* 徽标清除失败不影响会话使用 */ } }
   }
   async create(projectId?: string, isCurrent?: () => boolean) {
-    if (this.state.sessionLoading || isCurrent && !isCurrent()) return false
+    if (this.sideSession || this.state.sessionLoading || isCurrent && !isCurrent()) return false
     const generation = this.generation
     try {
       if (projectId && !this.state.projects.some(project => project.id === projectId && project.directoryExists)) throw new Error('所选项目目录不可用，请重新选择')
@@ -336,7 +410,7 @@ export class PilotController {
   }
   get supportsPreparedSessions() { return Boolean(this.host.prepareSession) }
   async prepare(projectId?: string, isCurrent?: () => boolean) {
-    if (this.disposed || this.state.session || this.state.sessionLoading || isCurrent && !isCurrent()) return false
+    if (this.sideSession || this.disposed || this.state.session || this.state.sessionLoading || isCurrent && !isCurrent()) return false
     const generation = this.generation
     this.update({ sessionLoading: true, error: undefined })
     try {
@@ -364,8 +438,9 @@ export class PilotController {
       this.writePreference(`session-model-selection.${sessionId}`, selection)
     }
     this.update({ selection })
-    this.writePreference('model-selection', selection)
+    this.writeMainPreference('model-selection', selection)
   }
+  private writeMainPreference(key: string, value: unknown) { if (!this.sideSession) this.writePreference(key, value) }
   private readPreference<T>(key: string): Promise<T | null> {
     if (!this.host.getPreference) return Promise.resolve(null)
     return this.host.getPreference(key).then(value => (value ?? null) as T | null).catch(() => null)
@@ -394,13 +469,13 @@ export class PilotController {
         if ('confirmationRequired' in receipt) return 'confirmation-required'
         if ('retryRequired' in receipt) {
           await this.refreshSession(session.id, generation, true, true)
-          if (generation === this.generation && this.state.session?.id === session.id) this.update({ error: 'reason' in receipt && receipt.reason === 'image-model-unsupported' ? '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型' : '当前任务已变化，请重新发送。' })
+          if (generation === this.generation && this.state.session?.id === session.id) this.update({ error: receipt.reason === 'image-model-unsupported' ? '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型' : receipt.reason === 'permission-mode-disabled' ? '所选权限已在设置中禁用，请切换权限后重新发送。' : receipt.reason === 'skill-unavailable' ? '引用的技能已停用或不可用，请移除引用后重新选择。' : '当前任务已变化，请重新发送。' })
           return 'retry-required'
         }
         if (session.draftState === 'prepared') {
           if (generation === this.generation && this.state.session?.id === session.id) {
             this.update({ session: { ...this.state.session, draftState: 'accepted' } })
-            this.writePreference('active-session', session.id)
+            this.writeMainPreference('active-session', session.id)
           }
           try { await Promise.all([this.refreshList(), this.host.listProjects().then(projects => this.update({ projects }))]) }
           catch { if (generation === this.generation && this.state.session?.id === session.id && !this.disposed) this.fail(new Error('任务已接纳，但任务列表刷新失败，请重试刷新。')) }
@@ -476,10 +551,12 @@ export class PilotController {
   }
   async stop() {
     const id = this.state.session?.id
-    if (!id) return
+    if (!id || this.disposed || this.state.sessionLoading) return
     const runId = this.state.session?.activeRun?.id
     if (!runId) return
-    try { await this.host.abortRun(id, runId) } catch (error) { this.fail(error) }
+    const generation = this.generation
+    try { await this.host.abortRun(id, runId) }
+    catch (error) { if (!this.disposed && generation === this.generation && this.state.session?.id === id && this.state.session.activeRun?.id === runId) this.fail(error) }
   }
   async openProjectDirectory() {
     const session = this.state.session
@@ -501,16 +578,20 @@ export class PilotController {
   getSkillMarketDetail(id: string) { return this.require('getSkillMarketDetail')(id) }
   installMarketSkill(id: string) { return this.require('installMarketSkill')(id) }
   listInstalledMarketSkills() { return this.require('listInstalledMarketSkills')() }
-  registerBeforeNavigation(callback: () => Promise<void> | void) {
+  get supportsPluginMarket() { return Boolean(this.host.browsePluginMarket && this.host.getPluginMarketDetail && this.host.installMarketPlugin) }
+  browsePluginMarket(refresh = false) { return this.require('browsePluginMarket')(refresh) }
+  getPluginMarketDetail(id: string) { return this.require('getPluginMarketDetail')(id) }
+  installMarketPlugin(id: string) { return this.require('installMarketPlugin')(id) }
+  registerBeforeNavigation(callback: (reportFailure?: boolean) => Promise<void> | void) {
     this.beforeNavigation.add(callback)
     return () => { this.beforeNavigation.delete(callback) }
   }
-  async flushBeforeNavigation() {
+  async flushBeforeNavigation(reportFailure = true) {
     try {
       if (this.disposed) throw new Error('Harness 连接已关闭，无法确认工作台保存')
-      for (const callback of this.beforeNavigation) await callback()
+      for (const callback of this.beforeNavigation) await callback(reportFailure)
       if (this.disposed) throw new Error('Harness 连接已关闭，无法确认工作台保存')
-    } catch (error) { this.fail(error); throw error }
+    } catch (error) { if (reportFailure) this.fail(error); throw error }
   }
   navigate(path: string) { return this.run(async () => {
     await this.flushBeforeNavigation()
@@ -531,25 +612,29 @@ export class PilotController {
     return reportFailure ? request : request.catch(() => undefined)
   }
   reportError(error: unknown) { this.fail(error) }
-  async permission(allowed: boolean) {
+  clearError(expected: string) { if (this.state.error === expected) this.update({ error: undefined }) }
+  async permission(allowed: boolean, requestId?: string) {
     const request = this.state.permission
+    if (requestId && (!request || request.requestId !== requestId)) throw new Error('权限请求已更新，请查看当前确认')
     if (!request) return
-    try {
-      await this.host.respondPermission(request.requestId, allowed)
-      if (this.activeSessionId === request.sessionId && this.state.permission?.requestId === request.requestId) {
-        this.permissionRevision++
-        const pendingPermissions = { ...this.state.pendingPermissions }
-        delete pendingPermissions[request.sessionId]
-        this.update({ permission: undefined, pendingPermissions })
-      }
+    if (this.disposed || this.state.sessionLoading || request.sessionId !== this.activeSessionId) throw new Error('当前任务已更新，请重新查看权限确认')
+    const generation = this.generation
+    // Transport failures belong to the request card. A late failure must not
+    // replace the next task's error or its pending approval.
+    await this.host.respondPermission(request.requestId, allowed)
+    if (!this.disposed && generation === this.generation && this.activeSessionId === request.sessionId && this.state.permission?.requestId === request.requestId) {
+      this.permissionRevision++
+      const pendingPermissions = { ...this.state.pendingPermissions }
+      delete pendingPermissions[request.sessionId]
+      this.update({ permission: undefined, pendingPermissions })
     }
-    catch (error) { this.fail(error) }
   }
-  async confirmPlan() {
+  async confirmPlan(interactionId?: string) {
     const { session, selection } = this.state
-    if (session?.pendingInteraction?.kind !== 'plan-review' || !selection) return
-    try { await this.host.confirmPlan(session.id, session.pendingInteraction.planId, selection); await this.refreshSession(session.id, this.generation) }
-    catch (error) { this.fail(error) }
+    if (this.disposed || session?.pendingInteraction?.kind !== 'plan-review' || session.pendingInteraction.status !== 'waiting' || !selection || interactionId && interactionId !== session.pendingInteraction.id) throw new Error('方案或模型已更新，请重新查看当前方案')
+    const generation = this.generation
+    await this.host.confirmPlan(session.id, session.pendingInteraction.planId, selection)
+    await this.refreshSession(session.id, generation)
   }
   require<T extends keyof PilotHost>(method: T): NonNullable<PilotHost[T]> {
     const handler = this.host[method]
@@ -568,15 +653,16 @@ export class PilotController {
     try { await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation, false) } catch (error) { if (generation === this.generation) this.fail(error) }
     return true
   }
-  setSessionPinned(id: string, pinned: boolean) { return this.run(async () => { await this.require('setSessionPinned')(id, pinned); await this.refreshList() }) }
+  async setSessionPinned(id: string, pinned: boolean) { await this.require('setSessionPinned')(id, pinned); await this.refreshList() }
   setSessionUnread(id: string, unread: boolean) {
+    this.unreadRevisions.set(id, ++this.unreadRevision)
     const unreadIds = unread ? [...new Set([...this.state.unreadSessionIds, id])] : this.state.unreadSessionIds.filter(item => item !== id)
     this.update({ unreadSessionIds: unreadIds, sessions: this.state.sessions.map(item => item.id === id ? { ...item, unread } : item) })
     return this.run(async () => { await this.require('setSessionUnread')(id, unread); await this.refreshList() })
   }
   async archiveSession(id: string): Promise<void> {
     const generation = this.generation
-    if (this.activeSessionId === id) await this.flushBeforeNavigation()
+    await this.saveBeforeSessionRemoval(id)
     await this.require('archiveSession')(id)
     if (this.disposed) return
     const wasActive = this.activeSessionId === id
@@ -589,7 +675,7 @@ export class PilotController {
         this.activeSessionId = undefined
         this.snapshotVersion++; this.permissionRevision++; this.livePartKeys.clear()
         this.update({ session: undefined, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined })
-        this.writePreference('active-session', null)
+        this.writeMainPreference('active-session', null)
       }
     } else if (this.loadingSessionId === id) {
       this.generation++; this.snapshotVersion++; this.loadingSessionId = undefined
@@ -645,9 +731,24 @@ export class PilotController {
   }
   publishNavigationState(state: MiraAppNavigationState) { this.host.publishNavigationState?.(state) }
   onSessionDeleted(listener: (id: string) => void) { this.deletedSessionListeners.add(listener); return () => { this.deletedSessionListeners.delete(listener) } }
-  async renameProject(id: string, name: string) { await this.require('renameProject')(id, name); await this.refreshList(); if (this.state.session?.projectId === id) await this.refreshSession(this.state.session.id, this.generation, false) }
+  async renameProject(id: string, name: string) {
+    await this.require('renameProject')(id, name)
+    const projects = await this.host.listProjects()
+    if (this.disposed) return
+    this.update({ projects })
+    await this.refreshList()
+    if (this.state.session?.projectId === id) await this.refreshSession(this.state.session.id, this.generation, false)
+  }
   async openProject(id: string, target: 'file-manager' | 'terminal' = 'file-manager') { const error = await this.require('openProject')(id, target); if (error) throw new Error(error) }
-  async selectProject() { const project = await this.require('selectProject')(); if (project) await this.refreshList(); return project }
+  async selectProject() {
+    const project = await this.require('selectProject')()
+    if (!project || this.disposed) return project
+    const projects = await this.host.listProjects()
+    if (this.disposed) return project
+    this.update({ projects })
+    await this.refreshList()
+    return project
+  }
   async createConversation(projectId?: string) {
     if (projectId && !this.state.projects.some(project => project.id === projectId && project.directoryExists)) throw new Error('所选项目目录不可用，请重新选择')
     const session = await this.host.createSession(projectId)
@@ -672,19 +773,39 @@ export class PilotController {
     if (this.activeSessionId === id) await this.refreshSession(id, this.generation, false)
   }
   async deleteSession(id: string) {
-    if (this.activeSessionId === id) await this.flushBeforeNavigation()
+    const requestGeneration = this.generation
+    await this.saveBeforeSessionRemoval(id)
     await this.require('deleteSession')(id)
+    if (this.disposed) return
+    const selectReplacement = this.splitPrimarySessionId !== id && requestGeneration === this.generation
     const wasActive = this.removeDeletedSessions([id])
     const generation = this.generation
     await this.refreshList()
-    if (wasActive && generation === this.generation && !this.disposed) {
+    if (wasActive && selectReplacement && generation === this.generation && !this.disposed) {
       if (this.state.sessions[0]) await this.open(this.state.sessions[0].id)
+    }
+  }
+  private async saveBeforeSessionRemoval(id: string) {
+    if (this.activeSessionId !== id && !this.isSessionVisible(id)) return
+    try { await this.flushBeforeNavigation(false) }
+    catch (error) {
+      const detail = error instanceof Error && error.message !== '平台调用失败' ? ` ${error.message}` : ''
+      throw new Error(`操作前未能保存工作台，任务和当前输入已保留；请重试。${detail}`)
     }
   }
   private removeDeletedSessions(ids: readonly string[]) {
     const deleted = new Set(ids)
     const wasActive = Boolean(this.activeSessionId && deleted.has(this.activeSessionId))
-    if (wasActive) this.newConversation()
+    if (wasActive) {
+      if (!this.loadingSessionId || deleted.has(this.loadingSessionId)) this.newConversation()
+      else {
+        // Removal of the old owner must not cancel a newer guarded load.
+        this.activeSessionId = undefined
+        this.snapshotVersion++; this.permissionRevision++; this.livePartKeys.clear()
+        this.update({ session: undefined, messages: [], running: false, openingProjectDirectory: false, permission: undefined, memoryConfirmation: undefined, queue: undefined, queueError: undefined })
+        this.writeMainPreference('active-session', null)
+      }
+    }
     else if (this.loadingSessionId && deleted.has(this.loadingSessionId)) {
       this.generation++; this.snapshotVersion++; this.loadingSessionId = undefined
       this.update({ sessionLoading: false })
@@ -715,7 +836,17 @@ export class PilotController {
   setSessionMcpServers(id: string, serverIds: string[]) { return this.run(async () => { await this.require('setSessionMcpServers')(id, serverIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   setSessionDelegation(id: string, enabled: boolean) { return this.run(async () => { await this.require('setSessionDelegation')(id, enabled); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   listSkills() { return this.require('listSkills')() }
+  get supportsPromptHistory() { return Boolean(this.host.listPromptHistory) }
+  listPromptHistory(scope: { sessionId?: string; projectId?: string }) { return this.require('listPromptHistory')(scope) }
+  get supportsPlugins() { return Boolean(this.host.listPluginCatalog) }
+  listPluginCatalog(sessionId?: string) { return this.require('listPluginCatalog')(sessionId) }
+  listPlugins() { return this.require('listPlugins')() }
+  importLocalPlugin() { return this.require('importLocalPlugin')() }
+  setPluginEnabled(id: string, enabled: boolean) { return this.require('setPluginEnabled')(id, enabled) }
+  removePlugin(id: string) { return this.require('removePlugin')(id) }
   listMcp() { return this.require('listMcp')() }
+  get supportsMcpReconnect() { return Boolean(this.host.reconnectMcp) }
+  reconnectMcp(id: string) { return this.require('reconnectMcp')(id) }
   selectFiles() {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
@@ -821,11 +952,12 @@ export class PilotController {
     if (!session || !selection) return Promise.reject(new Error('尚未选择任务或模型'))
     return this.require('continuePlan')(session.id, planId, message, references, selection)
   }
-  async answerQuestion(answers: HarnessUserAnswer[]) {
+  async answerQuestion(answers: HarnessUserAnswer[], interactionId?: string) {
     const { session, selection } = this.state
-    if (session?.pendingInteraction?.kind !== 'question' || !selection) return
-    try { await this.host.answerInteraction(session.id, session.pendingInteraction.id, answers, selection); await this.refreshSession(session.id, this.generation) }
-    catch (error) { this.fail(error) }
+    if (this.disposed || session?.pendingInteraction?.kind !== 'question' || session.pendingInteraction.status !== 'waiting' || !selection || interactionId && interactionId !== session.pendingInteraction.id) throw new Error('问题或模型已更新，请重新查看当前问题')
+    const generation = this.generation
+    await this.host.answerInteraction(session.id, session.pendingInteraction.id, answers, selection)
+    await this.refreshSession(session.id, generation)
   }
   listFiles(path = '') {
     const id = this.state.session?.id
@@ -871,6 +1003,8 @@ export class PilotController {
     return this.writeTerminalFor(id, terminalId, data)
   }
   writeTerminalFor(sessionId: string, terminalId: string, data: string) { return this.host.writeTerminal(sessionId, terminalId, data) }
+  get canPasteTerminal() { return Boolean(this.host.pasteTerminal) }
+  pasteTerminalFor(sessionId: string, terminalId: string, bracketed: boolean) { return this.host.pasteTerminal ? this.host.pasteTerminal(sessionId, terminalId, bracketed) : Promise.reject(new Error('当前宿主不支持终端粘贴')) }
   resizeTerminal(terminalId: string, columns: number, rows: number) {
     const id = this.state.session?.id
     if (!id) return Promise.reject(new Error('尚未选择任务'))
@@ -888,26 +1022,32 @@ export class PilotController {
     if (!id) return Promise.reject(new Error('尚未选择任务'))
     return this.navigateBrowserFor(id, url, bounds)
   }
-  navigateBrowserFor(id: string, url: string, bounds: HarnessBrowserBounds) { return this.host.navigateBrowser(id, url, bounds) }
+  navigateBrowserFor(id: string, url: string, bounds: HarnessBrowserBounds, browserId?: string, visible?: boolean) { return browserId ? this.host.navigateBrowser(id, url, bounds, browserId, visible) : this.host.navigateBrowser(id, url, bounds) }
   setBrowserBounds(bounds: HarnessBrowserBounds) {
     const id = this.state.session?.id
     return id ? this.setBrowserBoundsFor(id, bounds) : Promise.resolve()
   }
-  setBrowserBoundsFor(id: string, bounds: HarnessBrowserBounds) { return this.host.setBrowserBounds(id, bounds) }
-  controlBrowser(action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') {
+  setBrowserBoundsFor(id: string, bounds: HarnessBrowserBounds, browserId?: string) { return browserId ? this.host.setBrowserBounds(id, bounds, browserId) : this.host.setBrowserBounds(id, bounds) }
+  setBrowserViewportFor(id: string, presentation: HarnessBrowserPresentation, browserId?: string) { return this.require('setBrowserViewport')(id, presentation, browserId) }
+  pickBrowserElementFor(id: string, action: 'start' | 'cancel', browserId: string) { return this.require('pickBrowserElement')(id, action, browserId) }
+  browserProtectedFor(id: string, browserId: string) { return this.require('browserProtected')(id, browserId) }
+  controlBrowser(action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close') {
     const id = this.state.session?.id
     return id ? this.controlBrowserFor(id, action) : Promise.resolve()
   }
-  controlBrowserFor(id: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') { return this.host.controlBrowser(id, action) }
-  closeBrowserFor(id: string) { return this.controlBrowserFor(id, 'close') }
+  controlBrowserFor(id: string, action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close', browserId?: string) { return browserId ? this.host.controlBrowser(id, action, browserId) : this.host.controlBrowser(id, action) }
+  openBrowserExternalFor(id: string, url: string, browserId?: string) { return this.require('openBrowserExternal')(id, url, browserId) }
+  closeBrowserFor(id: string, browserId?: string) { return this.controlBrowserFor(id, 'close', browserId) }
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => this.host.onBrowserEvent(listener)
   onTerminalEvent = (listener: (event: HarnessEvent) => void) => { this.terminalListeners.add(listener); return () => { this.terminalListeners.delete(listener) } }
   private refreshList = async () => {
     const runningRevision = this.runningRevision
+    const unreadRevision = this.unreadRevision
     const sessions = await this.host.listSessions()
-    this.applySessionList(sessions, runningRevision)
+    this.applySessionList(sessions, runningRevision, unreadRevision)
   }
-  private applySessionList(sessions: HarnessSessionSummary[], revision: number) {
+  private applySessionList(sessions: HarnessSessionSummary[], revision: number, unreadRevision: number) {
+    sessions = sessions.map(session => (this.unreadRevisions.get(session.id) ?? 0) > unreadRevision ? { ...session, unread: Boolean(this.state.sessions.find(item => item.id === session.id)?.unread) } : session)
     const runningIds = new Set(this.state.runningSessionIds)
     for (const session of sessions) {
       if (session.isRunning === undefined || (this.runningRevisions.get(session.id) ?? 0) > revision) continue
@@ -915,6 +1055,8 @@ export class PilotController {
       else runningIds.delete(session.id)
     }
     this.update({ sessions, runningSessionIds: [...runningIds] })
+    // The Vue shell also persists completion badges; reconcile them with actual pane visibility.
+    if (this.visibleSessionIds) for (const id of this.visibleSessionIds) void this.markSessionRead(id)
   }
   private async refreshSession(id: string, generation: number, replaceMessages = true, confirmedRunChange = false) {
     if (generation !== this.generation || id !== this.activeSessionId || this.disposed) return
@@ -1023,6 +1165,25 @@ export class PilotController {
     this.update({ messages, running: true, ...(session?.activeRun ? { session: { ...session, activeRun: { ...session.activeRun, messageId: nextId } } } : {}) })
     void this.refreshSession(event.sessionId, this.generation)
   }
+  private applyToolRecord(event: HarnessEvent) {
+    const session = this.state.session
+    const patch = event.payload as Partial<ToolCallRecord>
+    if (!session || session.id !== event.sessionId || typeof patch.id !== 'string' || !patch.id) return true
+    const runId = event.runId ?? patch.runId
+    if (event.runId && patch.runId && patch.runId !== event.runId) return false
+    const index = session.toolCalls.findIndex(tool => tool.id === patch.id)
+    const previous = session.toolCalls[index]
+    if (previous?.runId && runId && previous.runId !== runId) return false
+    // Older hosts can send only a patch; keep their authoritative snapshot fallback.
+    if (!previous && (typeof patch.tool !== 'string' || !Number.isFinite(patch.createdAt) || !['running', 'waiting-confirm', 'ok', 'failed', 'cancelled'].includes(String(patch.status)))) return true
+    if (previous && ['ok', 'failed', 'cancelled'].includes(previous.status) && ['running', 'waiting-confirm'].includes(String(patch.status))) return false
+    const tool = { ...previous, ...patch, ...(runId ? { runId } : {}) } as ToolCallRecord
+    const toolCalls = [...session.toolCalls]
+    if (previous) toolCalls[index] = tool
+    else toolCalls.push(tool)
+    this.update({ session: { ...session, toolCalls } })
+    return true
+  }
   private settleToolPermission(event: HarnessEvent) {
     const { id, status, approvalRequestId } = event.payload
     const runId = event.runId ?? event.payload.runId
@@ -1055,6 +1216,7 @@ export class PilotController {
       return
     }
     if (!this.acceptRunEvent(event)) return
+    if (event.type === 'tool-call' && event.sessionId === this.activeSessionId && !this.applyToolRecord(event)) return
     if (event.type === 'tool-call') this.settleToolPermission(event)
     if (event.type === 'status' || event.type === 'run-start') this.applyStatusBadge(event.sessionId, event.type === 'run-start' ? 'running' : String(event.payload.state || ''), event.sessionId !== this.activeSessionId)
     if (event.type === 'status' || event.type === 'title-updated') void this.refreshList().catch(error => this.fail(error))
@@ -1104,6 +1266,7 @@ export class PilotController {
       const session = this.state.session
       const activeRun = session && event.runId ? session.activeRun?.id === event.runId ? session.activeRun : {
         id: event.runId,
+        ...(event.payload.kind === 'context-compaction' ? { kind: 'context-compaction' as const } : {}),
         ...(typeof event.payload.messageId === 'string' ? { messageId: event.payload.messageId } : {}),
         startedAt: typeof event.payload.startedAt === 'number' ? event.payload.startedAt : event.occurredAt || Date.now(),
         activities: [], subtasks: [],
@@ -1121,7 +1284,7 @@ export class PilotController {
   private applyQueue(queue: HarnessMessageQueueSnapshot) {
     if (this.disposed || (this.queues.get(queue.sessionId)?.revision ?? -1) >= queue.revision) return
     this.queues.set(queue.sessionId, queue)
-    if (queue.sessionId === this.activeSessionId && !this.state.sessionLoading) this.update({ queue, queueError: undefined })
+    this.update({ promptHistoryRevision: (this.state.promptHistoryRevision ?? 0) + 1, ...(queue.sessionId === this.activeSessionId && !this.state.sessionLoading ? { queue, queueError: undefined } : {}) })
   }
   private captureRun(session: HarnessSession) {
     const run = session.activeRun
@@ -1196,12 +1359,16 @@ export class PilotController {
     const unreadIds = new Set(this.state.unreadSessionIds)
     if (running) runningIds.add(sessionId)
     else runningIds.delete(sessionId)
-    if (terminal && isBackground) unreadIds.add(sessionId)
-    if (!terminal && !isBackground) unreadIds.delete(sessionId)
+    const visible = this.isSessionVisible(sessionId)
+    if (terminal && !visible) unreadIds.add(sessionId)
+    if (visible) {
+      void this.markSessionRead(sessionId)
+      unreadIds.delete(sessionId)
+    }
     const pendingPermissions = { ...this.state.pendingPermissions }
     if (!running && isBackground) delete pendingPermissions[sessionId]
     this.update({ runningSessionIds: [...runningIds], unreadSessionIds: [...unreadIds], pendingPermissions })
   }
   private fail(error: unknown) { this.update({ error: error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : '操作失败' }) }
-  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.pendingEditSettlements.forEach(settle => settle(false)); this.pendingEditSettlements.clear(); this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.deletedSessionListeners.clear(); this.listeners.clear() }
+  dispose() { this.disposed = true; this.generation++; this.snapshotVersion++; this.pendingEditSettlements.forEach(settle => settle(false)); this.pendingEditSettlements.clear(); this.unsubscribeDeleted?.(); this.unsubscribeDeleted = undefined; this.unsubscribe?.(); this.unsubscribe = undefined; this.terminalListeners.clear(); this.workspaceFileListeners.clear(); this.beforeNavigation.clear(); this.deletedSessionListeners.clear(); this.listeners.clear() }
 }

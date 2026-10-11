@@ -54,6 +54,44 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
 }
 
 describe('authoritative ordered Harness message parts', () => {
+  it.each(['preparation', 'response'] as const)('persists stopped rather than failed activities when cancellation occurs during %s', async stage => {
+    const fixture = setup()
+    if (stage === 'preparation') vi.mocked((fixture.runtime as any).compactContext).mockImplementation(async () => {
+      fixture.runtime.abort(fixture.sessionId); throw new Error('stopped')
+    })
+    else vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async () => {
+      fixture.response(); fixture.update('text_delta', 'Partial reply')
+      fixture.runtime.abort(fixture.sessionId); throw new Error('stopped')
+    })
+    await fixture.run()
+    const message = fixture.database.harness.getSession(fixture.sessionId).messages.at(-1)!
+    expect(message.run).toMatchObject({ status: 'stopped', activities: expect.arrayContaining([expect.objectContaining({ status: 'stopped', completedAt: expect.any(Number) })]) })
+    expect(message.run!.activities.some(activity => activity.status === 'failed' || activity.status === 'running')).toBe(false)
+    const finalActivities = fixture.events.filter(event => event.type === 'run-activity').at(-1)!.payload.activities
+    expect(finalActivities).toEqual(message.run!.activities)
+    if (stage === 'response') expect(message).toMatchObject({ content: 'Partial reply', interrupted: true })
+    const reloaded = new PlatformDatabase(fixture.root)
+    try { expect(reloaded.harness.getSession(fixture.sessionId).messages.at(-1)?.run).toEqual(message.run) } finally { reloaded.close() }
+  })
+
+  it('retains a real failed tool before a later reply is stopped', async () => {
+    const manager = new McpManager()
+    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool: vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'Tool rejected' }] }) }, 'Test MCP')
+    const fixture = setup({ getTools: () => [tool] })
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response(); await fixture.tool(this, 'actual-failure', 'mcp_failure', {})
+      fixture.response(); fixture.update('text_delta', 'Partial recovery')
+      fixture.runtime.abort(fixture.sessionId); throw new Error('stopped')
+    })
+    await fixture.run()
+    const session = fixture.database.harness.getSession(fixture.sessionId), run = session.messages.at(-1)!.run!
+    expect(run.status).toBe('stopped')
+    expect(run.activities.find(activity => activity.id === 'tool-actual-failure')).toMatchObject({ status: 'failed' })
+    expect(run.activities.find(activity => activity.id === 'answering')).toMatchObject({ status: 'stopped' })
+    expect(session.toolCalls[0]).toMatchObject({ status: 'failed', error: 'Tool rejected' })
+  })
+
   it('publishes real bash output before completion, sanitizes it, and preserves the upstream progress callback', async () => {
     const fixture = setup()
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
@@ -145,6 +183,11 @@ describe('authoritative ordered Harness message parts', () => {
     expect(message.parts?.map(part => part.type)).toEqual(['reasoning', 'text', 'tool', 'text', 'tool', 'text'])
     expect(message.parts?.filter(part => part.type !== 'tool').map(part => part.text)).toEqual(['Public thinking', 'Before ', 'Between ', 'After'])
     expect(session.toolCalls).toHaveLength(2)
+    for (const [index, event] of fixture.events.entries()) {
+      const part = event.payload.part as HarnessMessagePart | undefined
+      if (event.type !== 'message-part' || part?.type !== 'tool') continue
+      expect(fixture.events.slice(0, index).some(previous => previous.type === 'tool-call' && previous.payload.id === part.toolCallId && previous.payload.tool && Number.isFinite(previous.payload.createdAt))).toBe(true)
+    }
     expect(session.toolCalls[0]).toMatchObject({ id: `${message.runId}:response-1:read-1`, providerCallId: 'read-1', runId: message.runId, input: { text: expect.stringContaining('note.txt'), truncated: false }, output: { text: 'Read output', truncated: false }, status: 'ok' })
     expect(session.toolCalls[1].output?.text).toContain('note.txt')
     const live: HarnessMessagePart[] = []
@@ -257,6 +300,7 @@ describe('authoritative ordered Harness message parts', () => {
     await fixture.run()
     const session = fixture.database.harness.getSession(fixture.sessionId)
     expect(session.toolCalls[0]).toMatchObject({ status: 'cancelled', error: '运行已停止' })
+    expect(session.messages.at(-1)?.run?.activities.find(activity => activity.id === 'tool-stopped-write')).toMatchObject({ status: 'stopped', detail: expect.stringContaining('执行已停止') })
     expect(session.messages.at(-1)).toMatchObject({ interrupted: true, run: { status: 'stopped' }, content: '' })
     expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toEqual([])
   })

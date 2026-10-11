@@ -18,9 +18,10 @@ export interface MiraBranchPickerProps {
   active?: boolean
   blocked?: boolean
   placement: 'composer' | 'summary'
+  onReturnFocus?: () => void
 }
 
-export function MiraBranchPicker({ controller, project, active = true, blocked = false, placement }: MiraBranchPickerProps) {
+export function MiraBranchPicker({ controller, project, active = true, blocked = false, placement, onReturnFocus }: MiraBranchPickerProps) {
   const identity = JSON.stringify([project?.id, project?.directory])
   const available = Boolean(controller.supportsGitActions && project?.directoryExists && project.isGitRepository)
   const [open, setOpen] = useState(false)
@@ -38,10 +39,12 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const returnFocus = useRef(false)
   const latest = useRef({ identity, active, blocked, available })
   latest.current = { identity, active, blocked, available }
 
   useEffect(() => {
+    returnFocus.current = false
     ownerRevision.current++; queryRevision.current++; reading.current = false; writing.current = false
     setOpen(false); setCreating(false); setName(''); setSnapshot(undefined); setLoading(false); setMutating(false); setError(''); setSelected('')
     return () => { ownerRevision.current++; queryRevision.current++ }
@@ -106,10 +109,11 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
     {snapshot?.headType === 'detached' && <p className="mira-branch-feedback">HEAD 未关联本地分支{snapshot.commit ? ` · ${snapshot.commit.slice(0, 8)}` : ''}</p>}
   </>
   return <div className={`mira-branch-picker mira-branch-picker--${placement}`}>
-    <Popover.Root open={active && open} onOpenChange={next => { if (writing.current) return; setOpen(next); if (next) void readContext() }}>
+    <Popover.Root open={active && open} onOpenChange={next => { if (writing.current) return; if (next) returnFocus.current = true; setOpen(next); if (next) void readContext() }}>
       <Popover.Trigger asChild><button ref={triggerRef} type="button" className="mira-branch-trigger" aria-label="选择 Git 分支" title={label} disabled={!active || mutating}><GitBranch size={16} /><span>{label}</span>{loading || mutating ? <LoaderCircle size={14} className="animate-spin" /> : <ChevronDown size={14} />}</button></Popover.Trigger>
-      <Popover.Portal container={portal}><Popover.Content className="mira-branch-popover" side={placement === 'composer' ? 'top' : 'left'} align="start" sideOffset={6} onOpenAutoFocus={event => { event.preventDefault(); searchRef.current?.focus() }} onCloseAutoFocus={event => { if (creating || !latest.current.active) { event.preventDefault(); return } const input = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="任务内容"]'); if (input) { event.preventDefault(); input.focus() } }} onEscapeKeyDown={event => { if (mutating) event.preventDefault() }} onInteractOutside={event => { if (mutating) event.preventDefault() }}>
+      <Popover.Portal container={portal}><Popover.Content className="mira-branch-popover" side={placement === 'composer' ? 'top' : 'left'} align="start" sideOffset={6} onOpenAutoFocus={event => { event.preventDefault(); searchRef.current?.focus() }} onCloseAutoFocus={event => { event.preventDefault(); if (creating || !latest.current.active || !returnFocus.current) return; if (onReturnFocus) onReturnFocus(); else triggerRef.current?.focus() }} onEscapeKeyDown={event => { if (mutating) event.preventDefault() }} onInteractOutside={event => { if (mutating) event.preventDefault(); else returnFocus.current = false }}>
         <Command label="搜索 Git 分支" loop value={selected} onValueChange={setSelected} filter={(value, search) => value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ? 1 : 0} onKeyDown={event => {
+          if (event.defaultPrevented || event.nativeEvent.isComposing || event.keyCode === 229) return
           if (event.key !== 'Tab' || event.shiftKey) return
           const item = listRef.current?.querySelector<HTMLElement>('[cmdk-item][data-selected="true"]:not([data-disabled="true"])')
           if (item) { event.preventDefault(); item.click() }

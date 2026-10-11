@@ -83,7 +83,7 @@ describe('actual first-screen bridge parameter and authority chain', () => {
     const view = register(), pending = deferred<{ canceled: boolean; filePaths: string[] }>(); electron.dialog.mockReturnValueOnce(pending.promise)
     const request = view.bridge('projects.select')
     view.grants.revoke(view.grantId, view.sender.id); pending.resolve({ canceled: false, filePaths: ['/selected/project'] })
-    await expect(request).rejects.toThrow('授权无效'); expect(view.database.harness.createProject).not.toHaveBeenCalled()
+    await expect(request).rejects.toThrow('添加项目失败，请重新选择目录后重试。'); expect(view.database.harness.createProject).not.toHaveBeenCalled()
   })
   it('uses the registered project directory and passes rename fields through both parsers', async () => {
     const view = register(); await view.bridge('projects.open', { projectId: 'project', directory: '/injected' })

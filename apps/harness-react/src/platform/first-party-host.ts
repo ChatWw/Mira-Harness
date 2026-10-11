@@ -1,7 +1,8 @@
 import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
-import type { HarnessAttachmentSaveResult, HarnessBrowserBounds } from '../../../../src/platform/firstPartyHarness'
-import type { SendShortcut } from '../../../../src/config/harness'
+import type { MiraPluginItem, MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../../../src/config/miraPlugins'
+import type { HarnessAttachmentSaveResult, HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../src/platform/firstPartyHarness'
+import type { HarnessContextCompactionResult, SendShortcut } from '../../../../src/config/harness'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../../../src/config/harness'
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
@@ -9,6 +10,7 @@ import type { HarnessGitContext, HarnessMessageQueueSnapshot, HarnessMessageSubm
 import { readMiraAppNavigationCommand, readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '../../../../src/platform/appNavigation'
 import type { HarnessMessageAttachment } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
+import type { MiraBrowserPickResult } from '../../../../src/platform/miraBrowserPicker'
 
 export class FirstPartyHarnessHost implements PilotHost {
   readonly supportsQueueSubmissionOptions = true
@@ -89,12 +91,18 @@ export class FirstPartyHarnessHost implements PilotHost {
     catch { /* 宿主已离开，端口无法接收保存确认。 */ }
   }
 
+  createSideConversation = (parentId: string) => this.call<HarnessSession>('session.create-side', { parentId })
+  forkConversation = (id: string, messageId: string, requestId: string) => this.call<HarnessSession>('session.fork', { id, messageId, requestId })
+  compactConversation = (sessionId: string, selection: ModelSelection) => this.call<HarnessContextCompactionResult>('context.compact', { sessionId, selection, submissionId: crypto.randomUUID() })
   listSessions = () => this.call<HarnessSessionSummary[]>('sessions.list')
   getComposerPreferences = () => this.call<{ sendShortcut: SendShortcut; showContextUsage: boolean; followupMode?: 'queue' | 'guide' }>('composer.preferences')
   browseSkillMarket = (refresh = false) => this.call<HarnessSkillMarketCatalog>('marketplace.browse', { refresh })
   getSkillMarketDetail = (id: string) => this.call<HarnessSkillMarketDetail>('marketplace.detail', { id })
   installMarketSkill = (id: string) => this.call<HarnessSkillMarketItem>('marketplace.install', { id })
   listInstalledMarketSkills = () => this.call<HarnessSkillMarketItem[]>('marketplace.installed')
+  browsePluginMarket = (refresh = false) => this.call<MiraPluginMarketCatalog>('plugin-marketplace.browse', { refresh })
+  getPluginMarketDetail = (id: string) => this.call<MiraPluginMarketDetail>('plugin-marketplace.detail', { id })
+  installMarketPlugin = (id: string) => this.call<MiraPluginMarketItem>('plugin-marketplace.install', { id })
   queryHistory = (query: HarnessHistoryQuery) => this.call<HarnessHistoryPage>('sessions.history', query)
   getArchivedSnapshot = () => this.call<HarnessArchivedSnapshot>('sessions.archived-snapshot')
   deleteArchivedSessions = (snapshotId: string) => this.call<HarnessArchivedDeletionResult>('sessions.delete-archived', { snapshotId })
@@ -174,14 +182,20 @@ export class FirstPartyHarnessHost implements PilotHost {
   readImage = (sessionId: string, path: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { sessionId, path })
   openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
+  pasteTerminal = (sessionId: string, terminalId: string, bracketed: boolean) => this.call<void>('terminal.paste', { sessionId, terminalId, bracketed })
   resizeTerminal = (sessionId: string, terminalId: string, columns: number, rows: number) => this.call<void>('terminal.resize', { sessionId, terminalId, columns, rows })
   closeTerminal = (sessionId: string, terminalId: string) => this.call<void>('terminal.close', { sessionId, terminalId })
-  navigateBrowser = (sessionId: string, url: string, bounds: HarnessBrowserBounds) => this.call<string>('browser.navigate', { sessionId, url, bounds })
-  setBrowserBounds = (sessionId: string, bounds: HarnessBrowserBounds) => this.call<void>('browser.bounds', { sessionId, bounds })
-  controlBrowser = (sessionId: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') => this.call<void>('browser.control', { sessionId, action })
+  navigateBrowser = (sessionId: string, url: string, bounds: HarnessBrowserBounds, browserId?: string, visible?: boolean) => this.call<string>('browser.navigate', { sessionId, url, bounds, ...(browserId ? { browserId } : {}), ...(visible === undefined ? {} : { visible }) })
+  setBrowserBounds = (sessionId: string, bounds: HarnessBrowserBounds, browserId?: string) => this.call<void>('browser.bounds', { sessionId, bounds, ...(browserId ? { browserId } : {}) })
+  setBrowserViewport = (sessionId: string, presentation: HarnessBrowserPresentation, browserId?: string) => this.call<{ desktopZoomFactor: number }>('browser.viewport', { sessionId, ...presentation, ...(browserId ? { browserId } : {}) })
+  pickBrowserElement = (sessionId: string, action: 'start' | 'cancel', browserId: string) => this.call<MiraBrowserPickResult>('browser.pick', { sessionId, action, browserId })
+  browserProtected = (sessionId: string, browserId: string) => this.call<{ protected: boolean }>('browser.protection', { sessionId, browserId })
+  controlBrowser = (sessionId: string, action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close', browserId?: string) => this.call<void>('browser.control', { sessionId, action, ...(browserId ? { browserId } : {}) })
+  openBrowserExternal = (sessionId: string, url: string, browserId?: string) => this.call<void>('browser.external', { sessionId, url, ...(browserId ? { browserId } : {}) })
   onEvent = (listener: (event: HarnessEvent) => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => { this.browserListeners.add(listener); return () => { this.browserListeners.delete(listener) } }
   getPreference = (key: string) => this.request<unknown>('preferences.get', { key })
+  listPromptHistory = (scope: { sessionId?: string; projectId?: string }) => this.call<string[]>('input-history.list', scope)
   setPreference = (key: string, value: unknown) => this.request<void>('preferences.set', { key, value })
   navigate = (path: string) => this.request<void>('navigation.open', { path })
   renameSession = (id: string, title: string) => this.call<void>('session.rename', { id, title })
@@ -196,8 +210,14 @@ export class FirstPartyHarnessHost implements PilotHost {
   setSessionSkills = (id: string, skillIds: string[]) => this.call<void>('session.set-skills', { id, skillIds })
   setSessionMcpServers = (id: string, serverIds: string[]) => this.call<void>('session.set-mcp-servers', { id, serverIds })
   setSessionDelegation = (id: string, enabled: boolean) => this.call<void>('session.set-delegation', { id, enabled })
+  listPlugins = () => this.call<MiraPluginItem[]>('plugins.list')
+  listPluginCatalog = (sessionId?: string) => this.call<MiraPluginItem[]>('plugins.catalog', { sessionId })
+  importLocalPlugin = () => this.call<MiraPluginItem[] | null>('plugins.import')
+  setPluginEnabled = (id: string, enabled: boolean) => this.call<MiraPluginItem[]>('plugins.set-enabled', { id, enabled })
+  removePlugin = (id: string) => this.call<MiraPluginItem[]>('plugins.remove', { id })
   listSkills = () => this.call<unknown[]>('skills.list')
-  listMcp = () => this.call<Array<{ id: string; name: string; enabled: boolean }>>('mcp.list')
+  listMcp = () => this.call<import('../../../../src/config/miraMcp').MiraMcpItem[]>('mcp.list')
+  reconnectMcp = (id: string) => this.call<import('../../../../src/config/miraMcp').MiraMcpConnection>('mcp.reconnect', { id })
   selectFiles = (sessionId: string) => this.call<HarnessFileReference[]>('files.select', { sessionId })
   listGitBranches = (projectId: string) => this.call<unknown>('git.branches', { projectId })
   getGitContext = (projectId: string) => this.call<HarnessGitContext>('git.context', { projectId })

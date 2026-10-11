@@ -13,6 +13,7 @@ import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 import { PlatformDatabase } from '../electron/storage/database'
 import { HarnessRuntime } from '../electron/services/harnessRuntime'
+import { miraPluginItems } from '../src/config/miraPlugins'
 
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => unknown>(),
@@ -20,12 +21,20 @@ const electron = vi.hoisted(() => ({
   fromWebContents: vi.fn(() => null),
   getFocusedWindow: vi.fn(() => null),
   showOpenDialog: vi.fn(),
+  readClipboard: vi.fn(),
+  openExternal: vi.fn(async () => undefined),
+  guestFromId: vi.fn(),
+  browserSession: { on: vi.fn() },
 }))
 
 vi.mock('electron', () => ({
   ipcMain: { handle: electron.handle },
+  webContents: { fromId: electron.guestFromId },
+  session: { fromPartition: () => electron.browserSession },
   BrowserWindow: { fromWebContents: electron.fromWebContents, getFocusedWindow: electron.getFocusedWindow },
   dialog: { showOpenDialog: electron.showOpenDialog },
+  clipboard: { readText: electron.readClipboard },
+  shell: { openExternal: electron.openExternal },
 }))
 
 import { registerPlatformIpcHandlers } from '../electron/ipc/platformIpc'
@@ -47,6 +56,7 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
       saveProject: vi.fn(project => project),
     },
     harness: {
+      sideConversationIds: vi.fn(() => []),
       listSessions: vi.fn(() => []),
       listProjects: vi.fn(() => []),
       getSession: vi.fn((id: string) => ({ id, projectId: 'project', workingDirectory: undefined })),
@@ -71,6 +81,52 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('limits manual compaction to the owner grant and rechecks authorization after waiting', async () => {
+    let authorize!: () => void
+    const compactConversation = vi.fn(async (_sender, _id, _selection, guard) => { authorize = guard; return { status: 'unchanged' } })
+    const { invoke, invokeAs, sender } = register({ harnessRuntime: { compactConversation } as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const selection = { providerId: 'provider', modelId: 'model' }
+    await expect(invoke('platform:first-party-harness', grant, 'context.compact', { sessionId: 'task', selection, summary: 'Injected summary', messages: [] })).resolves.toEqual({ status: 'unchanged' })
+    expect(compactConversation).toHaveBeenCalledExactlyOnceWith(sender, 'task', selection, expect.any(Function), undefined)
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'context.compact', { sessionId: 'task', selection })).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'context.compact', { sessionId: 'task' })).toThrow()
+    invoke('platform:revoke-first-party-grant', grant)
+    expect(authorize).toThrow('授权无效')
+  })
+
+  it('admits exact reply forks only through an owner grant and mutable source task', () => {
+    const assertSessionMutable = vi.fn(), forkConversation = vi.fn(() => ({ id: 'new-task' }))
+    const { invoke, invokeAs, database } = register({ harnessRuntime: { assertSessionMutable } as never })
+    Object.assign(database.harness, { forkConversation })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const params = { id: 'source', messageId: 'reply', requestId: '55cabc22-257e-41d4-8ec2-9fc83671dd12', messages: [{ content: 'injected' }] }
+    expect(invoke('platform:first-party-harness', grant, 'session.fork', params)).toEqual({ id: 'new-task' })
+    expect(assertSessionMutable).toHaveBeenCalledExactlyOnceWith('source')
+    expect(forkConversation).toHaveBeenCalledExactlyOnceWith(params.id, params.messageId, params.requestId)
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'session.fork', params)).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'session.fork', { ...params, requestId: '../invalid' })).toThrow('请求 ID')
+    assertSessionMutable.mockImplementationOnce(() => { throw new Error('请先处理待发送消息') })
+    expect(() => invoke('platform:first-party-harness', grant, 'session.fork', params)).toThrow('待发送消息')
+    expect(forkConversation).toHaveBeenCalledOnce()
+  })
+
+  it('reads directory-scoped input history under the Harness owner grant and rejects ambiguous scope', () => {
+    const { invoke, invokeAs, database } = register({ harnessRuntime: {} as never })
+    const list = vi.fn(() => ['Accepted input'])
+    Object.assign(database, { promptHistory: { list } })
+    Object.assign(database.harness, { getSession: vi.fn(() => ({ workingDirectory: '/session-directory', projectId: 'project' })), getProject: vi.fn(() => ({ directory: '/project-directory' })) })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grant, 'input-history.list', { sessionId: 'session', directory: '/injected' })).toEqual(['Accepted input'])
+    expect(list).toHaveBeenLastCalledWith('/session-directory')
+    invoke('platform:first-party-harness', grant, 'input-history.list', { projectId: 'project' })
+    expect(list).toHaveBeenLastCalledWith('/project-directory')
+    invoke('platform:first-party-harness', grant, 'input-history.list', {})
+    expect(list).toHaveBeenLastCalledWith(undefined)
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'input-history.list', {})).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'input-history.list', { sessionId: 's', projectId: 'p' })).toThrow('输入历史范围无效')
+    expect(list).toHaveBeenCalledTimes(3)
+  })
   beforeEach(() => {
     electron.handlers.clear()
     vi.clearAllMocks()
@@ -174,6 +230,72 @@ describe('platform IPC registration', () => {
     expect(invoke('platform:first-party-harness', grantId, 'sessions.list')).toBe(sessions)
     expect(listSessions).toHaveBeenCalledExactlyOnceWith()
     expect(database.harness.listSessions).not.toHaveBeenCalled()
+  })
+  it('reads MCP connection metadata without launching servers or exposing startup configuration', () => {
+    const getStatus = vi.fn(() => ({ state: 'connected' as const, toolCount: 4 }))
+    const mcpConfigStore = { list: () => [
+      { id: 'mira-tools', name: 'Mira tools', enabled: true, command: 'private-command', args: ['private-argument'] },
+      { id: 'disabled', name: 'Disabled', enabled: false, command: 'private-command', args: [] },
+    ] }
+    const { invoke } = register({ harnessRuntime: {} as never, mcpConfigStore: mcpConfigStore as never, mcpManager: { getStatus } })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const items = invoke('platform:first-party-harness', grant, 'mcp.list')
+    expect(items).toEqual([
+      { id: 'mira-tools', name: 'Mira tools', enabled: true, connection: { state: 'connected', toolCount: 4 } },
+      { id: 'disabled', name: 'Disabled', enabled: false },
+    ])
+    expect(getStatus).toHaveBeenCalledExactlyOnceWith('mira-tools')
+    expect(JSON.stringify(items)).not.toContain('private-')
+    invoke('platform:revoke-first-party-grant', grant)
+    expect(() => invoke('platform:first-party-harness', grant, 'mcp.list')).toThrow('第一方授权无效')
+    expect(getStatus).toHaveBeenCalledOnce()
+  })
+  it('reconnects only a stored enabled MCP server and rechecks the grant after completion', async () => {
+    let complete!: () => void
+    const reconnect = vi.fn(() => new Promise<void>(done => { complete = done }))
+    const server = { id: 'configured', name: 'Configured', enabled: true, command: 'stored-command', args: [] }
+    const getStatus = vi.fn(() => ({ state: 'connected' as const, toolCount: 1 }))
+    const { invoke } = register({ harnessRuntime: {} as never, mcpConfigStore: { list: () => [server, { ...server, id: 'disabled', enabled: false }] } as never, mcpManager: { getStatus, reconnect } })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    for (const id of ['missing', 'disabled']) expect(() => invoke('platform:first-party-harness', grant, 'mcp.reconnect', { id })).toThrow('已配置且启用')
+    expect(() => invoke('platform:first-party-harness', grant, 'mcp.reconnect', { id: '' })).toThrow('MCP 服务 ID无效')
+    const pending = invoke('platform:first-party-harness', grant, 'mcp.reconnect', { id: server.id, command: 'untrusted-command' }) as Promise<unknown>
+    expect(reconnect).toHaveBeenCalledExactlyOnceWith(server)
+    invoke('platform:revoke-first-party-grant', grant); complete()
+    await expect(pending).rejects.toThrow('第一方授权无效')
+    expect(getStatus).not.toHaveBeenCalled()
+    const next = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const success = invoke('platform:first-party-harness', next, 'mcp.reconnect', { id: server.id }) as Promise<unknown>; complete()
+    await expect(success).resolves.toEqual({ state: 'connected', toolCount: 1 })
+  })
+
+  it('rechecks plugin import authority after the native directory selection before registering anything', async () => {
+    let finish!: (value: { canceled: boolean; filePaths: string[] }) => void
+    electron.showOpenDialog.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const view = register({ harnessRuntime: {} as never })
+    const registerPlugin = vi.fn(), list = vi.fn(() => [])
+    Object.assign(view.database, { plugins: { register: registerPlugin, list } })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const importing = view.invoke('platform:first-party-harness', grant, 'plugins.import') as Promise<unknown>
+    view.invoke('platform:revoke-first-party-grant', grant)
+    finish({ canceled: false, filePaths: ['/test-owned/plugin'] })
+    await expect(importing).rejects.toThrow('第一方授权无效')
+    expect(registerPlugin).not.toHaveBeenCalled()
+  })
+  it('returns canceled native plugin selection without installing and exposes catalog metadata without paths', async () => {
+    electron.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
+    const view = register({ harnessRuntime: {} as never })
+    const registerPlugin = vi.fn(), plugins = [{ id: 'review@local', name: 'review', description: '', enabled: true, root: '/owned', skills: [{ name: 'check', description: '', path: '/owned/skills/check/SKILL.md' }], unsupported: [] }]
+    const catalogFor = vi.fn(frozen => miraPluginItems(frozen))
+    Object.assign(view.database, { plugins: { register: registerPlugin, list: () => [], catalog: catalogFor } })
+    view.database.harness.getSession.mockReturnValueOnce({ id: 's', pluginCatalog: plugins } as any)
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const catalog = view.invoke('platform:first-party-harness', grant, 'plugins.catalog', { sessionId: 's' })
+    expect(JSON.stringify(catalog)).not.toContain('/owned')
+    expect(catalog).toMatchObject([{ id: 'review@local', skills: [{ name: 'check' }] }])
+    expect(catalogFor).toHaveBeenCalledWith(plugins)
+    await expect(view.invoke('platform:first-party-harness', grant, 'plugins.import')).resolves.toBeNull()
+    expect(registerPlugin).not.toHaveBeenCalled()
   })
 
   it('creates prepared attachment owners only through a validated boolean while preserving ordinary creation', () => {
@@ -327,19 +449,19 @@ describe('platform IPC registration', () => {
     expect(database.savePreference).not.toHaveBeenCalled()
   })
 
-  it('rechecks revoked market authority after a read and passes a commit guard to installation', async () => {
+  it.each(['marketplace', 'plugin-marketplace'])('rechecks revoked %s authority after a read and passes a commit guard to installation', async prefix => {
     let finishBrowse!: (value: unknown) => void
     const browse = vi.fn(() => new Promise(resolve => { finishBrowse = resolve }))
     const install = vi.fn(async (_id: string, assertAuthorized: () => void) => { await Promise.resolve(); assertAuthorized(); return { installed: true } })
-    const view = register({ harnessRuntime: {} as never, skillMarketplace: { browse, install } as never })
+    const view = register({ harnessRuntime: {} as never, skillMarketplace: { browse, install, browsePlugins: browse, installPlugin: install } as never })
     Object.assign(view.sender, { isDestroyed: () => false })
     const grantId = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
-    const read = view.invoke('platform:first-party-harness', grantId, 'marketplace.browse', { refresh: true }) as Promise<unknown>
+    const read = view.invoke('platform:first-party-harness', grantId, `${prefix}.browse`, { refresh: true }) as Promise<unknown>
     view.invoke('platform:revoke-first-party-grant', grantId)
     finishBrowse({ items: [] })
     await expect(read).rejects.toThrow('授权无效')
     const nextGrant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
-    const installation = view.invoke('platform:first-party-harness', nextGrant, 'marketplace.install', { id: 'public-skill' }) as Promise<unknown>
+    const installation = view.invoke('platform:first-party-harness', nextGrant, `${prefix}.install`, { id: 'public-skill' }) as Promise<unknown>
     view.invoke('platform:revoke-first-party-grant', nextGrant)
     await expect(installation).rejects.toThrow('授权无效')
     expect(install).toHaveBeenCalledWith('public-skill', expect.any(Function))
@@ -435,6 +557,23 @@ describe('platform IPC registration', () => {
     expect(terminalSessions.closeForWebContents).toHaveBeenCalledExactlyOnceWith(sender.id)
     expect(sender.listenerCount('destroyed')).toBe(0)
     expect(() => invoke('platform:first-party-harness', second, 'terminal.open', { sessionId: 'session-1' })).toThrow('授权无效')
+  })
+
+  it('scopes context paste to the existing grant and session and returns no clipboard text', () => {
+    const paste = vi.fn((_sender, _session, _terminal, read) => { read() })
+    const { invoke, sender, database, invokeFromSubframe } = register({ terminalSessions: { paste } as never, harnessRuntime: {} as never })
+    electron.readClipboard.mockReturnValue('isolated clipboard')
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    expect(invoke('platform:first-party-harness', grant, 'terminal.paste', { sessionId: 'session-1', terminalId: 'terminal-1', bracketed: true })).toBeUndefined()
+    expect(database.harness.getSession).toHaveBeenCalledWith('session-1')
+    expect(paste).toHaveBeenCalledExactlyOnceWith(sender, 'session-1', 'terminal-1', expect.any(Function), true)
+    expect(electron.readClipboard).toHaveBeenCalledOnce()
+    paste.mockClear(); electron.readClipboard.mockClear()
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'terminal.paste', { sessionId: 'session-1', terminalId: 'terminal-1', bracketed: false })).toThrow('宿主主页面')
+    expect(() => invoke('platform:first-party-harness', 'invalid', 'terminal.paste', { sessionId: 'session-1', terminalId: 'terminal-1', bracketed: false })).toThrow('授权无效')
+    vi.mocked(database.harness.getSession).mockImplementation(() => { throw new Error('session removed') })
+    expect(() => invoke('platform:first-party-harness', grant, 'terminal.paste', { sessionId: 'session-1', terminalId: 'terminal-1', bracketed: false })).toThrow('session removed')
+    expect(paste).not.toHaveBeenCalled(); expect(electron.readClipboard).not.toHaveBeenCalled()
   })
 
   it('keeps destruction hooks and grant cleanup isolated between windows', () => {
@@ -599,6 +738,80 @@ describe('platform IPC registration', () => {
     electron.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
     await expect(invoke('platform:first-party-harness', grant, 'files.select', { sessionId: 'project-session' })).resolves.toEqual([])
     expect(database.harness.selectFileReferences).toHaveBeenCalledTimes(1)
+  })
+
+  it('requires grant, main frame, valid session and exact guest ownership for residency protection', () => {
+    const { invoke, invokeAs, invokeFromSubframe, sender, database } = register({ harnessRuntime: {} as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness')
+    const params = { sessionId: 'a', browserId: 'browser:one', guestId: 10 }
+    const guest = { getType: () => 'webview', hostWebContents: sender, isDestroyed: () => false, isLoading: () => false, isCurrentlyAudible: () => false, isBeingCaptured: () => false }
+    electron.guestFromId.mockReturnValue(guest)
+    expect(invoke('platform:first-party-harness', grant, 'browser.protection', params)).toEqual({ protected: false })
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'browser.protection', params)).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'browser.protection', params)).toThrow()
+    guest.hostWebContents = {} as never; expect(() => invoke('platform:first-party-harness', grant, 'browser.protection', params)).toThrow('不属于当前窗口')
+    guest.hostWebContents = sender; database.harness.getSession.mockImplementation(() => { throw Error('会话不存在') })
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.protection', params)).toThrow('会话不存在')
+  })
+  it('validates element picker grant, frame, session, fixed actions and exact native owner', () => {
+    const { invoke, invokeAs, invokeFromSubframe, sender, database } = register({ harnessRuntime: {} as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness')
+    const params = { sessionId: 'a', browserId: 'browser:one', action: 'start', guestId: 10 }
+    const guest = { getType: () => 'webview', hostWebContents: sender, isDestroyed: () => false }
+    electron.guestFromId.mockReturnValue(guest)
+    expect(invoke('platform:first-party-harness', grant, 'browser.pick', params)).toBeNull()
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'browser.pick', params)).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'browser.pick', params)).toThrow()
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.pick', { ...params, action: 'execute' })).toThrow()
+    guest.hostWebContents = {} as never
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.pick', params)).toThrow('不属于当前窗口')
+    guest.hostWebContents = sender
+    database.harness.getSession.mockImplementation(() => { throw Error('会话不存在') })
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.pick', params)).toThrow('会话不存在')
+    expect(invoke('platform:first-party-harness', grant, 'browser.pick', { ...params, action: 'cancel' })).toBeNull()
+  })
+  it('checks grant, main frame, session and native guest ownership before changing real viewport metrics', async () => {
+    const { invoke, invokeAs, invokeFromSubframe, sender, database } = register({ harnessRuntime: {} as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness')
+    const guest = Object.assign(new EventEmitter(), { getType: () => 'webview', hostWebContents: sender, isDestroyed: () => false, setZoomFactor: vi.fn(), debugger: { isAttached: () => true, attach: vi.fn(), sendCommand: vi.fn(async () => undefined) } })
+    Object.assign(sender, { getZoomFactor: () => 1.25 }); electron.guestFromId.mockReturnValue(guest)
+    const bounds = { x: 0, y: 0, width: 400, height: 500 }, params = { sessionId: 'a', browserId: 'browser:one', viewport: { width: 800, height: 600 }, bounds, clip: bounds, scale: .5, guestId: 10 }
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'browser.viewport', params)).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'browser.viewport', params)).toThrow()
+    await expect(invoke('platform:first-party-harness', grant, 'browser.viewport', { ...params, guestId: undefined })).rejects.toThrow('不属于当前窗口')
+    guest.hostWebContents = {} as never
+    await expect(invoke('platform:first-party-harness', grant, 'browser.viewport', params)).rejects.toThrow('不属于当前窗口')
+    expect(guest.debugger.sendCommand).not.toHaveBeenCalled()
+    guest.hostWebContents = sender
+    await expect(invoke('platform:first-party-harness', grant, 'browser.viewport', params)).resolves.toEqual({ desktopZoomFactor: 1.25 })
+    expect(guest.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith('Emulation.setDeviceMetricsOverride', { width: 800, height: 600, mobile: false, deviceScaleFactor: 1, dontSetVisibleSize: true, scale: 1.25 })
+    database.harness.getSession.mockImplementation(() => { throw new Error('会话不存在') })
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.viewport', params)).toThrow('会话不存在')
+  })
+  it('preserves browser resource identity through main-process validation and rejects unauthorized navigation', () => {
+    const manifest: FirstPartyAppManifest = {
+      appId: 'mira-harness', legacyIds: [], enabled: true,
+      trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
+      entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
+      apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
+    }
+    const { invoke, invokeAs, invokeFromSubframe, database } = register({ firstPartyManifests: [manifest], harnessRuntime: {} as PlatformIpcDependencies['harnessRuntime'] })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness')
+    const params = { sessionId: 'project-session', browserId: 'browser:page-one', visible: false, url: 'https://mira.test/page', bounds: { x: 0, y: 0, width: 500, height: 400 } }
+    expect(invoke('platform:first-party-harness', grant, 'browser.navigate', params)).toEqual(params)
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'browser.navigate', params)).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.navigate', { ...params, browserId: 'browser:../invalid' })).toThrow()
+    expect(invoke('platform:first-party-harness', grant, 'browser.control', { sessionId: params.sessionId, browserId: params.browserId, action: 'devtools' })).toMatchObject({ action: 'devtools', browserId: params.browserId })
+    invoke('platform:first-party-harness', grant, 'browser.external', params)
+    expect(electron.openExternal).toHaveBeenCalledExactlyOnceWith(params.url); electron.openExternal.mockClear()
+    expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'browser.external', params)).toThrow('授权无效')
+    expect(() => invokeFromSubframe('platform:first-party-harness', grant, 'browser.external', params)).toThrow()
+    for (const url of ['file:///tmp/secret', 'javascript:alert(1)', 'https://user:secret@mira.test']) expect(() => invoke('platform:first-party-harness', grant, 'browser.external', { ...params, url })).toThrow()
+    expect(electron.openExternal).not.toHaveBeenCalled()
+    database.harness.getSession.mockImplementation(() => { throw new Error('会话不存在') })
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.navigate', params)).toThrow('会话不存在')
+    expect(() => invoke('platform:first-party-harness', grant, 'browser.external', params)).toThrow('会话不存在')
+    expect(electron.openExternal).not.toHaveBeenCalled()
   })
 
   it('releases deleted task browser views while keeping grants and live controls checked', () => {

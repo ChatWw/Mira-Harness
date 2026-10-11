@@ -2,8 +2,9 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HarnessSession } from '../src/config/harness'
 import { HarnessWorkbench } from '../apps/harness-react/src/components/workbench/HarnessWorkbench'
+import { miraTaskPaneIds } from '../apps/harness-react/src/state/mira-task-layout'
 import { PilotController, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
-import { createWorkspaceFileTab, createWorkspaceSession, openWorkspaceTab } from '../apps/harness-react/src/state/workspace-state'
+import { createWorkspaceFileTab, createWorkspaceSession, openWorkspaceTab, readWorkspaceSessions } from '../apps/harness-react/src/state/workspace-state'
 
 const hooks = vi.hoisted(() => ({
   cursor: 0, dirty: false,
@@ -37,11 +38,6 @@ vi.mock('react', async importOriginal => ({
     hooks.effects.push(() => { slot.cleanup?.(); slot.cleanup = effect() })
   },
 }))
-vi.mock('@assistant-ui/react', () => ({
-  AssistantRuntimeProvider: 'runtime', MessagePrimitive: {},
-  ThreadPrimitive: { Root: 'thread', Viewport: 'viewport', Messages: 'messages', ScrollToBottom: 'scroll-to-bottom' },
-  useAuiState: vi.fn(), useExternalStoreRuntime: () => ({}),
-}))
 vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', useHarnessSessionShortcuts: vi.fn() }))
 vi.mock('../apps/harness-react/src/hooks/useModalFocusTrap', () => ({ useModalFocusTrap: vi.fn() }))
 
@@ -59,11 +55,13 @@ function fixture(read: () => Promise<unknown> = async () => null) {
   const getPreference = vi.fn((key: string) => key === KEY ? read() : Promise.resolve(null))
   const setPreference = vi.fn(async (_key: string, _value: unknown) => undefined)
   const navigate = vi.fn(async (_path: string) => undefined)
-  const host = { getPreference, setPreference, navigate } as unknown as PilotHost
+  const browserProtected = vi.fn(async (_id: string, _browser: string) => ({ protected: false }))
+  const browserListeners = new Set<(event: any) => void>()
+  const host = { getPreference, setPreference, navigate, browserProtected, onBrowserEvent: (listener: (event: any) => void) => { browserListeners.add(listener); return () => browserListeners.delete(listener) } } as unknown as PilotHost
   const controller = new PilotController(host)
   const session: HarnessSession = { version: 1, id: 'a', title: 'a', permissionMode: 'default', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
   Object.assign(controller.getSnapshot(), { initialized: true, session, sessions: [session] })
-  return { controller, host, getPreference, setPreference, navigate }
+  return { controller, host, getPreference, setPreference, navigate, browserProtected, browserListeners }
 }
 
 function mount(controller: PilotController) {
@@ -98,13 +96,14 @@ function mount(controller: PilotController) {
     await drain()
   }
   const openFile = (path: string) => (props(props => typeof props.onOpenFile === 'function').onOpenFile as (path: string) => void)(path)
+  const showWorkspace = async () => { (props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function').onClick as () => void)(); render(); await drain() }
   const unmount = () => { mounted = false; hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
   const replayEffects = () => {
     hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined })
     hooks.slots.forEach(slot => { if (slot.effect) slot.cleanup = slot.effect() })
   }
   render()
-  return { render, drain, showFiles, openFile, unmount, replayEffects, props }
+  return { render, drain, showFiles, showWorkspace, openFile, unmount, replayEffects, props }
 }
 
 beforeEach(() => {
@@ -115,6 +114,136 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('React Harness workspace preference lifecycle', () => {
+  it.each([false, true])('opens an existing task beside a main task or anonymous draft without creating a child: draft=%s', async draft => {
+    const fixtureView = fixture(), target: HarnessSession = { ...fixtureView.controller.getSnapshot().session!, id: 'b', title: 'Existing B' }
+    fixtureView.host.getSession = vi.fn(async () => target)
+    fixtureView.host.createSession = vi.fn(async () => target)
+    Object.assign(fixtureView.controller.getSnapshot(), { sessions: [target, fixtureView.controller.getSnapshot().session], ...(draft ? { session: undefined } : {}) })
+    const view = mount(fixtureView.controller); await view.drain()
+    const entry = () => view.props(props => Boolean(props.taskPaneEntry)).taskPaneEntry as { open(id: string): Promise<boolean>; canOpen(id: string): boolean }
+    expect(entry().canOpen('b')).toBe(true)
+    await expect(entry().open('b')).resolves.toBe(true); await view.drain()
+    const grid = () => view.props(props => Boolean(props.layout) && typeof props.onResize === 'function') as unknown as { layout: Parameters<typeof miraTaskPaneIds>[0] }
+    expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'b'])
+    expect(view.props(props => props.existingTask === true).childSessionId).toBe('b')
+    await entry().open('b'); await view.drain(); expect(miraTaskPaneIds(grid().layout)).toHaveLength(2)
+    expect(fixtureView.controller.getSnapshot().session?.id).toBe(draft ? undefined : 'a')
+    expect(fixtureView.host.createSession).not.toHaveBeenCalled()
+    await fixtureView.controller.flushBeforeNavigation()
+    expect(fixtureView.setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ [draft ? 'draft' : 'a']: expect.objectContaining({ activeTab: 'task:b' }) }))
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('discards a delayed task opening after the main owner has changed', async () => {
+    const fixtureView = fixture(), target: HarnessSession = { ...fixtureView.controller.getSnapshot().session!, id: 'b' }, pending = deferred<HarnessSession>()
+    fixtureView.host.getSession = vi.fn(() => pending.promise)
+    Object.assign(fixtureView.controller.getSnapshot(), { sessions: [target] })
+    const view = mount(fixtureView.controller); await view.drain()
+    const entry = view.props(props => Boolean(props.taskPaneEntry)).taskPaneEntry as { open(id: string): Promise<boolean> }
+    const opening = entry.open('b'); await view.drain()
+    Object.assign(fixtureView.controller.getSnapshot(), { session: { ...target, id: 'c' } }); view.render()
+    pending.resolve(target); await expect(opening).resolves.toBe(false); await view.drain()
+    expect(fixtureView.setPreference.mock.calls.filter(([key]) => key === KEY)).toHaveLength(0)
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('removes a deleted background task from another owner pane and closed history', async () => {
+    const task = { id: 'task:b' as const, label: 'B', taskSessionId: 'b' }
+    const fixtureView = fixture(async () => ({ a: { ...workspace('keep.md'), tabs: [...workspace('keep.md').tabs, task], activeTab: task.id }, draft: { ...createWorkspaceSession(), recentClosedTabs: [task] } }))
+    fixtureView.host.deleteSession = vi.fn(async () => undefined)
+    fixtureView.host.listSessions = vi.fn(async () => fixtureView.controller.getSnapshot().sessions)
+    const view = mount(fixtureView.controller); await view.drain()
+    await fixtureView.controller.deleteSession('b'); await view.drain(); await fixtureView.controller.flushBeforeNavigation()
+    expect(fixtureView.setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ activeTab: 'file:keep.md', tabs: [expect.objectContaining({ id: 'file:keep.md' })] }), draft: expect.objectContaining({ recentClosedTabs: [] }) }))
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+  it('durably removes a background browser before unmounting it, keeps other resources and permits reopen', async () => {
+    const browsers = Array.from({ length: 33 }, (_, index) => ({ id: `browser:${index}` as const, label: `Web ${index}`, url: `https://mira.test/${index}` }))
+    const initial = { a: { ...workspace('keep.md'), tabs: [...workspace('keep.md').tabs, ...browsers] } }
+    const saved = deferred<void>(), fixtureView = fixture(async () => initial)
+    fixtureView.setPreference.mockImplementationOnce(() => saved.promise)
+    const view = mount(fixtureView.controller); await view.drain(); await view.showWorkspace()
+    const panel = () => view.props(props => Array.isArray(props.tabs) && typeof props.onReopen === 'function')
+    expect((panel().tabs as Array<{ id: string }>).some(tab => tab.id === 'browser:0')).toBe(true)
+    expect(fixtureView.setPreference.mock.calls[0][1]).toMatchObject({ a: { recentClosedTabs: [browsers[0]] } })
+    saved.resolve(); await view.drain()
+    expect((panel().tabs as Array<{ id: string }>).filter(tab => tab.id.startsWith('browser:'))).toHaveLength(32)
+    expect((panel().tabs as Array<{ id: string }>).some(tab => tab.id === 'file:keep.md')).toBe(true)
+    expect(fixtureView.setPreference.mock.calls).toHaveLength(1)
+    ;(panel().onReopen as (id: string) => void)('browser:0'); await view.drain()
+    const restored = (panel().tabs as Array<{ id: string; url?: string }>).find(tab => tab.url === browsers[0].url)!
+    expect(restored.id).not.toBe('browser:0')
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('keeps a browser and reports a failed durable close without deleting its workspace entry', async () => {
+    const initial = { a: { ...createWorkspaceSession(), tabs: Array.from({ length: 33 }, (_, index) => ({ id: `browser:${index}`, label: `Web ${index}`, url: '' })) } }
+    const fixtureView = fixture(async () => initial)
+    fixtureView.setPreference.mockRejectedValue(Error('关闭保存失败'))
+    const view = mount(fixtureView.controller); await view.drain(); await view.showWorkspace()
+    const panel = view.props(props => Array.isArray(props.tabs) && typeof props.onReopen === 'function')
+    expect((panel.tabs as unknown[])).toHaveLength(33)
+    expect(fixtureView.controller.getSnapshot().error).toBe('关闭保存失败')
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('restores durable state when native protection starts during a pending close', async () => {
+    const initial = { a: { ...createWorkspaceSession(), tabs: Array.from({ length: 33 }, (_, index) => ({ id: `browser:${index}`, label: `Web ${index}`, url: '' })) } }
+    const saved = deferred<void>(), fixtureView = fixture(async () => initial)
+    fixtureView.setPreference.mockImplementationOnce(() => saved.promise)
+    const view = mount(fixtureView.controller); await view.drain(); await view.showWorkspace()
+    fixtureView.browserProtected.mockResolvedValue({ protected: true }); saved.resolve(); await view.drain()
+    const panel = view.props(props => Array.isArray(props.tabs) && typeof props.onReopen === 'function')
+    expect((panel.tabs as unknown[])).toHaveLength(33)
+    expect(fixtureView.setPreference.mock.calls.at(-1)![1]).toEqual(readWorkspaceSessions(initial))
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('restores durable state if the final native protection check fails', async () => {
+    const initial = { a: { ...workspace('keep.md'), tabs: [...workspace('keep.md').tabs, ...Array.from({ length: 33 }, (_, index) => ({ id: `browser:${index}`, label: `Web ${index}`, url: '' }))] } }
+    const saved = deferred<void>(), fixtureView = fixture(async () => initial)
+    fixtureView.setPreference.mockImplementationOnce(() => saved.promise)
+    const view = mount(fixtureView.controller); await view.drain(); await view.showWorkspace()
+    fixtureView.browserProtected.mockRejectedValue(Error('页面保护检查失败')); saved.resolve(); await view.drain()
+    const panel = view.props(props => Array.isArray(props.tabs) && typeof props.onReopen === 'function')
+    expect((panel.tabs as Array<{ id: string }>).filter(tab => tab.id.startsWith('browser:'))).toHaveLength(33)
+    expect(fixtureView.setPreference.mock.calls.at(-1)![1]).toEqual(readWorkspaceSessions(initial))
+    expect(fixtureView.controller.getSnapshot().error).toBe('页面保护检查失败')
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it('cancels a pending close when its browser is selected and retains concurrent file edits', async () => {
+    const initial = { a: { ...workspace('keep.md'), fileTreeOpen: true, tabs: [...workspace('keep.md').tabs, ...Array.from({ length: 33 }, (_, index) => ({ id: `browser:${index}`, label: `Web ${index}`, url: '' }))] } }
+    const saved = deferred<void>(), fixtureView = fixture(async () => initial)
+    fixtureView.setPreference.mockImplementationOnce(() => saved.promise)
+    const view = mount(fixtureView.controller); await view.drain(); await view.showWorkspace()
+    const panel = () => view.props(props => Array.isArray(props.tabs) && typeof props.onActivate === 'function')
+    view.openFile('new.md'); await view.drain()
+    ;(panel().onActivate as (id: string) => void)('browser:0'); await view.drain()
+    saved.resolve(); await view.drain()
+    const state = fixtureView.setPreference.mock.calls.at(-1)![1] as typeof initial
+    expect(state.a.activeTab).toBe('browser:0')
+    expect(state.a.tabs.some(tab => tab.id === 'browser:0')).toBe(true)
+    expect(state.a.tabs.some(tab => tab.id === 'file:new.md')).toBe(true)
+    expect(state.a.tabs.filter(tab => tab.id.startsWith('browser:'))).toHaveLength(32)
+    expect(state.a.recentClosedTabs?.[0].id).toBe('browser:1')
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
+  it.each([false, true])('removes deleted-task workspace records even when hydration is delayed: %s', async delayed => {
+    const read = deferred<unknown>(), fixtureView = fixture(() => read.promise)
+    fixtureView.host.deleteSession = vi.fn(async () => undefined)
+    fixtureView.host.listSessions = vi.fn(async () => fixtureView.controller.getSnapshot().sessions)
+    const view = mount(fixtureView.controller)
+    const initial = { a: workspace('keep.md'), deleted: workspace('gone.md') }
+    if (!delayed) { read.resolve(initial); await view.drain() }
+    await fixtureView.controller.deleteSession('deleted'); await view.drain()
+    if (delayed) { read.resolve(initial); await view.drain() }
+    await fixtureView.controller.flushBeforeNavigation()
+    expect(fixtureView.setPreference).toHaveBeenLastCalledWith(KEY, { a: readWorkspaceSessions(initial).a })
+    view.unmount(); await view.drain(); fixtureView.controller.dispose()
+  })
+
   it('survives the shipped StrictMode effect replay without saving an untouched or empty snapshot', async () => {
     const read = deferred<unknown>()
     const { controller, getPreference, setPreference } = fixture(() => read.promise)
@@ -221,9 +350,10 @@ describe('React Harness workspace preference lifecycle', () => {
 
   it('retries a failed read without overwriting local edits or unrelated saved sessions', async () => {
     let fail = true
+    const untouched = workspace('other.md')
     const { controller, setPreference, navigate } = fixture(async () => {
       if (fail) throw new Error('首次读取失败')
-      return { a: workspace('old.md'), untouched: workspace('other.md') }
+      return { a: workspace('old.md'), untouched }
     })
     const view = mount(controller)
     await view.showFiles()
@@ -233,20 +363,21 @@ describe('React Harness workspace preference lifecycle', () => {
     fail = false
     await controller.navigate('/settings')
     expect(navigate).toHaveBeenCalledOnce()
-    expect(setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ selectedFilePath: 'keep.md' }), untouched: workspace('other.md') }))
+    expect(setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ selectedFilePath: 'keep.md' }), untouched }))
     view.unmount(); await view.drain(); controller.dispose()
   })
 
   it('flushes an edit on rapid unmount after the delayed read completes', async () => {
+    const untouched = workspace('other.md')
     const read = deferred<unknown>()
     const { controller, setPreference } = fixture(() => read.promise)
     const view = mount(controller)
     await view.showFiles()
     view.openFile('keep.md')
     view.unmount()
-    read.resolve({ untouched: workspace('other.md') })
+    read.resolve({ untouched })
     await view.drain()
-    expect(setPreference).toHaveBeenCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ selectedFilePath: 'keep.md' }), untouched: workspace('other.md') }))
+    expect(setPreference).toHaveBeenCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ selectedFilePath: 'keep.md' }), untouched }))
     controller.dispose()
   })
 
@@ -264,6 +395,7 @@ describe('React Harness workspace preference lifecycle', () => {
   })
 
   it('preserves an intentional same-session clear when hydration finishes late', async () => {
+    const untouched = workspace('other.md')
     const read = deferred<unknown>()
     const { controller, setPreference } = fixture(() => read.promise)
     const view = mount(controller)
@@ -271,10 +403,10 @@ describe('React Harness workspace preference lifecycle', () => {
     view.openFile('temporary.md')
     await view.drain()
     ;(view.props(props => typeof props.onCloseAll === 'function').onCloseAll as () => void)()
-    read.resolve({ a: workspace('old.md'), untouched: workspace('other.md') })
+    read.resolve({ a: workspace('old.md'), untouched })
     await view.drain()
     await controller.flushBeforeNavigation()
-    expect(setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ tabs: [], recentClosedTabs: [expect.objectContaining({ path: 'temporary.md' })] }), untouched: workspace('other.md') }))
+    expect(setPreference).toHaveBeenLastCalledWith(KEY, expect.objectContaining({ a: expect.objectContaining({ tabs: [], recentClosedTabs: [expect.objectContaining({ path: 'temporary.md' })] }), untouched }))
     view.unmount(); await view.drain(); controller.dispose()
   })
 

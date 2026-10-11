@@ -18,21 +18,11 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { PLATFORM_API_VERSION, type FirstPartyAppManifest } from '@/config/firstPartyApps'
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '@/platform/firstPartyBridge'
 import { FirstPartyConnectionSession } from '@/platform/firstPartySession'
-import type { HarnessBrowserBounds } from '@/platform/firstPartyHarness'
+import { parseFirstPartyHarnessCall } from '@/platform/firstPartyHarness'
+import { MiraHostedBrowsers } from '@/platform/miraHostedBrowsers'
 import { readMiraAppNavigationCommand, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '@/platform/appNavigation'
 import type { PlatformApi, PlatformContext } from '@/types'
 
-type HostedWebview = HTMLElement & {
-  getWebContentsId(): number
-  getURL(): string
-  canGoBack(): boolean
-  canGoForward(): boolean
-  goBack(): void
-  goForward(): void
-  reload(): void
-  loadURL(url: string): Promise<void>
-}
-type BrowserGuestEvent = Event & { url?: string; errorCode?: number; errorDescription?: string }
 
 const props = defineProps<{
   url: string
@@ -49,16 +39,13 @@ const stage = ref<HTMLDivElement>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
 let unsubscribeHarness: (() => void) | undefined
-let browser: HostedWebview | undefined
-let browserSessionId = ''
-let browserLoading = false
+const browsers = new MiraHostedBrowsers(() => stage.value, event => send({ type: 'mira:browser-event', event }))
 let disposed = false
 let connectedOnce = false
 let commandFocus: { id: string; port: MessagePort; target?: HTMLElement } | undefined
 const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
 
-function removeBrowser() { browser?.remove(); browser = undefined; browserSessionId = ''; browserLoading = false }
-function invalidateConnection() { commandFocus = undefined; removeBrowser(); unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined; emit('navigationReset') }
+function invalidateConnection() { commandFocus = undefined; browsers.clear(); unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined; emit('navigationReset') }
 
 function send(message: unknown) {
   try { port?.postMessage(message) } catch { /* 页面切换时端口可能已被关闭 */ }
@@ -104,67 +91,6 @@ function prepareLeave() {
 }
 defineExpose({ prepareLeave, openCommandCenter, navigateHistory })
 
-function browserState(error?: string) {
-  if (!browser || !browserSessionId) return
-  let url = browser.getAttribute('src') || ''
-  let canGoBack = false
-  let canGoForward = false
-  try { url = browser.getURL() || url; canGoBack = browser.canGoBack(); canGoForward = browser.canGoForward() } catch { /* guest 尚未挂载 */ }
-  send({ type: 'mira:browser-event', event: { sessionId: browserSessionId, url, canGoBack, canGoForward, loading: browserLoading, ...(error ? { error } : {}) } })
-}
-
-function positionBrowser(bounds: HarnessBrowserBounds) {
-  if (!browser || !stage.value) return
-  const width = stage.value.clientWidth
-  const height = stage.value.clientHeight
-  const x = Math.min(bounds.x, width)
-  const y = Math.min(bounds.y, height)
-  Object.assign(browser.style, {
-    position: 'absolute', left: `${x}px`, top: `${y}px`,
-    width: `${Math.min(bounds.width, width - x)}px`, height: `${Math.min(bounds.height, height - y)}px`,
-    border: '0', zIndex: '2', background: '#fff',
-  })
-}
-
-function controlBrowser(sessionId: string, action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close') {
-  if (sessionId !== browserSessionId || !browser) return
-  if (action === 'close') { removeBrowser(); return }
-  if (action === 'hide' || action === 'show') { browser.style.display = action === 'hide' ? 'none' : 'block'; return }
-  if (action === 'back' && browser.canGoBack()) browser.goBack()
-  if (action === 'forward' && browser.canGoForward()) browser.goForward()
-  if (action === 'reload') browser.reload()
-}
-
-async function navigateBrowser(sessionId: string, url: string, bounds: HarnessBrowserBounds) {
-  if (!stage.value) throw new Error('工作区浏览器不可用')
-  if (browser && browserSessionId === sessionId) {
-    positionBrowser(bounds)
-    await browser.loadURL(url)
-    return
-  }
-  removeBrowser()
-  const guest = document.createElement('webview') as HostedWebview
-  guest.setAttribute('partition', 'persist:mira-harness-browser')
-  guest.setAttribute('src', url)
-  guest.addEventListener('did-start-loading', () => { browserLoading = true; browserState() })
-  guest.addEventListener('did-stop-loading', () => { browserLoading = false; browserState() })
-  guest.addEventListener('did-navigate', () => browserState())
-  guest.addEventListener('did-navigate-in-page', () => browserState())
-  guest.addEventListener('did-fail-load', event => {
-    const failure = event as BrowserGuestEvent
-    if (failure.errorCode !== -3) { browserLoading = false; browserState(failure.errorDescription || '网页加载失败') }
-  })
-  browser = guest
-  browserSessionId = sessionId
-  positionBrowser(bounds)
-  const attached = new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error('工作区浏览器未能启动')), 3000)
-    guest.addEventListener('did-attach', () => { window.clearTimeout(timeout); resolve() }, { once: true })
-  })
-  stage.value.appendChild(guest)
-  await attached.catch(error => { removeBrowser(); throw error })
-  browserState()
-}
 
 async function connect() {
   if (connectedOnce) {
@@ -217,29 +143,23 @@ async function connect() {
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
     try {
-      const value = await handleFirstPartyRequest({
-        manifest: props.manifest,
-        grantId: nextGrant,
-        api: props.api,
-        context: props.context,
-        route: props.route,
-        navigate: props.navigate,
-      }, request)
-      if (!session.isActive(nextGrant, activePort)) return
-      let responseValue = value
-      if (request.method === 'harness.browser.navigate') {
-        const result = value as { sessionId: string; url: string; bounds: HarnessBrowserBounds }
-        await navigateBrowser(result.sessionId, result.url, result.bounds)
-        responseValue = result.url
-      } else if (request.method === 'harness.browser.bounds') {
-        const result = value as { sessionId: string; bounds: HarnessBrowserBounds }
-        if (browserSessionId === result.sessionId) positionBrowser(result.bounds)
-        responseValue = null
-      } else if (request.method === 'harness.browser.control') {
-        const result = value as { sessionId: string; action: 'back' | 'forward' | 'reload' | 'hide' | 'show' | 'close' }
-        controlBrowser(result.sessionId, result.action)
-        responseValue = null
+      const invoke = async (guestId?: number) => {
+        const value = await handleFirstPartyRequest({
+          manifest: props.manifest,
+          grantId: nextGrant,
+          api: props.api,
+          context: props.context,
+          route: props.route,
+          navigate: props.navigate,
+        }, ['harness.browser.viewport', 'harness.browser.pick', 'harness.browser.protection'].includes(request.method) ? { ...request, params: { ...(request.params as Record<string, unknown>), guestId } } : request)
+        if (!session.isActive(nextGrant, activePort)) throw new Error('应用授权已失效')
+        return value
       }
+      let browserCall: ReturnType<typeof parseFirstPartyHarnessCall> | undefined
+      if (['harness.browser.navigate', 'harness.browser.bounds', 'harness.browser.control', 'harness.browser.viewport', 'harness.browser.pick', 'harness.browser.protection'].includes(request.method)) {
+        try { browserCall = parseFirstPartyHarnessCall(request.method.slice('harness.'.length), request.params) } catch { /* canonical bridge reports invalid requests */ }
+      }
+      const responseValue = browserCall && (browserCall.method === 'browser.navigate' || browserCall.method === 'browser.bounds' || browserCall.method === 'browser.control' || browserCall.method === 'browser.viewport' || browserCall.method === 'browser.pick' || browserCall.method === 'browser.protection') ? await browsers.request(browserCall, invoke) : await invoke()
       if (session.isActive(nextGrant, activePort)) activePort.postMessage({ type: 'mira:response', id: request.id, ok: true, value: responseValue })
     } catch (error) {
       const known = error instanceof FirstPartyBridgeError

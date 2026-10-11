@@ -39,6 +39,50 @@ async function mount(overrides: Partial<Props> = {}) {
 }
 
 describe('task summary through real React DOM and Radix', () => {
+  it('keeps a three-step focus window for long todos and exposes all hidden steps by keyboard preview', async () => {
+    const activities = Array.from({ length: 9 }, (_, index) => ({ id: `step-${index}`, kind: 'plan' as const, label: `步骤 ${index + 1}`, status: index < 3 ? 'completed' as const : index === 3 ? 'running' as const : 'pending' as const, startedAt: 1 }))
+    const view = await mount({ activities })
+    await view.click('展开任务摘要')
+    const visible = () => [...document.querySelectorAll('.mira-summary-todos > li[data-status]')].map(item => item.textContent)
+    expect(visible()).toEqual(['步骤 4', '步骤 5', '步骤 6'])
+    const preview = (group: string) => document.querySelector<HTMLButtonElement>(`[data-mira-todo-preview-trigger="${group}"]`)!
+    expect(preview('before').textContent).toContain('已完成 3 项')
+    expect(preview('after').textContent).toContain('待完成 3 项')
+    await act(async () => { preview('before').focus(); preview('before').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) }); await view.settle()
+    const content = document.querySelector('[data-mira-todo-preview="before"]')!
+    expect(content.textContent).toContain('步骤 1'); expect(content.textContent).toContain('步骤 3')
+    const scrollArea = content.querySelector('ol')!
+    expect((content as HTMLElement).tabIndex).toBe(0)
+    await act(async () => (content as HTMLElement).focus()); await view.settle()
+    expect(document.querySelector('[data-mira-todo-preview="before"]')).toBe(content)
+    Object.defineProperty(scrollArea, 'clientHeight', { value: 80 })
+    Object.defineProperty(scrollArea, 'scrollHeight', { value: 240 })
+    await act(async () => content.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true })))
+    expect(scrollArea.scrollTop).toBe(80)
+    await act(async () => content.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
+    expect(scrollArea.scrollTop).toBe(240)
+    await act(async () => content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))); await view.settle()
+    expect(document.querySelector('[data-mira-todo-preview]')).toBeNull()
+    expect(document.activeElement).toBe(preview('before'))
+    activities.forEach((item, index) => { item.status = index < 8 ? 'completed' : 'running' })
+    await view.render(); expect(visible()).toEqual(['步骤 7', '步骤 8', '步骤 9'])
+    activities[8].status = 'completed'
+    await view.render(); expect(visible()).toEqual(['步骤 7', '步骤 8', '步骤 9'])
+  })
+
+  it('shows all six short todos and closes an obsolete preview when progress changes', async () => {
+    const activities = Array.from({ length: 7 }, (_, index) => ({ id: `step-${index}`, kind: 'plan' as const, label: `步骤 ${index + 1}`, status: 'pending' as const, startedAt: 1 }))
+    const view = await mount({ activities }); await view.click('展开任务摘要')
+    const trigger = document.querySelector<HTMLButtonElement>('[data-mira-todo-preview-trigger="after"]')!
+    await act(async () => { trigger.focus(); trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) }); await view.settle()
+    expect(document.querySelector('[data-mira-todo-preview]')).not.toBeNull()
+    view.props.activities = activities.slice(0, 6)
+    await view.render()
+    expect(document.querySelectorAll('.mira-summary-todos > li[data-status]')).toHaveLength(6)
+    expect(document.querySelector('[data-mira-todo-preview-trigger]')).toBeNull()
+    expect(document.querySelector('[data-mira-todo-preview]')).toBeNull()
+  })
+
   it('starts automatic, expands explicitly, minimizes, and retains the mode across keyed session changes', async () => {
     const view = await mount()
     expect(view.mode()).toBe('auto')
@@ -63,6 +107,37 @@ describe('task summary through real React DOM and Radix', () => {
     view.button('其他目的地').focus()
     await view.click('展开任务摘要', false); expect(document.activeElement).toBe(view.button('其他目的地'))
     await view.externalMode('mini'); expect(document.activeElement).toBe(view.button('其他目的地'))
+  })
+
+  it('makes the constrained summary body a keyboard destination without changing its mode or stealing Composer focus', async () => {
+    const view = await mount()
+    const outside = view.button('其他目的地'); outside.focus()
+    await view.click('展开任务摘要', false)
+    const body = document.querySelector<HTMLElement>('[role="region"][aria-label="任务摘要内容"]')!
+    expect(body.tabIndex).toBe(0); expect(document.activeElement).toBe(outside)
+    await act(async () => body.focus())
+    expect(document.activeElement).toBe(body); expect(view.mode()).toBe('panel')
+    await view.click('收起任务摘要'); expect(document.activeElement).toBe(view.button('展开任务摘要'))
+  })
+
+  it('returns hidden summary focus to its capsule on a space change, without changing mode or stealing an external destination', async () => {
+    let callback!: ResizeObserverCallback
+    const disconnect = vi.fn(), observe = vi.fn()
+    vi.stubGlobal('ResizeObserver', class { constructor(next: ResizeObserverCallback) { callback = next }; observe = observe; disconnect = disconnect })
+    const original = Element.prototype.closest
+    vi.spyOn(Element.prototype, 'closest').mockImplementation(function (this: Element, selector: string) { return selector === '.mira-summary-positioner' ? document.body : original.call(this, selector) })
+    try {
+      const view = await mount(); await view.click('展开任务摘要')
+      const body = document.querySelector<HTMLElement>('[aria-label="任务摘要内容"]')!
+      const panel = document.querySelector<HTMLElement>('.mira-task-summary__panel')!
+      body.focus(); panel.style.display = 'none'
+      await act(async () => callback([], {} as ResizeObserver))
+      expect(document.activeElement).toBe(view.button('展开任务摘要')); expect(view.mode()).toBe('panel')
+      view.button('其他目的地').focus(); await act(async () => callback([], {} as ResizeObserver))
+      expect(document.activeElement).toBe(view.button('其他目的地'))
+      await act(async () => root!.unmount()); root = undefined
+      expect(disconnect).toHaveBeenCalled()
+    } finally { vi.restoreAllMocks() }
   })
 
   it('returns automatic display from the menu to the visible capsule when the panel is hidden', async () => {

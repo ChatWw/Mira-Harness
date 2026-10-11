@@ -3,6 +3,17 @@ import { EventEmitter } from 'node:events'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 import type { HarnessMessageQueueSnapshot, HarnessMessageSubmissionReceipt, HarnessMessageWithdrawal } from '../src/config/harness'
 import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
+
+describe('clarification answer bridge', () => {
+  const base = { sessionId: 's', interactionId: 'question', selection: { providerId: 'p', modelId: 'm' } }
+  it.each(['', '  ', '补充说明\n保留格式'])('accepts an explicitly edited custom draft %j without removing selected options', custom => {
+    const answers = [{ id: 'q', selected: ['资料', '代码'], custom }]
+    expect(parseFirstPartyHarnessCall('interaction.answer', { ...base, answers })).toEqual({ method: 'interaction.answer', ...base, answers })
+  })
+  it.each([null, 42, '\0', 'x'.repeat(20_001)])('rejects an invalid custom answer %j', custom => {
+    expect(() => parseFirstPartyHarnessCall('interaction.answer', { ...base, answers: [{ id: 'q', selected: ['资料'], custom }] })).toThrow('自定义回答无效')
+  })
+})
 import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { FirstPartyHarnessHost } from '../apps/harness-react/src/platform/first-party-host'
 import type { PlatformIpcDependencies } from '../electron/ipc/platformIpc'
@@ -45,8 +56,8 @@ describe('React Harness first-party message queue contracts', () => {
   beforeEach(() => { electron.handlers.clear(); vi.clearAllMocks() })
 
   it('preserves atomic delivery and complete paused-queue expectations through both authority parsers', async () => {
-    const options = { delivery: 'immediate', pausedQueueDecision: 'discard', expectedRunId: null, expectedQueueRevision: 3, expectedQueueItemIds: ['queued'] } as const
-    const raw = { ...submit, options: { ...options, injectedQueue: [], permissionMode: 'full', apiKey: 'not-public' } }
+    const options = { permissionMode: 'full', delivery: 'immediate', pausedQueueDecision: 'discard', expectedRunId: null, expectedQueueRevision: 3, expectedQueueItemIds: ['queued'] } as const
+    const raw = { ...submit, options: { ...options, injectedQueue: [], apiKey: 'not-public' } }
     const parsed = parseFirstPartyHarnessCall('message.submit', raw)
     expect(parsed).toEqual({ method: 'message.submit', ...submit, options })
     const view = bridge(vi.fn(async () => ({ confirmationRequired: true, queue })))
@@ -61,7 +72,7 @@ describe('React Harness first-party message queue contracts', () => {
   it('rejects malformed atomic choices, missing run identities and partial queue confirmations', () => {
     const confirmed = { pausedQueueDecision: 'retain', expectedRunId: null, expectedQueueRevision: 3, expectedQueueItemIds: ['queued'] }
     const invalid = [
-      null, [], { delivery: 'guide' }, { delivery: 'immediate' }, { delivery: 'immediate', expectedRunId: '' },
+      null, [], { permissionMode: 'full-access' }, { permissionMode: null }, { permissionMode: 1 }, { delivery: 'guide' }, { delivery: 'immediate' }, { delivery: 'immediate', expectedRunId: '' },
       { ...confirmed, pausedQueueDecision: 'clear' }, { ...confirmed, expectedRunId: undefined }, { ...confirmed, expectedRunId: '\0' },
       { ...confirmed, expectedQueueRevision: undefined }, { ...confirmed, expectedQueueRevision: -1 }, { ...confirmed, expectedQueueRevision: 1.2 }, { ...confirmed, expectedQueueRevision: Number.MAX_SAFE_INTEGER + 1 },
       { ...confirmed, expectedQueueItemIds: undefined }, { ...confirmed, expectedQueueItemIds: ['queued', 'queued'] }, { ...confirmed, expectedQueueItemIds: Array.from({ length: 33 }, (_, index) => String(index)) },
@@ -70,6 +81,20 @@ describe('React Harness first-party message queue contracts', () => {
     for (const options of invalid) expect(() => parseFirstPartyHarnessCall('message.submit', { ...submit, options })).toThrow()
     expect(parseFirstPartyHarnessCall('message.submit', { ...submit, options: {} })).toMatchObject({ options: {} })
     expect(parseFirstPartyHarnessCall('message.submit', { ...submit, options: { delivery: 'immediate', expectedRunId: null } })).toMatchObject({ options: { delivery: 'immediate', expectedRunId: null } })
+  })
+
+  it.each(['default', 'auto-approve', 'full'] as const)('passes permission-only submission intent through Vue and Electron (%s)', async permissionMode => {
+    const options = { permissionMode }
+    const raw = { ...submit, options }
+    expect(parseFirstPartyHarnessCall('message.submit', raw)).toEqual({ method: 'message.submit', ...raw })
+    const view = bridge()
+    await view.request('message.submit', raw)
+    expect(view.invokeFirstPartyHarness).toHaveBeenCalledExactlyOnceWith('host-held-grant', 'message.submit', raw)
+    const ipc = ipcFixture()
+    expect(ipc.invoke('platform:first-party-harness', ipc.grantId, 'message.submit', raw)).toBe(receipt)
+    expect(ipc.runtime.submitMessage.mock.calls[0]?.[7]).toEqual(options)
+    expect(() => ipc.invoke('platform:first-party-harness', ipc.grantId, 'message.submit', { ...submit, options: { permissionMode: 'full-access' } })).toThrow()
+    expect(ipc.runtime.submitMessage).toHaveBeenCalledOnce()
   })
 
   it('sends one host request for an atomic draft and returns confirmation without a second send-now call', async () => {

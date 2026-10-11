@@ -364,7 +364,9 @@ describe('Harness workspace search', () => {
   })
 
   it('lists safe internal links without following directory cycles, and excludes external and broken links', async () => {
-    const root = await workspace()
+    // Exercise absolute-path fuzzy matches deterministically instead of depending on mkdtemp's suffix.
+    const root = join(await workspace(), 'note-root')
+    await mkdir(root)
     const outside = await workspace()
     await mkdir(join(root, 'src'))
     await writeFile(join(root, 'src', 'note.md'), 'Mira')
@@ -375,7 +377,10 @@ describe('Harness workspace search', () => {
     await symlink(join(root, 'missing'), join(root, 'broken'))
     await symlink(outside, join(root, 'external'))
     await symlink(join(outside, 'secret.md'), join(root, 'secret-link.md'))
-    expect((await searchHarnessWorkspaceFiles(root, 'note')).entries.map(entry => entry.path)).toEqual(['src/note.md', 'note-link.md'])
+    const noteEntries = (await searchHarnessWorkspaceFiles(root, 'note')).entries
+    // Root-name matches may also include safe directories; file/name matches still rank first.
+    expect(noteEntries.slice(0, 2).map(entry => entry.path)).toEqual(['src/note.md', 'note-link.md'])
+    expect(noteEntries.every(entry => ['src', 'src/note.md', 'note-link.md', 'src-link', 'src/loop'].includes(entry.path))).toBe(true)
     expect((await searchHarnessWorkspaceFiles(root, 'src-link')).entries[0]).toEqual({ name: 'src-link', path: 'src-link', type: 'directory' })
     const loopEntries = (await searchHarnessWorkspaceFiles(root, 'loop')).entries
     // Absolute-path fuzzy search can also match the random temporary root name.

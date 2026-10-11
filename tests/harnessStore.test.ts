@@ -10,6 +10,42 @@ import { PlatformDatabase } from '../electron/storage/database'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { shouldGenerateAutoTitle } from '../src/config/harness'
 
+describe('persistent Mira input history', () => {
+  it('shares by directory, retains thirty inputs and survives reopening without polluting settings snapshots', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-input-history-store-'))
+    let database = new PlatformDatabase(new MiraPaths(root))
+    try {
+      for (let index = 0; index < 35; index++) database.promptHistory.append('/project-a', `  input-${index}  `)
+      database.promptHistory.append('/project-a', 'input-34')
+      database.promptHistory.append('/project-b', 'different workspace')
+      database.promptHistory.append(undefined, 'personal workspace')
+      expect(database.promptHistory.list('/project-a')).toEqual(Array.from({ length: 30 }, (_, index) => `input-${index + 5}`))
+      expect(database.promptHistory.list('/project-b')).toEqual(['different workspace'])
+      expect(database.promptHistory.list()).toEqual(['personal workspace'])
+      expect(JSON.stringify(database.getSnapshot().preferences)).not.toContain('input-34')
+      database.close(); database = new PlatformDatabase(new MiraPaths(root))
+      expect(database.promptHistory.list('/project-a').at(-1)).toBe('input-34')
+      expect(database.promptHistory.list()).toEqual(['personal workspace'])
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('retains nonconsecutive repeats and caps serialized size without truncating the newest input', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-input-history-limit-'))
+    const database = new PlatformDatabase(new MiraPaths(root))
+    try {
+      for (const text of ['A', '', 'A ', 'B', 'A']) database.promptHistory.append(undefined, text)
+      expect(database.promptHistory.list()).toEqual(['A', 'B', 'A'])
+      for (let index = 0; index < 5; index++) database.promptHistory.append('/large', `${index}${'\\'.repeat(99_999)}`)
+      const history = database.promptHistory.list('/large')
+      expect(JSON.stringify(history).length).toBeLessThanOrEqual(262_144)
+      expect(history.at(-1)).toBe(`4${'\\'.repeat(99_999)}`)
+      database.promptHistory.append('/large', 'x'.repeat(100_001))
+      database.promptHistory.append('/large', '\u0001'.repeat(99_999))
+      expect(database.promptHistory.list('/large')).toEqual(history)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+})
+
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>()
   return { ...actual, readFileSync: vi.fn(actual.readFileSync) }
@@ -27,6 +63,142 @@ function createStore() {
 }
 
 describe('HarnessStore', () => {
+  it('forks the exact settled reply with independent attachments, preserved records and no duplicate usage', async () => {
+    const { root, database, store } = createStore()
+    try {
+      const source = store.createSession()
+      source.title = '原任务'; source.modelProviderId = 'provider'; source.modelId = 'model'; source.permissionMode = 'full'
+      const reference = store.importMessageAttachments(source.id, [{ name: 'frozen.png', mediaType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=' }])[0]
+      const image = store.resolveMessageAttachments(source.id, [reference])[0]
+      source.messages = [
+        { id: 'u1', role: 'user', content: '原问题', createdAt: 1, attachments: [image], submissionId: 'old-submission' },
+        { id: 'a1', role: 'assistant', content: '分支点', createdAt: 2, runId: 'run1', parts: [{ id: 'part1', type: 'tool', toolCallId: 'read1' }, { id: 'result', type: 'text', text: '分支点', state: 'complete', startedAt: 2 }], run: { startedAt: 1, completedAt: 2, durationMs: 1, status: 'completed', activities: [] }, usage: { input: 2, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 5 } },
+        { id: 'u2', role: 'user', content: '后续问题', createdAt: 3 },
+        { id: 'a2', role: 'assistant', content: '后续回复', createdAt: 4, runId: 'run2' },
+      ]
+      source.toolCalls = [{ id: 'read1', tool: 'read', target: 'README.md', status: 'ok', createdAt: 1, runId: 'run1' }, { id: 'read2', tool: 'read', target: 'later.md', status: 'ok', createdAt: 3, runId: 'run2' }]
+      source.context = { summary: '包含后续回复的摘要', compactedThroughMessageId: 'a2', compactedAt: 4 }
+      store.updateSession(source)
+      const original = store.getSession(source.id), usage = store.usageStats().total
+      const request = '55cabc22-257e-41d4-8ec2-9fc83671dd12'
+      const fork = store.forkConversation(source.id, 'a1', request)
+      expect(fork).toMatchObject({ forkSource: { sessionId: source.id, messageId: 'a1', title: '原任务' }, permissionMode: 'full', modelId: 'model', titleSource: 'manual', status: 'completed' })
+      expect(fork.messages.map(message => message.id)).toEqual(['u1', 'a1'])
+      expect(fork.messages.every(message => message.inherited)).toBe(true)
+      expect(fork.messages[0].submissionId).toBeUndefined()
+      expect(fork.messages[1].parts).toEqual(original.messages[1].parts)
+      expect(fork.toolCalls.map(tool => tool.id)).toEqual(['read1'])
+      expect(fork.context).toBeUndefined(); expect(fork.activeRun).toBeUndefined(); expect(fork.pendingInteraction).toBeUndefined()
+      expect(fork.parentSessionId).toBeUndefined()
+      expect(store.getSession(source.id)).toEqual(original)
+      expect(store.usageStats().total).toEqual(usage)
+      expect(store.listSessions().map(session => session.id)).toContain(fork.id)
+      expect(store.forkConversation(source.id, 'a1', request).id).toBe(fork.id)
+      expect(() => store.forkConversation(source.id, 'a2', request)).toThrow('失效')
+      expect(store.listSessions()).toHaveLength(2)
+      const copied = fork.messages[0].attachments![0]
+      expect(copied.path).not.toBe(reference.path)
+      store.deleteSession(source.id)
+      expect(store.getMessageAttachment(fork.id, copied.path).content).toBe(image.content)
+      const followup = store.addMessage(fork.id, 'assistant', '分支独有回复')
+      followup.messages.at(-1)!.usage = { input: 3, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 7 }
+      store.updateSession(followup)
+      expect(store.usageStats().total.totalTokens).toBe(7)
+      expect((await store.searchConversations('分支独有')).map(row => row.id)).toEqual([fork.id])
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('rejects unstable or invalid branch points without creating a task and preserves only applicable compaction', () => {
+    const { root, database, store } = createStore()
+    try {
+      const source = store.createSession()
+      source.messages = [{ id: 'user', role: 'user', content: '问题', createdAt: 1 }, { id: 'assistant', role: 'assistant', content: '完整回答', createdAt: 2 }]
+      source.context = { summary: '此前摘要', compactedThroughMessageId: 'user', compactedAt: 1, usage: { usedTokens: 10, contextWindow: 100, source: 'reported', updatedAt: 3 } }
+      store.updateSession(source)
+      const request = '55cabc22-257e-41d4-8ec2-9fc83671dd12'
+      expect(() => store.forkConversation(source.id, 'user', request)).toThrow('已完成')
+      expect(() => store.forkConversation(source.id, 'missing', request)).toThrow('已完成')
+      source.messages[1].interrupted = true; store.updateSession(source)
+      expect(() => store.forkConversation(source.id, 'assistant', request)).toThrow('已完成')
+      source.messages[1].interrupted = false
+      source.activeRun = { id: 'active', startedAt: 3, activities: [], subtasks: [] }; store.updateSession(source)
+      expect(() => store.forkConversation(source.id, 'assistant', request)).toThrow('结束')
+      expect(store.listSessions()).toHaveLength(1)
+      delete source.activeRun; store.updateSession(source)
+      const fork = store.forkConversation(source.id, 'assistant', request)
+      expect(fork.context).toEqual({ summary: '此前摘要', compactedThroughMessageId: 'user', compactedAt: 1 })
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('persists message and its frozen permission in the same session snapshot', () => {
+    const { root, database, store } = createStore()
+    try {
+      const owner = store.createSession(undefined, 'default')
+      const update = vi.spyOn(store, 'updateSession')
+      store.addMessage(owner.id, 'user', '下一条使用完全访问', undefined, false, 'full')
+      expect(update).not.toHaveBeenCalled()
+      expect(store.getSession(owner.id)).toMatchObject({ permissionMode: 'full', messages: [{ role: 'user', content: '下一条使用完全访问' }] })
+      expect(database.prepare('SELECT permission_mode FROM harness_sessions WHERE id = ?').get(owner.id)).toEqual({ permission_mode: 'full' })
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('creates a hidden independent side conversation from stable history without parent execution state', async () => {
+    const { root, database, store } = createStore()
+    try {
+      const directory = join(root, 'side-project'); mkdirSync(directory)
+      const project = store.createProject(directory)
+      const parent = store.createSession(project.id)
+      parent.modelProviderId = 'provider'; parent.modelId = 'model'; parent.modelThinkingLevel = 'low'
+      parent.permissionMode = 'default'; parent.activeSkillIds = ['skill']; parent.activeMcpServerIds = ['mcp']
+      parent.messages = [
+        { id: 'u1', role: 'user', content: '已完成的问题', createdAt: 1 },
+        { id: 'a1', role: 'assistant', content: '稳定的回答', createdAt: 2 },
+        { id: 'u2', role: 'user', content: '正在执行的问题', createdAt: 3 },
+        { id: 'a2', role: 'assistant', content: '尚未完成', runId: 'running', createdAt: 4 },
+      ]
+      parent.activeRun = { id: 'running', startedAt: 4, messageId: 'a2', activities: [], subtasks: [] }
+      store.updateSession(parent)
+      const before = store.getSession(parent.id), projectBefore = store.getProject(project.id)
+      const side = store.createSideConversation(parent.id)
+      expect(side).toMatchObject({ parentSessionId: parent.id, draftState: 'accepted', modelProviderId: 'provider', modelId: 'model', modelThinkingLevel: 'low', permissionMode: 'default', activeSkillIds: ['skill'], activeMcpServerIds: ['mcp'], toolCalls: [] })
+      expect(side.activeRun).toBeUndefined(); expect(side.pendingInteraction).toBeUndefined()
+      expect(side.messages.map(message => [message.content, message.internal])).toEqual([['已完成的问题', true], ['稳定的回答', true]])
+      expect(side.messages.every(message => !parent.messages.some(original => original.id === message.id))).toBe(true)
+      expect(store.getSession(parent.id)).toEqual(before)
+      store.addMessage(side.id, 'user', '旁路独有问题')
+      store.appendAssistantText(side.id, '旁路独有回答')
+      expect(store.listSessions().map(item => item.id)).toEqual([parent.id])
+      expect(store.listProjects()[0].sessionCount).toBe(1)
+      expect(store.getProject(project.id)).toMatchObject({ updatedAt: projectBefore.updatedAt, lastSessionAt: projectBefore.lastSessionAt })
+      expect(await store.searchConversations('旁路独有')).toEqual([])
+      expect(store.queryHistory().total).toBe(1)
+      expect(() => store.createSideConversation(side.id)).toThrow('主任务')
+      store.deleteSession(parent.id)
+      expect(() => store.getSession(side.id)).toThrow('未找到')
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('retains side owner drafts and staged images across startup and strips late deleted-owner writes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-side-restart-'))
+    let db: PlatformDatabase | undefined
+    try {
+      db = new PlatformDatabase(root)
+      const parent = db.harness.createSession(); db.harness.acceptPreparedSession(parent.id)
+      db.harness.addMessage(parent.id, 'user', '主问题')
+      const side = db.harness.createSideConversation(parent.id)
+      const image = db.harness.importMessageAttachments(side.id, [{ name: 'image.png', mediaType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=' }])[0]
+      const key = `first-party.mira-harness.harness-react-composer-drafts.side.${side.id}`
+      const draft = { drafts: { [side.id]: '侧边草稿' }, fileDrafts: { [side.id]: [image] }, submissions: { [side.id]: { id: 'pending', text: '待确认', references: [image], selection: { providerId: 'p', modelId: 'm' }, planning: false } } }
+      db.savePreference(key, draft)
+      expect(db.hasUnconfirmedHarnessSubmission(side.id)).toBe(true)
+      db.close(); db = new PlatformDatabase(root)
+      expect(db.harness.getSession(side.id).parentSessionId).toBe(parent.id)
+      expect(db.harness.getMessageAttachment(side.id, image.path).content).toBeTruthy()
+      db.removeHarnessDraftOwners([side.id]); db.savePreference(key, draft)
+      expect(db.getSnapshot().preferences[key]).toMatchObject({ drafts: {}, fileDrafts: {}, submissions: {} })
+    } finally { db?.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('hides prepared owners from task queries, counts and order until idempotent admission', async () => {
     const { root, database, store } = createStore()
     try {

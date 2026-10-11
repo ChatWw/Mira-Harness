@@ -1,10 +1,12 @@
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { Window } from 'happy-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HarnessMessage, HarnessPermissionRequest, HarnessRunSummary, ToolCallRecord } from '../src/config/harness'
 import { AssistantMessageParts, findInlinePermissionTarget, PermissionResponseCard } from '../apps/harness-react/src/components/conversation/AssistantMessageParts'
 import { RunProgressCard, ToolRecord } from '../apps/harness-react/src/components/conversation/run-progress'
 import { MiraConversationDetailMemory, MiraConversationDetails } from '../apps/harness-react/src/components/conversation/MiraConversationDetails'
+import { MiraActivityList } from '../apps/harness-react/src/components/workspace/MiraSubtaskPanel'
 
 beforeEach(() => { vi.stubGlobal('React', React) })
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -23,7 +25,7 @@ const request: HarnessPermissionRequest = { requestId: 'approval', sessionId: 's
 
 function renderExpandedTool(record: ToolCallRecord) {
   const memory = new MiraConversationDetailMemory()
-  memory.setOpen('test-session', JSON.stringify(['tool', record.runId, record.id]), true)
+  memory.setOpen('test-session', JSON.stringify(['tool', record.runId, record.subtaskId, record.id]), true)
   return renderToStaticMarkup(<MiraConversationDetails memory={memory} scope="test-session"><ToolRecord tool={record} /></MiraConversationDetails>)
 }
 
@@ -34,6 +36,20 @@ function responseButtons(node: React.ReactNode): Array<React.ReactElement<{ chil
 }
 
 describe('Mira ordered assistant message parts', () => {
+  it('shows stopped activity neutrally and counts only genuine failures in stopped runs', () => {
+    const run: HarnessRunSummary = { status: 'stopped', startedAt: 1, completedAt: 4, durationMs: 3, activities: [
+      { id: 'thinking', label: '正在思考', status: 'completed', startedAt: 1, completedAt: 2 },
+      { id: 'answering', label: '正在生成回复', status: 'stopped', startedAt: 2, completedAt: 4 },
+    ] }
+    const html = renderToStaticMarkup(<RunProgressCard run={run} running={false} summaryOnly />)
+    expect(html).toContain('已停止 1/2 项操作')
+    expect(html).not.toContain('项异常'); expect(html).not.toContain('运行失败'); expect(html).not.toContain('text-red-400')
+    const detail = renderToStaticMarkup(<MiraActivityList activities={[run.activities[1]]} />)
+    expect(detail).toContain('data-status="stopped"'); expect(detail).toContain('已停止'); expect(detail).not.toContain('失败')
+    run.activities.push({ id: 'real-failure', kind: 'tool', label: '读取失败', status: 'failed', startedAt: 1, completedAt: 2 })
+    expect(renderToStaticMarkup(<RunProgressCard run={run} running={false} summaryOnly />)).toContain('1 项异常')
+  })
+
   it('keeps authoritative text, reasoning, tool, text order instead of moving every tool above the response', () => {
     const html = renderToStaticMarkup(<AssistantMessageParts message={message} toolsById={new Map([[tool.id, tool]])} />)
     const ids = [...html.matchAll(/data-message-part-id="([^"]+)"/g)].map(match => match[1])
@@ -175,5 +191,33 @@ describe('Mira tool-local permission placement', () => {
     buttons[0].props.onClick()
     buttons[1].props.onClick()
     expect(onRespond.mock.calls).toEqual([['approval', false], ['approval', true]])
+  })
+
+  it('keeps dock command text intact and moves keyboard focus without granting permission', () => {
+    const onRespond = vi.fn(async () => undefined), dom = new Window()
+    const card = PermissionResponseCard({ request: { ...request, detail: 'printf "<safe>"\nprintf "second line"' }, responding: false, placement: 'dock', onRespond })
+    const html = renderToStaticMarkup(card)
+    expect(html).toContain('data-permission-placement="dock"')
+    expect(html).toContain('&lt;safe&gt;')
+    expect(html).toContain('\nprintf')
+    dom.document.body.innerHTML = html
+    const section = dom.document.querySelector('section')!, buttons = [...section.querySelectorAll('button')]
+    const key = (key: string, extra = {}) => {
+      const event = { key, currentTarget: section, target: dom.document.activeElement, nativeEvent: {}, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra }
+      card.props.onKeyDown(event as never)
+      return event
+    }
+    section.focus(); key('ArrowDown'); expect(dom.document.activeElement).toBe(buttons[0])
+    key('ArrowDown'); expect(dom.document.activeElement).toBe(buttons[1])
+    key('Home'); expect(dom.document.activeElement).toBe(buttons[0])
+    key('End', { nativeEvent: { isComposing: true } }); expect(dom.document.activeElement).toBe(buttons[0])
+    key('End'); expect(dom.document.activeElement).toBe(buttons[1])
+    expect(key('Enter').preventDefault).not.toHaveBeenCalled()
+    expect(onRespond).not.toHaveBeenCalled()
+    const pending = PermissionResponseCard({ request, responding: true, placement: 'dock', onRespond })
+    const event = { key: 'Home', currentTarget: section, target: buttons[1], nativeEvent: {}, preventDefault: vi.fn() }
+    pending.props.onKeyDown(event as never)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(dom.document.activeElement).toBe(buttons[1])
   })
 })

@@ -1,5 +1,6 @@
 import type { HarnessFileReference, HarnessMessageSubmissionOptions, HarnessQueuedMessage, ModelSelection, PermissionMode, ThinkingLevel } from '../../../../src/config/harness'
 import { validateMiraPromptDocument, type MiraPromptDocument } from './prompt-editor-document'
+import { isMiraPluginId } from '../../../../src/config/miraPlugins'
 
 export interface ComposerDraftConfig {
   permission: PermissionMode
@@ -17,6 +18,7 @@ export interface ComposerDraftSnapshot {
   config: ComposerDraftConfig
   recoveries?: Record<string, HarnessQueuedMessage[]>
   submissions?: Record<string, ComposerDraftSubmission | undefined>
+  permissions?: Record<string, PermissionMode>
   draft?: ComposerTaskDraft | null
 }
 
@@ -82,13 +84,16 @@ function submission(value: unknown): ComposerDraftSubmission | undefined {
   if (item.options !== undefined) {
     if (!item.options || typeof item.options !== 'object' || Array.isArray(item.options)) return
     const raw = object(item.options)
+    if (raw.permissionMode !== undefined && !['default', 'auto-approve', 'full'].includes(raw.permissionMode as string)) return
+    if (raw.skillIds !== undefined && (!Array.isArray(raw.skillIds) || raw.skillIds.length > 64 || raw.skillIds.some(id => !text(id, 256)))) return
+    if (raw.pluginIds !== undefined && (!Array.isArray(raw.pluginIds) || raw.pluginIds.length > 8 || raw.pluginIds.some(id => typeof id !== 'string' || !isMiraPluginId(id)))) return
     if (raw.delivery !== undefined && raw.delivery !== 'immediate' && raw.delivery !== 'guide' || raw.pausedQueueDecision !== undefined && raw.pausedQueueDecision !== 'retain' && raw.pausedQueueDecision !== 'discard') return
     if (raw.expectedRunId !== undefined && raw.expectedRunId !== null && !text(raw.expectedRunId, 128)) return
     if (raw.expectedQueueRevision !== undefined && (typeof raw.expectedQueueRevision !== 'number' || !Number.isSafeInteger(raw.expectedQueueRevision) || raw.expectedQueueRevision < 0)) return
     if (raw.expectedQueueItemIds !== undefined && (!Array.isArray(raw.expectedQueueItemIds) || raw.expectedQueueItemIds.length > 32 || raw.expectedQueueItemIds.some(id => !text(id, 128)) || new Set(raw.expectedQueueItemIds).size !== raw.expectedQueueItemIds.length)) return
     if ((raw.delivery || raw.pausedQueueDecision) && raw.expectedRunId === undefined || raw.pausedQueueDecision && (raw.expectedQueueRevision === undefined || raw.expectedQueueItemIds === undefined)) return
     if (raw.delivery === 'guide' && (typeof raw.expectedRunId !== 'string' || raw.pausedQueueDecision !== undefined)) return
-    options = { ...(raw.delivery ? { delivery: raw.delivery as 'immediate' | 'guide' } : {}), ...(raw.pausedQueueDecision ? { pausedQueueDecision: raw.pausedQueueDecision as 'retain' | 'discard' } : {}), ...(raw.expectedRunId !== undefined ? { expectedRunId: raw.expectedRunId as string | null } : {}), ...(raw.expectedQueueRevision !== undefined ? { expectedQueueRevision: raw.expectedQueueRevision as number } : {}), ...(raw.expectedQueueItemIds !== undefined ? { expectedQueueItemIds: raw.expectedQueueItemIds as string[] } : {}) }
+    options = { ...(raw.permissionMode !== undefined ? { permissionMode: raw.permissionMode as PermissionMode } : {}), ...(raw.skillIds !== undefined ? { skillIds: [...new Set(raw.skillIds as string[])] } : {}), ...(raw.pluginIds !== undefined ? { pluginIds: [...new Set(raw.pluginIds as string[])] } : {}), ...(raw.delivery ? { delivery: raw.delivery as 'immediate' | 'guide' } : {}), ...(raw.pausedQueueDecision ? { pausedQueueDecision: raw.pausedQueueDecision as 'retain' | 'discard' } : {}), ...(raw.expectedRunId !== undefined ? { expectedRunId: raw.expectedRunId as string | null } : {}), ...(raw.expectedQueueRevision !== undefined ? { expectedQueueRevision: raw.expectedQueueRevision as number } : {}), ...(raw.expectedQueueItemIds !== undefined ? { expectedQueueItemIds: raw.expectedQueueItemIds as string[] } : {}) }
   }
   return { id: item.id as string, text: item.text as string, references, selection: { providerId: selection.providerId as string, modelId: selection.modelId as string, ...(selection.thinkingLevel ? { thinkingLevel: selection.thinkingLevel as ThinkingLevel } : {}) }, planning: item.planning, ...(options ? { options } : {}), ...(taskDraft(item.draft) ? { draft: taskDraft(item.draft) } : {}) }
 }
@@ -96,13 +101,16 @@ function submission(value: unknown): ComposerDraftSubmission | undefined {
 function recovery(value: unknown, owner: string): HarnessQueuedMessage | undefined {
   const raw = object(value), item = submission(raw)
   if (!item || typeof raw.submissionId !== 'string' || !raw.submissionId.trim() || raw.submissionId.length > 128 || raw.submissionId.includes('\0') || raw.sessionId !== owner || !['default', 'auto-approve', 'full'].includes(raw.permissionMode as string) || typeof raw.createdAt !== 'number' || !Number.isFinite(raw.createdAt) || raw.createdAt < 0) return
-  return { ...item, submissionId: raw.submissionId, sessionId: owner, permissionMode: raw.permissionMode as PermissionMode, createdAt: raw.createdAt }
+  if (raw.skillIds !== undefined && (!Array.isArray(raw.skillIds) || raw.skillIds.length > 64 || raw.skillIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 256 || id.includes('\0')))) return
+  if (raw.pluginIds !== undefined && (!Array.isArray(raw.pluginIds) || raw.pluginIds.length > 8 || raw.pluginIds.some(id => typeof id !== 'string' || !isMiraPluginId(id)))) return
+  return { ...item, submissionId: raw.submissionId, sessionId: owner, permissionMode: raw.permissionMode as PermissionMode, ...(raw.skillIds === undefined ? {} : { skillIds: [...new Set(raw.skillIds as string[])] }), ...(raw.pluginIds === undefined ? {} : { pluginIds: [...new Set(raw.pluginIds as string[])] }), createdAt: raw.createdAt }
 }
 
 /** Only restore known data fields; model credentials and file contents never belong in this snapshot. */
 export function readComposerDrafts(value: unknown): ComposerDraftSnapshot {
   const raw = object(value)
   const config = object(raw.config)
+  const permissions = Object.fromEntries(Object.entries(object(raw.permissions)).filter(([owner, mode]) => owner && ['default', 'auto-approve', 'full'].includes(mode as string))) as Record<string, PermissionMode>
   const drafts = Object.fromEntries(Object.entries(object(raw.drafts)).filter(([key, text]) => key && typeof text === 'string' && text.trim())) as Record<string, string>
   const fileDrafts = Object.fromEntries(Object.entries(object(raw.fileDrafts)).flatMap(([key, value]) => {
     if (!key || !Array.isArray(value)) return []
@@ -136,6 +144,7 @@ export function readComposerDrafts(value: unknown): ComposerDraftSnapshot {
   }))
   return {
     drafts, fileDrafts,
+    ...(Object.keys(permissions).length ? { permissions } : {}),
     ...(Object.keys(documents).length ? { documents } : {}),
     ...(raw.draft === null ? { draft: null } : taskDraft(raw.draft) ? { draft: taskDraft(raw.draft) } : {}),
     ...(Object.keys(recoveries).length ? { recoveries } : {}),
@@ -165,6 +174,7 @@ export function mergeComposerDrafts(saved: ComposerDraftSnapshot, local: Compose
     ...(saved.documents || local.documents ? { documents: { ...saved.documents, ...Object.fromEntries(Object.keys(local.drafts).map(owner => [owner, local.documents?.[owner]])), ...local.documents } } : {}),
     ...(saved.recoveries || local.recoveries ? { recoveries: { ...saved.recoveries, ...local.recoveries } } : {}),
     ...(saved.submissions || local.submissions ? { submissions: { ...saved.submissions, ...local.submissions } } : {}),
+    ...(saved.permissions || local.permissions ? { permissions: { ...saved.permissions, ...local.permissions } } : {}),
     ...(Object.prototype.hasOwnProperty.call(local, 'draft') ? { draft: local.draft } : saved.draft ? { draft: saved.draft } : {}),
     config: { ...saved.config, ...Object.fromEntries([...editedConfig].map(key => [key, local.config[key]])) },
   }
@@ -184,5 +194,55 @@ export function withoutComposerDraftOwners(value: ComposerDraftSnapshot, ids: Re
     ...(value.documents ? { documents: keep(value.documents) } : {}),
     ...(value.draft?.sessionId && ids.has(value.draft.sessionId) ? { draft: null } : {}),
     ...(value.recoveries ? { recoveries: keep(value.recoveries) } : {}),
-    ...(value.submissions ? { submissions: keep(value.submissions) } : {}) }
+    ...(value.submissions ? { submissions: keep(value.submissions) } : {}),
+    ...(value.permissions ? { permissions: keep(value.permissions) } : {}) }
+}
+
+/** Merge only this editor's changes; another pane may have saved a different owner. */
+export function mergeComposerDraftChanges(current: ComposerDraftSnapshot, before: ComposerDraftSnapshot, next: ComposerDraftSnapshot): ComposerDraftSnapshot {
+  const merged = structuredClone(current)
+  for (const field of ['drafts', 'fileDrafts', 'documents', 'recoveries', 'submissions', 'permissions'] as const) {
+    const previous = before[field] ?? {}, changed = next[field] ?? {}
+    const values = { ...merged[field] } as Record<string, unknown>
+    for (const owner of new Set([...Object.keys(previous), ...Object.keys(changed)])) {
+      if (JSON.stringify(previous[owner]) === JSON.stringify(changed[owner])) continue
+      if (Object.prototype.hasOwnProperty.call(changed, owner)) values[owner] = changed[owner]
+      else delete values[owner]
+    }
+    Object.assign(merged, { [field]: values })
+  }
+  for (const field of Object.keys({ ...before.config, ...next.config }) as Array<keyof ComposerDraftConfig>) {
+    if (JSON.stringify(before.config[field]) !== JSON.stringify(next.config[field])) Object.assign(merged.config, { [field]: next.config[field] })
+  }
+  if (JSON.stringify(before.draft) !== JSON.stringify(next.draft)) merged.draft = next.draft
+  return serializeComposerDrafts(merged)
+}
+
+const draftTransactions = new WeakMap<object, Map<string, Promise<unknown>>>()
+export function createMiraComposerDraftWriter(host: { readonly composerDraftScope?: object; getPreference(key: string): Promise<unknown>; setPreference(key: string, value: unknown, reportFailure: boolean): Promise<void> }, key: string) {
+  const scope = host.composerDraftScope ?? host
+  let transactions = draftTransactions.get(scope)
+  if (!transactions) { transactions = new Map(); draftTransactions.set(scope, transactions) }
+  let baseline = readComposerDrafts(null)
+  const enqueue = <T,>(action: () => Promise<T>): Promise<T> => {
+    const pending = (transactions.get(key) ?? Promise.resolve()).catch(() => undefined).then(action)
+    transactions.set(key, pending)
+    void pending.finally(() => { if (transactions.get(key) === pending) transactions.delete(key) }).catch(() => undefined)
+    return pending
+  }
+  return {
+    load: () => enqueue(async () => { baseline = readComposerDrafts(await host.getPreference(key)); return structuredClone(baseline) }),
+    readMerged: (value: ComposerDraftSnapshot) => {
+      const next = serializeComposerDrafts(value)
+      return enqueue(async () => mergeComposerDraftChanges(readComposerDrafts(await host.getPreference(key)), baseline, next))
+    },
+    save: (value: ComposerDraftSnapshot) => {
+      const next = serializeComposerDrafts(value)
+      return enqueue(async () => {
+        const current = readComposerDrafts(await host.getPreference(key))
+        await host.setPreference(key, mergeComposerDraftChanges(current, baseline, next), true)
+        baseline = next
+      })
+    },
+  }
 }

@@ -166,7 +166,10 @@ export function HarnessCommandCenter({ open, focusRequest, onOpenChange, onDismi
         if (dismiss.current?.()) return
         if (!target?.isConnected || target.closest('[hidden], [inert], [aria-hidden="true"]') || target.matches(':disabled, [aria-disabled="true"]')) return
         target.focus({ preventScroll: true })
-      }} onEscapeKeyDown={event => event.stopPropagation()}>
+      }} onEscapeKeyDown={event => {
+        if (event.isComposing || event.keyCode === 229) event.preventDefault()
+        event.stopPropagation()
+      }}>
         <Dialog.Title className="mira-command-center-sr-only">全局搜索</Dialog.Title>
         <div className="mira-command-center-input"><Search size={18} aria-hidden="true" /><input ref={input} value={rawQuery} onChange={event => { setRawQuery(event.target.value); setSelectedId(''); setActionError('') }} onKeyDown={handleKey} type="text" role="combobox" aria-label="搜索命令、对话和文件" aria-expanded="true" aria-controls="mira-command-results" aria-autocomplete="list" aria-activedescendant={selected ? `mira-command-option-${selectedIndex}` : undefined} placeholder="搜索命令、对话和文件" autoComplete="off" spellCheck={false} /><Dialog.Close className="mira-command-center-close" aria-label="关闭全局搜索" title="关闭全局搜索"><X size={16} /></Dialog.Close></div>
         <div className="mira-command-center-scopes" role="group" aria-label="搜索范围">{SCOPES.map(item => <button key={item.id} type="button" aria-pressed={scope === item.id} onClick={() => { setRawQuery(setHarnessSearchScope(rawQuery, item.id)); setSelectedId(''); input.current?.focus() }}><item.icon size={13} aria-hidden="true" />{item.label}</button>)}</div>

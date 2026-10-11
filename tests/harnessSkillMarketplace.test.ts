@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SkillMarketplaceService } from '../electron/services/skillMarketplace'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { SkillStore } from '../electron/storage/skillStore'
+import { MiraPluginStore } from '../electron/storage/miraPluginStore'
 
 const homes: string[] = []
 afterEach(() => homes.splice(0).forEach(home => rmSync(home, { recursive: true, force: true })))
@@ -46,6 +47,60 @@ function fixture(extra: Record<string, { content: string | Buffer; mode?: string
 }
 
 describe('public Skill marketplace', () => {
+  it('installs a real multi-Skill plugin with its namespace, full resources and upstream notices', async () => {
+    const view = fixture({
+      '.claude-plugin/marketplace.json': { content: JSON.stringify({ name: 'anthropic-agent-skills', plugins: [
+        { name: 'review-kit', description: 'Two real skills', source: './', skills: ['./skills/review', './skills/second'] },
+        { name: 'restricted-kit', source: './', skills: ['./skills/restricted'] },
+      ] }) },
+      'skills/second/SKILL.md': { content: SKILL.replace('name: Review', 'name: second') },
+      'skills/second/LICENSE.txt': { content: APACHE },
+      'skills/review/references/deep/nested/asset/guide.md': { content: 'Deep bundled resource' },
+    })
+    const id = 'review-kit@anthropic-agent-skills', plugins = new MiraPluginStore(view.paths)
+    expect((await view.service.browsePlugins()).items).toMatchObject([{ id, skills: [{ name: 'Review' }, { name: 'second' }], installed: false }, { unavailableReason: expect.stringContaining('许可') }])
+    expect((await view.service.pluginDetail(id)).files.map(file => file.path)).toContain('skills/review/references/guide.md')
+    const result = await view.service.installPlugin(id)
+    expect(result).toMatchObject({ id, installed: true, enabled: true })
+    const plugin = plugins.snapshots()[0]
+    expect(plugin.id).toBe(id); expect(plugin.skills).toHaveLength(2)
+    expect(plugins.readSkill([plugin], 'review-kit:Review', 'references/guide.md')).toBe('Supporting instructions.')
+    expect(plugins.readSkill([plugin], 'review-kit:Review', 'references/deep/nested/asset/guide.md')).toBe('Deep bundled resource')
+    expect(readFileSync(join(plugin.root, '.claude-plugin/marketplace.json'), 'utf8')).toContain('Two real skills')
+    expect(readFileSync(join(plugin.root, 'UPSTREAM_THIRD_PARTY_NOTICES.md'), 'utf8')).toContain('Third party fixture')
+    expect(lstatSync(join(plugin.root, 'skills/review/scripts/check.sh')).mode & 0o111).toBe(0)
+    expect(view.store.list()).toEqual([]) // Plugin namespacing does not register duplicate standalone Skills.
+    plugins.setEnabled(id, false); expect((await view.service.browsePlugins()).items[0]).toMatchObject({ installed: true, enabled: false })
+    plugins.remove(id); expect(existsSync(plugin.root)).toBe(true)
+    await view.service.installPlugin(id); expect(plugins.snapshots()[0].root).toBe(plugin.root)
+    plugins.remove(id); writeFileSync(join(plugin.root, 'skills/review/references/guide.md'), 'User-edited resource')
+    await expect(view.service.installPlugin(id)).rejects.toThrow('不会覆盖')
+    expect(readFileSync(join(plugin.root, 'skills/review/references/guide.md'), 'utf8')).toBe('User-edited resource')
+  })
+
+  it('does not register or publish incomplete, revoked, unsupported or arbitrary plugin packages', async () => {
+    const view = fixture({ '.claude-plugin/marketplace.json': { content: JSON.stringify({ name: 'anthropic-agent-skills', plugins: [
+      { name: 'review-kit', source: './', skills: ['./skills/review'], hooks: { command: 'never execute' } },
+      { name: 'remote-kit', source: 'https://example.invalid/package', skills: ['./skills/review'] },
+    ] }) } })
+    const id = 'review-kit@anthropic-agent-skills', plugins = new MiraPluginStore(view.paths)
+    expect((await view.service.browsePlugins()).items[0].unsupported).toEqual(['hooks'])
+    await expect(view.service.installPlugin('remote-kit@anthropic-agent-skills')).rejects.toThrow('下载方式')
+    await expect(view.service.installPlugin('https://example.invalid/package')).rejects.toThrow('不存在')
+    const file = view.entries.find(entry => entry.path.endsWith('check.sh'))!
+    const original = view.contents.get(file.sha)!
+    view.contents.set(file.sha, Buffer.from('tampered'))
+    await expect(view.service.installPlugin(id)).rejects.toThrow('完整性')
+    expect(plugins.list()).toEqual([]); expect(readdirSync(join(view.paths.root, 'plugins/anthropic-agent-skills'))).toEqual([])
+    view.contents.set(file.sha, original)
+    let calls = 0
+    await expect(view.service.installPlugin(id, () => { if (++calls === 4) throw new Error('授权已撤销') })).rejects.toThrow('授权已撤销')
+    expect(plugins.list()).toEqual([]); expect(readdirSync(join(view.paths.root, 'plugins/anthropic-agent-skills'))).toEqual([])
+    await view.service.installPlugin(id)
+    expect(plugins.list()[0].unsupported).toEqual(['hooks'])
+    expect(readdirSync(view.paths.config).some(path => path.startsWith('.market-plugin-'))).toBe(false)
+  })
+
   it('downloads fixed-commit files and licenses, publishes once, and enables the existing SkillStore capability chain', async () => {
     const { paths, store, service, request } = fixture()
     const catalog = await service.browse()

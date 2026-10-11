@@ -39,12 +39,14 @@ function setup(steps: Step[]) {
   vi.spyOn(database.memories, 'enabled').mockReturnValue(false)
   const entered = deferred()
   const contexts: any[][] = []
+  const prompts: string[] = []
   const original = modelProvider.createHarnessModelProvider
   vi.spyOn(modelProvider, 'createHarnessModelProvider').mockImplementation((...args) => {
     const configured = original(...args)
     vi.spyOn(configured.models, 'streamSimple').mockImplementation((_model, context, options) => {
       const step = steps[contexts.length] || { text: 'Finished' }
       contexts.push(structuredClone(context.messages))
+      prompts.push(context.systemPrompt || '')
       const stream = createAssistantMessageEventStream()
       const message: any = { role: 'assistant', content: [{ type: 'text', text: step.text }, ...(step.tools || []).map(tool => ({ type: 'toolCall', ...tool }))], api: 'openai-completions', provider: 'mira-openai', model: 'model', timestamp: Date.now(), stopReason: step.tools?.length ? 'toolUse' : 'stop', usage: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 12, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } }
       void (async () => {
@@ -80,14 +82,87 @@ function setup(steps: Step[]) {
     return task
   }
   const guide = (text = 'Change the result', submissionId = 'guide-one', override: Partial<ModelSelection> = {}, references: Array<{ path: string; name: string }> = [], planning = false) => runtime.submitMessage(sender, created.id, submissionId, text, references, { ...selection, ...override }, planning, { delivery: 'guide', expectedRunId: database.harness.getSession(created.id).activeRun!.id }) as HarnessMessageSubmissionReceipt
-  return { ...fixture, directory, project, selection, sender, events, contexts, entered, run, guide, addRelease: (release: () => void) => releases.push(release), setEventHook: (hook: typeof onEvent) => { onEvent = hook } }
+  return { ...fixture, directory, project, selection, sender, events, contexts, prompts, entered, run, guide, addRelease: (release: () => void) => releases.push(release), setEventHook: (hook: typeof onEvent) => { onEvent = hook } }
 }
 
 describe('real installed Agent turn-boundary guidance', () => {
+  it('preserves bounded skill identities through both first-party parsers', () => {
+    const input = { sessionId: 's', submissionId: 'intent', text: 'Task', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { skillIds: ['research'], permissionMode: 'default' } }
+    const parsed = parseFirstPartyHarnessCall('message.submit', input)
+    expect(parsed).toMatchObject({ options: input.options })
+    expect(parseFirstPartyHarnessCall('message.submit', parsed)).toEqual(parsed)
+    for (const skillIds of [null, 'research', [123], [''], Array.from({ length: 65 }, () => 'research')]) expect(() => parseFirstPartyHarnessCall('message.submit', { ...input, options: { skillIds } })).toThrow()
+  })
+
+  it('queues explicit skills into the next Agent context without mutating the current or following run', async () => {
+    const gate = deferred(), fixture = setup([{ text: 'Original answer', wait: gate }, { text: 'Skill answer' }, { text: 'Ordinary answer' }])
+    const skillDirectory = join(fixture.root, 'skills', 'research'); mkdirSync(skillDirectory, { recursive: true })
+    writeFileSync(join(skillDirectory, 'SKILL.md'), '# Research\n\nMIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+    fixture.database.skills.saveSettings({ directories: [join(fixture.root, 'skills')] })
+    const skill = fixture.database.skills.list()[0]; fixture.database.skills.setEnabled(skill.id, true)
+    const first = fixture.run(); await fixture.entered.promise
+    const text = `[$Research](mira-skill:${skill.id}) Research next`
+    const options = { delivery: 'guide' as const, expectedRunId: fixture.runtime.getSession(fixture.sessionId).activeRun!.id, skillIds: [skill.id] }
+    const receipt = await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'skill-intent', text, [], fixture.selection, false, options)
+    expect(receipt).toMatchObject({ delivery: 'queue', queue: { items: [{ skillIds: [skill.id], fallbackReason: 'skills', text }] } })
+    expect(fixture.runtime.getSession(fixture.sessionId).activeSkillIds || []).toEqual([])
+    expect(fixture.prompts[0]).not.toContain('MIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+    expect(() => fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'skill-intent', text, [], fixture.selection, false, { ...options, skillIds: [] })).toThrow('内容不同')
+    gate.resolve(); await first
+    await vi.waitFor(() => expect(fixture.runtime.listSessions().find(item => item.id === fixture.sessionId)?.isRunning).toBe(false))
+    expect(fixture.prompts[1]).toContain('MIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+    await fixture.run('Next ordinary task')
+    expect(fixture.prompts[2]).not.toContain('MIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+    expect(fixture.runtime.getSession(fixture.sessionId).activeSkillIds || []).toEqual([])
+  })
+
+  it('rejects disabled skill intent before admission and does not activate skills inside referenced text', async () => {
+    const fixture = setup([{ text: 'Ordinary answer' }])
+    const directory = join(fixture.root, 'skills', 'research'); mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), '# Research\n\nMIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+    fixture.database.skills.saveSettings({ directories: [join(fixture.root, 'skills')] })
+    const skill = fixture.database.skills.list()[0], text = `Quoted conversation: [$Research](mira-skill:${skill.id})`
+    expect(fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'skill-invalid', text, [], fixture.selection, false, { skillIds: [skill.id] })).toMatchObject({ retryRequired: true, reason: 'skill-unavailable' })
+    expect(fixture.runtime.getMessageQueue(fixture.sessionId).items).toEqual([])
+    fixture.database.skills.setEnabled(skill.id, true)
+    const receipt = await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'skill-invalid', text, [], fixture.selection, false, { skillIds: [] })
+    expect(receipt).toHaveProperty('id')
+    await vi.waitFor(() => expect(fixture.prompts).toHaveLength(1))
+    expect(fixture.prompts[0]).not.toContain('MIRA_EXPLICIT_RESEARCH_INSTRUCTIONS')
+  })
+
+  it.each(['full', 'default'] as const)('authorizes real write tools using frozen explicit submission permission (%s)', async permissionMode => {
+    const gate = deferred()
+    const fixture = setup([{ text: 'Before write', wait: gate, tools: [{ id: 'permission-write', name: 'write', arguments: { path: 'permission.txt', content: 'Frozen permission' } }] }, { text: 'After write' }])
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: permissionMode === 'full' ? 'default' : 'full' })
+    await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'permission-tool', 'Write fixture', [], fixture.selection, false, { permissionMode })
+    await fixture.entered.promise
+    gate.resolve()
+    if (permissionMode === 'default') {
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
+      fixture.runtime.resolvePermission(fixture.runtime.listPendingPermissions(fixture.sessionId)[0]!.requestId, false)
+    }
+    await vi.waitFor(() => expect(fixture.runtime.getSession(fixture.sessionId).activeRun).toBeUndefined())
+    expect(fixture.runtime.getSession(fixture.sessionId).permissionMode).toBe(permissionMode)
+    expect(fixture.runtime.getSession(fixture.sessionId).toolCalls[0]?.status).toBe(permissionMode === 'full' ? 'ok' : 'cancelled')
+    expect(existsSync(join(fixture.directory, 'permission.txt'))).toBe(permissionMode === 'full')
+  })
+
+  it('queues a guide with a different explicit permission instead of changing the executing run', async () => {
+    const gate = deferred(), fixture = setup([{ text: 'Running', wait: gate }, { text: 'Queued permission' }])
+    const task = fixture.run(); await fixture.entered.promise
+    const receipt = await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'different-permission-guide', 'Next permission', [], fixture.selection, false, { delivery: 'guide', expectedRunId: fixture.runtime.getSession(fixture.sessionId).activeRun!.id, permissionMode: 'full' })
+    expect(receipt).toMatchObject({ delivery: 'queue', queue: { items: [{ permissionMode: 'full', fallbackReason: 'permission-mismatch' }] } })
+    expect(fixture.runtime.getSession(fixture.sessionId).permissionMode).toBe('default')
+    gate.resolve(); await task
+    await vi.waitFor(() => expect(fixture.runtime.getSession(fixture.sessionId).permissionMode).toBe('full'))
+    await vi.waitFor(() => expect(fixture.runtime.getSession(fixture.sessionId).activeRun).toBeUndefined())
+  })
+
   it('accepts only an identified guide target at the authority parser and drops injected authorization fields', () => {
     const input = { sessionId: 's', submissionId: 'one', text: 'Guide', references: [], planning: false, selection: { providerId: 'p', modelId: 'm' } }
-    const options = { delivery: 'guide', expectedRunId: 'run' }
-    const parsed = parseFirstPartyHarnessCall('message.submit', { ...input, options: { ...options, permissionMode: 'full', apiKey: 'injected' } })
+    const options = { permissionMode: 'full', delivery: 'guide', expectedRunId: 'run' }
+    const parsed = parseFirstPartyHarnessCall('message.submit', { ...input, options: { ...options, apiKey: 'injected' } })
     expect(parsed).toEqual({ method: 'message.submit', ...input, options })
     expect(parseFirstPartyHarnessCall('message.submit', parsed)).toEqual(parsed)
     for (const invalid of [{ delivery: 'guide' }, { ...options, expectedRunId: null }, { ...options, expectedRunId: '' }, { ...options, pausedQueueDecision: 'retain', expectedQueueRevision: 0, expectedQueueItemIds: [] }]) {
@@ -136,7 +211,12 @@ describe('real installed Agent turn-boundary guidance', () => {
     expect(fixture.events.filter(event => ['message-part', 'message-delta', 'message-complete'].includes(event.type)).every(event => [session.messages[1]!.id, session.messages[3]!.id].includes(String(event.payload.messageId)))).toBe(true)
     expect(fixture.runtime.getMessageQueue(fixture.sessionId).items).toEqual([])
     const reload = new PlatformDatabase(fixture.root)
-    try { expect(reload.harness.getSession(fixture.sessionId)).toEqual(session) } finally { reload.close() }
+    try {
+      const { pluginCatalog, ...persistedSession } = reload.harness.getSession(fixture.sessionId)
+      expect(pluginCatalog).toEqual([])
+      expect(session).not.toHaveProperty('pluginCatalog')
+      expect(persistedSession).toEqual(session)
+    } finally { reload.close() }
   })
 
   it('consumes multiple guides one at a time without replaying earlier text or colliding part identities', async () => {

@@ -26,6 +26,36 @@ afterEach(async () => {
 })
 
 describe('Harness terminal sessions', () => {
+  it('pastes only into the authorized live terminal without returning clipboard contents', async () => {
+    const process = new FakePty(), manager = new HarnessTerminalSessions({ spawn: () => process }), owner = sender(1)
+    const opened = await manager.open(owner, 'a')
+    const clipboard = vi.fn(() => 'first\r\nsecond\n')
+    expect(() => manager.paste(sender(2), 'a', opened.terminalId, clipboard, true)).toThrow('终端会话无效')
+    expect(() => manager.paste(owner, 'b', opened.terminalId, clipboard, true)).toThrow('终端会话无效')
+    expect(clipboard).not.toHaveBeenCalled()
+    expect(manager.paste(owner, 'a', opened.terminalId, clipboard, true)).toBeUndefined()
+    expect(process.writes).toEqual(['\x1b[200~first\rsecond\r\x1b[201~'])
+    expect(clipboard).toHaveBeenCalledOnce()
+    manager.paste(owner, 'a', opened.terminalId, () => 'plain\ntext', false)
+    expect(process.writes.at(-1)).toBe('plain\rtext')
+    manager.close(owner, 'a', opened.terminalId); clipboard.mockClear()
+    expect(() => manager.paste(owner, 'a', opened.terminalId, clipboard, false)).toThrow('终端会话无效')
+    expect(clipboard).not.toHaveBeenCalled()
+  })
+
+  it('does not write empty, unreadable or oversized paste contents', async () => {
+    const process = new FakePty(), manager = new HarnessTerminalSessions({ spawn: () => process }), owner = sender(1)
+    const opened = await manager.open(owner, 'a')
+    manager.paste(owner, 'a', opened.terminalId, () => '', true)
+    expect(() => manager.paste(owner, 'a', opened.terminalId, () => { throw new Error('clipboard unavailable') }, false)).toThrow('clipboard unavailable')
+    expect(() => manager.paste(owner, 'a', opened.terminalId, () => 'x'.repeat(100_001), false)).toThrow('终端输入无效')
+    expect(() => manager.paste(owner, 'a', opened.terminalId, () => 'x'.repeat(100_000), true)).toThrow('终端输入无效')
+    expect(process.writes).toEqual([])
+    manager.paste(owner, 'a', opened.terminalId, () => 'x'.repeat(100_000), false)
+    expect(process.writes).toHaveLength(1)
+    manager.closeAll()
+  })
+
   it('spawns in the session workspace and forwards output only to its owner', async () => {
     const { mkdtemp } = await import('node:fs/promises')
     const { join } = await import('node:path')

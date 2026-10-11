@@ -1,7 +1,7 @@
 /**
  * Adapted from ZCode packages/ui/src/mentions/nodes/PromptMentionNode.ts.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its own canonical text and reference payload; no upstream plugin protocol is restored.
+ * Mira uses its own reference payload, with canonical plugin:// identity for plugin chips.
  */
 import { $applyNodeReplacement, TextNode, type DOMExportOutput, type EditorConfig, type LexicalNode, type NodeKey, type SerializedTextNode } from 'lexical'
 import { validateMiraPromptDocument, type MiraPromptReference } from '../../lib/prompt-editor-document'
@@ -32,7 +32,7 @@ export class MiraPromptReferenceNode extends TextNode {
     element.classList.add('mira-prompt-reference', `mira-prompt-reference-${this.__reference.kind}`)
     element.setAttribute('data-mira-prompt-reference', this.__reference.kind)
     element.setAttribute('spellcheck', 'false')
-    element.title = this.__reference.kind === 'file' ? this.__reference.text : this.__reference.label
+    element.title = this.__reference.kind === 'agent' ? `${this.__reference.label}智能体（${this.__reference.text}）` : ['file', 'selection', 'web'].includes(this.__reference.kind) ? this.__reference.text : this.__reference.label
     return element
   }
 

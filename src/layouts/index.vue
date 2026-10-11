@@ -24,19 +24,19 @@
           </nav>
         </el-popover>
         <div v-if="showAppNavigation" class="mira-shell__navigation" role="group" aria-label="应用导航">
-          <el-tooltip :content="`后退 (${navigationShortcut}[)`" placement="bottom">
+          <el-tooltip :content="`后退 (${navigationShortcut}[)`" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
             <button type="button" class="mira-shell__navigation-button" aria-label="后退" :disabled="!appNavigation.state?.canGoBack || appNavigation.state?.busy" @click="appNavigation.go('back')"><AppIcon name="lucide:arrow-left" /></button>
           </el-tooltip>
-          <el-tooltip :content="`前进 (${navigationShortcut}])`" placement="bottom">
+          <el-tooltip :content="`前进 (${navigationShortcut}])`" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
             <button type="button" class="mira-shell__navigation-button" aria-label="前进" :disabled="!appNavigation.state?.canGoForward || appNavigation.state?.busy" @click="appNavigation.go('forward')"><AppIcon name="lucide:arrow-right" /></button>
           </el-tooltip>
         </div>
       </div>
       <div class="mira-shell__actions">
-        <el-tooltip :content="globalSearchLabel" placement="bottom">
+        <el-tooltip :content="globalSearchLabel" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
           <button type="button" class="mira-shell__icon-button" aria-label="全局搜索" @click="commandPaletteStore.open()"><AppIcon name="Search" /></button>
         </el-tooltip>
-        <el-tooltip content="设置" placement="bottom">
+        <el-tooltip content="设置" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
           <button type="button" class="mira-shell__icon-button" aria-label="设置" @click="openSettings"><AppIcon name="Setting" /></button>
         </el-tooltip>
       </div>

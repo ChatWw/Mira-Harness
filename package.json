@@ -91,6 +91,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-hover-card": "1.1.24",
     "@radix-ui/react-popover": "1.1.23",
+    "@radix-ui/react-tabs": "1.1.21",
     "@radix-ui/react-tooltip": "1.2.16",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
@@ -132,7 +133,8 @@
     "vue": "^3.5.13",
     "vue-router": "^4.6.4",
     "vuedraggable": "^4.1.0",
-    "wujie-vue3": "^2.1.0"
+    "wujie-vue3": "^2.1.0",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

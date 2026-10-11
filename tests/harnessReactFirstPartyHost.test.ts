@@ -11,6 +11,79 @@ function fixture() {
 }
 
 describe('React Harness prepare-leave handshake', () => {
+  it('reads input history through the authorized session or project scope without accepting a renderer directory', async () => {
+    const { host, port, receive } = fixture()
+    const pending = host.listPromptHistory({ sessionId: 'current' })
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.input-history.list', params: { sessionId: 'current' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: ['Earlier input'] })
+    await expect(pending).resolves.toEqual(['Earlier input']); host.close()
+  })
+  it('compacts through the authorized bridge with only session and model identity', async () => {
+    const { port, host, receive } = fixture()
+    const selection = { providerId: 'provider', modelId: 'model' }
+    const pending = host.compactConversation('source', selection)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.context.compact', params: { sessionId: 'source', selection, submissionId: expect.any(String) } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { status: 'compacted' } })
+    await expect(pending).resolves.toEqual({ status: 'compacted' }); host.close()
+  })
+
+  it('forks an exact reply with a stable request identity through the authorized bridge', async () => {
+    const { host, port, receive } = fixture()
+    const pending = host.forkConversation('source', 'reply', '55cabc22-257e-41d4-8ec2-9fc83671dd12')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.session.fork', params: { id: 'source', messageId: 'reply', requestId: '55cabc22-257e-41d4-8ec2-9fc83671dd12' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { id: 'fork' } })
+    await expect(pending).resolves.toEqual({ id: 'fork' }); host.close()
+  })
+  it('reconnects a configured MCP identity through the first-party bridge', async () => {
+    const { host, port, receive } = fixture()
+    const pending = host.reconnectMcp('configured')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.mcp.reconnect', params: { id: 'configured' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { state: 'connected', toolCount: 2 } })
+    await expect(pending).resolves.toEqual({ state: 'connected', toolCount: 2 }); host.close()
+  })
+  it('queries browser protection using task and resource identity without exposing a guest handle', async () => {
+    const { host, port, receive } = fixture()
+    const reading = host.browserProtected('owner', 'browser:one')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.browser.protection', params: { sessionId: 'owner', browserId: 'browser:one' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { protected: true } })
+    await expect(reading).resolves.toEqual({ protected: true }); host.close()
+  })
+  it('routes external and devtools actions with captured browser and task identities', async () => {
+    const { host, port, receive } = fixture()
+    const external = host.openBrowserExternal('a', 'https://mira.test/redirected', 'browser:one')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.browser.external', params: { sessionId: 'a', browserId: 'browser:one', url: 'https://mira.test/redirected' } })
+    receive({ type: 'mira:response', id: '1', ok: true }); await external
+    const devtools = host.controlBrowser('b', 'devtools', 'browser:two')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.browser.control', params: { sessionId: 'b', browserId: 'browser:two', action: 'devtools' } })
+    receive({ type: 'mira:response', id: '2', ok: true }); await devtools; host.close()
+  })
+  it('sends captured task and browser identities on navigation, visibility and bounds without exposing a guest handle', async () => {
+    const { host, port, receive } = fixture(), bounds = { x: 0, y: 0, width: 400, height: 300 }
+    const navigation = host.navigateBrowser('a', 'https://mira.test/', bounds, 'browser:one', false)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.browser.navigate', params: { sessionId: 'a', url: 'https://mira.test/', bounds, browserId: 'browser:one', visible: false } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: 'https://mira.test/' }); await expect(navigation).resolves.toBe('https://mira.test/')
+    const control = host.controlBrowser('a', 'close', 'browser:one')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.browser.control', params: { sessionId: 'a', action: 'close', browserId: 'browser:one' } })
+    receive({ type: 'mira:response', id: '2', ok: true, value: undefined }); await control
+    const resize = host.setBrowserBounds('b', bounds, 'browser:two')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '3', method: 'harness.browser.bounds', params: { sessionId: 'b', bounds, browserId: 'browser:two' } })
+    receive({ type: 'mira:response', id: '3', ok: true, value: undefined }); await resize; host.close()
+  })
+  it('pastes into a captured terminal without receiving clipboard contents', async () => {
+    const { host, port, receive } = fixture()
+    const paste = host.pasteTerminal('owner', 'terminal', true)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.terminal.paste', params: { sessionId: 'owner', terminalId: 'terminal', bracketed: true } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: undefined })
+    await expect(paste).resolves.toBeUndefined(); host.close()
+  })
+  it('creates a real side session through the scoped parent IPC contract', async () => {
+    const { host, port, receive } = fixture()
+    const creation = host.createSideConversation('parent')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.session.create-side', params: { parentId: 'parent' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { id: 'child', parentSessionId: 'parent' } })
+    await expect(creation).resolves.toEqual({ id: 'child', parentSessionId: 'parent' })
+    host.close()
+  })
   it('preserves the Shell search focus request and acknowledges only the matching cancellation contract', () => {
     const { host, port, receive } = fixture(), listener = vi.fn()
     const remove = host.onCommandCenterOpen(listener)

@@ -277,7 +277,13 @@ async function rowActions() {
 }
 async function draftActions() {
   await configure({view:'group'}); await focusOutside()
-  const press=async label => { const at=await point('button[aria-label="'+label+'"]'); if(!at) throw Error('Missing draft control '+label); await mouse('mouseMoved',at); await mouse('mousePressed',at,true); await mouse('mouseReleased',at); await frames() }
+  const press=async label => {
+    const selector='button[aria-label="'+label+'"]'
+    const head=await point('.mira-collection-head:has('+selector+')')
+    if(head) { await mouse('mouseMoved',head); await frames() }
+    const at=await point(selector); if(!at) throw Error('Missing draft control '+label)
+    await mouse('mouseMoved',at); await mouse('mousePressed',at,true); await mouse('mouseReleased',at); await frames()
+  }
   const snapshot=()=>inspect('window.sidebarFixture.draftSnapshot()')
   await press('在 空组 新建任务'); await wait('window.sidebarFixture.draftSnapshot().rows===1')
   await mouse('mouseMoved',{x:600,y:100}); await focusOutside()

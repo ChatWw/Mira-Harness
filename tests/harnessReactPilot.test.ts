@@ -40,7 +40,275 @@ function fixture() {
   return { controller, host, snapshots, emit, unsubscribe }
 }
 
+describe('project metadata refresh', () => {
+  it('publishes tool metadata and approval updates without waiting for a delayed session read', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    const reads: Array<(value: HarnessSession) => void> = []
+    vi.mocked(host.getSession).mockImplementation(() => new Promise(resolve => reads.push(resolve)))
+    emit('run-start', { startedAt: 10 }, 'a', 'run')
+    const record = { id: 'write-call', tool: 'write', runId: 'run', target: 'draft.md', status: 'running' as const, createdAt: 11, input: { text: 'draft.md', truncated: false } }
+    emit('tool-call', record, 'a', 'run')
+    expect(controller.getSnapshot().session?.toolCalls).toEqual([record])
+    emit('message-part', { part: { id: 'tool-part', type: 'tool', toolCallId: record.id } }, 'a', 'run')
+    emit('tool-call', { id: record.id, runId: 'run', status: 'waiting-confirm', approvalRequestId: 'approval' }, 'a', 'run')
+    emit('permission-request', { requestId: 'approval', title: '写入文件', toolCallId: record.id, runId: 'run' }, 'a', 'run')
+    expect(controller.getSnapshot().session?.toolCalls).toEqual([{ ...record, status: 'waiting-confirm', approvalRequestId: 'approval' }])
+    expect(controller.getSnapshot().permission?.toolCallId).toBe(record.id)
+    const before = controller.getSnapshot()
+    reads[1]({ ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] }, toolCalls: [record] })
+    await Promise.resolve()
+    expect(controller.getSnapshot()).toBe(before)
+    emit('tool-call', { id: record.id, runId: 'run', status: 'cancelled', approvalRequestId: 'approval', error: '用户拒绝了操作', completedAt: 12 }, 'a', 'run')
+    expect(controller.getSnapshot().session?.toolCalls[0]).toEqual({ ...record, status: 'cancelled', approvalRequestId: 'approval', error: '用户拒绝了操作', completedAt: 12 })
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('merges live output into the original tool and leaves other runs and tasks unchanged', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const record = { id: 'command', tool: 'bash', runId: 'run', target: 'printf done', status: 'running' as const, createdAt: 10, input: { text: 'printf done', truncated: false } }
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] }, toolCalls: [record] })
+    await controller.start()
+    vi.mocked(host.getSession).mockImplementation(() => new Promise(() => {}))
+    emit('tool-call', { id: record.id, runId: 'run', output: { text: 'done', truncated: false } }, 'a', 'run')
+    expect(controller.getSnapshot().session?.toolCalls).toEqual([{ ...record, output: { text: 'done', truncated: false } }])
+    const before = controller.getSnapshot()
+    emit('tool-call', { id: record.id, runId: 'different-run', status: 'ok' }, 'a', 'run')
+    emit('tool-call', { ...record, status: 'ok' }, 'b', 'run')
+    expect(controller.getSnapshot()).toBe(before)
+    controller.dispose()
+  })
+
+  it('returns pin failures to the owning row without changing the selected task or global error, then refreshes on retry', async () => {
+    const { controller, host } = fixture(); await controller.start(); await controller.open('a')
+    const before = controller.getSnapshot()
+    host.setSessionPinned = vi.fn(async () => { throw new Error('置顶未保存，请重试') })
+    vi.mocked(host.listSessions).mockClear(); vi.mocked(host.getSession).mockClear()
+    await expect(controller.setSessionPinned('b', true)).rejects.toThrow('置顶未保存，请重试')
+    expect(host.listSessions).not.toHaveBeenCalled()
+    expect(controller.getSnapshot()).toBe(before)
+    host.setSessionPinned = vi.fn(async () => undefined)
+    vi.mocked(host.listSessions).mockResolvedValueOnce([session('a'), { ...session('b'), pinned: true }])
+    await controller.setSessionPinned('b', true)
+    expect(host.setSessionPinned).toHaveBeenCalledExactlyOnceWith('b', true)
+    expect(controller.getSnapshot().sessions.find(item => item.id === 'b')?.pinned).toBe(true)
+    expect(controller.getSnapshot().session).toBe(before.session)
+    expect(host.getSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('refreshes shared directory input history for other task queue updates without changing the open task', async () => {
+    const { controller, emit } = fixture(); await controller.start(); await controller.open('a')
+    const before = controller.getSnapshot()
+    emit('queue-updated', { queue: { sessionId: 'b', revision: 1, items: [] } }, 'b')
+    expect(controller.getSnapshot().promptHistoryRevision).toBe(1)
+    expect(controller.getSnapshot()).toMatchObject({ session: before.session, messages: before.messages, queue: before.queue })
+    emit('queue-updated', { queue: { sessionId: 'b', revision: 1, items: [] } }, 'b')
+    expect(controller.getSnapshot().promptHistoryRevision).toBe(1)
+    controller.dispose()
+  })
+  it.each([false, true])('refreshes the project list after selecting a directory, existing=%s, without navigating or creating a task', async existing => {
+    const { host, controller } = fixture()
+    await controller.start(); await controller.open('b')
+    const before = controller.getSnapshot()
+    const selected = { ...before.projects[0], id: existing ? 'project' : 'new-project', name: '所选项目', directoryExists: true }
+    const projects = existing ? [selected] : [...before.projects, selected]
+    host.selectProject = vi.fn(async () => selected)
+    vi.mocked(host.listProjects).mockClear().mockResolvedValueOnce(projects)
+    vi.mocked(host.getSession).mockClear()
+    expect(await controller.selectProject()).toEqual(selected)
+    expect(host.listProjects).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot()).toMatchObject({ projects, session: before.session, messages: before.messages, selection: before.selection })
+    expect(host.createSession).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('leaves project and task state untouched when the directory picker is canceled', async () => {
+    const { host, controller } = fixture()
+    await controller.start()
+    const before = controller.getSnapshot()
+    host.selectProject = vi.fn(async () => null)
+    vi.mocked(host.listProjects).mockClear(); vi.mocked(host.listSessions).mockClear()
+    expect(await controller.selectProject()).toBeNull()
+    expect(host.listProjects).not.toHaveBeenCalled(); expect(host.listSessions).not.toHaveBeenCalled()
+    expect(controller.getSnapshot()).toBe(before); expect(host.createSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('refreshes actual project name and availability after rename without reopening an unrelated task', async () => {
+    const { host, controller } = fixture()
+    host.renameProject = vi.fn(async () => undefined)
+    await controller.start(); await controller.open('b')
+    const before = controller.getSnapshot()
+    vi.mocked(host.getSession).mockClear(); vi.mocked(host.listProjects).mockClear()
+    const projects = before.projects.map(project => ({ ...project, name: '保留历史', directoryExists: false }))
+    vi.mocked(host.listProjects).mockResolvedValueOnce(projects)
+    await controller.renameProject('project', '保留历史')
+    expect(host.renameProject).toHaveBeenCalledExactlyOnceWith('project', '保留历史')
+    expect(host.listProjects).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot()).toMatchObject({ projects, session: before.session, messages: before.messages })
+    expect(host.getSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+})
+
 describe('React Harness pilot controller', () => {
+  it('queues compaction during a run and ignores an older queue ACK', async () => {
+    const { controller, host, emit } = fixture()
+    let finish!: (value: any) => void
+    host.compactConversation = vi.fn(() => new Promise(resolve => { finish = resolve }))
+    await controller.start(); await controller.open('a')
+    emit('status', { state: 'running' }, 'a', 'run')
+    const pending = controller.compactConversation('a')
+    emit('queue-updated', { queue: { sessionId: 'a', revision: 3, items: [] } })
+    finish({ status: 'queued', queue: { sessionId: 'a', revision: 2, items: [{ operation: 'context-compaction' }] } })
+    await pending
+    expect(host.compactConversation).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot().queue).toMatchObject({ revision: 3, items: [] })
+    controller.dispose()
+  })
+
+  it('does not apply a late context compaction snapshot to another task', async () => {
+    const { controller, host } = fixture()
+    let finish!: (value: any) => void
+    host.compactConversation = vi.fn(() => new Promise(resolve => { finish = resolve }))
+    await controller.start(); await controller.open('a')
+    const pending = controller.compactConversation('a')
+    await controller.open('b'); finish({ status: 'compacted', usage: { usedTokens: 10, contextWindow: 1000, source: 'estimated', updatedAt: 1 } })
+    await expect(pending).resolves.toMatchObject({ status: 'compacted' })
+    expect(host.compactConversation).toHaveBeenCalledExactlyOnceWith('a', expect.objectContaining({ providerId: 'provider', modelId: 'model' }))
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    expect(controller.supportsContextCompaction).toBe(true)
+    controller.dispose()
+  })
+
+  it('refreshes a created fork without navigating a late response over another task', async () => {
+    const { controller, host } = fixture()
+    let finish!: (value: HarnessSession) => void
+    host.forkConversation = vi.fn(() => new Promise(resolve => { finish = resolve }))
+    await controller.start(); await controller.open('a')
+    const pending = controller.forkConversation('a', 'reply', 'request')
+    await controller.open('b'); finish(session('fork'))
+    await expect(pending).resolves.toMatchObject({ id: 'fork' })
+    expect(host.forkConversation).toHaveBeenCalledExactlyOnceWith('a', 'reply', 'request')
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    expect(controller.supportsConversationFork).toBe(true)
+    expect(controller.createSideController('side', 'a').supportsConversationFork).toBe(false)
+    controller.dispose()
+  })
+
+  it('reports a committed fork separately from list refresh failure and retries the same identity', async () => {
+    const { controller, host } = fixture()
+    host.forkConversation = vi.fn(async () => session('fork'))
+    await controller.start(); await controller.open('a')
+    vi.mocked(host.listSessions).mockRejectedValueOnce(new Error('read failure'))
+    await expect(controller.forkConversation('a', 'reply', 'request')).rejects.toThrow('分支已创建')
+    await expect(controller.forkConversation('a', 'reply', 'request')).resolves.toMatchObject({ id: 'fork' })
+    expect(host.forkConversation).toHaveBeenNthCalledWith(2, 'a', 'reply', 'request')
+    expect(controller.getSnapshot().session?.id).toBe('a'); controller.dispose()
+  })
+
+  it('inherits the side runtime reasoning level instead of the global unsent model preference', async () => {
+    const { host, snapshots, controller } = fixture()
+    snapshots.set('side', { ...session('side'), parentSessionId: 'a', modelProviderId: 'provider', modelId: 'model', modelThinkingLevel: 'low' })
+    host.getPreference = vi.fn(async key => key === 'model-selection' ? { providerId: 'provider', modelId: 'model', thinkingLevel: 'high' } : null)
+    host.setPreference = vi.fn(async () => undefined)
+    const side = controller.createSideController('side', 'a')
+    await side.start()
+    expect(side.getSnapshot().selection).toEqual({ providerId: 'provider', modelId: 'model', thinkingLevel: 'low' })
+    side.select({ providerId: 'provider', modelId: 'model', thinkingLevel: 'medium' })
+    await side.open('side')
+    expect(side.getSnapshot().selection?.thinkingLevel).toBe('medium')
+    side.dispose(); controller.dispose()
+  })
+  it('binds a side controller to its parent without stealing main navigation or model preferences', async () => {
+    const { host, snapshots, controller } = fixture()
+    snapshots.set('side', { ...session('side'), parentSessionId: 'a' })
+    host.getPreference = vi.fn(async key => key === 'active-session' ? 'b' : null)
+    host.setPreference = vi.fn(async () => undefined)
+    await controller.start()
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    vi.mocked(host.setPreference).mockClear()
+    const side = controller.createSideController('side', 'a')
+    await side.start()
+    expect(side.getSnapshot().session?.id).toBe('side')
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    side.select({ providerId: 'provider', modelId: 'model', thinkingLevel: 'high' })
+    await expect(side.open('b')).resolves.toBe(false)
+    expect(host.setPreference).not.toHaveBeenCalledWith('active-session', expect.anything())
+    expect(host.setPreference).not.toHaveBeenCalledWith('model-selection', expect.anything())
+    expect(host.setPreference).toHaveBeenCalledWith('session-model-selection.side', expect.objectContaining({ thinkingLevel: 'high' }))
+    side.dispose(); controller.dispose()
+  })
+
+  it('rejects a restored side session whose parent no longer matches', async () => {
+    const { host, snapshots, controller } = fixture()
+    snapshots.set('side', { ...session('side'), parentSessionId: 'b' })
+    host.setPreference = vi.fn(async () => undefined)
+    const side = controller.createSideController('side', 'a'); await side.start()
+    expect(side.getSnapshot().session).toBeUndefined()
+    expect(side.getSnapshot().error).toContain('不可用')
+    expect(host.setPreference).not.toHaveBeenCalled()
+    side.dispose(); controller.dispose()
+  })
+
+  it('opens an existing task independently and routes its sends, stops and approvals without moving the main task', async () => {
+    const { host, snapshots, controller } = fixture()
+    const listeners = new Set<(event: HarnessEvent) => void>()
+    host.onEvent = callback => { listeners.add(callback); return () => { listeners.delete(callback) } }
+    host.getPreference = vi.fn(async key => key === 'active-session' ? 'a' : null)
+    host.setPreference = vi.fn(async () => undefined)
+    await controller.start()
+    const main = controller.getSnapshot().session
+    const pane = controller.createTaskPaneController('b'); await pane.start()
+    expect(pane.getSnapshot().session?.id).toBe('b'); expect(controller.getSnapshot().session).toBe(main)
+    vi.mocked(host.setPreference).mockClear()
+    pane.select({ providerId: 'provider', modelId: 'model', thinkingLevel: 'high' })
+    await expect(pane.open('a')).resolves.toBe(false)
+    expect(host.setPreference).not.toHaveBeenCalledWith('active-session', expect.anything())
+    expect(host.setPreference).not.toHaveBeenCalledWith('model-selection', expect.anything())
+    expect(host.createSession).not.toHaveBeenCalled()
+    await expect(pane.send('B only')).resolves.toBe(true)
+    expect(host.runMessage).toHaveBeenLastCalledWith('b', 'B only', expect.objectContaining({ thinkingLevel: 'high' }), false, [])
+    const running = { ...session('b'), activeRun: { id: 'run-b', startedAt: 1, activities: [], subtasks: [] } }
+    snapshots.set('b', running); await pane.open('b'); await pane.stop()
+    expect(host.abortRun).toHaveBeenLastCalledWith('b', 'run-b')
+    const approval = { requestId: 'request-b', sessionId: 'b', runId: 'run-b', toolName: 'shell', input: {}, createdAt: 1 }
+    Object.assign(pane.getSnapshot(), { permission: approval })
+    await expect(pane.permission(true, 'request-a')).rejects.toThrow('权限请求已更新')
+    await pane.permission(true, 'request-b')
+    expect(host.respondPermission).toHaveBeenLastCalledWith('request-b', true)
+    expect(controller.getSnapshot().session).toBe(main)
+    pane.dispose(); expect(listeners.size).toBe(1); controller.dispose(); expect(listeners.size).toBe(0)
+  })
+
+  it.each(['archived', 'prepared'])('rejects an unavailable existing task without creating a substitute: %s', async kind => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('b', { ...session('b'), ...(kind === 'archived' ? { archivedAt: 2 } : { draftState: 'prepared' as const }) })
+    const pane = controller.createTaskPaneController('b'); await pane.start()
+    expect(pane.getSnapshot().session).toBeUndefined(); expect(pane.getSnapshot().error).toContain('不可用')
+    await expect(pane.create()).resolves.toBe(false); await expect(pane.prepare()).resolves.toBe(false)
+    expect(host.createSession).not.toHaveBeenCalled(); expect(host.runMessage).not.toHaveBeenCalled()
+    pane.dispose(); controller.dispose()
+  })
+
+  it('forgets a deleted side owner before pane cleanup can save its stale draft, and detaches the listener on disposal', async () => {
+    const { controller, host } = fixture()
+    const listeners = new Set<(event: HarnessEvent) => void>()
+    host.onEvent = callback => { listeners.add(callback); return () => { listeners.delete(callback) } }
+    host.deleteSession = vi.fn(async () => undefined)
+    await controller.start(); await controller.open('a')
+    const pane = controller.createTaskPaneController('b'); await pane.start()
+    const removed = vi.fn(); pane.onSessionDeleted(removed)
+    await controller.deleteSession('b')
+    expect(removed).toHaveBeenCalledExactlyOnceWith('b'); expect(pane.getSnapshot().session).toBeUndefined()
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    await expect(pane.send('stale send')).resolves.toBe(false); expect(host.runMessage).not.toHaveBeenCalled()
+    pane.dispose(); await controller.deleteSession('b'); expect(removed).toHaveBeenCalledTimes(1)
+    controller.dispose()
+  })
+
   it('deduplicates batch confirmation, removes only successful owners, notifies and refreshes once', async () => {
     const { controller, host } = fixture()
     let finish!: (result: { deletedIds: string[]; skippedIds: string[]; failedIds: string[] }) => void
@@ -97,6 +365,19 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('reports a disabled permission as a pre-admission refusal so the Composer can resample it', async () => {
+    const { controller, host } = fixture()
+    const queue: HarnessMessageQueueSnapshot = { sessionId: 'a', revision: 0, items: [] }
+    host.submitMessage = vi.fn(async () => ({ retryRequired: true as const, reason: 'permission-mode-disabled' as const, queue }))
+    host.getMessageQueue = vi.fn(async id => ({ sessionId: id, revision: 0, items: [] })); host.withdrawMessage = vi.fn(); host.resumeMessageQueue = vi.fn()
+    Object.defineProperty(host, 'supportsQueueSubmissionOptions', { value: true })
+    await controller.start()
+    expect(await controller.send('保留正文', false, [], 'rejected', undefined, { permissionMode: 'full' })).toBe('retry-required')
+    expect(controller.getSnapshot().error).toContain('所选权限已在设置中禁用')
+    expect(controller.getSnapshot().messages).toEqual([])
+    controller.dispose()
+  })
+
   it.each(['archiveSession', 'deleteSession'] as const)('waits for current draft staging before %s and refuses the action when saving fails', async action => {
     const { controller, host } = fixture()
     host[action] = vi.fn(async () => undefined)
@@ -111,6 +392,66 @@ describe('React Harness pilot controller', () => {
     controller.registerBeforeNavigation(async () => { throw new Error('附件尚未添加成功') })
     await expect(controller[action]('a')).rejects.toThrow('附件尚未添加成功')
     expect(host[action]).not.toHaveBeenCalled(); expect(controller.getSnapshot().session?.id).toBe('a')
+    controller.dispose()
+  })
+
+  it.each(['archiveSession', 'deleteSession'] as const)('saves visible secondary drafts before %s, preserves them on failure, and does not block hidden task mutations', async action => {
+    const { controller, host } = fixture()
+    host[action] = vi.fn(async () => undefined)
+    await controller.start()
+    controller.setVisibleSessionIds(['a', 'b'])
+    let finish!: () => void
+    const save = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const unregister = controller.registerBeforeNavigation(save)
+    const change = controller[action]('b')
+    expect(save).toHaveBeenCalledOnce(); expect(host[action]).not.toHaveBeenCalled()
+    finish(); await change
+    expect(host[action]).toHaveBeenCalledExactlyOnceWith('b')
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    unregister(); vi.mocked(host[action]!).mockClear()
+    const failedSave = vi.fn(async () => { throw new Error('侧任务输入尚未保存') })
+    controller.registerBeforeNavigation(failedSave)
+    await expect(controller[action]('b')).rejects.toThrow('侧任务输入尚未保存')
+    expect(host[action]).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    expect(controller.getSnapshot().error).toBeUndefined()
+    controller.setVisibleSessionIds(['a']); failedSave.mockClear()
+    await controller[action]('b')
+    expect(failedSave).not.toHaveBeenCalled(); expect(host[action]).toHaveBeenCalledExactlyOnceWith('b')
+    controller.dispose()
+  })
+
+  it.each([true, false])('returns to an empty task when deleting a split primary without promoting a secondary, visible=%s', async visible => {
+    const { controller, host } = fixture()
+    await controller.start()
+    host.deleteSession = vi.fn(async () => undefined)
+    vi.mocked(host.listSessions).mockResolvedValueOnce([session('b')])
+    vi.mocked(host.getSession).mockClear()
+    controller.setVisibleSessionIds(visible ? ['a', 'b'] : [], 'a')
+    await controller.deleteSession('a')
+    expect(controller.getSnapshot()).toMatchObject({ session: undefined, sessionLoading: false, messages: [] })
+    expect(controller.getSnapshot().sessions.map(item => item.id)).toEqual(['b'])
+    expect(host.getSession).not.toHaveBeenCalled(); expect(host.abortRun).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('preserves a newer guarded task load while a displayed task deletion is awaiting acceptance', async () => {
+    const { controller, host } = fixture()
+    await controller.start()
+    let accept!: () => void, finish!: (value: HarnessSession) => void
+    host.deleteSession = vi.fn(() => new Promise<void>(resolve => { accept = resolve }))
+    vi.mocked(host.listSessions).mockResolvedValueOnce([session('b')])
+    const deleting = controller.deleteSession('a')
+    await vi.waitFor(() => expect(accept).toBeTypeOf('function'))
+    vi.mocked(host.getSession).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const opening = controller.open('b', () => true)
+    accept(); await deleting
+    expect(controller.getSnapshot().session).toBeUndefined()
+    expect(controller.getSnapshot().sessionLoading).toBe(true)
+    finish(session('b', '用户最新打开的任务'))
+    expect(await opening).toBe(true)
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    expect(host.getSession).toHaveBeenCalledTimes(2)
     controller.dispose()
   })
 
@@ -765,6 +1106,21 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it.each(['task', 'run'] as const)('does not publish a late stop failure after the user selected a newer %s', async changed => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), activeRun: { id: 'run-a', startedAt: 1, activities: [], subtasks: [] }, status: 'running' })
+    await controller.start()
+    let reject!: (error: Error) => void
+    host.abortRun = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail }))
+    const stopping = controller.stop()
+    if (changed === 'task') await controller.open('b')
+    else { snapshots.set('a', { ...snapshots.get('a')!, activeRun: { id: 'run-new', startedAt: 2, activities: [], subtasks: [] } }); await controller.open('a') }
+    reject(new Error('旧停止请求失败')); await stopping
+    expect(host.abortRun).toHaveBeenCalledExactlyOnceWith('a', 'run-a')
+    expect(controller.getSnapshot().error).toBeUndefined()
+    controller.dispose()
+  })
+
   it('can stop the preparing run from its event identity before a snapshot arrives', async () => {
     const { controller, host, emit } = fixture()
     await controller.start()
@@ -1185,6 +1541,44 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('returns permission transport failures to the owner card without changing the global error', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    emit('permission-request', { requestId: 'req', title: '写入', detail: 'file.md' })
+    vi.mocked(host.respondPermission).mockRejectedValueOnce(new Error('权限提交失败'))
+    await expect(controller.permission(true)).rejects.toThrow('权限提交失败')
+    expect(controller.getSnapshot()).toMatchObject({ permission: { requestId: 'req' }, error: undefined })
+    await controller.permission(false)
+    expect(host.respondPermission).toHaveBeenLastCalledWith('req', false)
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    controller.dispose()
+  })
+
+  it.each([true, false])('does not apply a late permission response to a newly selected task, success=%s', async success => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    emit('permission-request', { requestId: 'a-request', title: '写入', detail: 'a.md' })
+    let finish!: () => void
+    vi.mocked(host.respondPermission).mockImplementationOnce(() => new Promise((resolve, reject) => { finish = () => success ? resolve() : reject(new Error('A 权限失败')) }))
+    const request = controller.permission(true).catch(error => error)
+    await controller.open('b')
+    emit('permission-request', { requestId: 'b-request', title: '写入', detail: 'b.md' }, 'b')
+    emit('error', { message: 'B 自己的错误' }, 'b')
+    const before = controller.getSnapshot()
+    finish(); await request
+    expect(controller.getSnapshot()).toBe(before)
+    expect(controller.getSnapshot()).toMatchObject({ permission: { requestId: 'b-request' }, error: 'B 自己的错误' })
+    controller.dispose()
+  })
+
+  it('rejects a stale explicit permission identity instead of approving a newer tool', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    emit('permission-request', { requestId: 'current', title: '写入', detail: 'file.md' })
+    await expect(controller.permission(true, 'old')).rejects.toThrow('权限请求已更新')
+    expect(host.respondPermission).not.toHaveBeenCalled()
+    await controller.permission(true, 'current')
+    expect(host.respondPermission).toHaveBeenCalledExactlyOnceWith('current', true)
+    controller.dispose()
+  })
+
   it('clears an expired tool approval while the same run continues and ignores a later approval click', async () => {
     const { controller, host, snapshots, emit } = fixture()
     snapshots.set('a', { ...session('a'), activeRun: { id: 'run', startedAt: 10, activities: [], subtasks: [] } })
@@ -1415,6 +1809,74 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('exposes a rejected plan confirmation to the card and preserves its waiting identity for retry', async () => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), pendingInteraction: { id: 'review', kind: 'plan-review', status: 'waiting', planId: 'plan-a', createdAt: 1 } })
+    await controller.start()
+    vi.mocked(host.confirmPlan).mockRejectedValueOnce(new Error('确认未接纳'))
+    await expect(controller.confirmPlan()).rejects.toThrow('确认未接纳')
+    expect(controller.getSnapshot()).toMatchObject({ session: { pendingInteraction: { id: 'review', status: 'waiting' } }, error: undefined })
+    await controller.confirmPlan()
+    expect(host.confirmPlan).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
+  it('preserves a new task error when an earlier plan confirmation fails late', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), pendingInteraction: { id: 'review', kind: 'plan-review', status: 'waiting', planId: 'plan-a', createdAt: 1 } })
+    await controller.start()
+    let reject!: (error: Error) => void
+    vi.mocked(host.confirmPlan).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    const request = controller.confirmPlan().catch(error => error)
+    await controller.open('b'); emit('error', { message: 'B 的错误' }, 'b')
+    const before = controller.getSnapshot()
+    reject(new Error('A 的错误')); await request
+    expect(controller.getSnapshot()).toBe(before)
+    controller.dispose()
+  })
+
+  it('returns a clarification failure to its card without replacing the answers or global error', async () => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), pendingInteraction: { id: 'question', kind: 'question', status: 'waiting', createdAt: 1, questions: [{ id: 'q1', question: '范围' }] } })
+    await controller.start()
+    const answers = [{ id: 'q1', selected: [], custom: '保留回答' }]
+    vi.mocked(host.answerInteraction).mockRejectedValueOnce(new Error('连接失败，请重试'))
+    await expect(controller.answerQuestion(answers)).rejects.toThrow('连接失败，请重试')
+    expect(controller.getSnapshot()).toMatchObject({ session: { pendingInteraction: { id: 'question', status: 'waiting' } }, error: undefined })
+    await controller.answerQuestion(answers)
+    expect(host.answerInteraction).toHaveBeenLastCalledWith('a', 'question', answers, expect.any(Object))
+    controller.dispose()
+  })
+
+  it('rejects an old card identity or resolved question before invoking the host', async () => {
+    const { controller, host, snapshots } = fixture()
+    const question = { id: 'new-question', kind: 'question' as const, status: 'waiting' as const, createdAt: 1, questions: [{ id: 'q1', question: '范围' }] }
+    snapshots.set('a', { ...session('a'), pendingInteraction: question })
+    await controller.start()
+    await expect(controller.answerQuestion([{ id: 'q1', selected: [] }], 'old-question')).rejects.toThrow('问题或模型已更新')
+    snapshots.set('a', { ...session('a'), pendingInteraction: { ...question, status: 'answered' } })
+    await controller.open('a')
+    await expect(controller.answerQuestion([{ id: 'q1', selected: [] }], 'new-question')).rejects.toThrow('问题或模型已更新')
+    expect(host.answerInteraction).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it.each([true, false])('does not apply a late clarification result to a newly opened task, success=%s', async success => {
+    const { controller, host, snapshots, emit } = fixture()
+    snapshots.set('a', { ...session('a'), pendingInteraction: { id: 'question', kind: 'question', status: 'waiting', createdAt: 1, questions: [{ id: 'q1', question: '范围' }] } })
+    await controller.start()
+    let finish!: () => void
+    vi.mocked(host.answerInteraction).mockImplementationOnce(() => new Promise((resolve, reject) => { finish = () => success ? resolve() : reject(new Error('A 失败')) }))
+    const request = controller.answerQuestion([{ id: 'q1', selected: ['资料'] }])
+    const result = request.catch(error => error)
+    await controller.open('b'); emit('error', { message: 'B 自己的错误' }, 'b')
+    const before = controller.getSnapshot(); vi.mocked(host.getSession).mockClear()
+    finish(); await result
+    expect(controller.getSnapshot()).toBe(before)
+    expect(host.getSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
   it('restores a pending permission on session open and ignores an older pending query', async () => {
     const { controller, host, emit } = fixture()
     vi.mocked(host.listPendingPermissions).mockResolvedValueOnce([{ sessionId: 'a', requestId: 'stored', title: '写入', detail: 'draft.md' }])
@@ -1475,6 +1937,67 @@ describe('React Harness pilot controller', () => {
     emit('status', { state: 'failed' }, 'a')
     expect(controller.getSnapshot().unreadSessionIds).toEqual(['b'])
     controller.dispose()
+  })
+
+  it('keeps visible side completions read but retains unread for hidden panes and hidden primary views', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    host.setSessionUnread = vi.fn(async () => undefined)
+    controller.setVisibleSessionIds(['a', 'b'])
+    emit('status', { state: 'completed' }, 'b')
+    expect(controller.getSnapshot().unreadSessionIds).toEqual([])
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    controller.setVisibleSessionIds(['a'])
+    emit('status', { state: 'failed' }, 'b')
+    expect(controller.getSnapshot().unreadSessionIds).toEqual(['b'])
+    controller.setVisibleSessionIds(['a', 'b'])
+    expect(controller.getSnapshot().unreadSessionIds).toEqual([])
+    expect(host.setSessionUnread).toHaveBeenCalledWith('b', false)
+    controller.setVisibleSessionIds([])
+    emit('status', { state: 'completed' }, 'a')
+    expect(controller.getSnapshot().unreadSessionIds).toEqual(['a'])
+    controller.setVisibleSessionIds(['a'])
+    expect(controller.getSnapshot().unreadSessionIds).toEqual([])
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    controller.dispose()
+  })
+
+  it('does not resurrect a side unread marker from a list requested before the pane was viewed', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    Object.assign(controller.getSnapshot(), { sessions: [session('a'), { ...session('b'), unread: true }] })
+    let resolve!: (sessions: Awaited<ReturnType<PilotHost['listSessions']>>) => void
+    vi.mocked(host.listSessions).mockReturnValueOnce(new Promise(done => { resolve = done }))
+    emit('title-updated', {}, 'b')
+    controller.setVisibleSessionIds(['a', 'b'])
+    resolve([session('a'), { ...session('b'), unread: true }]); await Promise.resolve(); await Promise.resolve()
+    expect(controller.getSnapshot().sessions.find(item => item.id === 'b')?.unread).toBe(false)
+    controller.dispose()
+  })
+
+  it('reconciles persisted shell completion unread only for visible tasks after the list refresh', async () => {
+    const { controller, host } = fixture(); await controller.start()
+    host.setSessionUnread = vi.fn(async () => undefined)
+    controller.setVisibleSessionIds(['a', 'b'])
+    vi.mocked(host.listSessions).mockResolvedValueOnce([{ ...session('a'), unread: true }, { ...session('b'), unread: true }])
+    await controller.refreshSessions()
+    expect(controller.getSnapshot().sessions.every(session => !session.unread)).toBe(true)
+    expect(host.setSessionUnread).toHaveBeenCalledWith('a', false)
+    expect(host.setSessionUnread).toHaveBeenCalledWith('b', false)
+    controller.setVisibleSessionIds(['a'])
+    vi.mocked(host.listSessions).mockResolvedValueOnce([session('a'), { ...session('b'), unread: true }])
+    await controller.refreshSessions()
+    expect(controller.getSnapshot().sessions.find(session => session.id === 'b')?.unread).toBe(true)
+    controller.dispose()
+  })
+
+  it('does not clear unread just by mounting an existing hidden task controller', async () => {
+    const { controller, host } = fixture()
+    vi.mocked(host.listSessions).mockResolvedValue([session('a'), { ...session('b'), unread: true }])
+    host.setSessionUnread = vi.fn(async () => undefined)
+    const pane = controller.createTaskPaneController('b'); await pane.start()
+    expect(pane.getSnapshot().session?.id).toBe('b')
+    expect(pane.getSnapshot().sessions.find(item => item.id === 'b')?.unread).toBe(true)
+    expect(host.setSessionUnread).not.toHaveBeenCalled()
+    pane.dispose(); controller.dispose()
   })
 
   it('marks a session read when it is opened and notifies the host', async () => {
@@ -1801,6 +2324,7 @@ describe('React Harness pilot controller', () => {
     const deleted = vi.fn()
     const unsubscribe = controller.onSessionDeleted(deleted)
     const deleting = controller.deleteSession('b')
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     expect(deleted).not.toHaveBeenCalled()
     finish()
     await expect(deleting).rejects.toThrow('列表刷新失败')
@@ -2196,6 +2720,20 @@ describe('React Harness pilot controller', () => {
     expect(controller.getSnapshot().error).toBe('草稿保存失败')
     unregister()
     controller.dispose()
+  })
+
+  it('lets a pane report its own failed draft flush without replacing a main task error', async () => {
+    const { controller, host } = fixture(), pane = new PilotController(host)
+    controller.reportError(new Error('主任务原有错误'))
+    pane.registerBeforeNavigation(async () => { throw new Error('草稿保存失败') })
+    controller.registerBeforeNavigation(reportFailure => pane.flushBeforeNavigation(reportFailure))
+    await expect(controller.flushBeforeNavigation(false)).rejects.toThrow('草稿保存失败')
+    expect(controller.getSnapshot().error).toBe('主任务原有错误')
+    expect(pane.getSnapshot().error).toBeUndefined()
+    await expect(controller.flushBeforeNavigation()).rejects.toThrow('草稿保存失败')
+    expect(controller.getSnapshot().error).toBe('草稿保存失败')
+    expect(pane.getSnapshot().error).toBe('草稿保存失败')
+    controller.dispose(); pane.dispose()
   })
 
   it('unregisters disposed composer callbacks and preserves best-effort preference writes', async () => {

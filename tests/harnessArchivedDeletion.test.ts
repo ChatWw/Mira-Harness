@@ -17,6 +17,40 @@ function setup() {
 }
 
 describe('real archived selection writes', () => {
+  it('cascades an archived parent deletion to its side history, frozen attachments and owner drafts', async () => {
+    const { database, runtime } = setup()
+    const parent = database.harness.createSession(), other = database.harness.createSession()
+    const child = database.harness.createSideConversation(parent.id)
+    const otherChild = database.harness.createSideConversation(other.id)
+    const key = `${preference}.side.${child.id}`
+    const draft = { drafts: { [child.id]: '侧边草稿' }, fileDrafts: {}, config: {}, submissions: {} }
+    database.savePreference(key, draft)
+    database.savePreference(`${preference}.side.${otherChild.id}`, { ...draft, drafts: { [otherChild.id]: '保留' } })
+    const [attachment] = database.harness.importMessageAttachments(child.id, [{ name: 'notes.md', mediaType: 'text/markdown', data: Buffer.from('独立附件').toString('base64') }])
+    database.harness.saveSession({ ...child, messages: [{ id: 'child-message', role: 'user', content: '侧边历史', attachments: [attachment], createdAt: Date.now() }] })
+    database.harness.archiveSessions([parent.id])
+    expect(await runtime.deleteArchivedSessions([parent.id], () => undefined)).toEqual({ deletedIds: [parent.id], skippedIds: [], failedIds: [] })
+    expect(() => database.harness.getSession(child.id)).toThrow('未找到会话')
+    expect(database.harness.sideConversationIds(parent.id)).toEqual([])
+    expect(database.harness.getSession(otherChild.id).parentSessionId).toBe(other.id)
+    expect(database.getSnapshot().preferences[key]).toMatchObject({ drafts: {} })
+    expect(database.getSnapshot().preferences[`${preference}.side.${otherChild.id}`]).toMatchObject({ drafts: { [otherChild.id]: '保留' } })
+    database.savePreference(key, draft)
+    expect(database.getSnapshot().preferences[key]).toMatchObject({ drafts: {} })
+  })
+  it('blocks destructive parent lifecycle while a side run or unconfirmed side submission owns work', () => {
+    const { database, runtime } = setup()
+    const parent = database.harness.createSession()
+    const side = database.harness.createSideConversation(parent.id)
+    const coordinator = (runtime as unknown as { runCoordinator: { reserve(id: string): symbol; release(id: string, token: symbol): void } }).runCoordinator
+    const token = coordinator.reserve(side.id)
+    expect(() => runtime.assertSessionMutable(parent.id)).toThrow('正在运行')
+    coordinator.release(side.id, token)
+    database.savePreference(`${preference}.side.${side.id}`, { drafts: {}, fileDrafts: {}, submissions: { [side.id]: { id: 'pending' } } })
+    expect(() => runtime.assertSessionMutable(parent.id)).toThrow('待发送')
+    database.savePreference(`${preference}.side.${side.id}`, { drafts: {}, fileDrafts: {}, submissions: {} })
+    expect(() => runtime.assertSessionMutable(parent.id)).not.toThrow()
+  })
   it('includes >50, pinned and project tasks, freezes scope, and skips restored/missing/running/queued/unconfirmed targets', async () => {
     const { root, database, runtime } = setup()
     const directory = join(root, 'hidden-project'); mkdirSync(directory)

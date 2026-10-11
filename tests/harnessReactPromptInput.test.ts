@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { filterMiraSuggestions, findMiraPromptToken, formatMiraConversationReference, insertMiraPromptTrigger, miraPromptReplacementRange, nextMiraSuggestionIndex, replaceMiraPromptRange } from '../apps/harness-react/src/lib/prompt-input-triggers'
+import { bestMiraSuggestionIndex, filterMiraSuggestions, findMiraPromptToken, formatMiraConversationReference, insertMiraPromptTrigger, miraPromptReplacementRange, nextMiraSuggestionIndex, replaceMiraPromptRange } from '../apps/harness-react/src/lib/prompt-input-triggers'
 
 describe('Mira composer caret triggers and replacements', () => {
+  it('selects the strongest match across groups while skipping disabled rows and retaining host-only file matches', () => {
+    const items = [{ label: 'Weak', description: 'reviewer helper' }, { label: 'reviewer', keywords: '审查 agent' }, { label: '/reviewer', disabled: true }]
+    expect(bestMiraSuggestionIndex(items, 'reviewer')).toBe(1)
+    expect(bestMiraSuggestionIndex([{ label: 'parent.ts' }], 'matched-in-parent-directory')).toBe(0)
+    expect(bestMiraSuggestionIndex([{ label: 'Only', disabled: true }], '')).toBe(-1)
+    expect(bestMiraSuggestionIndex(items, '')).toBe(0)
+  })
+  it('discovers # conversations without treating embedded issue numbers as triggers, and preserves a matching tail', () => {
+    expect(findMiraPromptToken('compare #研究 后文', 11)).toEqual({ trigger: '#', query: '研究', start: 8, end: 11 })
+    expect(findMiraPromptToken('issue#123', 9)).toBeNull()
+    const text = '#研究记录 后文', token = findMiraPromptToken(text, 2)!
+    expect(miraPromptReplacementRange(text, token, ['#研究记录'])).toEqual({ start: 0, end: 5 })
+    expect(insertMiraPromptTrigger('前文后文', { start: 2, end: 2 }, '#')).toEqual({ text: '前文 #后文', caret: 4 })
+  })
+
   it('opens @ and slash at the caret without requiring an otherwise empty draft', () => {
     expect(findMiraPromptToken('检查 @README 之后继续', 10)).toEqual({ trigger: '@', query: 'README', start: 3, end: 10 })
     expect(findMiraPromptToken('before /plan after', 12)).toEqual({ trigger: '/', query: 'plan', start: 7, end: 12 })

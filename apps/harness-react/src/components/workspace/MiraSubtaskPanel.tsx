@@ -17,7 +17,7 @@ export const miraSubtaskStatusLabels: Record<HarnessSubtask['status'], string> =
 const childDetailMemory = new MiraConversationDetailMemory()
 
 export function MiraActivityList({ activities }: { activities: HarnessRunActivity[] }) {
-  const labels: Record<HarnessRunActivity['status'], string> = { pending: '待执行', running: '执行中', completed: '已完成', failed: '失败' }
+  const labels: Record<HarnessRunActivity['status'], string> = { pending: '待执行', running: '执行中', completed: '已完成', failed: '失败', stopped: '已停止' }
   return activities.length ? <ol className="mira-run-activities">{activities.map((activity, index) => <li key={JSON.stringify([activity.id, index])} data-activity-id={activity.id} data-status={activity.status}>
     <span className="mira-subtask-status-dot" aria-hidden="true" />
     <div><strong>{activity.label}</strong>{activity.detail && <p>{activity.detail}</p>}<small>{new Date(activity.startedAt).toLocaleTimeString()}{activity.completedAt !== undefined ? ` — ${new Date(activity.completedAt).toLocaleTimeString()}` : ''}</small></div>

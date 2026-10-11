@@ -31,8 +31,9 @@ async function fixture(initialText = '', initialDocument?: MiraPromptDocument) {
   const root = createRoot(document.getElementById('root')!)
   let text = initialText, richDocument = initialDocument, owner = 'a', selection: MiraPromptSelectionRange = { start: 0, end: 0 }
   const changed = vi.fn(), error = vi.fn(), keydown = vi.fn(), paste = vi.fn()
+  const history = vi.fn((_direction: 'up' | 'down') => false)
   function render() {
-    root.render(<MiraPromptEditor key={owner} ref={ref} text={text} document={richDocument} aria-label="任务内容" onChange={(next, range) => { richDocument = next; text = serializeMiraPromptDocument(next); selection = range; changed(next, range); render() }} onSelectionChange={next => { selection = next }} onKeyDown={keydown} onPaste={paste} onError={error} />)
+    root.render(<MiraPromptEditor key={owner} ref={ref} text={text} document={richDocument} aria-label="任务内容" onChange={(next, range) => { richDocument = next; text = serializeMiraPromptDocument(next); selection = range; changed(next, range); render() }} onSelectionChange={next => { selection = next }} onKeyDown={keydown} onHistoryNavigate={history} onPaste={paste} onError={error} />)
   }
   await act(async () => { render() })
   unmount = async () => { await act(async () => root.unmount()) }
@@ -49,10 +50,52 @@ async function fixture(initialText = '', initialDocument?: MiraPromptDocument) {
     await act(async () => { input().dispatchEvent(event) }); await settle()
     return { event, setData, getData }
   }
-  return { ref, input, replace, select, key, clipboard, settle, changed, error, keydown, paste, get text() { return text }, get document() { return richDocument }, get selection() { return selection }, update: async (next: string, nextDocument?: MiraPromptDocument, nextOwner = owner) => { await act(async () => { text = next; richDocument = nextDocument; owner = nextOwner; render() }); await settle() } }
+  return { ref, input, replace, select, key, clipboard, settle, changed, error, keydown, paste, history, get text() { return text }, get document() { return richDocument }, get selection() { return selection }, update: async (next: string, nextDocument?: MiraPromptDocument, nextOwner = owner) => { await act(async () => { text = next; richDocument = nextDocument; owner = nextOwner; render() }); await settle() } }
 }
 
 describe('Mira Lexical prompt editor', () => {
+  it('offers unmodified arrows to history only after candidate handlers, without disturbing IME or modified selection', async () => {
+    const view = await fixture(); await view.select(0)
+    view.history.mockReturnValue(true)
+    await view.key('ArrowUp'); await view.key('ArrowDown')
+    expect(view.history.mock.calls).toEqual([['up'], ['down']])
+    view.history.mockClear()
+    for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey', 'altKey', 'isComposing']) await view.key('ArrowUp', { [modifier]: true })
+    await view.key('ArrowDown', { keyCode: 229 } as KeyboardEventInit)
+    expect(view.history).not.toHaveBeenCalled()
+    view.keydown.mockImplementation((event: KeyboardEvent) => { if (event.key === 'ArrowDown') event.preventDefault() })
+    await view.key('ArrowDown'); expect(view.history).not.toHaveBeenCalled()
+    expect(view.text).toBe(''); expect(view.error).not.toHaveBeenCalled()
+  })
+  it('keeps the localized child role atomic and copies its actual @role request', async () => {
+    const agent: MiraPromptPart = { type: 'reference', reference: { id: 'agent-chip', kind: 'agent', label: '审查', value: 'reviewer', text: '@reviewer' } }
+    const view = await fixture('before after')
+    await view.replace(7, 7, [agent]); await view.select(7, 16)
+    expect(view.input().querySelector('[data-mira-prompt-reference="agent"]')?.textContent).toBe('审查')
+    expect((await view.clipboard('copy')).setData).toHaveBeenCalledWith('text/plain', '@reviewer')
+    await view.select(16); await view.key('Backspace'); expect(view.text).toBe('before after')
+    await view.key('z', { ctrlKey: true }); expect(view.text).toBe('before @reviewerafter')
+    expect(view.document?.parts.find(part => part.type === 'reference')).toEqual(agent)
+  })
+  it('deletes and undoes a plugin as one chip while retaining its stable identity', async () => {
+    const plugin: MiraPromptPart = { type: 'reference', reference: { id: 'plugin-chip', kind: 'plugin', label: 'review-kit', value: 'review-kit@local', text: '[@review-kit](plugin://review-kit@local)' } }
+    const view = await fixture('before after')
+    await view.replace(7, 7, [plugin]); await view.select(7 + plugin.reference.text.length)
+    expect(view.input().querySelector('[data-mira-prompt-reference="plugin"]')?.textContent).toBe('review-kit')
+    await view.key('Backspace'); expect(view.text).toBe('before after')
+    await view.key('z', { ctrlKey: true }); expect(view.text).toBe(`before ${plugin.reference.text}after`)
+    expect(view.document?.parts.find(part => part.type === 'reference')).toEqual(plugin)
+  })
+  it('deletes and undoes a skill chip atomically without losing its submitted identity', async () => {
+    const skill: MiraPromptPart = { type: 'reference', reference: { id: 'skill-chip', kind: 'skill', label: 'Research', value: 'research', text: '[$Research](mira-skill:research)' } }
+    const view = await fixture('before after')
+    await view.replace(7, 7, [skill]); await view.select(7 + skill.reference.text.length)
+    expect(view.input().querySelector('[data-mira-prompt-reference="skill"]')?.textContent).toBe('Research')
+    await view.key('Backspace'); expect(view.text).toBe('before after')
+    await view.key('z', { ctrlKey: true }); expect(view.text).toBe(`before ${skill.reference.text}after`)
+    expect(view.document?.parts.find(part => part.type === 'reference')).toEqual(skill)
+  })
+
   it('renders compact reference labels while serializing the actual session text and exact newlines', async () => {
     const view = await fixture('before\n\nafter\n')
     await view.replace(8, 8, [session])

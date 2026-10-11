@@ -103,6 +103,8 @@ describe('real subtask DTO side panels', () => {
   it('leaves a legacy overview unbound instead of adopting the current active run', async () => {
     await render(<OverviewPanel session={session()} sessionId="session-a" active onOpenSubtask={vi.fn()} onOpenFile={vi.fn()} />)
     expect(document.querySelector('[data-run-activity-id]')).toBeNull()
-    expect(text()).toContain('打开对应运行')
+    expect(document.querySelector('[role="status"]')).not.toBeNull()
+    expect(document.querySelector('[data-subtask-id]')).toBeNull()
+    expect(text()).not.toContain('new-child')
   })
 })

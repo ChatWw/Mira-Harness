@@ -162,6 +162,7 @@ describe('HarnessRuntime tool approval', () => {
     const session = { permissionMode: 'default' }
 
     expect((runtime as any).environmentContext(session, 'manual').permissionMode).toBe('full')
+    expect((runtime as any).environmentContext(session, 'manual', 'default').permissionMode).toBe('default')
     expect((runtime as any).environmentContext(session, 'automation', 'auto-approve').permissionMode).toBe('auto-approve')
   })
 
