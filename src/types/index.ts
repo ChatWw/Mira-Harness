@@ -109,6 +109,32 @@ export interface PlatformSnapshot {
 }
 
 export interface PlatformApi {
+  requestMiraWorkflow(request: import('@/config/miraFlowWorkbench').MiraFlowWorkbenchRequest): Promise<unknown>
+  hooks: {
+    list(params?: { projectId?: string }): Promise<import('@/config/miraHooks').MiraHookItem[]>
+    save(params: import('@/config/miraHooks').MiraHookWrite & { projectId?: string }): Promise<import('@/config/miraHooks').MiraHookItem>
+    delete(params: import('@/config/miraHooks').MiraHookDelete & { projectId?: string }): Promise<void>
+    setEnabled(params: import('@/config/miraHooks').MiraHookEnabled & { projectId?: string }): Promise<import('@/config/miraHooks').MiraHookItem>
+    trust(params: import('@/config/miraHooks').MiraHookTrust & { projectId?: string }): Promise<import('@/config/miraHooks').MiraHookItem>
+    revokeTrust(params: import('@/config/miraHooks').MiraPluginHookTrust): Promise<import('@/config/miraHooks').MiraHookItem>
+  }
+  agentModels: {
+    list(): Promise<import('@/config/miraAgentModels').MiraAgentModelSetting[]>
+    set(params: { target: import('@/config/miraAgentModels').MiraAgentModelTarget; modelSelection?: import('@/config/harness').ModelSelection }): Promise<import('@/config/miraAgentModels').MiraAgentModelSetting>
+  }
+  userAgents: {
+    list(params?: { projectId?: string; sessionId?: string }): Promise<import('@/config/miraUserAgents').MiraUserAgentItem[]>
+    read(params: { scope: import('@/config/miraUserAgents').MiraUserAgentScope; name: string; projectId?: string }): Promise<import('@/config/miraUserAgents').MiraUserAgentDocument>
+    save(params: import('@/config/miraUserAgents').MiraUserAgentWrite & { projectId?: string }): Promise<import('@/config/miraUserAgents').MiraUserAgentItem>
+    delete(params: import('@/config/miraUserAgents').MiraUserAgentDelete & { projectId?: string }): Promise<void>
+    setEnabled(params: import('@/config/miraUserAgents').MiraUserAgentEnabled & { projectId?: string }): Promise<import('@/config/miraUserAgents').MiraUserAgentItem>
+  }
+  promptCommands: {
+    list(params?: { projectId?: string; sessionId?: string }): Promise<import('@/config/miraPromptCommands').MiraPromptCommandItem[]>
+    read(params: { scope: import('@/config/miraPromptCommands').MiraPromptCommandScope; name: string; projectId?: string }): Promise<import('@/config/miraPromptCommands').MiraPromptCommandDocument>
+    save(params: import('@/config/miraPromptCommands').MiraPromptCommandWrite & { projectId?: string }): Promise<import('@/config/miraPromptCommands').MiraPromptCommandItem>
+    delete(params: import('@/config/miraPromptCommands').MiraPromptCommandDelete & { projectId?: string }): Promise<void>
+  }
   windowChrome: 'macos-overlay' | 'windows-overlay' | 'standard'
   getPathForFile(file: File): string
   getSnapshot(): Promise<PlatformSnapshot>
@@ -196,6 +222,10 @@ export interface PlatformApi {
   abortAutomationRun(taskId: string): Promise<void>
   createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
+  pauseHarnessGoal(id: string, revision: number, goalId: string): Promise<import('@/config/miraGoals').HarnessGoal>
+  resumeHarnessGoal(id: string, revision: number, goalId: string, selection: import('@/config/harness').ModelSelection, permissionMode?: import('@/config/harness').PermissionMode): Promise<import('@/config/miraGoals').HarnessGoal>
+  updateHarnessGoalBudget(id: string, budget: number | null, revision: number, goalId: string): Promise<import('@/config/miraGoals').HarnessGoal>
+  clearHarnessGoal(id: string, revision: number, goalId: string): Promise<void>
   readHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
   transformHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, transform: import('@/config/harness').HarnessWorkspaceSearchIgnoreTransform): Promise<{ content: string }>
   writeHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, revision: string): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
@@ -223,9 +253,11 @@ export interface PlatformApi {
   cancelHarnessPlan(sessionId: string, planId: string): Promise<unknown>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
-  listMcpServers(): Promise<Array<{ id: string, name: string, command: string, args: string[], enabled: boolean }>>
-  saveMcpServer(config: { id?: string, name: string, command: string, args?: string[], enabled?: boolean }): Promise<{ id: string, name: string, command: string, args: string[], enabled: boolean }>
-  deleteMcpServer(id: string): Promise<void>
+  listMcpServers(scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord[]>
+  saveMcpServer(config: Partial<import('@/config/miraMcp').MiraMcpServerConfig>, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord>
+  deleteMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<void>
+  reconnectMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection>
+  authorizeMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection | undefined>
   abortHarnessRun(sessionId: string): Promise<void>
   stopHarnessSubtasks(sessionId: string, ids?: string[]): Promise<void>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>

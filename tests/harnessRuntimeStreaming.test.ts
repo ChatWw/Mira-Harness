@@ -8,6 +8,7 @@ describe('runtime text streaming activity persistence', () => {
   it('persists activity transitions rather than every text fragment and still finalizes the full reply', async () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', pendingInteraction: { kind: 'plan-review', status: 'waiting' }, messages: [{ id: 'u', role: 'user', content: '分析项目', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
+      hooks: { list: () => [], assert: () => {} },
       plugins: { snapshots: () => [], reminder: () => '' },
       memories: { enabled: () => false },
       getSnapshot: () => ({ preferences: {} }),
@@ -21,7 +22,7 @@ describe('runtime text streaming activity persistence', () => {
         finalizeAssistantMessage: vi.fn(() => session),
       },
     }
-    const runtime = new HarnessRuntime(database, {} as any)
+    const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
     vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
@@ -41,11 +42,12 @@ describe('runtime text streaming activity persistence', () => {
   it('reminds the model once when a planning reply omits both interaction tools', async () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', messages: [{ id: 'u', role: 'user', content: '先计划', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
+      hooks: { list: () => [], assert: () => {} },
       plugins: { snapshots: () => [], reminder: () => '' },
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
       harness: { getPermissionConfig: () => ({ globalDefaultMode: 'default' }), updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
     }
-    const runtime = new HarnessRuntime(database, {} as any)
+    const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
     vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
@@ -63,6 +65,7 @@ describe('runtime text streaming activity persistence', () => {
   it('replaces a contradictory planning draft after the reminder creates an interaction', async () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', messages: [{ id: 'u', role: 'user', content: '先计划', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
+      hooks: { list: () => [], assert: () => {} },
       plugins: { snapshots: () => [], reminder: () => '' },
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
       harness: {
@@ -71,7 +74,7 @@ describe('runtime text streaming activity persistence', () => {
         appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn((_id, options) => { session.messages.push({ id: 'a', role: 'assistant', content: options.content, createdAt: 2, run: options.run }); return session }),
       },
     }
-    const runtime = new HarnessRuntime(database, {} as any)
+    const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
     vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})
@@ -93,11 +96,12 @@ describe('runtime text streaming activity persistence', () => {
   it('fails planning rather than reporting success when the model still omits an interaction', async () => {
     const session: any = { id: 's', title: '测试', titleSource: 'manual', permissionMode: 'default', messages: [{ id: 'u', role: 'user', content: '先计划', createdAt: 1 }], toolCalls: [], createdAt: 1, updatedAt: 1 }
     const database: any = {
+      hooks: { list: () => [], assert: () => {} },
       plugins: { snapshots: () => [], reminder: () => '' },
       memories: { enabled: () => false }, getSnapshot: () => ({ preferences: {} }), instructions: { resolve: () => [] },
       harness: { getPermissionConfig: () => ({ globalDefaultMode: 'default' }), updateSession: (value: any) => value, getSession: () => session, setActiveRun: vi.fn(), setStatus: vi.fn(), appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => session) },
     }
-    const runtime = new HarnessRuntime(database, {} as any)
+    const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
     vi.spyOn(runtime as any, 'compactContext').mockResolvedValue(session)
     vi.spyOn(runtime as any, 'tools').mockReturnValue({ tools: [], descriptors: new Map(), cancelPending: vi.fn() })
     vi.spyOn(runtime as any, 'environmentContext').mockReturnValue({})

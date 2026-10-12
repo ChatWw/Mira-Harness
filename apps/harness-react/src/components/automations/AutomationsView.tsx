@@ -15,6 +15,9 @@ import { AUTOMATION_DRAFT_KEY, applyAutomationTrigger, automationFormForTask, au
 import type { AutomationsHost } from './automation-host'
 import { AutomationEditor } from './AutomationEditor'
 import { AutomationRunHistory } from './AutomationRunHistory'
+import { MiraAutomationTitleSwitch, MiraWorkflowsView } from '../workflows/MiraWorkflowsView'
+import type { MiraWorkflowHost } from '../workflows/workflow-model'
+import type { MiraFlowRunIdentity } from '../../../../../src/config/miraFlowWorkbench'
 import type { MiraAppNavigationTarget } from '../../../../../src/platform/appNavigation'
 import './automations.css'
 
@@ -23,9 +26,10 @@ const TASK_FILTERS = [['all', '全部'], ['active', '启用'], ['paused', '暂�
 type Confirmation = { type: 'delete'; task: AutomationTask } | { type: 'discard' }
 export type AutomationNavigationTarget = Extract<MiraAppNavigationTarget, { kind: 'automations' }>
 export interface AutomationsNavigationHandle { navigate: (target: AutomationNavigationTarget, isCurrent?: () => boolean, restoreNewDraft?: boolean) => Promise<boolean> }
-export function AutomationsView({ host, projects, sessions, providers, onOpenSession, onManageModels, active = true, navigationBusy = false, ref, onNavigationChange, onDraftNavigation, onDeleteTask }: {
-  host: AutomationsHost; projects: HarnessProject[]; sessions: HarnessSessionSummary[]; providers: ModelProviderSummary[]
+export function AutomationsView({ host, projects, sessions, providers, onOpenSession, onOpenWorkflowRun, onManageModels, active = true, navigationBusy = false, ref, onNavigationChange, onDraftNavigation, onDeleteTask }: {
+  host: AutomationsHost & MiraWorkflowHost; projects: HarnessProject[]; sessions: HarnessSessionSummary[]; providers: ModelProviderSummary[]
   onOpenSession: (sessionId: string) => Promise<void> | void; onManageModels: () => void; active?: boolean; navigationBusy?: boolean
+  onOpenWorkflowRun: (identity: MiraFlowRunIdentity) => Promise<void>
   ref?: Ref<AutomationsNavigationHandle>; onNavigationChange?: (target: AutomationNavigationTarget) => void; onDraftNavigation?: () => void; onDeleteTask?: (id: string) => void
 }) {
   const [tasks, setTasks] = useState<AutomationTask[]>([])
@@ -40,6 +44,9 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<typeof TASK_FILTERS[number][0]>('all')
   const [section, setSection] = useState<'tasks' | 'runs'>('tasks')
+  const [pageTab, setPageTab] = useState<'automations' | 'workflows'>('automations')
+  const [workflowsMounted, setWorkflowsMounted] = useState(false)
+  const switchPage = (next: 'automations' | 'workflows') => { setPageTab(next); if (next === 'workflows') setWorkflowsMounted(true) }
   const [runTaskId, setRunTaskId] = useState('')
   const [runStatus, setRunStatus] = useState<AutomationRunStatus | 'all'>('all')
   const [editor, setEditor] = useState<AutomationDraft>()
@@ -128,7 +135,7 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
       const form = task && !saved ? automationFormForTask(task, projects, providers) : undefined
       const next = saved ?? (form && task ? { taskId: task.id, form, baseline: JSON.stringify(form) } : undefined)
       if (!current()) return false
-      latestDraft.current = next; setEditor(next); setEditorTab(target.tab ?? 'settings'); setSection(target.section ?? 'tasks'); setFilter(target.filter ?? 'all'); setRunTaskId(target.runTaskId ?? task?.id ?? ''); setRunStatus(target.runStatus ?? 'all'); setQuery(''); setConfirmation(undefined); setMenuTaskId(undefined); setFormError(''); setError(''); setFeedback('')
+      setPageTab('automations'); latestDraft.current = next; setEditor(next); setEditorTab(target.tab ?? 'settings'); setSection(target.section ?? 'tasks'); setFilter(target.filter ?? 'all'); setRunTaskId(target.runTaskId ?? task?.id ?? ''); setRunStatus(target.runStatus ?? 'all'); setQuery(''); setConfirmation(undefined); setMenuTaskId(undefined); setFormError(''); setError(''); setFeedback('')
       return true
     } catch (cause) {
       if (current()) { if (latestDraft.current && editorTab === 'settings') setFormError(`无法切换自动化：${message(cause)}`); else setError(`无法切换自动化：${message(cause)}`) }
@@ -142,11 +149,11 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
   }, [host])
   useImperativeHandle(ref, () => ({ navigate }))
   useEffect(() => {
-    if (!active) { setConfirmation(undefined); setMenuTaskId(undefined); return }
+    if (!active || pageTab !== 'automations') { setConfirmation(undefined); setMenuTaskId(undefined); return }
     void load()
     const timer = window.setInterval(() => { if (!saveBusy.current && !operations.current.size) void load() }, 2500)
     return () => { window.clearInterval(timer); invalidateLoad() }
-  }, [host, active])
+  }, [host, active, pageTab])
   useEffect(() => {
     if (!draftLoaded || saving) return
     const timer = window.setTimeout(() => { if (!saveBusy.current) void persistDraft().catch(cause => { if (mounted.current) setError(`草稿保存失败：${message(cause)}`) }) }, 250)
@@ -265,8 +272,9 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
   function showRuns(id: string) { if (!navigationBusyRef.current && (runTaskId !== id || section !== 'runs')) { navigationRevision.current++; setRunTaskId(id); setSection('runs'); notifyNavigation({ runTaskId: id, section: 'runs' }) } }
   const history = () => <AutomationRunHistory tasks={tasks} runs={runs} taskId={runTaskId} status={runStatus} busyIds={busyIds} navigationBusy={navigationBusy} onTask={chooseRunTask} onStatus={chooseRunStatus} onRetry={retry} onStop={stop} onOpenSession={id => { void openSession(id) }} />
   return <section className="mira-automations" aria-label="自动化工作台">
-    <header className="mira-automation-header">{editor ? <button type="button" className="mira-automation-icon" aria-label="返回自动化列表" title="返回自动化列表" disabled={saving || navigationBusy} onClick={back}><ArrowLeft size={17} /></button> : <CalendarClock size={18} />}<h1>自动化</h1>{editor && <><span className="mira-automation-header-divider">/</span><span className="mira-automation-breadcrumb">{editor.form.name || (editor.taskId ? '编辑任务' : '新建任务')}</span></>}<div className="mira-automation-header-actions"><button type="button" className="mira-automation-icon" aria-label="刷新自动化" title="刷新自动化" disabled={refreshing || saving || Boolean(busyIds.length)} onClick={() => { void load(); if (!draftReady.current) restoreDraft() }}><RefreshCw size={16} className={refreshing ? 'mira-automation-spin' : undefined} /></button></div></header>
-    <div className="mira-automation-scroll"><div className={editor ? 'mira-automation-content mira-automation-content--editor' : 'mira-automation-content'}>
+    <header className="mira-automation-header">{editor && pageTab === 'automations' ? <><button type="button" className="mira-automation-icon" aria-label="返回自动化列表" title="返回自动化列表" disabled={saving || navigationBusy} onClick={back}><ArrowLeft size={17} /></button><h1>自动化</h1><span className="mira-automation-header-divider">/</span><span className="mira-automation-breadcrumb">{editor.form.name || (editor.taskId ? '编辑任务' : '新建任务')}</span></> : <MiraAutomationTitleSwitch value={pageTab} onChange={switchPage} />}{pageTab === 'automations' && <div className="mira-automation-header-actions"><button type="button" className="mira-automation-icon" aria-label="刷新自动化" title="刷新自动化" disabled={refreshing || saving || Boolean(busyIds.length)} onClick={() => { void load(); if (!draftReady.current) restoreDraft() }}><RefreshCw size={16} className={refreshing ? 'mira-automation-spin' : undefined} /></button></div>}</header>
+    {workflowsMounted && <div className="mira-automation-scroll" hidden={pageTab !== 'workflows'} style={pageTab !== 'workflows' ? { display: 'none' } : undefined}><div className="mira-automation-content"><MiraWorkflowsView host={host} projects={projects} providers={providers} active={active && pageTab === 'workflows'} onOpenRun={onOpenWorkflowRun} onManageModels={onManageModels} /></div></div>}
+    <div className="mira-automation-scroll" hidden={pageTab !== 'automations'} style={pageTab !== 'automations' ? { display: 'none' } : undefined}><div className={editor ? 'mira-automation-content mira-automation-content--editor' : 'mira-automation-content'}>
       {loadError && <div className="mira-automation-error" role="alert"><span>{loadError}</span><button type="button" onClick={() => { void load() }}>重试</button></div>}
       {error && <div className="mira-automation-error" role="alert"><span>{error}</span>{!draftReady.current ? <button type="button" onClick={() => { setError(''); restoreDraft() }}>重试读取草稿</button> : <button type="button" aria-label="关闭自动化错误提示" onClick={() => setError('')}><X size={14} /></button>}</div>}
       {feedback && <p className="mira-automation-feedback" role="status">{feedback}</p>}

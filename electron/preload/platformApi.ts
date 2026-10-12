@@ -1,6 +1,31 @@
 import { ipcRenderer } from 'electron'
 
 export const platformApi = {
+  hooks: {
+    list: (params: unknown = {}) => ipcRenderer.invoke('platform:hooks', 'hooks.list', params),
+    save: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.save', params),
+    delete: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.delete', params),
+    setEnabled: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.setEnabled', params),
+    trust: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.trust', params),
+    revokeTrust: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.revokeTrust', params),
+  },
+  agentModels: {
+    list: () => ipcRenderer.invoke('platform:agent-models', 'agent-models.list'),
+    set: (params: unknown) => ipcRenderer.invoke('platform:agent-models', 'agent-models.set', params),
+  },
+  userAgents: {
+    list: (params: unknown = {}) => ipcRenderer.invoke('platform:user-agents', 'agents.list', params),
+    read: (params: unknown) => ipcRenderer.invoke('platform:user-agents', 'agents.read', params),
+    save: (params: unknown) => ipcRenderer.invoke('platform:user-agents', 'agents.save', params),
+    delete: (params: unknown) => ipcRenderer.invoke('platform:user-agents', 'agents.delete', params),
+    setEnabled: (params: unknown) => ipcRenderer.invoke('platform:user-agents', 'agents.setEnabled', params),
+  },
+  promptCommands: {
+    list: (params: unknown = {}) => ipcRenderer.invoke('platform:prompt-commands', 'commands.list', params),
+    read: (params: unknown) => ipcRenderer.invoke('platform:prompt-commands', 'commands.read', params),
+    save: (params: unknown) => ipcRenderer.invoke('platform:prompt-commands', 'commands.save', params),
+    delete: (params: unknown) => ipcRenderer.invoke('platform:prompt-commands', 'commands.delete', params),
+  },
   getSnapshot: () => ipcRenderer.invoke('platform:get-snapshot'),
   savePreference: (key: string, value: unknown) => ipcRenderer.invoke('platform:save-preference', key, value),
   updateMenus: (menus: unknown) => ipcRenderer.invoke('platform:update-menus', menus),

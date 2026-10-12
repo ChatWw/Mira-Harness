@@ -1,0 +1,9 @@
+.mira-sheet-reader { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; color: var(--color-foreground); background: var(--color-background); }
+.mira-sheet-reader__tabs { display: flex; flex: 0 0 auto; min-width: 0; gap: 4px; overflow-x: auto; padding: 4px 8px; border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+.mira-sheet-reader__tabs button { flex-shrink: 0; max-width: 192px; height: 28px; padding: 0 8px; overflow: hidden; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; font: inherit; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.mira-sheet-reader__tabs button:hover { color: var(--color-foreground); background: var(--color-hover); }
+.mira-sheet-reader__tabs button[aria-selected="true"] { color: var(--color-foreground); background: var(--color-selected); }
+.mira-sheet-reader__tabs button:focus-visible { outline: 1px solid var(--color-input-border-focused); outline-offset: -1px; }
+.mira-sheet-reader__loading { display: flex; height: 100%; flex-direction: column; gap: 16px; padding: 20px; color: var(--color-foreground-subtle); font-size: 13px; }
+.mira-sheet-reader__loading > div { width: 100%; height: 120px; border-radius: 4px; background: var(--color-surface); }
+.mira-sheet-reader ::selection { color: var(--color-foreground); background: var(--color-selected); }

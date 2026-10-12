@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { PlatformIpcDependencies } from '../electron/ipc/platformIpc'
@@ -12,8 +12,10 @@ import * as workspaceFiles from '../electron/services/harnessWorkspaceFiles'
 import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 import { PlatformDatabase } from '../electron/storage/database'
+import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { HarnessRuntime } from '../electron/services/harnessRuntime'
 import { miraPluginItems } from '../src/config/miraPlugins'
+import { MiraWorkspaceMedia } from '../electron/services/miraWorkspaceMedia'
 
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => unknown>(),
@@ -81,6 +83,68 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('persists actual built-in model overrides through owner-checked IPC and refuses fake identities', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-agent-model-ipc-')), database = new PlatformDatabase(root)
+    try {
+      const { invoke, invokeAs, invokeFromSubframe } = register({ database, harnessRuntime: {} as never })
+      const provider = database.models.save({ providerKey: 'custom', name: 'Local model', endpoint: 'http://127.0.0.1:9000/v1', authMode: 'none', models: [{ id: 'child-model', enabled: true, reasoning: true, contextWindow: 16384 }], enabled: true })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const target = { kind: 'builtin', name: 'reviewer' }, modelSelection = { providerId: provider.id, modelId: 'child-model', thinkingLevel: 'low' }
+      expect(invoke('platform:agent-models', 'agent-models.set', { target, modelSelection })).toEqual({ target, modelSelection })
+      expect(invoke('platform:first-party-harness', grant, 'agent-models.list')).toContainEqual({ target, modelSelection })
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'agent-models.set', { target })).toThrow('授权无效')
+      expect(() => invokeFromSubframe('platform:agent-models', 'agent-models.list')).toThrow('主页面')
+      expect(() => invoke('platform:agent-models', 'agent-models.set', { target: { kind: 'builtin', name: 'constructor' }, modelSelection })).toThrow('目标')
+      expect(() => invoke('platform:agent-models', 'agent-models.set', { target: { ...target, path: root }, modelSelection })).toThrow('目标')
+      expect(() => invoke('platform:agent-models', 'agent-models.set', { target, modelSelection: { ...modelSelection, apiKey: 'untrusted' } })).toThrow('选择')
+      expect(() => invoke('platform:agent-models', 'agent-models.set', { target: { kind: 'plugin', pluginId: 'fake@local', name: 'fake:agent' }, modelSelection })).toThrow('未安装')
+      expect(invoke('platform:first-party-harness', grant, 'agent-models.set', { target })).toEqual({ target })
+      expect(database.agentModels.get(target as any)).toBeUndefined()
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it('manages user Agents through host project IDs, revisions and owner grants', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-user-agent-ipc-')), database = new PlatformDatabase(root)
+    try {
+      const directory = join(root, 'project'); await mkdir(directory)
+      const project = database.harness.createProject(directory), { invoke, invokeAs, invokeFromSubframe } = register({ database, harnessRuntime: {} as never })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const source = (body: string) => `---\nname: mira-auditor\ndescription: Audit requested files\ntools: Read\n---\n${body}`
+      const global = invoke('platform:user-agents', 'agents.save', { scope: 'global', name: 'mira-auditor', source: source('GLOBAL') }) as any
+      const local = invoke('platform:first-party-harness', grant, 'agents.save', { scope: 'project', projectId: project.id, name: 'mira-auditor', source: source('PROJECT'), directory: '/untrusted' }) as any
+      expect(invoke('platform:first-party-harness', grant, 'agents.list', { projectId: project.id })).toEqual([expect.objectContaining({ scope: 'project', revision: local.revision }), expect.objectContaining({ scope: 'global', shadowed: true })])
+      expect(invoke('platform:user-agents', 'agents.read', { scope: 'project', projectId: project.id, name: 'mira-auditor' })).toMatchObject({ source: source('PROJECT') })
+      expect(() => invoke('platform:user-agents', 'agents.save', { scope: 'project', name: 'mira-auditor', source: source('INJECTED'), directory: root })).toThrow('选择项目')
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'agents.list')).toThrow('授权无效')
+      expect(() => invokeFromSubframe('platform:user-agents', 'agents.list')).toThrow('主页面')
+      expect(() => invoke('platform:user-agents', 'agents.setEnabled', { scope: 'global', name: 'mira-auditor', enabled: false })).toThrow('版本')
+      expect(() => invoke('platform:user-agents', 'agents.delete', { scope: 'global', name: 'mira-auditor', expectedRevision: 'f'.repeat(64) })).toThrow('修改')
+      const disabled = invoke('platform:first-party-harness', grant, 'agents.setEnabled', { scope: 'project', projectId: project.id, name: 'mira-auditor', enabled: false, expectedRevision: local.revision }) as any
+      expect(disabled.enabled).toBe(false)
+      expect(() => database.userAgents.resolve('mira-auditor', directory)).toThrow('停用')
+      invoke('platform:first-party-harness', grant, 'agents.delete', { scope: 'project', projectId: project.id, name: 'mira-auditor', expectedRevision: disabled.revision })
+      expect(database.userAgents.resolve('mira-auditor', directory)).toMatchObject({ scope: 'global', body: 'GLOBAL' })
+      invoke('platform:user-agents', 'agents.delete', { scope: 'global', name: 'mira-auditor', expectedRevision: global.revision })
+      expect(invoke('platform:user-agents', 'agents.list')).toEqual([])
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it('manages custom commands through host project IDs without trusting renderer directories', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-command-ipc-')), database = new PlatformDatabase(root)
+    try {
+      const directory = join(root, 'project'); await mkdir(directory)
+      const project = database.harness.createProject(directory), { invoke, invokeAs, invokeFromSubframe } = register({ database, harnessRuntime: {} as never })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const global = invoke('platform:prompt-commands', 'commands.save', { scope: 'global', name: 'review', source: 'GLOBAL' }) as any
+      const local = invoke('platform:first-party-harness', grant, 'commands.save', { scope: 'project', projectId: project.id, name: 'review', source: 'PROJECT', directory: '/untrusted' }) as any
+      expect(invoke('platform:first-party-harness', grant, 'commands.list', { projectId: project.id })).toEqual([expect.objectContaining({ scope: 'project', revision: local.revision }), expect.objectContaining({ scope: 'global', shadowed: true })])
+      expect(invoke('platform:prompt-commands', 'commands.read', { scope: 'project', projectId: project.id, name: 'review' })).toMatchObject({ source: 'PROJECT' })
+      expect(() => invoke('platform:prompt-commands', 'commands.save', { scope: 'project', name: 'review', source: 'INJECTED', directory: root })).toThrow('选择项目')
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'commands.list')).toThrow('授权无效')
+      expect(() => invokeFromSubframe('platform:prompt-commands', 'commands.list')).toThrow('主页面')
+      expect(() => invoke('platform:prompt-commands', 'commands.save', { scope: 'global', name: 'review', source: 'STALE', expectedRevision: 'f'.repeat(64) })).toThrow('修改')
+      invoke('platform:prompt-commands', 'commands.delete', { scope: 'global', name: 'review', expectedRevision: global.revision })
+      expect(invoke('platform:prompt-commands', 'commands.list')).toEqual([])
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
   it('limits manual compaction to the owner grant and rechecks authorization after waiting', async () => {
     let authorize!: () => void
     const compactConversation = vi.fn(async (_sender, _id, _selection, guard) => { authorize = guard; return { status: 'unchanged' } })
@@ -189,6 +253,10 @@ describe('platform IPC registration', () => {
     const { invoke, database, localMicroAppServer, snapshot } = register()
     expect([...electron.handlers.keys()]).toEqual([
       'platform:get-snapshot',
+      'platform:agent-models',
+      'platform:user-agents',
+      'platform:prompt-commands',
+      'platform:hooks',
       'platform:save-preference',
       'platform:update-menus',
       'platform:update-microapps',
@@ -250,6 +318,69 @@ describe('platform IPC registration', () => {
     expect(() => invoke('platform:first-party-harness', grant, 'mcp.list')).toThrow('第一方授权无效')
     expect(getStatus).toHaveBeenCalledOnce()
   })
+  it('lists and selects only live plugin MCP metadata in the owning session without exposing configuration', () => {
+    const frozen = [{ id: 'probe@local', root: '/private-package' }]
+    const catalog = vi.fn(() => [{ id: 'probe@local', name: 'probe', enabled: true, conflicts: [], mcpServers: [
+      { id: 'plugin:probe@local:echo', name: 'plugin:probe:echo', enabled: true, type: 'stdio', revision: 'safe-hash' },
+      { id: 'plugin:probe@local:bad', name: 'plugin:probe:bad', enabled: true, unavailableReason: '插件 MCP 尚未支持 oauth' },
+    ] }])
+    const pluginMcpStatus = vi.fn(() => ({ state: 'connected', toolCount: 1 }))
+    const view = register({ harnessRuntime: { pluginMcpStatus } as never, mcpConfigStore: { list: () => [] } as never })
+    Object.assign(view.database, { plugins: { catalog } })
+    view.database.harness.getSession.mockImplementation((id: string) => ({ id, pluginCatalog: frozen }) as any)
+    const select = vi.fn(); Object.assign(view.database.harness, { setActiveMcpServers: select })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const items = view.invoke('platform:first-party-harness', grant, 'mcp.list', { sessionId: 'owner', command: 'injected-command' }) as any[]
+    expect(catalog).toHaveBeenLastCalledWith(frozen)
+    expect(items[0]).toMatchObject({ id: 'plugin:probe@local:echo', source: { kind: 'plugin', pluginId: 'probe@local', pluginName: 'probe' }, connection: { state: 'connected', toolCount: 1 } })
+    expect(items[1]).toMatchObject({ enabled: false, unavailableReason: '插件 MCP 尚未支持 oauth' })
+    expect(JSON.stringify(items)).not.toMatch(/private-package|safe-hash|injected-command/)
+    view.invoke('platform:first-party-harness', grant, 'session.set-mcp-servers', { id: 'owner', serverIds: ['plugin:probe@local:echo'] })
+    expect(select).toHaveBeenCalledExactlyOnceWith('owner', ['plugin:probe@local:echo'])
+    for (const id of ['plugin:probe@local:bad', 'plugin:other@local:echo']) expect(() => view.invoke('platform:first-party-harness', grant, 'session.set-mcp-servers', { id: 'owner', serverIds: [id] })).toThrow('只能选择已启用')
+    expect(() => view.invoke('platform:first-party-harness', grant, 'mcp.list', { sessionId: {} })).toThrow('会话 ID')
+  })
+  it('projects only the owning project MCP metadata and rejects other project selections without exposing credentials', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-project-mcp-bridge-')), database = new PlatformDatabase(root), store = new McpConfigStore(root)
+    try {
+      const paths = [join(root, 'east'), join(root, 'west')]; await Promise.all(paths.map(directory => mkdir(directory)))
+      const projects = paths.map(directory => database.harness.createProject(directory))
+      const sessions = projects.map(project => database.harness.createSession(project.id)), personal = database.harness.createSession()
+      const configs = paths.map(directory => store.forProject(directory).save({ name: 'same-name', command: 'private-command', args: ['private-argument'], env: { TOKEN: 'private-project-token' } }))
+      const global = store.save({ name: 'same-name', type: 'sse', url: 'https://example.test/private-url', headers: { Authorization: 'private-header' } })
+      const projectMcpStatus = vi.fn(() => ({ state: 'connected', toolCount: 1 }))
+      const { invoke, invokeAs } = register({ database, harnessRuntime: { projectMcpStatus } as never, mcpConfigStore: store })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const items = invoke('platform:first-party-harness', grant, 'mcp.list', { sessionId: sessions[0].id, directory: paths[1] }) as any[]
+      expect(items.map(item => item.id)).toEqual([global.id, configs[0].id])
+      expect(items[1]).toMatchObject({ source: { kind: 'project', projectId: projects[0].id, projectName: projects[0].name }, connection: { state: 'connected', toolCount: 1 } })
+      expect(projectMcpStatus).toHaveBeenCalledExactlyOnceWith(sessions[0].id, configs[0].id)
+      expect(JSON.stringify(items)).not.toMatch(/private-|command|args|env|headers|cwd/)
+      expect((invoke('platform:first-party-harness', grant, 'mcp.list', { sessionId: personal.id }) as any[]).map(item => item.id)).toEqual([global.id])
+      expect((invoke('platform:first-party-harness', grant, 'mcp.list') as any[]).map(item => item.id)).toEqual([global.id])
+      projectMcpStatus.mockClear()
+      const beforeSessions = database.harness.listSessions().length
+      const draftItems = invoke('platform:first-party-harness', grant, 'mcp.list', { projectId: projects[0].id, directory: paths[1] }) as any[]
+      expect(draftItems.map(item => item.id)).toEqual([global.id, configs[0].id])
+      expect(draftItems[1]).toMatchObject({ source: { kind: 'project', projectId: projects[0].id } })
+      expect(draftItems[1]).not.toHaveProperty('connection')
+      expect(JSON.stringify(draftItems)).not.toMatch(/private-|command|args|env|headers|cwd/)
+      expect(projectMcpStatus).not.toHaveBeenCalled()
+      expect(database.harness.listSessions()).toHaveLength(beforeSessions)
+      expect((invoke('platform:first-party-harness', grant, 'mcp.list', { projectId: projects[1].id }) as any[]).map(item => item.id)).toEqual([global.id, configs[1].id])
+      expect(() => invoke('platform:first-party-harness', grant, 'mcp.list', { projectId: 'unknown-project' })).toThrow()
+      expect(() => invoke('platform:first-party-harness', grant, 'mcp.list', { projectId: {}, directory: paths[0] })).toThrow('项目 ID')
+      expect(() => invoke('platform:first-party-harness', grant, 'mcp.list', { projectId: projects[1].id, sessionId: sessions[0].id })).toThrow('范围只能指定一个')
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'mcp.list', { projectId: projects[0].id })).toThrow('授权无效')
+      invoke('platform:first-party-harness', grant, 'session.set-mcp-servers', { id: sessions[0].id, serverIds: [global.id, configs[0].id] })
+      expect(database.harness.getSession(sessions[0].id).activeMcpServerIds).toEqual([global.id, configs[0].id])
+      for (const id of [sessions[0].id, personal.id]) expect(() => invoke('platform:first-party-harness', grant, 'session.set-mcp-servers', { id, serverIds: [configs[1].id] })).toThrow('只能选择已启用')
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'mcp.list', { sessionId: sessions[0].id })).toThrow('授权无效')
+      store.forProject(paths[0]).save({ id: configs[0].id, enabled: false })
+      expect(() => invoke('platform:first-party-harness', grant, 'session.set-mcp-servers', { id: sessions[0].id, serverIds: [configs[0].id] })).toThrow('只能选择已启用')
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
   it('reconnects only a stored enabled MCP server and rechecks the grant after completion', async () => {
     let complete!: () => void
     const reconnect = vi.fn(() => new Promise<void>(done => { complete = done }))
@@ -267,6 +398,17 @@ describe('platform IPC registration', () => {
     const next = invoke('platform:create-first-party-grant', 'mira-harness') as string
     const success = invoke('platform:first-party-harness', next, 'mcp.reconnect', { id: server.id }) as Promise<unknown>; complete()
     await expect(success).resolves.toEqual({ state: 'connected', toolCount: 1 })
+  })
+
+  it('projects remote MCP transport and recovery status without exposing endpoint credentials', () => {
+    const reason = '远程 MCP 需要认证，请检查请求头后重试'
+    const getStatus = vi.fn(() => ({ state: 'failed' as const, toolCount: 0, error: reason }))
+    const config = { id: 'remote', name: 'Remote', enabled: true, type: 'streamableHttp', command: '', args: [], url: 'https://private.example/mcp?secret=hidden-token', headers: { Authorization: 'Bearer private-header' }, env: { KEY: 'private-env' } }
+    const view = register({ harnessRuntime: {} as never, mcpConfigStore: { list: () => [config] } as never, mcpManager: { getStatus } })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const items = view.invoke('platform:first-party-harness', grant, 'mcp.list')
+    expect(items).toEqual([{ id: 'remote', name: 'Remote', enabled: true, type: 'streamableHttp', connection: { state: 'failed', toolCount: 0, error: reason } }])
+    expect(JSON.stringify(items)).not.toMatch(/hidden-token|private-header|private-env|private\.example/)
   })
 
   it('rechecks plugin import authority after the native directory selection before registering anything', async () => {
@@ -307,6 +449,43 @@ describe('platform IPC registration', () => {
     expect(database.harness.createSession).toHaveBeenLastCalledWith('project')
     for (const prepared of ['true', 1, null, {}]) expect(() => invoke('platform:first-party-harness', grantId, 'session.create', { prepared })).toThrow('草稿准备状态无效')
     expect(database.harness.createSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('binds media previews to the host workspace and owner, and revokes URLs on navigation or grant removal', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-media-ipc-')), workspaceMedia = new MiraWorkspaceMedia()
+    const server = new LocalMicroAppServer({ mediaHandler: (path, request, response) => { void workspaceMedia.handle(path, request, response) } })
+    try {
+      await writeFile(join(root, 'sound.wav'), 'media fixture'); await server.start([])
+      const { invoke, invokeAs, database, sender } = register({ harnessRuntime: {} as never, workspaceMedia, localMicroAppServer: server })
+      database.harness.getProject.mockReturnValue({ id: 'project', directory: root })
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const preview = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav', root: '/untrusted', url: 'https://untrusted.example', mediaType: 'text/html' }) as { id: string; url: string; mediaType: string }
+      expect(preview.mediaType).toBe('audio/wav'); expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(200)
+      expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'files.media-close', { id: preview.id })).toThrow('授权无效')
+      invokeAs(2, 'platform:revoke-first-party-grant', grant)
+      expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(200)
+      database.harness.getProject.mockReturnValueOnce({ id: 'project', directory: '/changed' })
+      expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(403)
+      const next = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { id: string; url: string }
+      invoke('platform:first-party-harness', grant, 'files.media-close', { id: next.id })
+      expect((await fetch(next.url, { method: 'HEAD' })).status).toBe(404)
+      const revoked = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { url: string }
+      invoke('platform:revoke-first-party-grant', grant)
+      expect((await fetch(revoked.url, { method: 'HEAD' })).status).toBe(404)
+      const freshGrant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const navigating = await invoke('platform:first-party-harness', freshGrant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { url: string }
+      sender.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+      expect((await fetch(navigating.url, { method: 'HEAD' })).status).toBe(404)
+    } finally { workspaceMedia.closeAll(); await server.stop(); await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('releases a late media grant if the host project changes before the open reply', async () => {
+    const id = 'a'.repeat(64), workspaceMedia = { open: vi.fn(), release: vi.fn() }
+    const { invoke, database, sender } = register({ harnessRuntime: {} as never, workspaceMedia: workspaceMedia as never })
+    workspaceMedia.open.mockImplementation(async (_root, path, _owner, authorize) => { authorize(); database.harness.getProject.mockReturnValue({ id: 'project', directory: '/changed' }); return { id, path } })
+    const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    await expect(invoke('platform:first-party-harness', grantId, 'files.media-open', { sessionId: 's', path: 'sound.wav' })).rejects.toThrow('工作目录已变化')
+    expect(workspaceMedia.release).toHaveBeenCalledExactlyOnceWith(id, { grantId, webContentsId: sender.id })
   })
 
   it('binds workspace watchers to the host grant and checks session ownership throughout their lifetime', async () => {

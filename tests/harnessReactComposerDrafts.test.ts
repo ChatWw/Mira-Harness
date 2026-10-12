@@ -75,6 +75,12 @@ describe('React Harness composer draft preferences', () => {
     expect(restored.submissions).toEqual({ a: intent }); expect(restored.recoveries?.a[0].skillIds).toEqual(['research'])
   })
 
+  it('preserves explicit queue intent and structured context facts across reload', () => {
+    const intent = { id: 'queue-intent', text: '/goal @custom 完成目标', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { delivery: 'queue' as const, hasStructuredContext: true, expectedRunId: 'run' } }
+    const recovery = { ...intent, submissionId: 'submitted', sessionId: 'owner', permissionMode: 'default' as const, hasStructuredContext: true, createdAt: 1 }
+    const restored = serializeComposerDrafts(readComposerDrafts({ submissions: { owner: intent, invalid: { ...intent, options: { ...intent.options, hasStructuredContext: 'yes' } } }, recoveries: { owner: [recovery] } }))
+    expect(restored.submissions).toEqual({ owner: intent }); expect(restored.recoveries?.owner).toEqual([recovery])
+  })
   it('preserves per-owner permissions and the original permission of a pending submission', () => {
     const intent = { id: 'intent', text: 'retry', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { permissionMode: 'full' } }
     const saved = readComposerDrafts({ permissions: { a: 'full', b: 'auto-approve', invalid: 'admin' }, submissions: { a: intent, bad: { ...intent, options: { permissionMode: 'admin' } } } })

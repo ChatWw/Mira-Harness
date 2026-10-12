@@ -10,6 +10,7 @@ import { registerModelIpcHandlers } from './ipc/modelIpc'
 import { registerHarnessProjectIpcHandlers } from './ipc/harnessProjectIpc'
 import { registerHarnessSessionIpcHandlers } from './ipc/harnessSessionIpc'
 import { registerHarnessWorkspaceIgnoreIpcHandlers } from './ipc/harnessWorkspaceIgnoreIpc'
+import { registerMiraFlowIpc } from './ipc/miraFlowIpc'
 import { MiraPaths } from './storage/miraPaths'
 import { createMainWindow, destroyTray, setupApplicationMenu, setupDevelopmentDockIcon, setupWindowsTray, showMainWindow } from './bootstrap/windowManager'
 import { type HarnessEvent } from '../src/config/harness'
@@ -18,6 +19,8 @@ import { HarnessWorkspaceWatch } from './services/harnessWorkspaceWatch'
 
 let isQuitting = false
 let services: PlatformServices | undefined
+let shutdown: Promise<void> | undefined
+let shutdownComplete = false
 const terminalSessions = new HarnessTerminalSessions()
 const workspaceWatch = new HarnessWorkspaceWatch()
 const testHome = !app.isPackaged && process.env.MIRA_TEST_HOME ? resolve(process.env.MIRA_TEST_HOME) : undefined
@@ -41,10 +44,11 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
-  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, localMicroAppServer: services.localMicroAppServer, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  registerMiraFlowIpc({ flows: services.miraFlowController })
   registerNovelIpcHandlers({ database: services.database })
   registerAutomationIpcHandlers({ database: services.database, automationScheduler: services.automationScheduler, cleanupExpiredTrash: services.cleanupExpiredTrash })
-  registerMcpIpcHandlers({ mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager })
+  registerMcpIpcHandlers({ mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, database: services.database, mcpAuthorization: services.mcpAuthorization })
   registerModelIpcHandlers({ database: services.database })
   registerHarnessProjectIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, automationScheduler: services.automationScheduler, miraPaths, workspaceWatch })
   registerHarnessSessionIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, mcpConfigStore: services.mcpConfigStore, pythonEnvironment: services.pythonEnvironment, workspaceWatch })
@@ -60,12 +64,25 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' || getCloseWindowBehavior() === 'quit') app.quit()
 })
-app.on('before-quit', () => {
+app.on('before-quit', event => {
+  if (shutdownComplete) return
+  event.preventDefault()
+  if (shutdown) return
   isQuitting = true
   destroyTray()
   services?.automationScheduler.stop()
-  void services?.mcpManager.closeAll()
-  void services?.localMicroAppServer.stop()
   terminalSessions.closeAll()
   workspaceWatch.closeAll()
+  services?.workspaceMedia.closeAll()
+  shutdown = (async () => {
+    try {
+      // Workflow actors finish abort/persistence before the desktop process exits.
+      await services?.miraFlowController.dispose()
+      await Promise.allSettled([services?.mcpManager.closeAll(), services?.mcpAuthorization.closeAll(), services?.localMicroAppServer.stop()])
+    } finally {
+      shutdownComplete = true
+      app.quit()
+    }
+  })()
+  void shutdown.catch(() => { console.error('[Mira] 桌面服务关闭失败') })
 })

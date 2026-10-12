@@ -15,6 +15,73 @@ afterEach(async () => { await act(async () => root.unmount()); document.body.rep
 const settle = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)) }) }
 
 describe('Composer candidate panel ownership', () => {
+  async function scrollFixture() {
+    let agentTop = 230, viewportHeight = 224
+    const frames = new Map<number, FrameRequestCallback>(), observers: Array<{ update: () => void; targets: Set<Element> }> = []
+    let frameId = 0
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId })
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id))
+    vi.stubGlobal('ResizeObserver', class {
+      targets = new Set<Element>()
+      constructor(readonly update: () => void) { observers.push(this) }
+      observe(element: Element) { this.targets.add(element) }
+      disconnect() { this.targets.clear() }
+    })
+    const outerScroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => undefined)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      const element = this as HTMLElement, list = element.closest<HTMLElement>('[role="listbox"]')
+      const top = element.getAttribute('role') === 'listbox' ? 100 : (element.dataset.suggestionId === 'agent' ? agentTop : 140) - (list?.scrollTop || 0)
+      const height = element.getAttribute('role') === 'listbox' ? viewportHeight : 32
+      return { top, bottom: top + height, height, left: 0, right: 400, width: 400 } as DOMRect
+    })
+    function View({ loading }: { loading: boolean }) {
+      const [selectedIndex, setSelectedIndex] = useState(0)
+      return <div onKeyDown={event => { if (event.key === 'ArrowDown') setSelectedIndex(1); if (event.key === 'ArrowUp') setSelectedIndex(0) }}><div data-timeline /><ComposerSuggestionPanel listId="scroll-candidates" hasQuery={false} sections={[{ id: 'files', title: '文件', loading, items: [{ id: 'file', label: 'README.md', action: { type: 'file', value: 'README.md' } }] }, { id: 'agents', title: '智能体', items: [{ id: 'agent', label: 'my-reviewer', action: { type: 'agent', value: 'my-reviewer' } }] }]} selectedIndex={selectedIndex} onHighlight={setSelectedIndex} onSelect={() => {}} onTrigger={() => {}} /></div>
+    }
+    const render = async (loading = false) => { await act(async () => root.render(<View loading={loading} />)) }
+    const frame = async () => { await act(async () => { const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(0)) }) }
+    await render()
+    const list = container.querySelector<HTMLElement>('[role="listbox"]')!, timeline = container.querySelector<HTMLElement>('[data-timeline]')!
+    timeline.scrollTop = 70
+    return { list, timeline, outerScroll, render, frame, observers, moveAgent: (top: number) => { agentTop = top }, resize: async (height: number) => { viewportHeight = height; await act(async () => observers.findLast(observer => observer.targets.has(list))!.update()) } }
+  }
+
+  it('reveals keyboard-selected rows by scrolling only its own list in both directions', async () => {
+    const view = await scrollFixture()
+    view.moveAgent(365)
+    await key(view.list, 'ArrowDown')
+    expect(view.list.scrollTop).toBe(73)
+    expect(view.list.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('agent')
+    await key(view.list, 'ArrowUp')
+    expect(view.list.scrollTop).toBe(40)
+    expect(view.timeline.scrollTop).toBe(70); expect(view.outerScroll).not.toHaveBeenCalled()
+  })
+
+  it('reveals the same selection after async catalog layout changes, then a popup viewport resize', async () => {
+    const view = await scrollFixture()
+    await key(view.list, 'ArrowDown'); await view.frame()
+    view.moveAgent(365)
+    await view.render(true)
+    expect(view.list.scrollTop).toBe(73)
+    await view.frame(); await view.resize(180)
+    expect(view.list.scrollTop).toBe(117)
+    view.list.scrollTop = 0
+    await view.render(true); await view.frame()
+    expect(view.list.scrollTop).toBe(0)
+    expect(view.timeline.scrollTop).toBe(70); expect(view.outerScroll).not.toHaveBeenCalled()
+    await act(async () => root.render(<div />))
+    expect(view.observers.every(observer => observer.targets.size === 0)).toBe(true)
+  })
+
+  it('corrects a popup layout change on its bounded next frame', async () => {
+    const view = await scrollFixture()
+    await key(view.list, 'ArrowDown')
+    view.moveAgent(365)
+    await view.frame()
+    expect(view.list.scrollTop).toBe(73)
+    expect(view.outerScroll).not.toHaveBeenCalled()
+  })
+
   it('keeps identical candidates in separate panes independently addressable and preserves disabled reasons', async () => {
     const selected = vi.fn(), highlighted = vi.fn(), trigger = vi.fn()
     const sections = [{ id: 'files', title: '文件', items: [{ id: 'same', label: 'README.md', description: '项目目录不可用，请重新选择项目', disabled: true, action: { type: 'file' as const, value: 'README.md' } }] }]

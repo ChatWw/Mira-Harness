@@ -41,6 +41,25 @@ async function toggle(element: HTMLDetailsElement, open: boolean) { await act(as
 const viewport = () => document.querySelector<HTMLDivElement>('.mira-subtask-viewport')!
 
 describe('public child conversation in its own pane', () => {
+  it('labels a plugin Agent conversation by its qualified name and reveals its source in the summary', async () => {
+    const session = source(); session.id += ++sequence
+    Object.assign(session.activeRun!.subtasks![0], { agentName: 'review-kit:security', agentPluginId: 'review-kit@local' })
+    await render(session)
+    expect(document.querySelector('.mira-subtask-heading h2')?.textContent).toBe('review-kit:security')
+    expect(viewport().getAttribute('aria-label')).toBe('review-kit:security对话')
+    await toggle(document.querySelector('.mira-subtask-summary')!, true)
+    expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('来源插件review-kit@local')
+    expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('执行角色审查')
+  })
+  it('shows actual user Agent source and overridden model in the conversation summary', async () => {
+    const session = source(); session.id += ++sequence
+    Object.assign(session.activeRun!.subtasks![0], { agentName: 'security-check', agentScope: 'global', agentModelSelection: { providerId: 'alternate', modelId: 'real-child-model' } })
+    await render(session); expect(viewport().getAttribute('aria-label')).toBe('security-check对话')
+    await toggle(document.querySelector('.mira-subtask-summary')!, true)
+    expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('智能体来源全局')
+    expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('执行模型alternate / real-child-model')
+  })
+
   it('keeps actual text/reasoning/tool order, excludes other owners and does not duplicate the final report', async () => {
     const session = source(); session.id += ++sequence
     Object.assign(session.activeRun!.subtasks[0], { transcript: '私有提示不可显示', thinking: '内部签名不可显示' })

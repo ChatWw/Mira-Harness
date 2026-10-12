@@ -21,9 +21,12 @@ function setup() {
   let session: any = { version: 1, id: 's', title: 'Admission', titleSource: 'manual', permissionMode: 'default', status: 'active', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1 }
   const provider = { id: 'p', providerKey: 'openai-compatible', name: 'Test', endpoint: 'http://127.0.0.1:1', enabled: true, authMode: 'none', models: [{ id: 'model', enabled: true, reasoning: false }] }
   const database: any = {
+    hooks: { list: () => [], assert: () => {} },
     promptHistory: { append: vi.fn() },
     memories: { enabled: () => false }, skills: { resolve: () => [] }, instructions: { resolve: () => [] },
-    plugins: { snapshots: () => [], reminder: () => '' },
+    plugins: { snapshots: () => [], catalog: () => [], reminder: () => '' },
+    userAgents: { list: () => [] },
+    promptCommands: { resolve: () => undefined },
     models: { get: () => provider, getSecret: () => '' }, getSnapshot: () => ({ preferences: {} }),
     harness: {
       sideConversationIds: vi.fn(() => []),
@@ -45,7 +48,7 @@ function setup() {
       appendAssistantDelta: vi.fn(), finalizeAssistantMessage: vi.fn(() => structuredClone(session)),
     },
   }
-  const runtime = new HarnessRuntime(database, {} as any)
+  const runtime = new HarnessRuntime(database, { getTools: () => [] } as any)
   const memory = deferred()
   ;(runtime as any).memoryCoordinator.writes.set('s', memory.promise)
   vi.spyOn(runtime as any, 'compactContext').mockImplementation(async (_sender, value) => value)

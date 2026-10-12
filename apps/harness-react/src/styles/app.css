@@ -9,12 +9,18 @@
 @import "./style.css";
 @import "./file-drawer.css";
 @import "./file-preview.css";
+@import "react-pdf/dist/Page/TextLayer.css";
 @import "./workspace-editors.css";
 @import "./mira-subtasks.css";
+@import "./background-tasks.css";
 @import "./mira-tool-files.css";
 @import "../components/extensions/skill-market.css";
 @import "../components/search/command-center.css";
 @import "../components/automations/automations.css";
+@import "../components/workflows/workflows.css";
+@import "../components/workflows/workflow-review.css";
+@import "../components/workflows/workflow-timeline.css";
+@import "../components/workflows/actor-conversation.css";
 @import "../components/git/git-controls.css";
 @import "../components/conversation/conversation-find.css";
 

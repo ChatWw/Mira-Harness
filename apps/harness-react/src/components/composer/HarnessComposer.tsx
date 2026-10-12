@@ -3,9 +3,10 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Dialog from '@radix-ui/react-dialog'
-import { ArrowUp, Blocks, Bot, Brain, Check, ChevronDown, Circle, CircleAlert, FileText, FolderOpen, Hand, Lightbulb, LoaderCircle, MessageSquare, Minimize2, Package, Paperclip, Plus, RefreshCw, Search, Settings2, ShieldAlert, ShieldCheck, Square, Wrench, X } from 'lucide-react'
+import { ArrowUp, Blocks, Bot, Brain, Check, ChevronDown, Circle, CircleAlert, FileText, FolderOpen, Hand, Lightbulb, LoaderCircle, MessageSquare, Minimize2, Package, Paperclip, Plus, RefreshCw, Search, Settings2, ShieldAlert, ShieldCheck, Square, Target, Wrench, X } from 'lucide-react'
 import { isModelProviderAvailable, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type HarnessSubtaskRole, type ModelSelection, type PermissionMode, type SendShortcut } from '../../../../../src/config/harness'
 import { MIRA_SUBTASK_AGENTS } from '../../../../../src/config/miraAgents'
+import { parseMiraGoalCommand } from '../../../../../src/config/miraGoals'
 import type { PilotController } from '../../state/pilot-state'
 import { cn } from '../../lib/utils'
 import { appendComposerReferences, createMiraComposerDraftWriter, mergeComposerDrafts, readComposerDrafts, withoutComposerDraftOwners, type ComposerDraftConfig, type ComposerDraftSnapshot, type ComposerDraftSubmission, type ComposerTaskDraft } from '../../lib/composer-drafts'
@@ -31,8 +32,8 @@ import { useMiraComposerMenuFocus } from '../../hooks/useMiraComposerMenuFocus'
 import { useMiraComposerToolbar } from '../../hooks/useMiraComposerToolbar'
 import { useMiraPromptHistory } from '../../hooks/useMiraPromptHistory'
 import { miraSkillReference } from '../../lib/mira-skill-reference'
-import { miraPluginCommandReference, miraPluginReference } from '../../lib/mira-plugin-reference'
-import { miraAgentReference } from '../../lib/mira-agent-reference'
+import { miraPluginCommandReference, miraPluginReference, restoreMiraPluginReferences } from '../../lib/mira-plugin-reference'
+import { miraAgentReference, miraPluginAgentReference, miraUserAgentReference, restoreMiraAgentReferences } from '../../lib/mira-agent-reference'
 
 const PERMISSIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
   { value: 'default', label: '逐次确认', description: '工具执行前由你确认' },
@@ -47,7 +48,7 @@ export interface HarnessComposerHandle {
   prepareSession(isCurrent?: () => boolean): Promise<string | undefined>
   addFileReference(sessionId: string, path: string): void
   withdrawPendingGuide(itemId: string): Promise<void>
-  startDraft(groupId?: string, projectId?: string, isCurrent?: () => boolean): Promise<boolean>
+  startDraft(groupId?: string, projectId?: string, isCurrent?: () => boolean, pluginId?: string): Promise<boolean>
   openDraft(id?: string, isCurrent?: () => boolean): Promise<boolean>
   closeDraft(id: string): Promise<void>
 }
@@ -66,17 +67,21 @@ type HarnessComposerProps = {
   onReady?: () => void
   onOpenSideConversation?: () => Promise<void>
   onShowConfirmation?: (sessionId: string) => void
+  onShowGoal?: () => void
   interactionSlot?: ReactNode
+  leadingActions?: ReactNode
   navigationSaveFailed?: boolean
   onDraftChange?: (draft: ComposerTaskDraft | null | undefined) => void
   onDraftAccepted?: (sessionId: string, draft: ComposerTaskDraft) => Promise<void>
 }
 
-export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposerProps>(function HarnessComposer({ state, controller, planning, setPlanning, draftProjectId, onDraftProjectChange, active = true, keyboardActive = active, draftPreferenceKey = DRAFT_PREFERENCE_KEY, selectionSourceSessionId, onReady, onOpenSideConversation, onShowConfirmation, interactionSlot, navigationSaveFailed = false, onDraftChange, onDraftAccepted }, ref) {
+export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposerProps>(function HarnessComposer({ state, controller, planning, setPlanning, draftProjectId, onDraftProjectChange, active = true, keyboardActive = active, draftPreferenceKey = DRAFT_PREFERENCE_KEY, selectionSourceSessionId, onReady, onOpenSideConversation, onShowConfirmation, onShowGoal, interactionSlot, leadingActions, navigationSaveFailed = false, onDraftChange, onDraftAccepted }, ref) {
   const interactionBlocked = Boolean(interactionSlot)
   const wasInteractionBlocked = useRef(false)
   const sessionId = state.session?.id
   const draftKey = sessionId || 'draft'
+  const userAgentOwner = JSON.stringify([draftKey, state.session?.projectId ?? draftProjectId, state.session?.workingDirectory])
+  const [knownUserAgents, setKnownUserAgents] = useState<{ owner: string; names: string[] }>({ owner: '', names: [] })
   const draftWriter = useMemo(() => createMiraComposerDraftWriter(controller, draftPreferenceKey), [controller, draftPreferenceKey])
   const hydratedDraftOwner = useRef(sessionId)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -176,7 +181,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   latestDraftSnapshot.current = draftSnapshot
   const removedDraftOwners = useRef(new Set<string>())
   const draft = drafts[draftKey] ?? ''
-  const promptDocument = useMemo(() => documents[draftKey] ?? restoreMiraBrowserPromptDocument(draft), [documents, draftKey, draft])
+  const promptDocument = useMemo(() => restoreMiraAgentReferences(documents[draftKey] ?? restoreMiraBrowserPromptDocument(draft), knownUserAgents.owner === userAgentOwner ? knownUserAgents.names : []), [documents, draftKey, draft, knownUserAgents, userAgentOwner])
   const editorDocument = useMemo(() => miraBrowserPromptBody(promptDocument), [promptDocument])
   const editorText = serializeMiraPromptDocument(editorDocument)
   const browserReferences = useMemo(() => miraBrowserReferences(promptDocument), [promptDocument])
@@ -186,6 +191,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   }
   const editorKey = editorIdentity.current.key
   const references = fileDrafts[draftKey] ?? []
+  const nativeGoalCommand = useMemo(() => {
+    if (references.length || promptDocument.parts.some(part => part.type === 'reference')) return undefined
+    try { return parseMiraGoalCommand(draft) } catch { return undefined }
+  }, [draft, references, promptDocument])
+  const localGoalControl = nativeGoalCommand && nativeGoalCommand.action !== 'set'
   const attachmentPaths = JSON.stringify(references.map(file => file.path))
   const attachmentBlocked = controller.supportsAttachments && references.length > 0 && (attachmentReadiness.ownerId !== sessionId || attachmentReadiness.paths !== attachmentPaths || attachmentReadiness.blocked)
   const onAttachmentsBlocked = useMemo(() => (blocked: boolean) => setAttachmentReadiness({ ownerId: sessionId, paths: attachmentPaths, blocked }), [sessionId, attachmentPaths])
@@ -205,7 +215,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const submissionOptionsSupported = controller.supportsQueueSubmissionOptions
   const appleKeyboard = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const confirmationPending = Boolean(state.permission || state.session?.pendingInteraction?.status === 'waiting')
-  const sendingBlocked = interactionBlocked || !active || !preferencesLoaded || busy || submitting.includes(draftKey) || recoveryWrites.includes(draftKey) || Boolean(recoverySaveErrors[draftKey]) || state.sessionLoading || !state.selection || !queueSupported && (state.running || confirmationPending)
+  const sendingBlocked = interactionBlocked || !active || !preferencesLoaded || busy || submitting.includes(draftKey) || recoveryWrites.includes(draftKey) || Boolean(recoverySaveErrors[draftKey]) || state.sessionLoading || !state.selection && (!localGoalControl || nativeGoalCommand.action === 'resume') || !localGoalControl && !queueSupported && (state.running || confirmationPending)
   const configurationUnavailable = !preferencesLoaded || busy || submitting.includes(draftKey) || state.sessionLoading || state.running || confirmationPending
   const configBlocked = !active || configurationUnavailable
   const compactQueued = Boolean(state.queue?.items.some(item => item.operation === 'context-compaction'))
@@ -242,7 +252,14 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const includeFiles = kind === '@' || contextOpen && !panelFilter
   const agentUnavailable = !fileDirectory ? '先选择项目' : planning ? '计划模式下不可委派' : (state.session?.delegationEnabled ?? draftDelegation) === false ? '子任务委派已关闭' : undefined
   const catalogs = useComposerCatalogs(controller, { sessionId, projectId: sessionId ? undefined : selectedProject?.id, directory: fileDirectory, draftId: sessionId ? undefined : taskDraft?.id }, suggestionQuery, suggestionsOpen && kind !== '#', includeFiles, kind === '/' ? 'commands' : kind === '$' || kind === 'skills' ? 'skills' : kind === 'mcp' ? 'mcp' : kind === '@' || contextOpen && !panelFilter ? 'plugins' : 'all')
+  useEffect(() => {
+    if (catalogs.userAgents.status !== 'ready') return
+    const names = catalogs.userAgents.items.filter(agent => agent.enabled && !agent.shadowed && !agent.unavailableReason).map(agent => agent.name)
+    setKnownUserAgents(previous => previous.owner === userAgentOwner && JSON.stringify(previous.names) === JSON.stringify(names) ? previous : { owner: userAgentOwner, names })
+  }, [catalogs.userAgents.items, catalogs.userAgents.status, userAgentOwner])
   const slashCommands = [
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'goal', label: '/goal', description: '设置持续目标，逐轮核验完成情况', keywords: 'goal target 目标', icon: <Target size={16} /> }] : []),
+    ...(!state.session?.parentSessionId && fileDirectory && !planning ? [{ id: 'workflow', label: '/workflow', description: '用工作流编排任务，审阅流程图后运行', keywords: 'workflow 工作流 编排', icon: <Blocks size={16} /> }] : []),
     { id: 'files', label: '/files', description: '添加文件附件', icon: <Paperclip size={16} /> },
     { id: 'skills', label: '/skills', description: '引用技能到本次消息', icon: <Wrench size={16} /> },
     { id: 'mcp', label: '/mcp', description: '查看 MCP 状态与此会话的服务选择', icon: <Blocks size={16} /> },
@@ -261,16 +278,21 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })
+  if (kind === '/' && controller.supportsPromptCommands) {
+    const atStart = Boolean(activeToken && !editorText.slice(0, activeToken.start).trim())
+    suggestionSections.push({ id: 'custom-commands', title: '自定义命令', items: atStart ? filterMiraSuggestions(catalogs.commands.items.map(command => ({ id: `custom-command-${command.id}`, label: `/${command.name}`, keywords: `${command.name} ${command.description}`, description: command.unavailableReason || (command.shadowed ? '被同名项目命令覆盖' : `${command.scope === 'project' ? '当前项目' : '全局'} · ${[command.argumentHint, command.description].filter(Boolean).join(' · ')}`), disabled: Boolean(command.unavailableReason || command.shadowed), icon: <Wrench size={16} />, action: { type: 'prompt-command' as const, value: command.name } })), suggestionQuery) : [], loading: catalogs.commands.status === 'loading', error: catalogs.commands.error, onRetry: catalogs.reload, empty: atStart ? '还没有自定义命令，可在设置中创建' : '自定义命令需放在消息开头' })
+    suggestionSections.push({ id: 'custom-command-actions', title: '管理', items: filterMiraSuggestions([{ id: 'manage-commands', label: '管理自定义命令', description: '创建、编辑或删除全局与项目命令', icon: <Settings2 size={16} />, action: { type: 'command' as const, value: 'manage-commands' } }], suggestionQuery) })
+  }
   if (kind === '/' && controller.supportsPlugins) {
     const atStart = Boolean(activeToken && !editorText.slice(0, activeToken.start).trim())
     const commands = atStart ? filterMiraSuggestions(catalogs.plugins.items.flatMap(plugin => (plugin.commands || []).map(command => ({
       id: `plugin-command-${plugin.id}-${command.name}`, label: `/${plugin.name}:${command.name}`, keywords: `${plugin.name} ${command.name} ${command.description}`,
-      description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请先停用其中一个' : command.unavailableReason || [command.argumentHint, command.description].filter(Boolean).join(' · ')),
-      disabled: Boolean(plugin.error || plugin.conflicts.length || command.unavailableReason), icon: <Wrench size={16} />, action: { type: 'plugin-command' as const, value: `${plugin.name}:${command.name}` },
+      description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请先停用其中一个' : command.unavailableReason || (catalogs.commands.items.some(item => item.name === `${plugin.name}:${command.name}` && !item.shadowed) ? '被同名自定义命令覆盖' : [command.argumentHint, command.description].filter(Boolean).join(' · '))),
+      disabled: Boolean(plugin.error || plugin.conflicts.length || command.unavailableReason || catalogs.commands.items.some(item => item.name === `${plugin.name}:${command.name}` && !item.shadowed)), icon: <Wrench size={16} />, action: { type: 'plugin-command' as const, value: `${plugin.name}:${command.name}` },
     }))), suggestionQuery) : []
     suggestionSections.push({ id: 'plugin-commands', title: commands.length > 40 ? '插件命令 · 前 40 项，请输入名称筛选' : '插件命令', items: commands.slice(0, 40), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: !atStart ? '插件命令需放在消息开头' : '没有匹配的插件命令；可在插件市场添加' })
   }
-  if (controller.supportsPlugins && (kind === '@' || contextOpen && !panelFilter)) suggestionSections.push({ id: 'plugins', title: '插件', items: filterMiraSuggestions(catalogs.plugins.items.map(plugin => ({ id: `plugin-${plugin.id}`, label: plugin.name, keywords: plugin.id, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请在市场中停用其中一个' : !plugin.skills.length ? plugin.commands?.length ? '通过 / 调用插件命令' : '此插件在当前会话中没有可用能力' : plugin.description), disabled: Boolean(plugin.error || plugin.conflicts.length || !plugin.skills.length), icon: <Blocks size={16} />, action: { type: 'plugin' as const, value: plugin.id } })), suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的已启用插件；可在插件市场添加本地插件' })
+  if (controller.supportsPlugins && (kind === '@' || contextOpen && !panelFilter)) suggestionSections.push({ id: 'plugins', title: '插件 Skill', items: filterMiraSuggestions(catalogs.plugins.items.filter(plugin => plugin.skills.length || !plugin.agents?.length && !plugin.commands?.length).map(plugin => ({ id: `plugin-${plugin.id}`, label: plugin.name, keywords: plugin.id, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请在市场中停用其中一个' : !plugin.skills.length ? '此插件在当前会话中没有可用能力' : plugin.description), disabled: Boolean(plugin.error || plugin.conflicts.length || !plugin.skills.length), icon: <Blocks size={16} />, action: { type: 'plugin' as const, value: plugin.id } })), suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的插件 Skill；插件智能体在下方，命令通过 / 选择' })
   if (kind !== '/' && kind !== '$' && kind !== 'skills' && kind !== 'mcp') {
     if (kind !== '#') suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId && !selectedProject ? '请先选择项目，再引用工作区文件' : !fileDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
     const currentProjectId = state.session?.projectId ?? draftProjectId
@@ -287,13 +309,27 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     suggestionSections.push({ id: 'sessions', title: kind === '#' ? '对话 · 各项目最多 20 项' : '对话', items, empty: kind === '#' ? '没有匹配的本地对话' : '当前工作区暂无可引用对话' })
   }
   if (kind === '$' || kind === 'skills' || kind === '/') suggestionSections.push({ id: 'skills', title: '技能', items: filterMiraSuggestions(catalogs.skills.items.map(skill => ({ id: `skill-${skill.id}`, label: skill.name, description: skill.description, disabled: contextBlocked, icon: <Wrench size={16} />, action: { type: 'skill' as const, value: skill.id } })), suggestionQuery), loading: catalogs.skills.status === 'loading', error: catalogs.skills.error, onRetry: catalogs.reload, empty: '没有匹配的已启用技能' })
-  if (kind === '/' || kind === '@' || contextOpen && !panelFilter) suggestionSections.push({ id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions(Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => ({ id: `agent-${role}`, label: role, keywords: `${agent.label} agent subagent`, description: `内置 · ${agent.label} · ${agent.description}`, disabled: Boolean(agentUnavailable), icon: <Bot size={16} />, action: { type: 'agent' as const, value: role } })), suggestionQuery), empty: '没有匹配的内置子智能体' })
+  if (kind === '/' || kind === '@' || contextOpen && !panelFilter) {
+    if (controller.supportsUserAgents) {
+      suggestionSections.push({ id: 'user-agents', title: `自定义智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions(catalogs.userAgents.items.map(agent => ({ id: `user-agent-${agent.id}`, label: agent.name, keywords: `${agent.description} ${agent.scope} agent subagent`, description: agent.unavailableReason || (agent.shadowed ? '被同名项目智能体覆盖' : !agent.enabled ? '已停用，可在设置中启用' : `${agent.scope === 'project' ? '当前项目' : '全局'} · ${agent.description}`), disabled: Boolean(agentUnavailable || agent.unavailableReason || agent.shadowed || !agent.enabled), icon: <Bot size={16} />, action: { type: 'agent' as const, value: agent.name } })), suggestionQuery), loading: catalogs.userAgents.status === 'loading', error: catalogs.userAgents.error, onRetry: catalogs.reload, empty: '没有匹配的自定义智能体，可在设置中创建' })
+      suggestionSections.push({ id: 'user-agent-actions', title: '管理', items: filterMiraSuggestions([{ id: 'manage-agents', label: '管理智能体', description: '创建、编辑或启停全局与项目智能体', icon: <Settings2 size={16} />, action: { type: 'command' as const, value: 'manage-agents' } }], suggestionQuery) })
+    }
+    suggestionSections.push({ id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions([
+    ...Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => ({ id: `agent-${role}`, label: role, keywords: `${agent.label} agent subagent`, description: `内置 · ${agent.label} · ${agent.description}`, disabled: Boolean(agentUnavailable), icon: <Bot size={16} />, action: { type: 'agent' as const, value: role } })),
+    ...catalogs.plugins.items.flatMap(plugin => (plugin.agents || []).map(agent => ({ id: `plugin-agent-${plugin.id}-${agent.name}`, label: agent.name, keywords: `${plugin.name} ${plugin.id} ${agent.description} agent subagent`, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请先停用其中一个' : agent.unavailableReason || `插件 ${plugin.name} · ${agent.description}`), disabled: Boolean(agentUnavailable || plugin.error || plugin.conflicts.length || agent.unavailableReason), icon: <Bot size={16} />, action: { type: 'agent' as const, value: agent.name } }))),
+  ], suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的子智能体；可在插件市场添加' })
+  }
   if (kind === 'mcp') {
     suggestionSections.push({ id: 'mcp', title: state.running ? 'MCP 服务 · 当前运行中，服务选择暂不可修改' : 'MCP 服务 · 选择仅影响此会话', items: filterMiraSuggestions(catalogs.mcp.items.map(server => {
-      const connection = mcpReconnecting.includes(server.id) ? { state: 'connecting' as const, toolCount: 0 } : server.connection, status = connection ? ({ connected: '已连接', connecting: '连接中', failed: '连接失败', disconnected: '未连接' } as const)[connection.state] : '状态未知'
-      return { id: `mcp-${server.id}`, label: server.name, description: `${status}${connection ? ` · ${connection.toolCount} 个工具` : ''} · ${activeMcpIds.includes(server.id) ? '此会话已选' : '此会话未选'}`, selected: activeMcpIds.includes(server.id), disabled: configBlocked, icon: <span className="mira-mcp-connection" data-state={connection?.state ?? 'unknown'} aria-hidden="true">{connection?.state === 'connecting' ? <LoaderCircle size={14} className="animate-spin" /> : <Circle size={9} fill="currentColor" />}</span>, action: { type: 'mcp' as const, value: server.id } }
+      const source = server.source
+      const scoped = Boolean(source)
+      const sourceName = source?.kind === 'plugin' ? source.pluginName : source?.kind === 'project' ? source.projectName : ''
+      const sourceLabel = source?.kind === 'plugin' ? `插件 ${sourceName}` : source?.kind === 'project' ? `项目 ${sourceName}` : ''
+      const connection = mcpReconnecting.includes(server.id) ? { state: 'connecting' as const, toolCount: 0 } : server.connection
+      const status = server.unavailableReason || (!server.enabled ? '已停用' : scoped && (!connection || connection.state === 'disconnected') ? '任务启动时连接' : connection ? ({ connected: '已连接', connecting: '连接中', failed: '连接失败', disconnected: '未连接', 'authorization-required': '等待授权，请在设置中打开授权', authorized: '已授权 · 任务启动时连接' } as const)[connection.state] : '状态未知')
+      return { id: `mcp-${server.id}`, label: server.name, keywords: sourceName, description: `${sourceLabel ? `${sourceLabel} · ` : ''}${status}${connection ? ` · ${connection.toolCount} 个工具` : ''} · ${activeMcpIds.includes(server.id) ? '此会话已选' : '此会话未选'}${connection && 'error' in connection && connection.error ? ` · ${connection.error}` : ''}`, selected: activeMcpIds.includes(server.id), disabled: configBlocked || !server.enabled || Boolean(server.unavailableReason), icon: <span className="mira-mcp-connection" data-state={connection?.state ?? 'unknown'} aria-hidden="true">{connection?.state === 'connecting' ? <LoaderCircle size={14} className="animate-spin" /> : <Circle size={9} fill="currentColor" />}</span>, action: { type: 'mcp' as const, value: server.id } }
     }), suggestionQuery), loading: catalogs.mcp.status === 'loading', error: catalogs.mcp.error, onRetry: catalogs.reload, empty: '还没有已启用的 MCP 服务，可在管理页面添加' })
-    const reconnectable = controller.supportsMcpReconnect ? catalogs.mcp.items.filter(server => mcpReconnecting.includes(server.id) || server.connection?.state === 'failed' || server.connection?.state === 'disconnected') : []
+    const reconnectable = controller.supportsMcpReconnect ? catalogs.mcp.items.filter(server => !server.source && server.enabled && !server.unavailableReason && (mcpReconnecting.includes(server.id) || server.connection?.state === 'failed' || server.connection?.state === 'disconnected')) : []
     if (reconnectable.length) suggestionSections.push({ id: 'mcp-recovery', title: '连接恢复', items: filterMiraSuggestions(reconnectable.map(server => ({ id: `reconnect-mcp-${server.id}`, label: `${mcpReconnecting.includes(server.id) ? '正在重连' : '重连'} ${server.name}`, description: state.running ? '当前任务运行中，结束后可重连' : '仅重连此服务，保留其他连接', disabled: configBlocked || mcpReconnecting.includes(server.id), icon: mcpReconnecting.includes(server.id) ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />, action: { type: 'command' as const, value: `reconnect-mcp:${server.id}` } })), suggestionQuery) })
     suggestionSections.push({ id: 'mcp-actions', title: '管理', items: [
       { id: 'refresh-mcp', label: '刷新连接状态', icon: <RefreshCw size={16} />, action: { type: 'command', value: 'refresh-mcp' } },
@@ -306,13 +342,21 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const selectedSuggestion = suggestionItems[suggestionIndex]
 
   useImperativeHandle(ref, () => ({
-    async startDraft(groupId, projectId, isCurrent) {
+    async startDraft(groupId, projectId, isCurrent, pluginId) {
       await preferencesLoad.current
       if (!preferencesReady.current || isCurrent && !isCurrent()) return false
+      const plugin = pluginId ? (await controller.listPlugins()).find(item => item.id === pluginId) : undefined
+      if (isCurrent && !isCurrent()) return false
+      if (pluginId && (!plugin || !plugin.enabled || plugin.error || plugin.conflicts.length || !plugin.skills.length)) throw new Error('插件已不可用，请回到插件市场检查启用状态与能力')
       const previous = latestDraftSnapshot.current.draft
       const ownerId = previous?.sessionId || 'draft'
       const submission = latestDraftSnapshot.current.submissions?.[ownerId]
       const unconfirmed = previous && (submittingRef.current.has(ownerId) || submission)
+      if (plugin && unconfirmed) throw new Error('请先处理当前任务尚未确认的提交，再试用插件；原稿已保留')
+      const text = latestDraftSnapshot.current.drafts[ownerId] ?? ''
+      const document = plugin ? restoreMiraPluginReferences(validateMiraPromptDocument(latestDraftSnapshot.current.documents?.[ownerId], text) ?? restoreMiraBrowserPromptDocument(text)) : undefined
+      const pluginIds = new Set(document?.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'plugin' ? [part.reference.value] : []))
+      if (plugin && !pluginIds.has(plugin.id) && pluginIds.size >= 8) throw new Error('每条消息最多引用 8 个插件，请先移除已有引用')
       if (previous?.sessionId && controller.getSnapshot().session?.id !== previous.sessionId && !await controller.open(previous.sessionId, isCurrent)) return false
       if (isCurrent && !isCurrent()) return false
       if (previous && latestDraftSnapshot.current.draft?.id !== previous.id) return false
@@ -327,6 +371,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!next.sessionId) controller.newConversation()
       setTaskDraft(next)
       selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId ?? latestDraftSnapshot.current.config.projectId)
+      if (plugin && document && !pluginIds.has(plugin.id)) {
+        const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), { type: 'reference', reference: miraPluginReference(plugin.id, plugin.name) }, { type: 'text', text: ' ' }] }
+        const end = serializeMiraPromptDocument(nextDocument).length
+        setPromptDocument(nextDocument, { start: end, end }, ownerId)
+      }
       requestDraftFocus(isCurrent)
       return true
     },
@@ -675,12 +724,20 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   }
   function selectProject(projectId?: string) {
     editedConfig.current.add('projectId')
+    if (projectId !== latestDraftSnapshot.current.config.projectId) {
+      const mcpIds = latestDraftSnapshot.current.config.mcpIds.filter(id => !id.startsWith('project:'))
+      editedConfig.current.add('mcpIds')
+      setDraftMcpIds(mcpIds)
+      latestDraftSnapshot.current = { ...latestDraftSnapshot.current, config: { ...latestDraftSnapshot.current.config, mcpIds } }
+    }
     latestDraftSnapshot.current = { ...latestDraftSnapshot.current, config: { ...latestDraftSnapshot.current.config, projectId } }
     onDraftProjectChange?.(projectId)
   }
   function selectPlanning(value: boolean) {
     if (nextConfigBlocked) return
+    if (value && state.session?.goal?.status === 'active') { setComposerError('请先暂停当前目标，再开启计划模式'); return }
     editedConfig.current.add('planning')
+    if (!value) setComposerError(error => ['目标模式不能在计划模式中启动，请先关闭计划模式', '请先关闭计划模式，再恢复目标'].includes(error) ? '' : error)
     setPlanning(value)
   }
   async function updateConfiguration(change: () => Promise<void>) {
@@ -860,14 +917,14 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       const id = item.action.value.slice('reconnect-mcp:'.length)
       if (configBlocked || !controller.supportsMcpReconnect || mcpReconnects.current.has(id)) return
       const server = catalogs.mcp.items.find(server => server.id === id)
-      if (!server || server.connection?.state !== 'failed' && server.connection?.state !== 'disconnected') return
+      if (!server || server.source || !server.enabled || server.unavailableReason || server.connection?.state !== 'failed' && server.connection?.state !== 'disconnected') return
       if (composerError.startsWith('MCP 重连')) setComposerError('')
       mcpReconnects.current.add(id); setMcpReconnecting([...mcpReconnects.current])
       const owner = draftKey, revision = textRevision.current
       const current = () => attachmentMounted.current && activeRef.current && contextOwnerRef.current === owner && (controller.getSnapshot().session?.id || 'draft') === owner && !controller.getSnapshot().sessionLoading && textRevision.current === revision
       try {
         const connection = await controller.reconnectMcp(id)
-        if (current() && connection.state !== 'connected') setComposerError('MCP 重连未成功，请检查服务配置后重试。')
+        if (current() && connection.state !== 'connected') setComposerError(connection.error || 'MCP 重连未成功，请检查服务配置后重试。')
       } catch {
         if (current()) setComposerError('MCP 重连失败，请检查服务配置后重试。')
       } finally {
@@ -878,15 +935,43 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       return
     }
     if (item.action.type === 'command' && item.action.value === 'open-commands') { openPromptTrigger('/'); return }
+    if (item.action.type === 'command' && item.action.value === 'manage-commands') {
+      closeSuggestions()
+      const projectId = state.session?.projectId ?? draftProjectId
+      try { await persistDrafts(); await controller.navigate(`/settings/commands${projectId ? `?project=${encodeURIComponent(projectId)}` : ''}`) }
+      catch (error) { setComposerError(`打开命令设置失败：${error instanceof Error ? error.message : String(error)}`) }
+      return
+    }
+    if (item.action.type === 'command' && item.action.value === 'manage-agents') {
+      closeSuggestions()
+      const projectId = state.session?.projectId ?? draftProjectId
+      try { await persistDrafts(); await controller.navigate(`/settings/agents${projectId ? `?project=${encodeURIComponent(projectId)}` : ''}`) }
+      catch (error) { setComposerError(`打开智能体设置失败：${error instanceof Error ? error.message : String(error)}`) }
+      return
+    }
     const range = contextOpen ? menuSelection.current : activeToken ? miraPromptReplacementRange(editorText, activeToken, [item.label, item.action.value]) : caret
+    if (item.action.type === 'prompt-command') {
+      if (editorText.slice(0, range.start).trim()) return
+      const command = catalogs.commands.items.find(command => command.name === item.action.value && !command.shadowed)
+      if (!command || command.unavailableReason) return
+      if (applyPromptParts(range, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'command', label: item.label, value: command.name, text: `/${command.name}` } }, { type: 'text', text: ' ' }])) closeSuggestions()
+      return
+    }
     if (item.action.type === 'plugin-command') {
       if (editorText.slice(0, range.start).trim()) return
       if (applyPromptParts(range, [{ type: 'reference', reference: miraPluginCommandReference(item.action.value) }, { type: 'text', text: ' ' }])) closeSuggestions()
       return
     }
     if (item.action.type === 'agent') {
-      if (agentUnavailable || !Object.prototype.hasOwnProperty.call(MIRA_SUBTASK_AGENTS, item.action.value)) return
-      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: miraAgentReference(item.action.value as HarnessSubtaskRole) }, { type: 'text', text: ' ' }])) closeSuggestions()
+      if (agentUnavailable) return
+      const builtin = Object.prototype.hasOwnProperty.call(MIRA_SUBTASK_AGENTS, item.action.value)
+      const userAgent = catalogs.userAgents.items.find(agent => agent.name === item.action.value && !agent.shadowed)
+      const plugin = catalogs.plugins.items.find(plugin => plugin.agents?.some(agent => agent.name === item.action.value))
+      const agent = plugin?.agents?.find(agent => agent.name === item.action.value)
+      if (!builtin && userAgent && (!userAgent.enabled || userAgent.unavailableReason)) return
+      if (!builtin && !userAgent && (!plugin || plugin.error || plugin.conflicts.length || !agent || agent.unavailableReason)) return
+      const reference = builtin ? miraAgentReference(item.action.value as HarnessSubtaskRole) : userAgent ? miraUserAgentReference(userAgent.name) : miraPluginAgentReference(item.action.value)
+      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference }, { type: 'text', text: ' ' }])) closeSuggestions()
       return
     }
     if (item.action.type === 'plugin') {
@@ -937,6 +1022,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (item.action.type === 'command' && item.action.value === 'compact') {
       closeSuggestions()
       await compactConversation(contextOpen ? { start: range.start, end: range.start } : range)
+      return
+    }
+    if (item.action.type === 'command' && (item.action.value === 'goal' || item.action.value === 'workflow')) {
+      if (editorText.slice(0, range.start).trim()) return
+      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'text', text: `/${item.action.value} ` }])) closeSuggestions()
       return
     }
     if (!applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [])) return
@@ -1026,6 +1116,32 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     event?.preventDefault()
     const text = draft.trim()
     if (!hasInput || attachmentBlocked || failedUploadRef.current || !activeRef.current || sendingBlocked || busyRef.current || submittingRef.current.has(draftKey) || recoveryWriteRef.current.has(draftKey) || referenceRead.current) return
+    let goalCommand: ReturnType<typeof parseMiraGoalCommand>
+    try { goalCommand = !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? parseMiraGoalCommand(text) : undefined }
+    catch (error) { setComposerError(error instanceof Error ? error.message : '目标命令无效'); return }
+    if (goalCommand) {
+      if (!controller.supportsGoals || state.session?.parentSessionId) { setComposerError('当前对话不支持目标模式'); return }
+      if (goalCommand.action === 'set' && planning) { setComposerError('目标模式不能在计划模式中启动，请先关闭计划模式'); return }
+      if (goalCommand.action === 'resume' && planning) { setComposerError('请先关闭计划模式，再恢复目标'); return }
+      if (goalCommand.action !== 'set') {
+        const owner = draftKey, revision = ownerTextRevisions.current.get(owner) ?? 0
+        if (goalCommand.action === 'get') { onShowGoal?.(); return }
+        const goal = state.session?.goal
+        if (!sessionId || !goal) { setComposerError('当前对话尚未设置目标'); return }
+        busyRef.current = true; setBusy(true); setComposerError('')
+        try {
+          if (goalCommand.action === 'pause') await controller.pauseGoal(sessionId, goal.revision, goal.id)
+          else if (goalCommand.action === 'resume') { if (!state.selection) throw new Error('请先选择模型'); await controller.resumeGoal(sessionId, goal.revision, goal.id, state.selection, permission) }
+          else if (goalCommand.action === 'clear') await controller.clearGoal(sessionId, goal.revision, goal.id)
+          else if (goalCommand.action === 'budget') await controller.updateGoalBudget(sessionId, goalCommand.tokenBudget, goal.revision, goal.id)
+          if ((ownerTextRevisions.current.get(owner) ?? 0) === revision) setDraft('', owner)
+          await persistDrafts()
+        } catch (error) { if (controller.getSnapshot().session?.id === sessionId && activeRef.current) setComposerError(error instanceof Error ? error.message : '目标操作失败，请重试') }
+        finally { busyRef.current = false; setBusy(false) }
+        return
+      }
+    }
+    if (planning && state.session?.goal?.status === 'active') { setComposerError('请先暂停当前目标，再开启计划模式'); return }
     if (controller.supportsContextCompaction && /^\/(compact|compress)$/i.test(text) && !references.length && !promptDocument.parts.some(part => part.type === 'reference')) {
       await compactConversation({ start: 0, end: editorText.length })
       return
@@ -1033,13 +1149,13 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (requestedOptions && !submissionOptionsSupported) return
     if (queueConfirmation && !requestedOptions?.pausedQueueDecision) return
     const current = controller.getSnapshot()
-    const intent = requestedOptions ?? (queueSupported && submissionOptionsSupported && current.running && followupMode === 'guide' ? { delivery: 'guide' as const } : undefined)
+    const intent = goalCommand && current.running ? { ...requestedOptions, delivery: 'queue' as const } : requestedOptions ?? (queueSupported && submissionOptionsSupported && current.running && followupMode === 'guide' ? { delivery: 'guide' as const } : undefined)
     const savedIntent = latestDraftSnapshot.current.submissions?.[draftKey]
     const retryingIntent = savedIntent && savedIntent.text === text && JSON.stringify(savedIntent.references) === JSON.stringify(references)
     if (!retryingIntent && intent && current.running && !current.session?.activeRun?.id) { setComposerError('当前任务身份尚未同步，请稍后重试'); return }
     const skillIds = [...new Set(promptDocument.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'skill' ? [part.reference.value] : []))]
     const pluginIds = [...new Set(promptDocument.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'plugin' ? [part.reference.value] : []))]
-    const options = submissionOptionsSupported ? { permissionMode: permission, ...(skillIds.length || text.includes('(mira-skill:') ? { skillIds } : {}), ...(pluginIds.length || text.includes('(plugin://') ? { pluginIds } : {}), ...(intent ? { ...intent, expectedRunId: current.session?.activeRun?.id ?? null } : {}) } : undefined
+    const options: HarnessMessageSubmissionOptions | undefined = submissionOptionsSupported ? { permissionMode: permission, ...(promptDocument.parts.some(part => part.type === 'reference') ? { hasStructuredContext: true } : {}), ...(skillIds.length || text.includes('(mira-skill:') ? { skillIds } : {}), ...(pluginIds.length || text.includes('(plugin://') ? { pluginIds } : {}), ...(intent ? { ...intent, expectedRunId: current.session?.activeRun?.id ?? null } : {}) } : undefined
     busyRef.current = true; setBusy(true); setComposerError(''); setDismissedHostError(undefined)
     let preparing = true
     try {
@@ -1055,7 +1171,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
         const retry = previous && previous.text === text && JSON.stringify(previous.references) === JSON.stringify(submittedReferences)
         const selection = { ...(retry ? previous.selection : controller.getSnapshot().selection!) }
         const submittedPlanning = retry ? previous.planning : planning
-        const submittedOptions = retry ? previous.options : options
+        const submittedOptions = goalCommand && controller.getSnapshot().running && retry ? { ...previous.options, delivery: 'queue' as const } : retry ? previous.options : options
         const capturedDraft = retry ? previous.draft : submittedDraft
         const payload = { text, references: submittedReferences, selection, planning: submittedPlanning, ...(submittedOptions ? { options: submittedOptions } : {}), ...(capturedDraft ? { draft: capturedDraft } : {}) }
         const submissionId = retry ? previous.id : crypto.randomUUID()
@@ -1229,10 +1345,11 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const usage: HarnessContextUsage | undefined = state.session?.context?.usage
   const PermissionIcon = permission === 'default' ? Hand : permission === 'auto-approve' ? ShieldCheck : ShieldAlert
   const sendKeyLabel = sendShortcut === 'mod-enter' ? '⌘/Ctrl+Enter' : 'Enter'
-  const reverseSendHint = submissionOptionsSupported && state.running && primaryModifierPressed && !sendingBlocked && hasInput && !queueConfirmation
+  const reverseSendHint = !nativeGoalCommand && submissionOptionsSupported && state.running && primaryModifierPressed && !sendingBlocked && hasInput && !queueConfirmation
   const guideMode = queueSupported && submissionOptionsSupported && followupMode === 'guide'
   const reverseOptions: HarnessMessageSubmissionOptions = guideMode && state.running ? {} : { delivery: 'immediate' }
-  const sendTitle = busy ? '正在准备任务' : reverseSendHint ? guideMode ? '加入待发送' : '立即发送' : state.running && guideMode ? '引导当前任务' : state.running || confirmationPending ? '加入待发送' : '发送任务'
+  const goalControlLabels = { get: '查看目标', pause: '暂停目标', resume: '恢复目标', clear: '清除目标', budget: '保存目标预算' }
+  const sendTitle = busy ? '正在准备任务' : nativeGoalCommand ? nativeGoalCommand.action === 'set' ? state.running ? '加入待发送' : '设置目标' : goalControlLabels[nativeGoalCommand.action] : reverseSendHint ? guideMode ? '加入待发送' : '立即发送' : state.running && guideMode ? '引导当前任务' : state.running || confirmationPending ? '加入待发送' : '发送任务'
   const queueConfirmationPending = Boolean(queueConfirmation && submitting.includes(queueConfirmation.ownerId))
   const queueConfirmationError = queueConfirmation ? recoverySaveErrors[queueConfirmation.ownerId] || visibleError : ''
   const placeholder = confirmationPending ? queueSupported ? '等待确认，可继续添加待发送消息' : '先处理上方确认；草稿会保留' : state.running ? '任务运行中，可先写好下一条消息' : state.messages.length ? '继续对话，@ 引用上下文，/ 选择能力' : '向 Mira 提问，@ 引用上下文，/ 选择能力'
@@ -1287,6 +1404,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
             {planning && <><span className="mira-composer-plan-separator" /><ComposerControlHint title="关闭计划模式"><button type="button" data-mira-toolbar-priority="2" className="harness-composer__menu-trigger mira-composer-plan-marker" aria-label="关闭计划模式" disabled={nextConfigBlocked} onClick={() => selectPlanning(false)}><Lightbulb size={16} className="mira-composer-plan-marker__bulb" /><X size={16} className="mira-composer-plan-marker__remove" /><span>计划</span></button></ComposerControlHint></>}
+            {leadingActions}
           </div></div>
           <div className="harness-composer__right-actions" data-mira-toolbar-trailing>
             {showContextUsage && <MiraContextUsage key={draftKey} usage={usage} contextWindow={selectedModel?.contextWindow} disabled={Boolean(!active || state.sessionLoading)} compactDisabled={Boolean(compactBlocked || !controller.supportsContextCompaction || !sessionId || state.session?.draftState === 'prepared' || state.session?.archivedAt || !state.selection)} compactReason={!sessionId || state.session?.draftState === 'prepared' ? '已有对话可压缩较早上下文' : undefined} compactQueued={compactQueued} compactPending={Boolean(compactRunning || sessionId && compactionPending === sessionId)} onCompact={() => { editorRef.current?.focus(); return compactConversation() }} />}

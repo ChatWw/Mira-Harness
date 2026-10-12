@@ -39,6 +39,22 @@ async function mount(overrides: Partial<Props> = {}) {
 }
 
 describe('task summary through real React DOM and Radix', () => {
+  it('does not render a zero Goal request when only live agents need a summary', async () => {
+    const view = await mount({ changes: 0, goalController: {} as NonNullable<Props['goalController']>, goalDetailsRequest: 0, subtasks: [agent()] })
+    await view.click('展开任务摘要')
+    const body = document.querySelector('.mira-task-summary__body')!
+    expect([...body.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent)).not.toContain('0')
+    expect(body.textContent).toContain('智能体')
+    expect(body.querySelector('[aria-label="目标"]')).toBeNull()
+  })
+  it('does not render a numeric false environment from a non-Git project', async () => {
+    const view = await mount({ changes: 0, environment: 0, subtasks: [agent()] })
+    await view.click('展开任务摘要')
+    const body = document.querySelector('.mira-task-summary__body')!
+    expect([...body.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent)).not.toContain('0')
+    expect(body.textContent).toContain('智能体')
+    expect(body.textContent).not.toContain('环境')
+  })
   it('keeps a three-step focus window for long todos and exposes all hidden steps by keyboard preview', async () => {
     const activities = Array.from({ length: 9 }, (_, index) => ({ id: `step-${index}`, kind: 'plan' as const, label: `步骤 ${index + 1}`, status: index < 3 ? 'completed' as const : index === 3 ? 'running' as const : 'pending' as const, startedAt: 1 }))
     const view = await mount({ activities })

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HarnessEvent, HarnessMessage, HarnessMessagePart, HarnessMessageQueueSnapshot, HarnessSession } from '../src/config/harness'
+import type { HarnessGoal } from '../src/config/miraGoals'
 import { getPilotTaskState, getPilotTaskTone, PilotController, projectPilotMessage, shouldRenderPilotStream, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
 
 function session(id: string, content = ''): HarnessSession {
@@ -40,7 +41,169 @@ function fixture() {
   return { controller, host, snapshots, emit, unsubscribe }
 }
 
+const goal = (revision = 1, id = 'goal'): HarnessGoal => ({ id, objective: '完成目标', revision, status: 'active', tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, iteration: 1, createdAt: 1, updatedAt: revision })
+
+describe('workflow source review projection', () => {
+  it('retains both parallel actor approvals and advances to the next after the current tool settles', async () => {
+    const { controller, emit, host } = fixture(); await controller.start()
+    emit('workflow-event', { runId: 'flow', event: { type: 'run-started', runId: 'flow', caps: { maxConcurrency: 2 } } }, 'a', 'flow', { sequence: 1 })
+    emit('permission-request', { requestId: 'first', title: '智能体一', toolCallId: 'one', runId: 'flow' }, 'a', 'flow', { sequence: 2 })
+    emit('permission-request', { requestId: 'second', title: '智能体二', toolCallId: 'two', runId: 'flow' }, 'a', 'flow', { sequence: 3 })
+    expect(controller.getSnapshot().permission?.requestId).toBe('first')
+    emit('tool-call', { id: 'one', runId: 'flow', status: 'ok', approvalRequestId: 'first' }, 'a', 'flow', { sequence: 4 })
+    expect(controller.getSnapshot().permission?.requestId).toBe('second')
+    await controller.permission(true, 'second')
+    expect(host.respondPermission).toHaveBeenCalledExactlyOnceWith('second', true)
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('keeps background workflow approvals and tool records independent of the finished creator reply', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    emit('status', { state: 'running' }, 'a', 'creator', { sequence: 1 })
+    emit('workflow-event', { runId: 'flow', event: { type: 'run-started', runId: 'flow', caps: { maxConcurrency: 2 } } }, 'a', 'flow', { sequence: 1 })
+    emit('tool-call', { id: 'flow-tool', tool: 'mcp_echo', runId: 'flow', status: 'waiting-confirm', createdAt: 1 }, 'a', 'flow', { sequence: 2 })
+    emit('permission-request', { requestId: 'flow-permission', title: '工具确认', toolCallId: 'flow-tool', runId: 'flow' }, 'a', 'flow', { sequence: 3 })
+    emit('status', { state: 'idle' }, 'a', 'creator', { sequence: 2 })
+    expect(controller.getSnapshot().permission?.requestId).toBe('flow-permission')
+    expect(controller.getSnapshot().session?.toolCalls.find(tool => tool.id === 'flow-tool')?.status).toBe('waiting-confirm')
+    emit('workflow-event', { runId: 'flow', event: { type: 'run-settled', status: 'stopped', reason: 'user' } }, 'a', 'flow', { sequence: 4 })
+    emit('tool-call', { id: 'flow-tool', runId: 'flow', status: 'cancelled', approvalRequestId: 'flow-permission' }, 'a', 'flow', { sequence: 5 })
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    expect(controller.getSnapshot().pendingPermissions.a).toBeUndefined()
+    expect(controller.getSnapshot().session?.toolCalls.find(tool => tool.id === 'flow-tool')?.status).toBe('cancelled')
+    emit('permission-request', { requestId: 'late', title: '过期确认', runId: 'flow' }, 'a', 'flow', { sequence: 6 })
+    expect(controller.getSnapshot().permission).toBeUndefined()
+    emit('status', { state: 'running' }, 'a', 'next', { sequence: 1 })
+    emit('message-delta', { delta: '正常下一轮' }, 'a', 'next', { sequence: 2 })
+    expect(controller.getSnapshot().messages.at(-1)?.content).toBe('正常下一轮')
+    controller.dispose()
+  })
+
+  it('restores a workflow run independently while rejecting late ordinary reply events', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    emit('status', { state: 'running' }, 'a', 'creator')
+    emit('status', { state: 'idle' }, 'a', 'creator')
+    emit('workflow-event', { runId: 'flow', event: { type: 'run-settled', status: 'stopped' } }, 'a', 'flow', { sequence: 1 })
+    emit('workflow-event', { runId: 'flow', event: { type: 'run-started', runId: 'flow', caps: { maxConcurrency: 2 } } }, 'a', 'flow', { sequence: 2 })
+    emit('permission-request', { requestId: 'resumed', title: '续跑工具确认', runId: 'flow' }, 'a', 'flow', { sequence: 3 })
+    expect(controller.getSnapshot().permission?.requestId).toBe('resumed')
+    emit('message-delta', { delta: '过期的普通回复' }, 'a', 'creator')
+    expect(controller.getSnapshot().messages.some(message => message.content.includes('过期的普通回复'))).toBe(false)
+    expect(controller.getSnapshot().running).toBe(false)
+    controller.dispose()
+  })
+
+  it('retains exact compiled review and tool/run identity across event and pending state', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    const review = { action: 'run', name: 'write', source: 'return 1;', sourceHash: 'a'.repeat(64), commands: [], graph: { phases: [], participants: [], handoffs: [], phaseEdges: [], steps: [], truncated: false } }
+    emit('permission-request', { requestId: 'workflow-review', title: '执行流程', detail: '确认源码', toolCallId: 'workflow-tool', runId: 'creator', workflowReview: review }, 'a', 'creator')
+    expect(controller.getSnapshot().permission).toMatchObject({ workflowReview: review, toolCallId: 'workflow-tool', runId: 'creator' })
+    expect(controller.getSnapshot().pendingPermissions.a?.workflowReview).toEqual(review)
+    controller.dispose()
+  })
+})
+
+describe('Goal status takes precedence over a completed execution iteration', () => {
+  it.each([
+    [{ ...goal(), status: 'paused' as const }, false, '目标已暂停', 'stopped'],
+    [{ ...goal(), status: 'budget_limited' as const, tokenBudget: 10, tokensUsed: 10 }, false, '预算已用尽', 'stopped'],
+    [{ ...goal(), status: 'budget_limited' as const, tokenBudget: 30, tokensUsed: 10 }, false, '已暂停，待恢复', 'stopped'],
+    [{ ...goal(), verification: { id: 'verify', iteration: 1, status: 'running' as const, updatedAt: 1 } }, true, '正在核验目标', 'running'],
+    [goal(), false, '目标等待执行', 'idle'],
+  ])('projects lifecycle without claiming overall completion', (currentGoal, running, label, tone) => {
+    const state = { sessions: [], projects: [], providers: [], messages: [], session: { ...session('a'), status: 'completed' as const, goal: currentGoal }, running, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
+    expect(getPilotTaskState(state)).toBe(label)
+    expect(getPilotTaskTone(getPilotTaskState(state))).toBe(tone)
+    expect(getPilotTaskState({ ...state, permission: { sessionId: 'a', requestId: 'permission', title: '写入', detail: 'file.md' } })).toBe('等待确认')
+  })
+})
+
+describe('Goal projection ownership', () => {
+  function goalsFixture() {
+    const view = fixture()
+    view.snapshots.get('a')!.goal = goal()
+    view.host.pauseGoal = vi.fn(async () => ({ ...goal(2), status: 'paused' }))
+    view.host.resumeGoal = vi.fn(async () => goal(3))
+    view.host.updateGoalBudget = vi.fn(async () => ({ ...goal(4), tokenBudget: 500 }))
+    view.host.clearGoal = vi.fn(async () => undefined)
+    return view
+  }
+  it('projects only newer owner revisions and ignores events from another task', async () => {
+    const { controller, emit } = goalsFixture(); await controller.start()
+    emit('goal-updated', { goal: goal(3) })
+    emit('goal-updated', { goal: { ...goal(2), status: 'complete' } })
+    emit('goal-updated', { goal: goal(4, 'other') }, 'b')
+    expect(controller.getSnapshot().session?.goal).toEqual(goal(3))
+    controller.dispose()
+  })
+  it('passes goal ID and revision through controls and rejects stale or child owners', async () => {
+    const { controller, host, snapshots } = goalsFixture(); await controller.start()
+    await controller.pauseGoal('a', 1, 'goal')
+    expect(host.pauseGoal).toHaveBeenCalledExactlyOnceWith('a', 1, 'goal')
+    expect(controller.getSnapshot().session?.goal?.status).toBe('paused')
+    await expect(controller.resumeGoal('a', 1, 'goal', controller.getSnapshot().selection!)).rejects.toThrow('目标已变化')
+    const side = controller.createSideController('b', 'a'); snapshots.get('b')!.goal = goal(); await side.start()
+    expect(side.supportsGoals).toBe(false)
+    await expect(side.pauseGoal('b', 1, 'goal')).rejects.toThrow('目标已变化')
+    side.dispose(); controller.dispose()
+  })
+  it('keeps late controls out of a replacement target even when versions restart', async () => {
+    const { controller, host, emit } = goalsFixture(); await controller.start()
+    let settle!: (value: HarnessGoal) => void
+    host.pauseGoal = vi.fn(() => new Promise(resolve => { settle = resolve }))
+    const pending = controller.pauseGoal('a', 1, 'goal')
+    emit('goal-updated', { goal: { ...goal(1, 'replacement'), updatedAt: 10 } })
+    settle({ ...goal(2), status: 'paused', updatedAt: 20 }); await pending
+    expect(controller.getSnapshot().session?.goal?.id).toBe('replacement')
+    emit('goal-updated', { goal: { ...goal(8), status: 'complete', updatedAt: 30 } })
+    expect(controller.getSnapshot().session?.goal?.id).toBe('replacement')
+    controller.dispose()
+  })
+  it('ignores late controls after task navigation and cannot resurrect a cleared goal', async () => {
+    const { controller, host, emit } = goalsFixture(); await controller.start()
+    let settle!: (value: HarnessGoal) => void
+    host.pauseGoal = vi.fn(() => new Promise(resolve => { settle = resolve }))
+    const pending = controller.pauseGoal('a', 1, 'goal'); await controller.open('b')
+    settle({ ...goal(2), status: 'paused' }); await pending
+    expect(controller.getSnapshot().session?.id).toBe('b'); expect(controller.getSnapshot().session?.goal).toBeUndefined()
+    await controller.open('a'); await controller.clearGoal('a', 1, 'goal')
+    emit('goal-updated', { goal: goal(2) })
+    expect(controller.getSnapshot().session?.goal).toBeUndefined()
+    controller.dispose()
+  })
+  it('permits an existing-task pane while rejecting Goal submission in Plan before admission', async () => {
+    const { controller, host } = goalsFixture(); await controller.start()
+    const pane = controller.createTaskPaneController('a'); await pane.start()
+    expect(pane.supportsGoals).toBe(true)
+    expect(await controller.send('/goal new objective', true)).toBe(false)
+    expect(host.runMessage).not.toHaveBeenCalled()
+    pane.dispose(); controller.dispose()
+  })
+})
+
 describe('project metadata refresh', () => {
+  it('preserves an explicit anonymous project MCP scope even when another session is currently loaded', async () => {
+    const { controller, host } = fixture()
+    host.listMcp = vi.fn(async () => [])
+    await controller.start(); await controller.listMcp(undefined, 'project')
+    expect(host.listMcp).toHaveBeenLastCalledWith(undefined, 'project')
+    controller.newConversation(); await controller.listMcp(undefined, 'project')
+    expect(host.listMcp).toHaveBeenLastCalledWith(undefined, 'project')
+    controller.dispose()
+  })
+  it('passes the active task identity to MCP reads and permits an explicit captured owner', async () => {
+    const { controller, host } = fixture()
+    host.listMcp = vi.fn(async () => [])
+    await controller.start(); await controller.listMcp()
+    expect(host.listMcp).toHaveBeenLastCalledWith('a')
+    await controller.open('b'); await controller.listMcp('a')
+    expect(host.listMcp).toHaveBeenLastCalledWith('a')
+    await controller.listMcp(); expect(host.listMcp).toHaveBeenLastCalledWith('b')
+    controller.newConversation(); await controller.listMcp()
+    expect(host.listMcp).toHaveBeenLastCalledWith(undefined)
+    controller.dispose()
+  })
   it('publishes tool metadata and approval updates without waiting for a delayed session read', async () => {
     const { controller, host, emit } = fixture()
     await controller.start()

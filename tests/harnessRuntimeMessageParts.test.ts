@@ -40,7 +40,7 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
   const tool = async (agent: any, id: string, name: string, args: any, onUpdate?: (partial: unknown) => void) => {
     notify({ type: 'message_update', assistantMessageEvent: { type: 'toolcall_end', toolCall: { id, name, arguments: args } } })
     notify({ type: 'tool_execution_start', toolCallId: id, toolName: name, args })
-    const decision = await agent.beforeToolCall({ toolCall: { id, name }, args })
+    const decision = await agent.beforeToolCall({ toolCall: { id, name }, args, context: { tools: agent.state.tools } })
     let result: any, isError = false
     if (decision?.block) { result = { content: [{ type: 'text', text: decision.reason }] }; isError = true }
     else {
@@ -76,11 +76,12 @@ describe('authoritative ordered Harness message parts', () => {
 
   it('retains a real failed tool before a later reply is stopped', async () => {
     const manager = new McpManager()
-    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool: vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'Tool rejected' }] }) }, 'Test MCP')
+    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool: vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'Tool rejected' }] }) }, 'Test MCP', 'test-mcp')
     const fixture = setup({ getTools: () => [tool] })
+    fixture.database.harness.updateSession({ ...fixture.database.harness.getSession(fixture.sessionId), activeMcpServerIds: ['test-mcp'] })
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
-      fixture.response(); await fixture.tool(this, 'actual-failure', 'mcp_failure', {})
+      fixture.response(); await fixture.tool(this, 'actual-failure', tool.name, {})
       fixture.response(); fixture.update('text_delta', 'Partial recovery')
       fixture.runtime.abort(fixture.sessionId); throw new Error('stopped')
     })
@@ -213,6 +214,7 @@ describe('authoritative ordered Harness message parts', () => {
       fixture.response()
       fixture.update('text_delta', 'Before')
       const attempt = fixture.tool(this, 'write-denied', 'write', { path: 'new.txt', content: 'No write' })
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
       const request = fixture.runtime.listPendingPermissions(fixture.sessionId)[0]!
       const pending = fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]!
       expect(request).toMatchObject({ toolCallId: pending.id, runId: pending.runId })
@@ -261,7 +263,7 @@ describe('authoritative ordered Harness message parts', () => {
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
       fixture.response(); fixture.update('text_delta', 'Approval timed out')
       const attempt = fixture.tool(this, 'timeout-write', 'write', { path: 'new.txt', content: 'No write' })
-      expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1)
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       await attempt
     })
@@ -278,6 +280,7 @@ describe('authoritative ordered Harness message parts', () => {
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
       fixture.response(); fixture.update('text_delta', 'Write')
       const attempt = fixture.tool(this, 'write-approved', 'write', { path: 'new.txt', content: 'New content' })
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
       fixture.runtime.resolvePermission(fixture.runtime.listPendingPermissions(fixture.sessionId)[0]!.requestId, true)
       await attempt
     })
@@ -293,7 +296,7 @@ describe('authoritative ordered Harness message parts', () => {
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
       fixture.response(); fixture.update('thinking_delta', 'Partial thinking')
       const attempt = fixture.tool(this, 'stopped-write', 'write', { path: 'new.txt', content: 'No write' })
-      expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1)
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
       fixture.runtime.abort(fixture.sessionId)
       await attempt
     })
@@ -326,7 +329,7 @@ describe('authoritative ordered Harness message parts', () => {
     const manager = new McpManager()
     const callTool = vi.fn().mockResolvedValueOnce({ content: [{ type: 'image', data: 'RAW-MCP-IMAGE-BLOB', mimeType: 'image/png' }] })
       .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Image result' }, { type: 'image', data: 'RAW-MCP-IMAGE-BLOB', mimeType: 'image/png' }] })
-    const tool = (manager as any).toAgentTool({ name: 'mcp_image' }, { callTool }, 'Test MCP')
+    const tool = (manager as any).toAgentTool({ name: 'mcp_image' }, { callTool }, 'Test MCP', 'test-mcp')
     expect(publicHarnessToolOutput(await tool.execute('image-1', {}))).toBeUndefined()
     const mixed = publicHarnessToolOutput(await tool.execute('image-2', {}))!
     expect(mixed.text).toContain('Image result')
@@ -344,12 +347,13 @@ describe('authoritative ordered Harness message parts', () => {
   it('treats a real MCP server error as a failed parent tool and activity', async () => {
     const manager = new McpManager()
     const callTool = vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'MCP server rejected the request' }] })
-    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool }, 'Test MCP')
+    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool }, 'Test MCP', 'test-mcp')
     const fixture = setup({ getTools: () => [tool] })
+    fixture.database.harness.updateSession({ ...fixture.database.harness.getSession(fixture.sessionId), activeMcpServerIds: ['test-mcp'] })
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
       fixture.response(); fixture.update('text_delta', 'Try MCP')
-      await fixture.tool(this, 'mcp-failed', 'mcp_failure', {})
+      await fixture.tool(this, 'mcp-failed', tool.name, {})
     })
     await fixture.run()
     const session = fixture.database.harness.getSession(fixture.sessionId)

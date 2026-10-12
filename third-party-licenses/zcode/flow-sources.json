@@ -1,0 +1,503 @@
+{
+  "upstream": "https://github.com/zai-org/ZCode",
+  "commit": "29628c9acdb81b703bbd4080c207a0e7ce5e276e",
+  "license": "Apache-2.0",
+  "adaptedAt": "2026-10-12",
+  "files": [
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/actor-graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-actor-graph.ts",
+      "sourceSha256": "a9a3b95712698982c5760fa9faadc345798b430470f4034a52639ef160bb1830"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/actor-names.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-actor-names.ts",
+      "sourceSha256": "614dcace45b1318a47140d871dab05509b2d0810da273f49ea9d6792e5f11eb8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/analyze.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-analyze.ts",
+      "sourceSha256": "a70965143a76ddb95dc2ff2e3a08c790e55fcf8db09b0b93d3731014012ee643"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/array-methods.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-array-methods.ts",
+      "sourceSha256": "a8733fcdbf0e0e5aa75c46799bf8a3e84e65350dcc3419356480616108730467"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/artifact-types.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-artifact-types.ts",
+      "sourceSha256": "255546c1c2999e62c424e3bb53e827121902473d64c58ec8d2c284a53e6bb6ec"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/artifacts.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-artifacts.ts",
+      "sourceSha256": "4f2dd2e9891435f1c875f20d03dc77e955dcbfd7f979eccc68f93a5f7d4f6d65"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/assign.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-assign.ts",
+      "sourceSha256": "46230efec4e434a7c0a264b57dbe2ae74611f59ac5e8615745f0e7cf3f6eff5a"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/callbacks.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-callbacks.ts",
+      "sourceSha256": "5dcf20da4193b60a34cc6778f22680f2a6cd5268ca283c1fde58c957de99d2f9"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/calls.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-calls.ts",
+      "sourceSha256": "6f2bb61d40f0de197724aae31d8ffa63d717b630be52fa41676bbed643922a62"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-graph-lanes.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-graph-lanes.ts",
+      "sourceSha256": "34999bfbe0c10983adf3d62cd9989cf6a288456d03d6530e3e82668f754d7846"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-graph-types.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-graph-types.ts",
+      "sourceSha256": "c6d344a82078a79c42ae943fe0e41efc0d2f8cc2990e07df5045a388429bf737"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-graph.ts",
+      "sourceSha256": "2a33c592a31acf449e3f9316bf0fff1f40ad18d31a53533c7217c9e71c8520ad"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-calls.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-calls.ts",
+      "sourceSha256": "c153d1349a06fd08151e8980954e2f570c7c8c8888b1016fdea097065b052462"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-functions.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-functions.ts",
+      "sourceSha256": "76196deb7c5889b5125f19c47d5104955bf4b174b3221fb2b17fb2d3503fe14d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-loops.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-loops.ts",
+      "sourceSha256": "ce80981d778eb5d2d3eb15c4349aab8770cb94081c4fc45bc462a41c26c7f76f"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-settle.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-settle.ts",
+      "sourceSha256": "0d43b6c54db63e8607a4b461462c02059b7e1d8feb5b99ed6682ac862049f703"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-state.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-state.ts",
+      "sourceSha256": "7c7ec70dd3a372217ff136a327156dfdb7fd1ef3dcbe721fe3b2d361782b13b8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-strands.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-strands.ts",
+      "sourceSha256": "919132d12de90b0b59825637e92bfd35bca89799d63cdc2977dc80c132878861"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-types.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-types.ts",
+      "sourceSha256": "e48f588d1820fbfd4622bc7d6133a028df0cbe3271a8a899db1f49761cc7dae4"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order-walk.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order-walk.ts",
+      "sourceSha256": "a63999b12058dc2fa97cce78417d0e7a798e62a84a000431bfbff8b3dadb8044"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-order.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-order.ts",
+      "sourceSha256": "590f3d7bf0df083e04692328d7474cad1d67c464ce9abdd30792c1b28abaeec9"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/causality-reduce.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-causality-reduce.ts",
+      "sourceSha256": "e8c99c4beb9eaadea4f9fcd31c82ccf66489a51d021da3a61ebcfa10584b2d2f"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/classes.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-classes.ts",
+      "sourceSha256": "39c326cb1e662aca236ebbff18e8c62f43bf043b5300e5ede02dd497fb3520f7"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/constants.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-constants.ts",
+      "sourceSha256": "dec44bb45653f784f9e285c26fcf45fbd9f165dde9254b8a6ba91f1317d4b453"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/control-flow.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-control-flow.ts",
+      "sourceSha256": "7ee218370e4c3b2a5d769baffeff5f233d131e2d925e95a869831a578da8f379"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/core-json.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-core-json.ts",
+      "sourceSha256": "8d96ca2a85a322d51b28ca4149447b343d83b4284b63b2c5494fb5b7b28d0d54"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/core.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-core.ts",
+      "sourceSha256": "8b04dcc2add5bc8bffebe37a04411d3f3b299a295cc2b1d339af3c0a581b7e2c"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/domain.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-domain.ts",
+      "sourceSha256": "b505206b48d3fee85a6d402d5a7d0c381915b0a0f10fa2eb284feb933e71df12"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/facade-misuse.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-facade-misuse.ts",
+      "sourceSha256": "6158fa6ec8fbb8872294e674e100f899793715611b87d616b9395c5863a78954"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/fanout-cardinality.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-fanout-cardinality.ts",
+      "sourceSha256": "8f967c348b025d1616bf3c68c3116ef0ac95c325237d4e688609c9d2d75ed3cb"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/flow-graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-flow-graph.ts",
+      "sourceSha256": "21d83fb13165fe81cf003514fc7b50bab0869e9e1076217e2ca8837b6dfbc307"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/flow-phase.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-flow-phase.ts",
+      "sourceSha256": "aba7efd91f949193de7243f4696267b991f300009cc8f4908d006168ac609824"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/flow-strands.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-flow-strands.ts",
+      "sourceSha256": "65cfd236348f5adf8c6d5e71190b98abf972c62abce3832252476121bdda696a"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/flow-tree.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-flow-tree.ts",
+      "sourceSha256": "fdb7ac7b27134382980f0e4728926996c7c6872aff123ab32a19b77bf93d9d85"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-graph.ts",
+      "sourceSha256": "2b3911bb86d6c846c033ded1cfa51c3dfce7a509099bb113a7ae6269b0a0725c"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/handoff-graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-handoff-graph.ts",
+      "sourceSha256": "a38d2e5cbbc060c74fb2c07cc6512d35836ff504f0bf6f0e31b2fc51022d7583"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/heap-ops.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-heap-ops.ts",
+      "sourceSha256": "11507dc605b84f4ad643967bdea68413ebde790af89b20db174da4fd37dfd6b0"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/interpret.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-interpret.ts",
+      "sourceSha256": "769a8824c2f15bf47f7cd735e1ff07e899dd08c092095729c94801519a8f1dad"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/literals.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-literals.ts",
+      "sourceSha256": "beac2d27fc4b91c7e9a97c394132beabdeb6104c0847218275cb7d60f5679794"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/mermaid.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-mermaid.ts",
+      "sourceSha256": "84e45ef26d2e1c7b2546568c1e13a61d0d80a8c9e3cb8a8eccc05197da2e4275"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/patterns.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-patterns.ts",
+      "sourceSha256": "a89028fe1130d05b0643f2666d0cbbbf75195f1775eae1dc8e0d5f4c921c5b6b"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/phase-graph.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-phase-graph.ts",
+      "sourceSha256": "7100d103dbd1afbd68bebc33e215ef8e873dd282c342ef5163ef2f9082dabb89"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/phases.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-phases.ts",
+      "sourceSha256": "27418cde742a6128842498cb202e4972196e3c95bd479523f29b9034f1afbd0d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/promise-ops.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-promise-ops.ts",
+      "sourceSha256": "ab7e1dbc677276001abe71e748a0cb6d266a93353ea3f49605f92059d2eee4a8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/relays.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-relays.ts",
+      "sourceSha256": "fe1d717caeda7a615af26416b7b1cf1c91341cb1454a72ad30e453745f6b5fa1"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/serialize.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-serialize.ts",
+      "sourceSha256": "cc07cdfef6bbaab2f922bb6d0a358e1d71f81512d6643d3f7d95ec2d85a7e93d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/sites-labels.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-sites-labels.ts",
+      "sourceSha256": "099d6aca71bd29e2670bda5077db75d03f0b2d37bc48472b6b3c6204bba9fba7"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/sites.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-sites.ts",
+      "sourceSha256": "6d15282ae4b5e4166fcade61c9adb45a0fa040ecd482b20d0b82357c12038322"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/state.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-state.ts",
+      "sourceSha256": "209094a1fa1370953b355ced536019cc1ccf808e315b097804af5ed9f9ec2b09"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/taint.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-taint.ts",
+      "sourceSha256": "7e286b59bafe779516d8ac4478f0897ef90dfdd42385df218c16761394ff396f"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/types.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-types.ts",
+      "sourceSha256": "024e7a30cb274590dfebf54a5932826c483ab2f537acddaba9f79dd489c69a27"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/analysis/world-run.ts",
+      "target": "packages/mira-flow-kit/src/analysis/mira-world-run.ts",
+      "sourceSha256": "2ecba8073a7c5664dd65fb274418f5637a345b3fc695c3152c17cd443b231d9c"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/compiler/compile.ts",
+      "target": "packages/mira-flow-kit/src/compiler/mira-compile.ts",
+      "sourceSha256": "0ced3f434c21fef126a886769ced7fe0c71a1c34c72420cf250985cdb51ccf7d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/artifact-spec.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-artifact-spec.ts",
+      "sourceSha256": "ab16b674bbcd7e6ea0e49b9bc8af66e87cb76a099971b1d217fc304e31b1fa8e"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/ask-observation-types.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-ask-observation-types.ts",
+      "sourceSha256": "2a8b8a32f12dc09b95b98a7e732095698dc0b615505d94fad57d31d4c279a164"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/concurrency.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-concurrency.ts",
+      "sourceSha256": "df6edafd9536942b0a997381ea055efc35bc181c75c94ab976a800ffbf8ba4ac"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-artifacts-primary.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-artifacts-primary.ts",
+      "sourceSha256": "1987bf40f7e6808172886dbbc086dd2ce970ccd2345916b3c887788cf4a53ec8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-artifacts.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-artifacts.ts",
+      "sourceSha256": "f2cf5f32a75e5345566de93a2b554d564065f105c2c91cdfae452af07b403440"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-launch.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-launch.ts",
+      "sourceSha256": "7db140f94f8194228cee23a702f28c21353ae45a539eea0b22f1ac88a3ed7ec7"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-phase-stamp.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-phase-stamp.ts",
+      "sourceSha256": "4359297fe4d2d88be01595f9858fcb0f692ac68695c303bb66a36e73eeab7f16"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-report.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-report.ts",
+      "sourceSha256": "5d466b1e0c2b2f46cc3430f2cf4c09b25b72114a5b59ee6416667c2dddf2380d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-settlement.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-settlement.ts",
+      "sourceSha256": "7fbf2afbb2da957c75b67d4b19cfbafbe9e2123c05a33e3b6d9f875ac8426dc0"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-state.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-state.ts",
+      "sourceSha256": "a913fa02e71f794104e33f7bd5688a0306fe5ff5ff6c21d3f9dac8eb7e2f8510"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine-world.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine-world.ts",
+      "sourceSha256": "b987c80db9d32d93bc2cf40626c4f57c7595d2fdb776cca0ea36300246af7203"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/engine.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-engine.ts",
+      "sourceSha256": "f558bccaef46114ce5477b449e76d91f33ad8635419104a569763b90617b3d74"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/errors.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-errors.ts",
+      "sourceSha256": "39a29e2006350266d0cb86a7cd9b434825cba4b054dab9192ddd0125ed8bfad1"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/hash.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-hash.ts",
+      "sourceSha256": "9b96aac60af892ee7bea42bf685f714a637535569afe8a1231040568df83c427"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/imported-cache-types.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-imported-cache-types.ts",
+      "sourceSha256": "8d8aa8728ebc3e81330d3d0788aecc91f20aa0a7733734255becb628e1cdbcc1"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/imported-cache.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-imported-cache.ts",
+      "sourceSha256": "775a419c91870ad59015f73567490309663ea1a93ff3f787519a591e15bb5604"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/index.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-index.ts",
+      "sourceSha256": "0ed0b087c2b68537deb795060a76d1db8b90fc49b655984956943ccc542d2b36"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/journal-memory.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-journal-memory.ts",
+      "sourceSha256": "ab7176cb76465f401a23b58f4421889f1aab7f9e3da648106e9509cb31203671"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/replay-order.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-replay-order.ts",
+      "sourceSha256": "3dfca5397f0f827b7a64babe2813a8eec70c97f02304d93a08d354dd449ce72e"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/run-terminal.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-run-terminal.ts",
+      "sourceSha256": "1289a06f7928e06e34a992ffced8067f102162f8ab623900003e1afb320bb418"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/scheduler-submit.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-scheduler-submit.ts",
+      "sourceSha256": "58e220b86f9c84e2dcb45af4e8933c0bc7f3ad77eeed5a5d6782f3dc96636d5e"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/scheduler-types.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-scheduler-types.ts",
+      "sourceSha256": "53d90390d684725cb8b7f378a03c67e1bdb80d82a16024483a480d929d907f67"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/scheduler.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-scheduler.ts",
+      "sourceSha256": "fa864035ccc5e77c11a0dda99a03a0f8e47d62a935cfa130db9a80d14f14dafb"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/types.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-types.ts",
+      "sourceSha256": "9f254e041ca748342b7e891971cfcb9a6d59feda7e160b1368d6e7f5835708b1"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/engine/world-read-input.ts",
+      "target": "packages/mira-flow-kit/src/engine/mira-world-read-input.ts",
+      "sourceSha256": "3438eb91f8c23165a4d5821820dc162a092f963a172c5fcc30aba5e8793e54b5"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/facade/artifact-caps.ts",
+      "target": "packages/mira-flow-kit/src/facade/mira-artifact-caps.ts",
+      "sourceSha256": "2370e966732e519248a89c73c40cad8bcd0d9c15d5a029d1cb309922e395b7ae"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/facade/dts.ts",
+      "target": "packages/mira-flow-kit/src/facade/mira-dts.ts",
+      "sourceSha256": "f6153608bd973a1928e10b4a04148016a3a8c6a95ed23e8e2ddf469a0a656e34"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/facade/registry.ts",
+      "target": "packages/mira-flow-kit/src/facade/mira-registry.ts",
+      "sourceSha256": "8ada25f5a4fef7096af4b9516fe3840873e582b22e28532ebfd4e7f6e16031a5"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/facade/report-caps.ts",
+      "target": "packages/mira-flow-kit/src/facade/mira-report-caps.ts",
+      "sourceSha256": "8cde4b9fc763cd5263582800e5fc38259c128f061f581ae9e2840bee459a1a54"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/facade/world-read-caps.ts",
+      "target": "packages/mira-flow-kit/src/facade/mira-world-read-caps.ts",
+      "sourceSha256": "aa2aedf2fd96e99a5192f3deaea7e00723780c9a69c20bea63684d1df27a144f"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/index.ts",
+      "target": "packages/mira-flow-kit/src/mira-index.ts",
+      "sourceSha256": "33608946de037ca1d94ac948f0d854a6efbb2f6e9f00356c2368bb45f65dab87"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/lowering/index.ts",
+      "target": "packages/mira-flow-kit/src/lowering/mira-index.ts",
+      "sourceSha256": "dd2441a20902c6e3c1524d88b2a925c2b8d7683be25ce6dab61f837edc8874c8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/lowering/lower.ts",
+      "target": "packages/mira-flow-kit/src/lowering/mira-lower.ts",
+      "sourceSha256": "8535b22e41cf63ecd93e6179e39389f3dda919446597d5ad0d6514a62889d3dc"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/projections.ts",
+      "target": "packages/mira-flow-kit/src/mira-projections.ts",
+      "sourceSha256": "7c31b47d8c243368511cea0542c600c90b4d98e09eb0e87571756dcf5ddca26d"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/actor-submit-profiles.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-actor-submit-profiles.ts",
+      "sourceSha256": "ab3aff8a609722ba4854c1f04f3738a6dbe6588812fa946f4ac56da8628d3fb7"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/emit.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-emit.ts",
+      "sourceSha256": "98b19778e7228d2ac4cafa5057c16873e8b47acec30be9ccf3b53995b2ed6fa1"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/jsdoc.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-jsdoc.ts",
+      "sourceSha256": "c51e51ac2fe1465b6d0109a32fc1f742f1a08444f60b0b2ef32c195b9e883444"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/serialize.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-serialize.ts",
+      "sourceSha256": "e599d6701a73c526264056da042ae2a5291906bb36ebc47ec374085b0cb83d0b"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/synthesize.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-synthesize.ts",
+      "sourceSha256": "85b3c645c6c444d0c88200de976c3851a3c1302c345eb2d89c994fc866031693"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/types.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-types.ts",
+      "sourceSha256": "328bda07061843d17e8d9699e2cc92b37c7803586f38a7f92722811063e6e082"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/validate.ts",
+      "target": "packages/mira-flow-kit/src/schema/mira-validate.ts",
+      "sourceSha256": "915fd213e12d521ed585f061aa04e9c4777c6813457fcdf54d6da3acd2c4ec12"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow-runtime/src/child-entry-file.ts",
+      "target": "packages/mira-flow-runtime/src/mira-child-entry-file.ts",
+      "sourceSha256": "c2771b1ef35e4221b4d96688bb6f9815eacbd22b3ae2ce177f44fb8e2bd2f709"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow-runtime/src/child-source.ts",
+      "target": "packages/mira-flow-runtime/src/mira-child-source.ts",
+      "sourceSha256": "b65959c58c7e319bd524c80e57f9b5598d1b1dfb718ddf669b80cbd2029b44e0"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness.ts",
+      "target": "packages/mira-flow-runtime/src/mira-harness.ts",
+      "sourceSha256": "97245665c9674511a0715e6ecf790e111c274f2c649cc1b16644ea7d1c243f57"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow-runtime/src/index.ts",
+      "target": "packages/mira-flow-runtime/src/mira-index.ts",
+      "sourceSha256": "6bfea24dd6f314066cd5f40a0a599d900ec7aa96b1f0a25c52d99cd883f4f2f8"
+    },
+    {
+      "source": "apps/zcode-cli/packages/dynamic-workflow-runtime/src/protocol.ts",
+      "target": "packages/mira-flow-runtime/src/mira-protocol.ts",
+      "sourceSha256": "d9a43b51850f0ca4131cdc5a4c16c0917fb6e6de0919ed1ab40a23a59c4bddc9"
+    }
+  ]
+}

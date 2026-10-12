@@ -1,7 +1,10 @@
 // Adapted from ZCode ConversationTimeline and conversationTimelineLiveTail (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Mira renders its authoritative messages in visible turns.
 import { defaultRangeExtractor, measureElement as measureVirtualElement, useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
+import type { HarnessGoal } from '../../../../../src/config/miraGoals'
+import { MiraGoalVerification } from './MiraGoalVerification'
+import { goalVerificationsByMessage } from './conversation-model'
 import type { ConversationScrollActions } from '../../hooks/useConversationScroll'
 import { conversationScrollMemory } from '../../lib/conversation-scroll'
 import { buildConversationRenderTurns, createConversationHeightCache, indexConversationTurnMessages, type ConversationRenderTurn, type ConversationTimelineActions } from '../../lib/conversation-timeline'
@@ -14,7 +17,8 @@ function TimelineMessage({ message, liveMessageId, components }: { message: Time
   return message.original.role === 'user' ? <components.UserMessage {...message} /> : message.original.role === 'assistant' ? <components.AssistantMessage {...message} streaming={message.original.id === liveMessageId} /> : null
 }
 
-export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange }: {
+export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange, goal }: {
+  goal?: HarnessGoal
   messages: TimelineRenderMessage[]
   memoryKey: string | null
   liveMessageId?: string
@@ -25,6 +29,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   onActiveTurnChange: (id: string) => void
 }) {
   const turns = useMemo(() => buildConversationRenderTurns(messages, liveMessageId), [messages, liveMessageId])
+  const goalVerifications = useMemo(() => goalVerificationsByMessage(goal), [goal])
   const liveTurn = turns[turns.length - 1]?.running ? turns[turns.length - 1] : undefined
   const history = liveTurn ? turns.slice(0, -1) : turns
   const messageIndex = useMemo(() => indexConversationTurnMessages(turns, messages), [turns, messages])
@@ -267,7 +272,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   }, [firstTurnId, getScrollElement, onActiveTurnChange])
   useEffect(() => { requestActiveTurnUpdate.current?.() }, [mountedKey, totalSize, turns])
 
-  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <TimelineMessage key={messages[index].rendererId} message={messages[index]} liveMessageId={liveMessageId} components={components} />)}</div>
+  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <Fragment key={messages[index].rendererId}><TimelineMessage message={messages[index]} liveMessageId={liveMessageId} components={components} />{(goalVerifications.get(messages[index].original.id) ?? goalVerifications.get(messages[index].original.id.replace(/^stream-/, '')))?.map(verification => <MiraGoalVerification key={verification.id} verification={verification} />)}</Fragment>)}</div>
   return <div ref={containerRef} className="relative w-full" onFocusCapture={retainInteractions} onBlurCapture={() => queueMicrotask(retainInteractions)}>
     <div data-mira-virtual-history="true" style={{ height: totalSize }} aria-hidden="true" />
     {/* Keep a turn under the same keyed parent when the running tail becomes history. */}

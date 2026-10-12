@@ -1,0 +1,19 @@
+/* Formats follow ZCode shared/media-preview.ts.
+ * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
+export type MiraMediaKind = 'audio' | 'video' | 'pdf'
+const formats: Record<string, { kind: MiraMediaKind; mediaType: string }> = {
+  pdf: { kind: 'pdf', mediaType: 'application/pdf' },
+  mp4: { kind: 'video', mediaType: 'video/mp4' }, mov: { kind: 'video', mediaType: 'video/quicktime' },
+  webm: { kind: 'video', mediaType: 'video/webm' }, m4v: { kind: 'video', mediaType: 'video/x-m4v' },
+  mp3: { kind: 'audio', mediaType: 'audio/mpeg' }, wav: { kind: 'audio', mediaType: 'audio/wav' },
+  m4a: { kind: 'audio', mediaType: 'audio/mp4' }, ogg: { kind: 'audio', mediaType: 'audio/ogg' },
+  opus: { kind: 'audio', mediaType: 'audio/opus' }, flac: { kind: 'audio', mediaType: 'audio/flac' },
+  weba: { kind: 'audio', mediaType: 'audio/webm' },
+}
+export function miraMediaFormat(path: string) {
+  const extension = path.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase() ?? ''
+  return Object.prototype.hasOwnProperty.call(formats, extension) ? formats[extension] : undefined
+}
+export interface MiraMediaPreview {
+  id: string; path: string; kind: MiraMediaKind; mediaType: string; byteLength: number; url: string
+}

@@ -1,6 +1,10 @@
 import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessImageMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 import { isMiraBrowserDimension } from '../config/miraBrowserViewport'
 import { isMiraPluginId } from '../config/miraPlugins'
+import { MIRA_SUBTASK_AGENTS } from '../config/miraAgents'
+import type { MiraAgentModelTarget } from '../config/miraAgentModels'
+import { validateMiraGoalBudget } from '../config/miraGoals'
+import { parseMiraFlowWorkbenchRequest } from '../config/miraFlowWorkbench'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
@@ -34,7 +38,7 @@ function idList(value: unknown, name: string, max = 64) {
 function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptions {
   const input = fields(value)
   if (input.pluginIds !== undefined && (!Array.isArray(input.pluginIds) || input.pluginIds.length > 8 || input.pluginIds.some(id => typeof id !== 'string' || !isMiraPluginId(id)))) throw new Error('插件 ID无效')
-  if (input.delivery !== undefined && input.delivery !== 'immediate' && input.delivery !== 'guide') throw new Error('消息投递方式无效')
+  if (input.delivery !== undefined && input.delivery !== 'immediate' && input.delivery !== 'guide' && input.delivery !== 'queue') throw new Error('消息投递方式无效')
   if (input.pausedQueueDecision !== undefined && input.pausedQueueDecision !== 'retain' && input.pausedQueueDecision !== 'discard') throw new Error('暂停队列选择无效')
   const expectedRunId = input.expectedRunId === null ? null : optionalString(input.expectedRunId, '运行 ID')
   if ((input.delivery || input.pausedQueueDecision) && expectedRunId === undefined) throw new Error('运行 ID无效')
@@ -46,6 +50,7 @@ function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptio
   if (input.pausedQueueDecision && (revision === undefined || ids === undefined)) throw new Error('暂停队列确认无效')
   if (!input.pausedQueueDecision && (revision !== undefined || ids !== undefined)) throw new Error('暂停队列确认无效')
   return {
+    ...(input.hasStructuredContext === undefined ? {} : { hasStructuredContext: boolean(input.hasStructuredContext, '结构化上下文') }),
     ...(input.permissionMode === undefined ? {} : { permissionMode: permissionMode(input.permissionMode) }),
     ...(input.skillIds === undefined ? {} : { skillIds: [...new Set(idList(input.skillIds, '技能 ID', 64))] }),
     ...(input.pluginIds === undefined ? {} : { pluginIds: [...new Set(input.pluginIds as string[])] }),
@@ -57,12 +62,12 @@ function messageSubmissionOptions(value: unknown): HarnessMessageSubmissionOptio
   }
 }
 
-function selection(value: unknown): ModelSelection {
+function selection(value: unknown, modelIdMax = 128): ModelSelection {
   const input = fields(value)
   const thinkingLevel = input.thinkingLevel
   if (thinkingLevel !== undefined && thinkingLevel !== 'off' && thinkingLevel !== 'low' && thinkingLevel !== 'medium' && thinkingLevel !== 'high') throw new Error('推理强度无效')
   // Runtime 使用用户选择的推理档位；桥不能把它剥离后静默恢复为默认中档。
-  return { providerId: string(input.providerId, '供应商 ID'), modelId: string(input.modelId, '模型 ID'), ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }
+  return { providerId: string(input.providerId, '供应商 ID'), modelId: string(input.modelId, '模型 ID', modelIdMax), ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }
 }
 
 function workspacePath(value: unknown, allowEmpty = false) {
@@ -193,6 +198,18 @@ function automationTask(value: unknown): AutomationTaskInput {
 }
 
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
+  if (method === 'agent-models.list') return { method } as const
+  if (method === 'agent-models.set') {
+    const params = fields(raw), input = fields(params.target)
+    if (Object.keys(input).some(key => !['kind', 'name', ...(input.kind === 'plugin' ? ['pluginId'] : [])].includes(key))) throw new Error('智能体模型目标无效')
+    let target: MiraAgentModelTarget
+    if (input.kind === 'builtin' && typeof input.name === 'string' && Object.prototype.hasOwnProperty.call(MIRA_SUBTASK_AGENTS, input.name)) target = { kind: 'builtin', name: input.name as keyof typeof MIRA_SUBTASK_AGENTS }
+    else if (input.kind === 'plugin' && typeof input.pluginId === 'string' && isMiraPluginId(input.pluginId)) target = { kind: 'plugin', pluginId: input.pluginId, name: string(input.name, '插件智能体名称', 256) }
+    else throw new Error('智能体模型目标无效')
+    const rawModel = params.modelSelection === undefined ? undefined : fields(params.modelSelection)
+    if (rawModel && Object.keys(rawModel).some(key => !['providerId', 'modelId', 'thinkingLevel'].includes(key))) throw new Error('智能体模型选择无效')
+    return { method, target, modelSelection: rawModel ? selection(rawModel, 256) : undefined } as const
+  }
   if (method === 'input-history.list') {
     const params = raw === undefined ? {} : fields(raw)
     const sessionId = optionalString(params.sessionId, '会话 ID'), projectId = optionalString(params.projectId, '项目 ID')
@@ -200,13 +217,60 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     return { method, sessionId, projectId } as const
   }
   if (method === 'plugins.list' || method === 'plugins.import') return { method } as const
+  if (method === 'agents.list') {
+    const params = raw === undefined ? {} : fields(raw)
+    const projectId = optionalString(params.projectId, '项目 ID'), sessionId = optionalString(params.sessionId, '会话 ID')
+    if (projectId && sessionId) throw new Error('智能体范围只能指定一个项目或会话')
+    return { method, projectId, sessionId } as const
+  }
+  if (method === 'agents.read' || method === 'agents.save' || method === 'agents.delete' || method === 'agents.setEnabled') {
+    const params = fields(raw), scope = params.scope
+    if (scope !== 'global' && scope !== 'project') throw new Error('智能体范围无效')
+    const name = string(params.name, '智能体名称', 50), projectId = optionalString(params.projectId, '项目 ID')
+    if (scope === 'project' && !projectId) throw new Error('请先选择项目')
+    if (method === 'agents.read') return { method, scope, name, projectId } as const
+    const expectedRevision = optionalString(params.expectedRevision, '智能体版本', 64)
+    if (expectedRevision !== undefined && !/^[a-f0-9]{64}$/.test(expectedRevision)) throw new Error('智能体版本无效')
+    if (method === 'agents.delete' || method === 'agents.setEnabled') {
+      if (!expectedRevision) throw new Error('修改或删除智能体需要版本')
+      return method === 'agents.delete' ? { method, scope, name, projectId, expectedRevision } as const
+        : { method, scope, name, projectId, expectedRevision, enabled: boolean(params.enabled, '启用状态') } as const
+    }
+    return { method, scope, name, projectId, expectedRevision, source: string(params.source, '智能体内容', 100_000) } as const
+  }
+  if (method === 'commands.list') {
+    const params = raw === undefined ? {} : fields(raw)
+    const projectId = optionalString(params.projectId, '项目 ID'), sessionId = optionalString(params.sessionId, '会话 ID')
+    if (projectId && sessionId) throw new Error('命令范围只能指定一个项目或会话')
+    return { method, projectId, sessionId } as const
+  }
+  if (method === 'commands.read' || method === 'commands.save' || method === 'commands.delete') {
+    const params = fields(raw), scope = params.scope
+    if (scope !== 'global' && scope !== 'project') throw new Error('命令范围无效')
+    const name = string(params.name, '命令名称', 256), projectId = optionalString(params.projectId, '项目 ID')
+    if (scope === 'project' && !projectId) throw new Error('请先选择项目')
+    if (method === 'commands.read') return { method, scope, name, projectId } as const
+    const expectedRevision = optionalString(params.expectedRevision, '命令版本', 64)
+    if (expectedRevision !== undefined && !/^[a-f0-9]{64}$/.test(expectedRevision)) throw new Error('命令版本无效')
+    if (method === 'commands.delete') {
+      if (!expectedRevision) throw new Error('删除命令需要版本')
+      return { method, scope, name, projectId, expectedRevision } as const
+    }
+    return { method, scope, name, projectId, expectedRevision, source: string(params.source, '命令内容', 100_000) } as const
+  }
   if (method === 'plugins.catalog') return { method, sessionId: optionalString(raw === undefined ? undefined : fields(raw).sessionId, '会话 ID') } as const
   if (method === 'plugins.remove' || method === 'plugins.set-enabled') {
     const params = fields(raw), id = string(params.id, '插件 ID', 256)
     if (!isMiraPluginId(id)) throw new Error('插件 ID无效')
     return method === 'plugins.remove' ? { method, id } as const : { method, id, enabled: boolean(params.enabled, '启用状态') } as const
   }
-  if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'mcp.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
+  if (method === 'mcp.list') {
+    const params = raw === undefined ? {} : fields(raw)
+    const sessionId = optionalString(params.sessionId, '会话 ID'), projectId = optionalString(params.projectId, '项目 ID')
+    if (sessionId && projectId) throw new Error('MCP 范围只能指定一个项目或会话')
+    return { method, ...(sessionId ? { sessionId } : {}), ...(projectId ? { projectId } : {}) } as const
+  }
+  if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
   if (method === 'marketplace.browse' || method === 'plugin-marketplace.browse') {
     const params = raw === undefined ? {} : fields(raw)
     return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
@@ -217,6 +281,20 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
   }
   const params = fields(raw)
   switch (method) {
+    case 'workflows.request': {
+      if (Object.keys(params).some(key => key !== 'request')) throw new Error('工作流请求无效')
+      return { method, request: parseMiraFlowWorkbenchRequest(params.request) } as const
+    }
+    case 'goal.pause':
+    case 'goal.clear':
+    case 'goal.resume':
+    case 'goal.budget': {
+      if (!Number.isSafeInteger(params.expectedRevision) || Number(params.expectedRevision) < 1) throw new Error('目标版本无效')
+      const common = { sessionId: string(params.sessionId, '会话 ID'), expectedRevision: Number(params.expectedRevision), expectedGoalId: string(params.expectedGoalId, '目标 ID') }
+      if (method === 'goal.resume') return { method, ...common, selection: selection(params.selection), ...(params.permissionMode === undefined ? {} : { permissionMode: permissionMode(params.permissionMode) }) } as const
+      if (method === 'goal.budget') return { method, ...common, tokenBudget: validateMiraGoalBudget(params.tokenBudget) } as const
+      return { method, ...common } as const
+    }
     case 'automations.next-runs': return { method, expression: string(params.expression, 'Cron 表达式', 256) } as const
     case 'automations.save': return { method, input: automationTask(params.input) } as const
     case 'automations.set-enabled': return { method, id: string(params.id, '自动化 ID'), enabled: boolean(params.enabled, '启用状态') } as const
@@ -263,6 +341,12 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, sessionId: string(params.sessionId, '会话 ID'), paths } as const
     }
     case 'files.unwatch': return { method, sessionId: string(params.sessionId, '会话 ID'), watchId: string(params.watchId, '监听 ID') } as const
+    case 'files.media-close': {
+      const id = string(params.id, '媒体 ID', 64)
+      if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('媒体 ID 无效')
+      return { method, id } as const
+    }
+    case 'files.media-open':
     case 'files.read-image': {
       const path = workspacePath(params.path)
       if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')

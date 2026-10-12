@@ -10,6 +10,16 @@ function router() {
 }
 
 describe('first-party Harness navigation', () => {
+  it('opens command settings with the current project and return path, without arbitrary directories', () => {
+    expect(resolveHarnessNavigationPath('/settings/commands?project=project-1')).toBe('/settings/commands?project=project-1&from=%2Fworkspace%2Fharness-react')
+    expect(() => resolveHarnessNavigationPath('/settings/commands?directory=%2Ftmp')).toThrow('导航参数')
+  })
+  it('opens Hook settings using the current project ID and rejects arbitrary source paths', () => {
+    expect(resolveHarnessNavigationPath('/settings/hooks?project=project-1')).toBe('/settings/hooks?project=project-1&from=%2Fworkspace%2Fharness-react')
+    expect(() => resolveHarnessNavigationPath('/settings/hooks?directory=%2Ftmp')).toThrow('导航参数')
+    expect(() => resolveHarnessNavigationPath('/settings/hooks?file=%2Ftmp%2Fhooks.json')).toThrow('导航参数')
+    expect(resolveHarnessNavigationPath('/settings/hooks?plugin=reviewed%40local')).toBe('/settings/hooks?plugin=reviewed%40local&from=%2Fworkspace%2Fharness-react')
+  })
   it.each(['/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts'])('opens the existing settings route and retains its React return path: %s', path => {
     const target = new URL(resolveHarnessNavigationPath(path), 'https://mira.invalid')
     expect(target.pathname).toBe(path)

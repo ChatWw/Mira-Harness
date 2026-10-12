@@ -8,9 +8,37 @@ import { describe, expect, it, vi } from 'vitest'
 import { HarnessStore } from '../electron/storage/harnessStore'
 import { PlatformDatabase } from '../electron/storage/database'
 import { MiraPaths } from '../electron/storage/miraPaths'
+import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { shouldGenerateAutoTitle } from '../src/config/harness'
 
 describe('persistent Mira input history', () => {
+  it('preserves project configuration across startup migrations while moving only recognized legacy trash', () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'mira-project-config-startup-'))), directory = join(root, 'project')
+    let database = new PlatformDatabase(root)
+    try {
+      mkdirSync(directory)
+      const project = database.harness.createProject(directory)
+      const config = new McpConfigStore(root).forProject(directory).save({ name: 'Restart-safe tools', command: 'node', args: ['server.mjs'], enabled: true })
+      const retained = new Map<string, string>([
+        ['mcp.json', readFileSync(join(directory, '.mira', 'mcp.json'), 'utf8')],
+        ['hooks.json', '{"hooks":[]}\n'], ['commands/research.md', 'Keep this project command\n'],
+        ['agents/research.md', 'Keep this project agent\n'], ['trash/agents/deleted-agent.md', 'Recoverable agent\n'],
+        ['trash/unknown/notes.md', 'Unrecognized user data\n'], ['extra-config.json', '{"custom":true}\n'],
+      ])
+      for (const [path, value] of retained) { mkdirSync(join(directory, '.mira', path, '..'), { recursive: true }); writeFileSync(join(directory, '.mira', path), value) }
+      const token = '1700000000000-a1b2c3d4', legacy = join(directory, '.mira', 'trash', token)
+      mkdirSync(legacy, { recursive: true }); writeFileSync(join(legacy, 'recover.txt'), 'Recoverable project file\n')
+      for (let restart = 0; restart < 3; restart++) {
+        database.close(); database = new PlatformDatabase(root)
+        database.harness.migrateLegacyStorage()
+        for (const [path, value] of retained) expect(readFileSync(join(directory, '.mira', path), 'utf8')).toBe(value)
+        expect(new McpConfigStore(root).forProject(directory).list()).toMatchObject([{ id: config.id, enabled: true }])
+        expect(readFileSync(join(new MiraPaths(root).projectTrash(project.id), token, 'recover.txt'), 'utf8')).toBe('Recoverable project file\n')
+        expect(existsSync(legacy)).toBe(false)
+      }
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('shares by directory, retains thirty inputs and survives reopening without polluting settings snapshots', () => {
     const root = mkdtempSync(join(tmpdir(), 'mira-input-history-store-'))
     let database = new PlatformDatabase(new MiraPaths(root))

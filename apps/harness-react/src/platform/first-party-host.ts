@@ -1,4 +1,5 @@
 import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
+import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
 import type { MiraPluginItem, MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../../../src/config/miraPlugins'
 import type { HarnessAttachmentSaveResult, HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../src/platform/firstPartyHarness'
@@ -11,6 +12,8 @@ import { readMiraAppNavigationCommand, readMiraAppNavigationSnapshot, readMiraAp
 import type { HarnessMessageAttachment } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
 import type { MiraBrowserPickResult } from '../../../../src/platform/miraBrowserPicker'
+import type { HarnessGoal } from '../../../../src/config/miraGoals'
+import type { MiraFlowWorkbenchRequest } from '../../../../src/config/miraFlowWorkbench'
 
 export class FirstPartyHarnessHost implements PilotHost {
   readonly supportsQueueSubmissionOptions = true
@@ -92,6 +95,11 @@ export class FirstPartyHarnessHost implements PilotHost {
   }
 
   createSideConversation = (parentId: string) => this.call<HarnessSession>('session.create-side', { parentId })
+  requestWorkflow = <T,>(request: MiraFlowWorkbenchRequest) => this.call<T>('workflows.request', { request })
+  pauseGoal = (sessionId: string, expectedRevision: number, expectedGoalId: string) => this.call<HarnessGoal>('goal.pause', { sessionId, expectedRevision, expectedGoalId })
+  resumeGoal = (sessionId: string, expectedRevision: number, expectedGoalId: string, selection: ModelSelection, permissionMode?: PermissionMode) => this.call<HarnessGoal>('goal.resume', { sessionId, expectedRevision, expectedGoalId, selection, ...(permissionMode ? { permissionMode } : {}) })
+  updateGoalBudget = (sessionId: string, tokenBudget: number | null, expectedRevision: number, expectedGoalId: string) => this.call<HarnessGoal>('goal.budget', { sessionId, tokenBudget, expectedRevision, expectedGoalId })
+  clearGoal = (sessionId: string, expectedRevision: number, expectedGoalId: string) => this.call<void>('goal.clear', { sessionId, expectedRevision, expectedGoalId })
   forkConversation = (id: string, messageId: string, requestId: string) => this.call<HarnessSession>('session.fork', { id, messageId, requestId })
   compactConversation = (sessionId: string, selection: ModelSelection) => this.call<HarnessContextCompactionResult>('context.compact', { sessionId, selection, submissionId: crypto.randomUUID() })
   listSessions = () => this.call<HarnessSessionSummary[]>('sessions.list')
@@ -180,6 +188,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   openFileInEditor = (sessionId: string, path: string, editorId: string) => this.call<void>('files.open-editor', { sessionId, path, editorId })
   readFile = (sessionId: string, path: string) => this.call<{ path: string; content: string }>('files.read', { sessionId, path })
   readImage = (sessionId: string, path: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { sessionId, path })
+  openMedia = (sessionId: string, path: string) => this.call<MiraMediaPreview>('files.media-open', { sessionId, path })
+  closeMedia = (id: string) => this.call<void>('files.media-close', { id })
   openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
   pasteTerminal = (sessionId: string, terminalId: string, bracketed: boolean) => this.call<void>('terminal.paste', { sessionId, terminalId, bracketed })
@@ -212,11 +222,13 @@ export class FirstPartyHarnessHost implements PilotHost {
   setSessionDelegation = (id: string, enabled: boolean) => this.call<void>('session.set-delegation', { id, enabled })
   listPlugins = () => this.call<MiraPluginItem[]>('plugins.list')
   listPluginCatalog = (sessionId?: string) => this.call<MiraPluginItem[]>('plugins.catalog', { sessionId })
+  listPromptCommands = (scope: { projectId?: string; sessionId?: string }) => this.call<import('../../../../src/config/miraPromptCommands').MiraPromptCommandItem[]>('commands.list', scope)
+  listUserAgents = (scope: { projectId?: string; sessionId?: string }) => this.call<import('../../../../src/config/miraUserAgents').MiraUserAgentItem[]>('agents.list', scope)
   importLocalPlugin = () => this.call<MiraPluginItem[] | null>('plugins.import')
   setPluginEnabled = (id: string, enabled: boolean) => this.call<MiraPluginItem[]>('plugins.set-enabled', { id, enabled })
   removePlugin = (id: string) => this.call<MiraPluginItem[]>('plugins.remove', { id })
   listSkills = () => this.call<unknown[]>('skills.list')
-  listMcp = () => this.call<import('../../../../src/config/miraMcp').MiraMcpItem[]>('mcp.list')
+  listMcp = (sessionId?: string, projectId?: string) => this.call<import('../../../../src/config/miraMcp').MiraMcpItem[]>('mcp.list', sessionId ? { sessionId } : projectId ? { projectId } : undefined)
   reconnectMcp = (id: string) => this.call<import('../../../../src/config/miraMcp').MiraMcpConnection>('mcp.reconnect', { id })
   selectFiles = (sessionId: string) => this.call<HarnessFileReference[]>('files.select', { sessionId })
   listGitBranches = (projectId: string) => this.call<unknown>('git.branches', { projectId })

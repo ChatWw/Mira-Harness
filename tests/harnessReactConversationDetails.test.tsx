@@ -34,6 +34,33 @@ async function mount() {
 }
 
 describe('conversation details survive actual virtual-message unmounts', () => {
+  it('labels an unreviewed Hook as skipped and retains its reason without a failure alert', async () => {
+    const view = await mount()
+    await view.render({ record: { ...tool, tool: 'hook', status: 'cancelled', skipReason: 'Hook 未授权，已跳过', output: undefined } })
+    expect(view.container.textContent).toContain('已跳过')
+    expect(view.container.textContent).not.toContain('执行失败')
+    await view.toggle('.mira-tool-record', true)
+    expect(view.container.textContent).toContain('Hook 未授权，已跳过')
+    expect(view.container.querySelector('[role="alert"]')).toBeNull()
+    expect(view.container.textContent).not.toContain('工具调用已取消')
+  })
+
+  it('shows the actual plugin tool label and keeps user cancellation neutral', async () => {
+    const view = await mount()
+    const name = 'mira_mcp_1234567890_echo_abcdefgh'
+    await view.render({ record: { ...tool, tool: name, label: 'echo', target: 'probe / echo', status: 'cancelled', error: '运行已停止' } })
+    const summary = view.container.querySelector<HTMLElement>('.mira-tool-summary')!
+    expect(summary.querySelector('strong')?.textContent).toBe('echo')
+    expect(summary.getAttribute('aria-label')).toBe('展开echo详情')
+    expect(summary.innerHTML).not.toContain(name)
+    await view.toggle('.mira-tool-record', true)
+    expect(view.container.textContent).toContain('运行已停止')
+    expect(view.container.querySelector('.mira-tool-error')).toBeNull()
+    expect(view.container.querySelector('[role="alert"]')).toBeNull()
+    await view.render({ record: { ...tool, tool: name, label: 'echo', status: 'failed', error: '服务拒绝访问' } })
+    expect(view.container.querySelector('.mira-tool-error[role="alert"]')?.textContent).toBe('服务拒绝访问')
+  })
+
   it('restores tool and reasoning open state after unmount without mounting collapsed payloads', async () => {
     const view = await mount()
     expect(view.container.querySelector('[data-tool-payload]')).toBeNull()

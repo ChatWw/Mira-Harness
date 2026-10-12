@@ -154,11 +154,13 @@ const TOOL_PRESENTATION = {
 
 export function ToolRecord({ tool, onOpenFile, hideIcon = false }: { tool: ToolCallRecord; onOpenFile?: (path: string) => void; hideIcon?: boolean }) {
   const [expanded, setExpanded] = useMiraConversationDetail(JSON.stringify(['tool', tool.runId, tool.subtaskId, tool.id]))
-  const label = tool.status === 'running' ? '执行中' : tool.status === 'ok' ? '已完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已取消' : '等待确认'
+  const skipped = tool.tool === 'hook' && tool.status === 'cancelled' && Boolean(tool.skipReason)
+  const label = skipped ? '已跳过' : tool.status === 'running' ? '执行中' : tool.status === 'ok' ? '已完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已取消' : '等待确认'
   const presentation = TOOL_PRESENTATION[tool.tool as keyof typeof TOOL_PRESENTATION]
+  const toolLabel = presentation?.label ?? tool.label ?? tool.tool
   const Icon = presentation?.icon ?? Wrench
   const lightweight = tool.tool !== 'bash' && isMiraExplorationTool(tool)
-  const kindLabel = tool.tool === 'bash' && tool.status === 'running' ? '正在执行' : tool.status === 'running' && lightweight ? ({ read: '读取中', list_files: '查询目录', web_search: '搜索中', web_fetch: '抓取中' }[tool.tool] ?? presentation?.label) : presentation?.label ?? tool.tool
+  const kindLabel = tool.tool === 'bash' && tool.status === 'running' ? '正在执行' : tool.status === 'running' && lightweight ? ({ read: '读取中', list_files: '查询目录', web_search: '搜索中', web_fetch: '抓取中' }[tool.tool] ?? toolLabel) : toolLabel
   const displayTarget = tool.tool === 'bash' ? miraRecordedCommand(tool) : tool.target
   const filePath = useMiraToolFilePath(tool.target)
   const file = ['read', 'edit', 'write'].includes(tool.tool) && tool.target
@@ -168,23 +170,24 @@ export function ToolRecord({ tool, onOpenFile, hideIcon = false }: { tool: ToolC
     {tool.input && <section className="mira-tool-payload" aria-label="工具输入" data-tool-payload="input"><strong>输入</strong><pre data-mira-selectable="tool" data-mira-selection-region={`${tool.id}:input`}>{tool.input.text}</pre>{tool.input.truncated && <p className="mira-payload-truncated" role="note">输入超过记录上限，仅显示已记录部分。</p>}</section>}
     {tool.output && <section className="mira-tool-payload" aria-label="工具输出" data-tool-payload="output"><strong>输出</strong><pre data-mira-selectable="tool" data-mira-selection-region={`${tool.id}:output`}>{tool.output.text}</pre>{tool.output.truncated && <p className="mira-payload-truncated" role="note">输出超过记录上限，仅显示已记录部分。</p>}</section>}
   </>
-  const summary = <div role={lightweight ? undefined : 'button'} tabIndex={lightweight ? undefined : 0} className={cn('mira-tool-summary', lightweight && 'mira-tool-summary--lightweight', !displayTarget && 'mira-tool-summary--no-target', tool.tool === 'bash' && expanded && 'mira-tool-summary--command-open')} data-tool-record-toggle={lightweight ? undefined : true} aria-label={lightweight ? undefined : `${expanded ? '收起' : '展开'}${presentation?.label ?? tool.tool}详情`} onKeyDown={event => {
+  const summary = <div role={lightweight ? undefined : 'button'} tabIndex={lightweight ? undefined : 0} className={cn('mira-tool-summary', lightweight && 'mira-tool-summary--lightweight', !displayTarget && 'mira-tool-summary--no-target', tool.tool === 'bash' && expanded && 'mira-tool-summary--command-open')} data-tool-record-toggle={lightweight ? undefined : true} aria-label={lightweight ? undefined : `${expanded ? '收起' : '展开'}${toolLabel}详情`} onKeyDown={event => {
       if (lightweight) return
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.currentTarget.click() }
     }}>
-      {!hideIcon && <Icon size={16} aria-hidden="true" />}<strong title={tool.tool}>{kindLabel}</strong>
+      {!hideIcon && <Icon size={16} aria-hidden="true" />}<strong title={toolLabel}>{kindLabel}</strong>
       {file ? <MiraToolFileChip path={filePath ?? tool.target!} onOpen={filePath && onOpenFile ? () => onOpenFile(filePath) : undefined} /> : tool.tool !== 'bash' || !expanded ? <span title={displayTarget}>{displayTarget}</span> : null}
       {changes && <span className="mira-tool-change-count" aria-label={`记录变更新增 ${changes.added} 行，删除 ${changes.removed} 行`}><b>+{changes.added}</b><b>−{changes.removed}</b></span>}
       {tool.status !== 'ok' && !((lightweight || tool.tool === 'bash') && tool.status === 'running') && <small>{tool.status === 'failed' && tool.error ? <MiraToolFailure key={JSON.stringify([tool.id, tool.error])} error={tool.error} /> : label}</small>}
-      {lightweight ? <Collapsible.Trigger asChild><button type="button" className="mira-tool-record-action" data-tool-record-toggle aria-label={`${expanded ? '收起' : '查看'}${presentation?.label ?? tool.tool}调用记录`} title="查看调用记录"><Ellipsis size={14} aria-hidden="true" /></button></Collapsible.Trigger> : <ChevronRight size={16} className="mira-tool-chevron" aria-hidden="true" />}
+      {lightweight ? <Collapsible.Trigger asChild><button type="button" className="mira-tool-record-action" data-tool-record-toggle aria-label={`${expanded ? '收起' : '查看'}${toolLabel}调用记录`} title="查看调用记录"><Ellipsis size={14} aria-hidden="true" /></button></Collapsible.Trigger> : <ChevronRight size={16} className="mira-tool-chevron" aria-hidden="true" />}
     </div>
   return <Collapsible.Root className="mira-tool-record" open={expanded} onOpenChange={setExpanded} data-tool-call-id={tool.id} data-tool-status={tool.status}>
     {lightweight ? summary : <Collapsible.Trigger asChild>{summary}</Collapsible.Trigger>}
     {expanded && <Collapsible.Content className="mira-tool-content">{tool.tool === 'bash' ? <MiraToolCommand key={JSON.stringify([tool.runId, tool.id])} tool={tool} /> : <>
       {fileDiff ? <><MiraToolDiff diff={fileDiff} path={filePath ?? tool.target} identity={JSON.stringify([tool.runId, tool.id])} />{(tool.input || tool.output) && <details className="mira-command-parameters mt-2"><summary>查看调用记录</summary>{payload}</details>}</> : <>{tool.target && <p className="mira-tool-target">{tool.target}</p>}{payload}</>}
-      {tool.error && <p role="alert" className="mira-tool-error">{tool.error}</p>}
+      {tool.error && <p role={tool.status === 'cancelled' ? undefined : 'alert'} className={tool.status === 'cancelled' ? 'text-foreground-subtle' : 'mira-tool-error'}>{tool.error}</p>}
+      {skipped && <p role="status" className="text-foreground-subtle">{tool.skipReason}</p>}
       {tool.diff && !fileDiff && <section className="mira-tool-payload" aria-label="工具变更"><strong>变更</strong><pre data-mira-selectable="tool" data-mira-selection-region={`${tool.id}:diff`}>{tool.diff}</pre></section>}
-      {!tool.output && !tool.diff && !tool.error && <p>{tool.status === 'running' ? '工具正在执行。' : tool.status === 'waiting-confirm' ? '等待权限确认。' : tool.status === 'cancelled' ? '工具调用已取消，未记录执行结果。' : tool.status === 'failed' ? '工具执行失败，当前记录未提供错误详情。' : '工具执行已完成，当前记录未提供输出详情。'}</p>}
+      {!tool.output && !tool.diff && !tool.error && !skipped && <p>{tool.status === 'running' ? '工具正在执行。' : tool.status === 'waiting-confirm' ? '等待权限确认。' : tool.status === 'cancelled' ? '工具调用已取消，未记录执行结果。' : tool.status === 'failed' ? '工具执行失败，当前记录未提供错误详情。' : '工具执行已完成，当前记录未提供输出详情。'}</p>}
     </>}</Collapsible.Content>}
   </Collapsible.Root>
 }

@@ -21,7 +21,7 @@ export interface SkillMarketHost extends Partial<MiraPluginHost>, Partial<MiraPu
   listInstalledMarketSkills(): Promise<HarnessSkillMarketItem[]>
 }
 
-export function SkillMarketView({ host, onManageSkills }: { host: SkillMarketHost; onManageSkills: () => void }) {
+export function SkillMarketView({ host, onManageSkills, onTryPlugin }: { host: SkillMarketHost; onManageSkills: () => void; onTryPlugin?: (id: string) => Promise<void> }) {
   const [catalog, setCatalog] = useState<HarnessSkillMarketCatalog>()
   const [installed, setInstalled] = useState<HarnessSkillMarketItem[]>([])
   const [installedPlugins, setInstalledPlugins] = useState<MiraPluginItem[]>([])
@@ -144,7 +144,7 @@ export function SkillMarketView({ host, onManageSkills }: { host: SkillMarketHos
       ? <span className="mira-market-installed"><Check size={14} aria-hidden="true" />{item.enabled ? '已启用' : '已安装'}</span>
       : <button className="mira-market-install" type="button" disabled={Boolean(installingId)} onClick={() => { void install(item) }}>{busy ? <LoaderCircle size={14} className="mira-market-spin" aria-hidden="true" /> : <Download size={14} aria-hidden="true" />}{busy ? '安装中…' : '安装'}</button>
   }
-  const publicPlugins = host.supportsPluginMarket !== false && host.browsePluginMarket && host.getPluginMarketDetail && host.installMarketPlugin ? <MiraPublicPlugins host={host as MiraPublicPluginHost} query={query} selectedId={selectedPlugin?.id} refreshRevision={detailRevision} inventoryRevision={pluginRefresh} onOpen={openPlugin} onInstalled={() => setPluginRefresh(value => value + 1)} onBusyChange={setPublicPluginsBusy} onEntriesReady={() => restoreListFocus(true)} /> : null
+  const publicPlugins = host.supportsPluginMarket !== false && host.browsePluginMarket && host.getPluginMarketDetail && host.installMarketPlugin ? <MiraPublicPlugins host={host as MiraPublicPluginHost} query={query} selectedId={selectedPlugin?.id} refreshRevision={detailRevision} inventoryRevision={pluginRefresh} onOpen={openPlugin} onInstalled={() => setPluginRefresh(value => value + 1)} onBusyChange={setPublicPluginsBusy} onEntriesReady={() => restoreListFocus(true)} onTryPlugin={onTryPlugin} /> : null
 
   return <section className="mira-market" aria-label="插件市场">
     <header className="mira-market-header">
@@ -166,7 +166,7 @@ export function SkillMarketView({ host, onManageSkills }: { host: SkillMarketHos
         {(installed.length > 0 || installedPlugins.length > 0) && <section className="mira-market-installed-strip"><div><h2>已安装</h2><button className="mira-market-icon" type="button" aria-label="管理已安装技能" title="管理已安装技能" onClick={onManageSkills}><Settings2 size={16} /></button></div><nav aria-label="已安装插件">{installedPlugins.map(item => <button type="button" key={item.id} data-market-entry={`plugin-strip:${item.id}`} onClick={event => item.id.endsWith('@anthropic-agent-skills') ? openPlugin(item, event.currentTarget) : setSegment('installed')} title={item.name}><Blocks size={19} aria-hidden="true" /><span>{item.name}</span></button>)}{installed.map(item => <button type="button" key={item.id} data-market-entry={`skill-strip:${item.id}`} onClick={event => openDetail(item.id, event.currentTarget)} title={item.name}><Blocks size={19} aria-hidden="true" /><span>{item.name}</span></button>)}</nav></section>}
         <MarketTabs.List className="mira-market-segments" aria-label="插件来源"><MarketTabs.Trigger value="public">公开</MarketTabs.Trigger><MarketTabs.Trigger value="installed">已安装</MarketTabs.Trigger></MarketTabs.List>
         <MarketTabs.Content value={segment}>
-        {host.listPlugins && host.importLocalPlugin && host.setPluginEnabled && host.removePlugin && <div hidden={segment !== 'installed'}><MiraInstalledPlugins host={host as SkillMarketHost & MiraPluginHost} query={query} refreshRevision={pluginRefresh} onBusyChange={setPluginsBusy} onItemsChange={setInstalledPlugins} /></div>}
+        {host.listPlugins && host.importLocalPlugin && host.setPluginEnabled && host.removePlugin && <div hidden={segment !== 'installed'}><MiraInstalledPlugins host={host as SkillMarketHost & MiraPluginHost} query={query} refreshRevision={pluginRefresh} onBusyChange={setPluginsBusy} onItemsChange={setInstalledPlugins} onTryPlugin={onTryPlugin} /></div>}
         {segment === 'public' && publicPlugins}
         {segment === 'installed' && installedError && <div className="mira-market-error" role="alert"><span>{installedError}</span><button type="button" onClick={() => { void load(true) }}>重试</button></div>}
         <section className="mira-market-catalog" aria-label={segment === 'public' ? '公开技能' : '已安装技能'} aria-busy={loading}><div className="mira-market-section-title"><h2>{keyword ? '搜索结果' : segment === 'installed' ? '已安装技能' : catalog?.sourceName ?? 'Anthropic Skills'}</h2>{(catalog || segment === 'installed') && <span>{items.length}</span>}</div>

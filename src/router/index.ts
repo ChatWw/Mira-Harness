@@ -38,6 +38,24 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '文件搜索' },
   },
   {
+    path: '/settings/hooks',
+    name: 'SettingsHooks',
+    component: () => import('@/pages/backend/hooks/index.vue'),
+    meta: { title: 'Hooks' },
+  },
+  {
+    path: '/settings/commands',
+    name: 'SettingsPromptCommands',
+    component: () => import('@/pages/backend/promptCommands/index.vue'),
+    meta: { title: '自定义命令' },
+  },
+  {
+    path: '/settings/agents',
+    name: 'SettingsUserAgents',
+    component: () => import('@/pages/backend/agents/index.vue'),
+    meta: { title: '智能体' },
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/pages/backend/settings/index.vue'),

@@ -1,12 +1,15 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, shell, webContents, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import type { MiraWorkspaceMedia } from '../services/miraWorkspaceMedia'
 import { writeFile } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { PlatformDatabase } from '../storage/database'
 import type { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import type { McpConfigStore } from '../storage/mcpConfigStore'
 import type { MicroApp } from '../../src/types'
+import { invokeMiraFlowRequest, type MiraFlowRequestPort } from './miraFlowIpc'
 import { firstPartyAppManifests, validateFirstPartyAppManifest, type FirstPartyAppManifest } from '../../src/config/firstPartyApps'
 import type { ModelSelection } from '../../src/config/harness'
 import { assertComposerFollowupMode, resolveComposerFollowupMode } from '../../src/config/composerPreferences'
@@ -25,8 +28,14 @@ import { automationRunWithSessionState, saveAutomationTask } from './automationI
 import { MiraBrowserViewports } from '../services/miraBrowserViewports'
 import { MiraBrowserProtection } from '../services/miraBrowserProtection'
 import type { McpManager } from '../adapters/mcpManager'
+import { harnessPluginMcpCatalog, harnessProjectMcpCatalog } from '../services/harnessMcpCatalog'
+import type { MiraHookDelete, MiraHookEnabled, MiraHookWrite } from '../../src/config/miraHooks'
+import { HarnessHookCatalog } from '../services/harnessHookCatalog'
+import { isMiraPluginId } from '../../src/config/miraPlugins'
 
 export interface PlatformIpcDependencies {
+  workspaceMedia?: MiraWorkspaceMedia
+  flows?: MiraFlowRequestPort
   database: PlatformDatabase
   harnessRuntime?: HarnessRuntime
   localMicroAppServer: LocalMicroAppServer
@@ -63,12 +72,96 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, localMicroAppServer, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+  const userAgents = (call: ReturnType<typeof parseFirstPartyHarnessCall>) => {
+    if (!['agents.list', 'agents.read', 'agents.save', 'agents.delete', 'agents.setEnabled'].includes(call.method)) throw new Error('智能体请求无效')
+    let directory: string | undefined
+    if ('sessionId' in call && call.sessionId) {
+      const session = database.harness.getSession(call.sessionId)
+      if (session.projectId) directory = realpathSync(session.workingDirectory || database.harness.getProject(session.projectId).directory)
+    } else if ('projectId' in call && call.projectId) directory = realpathSync(database.harness.getProject(call.projectId).directory)
+    switch (call.method) {
+      case 'agents.list': return database.userAgents.list(directory)
+      case 'agents.read': return database.userAgents.read(call.scope, call.name, directory)
+      case 'agents.save': return database.userAgents.save(call, directory)
+      case 'agents.delete': return database.userAgents.delete(call, directory)
+      case 'agents.setEnabled': return database.userAgents.setEnabled(call, directory)
+    }
+  }
+  const promptCommands = (call: ReturnType<typeof parseFirstPartyHarnessCall>) => {
+    if (!['commands.list', 'commands.read', 'commands.save', 'commands.delete'].includes(call.method)) throw new Error('命令请求无效')
+    let directory: string | undefined
+    if ('sessionId' in call && call.sessionId) {
+      const session = database.harness.getSession(call.sessionId)
+      if (session.projectId) directory = realpathSync(session.workingDirectory || database.harness.getProject(session.projectId).directory)
+    } else if ('projectId' in call && call.projectId) directory = realpathSync(database.harness.getProject(call.projectId).directory)
+    switch (call.method) {
+      case 'commands.list': return database.promptCommands.list(directory)
+      case 'commands.read': return database.promptCommands.read(call.scope, call.name, directory)
+      case 'commands.save': return database.promptCommands.save(call, directory)
+      case 'commands.delete': return database.promptCommands.delete(call, directory)
+    }
+  }
   const firstPartyGrantOwners = new WeakSet<object>()
   const browserViewports = new MiraBrowserViewports()
   const browserProtection = new MiraBrowserProtection()
   const archivedSelections = new Map<string, { snapshotId: string; ids: readonly string[]; webContentsId: number }>()
   ipcMain.handle('platform:get-snapshot', () => database.getSnapshot())
+  ipcMain.handle('platform:agent-models', (event, method: string, params?: unknown) => {
+    requireMainFrame(event)
+    const call = parseFirstPartyHarnessCall(method, params)
+    if (call.method === 'agent-models.list') return database.agentModels.list()
+    if (call.method === 'agent-models.set') return database.agentModels.set(call.target, call.modelSelection)
+    throw new Error('智能体模型请求无效')
+  })
+  ipcMain.handle('platform:user-agents', (event, method: string, params?: unknown) => {
+    requireMainFrame(event)
+    return userAgents(parseFirstPartyHarnessCall(method, params))
+  })
+  ipcMain.handle('platform:prompt-commands', (event, method: string, params?: unknown) => {
+    requireMainFrame(event)
+    return promptCommands(parseFirstPartyHarnessCall(method, params))
+  })
+  ipcMain.handle('platform:hooks', (event, method: unknown, params: unknown = {}) => {
+    if (!event.senderFrame || event.senderFrame.parent !== null || event.senderFrame !== event.sender.mainFrame
+      || event.sender.isDestroyed() || !BrowserWindow.fromWebContents(event.sender)) throw new Error('Hook 配置仅可在平台设置中管理')
+    if (typeof method !== 'string' || !['hooks.list', 'hooks.save', 'hooks.delete', 'hooks.setEnabled', 'hooks.trust', 'hooks.revokeTrust'].includes(method)
+      || !params || typeof params !== 'object' || Array.isArray(params)) throw new Error('Hook 请求无效')
+    const input = params as Record<string, unknown>
+    const keys = method === 'hooks.list' ? ['projectId'] : method === 'hooks.save'
+      ? ['projectId', 'scope', 'id', 'expectedRevision', 'name', 'event', 'type', 'command', 'args', 'async', 'shell', 'statusMessage', 'timeout', 'custom', 'matcher', 'enabled']
+      : ['projectId', 'scope', 'id', 'expectedRevision', ...(input.scope === 'plugin' && ['hooks.trust', 'hooks.revokeTrust'].includes(method) ? ['pluginId'] : []), ...(method === 'hooks.setEnabled' ? ['enabled'] : [])]
+    if (Object.keys(input).some(key => !keys.includes(key))) throw new Error('Hook 请求不能指定宿主路径或未知字段')
+    const pluginApproval = input.scope === 'plugin' && ['hooks.trust', 'hooks.revokeTrust'].includes(method)
+    if (method !== 'hooks.list' && input.scope !== 'global' && input.scope !== 'project' && !pluginApproval || method === 'hooks.revokeTrust' && !pluginApproval) throw new Error('Hook 范围无效')
+    if (pluginApproval && (typeof input.pluginId !== 'string' || !isMiraPluginId(input.pluginId) || input.projectId !== undefined)) throw new Error('Hook 插件标识无效')
+    if (method !== 'hooks.list' && method !== 'hooks.save' && (typeof input.id !== 'string' || !input.id.trim() || input.id.length > 128
+      || typeof input.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedRevision))) throw new Error('Hook 标识或版本无效')
+    try {
+      let directory: string | undefined
+      if (input.projectId !== undefined) directory = realpathSync(database.harness.getProject(boundedString(input.projectId, '项目 ID', 128)).directory)
+      if (input.scope === 'project' && !directory) throw new Error('请先选择有效项目目录')
+      if (pluginApproval) {
+        const snapshot = database.plugins.snapshots().find(plugin => plugin.id === input.pluginId)
+        const declared = snapshot?.hooks?.find(hook => hook.id === input.id)
+        if (!snapshot || !declared) throw new Error('Hook 已移除或已被修改，请刷新后重试')
+        const hook = method === 'hooks.trust' ? database.plugins.assertHook([snapshot], declared.id)
+          : { ...declared, pluginId: snapshot.id, pluginName: snapshot.name, sourceRoot: snapshot.root, enabled: snapshot.enabled && declared.enabled }
+        return database.hooks.trustPlugin(hook, input.expectedRevision as string, method === 'hooks.trust')
+      }
+      switch (method) {
+        case 'hooks.list': return new HarnessHookCatalog(database.hooks, database.plugins).list(directory)
+        case 'hooks.save': return database.hooks.save(input as unknown as MiraHookWrite, directory)
+        case 'hooks.delete': return database.hooks.delete(input as unknown as MiraHookDelete, directory)
+        case 'hooks.setEnabled': return database.hooks.setEnabled(input as unknown as MiraHookEnabled, directory)
+        case 'hooks.trust': return database.hooks.trust(input as unknown as MiraHookDelete, directory)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (/^(?:Hook |每个 Hook |此 Hook |请先选择有效项目目录|Mira 用户目录不可用|项目 ID 无效|未找到项目)/.test(message)) throw new Error(message)
+      throw new Error('Hook 配置操作失败，请检查配置文件权限后重试')
+    }
+  })
   ipcMain.handle('platform:save-preference', (_event, key: string, value: unknown) => {
     if (key === 'followupMode') assertComposerFollowupMode(value)
     return database.savePreference(key, value)
@@ -107,6 +200,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         for (const [id, selection] of archivedSelections) if (selection.webContentsId === event.sender.id) archivedSelections.delete(id)
         terminalSessions?.closeForWebContents(event.sender.id)
         workspaceWatch?.closeForWebContents(event.sender.id)
+        workspaceMedia?.closeForWebContents(event.sender.id)
       }
       const handleNavigation = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
         if (details.isMainFrame && !details.isSameDocument) cleanupOwner()
@@ -126,6 +220,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
     if (firstPartyGrantStore.revoke(boundedString(grantId, '授权句柄', 128), event.sender.id)) {
       archivedSelections.delete(grantId)
       workspaceWatch?.closeForGrant(grantId, event.sender.id)
+      workspaceMedia?.closeForGrant(grantId, event.sender.id)
     }
     terminalSessions?.closeForWebContents(event.sender.id)
   })
@@ -160,6 +255,13 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
   })
   ipcMain.handle('platform:first-party-harness', (event, grantId: string, method: string, params: unknown) => {
     resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+    if (method === 'workflows.request') {
+      const call = parseFirstPartyHarnessCall(method, params)
+      if (call.method !== 'workflows.request') throw new Error('工作流请求无效')
+      return invokeMiraFlowRequest(flows, event, call.request, () => {
+        resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+      })
+    }
     if (!harnessRuntime) throw new Error('Harness 服务不可用')
     const call = parseFirstPartyHarnessCall(method, params)
     const assertMarketAuthorized = () => {
@@ -293,6 +395,10 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         return database.harness.forkConversation(call.id, call.messageId, call.requestId)
       }
       case 'session.get': return harnessRuntime.getSession(call.id)
+      case 'goal.pause': return harnessRuntime.pauseGoal(event.sender, call.sessionId, call.expectedRevision, call.expectedGoalId)
+      case 'goal.resume': return harnessRuntime.resumeGoal(event.sender, call.sessionId, call.expectedRevision, call.selection, call.permissionMode, call.expectedGoalId)
+      case 'goal.budget': return harnessRuntime.updateGoalBudget(event.sender, call.sessionId, call.tokenBudget, call.expectedRevision, call.expectedGoalId)
+      case 'goal.clear': return harnessRuntime.clearGoal(event.sender, call.sessionId, call.expectedRevision, call.expectedGoalId)
       case 'session.create': return call.prepared === undefined ? database.harness.createSession(call.projectId) : database.harness.createSession(call.projectId, undefined, call.prepared)
       case 'session.rename': return database.harness.renameSession(call.id, call.title)
       case 'session.set-pinned': return database.harness.setPinned(call.id, call.pinned)
@@ -327,13 +433,24 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       }
       case 'session.set-mcp-servers': {
         if (!mcpConfigStore) throw new Error('MCP 服务不可用')
-        const enabledIds = new Set(mcpConfigStore.list().filter(server => server.enabled).map(server => server.id))
+        const enabledIds = new Set([...mcpConfigStore.list(), ...harnessProjectMcpCatalog(database, mcpConfigStore, call.id), ...harnessPluginMcpCatalog(database, call.id)].filter(server => server.enabled).map(server => server.id))
         if (call.serverIds.some(serverId => !enabledIds.has(serverId))) throw new Error('只能选择已启用的 MCP 服务')
         return database.harness.setActiveMcpServers(call.id, call.serverIds)
       }
       case 'session.set-delegation': return database.harness.setDelegationEnabled(call.id, call.enabled)
       case 'projects.reorder': return database.harness.reorderProjects(call.ids)
       case 'plugins.list': return database.plugins.list()
+      case 'agent-models.list': return database.agentModels.list()
+      case 'agent-models.set': return database.agentModels.set(call.target, call.modelSelection)
+      case 'agents.list':
+      case 'agents.read':
+      case 'agents.save':
+      case 'agents.delete':
+      case 'agents.setEnabled': return userAgents(call)
+      case 'commands.list':
+      case 'commands.read':
+      case 'commands.save':
+      case 'commands.delete': return promptCommands(call)
       case 'plugins.catalog': {
         const frozen = call.sessionId ? database.harness.getSession(call.sessionId).pluginCatalog : undefined
         return database.plugins.catalog(frozen)
@@ -352,7 +469,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
       case 'mcp.list': {
         if (!mcpConfigStore) throw new Error('MCP 服务不可用')
         // Status inspection never connects a server or exposes launch commands/arguments.
-        return mcpConfigStore.list().map(server => ({ id: server.id, name: server.name, enabled: server.enabled, ...(mcpManager && server.enabled ? { connection: mcpManager.getStatus(server.id) } : {}) }))
+        return [...mcpConfigStore.list().map(server => ({ id: server.id, name: server.name, enabled: server.enabled, ...(server.type ? { type: server.type } : {}), ...(mcpManager && server.enabled ? { connection: mcpManager.getStatus(server.id) } : {}) })), ...harnessProjectMcpCatalog(database, mcpConfigStore, call.sessionId, call.projectId).map(server => ({ ...server, ...(call.sessionId ? { connection: harnessRuntime.projectMcpStatus?.(call.sessionId, server.id) } : {}) })), ...harnessPluginMcpCatalog(database, call.sessionId).map(server => ({ ...server, ...(call.sessionId ? { connection: harnessRuntime.pluginMcpStatus?.(call.sessionId, server.id) } : {}) }))]
       }
       case 'mcp.reconnect': {
         if (!mcpConfigStore || !mcpManager?.reconnect) throw new Error('MCP 重连不可用')
@@ -458,6 +575,18 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, localMic
         if (!directory) throw new Error('该会话没有可用工作目录')
         return openHarnessWorkspaceInEditor(directory, call.path, call.editorId)
       }
+      case 'files.media-open': {
+        if (!workspaceMedia) throw new Error('媒体预览服务不可用')
+        const workspace = fileWorkspace(call)
+        const authorize = () => assertFileWorkspace(call, workspace)
+        return workspaceMedia.open(workspace.directory, call.path, { grantId, webContentsId: event.sender.id }, authorize).then(preview => {
+          try { authorize(); return { ...preview, url: localMicroAppServer.getMediaUrl(preview.id) } }
+          catch (error) { workspaceMedia.release(preview.id, { grantId, webContentsId: event.sender.id }); throw error }
+        })
+      }
+      case 'files.media-close':
+        workspaceMedia?.release(call.id, { grantId, webContentsId: event.sender.id })
+        return
       case 'files.read':
       case 'files.read-image': {
         const session = database.harness.getSession(call.sessionId)

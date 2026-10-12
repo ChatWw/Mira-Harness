@@ -178,7 +178,7 @@
 .mira-tool-permission > svg { flex: none; }
 .mira-tool-permission .mira-tool-error { color: var(--color-destructive); }
 .mira-tool-permission__detail { white-space: pre-wrap; overflow-wrap: anywhere; }
-.mira-tool-permission[data-permission-placement='dock'] { min-height: 0; flex: 1; margin: 0; padding: 12px; gap: 12px; border-color: var(--color-border); border-radius: 16px; background: var(--color-popover); color: var(--color-foreground); }
+.mira-tool-permission[data-permission-placement='dock'] { min-width: 0; min-height: 0; max-width: 100%; box-sizing: border-box; flex: 1; margin: 0; padding: 12px; gap: 12px; border-color: var(--color-border); border-radius: 16px; background: var(--color-popover); color: var(--color-foreground); }
 .mira-tool-permission[data-permission-placement='dock'] > div { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 8px; }
 .mira-tool-permission[data-permission-placement='dock'] p { margin: 0; }
 .mira-tool-permission[data-permission-placement='dock'] strong, .mira-tool-permission[data-permission-placement='dock'] .pilot-action__buttons { flex: none; }
@@ -309,6 +309,36 @@
 .mira-task-summary__body small { color: var(--color-foreground-subtle); font-size: 11px; }
 .mira-summary-resource { display: flex; align-items: center; gap: 7px; padding: 5px 0; border: 0; color: var(--color-foreground); background: transparent; text-align: left; }
 .mira-summary-resource span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-goal-summary { min-width: 0; border-top: 1px solid var(--color-border); padding-top: 8px; }
+.mira-goal-summary__heading, .mira-goal-summary > strong { display: flex; align-items: center; gap: 7px; }
+.mira-goal-summary__heading strong { flex: 1; font-weight: 500; }
+.mira-goal-summary__heading button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 5px; background: transparent; }
+.mira-goal-summary__heading button:hover { background: var(--color-hover); }
+.mira-goal-summary p { margin: 7px 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; }
+.mira-goal-summary__iterations { min-width: 0; margin: 7px 0; padding: 0; list-style: none; }
+.mira-goal-summary__iterations > li { display: flex; min-width: 0; align-items: flex-start; gap: 8px; padding: 7px 0; }
+.mira-goal-summary__iterations > li + li { border-top: 1px solid var(--color-border); }
+.mira-goal-summary__iterations > li > div { min-width: 0; flex: 1; }
+.mira-goal-summary__iteration-number { display: grid; width: 18px; height: 18px; flex: none; place-items: center; margin-top: 2px; border: 1px solid var(--color-border); border-radius: 50%; color: var(--color-foreground-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-goal-summary__iterations [data-goal-iteration-status='passed'] .mira-goal-summary__iteration-number { border-color: var(--color-success); color: var(--color-success); }
+.mira-goal-summary .mira-goal-summary__iteration-title, .mira-goal-summary .mira-goal-summary__iteration-reason { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.mira-goal-summary .mira-goal-summary__iteration-reason { margin-top: 3px; -webkit-line-clamp: 2; }
+.mira-goal-summary__iteration-count { flex: none; padding-top: 2px; font-variant-numeric: tabular-nums; }
+.mira-goal-summary .mira-goal-summary__next-action, .mira-goal-summary .mira-goal-summary__status-reason { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.mira-goal-summary .mira-goal-summary__status-reason { -webkit-line-clamp: 2; }
+.mira-goal-summary__time { display: block; font-variant-numeric: tabular-nums; }
+.mira-goal-summary details { margin-top: 9px; }
+.mira-goal-summary__budget { display: flex; align-items: flex-end; gap: 7px; margin: 8px 0; }
+.mira-goal-summary__budget label { display: grid; min-width: 0; flex: 1; gap: 5px; }
+.mira-goal-summary__budget input { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-foreground); background: var(--color-background); }
+.mira-goal-summary__budget button { flex: none; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 5px; background: transparent; }
+.mira-goal-summary button:disabled { cursor: default; opacity: .5; }
+.mira-goal-summary button:focus-visible, .mira-goal-summary input:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.mira-goal-summary__error { color: var(--color-destructive); }
+.mira-goal-verification { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--color-border); color: var(--color-foreground-subtle); font-size: 13px; line-height: 1.5; }
+.mira-goal-verification > div { display: flex; align-items: center; gap: 7px; }
+.mira-goal-verification svg { flex: none; }
+.mira-goal-verification p { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-summary-resource:hover, .mira-summary-plan:hover { text-decoration: underline; text-underline-offset: 3px; }
 .mira-summary-plan { max-width: 100%; margin: 8px 0; padding: 0; border: 0; background: transparent; text-align: left; overflow-wrap: anywhere; }
 .mira-task-summary__body ol { display: grid; gap: 6px; max-height: 180px; overflow-y: auto; margin: 4px 0 0; padding: 0; list-style: none; }
@@ -336,6 +366,14 @@
 .mira-summary-agents > div > span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-summary-agents button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 4px; background: transparent; }
 .mira-summary-agents button:hover { background: var(--color-hover); }
+@container conversation (min-width: 800px) {
+  :is(.mira-conversation-layout, .mira-side-conversation__thread):has(.mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - 840px) / 2)); margin-right: 344px; }
+  :is(.mira-conversation-layout, .mira-side-conversation__thread):has(.mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - 840px) / 2)); }
+}
+@container conversation (max-width: 799px) {
+  .mira-summary-positioner:has(.mira-task-summary[data-mode='panel']) { position: static; flex: none; align-self: flex-end; max-height: 40%; margin: 12px 16px; container-type: normal; }
+  .mira-task-summary[data-mode='panel'] .mira-task-summary__body { max-height: min(25vh, 220px); }
+}
 @container conversation (min-width: 1280px) {
   .mira-task-summary[data-mode='auto'] .mira-task-summary__panel { display: flex; }
   .mira-task-summary[data-mode='auto'] .mira-task-summary__mini { display: none; }

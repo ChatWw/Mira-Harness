@@ -105,26 +105,34 @@ export class SkillMarketplaceService {
     if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Skill 市场版本无效，请刷新重试')
     const candidates = new Map<string, Candidate>(); let excludedCount = 0
     const skills = entries.filter(entry => typeof entry.path === 'string' && /^skills\/[a-z0-9]+(?:-[a-z0-9]+)*\/SKILL\.md$/.test(entry.path))
-    for (const skill of skills) {
-      const prefix = skill.path.slice(0, -'SKILL.md'.length)
-      const directory = entries.filter(entry => typeof entry.path === 'string' && entry.path.startsWith(prefix))
-      const files = directory.filter(entry => entry.type === 'blob')
-      const relativePaths = files.map(entry => entry.path.slice(prefix.length))
-      const license = files.find(entry => /^(LICENSE|LICENSE\.txt|LICENSE\.md)$/.test(entry.path.slice(prefix.length)))
-      if (!license || files.length > MAX_PACKAGE_FILES || directory.some(entry => !safePath(entry.path.slice(prefix.length))
-        || !['tree', 'blob'].includes(entry.type) || (entry.type === 'blob' && !['100644', '100755'].includes(entry.mode)))
-        || files.some(entry => !/^[a-f0-9]{40}$/.test(entry.sha) || !Number.isSafeInteger(entry.size) || entry.size! < 0 || entry.size! > MAX_FILE_BYTES)
-        || files.reduce((total, entry) => total + entry.size!, 0) > MAX_PACKAGE_BYTES
-        || new Set(relativePaths.map(path => path.toLowerCase())).size !== files.length
-        || relativePaths.some(path => [META_FILE, NOTICE_FILE].includes(path))) { excludedCount++; continue }
-      const licenseText = (await this.blob(license)).toString('utf8')
-      if (!isApacheLicense(licenseText)) { excludedCount++; continue }
-      const source = (await this.blob(skill)).toString('utf8')
-      const parsed = parseSkill(skill.path, source)
-      if (!parsed.valid) { excludedCount++; continue }
-      const slug = prefix.split('/')[1]
-      const item: HarnessSkillMarketItem = { id: `${SOURCE_ID}:${slug}`, name: parsed.name, description: parsed.description, sourceId: SOURCE_ID, sourceName: SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit, license: 'Apache-2.0', installed: false, enabled: false }
-      candidates.set(item.id, { item, files, instructions: source, licenseText })
+    for (let offset = 0; offset < skills.length; offset += 6) {
+      // Drain each bounded batch before publishing or retrying a failed catalog.
+      const batch = await Promise.allSettled(skills.slice(offset, offset + 6).map(async (skill): Promise<Candidate | undefined> => {
+        const prefix = skill.path.slice(0, -'SKILL.md'.length)
+        const directory = entries.filter(entry => typeof entry.path === 'string' && entry.path.startsWith(prefix))
+        const files = directory.filter(entry => entry.type === 'blob')
+        const relativePaths = files.map(entry => entry.path.slice(prefix.length))
+        const license = files.find(entry => /^(LICENSE|LICENSE\.txt|LICENSE\.md)$/.test(entry.path.slice(prefix.length)))
+        if (!license || files.length > MAX_PACKAGE_FILES || directory.some(entry => !safePath(entry.path.slice(prefix.length))
+          || !['tree', 'blob'].includes(entry.type) || (entry.type === 'blob' && !['100644', '100755'].includes(entry.mode)))
+          || files.some(entry => !/^[a-f0-9]{40}$/.test(entry.sha) || !Number.isSafeInteger(entry.size) || entry.size! < 0 || entry.size! > MAX_FILE_BYTES)
+          || files.reduce((total, entry) => total + entry.size!, 0) > MAX_PACKAGE_BYTES
+          || new Set(relativePaths.map(path => path.toLowerCase())).size !== files.length
+          || relativePaths.some(path => [META_FILE, NOTICE_FILE].includes(path))) return undefined
+        const licenseText = (await this.blob(license)).toString('utf8')
+        if (!isApacheLicense(licenseText)) return undefined
+        const source = (await this.blob(skill)).toString('utf8')
+        const parsed = parseSkill(skill.path, source)
+        if (!parsed.valid) return undefined
+        const slug = prefix.split('/')[1]
+        const item: HarnessSkillMarketItem = { id: `${SOURCE_ID}:${slug}`, name: parsed.name, description: parsed.description, sourceId: SOURCE_ID, sourceName: SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit, license: 'Apache-2.0', installed: false, enabled: false }
+        return { item, files, instructions: source, licenseText }
+      }))
+      for (const result of batch) {
+        if (result.status === 'rejected') throw result.reason
+        if (result.value) candidates.set(result.value.item.id, result.value)
+        else excludedCount++
+      }
     }
     const notice = entries.find(entry => entry.path === 'THIRD_PARTY_NOTICES.md' && entry.type === 'blob' && entry.mode === '100644' && Number.isSafeInteger(entry.size) && entry.size! <= MAX_FILE_BYTES && /^[a-f0-9]{40}$/.test(entry.sha))
     return { commit, refreshedAt: Date.now(), excludedCount, candidates, notice }

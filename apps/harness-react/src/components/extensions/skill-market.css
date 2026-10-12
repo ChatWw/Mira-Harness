@@ -40,6 +40,8 @@
 .mira-market-item-footer { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 16px 12px; font-size: 12px; }
 .mira-market-install { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: 6px; color: var(--mira-primary-foreground); background: var(--mira-primary); font-size: 12px; }
 .mira-market-installed { display: inline-flex; min-height: 28px; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
+.mira-plugin-actions { display: inline-flex; flex-shrink: 0; align-items: center; gap: 8px; }
+.mira-plugin-menu-note { display: block; margin-top: 2px; color: var(--mira-foreground-subtle); font-size: 12px; }
 .mira-market-loading, .mira-market-empty { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 120px; margin: 0; font-size: 13px; }
 .mira-market-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1080px; margin: 0 auto 20px; padding: 12px 0; border-bottom: 1px solid var(--mira-border); color: var(--mira-destructive); font-size: 13px; }
 .mira-market-error button { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--mira-border); border-radius: 6px; color: var(--mira-foreground); background: transparent; }
@@ -82,6 +84,10 @@
 .mira-local-plugin-content summary { margin-top: 8px; font-size: 12px; cursor: pointer; }
 .mira-local-plugin-content details ul { margin: 8px 0; padding: 0; list-style: none; }
 .mira-local-plugin-content details li { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 12px; overflow-wrap: anywhere; }
+.mira-local-plugin-hooks code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-local-plugin-content summary:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+.mira-local-plugin-hooks .mira-market-install { margin-top: 8px; }
+.mira-local-plugins button:disabled { opacity: .5; cursor: not-allowed; }
 .mira-local-plugin-actions { display: flex; gap: 8px; }
 .mira-local-plugin-actions button { padding: 4px 8px; border-radius: 6px; font-size: 12px; }
 .mira-local-plugin-actions button:hover { background: var(--mira-hover); }

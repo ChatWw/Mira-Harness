@@ -6,6 +6,7 @@ import type { HarnessRuntime } from '../services/harnessRuntime'
 import type { McpConfigStore } from '../storage/mcpConfigStore'
 import type { PythonEnvironment } from '../adapters/pythonEnv'
 import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
+import { harnessPluginMcpCatalog, harnessProjectMcpCatalog } from '../services/harnessMcpCatalog'
 
 export interface HarnessSessionIpcDependencies {
   database: PlatformDatabase
@@ -21,6 +22,10 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:query-usage', () => database.queryHarnessUsage())
   ipcMain.handle('harness:create-session', (_event, projectId?: string) => database.harness.createSession(projectId))
   ipcMain.handle('harness:get-session', (_event, id: string) => harnessRuntime.getSession(id))
+  ipcMain.handle('harness:pause-goal', (event, id: string, revision: number, goalId: string) => harnessRuntime.pauseGoal(event.sender, id, revision, goalId))
+  ipcMain.handle('harness:resume-goal', (event, id: string, revision: number, goalId: string, selection, mode) => harnessRuntime.resumeGoal(event.sender, id, revision, selection, mode, goalId))
+  ipcMain.handle('harness:goal-budget', (event, id: string, budget: number | null, revision: number, goalId: string) => harnessRuntime.updateGoalBudget(event.sender, id, budget, revision, goalId))
+  ipcMain.handle('harness:clear-goal', (event, id: string, revision: number, goalId: string) => harnessRuntime.clearGoal(event.sender, id, revision, goalId))
   ipcMain.handle('harness:set-permission', (_event, id: string, permissionMode) => database.harness.setPermission(id, permissionMode))
   ipcMain.handle('harness:set-active-skills', (_event, id: string, skillIds: string[]) => {
     const requested = Array.isArray(skillIds) ? skillIds : []
@@ -30,7 +35,7 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   })
   ipcMain.handle('harness:set-active-mcp-servers', (_event, id: string, serverIds: string[]) => {
     const requested = Array.isArray(serverIds) ? [...new Set(serverIds.filter((value): value is string => typeof value === 'string'))] : []
-    const enabledIds = new Set(mcpConfigStore.list().filter(server => server.enabled).map(server => server.id))
+    const enabledIds = new Set([...mcpConfigStore.list(), ...harnessProjectMcpCatalog(database, mcpConfigStore, id), ...harnessPluginMcpCatalog(database, id)].filter(server => server.enabled).map(server => server.id))
     if (requested.some(serverId => !enabledIds.has(serverId))) throw new Error('只能选择已启用的 MCP 服务')
     return database.harness.setActiveMcpServers(id, requested)
   })

@@ -25,6 +25,16 @@ export async function pruneHarnessChunks(output, outputs) {
 async function buildHarnessReact() {
   const output = resolve('dist/harness-react-app')
   await mkdir(output, { recursive: true })
+  // PDF.js stays lazy; ship the worker and fonts locally for offline desktop reading.
+  const pdfAssets = resolve(output, 'pdfjs')
+  await mkdir(pdfAssets, { recursive: true })
+  await copyFile(resolve('node_modules/pdfjs-dist/build/pdf.worker.min.mjs'), resolve(pdfAssets, 'pdf.worker.min.mjs'))
+  for (const directory of ['cmaps', 'standard_fonts', 'wasm']) await cp(resolve('node_modules/pdfjs-dist', directory), resolve(pdfAssets, directory), { recursive: true })
+  for (const name of ['react-pdf', 'pdfjs-dist']) {
+    const licenseDirectory = resolve(output, 'third-party-licenses', name)
+    await mkdir(licenseDirectory, { recursive: true })
+    await copyFile(resolve('node_modules', name, 'LICENSE'), resolve(licenseDirectory, 'LICENSE'))
+  }
   const result = await build({
     entryPoints: {
       app: resolve('apps/harness-react/src/app/app-main.tsx'),

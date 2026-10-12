@@ -9,12 +9,19 @@ import {
 import { microApps as defaultMicroApps, withBuiltInMicroApps } from '../../src/config/microApps'
 import { NovelStore } from './novelStore'
 import { HarnessStore } from './harnessStore'
+import { HarnessGoalStore } from './harnessGoalStore'
+import { MiraFlowJournal } from './miraFlowJournal'
+import { MiraFlowActorStore } from './miraFlowActorStore'
 import { ModelConfigStore } from './modelConfigStore'
 import { FileMemoryStore } from './fileMemoryStore'
 import { InstructionStore } from './instructionStore'
 import { RunLogStore } from './runLogStore'
 import { SkillStore } from './skillStore'
 import { MiraPluginStore } from './miraPluginStore'
+import { MiraPromptCommandStore } from './miraPromptCommandStore'
+import { MiraUserAgentStore } from './miraUserAgentStore'
+import { MiraHookStore } from './miraHookStore'
+import { MiraAgentModelStore } from './miraAgentModelStore'
 import { MiraPromptHistoryStore } from './miraPromptHistory'
 import { AutomationStore } from './automationStore'
 import { MiraPaths } from './miraPaths'
@@ -63,12 +70,19 @@ export class PlatformDatabase {
   private readonly paths: MiraPaths
   readonly novels: NovelStore
   readonly harness: HarnessStore
+  readonly goals: HarnessGoalStore
+  readonly flowJournal: MiraFlowJournal
+  readonly flowActors: MiraFlowActorStore
   readonly models: ModelConfigStore
   readonly memories: FileMemoryStore
   readonly instructions: InstructionStore
   readonly logs: RunLogStore
   readonly skills: SkillStore
   readonly plugins: MiraPluginStore
+  readonly promptCommands: MiraPromptCommandStore
+  readonly userAgents: MiraUserAgentStore
+  readonly hooks: MiraHookStore
+  readonly agentModels: MiraAgentModelStore
   readonly promptHistory: MiraPromptHistoryStore
   readonly automations: AutomationStore
   private readonly deletedHarnessDraftOwners = new Set<string>()
@@ -81,15 +95,25 @@ export class PlatformDatabase {
     this.novels = new NovelStore(this.database)
     this.models = new ModelConfigStore(this.database, this.paths)
     this.harness = new HarnessStore(this.database, this.paths)
+    this.goals = new HarnessGoalStore(this.database)
+    this.flowJournal = new MiraFlowJournal(this.database)
+    this.flowActors = new MiraFlowActorStore(this.database)
     this.memories = new FileMemoryStore(this.paths)
     this.instructions = new InstructionStore(this.paths)
     this.logs = new RunLogStore(this.paths)
     this.skills = new SkillStore(this.paths)
     this.plugins = new MiraPluginStore(this.paths)
+    this.promptCommands = new MiraPromptCommandStore(this.paths)
+    this.userAgents = new MiraUserAgentStore(this.paths)
+    this.hooks = new MiraHookStore(this.paths)
+    this.agentModels = new MiraAgentModelStore(this.database, this.models, this.plugins)
     this.promptHistory = new MiraPromptHistoryStore(this.database)
     this.automations = new AutomationStore(this.database)
     this.database.pragma('journal_mode = WAL')
     this.migrate()
+    this.goals.initialize()
+    this.flowJournal.initialize()
+    this.flowActors.initialize()
     // 选择附件会先创建会话；未发送的持久草稿仍需通过原会话恢复，不能当作旧空白会话清理。
     const roots = this.harnessDraftRoots()
     if (roots) {
@@ -101,6 +125,8 @@ export class PlatformDatabase {
 
   private harnessDraftRoots() {
     const retained = new Set<string>()
+    for (const run of this.flowJournal.listRuns()) if (run.parentSessionId) retained.add(run.parentSessionId)
+    for (const row of this.database.prepare('SELECT session_id FROM harness_goals').all() as Array<{ session_id: string }>) retained.add(row.session_id)
     const references = new Map<string, Set<string>>()
     const protectedOwners = new Set<string>()
     const protect = (owner: string) => { retained.add(owner); protectedOwners.add(owner) }

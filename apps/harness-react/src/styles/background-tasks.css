@@ -1,0 +1,5 @@
+.mira-background-tasks-trigger { display: inline-flex; height: 28px; flex: none; align-items: center; gap: 4px; padding: 0 6px; border: 0; border-radius: 8px; color: var(--color-foreground-subtle); background: transparent; font: inherit; font-size: var(--text-ui-base); font-variant-numeric: tabular-nums; }
+.mira-background-tasks-trigger > svg { flex: none; }
+.mira-background-tasks-trigger:hover:not(:disabled) { color: var(--color-foreground); background: var(--color-hover); }
+.mira-background-tasks-trigger:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 2px; }
+.mira-background-tasks-trigger:disabled { opacity: .5; cursor: default; }

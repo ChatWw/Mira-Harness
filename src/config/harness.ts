@@ -1,4 +1,6 @@
 import type { MiraPluginCommandInput, MiraPluginSnapshot } from './miraPlugins'
+import type { MiraPromptCommandInput } from './miraPromptCommands'
+import type { MiraFlowReview } from './miraFlowReview'
 
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 
@@ -265,6 +267,11 @@ export interface HarnessSubtask {
   id: string
   parentToolCallId: string
   role: HarnessSubtaskRole
+  /** Optional host-owned profile identity; role remains the permission ceiling. */
+  agentName?: string
+  agentPluginId?: string
+  agentScope?: 'global' | 'project'
+  agentModelSelection?: ModelSelection
   task: string
   files?: HarnessFileReference[]
   status: HarnessSubtaskStatus
@@ -399,7 +406,7 @@ export interface HarnessMessage {
   role: 'user' | 'assistant'
   content: string
   /** Original slash stays visible; the host-resolved prompt is frozen for model history. */
-  command?: MiraPluginCommandInput
+  command?: MiraPluginCommandInput | MiraPromptCommandInput
   /** Optional on legacy history; never infer old text/tool ordering from timestamps. */
   runId?: string
   delivery?: 'guide'
@@ -458,6 +465,7 @@ export interface HarnessMessageAttachment extends HarnessFileReference {
 }
 
 export interface HarnessQueuedMessage {
+  hasStructuredContext?: boolean
   operation?: 'context-compaction'
   id: string
   submissionId: string
@@ -469,7 +477,7 @@ export interface HarnessQueuedMessage {
   permissionMode: PermissionMode
   skillIds?: string[]
   pluginIds?: string[]
-  command?: MiraPluginCommandInput
+  command?: MiraPluginCommandInput | MiraPromptCommandInput
   createdAt: number
   delivery?: 'guide'
   targetRunId?: string
@@ -496,13 +504,15 @@ export interface HarnessMessageSubmissionReceipt {
 }
 
 export interface HarnessMessageSubmissionOptions {
+  /** Structured Composer references stay ordinary input even if their rendered text starts with /goal. */
+  hasStructuredContext?: boolean
   /** Composer intent, frozen with this submission rather than changing a live run. */
   permissionMode?: PermissionMode
   /** Explicit prompt references; empty means quoted content must not activate skills. */
   skillIds?: string[]
   /** Explicit plugin chips; quoted conversation content never activates a plugin hint. */
   pluginIds?: string[]
-  delivery?: 'immediate' | 'guide'
+  delivery?: 'immediate' | 'guide' | 'queue'
   pausedQueueDecision?: 'retain' | 'discard'
   expectedQueueRevision?: number
   expectedQueueItemIds?: string[]
@@ -526,6 +536,8 @@ export interface HarnessMessageWithdrawal {
 export interface ToolCallRecord {
   id: string
   tool: string
+  /** Public tool name; execution identity remains in tool. */
+  label?: string
   target?: string
   status: 'running' | 'ok' | 'failed' | 'waiting-confirm' | 'cancelled'
   runId?: string
@@ -534,6 +546,8 @@ export interface ToolCallRecord {
   output?: HarnessToolText
   approvalRequestId?: string
   diff?: string
+  /** No process was started; distinct from execution failure or user cancellation. */
+  skipReason?: string
   error?: string
   createdAt: number
   completedAt?: number
@@ -541,6 +555,7 @@ export interface ToolCallRecord {
 }
 
 export interface HarnessSession {
+  goal?: import('./miraGoals').HarnessGoal
   version: 1
   /** Plugin identity/capability declarations frozen at first runtime creation. */
   pluginCatalog?: MiraPluginSnapshot[]
@@ -751,7 +766,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
   payload: Record<string, unknown>
 }
 
@@ -762,6 +777,7 @@ export interface HarnessPermissionRequest {
   detail: string
   toolCallId?: string
   runId?: string
+  workflowReview?: MiraFlowReview
 }
 
 export interface ModelProviderInput {

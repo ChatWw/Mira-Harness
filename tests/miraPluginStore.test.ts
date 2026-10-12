@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { MiraPluginStore, miraPluginPromptIds } from '../electron/storage/miraPluginStore'
 import { prepareMiraPluginCommand } from '../electron/storage/miraPluginCommands'
+import { parseMiraPluginAgent } from '../electron/storage/miraPluginAgents'
 import { miraPluginItems } from '../src/config/miraPlugins'
 import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
 import { miraPluginReference, restoreMiraPluginReferences } from '../apps/harness-react/src/lib/mira-plugin-reference'
@@ -22,7 +23,97 @@ function fixture(manifest: Record<string, unknown> = {}, flavor = '.claude-plugi
   return { home, paths, root, file, store: new MiraPluginStore(paths) }
 }
 
+describe('plugin Agent parent MCP declarations', () => {
+  it('publishes named requirements and preserves them in the frozen execution capability', () => {
+    const view = fixture(); mkdirSync(join(view.root, 'agents'))
+    const file = join(view.root, 'agents/auditor.md')
+    writeFileSync(file, '---\nname: auditor\ndescription: Review\nmcpServers: ["plugin:Probe:Echo", Search]\n---\nPrivate review instructions.')
+    view.store.register(view.root)
+    const snapshots = view.store.snapshots()
+    expect(snapshots[0].agents?.[0]).toMatchObject({ name: 'review-kit:auditor', mcpServers: ['plugin:Probe:Echo', 'Search'] })
+    const accepted = view.store.resolveAgent(snapshots, 'review-kit:auditor')
+    expect(accepted.mcpServers).toEqual(['plugin:Probe:Echo', 'Search'])
+    expect(() => view.store.assertAgent(snapshots, accepted)).not.toThrow()
+    expect(() => view.store.assertAgent(snapshots, { ...accepted, mcpServers: ['Search'] })).toThrow('变化')
+    writeFileSync(file, '---\nname: auditor\ndescription: Review\nmcpServers: []\n---\nPrivate review instructions.')
+    expect(() => view.store.assertAgent(snapshots, accepted)).toThrow('变化')
+  })
+})
+
 describe('Mira real local plugin packages', () => {
+  it('discovers namespaced plugin agents and resolves instructions without leaking host paths or body', () => {
+    const view = fixture({ agents: ['profiles'] })
+    rmSync(join(view.root, 'skills'), { recursive: true })
+    mkdirSync(join(view.root, 'profiles/nested'), { recursive: true })
+    writeFileSync(join(view.root, 'profiles/nested/review.md'), '---\nname: Audit:Review\ndescription: >-\n  Audit actual\n  behavior\ntools: [Read, Glob, Bash]\ndisallowedTools: Bash\n---\nMIRA_AGENT_BODY: inspect the task.')
+    const listed = view.store.register(view.root)
+    expect(listed[0]).toMatchObject({ agents: [{ name: 'review-kit:Audit:Review', description: 'Audit actual behavior', tools: ['read', 'list_files', 'bash'], disallowedTools: ['bash'] }], unsupported: [] })
+    const frozen = view.store.snapshots(), catalog = view.store.catalog(frozen)
+    expect(JSON.stringify(catalog)).not.toContain(view.root)
+    expect(JSON.stringify(catalog)).not.toContain('MIRA_AGENT_BODY')
+    const accepted = view.store.resolveAgent(frozen, 'review-kit:audit:review')
+    expect(accepted).toMatchObject({ pluginId: 'review-kit@local', name: 'review-kit:Audit:Review', sourceRoot: frozen[0].root, body: 'MIRA_AGENT_BODY: inspect the task.', tools: ['read', 'list_files', 'bash'], disallowedTools: ['bash'] })
+    expect(() => view.store.assertAgent(frozen, accepted)).not.toThrow()
+    expect(() => view.store.resolveAgent(frozen, 'Audit:Review')).toThrow('不属于当前会话')
+  })
+  it('keeps unsupported agent behavior explicit and leaves other agents in the same package usable', () => {
+    const view = fixture(); mkdirSync(join(view.root, 'agents'))
+    writeFileSync(join(view.root, 'agents/unsafe.md'), '---\nname: unsafe\ndescription: Custom behavior\nmodel: another\nallowed-tools: [Read]\npermissionMode: auto\nskills: [review]\nmcpServers: [search]\n---\nDo not silently execute defaults.')
+    writeFileSync(join(view.root, 'agents/review.md'), '---\nname: review\ndescription: Review changes\n---\nInspect actual behavior.')
+    view.store.register(view.root); const frozen = view.store.snapshots()
+    const unsafe = view.store.catalog(frozen)[0].agents?.find(agent => agent.name.endsWith(':unsafe'))
+    for (const field of ['model', 'allowed-tools', 'permissionMode', 'skills']) expect(unsafe?.unavailableReason).toContain(field)
+    expect(unsafe?.mcpServers).toEqual(['search'])
+    expect(() => view.store.resolveAgent(frozen, 'review-kit:unsafe')).toThrow('尚未支持')
+    expect(view.store.resolveAgent(frozen, 'review-kit:review').tools).toBeUndefined()
+  })
+  it('freezes agent identity and rechecks enabled, source root, profile body and tool limits', () => {
+    const view = fixture(); mkdirSync(join(view.root, 'agents'))
+    const path = join(view.root, 'agents/review.md')
+    const profile = (body: string, tools = 'Read') => `---\nname: review\ndescription: Review changes\ntools: [${tools}]\n---\n${body}`
+    writeFileSync(path, profile('Original instructions'))
+    view.store.register(view.root); const frozen = view.store.snapshots(), accepted = view.store.resolveAgent(frozen, 'review-kit:review')
+    expect(() => view.store.assertAgent(frozen, { ...accepted, sourceRoot: '/other/root' })).toThrow('变化')
+    writeFileSync(path, profile('Changed instructions'))
+    expect(() => view.store.assertAgent(frozen, accepted)).toThrow('变化')
+    writeFileSync(path, profile('Original instructions', 'Read, Bash'))
+    expect(() => view.store.assertAgent(frozen, accepted)).toThrow('变化')
+    writeFileSync(join(view.root, 'agents/later.md'), '---\nname: later\ndescription: Added later\n---\nNew agent.')
+    expect(() => view.store.resolveAgent(frozen, 'review-kit:later')).toThrow('不属于当前会话')
+    view.store.setEnabled('review-kit@local', false)
+    expect(() => view.store.resolveAgent(frozen, 'review-kit:review')).toThrow('已停用')
+    view.store.setEnabled('review-kit@local', true)
+    expect(() => view.store.resolveAgent([{ ...frozen[0], root: '/replacement/root' }], 'review-kit:review')).toThrow('已停用')
+    expect(() => view.store.resolveAgent([...frozen, { ...frozen[0], id: 'review-kit@other' }], 'review-kit:review')).toThrow('冲突')
+    expect(view.store.resolveAgent([{ ...frozen[0], id: 'review-kit@other', enabled: false }, ...frozen], 'review-kit:review').pluginId).toBe('review-kit@local')
+    writeFileSync(path, '---\nname: renamed\ndescription: Replaced identity\n---\nAnother agent.')
+    expect(view.store.catalog(frozen)[0].agents?.find(agent => agent.name.endsWith(':review'))?.unavailableReason).toContain('已移除')
+    expect(() => view.store.resolveAgent(frozen, 'review-kit:review')).toThrow('已移除')
+  })
+  it('rejects ambiguous names, escapes, symlinks and oversized agent files', () => {
+    const duplicate = fixture(); mkdirSync(join(duplicate.root, 'agents'))
+    writeFileSync(join(duplicate.root, 'agents/a.md'), '---\nname: Review\ndescription: Review\n---\nFirst profile.')
+    writeFileSync(join(duplicate.root, 'agents/b.md'), '---\nname: review\ndescription: Review\n---\nSecond profile.')
+    expect(() => duplicate.store.register(duplicate.root)).toThrow('重复')
+    const outside = fixture({ agents: '../outside.md' })
+    expect(() => outside.store.register(outside.root)).toThrow('超出')
+    const linked = fixture(); mkdirSync(join(linked.root, 'agents'))
+    symlinkSync(duplicate.file, join(linked.root, 'agents/review.md'))
+    expect(() => linked.store.register(linked.root)).toThrow('符号链接')
+    const bounded = fixture(); mkdirSync(join(bounded.root, 'agents'))
+    writeFileSync(join(bounded.root, 'agents/review.md'), 'a'.repeat(256 * 1024 + 1))
+    expect(() => bounded.store.register(bounded.root)).toThrow('256KB')
+  })
+  it('rejects a substituted agent symlink after freezing and never runs a cataloged instruction', () => {
+    const view = fixture(); mkdirSync(join(view.root, 'agents'))
+    const path = join(view.root, 'agents/review.md'), marker = join(view.root, 'not-executed')
+    writeFileSync(path, `---\nname: review\ndescription: Review\n---\n!\`touch ${marker}\``)
+    view.store.register(view.root); const frozen = view.store.snapshots()
+    expect(view.store.resolveAgent(frozen, 'review-kit:review').body).toContain('touch')
+    expect(() => readFileSync(marker)).toThrow()
+    rmSync(path); symlinkSync(view.file, path)
+    expect(() => view.store.resolveAgent(frozen, 'review-kit:review')).toThrow('已停用')
+  })
   it('requires declared plugin skills, keeps planning restrictions explicit and does not expose command paths', () => {
     const view = fixture(); mkdirSync(join(view.root, 'commands'))
     writeFileSync(join(view.root, 'commands/check.md'), '---\nskills: [review]\n---\nCheck $ARGUMENTS with the declared skill.')
@@ -154,9 +245,9 @@ describe('Mira real local plugin packages', () => {
     expect(readFileSync(file, 'utf8')).toContain('actual changed behavior')
     expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toBe('Package license')
   })
-  it('reports unsupported components without executing hooks or silently calling MCP', () => {
+  it('reports invalid Hook declarations and catalogs supported MCP without executing either during discovery', () => {
     const { store, root } = fixture({ hooks: { command: 'never execute' }, mcpServers: { test: { command: 'never execute' } } })
-    expect(store.register(root)[0].unsupported).toEqual(['hooks', 'mcpServers'])
+    expect(store.register(root)[0]).toMatchObject({ unsupported: [], hookDiagnostics: [expect.stringContaining('command')], mcpServers: [{ key: 'test', enabled: true }] })
   })
   it('rejects outside/symlink components and rejects later filesystem substitution', () => {
     const outside = fixture(), escape = fixture({ skills: '../package-outside' })
@@ -188,5 +279,26 @@ describe('Mira real local plugin packages', () => {
     expect(parseFirstPartyHarnessCall('message.submit', { ...params, options: { pluginIds: ['review-kit@local', 'review-kit@local'] } })).toMatchObject({ options: { pluginIds: ['review-kit@local'] } })
     expect(() => parseFirstPartyHarnessCall('message.submit', { ...params, options: { pluginIds: ['plugin://review-kit@local'] } })).toThrow('无效')
     expect(() => parseFirstPartyHarnessCall('message.submit', { ...params, options: { pluginIds: Array(9).fill('review-kit@local') } })).toThrow('无效')
+  })
+})
+
+describe('Mira plugin agent Markdown profiles', () => {
+  it('normalizes supported tools once, preserves explicit empty limits and leaves instruction text inert', () => {
+    expect(parseMiraPluginAgent('---\nname: code:review\ndescription: Review code\ntools: Read, Glob, read, WebFetch\ndisallowedTools: []\ncolor: blue\n---\nInspect !`pwd` and $ARGUMENTS.')).toEqual({ name: 'code:review', description: 'Review code', body: 'Inspect !`pwd` and $ARGUMENTS.', tools: ['read', 'list_files', 'web_fetch'], disallowedTools: [] })
+    expect(parseMiraPluginAgent('---\nname: review\ndescription: Review\ntools: []\n---\nNo tools.').tools).toEqual([])
+  })
+  it.each([
+    ['No frontmatter.', 'YAML'],
+    ['---\nname: "../unsafe"\ndescription: Review\n---\nBody', 'name'],
+    ['---\nname: review\n---\nBody', 'description'],
+    ['---\nname: review\ndescription: Review\n---\n', '正文'],
+    ['---\nname: review\ndescription: Review\ntools: {read: true}\n---\nBody', 'tools'],
+    ['---\nname: review\ndescription: Review\ntools: [Grep, Agent, "*"]\n---\nBody', 'Grep、Agent、*'],
+    ['---\nname: review\ndescription: Review\ntools: [constructor, __proto__]\n---\nBody', 'constructor、__proto__'],
+    ['---\nname: review\ndescription: Review\ndisallowedTools: [Unknown]\n---\nBody', 'disallowedTools'],
+    ['---\nname: review\ndescription: Review\nmaxTurns: 2\nbackground: true\ninjectAgentsMd: false\nmemory: user\nmodelSelection: {}\n---\nBody', 'maxTurns、background、injectAgentsMd、memory、modelSelection'],
+    ['---\nname: review\ndescription: &text Review\ncolor: *text\n---\nBody', 'YAML'],
+  ])('marks malformed or unsupported profiles unavailable without silently dropping behavior', (source, reason) => {
+    expect(parseMiraPluginAgent(source).unavailableReason).toContain(reason)
   })
 })

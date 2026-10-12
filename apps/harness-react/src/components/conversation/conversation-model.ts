@@ -2,6 +2,19 @@ import type { HarnessActiveRun, HarnessMessage, HarnessRunSummary, ToolCallRecor
 
 export interface TimelineRenderMessage { rendererId: string; original: HarnessMessage }
 
+/** Only persisted verifier entries belong in the transcript, at their original reply. */
+export function goalVerificationsByMessage(goal?: import('../../../../../src/config/miraGoals').HarnessGoal) {
+  const entries = new Map<string, import('../../../../../src/config/miraGoals').HarnessGoalVerification>()
+  for (const entry of [...(goal?.verificationHistory ?? []), ...(goal?.verification ? [goal.verification] : [])]) {
+    if (!entries.has(entry.id) || entries.get(entry.id)!.updatedAt <= entry.updatedAt) entries.set(entry.id, entry)
+  }
+  const anchored = new Map<string, import('../../../../../src/config/miraGoals').HarnessGoalVerification[]>()
+  for (const entry of entries.values()) {
+    if (entry.anchorMessageId) anchored.set(entry.anchorMessageId, [...(anchored.get(entry.anchorMessageId) ?? []), entry])
+  }
+  return anchored
+}
+
 /** Rendering identity survives the stream ID becoming a persisted message ID. */
 export function projectTimelineRenderMessages(messages: HarnessMessage[], sessionId?: string, cache?: WeakMap<HarnessMessage, TimelineRenderMessage>): TimelineRenderMessage[] {
   const occurrences = new Map<string, number>()

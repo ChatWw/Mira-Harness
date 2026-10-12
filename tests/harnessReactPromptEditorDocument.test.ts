@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMiraPromptDocument, replaceMiraPromptDocumentRange, serializeMiraPromptDocument, validateMiraPromptDocument, type MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 import { miraSkillReference, restoreMiraSkillPromptDocument } from '../apps/harness-react/src/lib/mira-skill-reference'
-import { miraAgentReference, restoreMiraAgentReferences } from '../apps/harness-react/src/lib/mira-agent-reference'
+import { miraAgentReference, miraPluginAgentReference, miraUserAgentReference, restoreMiraAgentReferences } from '../apps/harness-react/src/lib/mira-agent-reference'
 import { miraPluginCommandReference, restoreMiraPluginCommand } from '../apps/harness-react/src/lib/mira-plugin-reference'
 
 const reference = { id: 'session-one', kind: 'session' as const, label: '相关对话', value: 'one', text: '用户：完整问题\n助手：实际已读取正文\n'.repeat(500) }
@@ -23,6 +23,25 @@ describe('Mira prompt document boundary', () => {
     expect(restored.parts.flatMap(part => part.type === 'reference' ? [part.reference.value] : [])).toEqual(['reviewer', 'explorer'])
     const reference = miraAgentReference('implementer')
     expect(validateMiraPromptDocument({ version: 1, parts: [{ type: 'reference', reference }] }, '@implementer')).toBeDefined()
+  })
+  it('restores qualified plugin agents as ordinary hints while retaining spelling and quoted text', () => {
+    const text = '问 @review-kit:Reviewer 与 @review-kit:checks:security。user@kit:helper `@kit:helper` @unknown @reviewer'
+    const restored = restoreMiraAgentReferences(createMiraPromptDocument(text))
+    expect(serializeMiraPromptDocument(restored)).toBe(text)
+    expect(restored.parts.flatMap(part => part.type === 'reference' ? [part.reference.value] : [])).toEqual(['review-kit:reviewer', 'review-kit:checks:security', 'reviewer'])
+    expect(validateMiraPromptDocument(restored, text)).toEqual(restored)
+    expect(() => miraPluginAgentReference('unqualified')).toThrow('无效')
+    expect(() => miraPluginAgentReference('plugin:agent extra')).toThrow('无效')
+  })
+  it('restores a custom Agent only from the legal catalog whitelist, preserving all ordinary @words', () => {
+    const text = 'Ask @security-check and @stranger，email@security-check `@security-check` @unknown @reviewer'
+    expect(restoreMiraAgentReferences(createMiraPromptDocument(text)).parts.flatMap(part => part.type === 'reference' ? [part.reference.value] : [])).toEqual(['reviewer'])
+    const restored = restoreMiraAgentReferences(createMiraPromptDocument(text), ['security-check', 'stranger!', 'bad_name'])
+    expect(serializeMiraPromptDocument(restored)).toBe(text)
+    expect(restored.parts.flatMap(part => part.type === 'reference' ? [part.reference.value] : [])).toEqual(['security-check', 'reviewer'])
+    expect(() => miraUserAgentReference('reviewer')).toThrow('无效')
+    expect(() => miraUserAgentReference('plugin:custom')).toThrow('无效')
+    expect(validateMiraPromptDocument({ version: 1, parts: [{ type: 'reference', reference: miraUserAgentReference('security-check') }] }, '@security-check')).toBeDefined()
   })
   it('restores exact skill identity, escaped labels and a queue whitelist without changing canonical text', () => {
     const skill = miraSkillReference('skill-one', 'Review [中文] \\ exact')

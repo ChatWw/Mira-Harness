@@ -3,6 +3,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillMarketView, type SkillMarketHost } from '../apps/harness-react/src/components/extensions/SkillMarketView'
+import { MiraPublicPlugins } from '../apps/harness-react/src/components/extensions/MiraPublicPlugins'
 import type { MiraPluginItem } from '../src/config/miraPlugins'
 import type { MiraPluginMarketItem } from '../src/config/miraPlugins'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail } from '../src/config/harness'
@@ -42,6 +43,111 @@ async function click(label: string) {
 async function mount(host: SkillMarketHost) { await act(async () => root.render(<SkillMarketView host={host} onManageSkills={() => undefined} />)) }
 
 describe('plugin inventory in an offline marketplace', () => {
+  it('opens installed-plugin trials through task navigation and retries navigation failures without installing', async () => {
+    const item: MiraPluginMarketItem = { id: 'mira-public@anthropic-agent-skills', name: 'mira-public', description: '', marketplace: 'anthropic-agent-skills', sourceName: 'Anthropic Agent Skills', repositoryUrl: 'https://github.com/anthropics/skills', commit: 'a'.repeat(40), skills: [{ name: 'review', description: 'Review' }], unsupported: [], installed: true, enabled: true }
+    const host = { browsePluginMarket: vi.fn(async () => ({ sourceName: item.sourceName, items: [item] })), getPluginMarketDetail: vi.fn(), installMarketPlugin: vi.fn() }
+    const onTryPlugin = vi.fn(async (_id: string) => undefined).mockRejectedValueOnce(new Error('草稿尚未保存'))
+    const onInstalled = vi.fn()
+    await act(async () => root.render(<MiraPublicPlugins host={host} onOpen={() => undefined} onInstalled={onInstalled} onBusyChange={() => undefined} onTryPlugin={onTryPlugin} />))
+    await click('试用插件 mira-public')
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('草稿尚未保存')
+    await click('重试试用 mira-public')
+    expect(onTryPlugin.mock.calls).toEqual([[item.id], [item.id]])
+    expect(host.installMarketPlugin).not.toHaveBeenCalled(); expect(onInstalled).not.toHaveBeenCalled()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    item.enabled = false
+    await act(async () => root.render(<MiraPublicPlugins host={host} inventoryRevision={1} onOpen={() => undefined} onInstalled={onInstalled} onBusyChange={() => undefined} onTryPlugin={onTryPlugin} />))
+    expect(button('试用插件 mira-public').disabled).toBe(true)
+  })
+
+  it('retries a failed public-plugin installation rather than refreshing the catalog', async () => {
+    const item: MiraPluginMarketItem = { id: 'mira-public@anthropic-agent-skills', name: 'mira-public', description: 'Public skill', marketplace: 'anthropic-agent-skills', sourceName: 'Anthropic Agent Skills', repositoryUrl: 'https://github.com/anthropics/skills', commit: 'a'.repeat(40), skills: [{ name: 'review', description: 'Review' }], unsupported: [], installed: false, enabled: false }
+    const host = { browsePluginMarket: vi.fn(async () => ({ sourceName: item.sourceName, items: [item] })), getPluginMarketDetail: vi.fn(), installMarketPlugin: vi.fn(async () => ({ ...item, installed: true, enabled: true })) }
+    host.installMarketPlugin.mockRejectedValueOnce(new Error('下载超时'))
+    const onInstalled = vi.fn()
+    await act(async () => root.render(<MiraPublicPlugins host={host} onOpen={() => undefined} onInstalled={onInstalled} onBusyChange={() => undefined} />))
+    await click('安装插件 mira-public')
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('下载超时')
+    await click('重试安装 mira-public')
+    expect(host.installMarketPlugin).toHaveBeenCalledTimes(2)
+    expect(host.browsePluginMarket).toHaveBeenCalledTimes(1)
+    expect(onInstalled).toHaveBeenCalledOnce()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(container.textContent).toContain('已启用')
+  })
+
+  it('offers installed plugin management in detail and retries the failed toggle without false success', async () => {
+    const item: MiraPluginMarketItem = { id: 'mira-public@anthropic-agent-skills', name: 'mira-public', description: 'Public skill', marketplace: 'anthropic-agent-skills', sourceName: 'Anthropic Agent Skills', repositoryUrl: 'https://github.com/anthropics/skills', commit: 'a'.repeat(40), skills: [{ name: 'review', description: 'Review' }], unsupported: [], installed: true, enabled: true }
+    const host = { ...hostFixture(), browsePluginMarket: vi.fn(async () => ({ sourceName: item.sourceName, items: [item] })), getPluginMarketDetail: vi.fn(async () => ({ ...item, files: [], totalBytes: 0, licenses: [] })), installMarketPlugin: vi.fn() }
+    host.setPluginEnabled.mockRejectedValueOnce(new Error('配置保存失败'))
+    const onInstalled = vi.fn()
+    await act(async () => root.render(<MiraPublicPlugins host={host} selectedId={item.id} onOpen={() => undefined} onInstalled={onInstalled} onBusyChange={() => undefined} />))
+    await act(async () => button('管理插件 mira-public').dispatchEvent(new MouseEvent('pointerdown', { button: 0, bubbles: true })))
+    const disable = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent?.includes('停用插件'))!
+    expect(disable).toBeTruthy()
+    await act(async () => disable.click())
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('配置保存失败')
+    expect(onInstalled).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('已启用')
+    host.setPluginEnabled.mockResolvedValueOnce([{ ...plugin, id: item.id, name: item.name, enabled: false }])
+    await click('重试停用 mira-public')
+    expect(host.setPluginEnabled).toHaveBeenNthCalledWith(1, item.id, false)
+    expect(host.setPluginEnabled).toHaveBeenNthCalledWith(2, item.id, false)
+    expect(onInstalled).toHaveBeenCalledOnce()
+    expect(container.textContent).toContain('已停用')
+    expect(host.getPluginMarketDetail).toHaveBeenCalledTimes(1)
+    expect(host.browsePluginMarket).not.toHaveBeenCalled()
+  })
+
+  it('uses refresh only for the selected catalog retry and returns through the cached catalog', async () => {
+    const item: MiraPluginMarketItem = { id: 'mira-public@anthropic-agent-skills', name: 'mira-public', description: 'Public skill', marketplace: 'anthropic-agent-skills', sourceName: 'Anthropic Agent Skills', repositoryUrl: 'https://github.com/anthropics/skills', commit: 'a'.repeat(40), skills: [{ name: 'review', description: 'Review' }], unsupported: [], installed: false, enabled: false }
+    const host = { browsePluginMarket: vi.fn(async () => ({ sourceName: item.sourceName, items: [item] })), getPluginMarketDetail: vi.fn(async () => ({ ...item, files: [], totalBytes: 0, licenses: [] })), installMarketPlugin: vi.fn() }
+    host.browsePluginMarket.mockRejectedValueOnce(new Error('目录离线'))
+    const render = async (selectedId?: string) => act(async () => root.render(<MiraPublicPlugins host={host} selectedId={selectedId} onOpen={() => undefined} onInstalled={() => undefined} onBusyChange={() => undefined} />))
+    await render(); await click('重试')
+    await render(item.id); await render()
+    expect(host.browsePluginMarket.mock.calls).toEqual([[false], [true], [false]])
+  })
+
+  it('removes only the registration from the installed public card and offers installation again', async () => {
+    const item: MiraPluginMarketItem = { id: 'mira-public@anthropic-agent-skills', name: 'mira-public', description: 'Public skill', marketplace: 'anthropic-agent-skills', sourceName: 'Anthropic Agent Skills', repositoryUrl: 'https://github.com/anthropics/skills', commit: 'a'.repeat(40), skills: [{ name: 'review', description: 'Review' }], unsupported: [], installed: true, enabled: true }
+    const host = { ...hostFixture(), browsePluginMarket: vi.fn(async () => ({ sourceName: item.sourceName, items: [item] })), getPluginMarketDetail: vi.fn(), installMarketPlugin: vi.fn() }
+    const onInstalled = vi.fn()
+    await act(async () => root.render(<MiraPublicPlugins host={host} onOpen={() => undefined} onInstalled={onInstalled} onBusyChange={() => undefined} />))
+    await act(async () => button('管理插件 mira-public').dispatchEvent(new MouseEvent('pointerdown', { button: 0, bubbles: true })))
+    const remove = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent?.includes('移除登记'))!
+    expect(remove.textContent).toContain('保留已下载文件')
+    await act(async () => remove.click())
+    expect(host.removePlugin).toHaveBeenCalledExactlyOnceWith(item.id)
+    expect(host.installMarketPlugin).not.toHaveBeenCalled()
+    expect(button('安装插件 mira-public').disabled).toBe(false)
+    expect(container.textContent).toContain('已下载文件保留')
+    expect(onInstalled).toHaveBeenCalledOnce()
+  })
+
+  it('shows plugin Hook event, matcher, command, source and diagnostics and opens the existing Hook settings', async () => {
+    const item: MiraPluginItem = { ...plugin, hooks: [{ id: 'hook-a', revision: 'hook-revision', name: '检查写入', event: 'PreToolUse', matcher: 'write|edit', type: 'process', command: 'node', args: ['scripts/check.mjs', '--strict'], sourcePath: 'hooks/hooks.json', enabled: true, timeout: 60, async: false }], hookDiagnostics: ['Hook 执行类型尚未支持：prompt'] }
+    const host = { ...hostFixture(), navigate: vi.fn(async () => undefined) }
+    host.listPlugins.mockResolvedValue([item])
+    await mount(host); await click('已安装')
+    for (const text of ['1 个 Hook', 'PreToolUse', 'write|edit', '直接启动进程', 'node', 'scripts/check.mjs', 'hooks/hooks.json', 'Hook 执行类型尚未支持：prompt']) expect(container.textContent).toContain(text)
+    await click('审阅 mira-review 的 Hooks')
+    expect(host.navigate).toHaveBeenCalledExactlyOnceWith('/settings/hooks?plugin=mira-review%40local')
+    expect(host.setPluginEnabled).not.toHaveBeenCalled()
+  })
+
+  it('keeps disabled plugin Hook details searchable and reports settings navigation failure without mutating the plugin', async () => {
+    const host = { ...hostFixture(), navigate: vi.fn(async () => { throw new Error('设置暂不可用') }) }
+    host.listPlugins.mockResolvedValue([{ ...plugin, enabled: false, hooks: [{ id: 'hook-a', revision: 'one', name: '停止检查', event: 'Stop', type: 'command', command: './check.sh', args: [], sourcePath: 'hooks/hooks.json', enabled: true, timeout: 60, async: false, unavailableReason: '插件已停用' }] }])
+    await mount(host); await click('已安装')
+    expect(container.textContent).toContain('插件已停用')
+    await click('审阅 mira-review 的 Hooks'); expect(container.textContent).toContain('设置暂不可用')
+    expect(host.setPluginEnabled).not.toHaveBeenCalled()
+    const search = container.querySelector<HTMLInputElement>('input')!
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'check.sh'); search.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(container.textContent).toContain('mira-review')
+  })
+
   it.each([false, true])('waits for the returning plugin card without stealing newer focus (%s)', async moveFocus => {
     const callbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callbacks.push(callback); return callbacks.length })
@@ -154,6 +260,22 @@ describe('plugin inventory in an offline marketplace', () => {
     expect(container.textContent).toContain('Shell 动态展开尚未接入')
     const search = container.querySelector<HTMLInputElement>('input')!
     await act(async () => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!; setter.call(search, '检查回归'); search.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(container.textContent).toContain('mira-review')
+  })
+  it('shows and searches actual plugin MCP inventory with transport and unavailable reasons', async () => {
+    const host = hostFixture()
+    host.listPlugins.mockResolvedValue([{ ...plugin, skills: [], mcpServers: [
+      { id: 'plugin-documents', key: 'documents', name: '文档检索', revision: 'one', type: 'stdio', enabled: true },
+      { id: 'plugin-remote', key: 'remote', name: '远程知识', revision: 'two', type: 'streamableHttp', enabled: false, unavailableReason: '插件服务已停用' },
+      { id: 'plugin-unsupported', key: 'other', name: '待支持协议', revision: 'three', enabled: false, unavailableReason: '不支持此传输类型' },
+    ] }])
+    await mount(host); await click('已安装')
+    expect(container.textContent).toContain('0 个 Agent · 3 个 MCP')
+    expect(container.textContent).toContain('文档检索'); expect(container.textContent).toContain('stdio')
+    expect(container.textContent).toContain('Streamable HTTP'); expect(container.textContent).toContain('插件服务已停用')
+    expect(container.textContent).toContain('不支持此传输类型')
+    const search = container.querySelector<HTMLInputElement>('input')!
+    await act(async () => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!; setter.call(search, '远程知识'); search.dispatchEvent(new Event('input', { bubbles: true })) })
     expect(container.textContent).toContain('mira-review')
   })
   it.each(['detail', 'installed'])('settles a public installation after navigating to %s without leaving a stuck busy state or stale inventory', async destination => {

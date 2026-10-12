@@ -1,9 +1,12 @@
 import type { HarnessWorkspaceImagePreview } from '../../../../src/config/harness'
+import { miraMediaFormat } from '../../../../src/config/miraMedia'
 
 const bitmapExtensions = new Set(['apng', 'avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'webp'])
 const bitmapMediaTypes = new Set(['image/apng', 'image/avif', 'image/bmp', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/jpeg', 'image/png', 'image/webp'])
 
-export function filePreviewKind(path: string): 'text' | 'bitmap' | 'svg' {
+export function filePreviewKind(path: string): 'text' | 'bitmap' | 'svg' | 'media' | 'pdf' {
+  const format = miraMediaFormat(path)
+  if (format) return format.kind === 'pdf' ? 'pdf' : 'media'
   const name = path.split('/').pop()!
   const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : ''
   return extension === 'svg' ? 'svg' : bitmapExtensions.has(extension) ? 'bitmap' : 'text'

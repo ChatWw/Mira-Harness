@@ -2,7 +2,7 @@ import { Agent, type AgentTool, type BeforeToolCallContext, type BeforeToolCallR
 import type { StreamFn } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import { randomUUID } from 'node:crypto'
-import type { HarnessMessagePart, HarnessRunActivity, HarnessSubtask, HarnessSubtaskRole, HarnessSubtaskStatus, HarnessTokenUsage } from '../../src/config/harness'
+import type { HarnessMessagePart, HarnessRunActivity, HarnessSubtask, HarnessSubtaskRole, HarnessSubtaskStatus, HarnessTokenUsage, ModelSelection } from '../../src/config/harness'
 import { publicHarnessText, redactHarnessText } from './agentTools'
 import { MIRA_SUBTASK_AGENTS } from '../../src/config/miraAgents'
 
@@ -12,12 +12,13 @@ export const MAX_SUBTASK_TURNS = 32
 export const MAX_SUBTASK_REPORT_CHARS = 12_000
 const SUBTASK_STREAM_PERSIST_MS = 250
 
-export type SubtaskToolScope = { responseIndex: () => number, callIndex: () => number, onTool: (id: string) => void }
+export type SubtaskToolScope = { responseIndex: () => number, callIndex: () => number, onTool: (id: string) => void, signal: AbortSignal }
 export type SubtaskToolRegistry = {
   tools: AgentTool[]
   prepareTool: (providerId: string, name: string, args: unknown) => string
   settleTool: (providerId: string, name: string, args: unknown, result: unknown, isError: boolean, stopped: boolean) => void
   cancelPending: (reason: string) => void
+  preflight?: (providerId: string, name: string, args: unknown, automation: boolean, mode: import('../../src/config/harness').PermissionMode | undefined, signal: AbortSignal, schemaTool?: AgentTool) => Promise<BeforeToolCallResult | undefined>
 }
 
 export const SUBTASK_ROLE_TOOLS = Object.fromEntries(Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => [role, agent.tools])) as Record<HarnessSubtaskRole, readonly string[]>
@@ -54,6 +55,10 @@ function usage(value: unknown): HarnessTokenUsage | undefined {
 export type SubtaskRuntimeOptions = {
   parentToolCallId: string
   role: HarnessSubtaskRole
+  agentName?: string
+  agentPluginId?: string
+  agentScope?: 'global' | 'project'
+  agentModelSelection?: ModelSelection
   task: string
   /** Prompt may include ephemeral attachment contents; only task is persisted. */
   prompt?: string
@@ -66,6 +71,8 @@ export type SubtaskRuntimeOptions = {
   tools?: AgentTool[]
   toolsForTask?: (taskId: string, scope: SubtaskToolScope) => AgentTool[] | SubtaskToolRegistry
   beforeToolCall?: (context: BeforeToolCallContext) => Promise<BeforeToolCallResult | undefined>
+  /** Recheck a host-owned profile after waiting for the project lock. */
+  beforeStart?: () => void
   onChanged: (task: HarnessSubtask) => void
   onFinished: (task: HarnessSubtask) => void
   onToolStart?: (taskId: string, name: string, args: unknown) => void
@@ -91,6 +98,9 @@ export class SubtaskRuntime {
     if (this.entries.size >= MAX_SUBTASKS_PER_RUN) throw new Error(`每个父任务最多委派 ${MAX_SUBTASKS_PER_RUN} 个子任务`)
     const id = randomUUID()
     const task: HarnessSubtask = { id, parentToolCallId: opts.parentToolCallId, role: opts.role, task: publicHarnessText(opts.task, opts.secrets).text.trim(), files: opts.files, status: 'queued', createdAt: Date.now(), activities: [], parts: [] }
+    if (opts.agentName) { task.agentName = opts.agentName; task.agentPluginId = opts.agentPluginId }
+    if (opts.agentScope) task.agentScope = opts.agentScope
+    if (opts.agentModelSelection) task.agentModelSelection = { ...opts.agentModelSelection }
     if (!task.task) throw new Error('子任务说明不能为空')
     this.entries.set(id, { task, controller: new AbortController(), opts })
     opts.onChanged(task)
@@ -247,10 +257,11 @@ export class SubtaskRuntime {
     try {
       entry.release = await this.acquireRunLock(task.role, controller.signal)
       if (controller.signal.aborted) throw new Error('任务已停止')
+      opts.beforeStart?.()
       task.status = 'running'; task.startedAt = Date.now()
       opts.onChanged(task)
       timer = setTimeout(() => { timedOut = true; controller.abort(); entry.agent?.abort() }, MAX_SUBTASK_DURATION_MS)
-      const registered = opts.toolsForTask?.(task.id, { responseIndex: () => responseIndex, callIndex: () => callIndex, onTool: appendTool }) || opts.tools || []
+      const registered = opts.toolsForTask?.(task.id, { responseIndex: () => responseIndex, callIndex: () => callIndex, onTool: appendTool, signal: controller.signal }) || opts.tools || []
       if (!Array.isArray(registered)) registry = registered
       entry.cancelTools = () => registry?.cancelPending('子任务已停止')
       const agent = new Agent({
@@ -285,14 +296,15 @@ export class SubtaskRuntime {
           const call = declared?.providerCallId === event.toolCallId && declared.name === event.toolName ? pendingCalls.shift()! : { providerCallId: event.toolCallId, name: event.toolName, args: event.args, index: nextCallIndex++ }
           callIndex = call.index
           registry?.prepareTool(call.providerCallId, call.name, event.args)
-          const activity: HarnessRunActivity = { id: `${task.id}:activity-${activitySerial++}`, kind: 'tool', label: event.toolName, status: 'running', startedAt: Date.now() }
+          const tool = (Array.isArray(registered) ? registered : registered.tools).find(tool => tool.name === event.toolName)
+          const activity: HarnessRunActivity = { id: `${task.id}:activity-${activitySerial++}`, kind: 'tool', label: tool?.label || event.toolName, status: 'running', startedAt: Date.now() }
           currentTool = { ...call, args: event.args, activity }
           task.activities.push(activity)
           opts.onToolStart?.(task.id, event.toolName, event.args)
           opts.onChanged(task)
         }
         if (event.type === 'tool_execution_end') {
-          if (!currentTool || currentTool.providerCallId !== event.toolCallId || currentTool.activity.label !== event.toolName) return
+          if (!currentTool || currentTool.providerCallId !== event.toolCallId || currentTool.name !== event.toolName) return
           const { activity, args, index } = currentTool
           callIndex = index
           registry?.settleTool(event.toolCallId, event.toolName, args, event.result, Boolean(event.isError), false)

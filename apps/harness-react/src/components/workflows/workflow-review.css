@@ -1,0 +1,21 @@
+.mira-tool-permission__review-body { min-width: 0; min-height: 0; max-width: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.mira-flow-review { display: flex; min-width: 0; flex-direction: column; gap: 12px; margin-top: 10px; font-size: 13px; color: var(--color-foreground); }
+.mira-flow-review__facts { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--color-foreground-subtle); }
+.mira-flow-review__section-title, .mira-flow-review__actor, .mira-flow-review__transition { display: flex; align-items: center; gap: 8px; }
+.mira-flow-review__phase { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.mira-flow-review__phase-title { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.mira-flow-review__phase-title > span, .mira-flow-review small { color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-flow-review__actors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 8px; }
+.mira-flow-review__actor { padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background-alt); }
+.mira-flow-review__actor > svg { flex: none; }
+.mira-flow-review__actor > span { min-width: 0; overflow-wrap: anywhere; }
+.mira-flow-review__actor small { display: block; margin-top: 3px; }
+.mira-flow-review__transition { flex-wrap: wrap; margin-top: 8px; overflow-wrap: anywhere; }
+.mira-flow-review__connections { padding-top: 4px; }
+.mira-flow-review__commands { display: flex; flex-wrap: wrap; gap: 8px; }
+.mira-flow-review details { min-width: 0; }
+.mira-flow-review summary { width: fit-content; cursor: pointer; }
+.mira-flow-review summary:focus-visible, .mira-flow-review pre:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 3px; }
+.mira-flow-review pre { max-height: 240px; margin: 8px 0; padding: 12px; overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background-alt); font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.mira-flow-review__hash { display: block; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mira-tool-permission[data-permission-placement='dock'] .mira-tool-permission__review-body > .mira-tool-permission__detail { max-height: none; overflow: visible; }

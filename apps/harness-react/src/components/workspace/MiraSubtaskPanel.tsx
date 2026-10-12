@@ -59,14 +59,18 @@ function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stoppin
   const lastActivity = subtask.activities[subtask.activities.length - 1]
   const summaryLabel = currentActivity?.label || lastActivity?.label || miraSubtaskStatusLabels[subtask.status]
   const hasText = parts.some(part => part.type === 'text' && part.text.trim())
+  const agentLabel = subtask.agentName || `${miraSubtaskRoleLabels[subtask.role]}智能体`
   return <article className="mira-subtask-panel mira-subtask-conversation" data-subtask-panel-id={subtask.id} data-subtask-run-id={runId}>
-    <header className="mira-subtask-heading"><Users size={16} aria-hidden="true" /><h2 title={subtask.task}>{miraSubtaskRoleLabels[subtask.role]}智能体</h2><span className="mira-subtask-status" data-status={subtask.status}>{miraSubtaskStatusLabels[subtask.status]}</span>{canStop && <button type="button" className="mira-subtask-stop" disabled={stopping} aria-label={`停止智能体 ${subtask.task}`} onClick={onStop}>{stopping ? <LoaderCircle size={13} className="animate-spin" /> : <Square size={12} />}停止</button>}</header>
+    <header className="mira-subtask-heading"><Users size={16} aria-hidden="true" /><h2 title={subtask.agentPluginId ? `${subtask.agentPluginId} · ${subtask.task}` : subtask.task}>{agentLabel}</h2><span className="mira-subtask-status" data-status={subtask.status}>{miraSubtaskStatusLabels[subtask.status]}</span>{canStop && <button type="button" className="mira-subtask-stop" disabled={stopping} aria-label={`停止智能体 ${subtask.task}`} onClick={onStop}>{stopping ? <LoaderCircle size={13} className="animate-spin" /> : <Square size={12} />}停止</button>}</header>
     {error && <p role="alert" className="mira-subtask-error mira-subtask-stop-error">{error}</p>}
     <div className="mira-subtask-conversation-body" style={{ '--mira-child-summary-height': `${summaryHeight}px` } as CSSProperties}>
       <div className="mira-subtask-summary-layer">
         <details ref={summaryRef} className="mira-subtask-summary" open={summaryOpen} onToggle={event => setSummaryOpen(event.currentTarget.open)}>
           <summary aria-label={summaryOpen ? '收起智能体摘要' : '展开智能体摘要'}><span className="mira-subtask-status-dot" data-status={subtask.status} /><strong>{summaryLabel}</strong>{running && <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />}<ChevronDown size={13} aria-hidden="true" /></summary>
           {summaryOpen && <div className="mira-subtask-summary-content">
+            {subtask.agentPluginId && <dl className="mira-subtask-metadata"><div><dt>来源插件</dt><dd>{subtask.agentPluginId}</dd></div><div><dt>执行角色</dt><dd>{miraSubtaskRoleLabels[subtask.role]}</dd></div></dl>}
+            {subtask.agentScope && <dl className="mira-subtask-metadata"><div><dt>智能体来源</dt><dd>{subtask.agentScope === 'project' ? '当前项目' : '全局'}</dd></div><div><dt>执行角色</dt><dd>{miraSubtaskRoleLabels[subtask.role]}</dd></div></dl>}
+            {subtask.agentModelSelection && <dl className="mira-subtask-metadata"><div><dt>执行模型</dt><dd>{subtask.agentModelSelection.providerId} / {subtask.agentModelSelection.modelId}</dd></div></dl>}
             <MiraActivityTimes createdAt={subtask.createdAt} startedAt={subtask.startedAt} completedAt={subtask.completedAt} />
             {!!subtask.files?.length && <div className="mira-subtask-files" aria-label="智能体文件范围">{subtask.files.map((file, index) => isWorkspaceRelativePath(file.path) ? <button type="button" key={JSON.stringify([file.path, index])} disabled={!active} title={file.path} onClick={() => onOpenFile(file.path)}><FileText size={13} aria-hidden="true" />{file.path}</button> : <span key={index}>{file.path}</span>)}</div>}
             <MiraActivityList activities={subtask.activities} />
@@ -74,7 +78,7 @@ function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stoppin
           </div>}
         </details>
       </div>
-      <div ref={scroll.ref} className="mira-subtask-viewport" tabIndex={0} role="region" aria-label={`${miraSubtaskRoleLabels[subtask.role]}智能体对话`} data-subtask-scroll-owner={owner}>
+      <div ref={scroll.ref} className="mira-subtask-viewport" tabIndex={0} role="region" aria-label={`${agentLabel}对话`} data-subtask-scroll-owner={owner}>
         <div className="mira-subtask-messages">
           <div className="mira-subtask-request" data-mira-turn-id={`${owner}:request`}><p>{subtask.task}</p></div>
           <div className="mira-subtask-reply" data-mira-turn-id={`${owner}:reply`}>
@@ -126,8 +130,11 @@ export function MiraSubtaskPanel({ session, sessionId, runId, subtaskId, directo
   }
   if (subtask.parts !== undefined) return <MiraConversationDetails memory={childDetailMemory} scope={owner} directory={directory}><MiraSubtaskConversation key={owner} subtask={subtask} tools={tools} owner={owner} runId={runId} active={active} stopping={stopping} error={error} canStop={canStop} onStop={() => void stop()} onOpenFile={onOpenFile} /></MiraConversationDetails>
   return <article className="mira-subtask-panel" data-subtask-panel-id={subtask.id} data-subtask-run-id={runId}>
-    <header className="mira-subtask-heading"><Users size={17} aria-hidden="true" /><h2>{miraSubtaskRoleLabels[subtask.role]}智能体</h2><span className="mira-subtask-status" data-status={subtask.status}>{miraSubtaskStatusLabels[subtask.status]}</span>{canStop && <button type="button" className="mira-subtask-stop" disabled={stopping} aria-label={`停止智能体 ${subtask.task}`} onClick={() => void stop()}>{stopping ? <LoaderCircle size={13} className="animate-spin" /> : <Square size={12} />}停止</button>}</header>
+    <header className="mira-subtask-heading"><Users size={17} aria-hidden="true" /><h2 title={subtask.agentPluginId}>{subtask.agentName || `${miraSubtaskRoleLabels[subtask.role]}智能体`}</h2><span className="mira-subtask-status" data-status={subtask.status}>{miraSubtaskStatusLabels[subtask.status]}</span>{canStop && <button type="button" className="mira-subtask-stop" disabled={stopping} aria-label={`停止智能体 ${subtask.task}`} onClick={() => void stop()}>{stopping ? <LoaderCircle size={13} className="animate-spin" /> : <Square size={12} />}停止</button>}</header>
     <p className="mira-subtask-task">{subtask.task}</p>
+    {subtask.agentPluginId && <dl className="mira-subtask-metadata"><div><dt>来源插件</dt><dd>{subtask.agentPluginId}</dd></div><div><dt>执行角色</dt><dd>{miraSubtaskRoleLabels[subtask.role]}</dd></div></dl>}
+    {subtask.agentScope && <dl className="mira-subtask-metadata"><div><dt>智能体来源</dt><dd>{subtask.agentScope === 'project' ? '当前项目' : '全局'}</dd></div><div><dt>执行角色</dt><dd>{miraSubtaskRoleLabels[subtask.role]}</dd></div></dl>}
+    {subtask.agentModelSelection && <dl className="mira-subtask-metadata"><div><dt>执行模型</dt><dd>{subtask.agentModelSelection.providerId} / {subtask.agentModelSelection.modelId}</dd></div></dl>}
     <MiraActivityTimes createdAt={subtask.createdAt} startedAt={subtask.startedAt} completedAt={subtask.completedAt} />
     {error && <p role="alert" className="mira-subtask-error">{error}</p>}
     {!!subtask.files?.length && <section className="mira-subtask-section"><h3>文件范围</h3><div className="mira-subtask-files">{subtask.files.map((file, index) => isWorkspaceRelativePath(file.path) ? <button type="button" key={JSON.stringify([file.path, index])} disabled={!active} title={file.path} onClick={() => onOpenFile(file.path)}><FileText size={13} aria-hidden="true" />{file.path}</button> : <span key={index}>{file.path}</span>)}</div></section>}

@@ -36,6 +36,8 @@ export class MiraPaths {
   agentsOverrideFile(directory: string) { return join(directory, 'AGENTS.override.md') }
   modelsConfig() { return join(this.config, 'models.json') }
   mcpConfig() { return join(this.config, 'mcp-servers.json') }
+  workflows() { return join(this.config, 'workflows') }
+  workflowArtifacts() { return join(this.root, 'workflow-artifacts') }
   skillSettings() { return join(this.config, 'skills.json') }
   session(id: string) { return join(this.sessions, `${id}.json`) }
   projectTrash(projectId: string) { return join(this.trash, projectId) }

@@ -15,14 +15,17 @@
     "dev": "vite",
     "build": "node scripts/build.mjs",
     "test": "vitest run",
+    "pretest": "node scripts/generate-mira-flow-libs.mjs",
+    "flow:build": "node scripts/build-mira-flow.mjs",
+    "tools:build": "node scripts/build-mira-tools.mjs",
     "preview": "vite preview",
     "postinstall": "node scripts/prepare-node-pty.mjs",
     "desktop:dev": "electron-vite dev",
     "harness:dev": "node scripts/dev-harness-react.mjs",
     "harness:build": "node scripts/build-harness-react.mjs",
-    "predesktop:dev": "npm run harness:build",
-    "predesktop:build": "npm run harness:build",
-    "predesktop:build:win": "npm run harness:build",
+    "predesktop:dev": "npm run harness:build && npm run flow:build && npm run tools:build",
+    "predesktop:build": "npm run harness:build && npm run flow:build && npm run tools:build",
+    "predesktop:build:win": "npm run harness:build && npm run flow:build && npm run tools:build",
     "desktop:build": "electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty && electron-builder --mac dmg --arm64",
     "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
   },
@@ -42,6 +45,7 @@
       "installerHeader": "build/installerHeader.bmp"
     },
     "asar": true,
+    "beforePack": "./scripts/build-mira-tools.mjs",
     "mac": {
       "target": [
         "dmg"
@@ -62,6 +66,20 @@
         ]
       },
       {
+        "from": "dist/mira-flow-host",
+        "to": "mira-flow-host",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "dist/mira-tools/ripgrep",
+        "to": "tools/ripgrep",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
         "from": "resources/python",
         "to": "python",
         "filter": [
@@ -77,6 +95,7 @@
     "@earendil-works/pi-agent-core": "^0.84.1",
     "@earendil-works/pi-ai": "^0.84.1",
     "@element-plus/icons-vue": "^2.3.2",
+    "@extend-ai/react-xlsx": "0.16.0",
     "@iconify-json/lucide": "^1.2.121",
     "@iconify-json/material-symbols": "^1.2.88",
     "@iconify-json/tabler": "^1.2.38",
@@ -106,6 +125,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
     "diff": "^8.0.4",
+    "docx-preview": "0.4.0",
     "element-plus": "^2.14.2",
     "ignore": "7.0.5",
     "ldrs": "^1.1.9",
@@ -114,11 +134,13 @@
     "lucide-vue-next": "^0.468.0",
     "markdown-it": "^15.0.0",
     "node-pty": "^1.1.0",
+    "pdfjs-dist": "5.4.296",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-pdf": "10.4.1",
     "react-resizable-panels": "4.8.0",
     "remark-parse": "11.0.0",
     "remark-rehype": "11.1.2",
@@ -144,6 +166,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/turndown": "^5.0.6",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vscode/ripgrep": "1.18.0",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",

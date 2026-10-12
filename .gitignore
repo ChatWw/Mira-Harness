@@ -4,6 +4,7 @@ node_modules/
 .pnp.js
 
 # 构建输出
+packages/mira-flow-kit/src/compiler/mira-libs.generated.ts
 dist/
 dist-ssr/
 out/

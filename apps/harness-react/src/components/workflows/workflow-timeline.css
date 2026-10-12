@@ -1,0 +1,62 @@
+/* ZCode workflow timeline station/rail/pill geometry adapted to Mira tokens.
+ * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
+.mira-flow-line { min-width: 0; max-width: 100%; color: var(--mira-foreground); font-size: 12px; line-height: 1.6; }
+.mira-flow-line__header, .mira-flow-line__selection-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.mira-flow-line__header > span, .mira-flow-line__selection-head > span { color: var(--mira-foreground-subtle); font-size: 11px; }
+.mira-flow-line__header > button { margin-left: auto; }
+.mira-flow-line button { font: inherit; cursor: pointer; color: inherit; border: 0; background: transparent; }
+.mira-flow-line :where(button, summary, pre):focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-flow-line__header > button, .mira-flow-line__selection-head > button { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 6px; border-radius: 5px; }
+.mira-flow-line button:hover { background: var(--mira-hover); }
+.mira-flow-line__scroller { max-width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--mira-border) transparent; padding: 3px 0 6px; }
+.mira-flow-line .mira-flow-line__canvas { position: relative; max-width: none; min-width: 0; }
+.mira-flow-line__tracks { position: absolute; top: 0; left: 0; max-width: none; color: var(--mira-border-hover, var(--mira-foreground-subtle)); pointer-events: none; }
+.mira-flow-line__lamp { position: absolute; width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; border: 1px solid var(--mira-border-hover, var(--mira-foreground-subtle)); background: var(--mira-background); }
+.mira-flow-line__lamp:is([data-line-state=completed], [data-line-state=entered]) { background: var(--mira-foreground-subtle); border-color: var(--mira-foreground-subtle); }
+.mira-flow-line__lamp:is([data-line-state=executing], [data-line-state=repairing], [data-line-state=dispatched]) { border: 2px solid var(--mira-foreground); }
+.mira-flow-line__lamp[data-line-state=failed] { border-color: var(--mira-destructive); background: var(--mira-destructive); }
+.mira-flow-line__station-button { position: absolute; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 3px; border-radius: 4px; text-align: left; }
+.mira-flow-line__station-button > span, .mira-flow-line__pill > span:not(.mira-flow-line__tail) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-flow-line__station-button small { display: inline-flex; align-items: center; gap: 2px; flex: none; color: var(--mira-foreground-subtle); font-variant-numeric: tabular-nums; }
+.mira-flow-line__pills { position: absolute; display: flex; flex-direction: column; gap: 6px; }
+.mira-flow-line .mira-flow-line__pill { display: flex; flex: none; align-items: center; gap: 8px; height: 32px; width: 100%; padding: 0 10px; border-radius: 7px; text-align: left; background: var(--mira-background-alt); }
+.mira-flow-line .mira-flow-line__pill:hover, .mira-flow-line .mira-flow-line__pill[aria-expanded=true] { background: var(--mira-hover); }
+.mira-flow-line__glyph { flex: none; color: var(--mira-foreground-subtle); }
+.mira-flow-line__tail { position: relative; flex: none; width: 14px; height: 14px; margin-left: auto; }
+.mira-flow-line__mark, .mira-flow-line__open { position: absolute; inset: 0; }
+.mira-flow-line__open { opacity: 0; }
+.mira-flow-line__pill:is(:hover, :focus-visible) .mira-flow-line__mark { opacity: 0; }
+.mira-flow-line__pill:is(:hover, :focus-visible) .mira-flow-line__open { opacity: 1; }
+.mira-flow-line__more { min-height: 32px; text-align: left; padding: 0 12px; border-radius: 5px; color: var(--mira-foreground-subtle); }
+.mira-flow-line :is([data-line-state=static], [data-line-state=unobserved], [data-line-state=pending]) { color: var(--mira-foreground-subtle); }
+.mira-flow-line [data-line-state=failed] { color: var(--mira-destructive); }
+.mira-flow-line__relations { margin-top: 10px; }
+.mira-flow-line__relations summary { display: list-item; width: fit-content; cursor: pointer; color: var(--mira-foreground-subtle); }
+.mira-flow-line__relations p, .mira-flow-line__handoff { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 6px 0; overflow-wrap: anywhere; }
+.mira-flow-line__relations small { color: var(--mira-foreground-subtle); }
+.mira-flow-line__selection { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--mira-border); }
+.mira-flow-line__selection-head { flex-wrap: wrap; }
+.mira-flow-line__selection-head > strong { min-width: 0; overflow-wrap: anywhere; }
+.mira-flow-line__selection-head > button:last-child { margin-left: auto; }
+.mira-flow-line .mira-flow-line__operations { list-style: none; margin: 0; padding: 0; }
+.mira-flow-line__operations > li { padding: 8px 0; }
+.mira-flow-line__operations > li + li { border-top: 1px solid var(--mira-border); }
+.mira-flow-line__operation { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.mira-flow-line__operation strong { font-weight: 500; overflow-wrap: anywhere; }
+.mira-flow-line__operation span, .mira-flow-line__operations p, .mira-flow-line__note { color: var(--mira-foreground-subtle); }
+.mira-flow-line__operations p { margin: 5px 0; overflow-wrap: anywhere; }
+.mira-flow-line__operations details { margin: 6px 0; }
+.mira-flow-line__operations summary { cursor: pointer; width: fit-content; }
+.mira-flow-line__operations pre { box-sizing: border-box; max-width: 100%; max-height: 180px; overflow: auto; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--mira-background-alt); border-radius: 5px; font: 11px/1.7 var(--font-mono, ui-monospace), SFMono-Regular, Menlo, monospace; scrollbar-width: thin; scrollbar-color: var(--mira-border) transparent; }
+.mira-flow-line__note { margin: 8px 0 0; }
+.mira-flow-line .mira-flow-line__spine { list-style: none; margin: 0; padding: 0; }
+.mira-flow-line__spine-section { position: relative; padding-bottom: 18px; }
+.mira-flow-line__spine-rail { position: absolute; top: 23px; left: 0; width: 48px; height: calc(100% - 14px); color: var(--mira-border-hover, var(--mira-foreground-subtle)); pointer-events: none; }
+.mira-flow-line__phase-toggle { display: flex; align-items: center; gap: 5px; min-height: 30px; width: 100%; text-align: left; border-radius: 5px; padding: 0; }
+.mira-flow-line__phase-toggle strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mira-flow-line__phase-toggle small { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; font-variant-numeric: tabular-nums; color: var(--mira-foreground-subtle); }
+.mira-flow-line__phase-state { display: block; margin: 0 0 6px 17px; font-size: 11px; color: var(--mira-foreground-subtle); }
+.mira-flow-line__spine-pills { display: flex; flex-direction: column; gap: 6px; }
+.mira-flow-line__roster { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 3px 0 0 17px; color: var(--mira-foreground-subtle); font-size: 10px; }
+.mira-flow-line__roster > span { display: inline-flex; align-items: center; gap: 3px; max-width: 80px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mira-flow-line ::selection { color: var(--mira-foreground); background: var(--mira-hover); }

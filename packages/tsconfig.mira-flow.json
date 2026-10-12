@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "esModuleInterop": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "mira-flow-kit/src/**/*.ts", "mira-flow-runtime/src/**/*.ts",
+    "../electron/services/flows/**/*.ts",
+    "../electron/storage/miraWorkflowDefinitions.ts",
+    "../electron/storage/miraFlowJournal.ts",
+    "../src/config/miraWorkflows.ts",
+    "../tests/miraFlow*.test.ts", "../tests/miraWorkflowDefinitions.test.ts"
+  ],
+  "exclude": [
+    "../electron/services/flows/miraFlowController.ts",
+    "../electron/services/flows/miraFlowAuthoring.ts",
+    "../tests/miraFlowController.test.ts",
+    "../tests/miraFlowAuthoring.test.ts",
+    "../tests/miraFlowIpc.test.ts",
+    "../tests/miraFlowWorkbench.test.ts",
+    "../tests/miraFlowHost*.test.ts",
+    "../tests/miraFlowProduction*.test.ts"
+  ]
+}

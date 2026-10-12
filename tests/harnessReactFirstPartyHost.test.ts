@@ -11,6 +11,22 @@ function fixture() {
 }
 
 describe('React Harness prepare-leave handshake', () => {
+  it('forwards Goal controls with both target identity and expected revision', async () => {
+    const { host, port, receive } = fixture()
+    const selection = { providerId: 'provider', modelId: 'model' }
+    const calls = [
+      ['pause', () => host.pauseGoal('owner', 7, 'goal-id'), { sessionId: 'owner', expectedRevision: 7, expectedGoalId: 'goal-id' }],
+      ['resume', () => host.resumeGoal('owner', 7, 'goal-id', selection, 'full'), { sessionId: 'owner', expectedRevision: 7, expectedGoalId: 'goal-id', selection, permissionMode: 'full' }],
+      ['budget', () => host.updateGoalBudget('owner', null, 7, 'goal-id'), { sessionId: 'owner', expectedRevision: 7, expectedGoalId: 'goal-id', tokenBudget: null }],
+      ['clear', () => host.clearGoal('owner', 7, 'goal-id'), { sessionId: 'owner', expectedRevision: 7, expectedGoalId: 'goal-id' }],
+    ] as const
+    for (const [index, [method, call, params]] of calls.entries()) {
+      const pending = call(), id = String(index + 1)
+      expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id, method: `harness.goal.${method}`, params })
+      receive({ type: 'mira:response', id, ok: true, value: method === 'clear' ? undefined : { id: 'goal-id', revision: 8 } }); await pending
+    }
+    host.close()
+  })
   it('reads input history through the authorized session or project scope without accepting a renderer directory', async () => {
     const { host, port, receive } = fixture()
     const pending = host.listPromptHistory({ sessionId: 'current' })
@@ -40,6 +56,21 @@ describe('React Harness prepare-leave handshake', () => {
     expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.mcp.reconnect', params: { id: 'configured' } })
     receive({ type: 'mira:response', id: '1', ok: true, value: { state: 'connected', toolCount: 2 } })
     await expect(pending).resolves.toEqual({ state: 'connected', toolCount: 2 }); host.close()
+  })
+  it('reads the MCP catalog for the captured session and preserves latest-catalog reads without a session', async () => {
+    const { host, port, receive } = fixture()
+    const scoped = host.listMcp('owner')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.mcp.list', params: { sessionId: 'owner' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: [] }); await scoped
+    const latest = host.listMcp()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.mcp.list', params: undefined })
+    receive({ type: 'mira:response', id: '2', ok: true, value: [] }); await latest; host.close()
+  })
+  it('reads an anonymous project MCP catalog by registered identity without renderer directory', async () => {
+    const { host, port, receive } = fixture()
+    const pending = host.listMcp(undefined, 'writing-project')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.mcp.list', params: { projectId: 'writing-project' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: [] }); await pending; host.close()
   })
   it('queries browser protection using task and resource identity without exposing a guest handle', async () => {
     const { host, port, receive } = fixture()

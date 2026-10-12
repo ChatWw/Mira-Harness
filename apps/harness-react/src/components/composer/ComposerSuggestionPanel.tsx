@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
 import type { MiraPromptTrigger } from '../../lib/prompt-input-triggers'
 
@@ -10,7 +10,7 @@ export interface ComposerSuggestion {
   icon?: ReactNode
   disabled?: boolean
   selected?: boolean
-  action: { type: 'file' | 'skill' | 'plugin' | 'plugin-command' | 'agent' | 'mcp' | 'session' | 'command'; value: string }
+  action: { type: 'file' | 'skill' | 'plugin' | 'plugin-command' | 'prompt-command' | 'agent' | 'mcp' | 'session' | 'command'; value: string }
 }
 export interface ComposerSuggestionSection {
   id: string
@@ -34,9 +34,26 @@ export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIn
   const listRef = useRef<HTMLDivElement>(null)
   const items = sections.flatMap(section => section.items)
   const selectedId = items[selectedIndex]?.id
-  useEffect(() => {
-    listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
-  }, [selectedId])
+  const layoutSignature = JSON.stringify(sections.map(section => [section.id, section.title, section.loading, section.error, section.empty, section.items.map(item => [item.id, item.label, item.description])]))
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || !selectedId) return
+    const revealSelected = () => {
+      const target = list.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (!target) return
+      const viewport = list.getBoundingClientRect(), bounds = target.getBoundingClientRect()
+      if (!viewport.height || !bounds.height) return
+      if (bounds.top < viewport.top) list.scrollTop += bounds.top - viewport.top
+      else if (bounds.bottom > viewport.bottom) list.scrollTop += bounds.bottom - viewport.bottom
+    }
+    // Keep scrolling inside the candidate list, including asynchronous catalog and popup layout changes.
+    revealSelected()
+    const frame = requestAnimationFrame(revealSelected)
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(revealSelected) : undefined
+    observer?.observe(list)
+    list.querySelectorAll('.mira-composer-suggestions__section').forEach(section => observer?.observe(section))
+    return () => { cancelAnimationFrame(frame); observer?.disconnect() }
+  }, [selectedId, layoutSignature])
   let offset = 0
   return <div className="mira-composer-suggestions" data-has-query={hasQuery}>
     <div ref={listRef} className="mira-composer-suggestions__list" role="listbox" id={listId} aria-label="上下文与能力" aria-busy={sections.some(section => section.loading)}>

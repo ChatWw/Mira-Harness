@@ -8,6 +8,7 @@ import { taskFindTargetKey } from '../../lib/conversation-find'
 import { miraAssistantWorkItems } from '../../lib/tool-exploration'
 import { MiraToolExploration } from './MiraToolExploration'
 import { MiraToolCommandGroup } from './MiraToolCommandGroup'
+import { MiraWorkflowSourceReview } from '../workflows/MiraWorkflowSourceReview'
 
 export interface PermissionResponseCardProps {
   request: HarnessPermissionRequest
@@ -20,8 +21,9 @@ export interface PermissionResponseCardProps {
 export function PermissionResponseCard({ request, responding, error, placement, onRespond }: PermissionResponseCardProps) {
   return <section className="pilot-action mira-tool-permission" aria-label="权限确认" tabIndex={-1} aria-busy={responding} data-permission-request-id={request.requestId} data-permission-placement={placement} onKeyDown={event => {
     if (responding || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-    const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+    const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('.pilot-action__buttons > button:not(:disabled)')]
     const index = buttons.indexOf(event.target as HTMLButtonElement)
+    if (index < 0) return
     const next = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? Math.min(index + 1, buttons.length - 1) : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? Math.max(index - 1, 0) : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : -1
     if (next < 0 || !buttons[next]) return
     event.preventDefault(); event.stopPropagation(); buttons[next].focus()
@@ -29,12 +31,12 @@ export function PermissionResponseCard({ request, responding, error, placement, 
     <ShieldCheck size={19} aria-hidden="true" />
     <div>
       <strong>{request.title}</strong>
-      <p className="mira-tool-permission__detail">{request.detail}</p>
+      {request.workflowReview ? <div className="mira-tool-permission__review-body"><p className="mira-tool-permission__detail">{request.detail}</p><MiraWorkflowSourceReview review={request.workflowReview} /></div> : <p className="mira-tool-permission__detail">{request.detail}</p>}
       {error && <p className="mira-tool-error" role="alert">{error}</p>}
       {responding && <p role="status">正在提交确认…</p>}
       <div className="pilot-action__buttons">
         <button type="button" disabled={responding} onClick={() => { if (!responding) void onRespond(request.requestId, false) }}>拒绝</button>
-        <button type="button" disabled={responding} onClick={() => { if (!responding) void onRespond(request.requestId, true) }}>允许</button>
+        <button type="button" disabled={responding} onClick={() => { if (!responding) void onRespond(request.requestId, true) }}>{request.workflowReview ? request.workflowReview.action === 'run' ? '确认并运行' : '确认保存' : '允许'}</button>
       </div>
     </div>
   </section>

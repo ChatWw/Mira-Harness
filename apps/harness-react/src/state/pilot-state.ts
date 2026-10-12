@@ -1,4 +1,5 @@
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type HarnessWorkspaceFileSearchResult, type HarnessWorkspaceGitSnapshot, type HarnessWorkspaceImagePreview, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
+import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
 import type { HarnessAttachmentSaveResult, HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../src/platform/firstPartyHarness'
 import type { HarnessHistoryPage, HarnessHistoryQuery } from '../../../../src/config/harness'
 import type { HarnessContextCompactionResult, SendShortcut } from '../../../../src/config/harness'
@@ -10,11 +11,13 @@ import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNaviga
 import type { HarnessMessageAttachment, ToolCallRecord } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
 import type { MiraBrowserPickResult } from '../../../../src/platform/miraBrowserPicker'
+import { getMiraGoalStatusLabel, parseMiraGoalCommand, type HarnessGoal } from '../../../../src/config/miraGoals'
 
 export interface PilotBrowserEvent { sessionId: string; browserId?: string; url: string; title?: string; ready?: boolean; canGoBack: boolean; canGoForward: boolean; loading: boolean; error?: string; errorCode?: number; faviconUrl?: string | null }
 export interface PilotWorkspaceFileEvent { sessionId: string; watchId: string; directory: string; paths: string[]; error?: string }
 
 export interface PilotHost {
+  requestWorkflow?<T>(request: import('../../../../src/config/miraFlowWorkbench').MiraFlowWorkbenchRequest): Promise<T>
   listSessions(): Promise<HarnessSessionSummary[]>
   listProjects(): Promise<HarnessProject[]>
   getSession(id: string): Promise<HarnessSession>
@@ -22,6 +25,10 @@ export interface PilotHost {
   createSideConversation?(parentId: string): Promise<HarnessSession>
   forkConversation?(id: string, messageId: string, requestId: string): Promise<HarnessSession>
   compactConversation?(id: string, selection: ModelSelection): Promise<HarnessContextCompactionResult>
+  pauseGoal?(sessionId: string, expectedRevision: number, expectedGoalId: string): Promise<HarnessGoal>
+  resumeGoal?(sessionId: string, expectedRevision: number, expectedGoalId: string, selection: ModelSelection, permissionMode?: PermissionMode): Promise<HarnessGoal>
+  updateGoalBudget?(sessionId: string, tokenBudget: number | null, expectedRevision: number, expectedGoalId: string): Promise<HarnessGoal>
+  clearGoal?(sessionId: string, expectedRevision: number, expectedGoalId: string): Promise<void>
   prepareSession?(projectId?: string): Promise<HarnessSession>
   listProviders(): Promise<ModelProviderSummary[]>
   runMessage(id: string, text: string, selection: ModelSelection, planning: boolean, references?: HarnessFileReference[]): Promise<void>
@@ -53,6 +60,8 @@ export interface PilotHost {
   openFileInEditor?(sessionId: string, path: string, editorId: string): Promise<void>
   readFile(id: string, path: string): Promise<{ path: string; content: string }>
   readImage?(id: string, path: string): Promise<HarnessWorkspaceImagePreview>
+  openMedia?(id: string, path: string): Promise<MiraMediaPreview>
+  closeMedia?(id: string): Promise<void>
   openTerminal(id: string): Promise<{ terminalId: string; sessionId: string; cwd: string }>
   writeTerminal(id: string, terminalId: string, data: string): Promise<void>
   pasteTerminal?(id: string, terminalId: string, bracketed: boolean): Promise<void>
@@ -118,11 +127,13 @@ export interface PilotHost {
   setSessionDelegation?(id: string, enabled: boolean): Promise<void>
   listSkills?(): Promise<unknown[]>
   listPluginCatalog?(sessionId?: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  listPromptCommands?(scope: { projectId?: string; sessionId?: string }): Promise<import('../../../../src/config/miraPromptCommands').MiraPromptCommandItem[]>
+  listUserAgents?(scope: { projectId?: string; sessionId?: string }): Promise<import('../../../../src/config/miraUserAgents').MiraUserAgentItem[]>
   listPlugins?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
   importLocalPlugin?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[] | null>
   setPluginEnabled?(id: string, enabled: boolean): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
   removePlugin?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
-  listMcp?(): Promise<import('../../../../src/config/miraMcp').MiraMcpItem[]>
+  listMcp?(sessionId?: string, projectId?: string): Promise<import('../../../../src/config/miraMcp').MiraMcpItem[]>
   reconnectMcp?(id: string): Promise<import('../../../../src/config/miraMcp').MiraMcpConnection>
   selectFiles?(id: string): Promise<HarnessFileReference[]>
   importAttachments?(id: string, files: Array<{ name: string; mediaType: string; data: string }>): Promise<HarnessFileReference[]>
@@ -187,10 +198,15 @@ export function getPilotTaskState(state: PilotState) {
   const failedTool = state.session?.toolCalls.some(tool => tool.status === 'failed' && (!latestRun || tool.createdAt >= latestRun.startedAt))
   const failedActivity = latestRun?.activities.some(activity => activity.status === 'failed')
   if (state.permission || state.session?.pendingInteraction?.status === 'waiting') return '等待确认'
+  const goal = state.session?.goal
+  if (goal?.status === 'paused') return goal.activeRun ? '目标正在暂停' : '目标已暂停'
+  if (goal?.status === 'budget_limited') return getMiraGoalStatusLabel(goal)
+  if (state.running && goal?.status === 'active' && goal.verification?.status === 'running') return '正在核验目标'
   if (state.running) return '正在执行'
   if (state.session?.status === 'failed' || latestRun?.status === 'failed') return '执行失败'
   if (latestRun?.status === 'stopped') return '已停止，可继续发送'
   if (failedActivity || failedTool) return '部分操作未完成'
+  if (goal?.status === 'active') return '目标等待执行'
   if (state.session?.status === 'completed') return '最近任务已完成'
   return state.session ? '等待下一步' : '尚未开始'
 }
@@ -198,12 +214,12 @@ export function getPilotTaskState(state: PilotState) {
 export type PilotTaskTone = 'idle' | 'running' | 'waiting' | 'completed' | 'partial' | 'failed' | 'stopped'
 
 export function getPilotTaskTone(taskState: string): PilotTaskTone {
-  if (taskState === '正在执行') return 'running'
+  if (taskState === '正在执行' || taskState === '正在核验目标' || taskState === '目标正在暂停') return 'running'
   if (taskState === '等待确认') return 'waiting'
   if (taskState === '最近任务已完成') return 'completed'
   if (taskState === '部分操作未完成') return 'partial'
   if (taskState === '执行失败') return 'failed'
-  if (taskState === '已停止，可继续发送') return 'stopped'
+  if (taskState === '已停止，可继续发送' || taskState === '目标已暂停' || taskState === '预算已用尽' || taskState === '已暂停，待恢复') return 'stopped'
   return 'idle'
 }
 
@@ -212,6 +228,13 @@ export function shouldRenderPilotStream(messageId: string, isOptimistic: boolean
 }
 
 export class PilotController {
+  requestWorkflow<T>(request: import('../../../../src/config/miraFlowWorkbench').MiraFlowWorkbenchRequest): Promise<T> {
+    if (this.disposed || !this.host.requestWorkflow) return Promise.reject(new Error('工作流服务不可用'))
+    return this.host.requestWorkflow<T>(request)
+  }
+  onWorkflowEvent(listener: (event: HarnessEvent) => void) {
+    return this.host.onEvent(event => { if (!this.disposed && event.type === 'workflow-event') listener(event) })
+  }
   private state: PilotState = { initialized: false, sessions: [], projects: [], providers: [], messages: [], running: false, sessionLoading: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   private listeners = new Set<() => void>()
   private deletedSessionListeners = new Set<(id: string) => void>()
@@ -224,7 +247,9 @@ export class PilotController {
   private unsubscribeDeleted?: () => void
   private generation = 0
   private snapshotVersion = 0
+  private retiredGoalIds = new Set<string>()
   private permissionRevision = 0
+  private pendingToolApprovals = new Map<string, HarnessPermissionRequest>()
   private runningRevision = 0
   private runningRevisions = new Map<string, number>()
   private unreadRevision = 0
@@ -239,6 +264,7 @@ export class PilotController {
   private sessionSelections = new Map<string, ModelSelection>()
   private queues = new Map<string, HarnessMessageQueueSnapshot>()
   private eventRuns = new Map<string, { id: string; messageId?: string; startedAt: number; sequence: number; retired: Set<string>; closed?: boolean }>()
+  private workflowEventRuns = new Map<string, { sessionId: string; sequence: number; settled?: boolean }>()
   private seenEventIds = new Set<string>()
   private livePartKeys = new Set<string>()
   private gitContextRevisions = new Map<string, number>()
@@ -259,6 +285,52 @@ export class PilotController {
   get supportsSideConversations() { return Boolean(this.host.createSideConversation) }
   get supportsConversationFork() { return !this.sideSession && Boolean(this.host.forkConversation) }
   get supportsContextCompaction() { return Boolean(this.host.compactConversation) }
+  get supportsGoals() { return !this.sideSession?.parentId && !this.state.session?.parentSessionId && Boolean(this.host.pauseGoal && this.host.resumeGoal && this.host.updateGoalBudget && this.host.clearGoal) }
+  private requireGoalOwner(sessionId: string, expectedRevision: number, expectedGoalId: string) {
+    const goal = this.state.session?.goal
+    if (this.disposed || !this.supportsGoals || this.state.sessionLoading || sessionId !== this.activeSessionId || !goal || goal.id !== expectedGoalId || goal.revision !== expectedRevision) throw new Error('目标已变化，请重新打开目标详情')
+    return goal
+  }
+  private applyGoal(sessionId: string, goal: HarnessGoal) {
+    const session = this.state.session
+    if (this.disposed || this.state.sessionLoading || session?.id !== sessionId || this.retiredGoalIds.has(goal.id)) return
+    const previous = session.goal
+    if (previous && (previous.id === goal.id ? previous.revision >= goal.revision : previous.updatedAt > goal.updatedAt)) return
+    if (previous && previous.id !== goal.id) this.retiredGoalIds.add(previous.id)
+    this.snapshotVersion++
+    this.update({ session: { ...session, goal } })
+  }
+  async pauseGoal(sessionId: string, expectedRevision: number, expectedGoalId: string) {
+    this.requireGoalOwner(sessionId, expectedRevision, expectedGoalId)
+    const generation = this.generation
+    const goal = await this.require('pauseGoal')(sessionId, expectedRevision, expectedGoalId)
+    if (generation === this.generation && this.state.session?.goal?.id === expectedGoalId && goal.id === expectedGoalId) this.applyGoal(sessionId, goal)
+    return goal
+  }
+  async resumeGoal(sessionId: string, expectedRevision: number, expectedGoalId: string, selection: ModelSelection, permissionMode?: PermissionMode) {
+    this.requireGoalOwner(sessionId, expectedRevision, expectedGoalId)
+    const generation = this.generation
+    const goal = await this.require('resumeGoal')(sessionId, expectedRevision, expectedGoalId, { ...selection }, permissionMode)
+    if (generation === this.generation && this.state.session?.goal?.id === expectedGoalId && goal.id === expectedGoalId) this.applyGoal(sessionId, goal)
+    return goal
+  }
+  async updateGoalBudget(sessionId: string, tokenBudget: number | null, expectedRevision: number, expectedGoalId: string) {
+    this.requireGoalOwner(sessionId, expectedRevision, expectedGoalId)
+    const generation = this.generation
+    const goal = await this.require('updateGoalBudget')(sessionId, tokenBudget, expectedRevision, expectedGoalId)
+    if (generation === this.generation && this.state.session?.goal?.id === expectedGoalId && goal.id === expectedGoalId) this.applyGoal(sessionId, goal)
+    return goal
+  }
+  async clearGoal(sessionId: string, expectedRevision: number, expectedGoalId: string) {
+    this.requireGoalOwner(sessionId, expectedRevision, expectedGoalId)
+    const generation = this.generation
+    await this.require('clearGoal')(sessionId, expectedRevision, expectedGoalId)
+    if (generation === this.generation && this.state.session?.id === sessionId && this.state.session.goal?.id === expectedGoalId && this.state.session.goal.revision === expectedRevision) {
+      this.snapshotVersion++
+      this.retiredGoalIds.add(expectedGoalId)
+      this.update({ session: { ...this.state.session, goal: undefined } })
+    }
+  }
   async compactConversation(id: string) {
     if (this.disposed || this.state.sessionLoading || id !== this.activeSessionId || !this.state.selection) throw new Error('请先打开已有对话并选择模型')
     if (this.state.session?.activeRun?.kind === 'context-compaction' || this.state.queue?.items.some(item => item.operation === 'context-compaction')) throw new Error('上下文压缩已在运行或排队')
@@ -353,6 +425,8 @@ export class PilotController {
       if (selection) this.sessionSelections.set(id, selection)
       const permissions = { ...this.state.pendingPermissions }
       if (permissionRevision === this.permissionRevision) {
+        for (const [key, request] of this.pendingToolApprovals) if (request.sessionId === id) this.pendingToolApprovals.delete(key)
+        pendingPermissions.forEach(request => this.pendingToolApprovals.set(request.requestId, request))
         if (pendingPermissions[0]) permissions[id] = pendingPermissions[0]
         else delete permissions[id]
       }
@@ -457,6 +531,15 @@ export class PilotController {
     if (!text.trim() && !references.length || !selection || this.state.sessionLoading) return false
     const session = this.state.session
     if (!session) return false
+    let goalCommand: ReturnType<typeof parseMiraGoalCommand>
+    try { goalCommand = !references.length && !options?.hasStructuredContext ? parseMiraGoalCommand(text) : undefined }
+    catch (error) { this.fail(error); return false }
+    if (goalCommand && (planning || session.parentSessionId || goalCommand.action !== 'set')) {
+      this.fail(new Error(planning ? '目标模式不能在计划模式中启动，请先关闭计划模式' : session.parentSessionId ? '旁路对话不支持目标模式' : '请使用目标详情中的管理操作'))
+      return false
+    }
+    if (planning && session.goal?.status === 'active') { this.fail(new Error('请先暂停当前目标，再开启计划模式')); return false }
+    if (goalCommand && this.state.running && options?.delivery && options.delivery !== 'queue') options = { ...options, delivery: 'queue' }
     if (options && !this.supportsQueueSubmissionOptions) return false
     const generation = this.generation
     if (this.supportsMessageQueue) {
@@ -622,12 +705,7 @@ export class PilotController {
     // Transport failures belong to the request card. A late failure must not
     // replace the next task's error or its pending approval.
     await this.host.respondPermission(request.requestId, allowed)
-    if (!this.disposed && generation === this.generation && this.activeSessionId === request.sessionId && this.state.permission?.requestId === request.requestId) {
-      this.permissionRevision++
-      const pendingPermissions = { ...this.state.pendingPermissions }
-      delete pendingPermissions[request.sessionId]
-      this.update({ permission: undefined, pendingPermissions })
-    }
+    if (!this.disposed && generation === this.generation && this.activeSessionId === request.sessionId) this.forgetPermission(request.requestId, request.sessionId)
   }
   async confirmPlan(interactionId?: string) {
     const { session, selection } = this.state
@@ -840,11 +918,15 @@ export class PilotController {
   listPromptHistory(scope: { sessionId?: string; projectId?: string }) { return this.require('listPromptHistory')(scope) }
   get supportsPlugins() { return Boolean(this.host.listPluginCatalog) }
   listPluginCatalog(sessionId?: string) { return this.require('listPluginCatalog')(sessionId) }
+  get supportsPromptCommands() { return Boolean(this.host.listPromptCommands) }
+  listPromptCommands(scope: { projectId?: string; sessionId?: string }) { return this.require('listPromptCommands')(scope) }
+  get supportsUserAgents() { return Boolean(this.host.listUserAgents) }
+  listUserAgents(scope: { projectId?: string; sessionId?: string }) { return this.require('listUserAgents')(scope) }
   listPlugins() { return this.require('listPlugins')() }
   importLocalPlugin() { return this.require('importLocalPlugin')() }
   setPluginEnabled(id: string, enabled: boolean) { return this.require('setPluginEnabled')(id, enabled) }
   removePlugin(id: string) { return this.require('removePlugin')(id) }
-  listMcp() { return this.require('listMcp')() }
+  listMcp(sessionId?: string, projectId?: string) { return projectId !== undefined ? this.require('listMcp')(sessionId, projectId) : this.require('listMcp')(sessionId ?? this.state.session?.id) }
   get supportsMcpReconnect() { return Boolean(this.host.reconnectMcp) }
   reconnectMcp(id: string) { return this.require('reconnectMcp')(id) }
   selectFiles() {
@@ -990,6 +1072,8 @@ export class PilotController {
     return this.host.readFile(id, path)
   }
   readFileFor(sessionId: string, path: string) { return this.host.readFile(sessionId, path) }
+  openMediaFor(sessionId: string, path: string) { return this.host.openMedia ? this.host.openMedia(sessionId, path) : Promise.reject(new Error('当前宿主不支持媒体预览')) }
+  closeMedia(id: string) { return this.host.closeMedia?.(id) ?? Promise.resolve() }
   readImageFor(sessionId: string, path: string): Promise<HarnessWorkspaceImagePreview> { return this.host.readImage ? this.host.readImage(sessionId, path) : Promise.reject(new Error('当前宿主不支持图片预览')) }
   openTerminal() {
     const id = this.state.session?.id
@@ -1064,6 +1148,10 @@ export class PilotController {
     try {
       const session = await this.host.getSession(id)
       if (generation !== this.generation || version !== this.snapshotVersion || this.disposed) return
+      const previousGoal = this.state.session?.id === id ? this.state.session.goal : undefined
+      if (session.goal && this.retiredGoalIds.has(session.goal.id)) session.goal = this.state.session?.goal
+      if (previousGoal && session.goal?.id === previousGoal.id && session.goal.revision < previousGoal.revision) session.goal = previousGoal
+      if (previousGoal && !session.goal) this.retiredGoalIds.add(previousGoal.id)
       if (!confirmedRunChange && !this.reconcileSnapshotRun(session)) return
       const eventRun = this.eventRuns.get(id)
       // 宿主明确拒绝旧运行身份后，读取最新权威运行；普通流式快照仍保持原游标保护。
@@ -1190,15 +1278,26 @@ export class PilotController {
     if (!['ok', 'failed', 'cancelled'].includes(String(status)) || typeof id !== 'string' || typeof approvalRequestId !== 'string' || typeof runId !== 'string') return
     if (event.payload.runId !== undefined && event.payload.runId !== runId) return
     const matches = (request: HarnessPermissionRequest | undefined) => Boolean(request && request.sessionId === event.sessionId && request.requestId === approvalRequestId && request.toolCallId === id && request.runId === runId)
-    const clearCurrent = event.sessionId === this.activeSessionId && matches(this.state.permission)
-    const clearPending = matches(this.state.pendingPermissions[event.sessionId])
-    if (!clearCurrent && !clearPending) return
+    if (!matches(this.pendingToolApprovals.get(approvalRequestId)) && !matches(this.state.permission) && !matches(this.state.pendingPermissions[event.sessionId])) return
+    this.forgetPermission(approvalRequestId, event.sessionId)
+  }
+  private forgetPermission(requestId: string, sessionId: string) {
+    this.pendingToolApprovals.delete(requestId)
+    const next = [...this.pendingToolApprovals.values()].find(request => request.sessionId === sessionId)
     this.permissionRevision++
     const pendingPermissions = { ...this.state.pendingPermissions }
-    if (clearPending) delete pendingPermissions[event.sessionId]
-    this.update({ pendingPermissions, ...(clearCurrent ? { permission: undefined } : {}) })
+    if (next) pendingPermissions[sessionId] = next
+    else delete pendingPermissions[sessionId]
+    this.update({ pendingPermissions, ...(this.activeSessionId === sessionId && (!this.state.permission || this.state.permission.requestId === requestId) ? { permission: next } : {}) })
   }
   private handleEvent = (event: HarnessEvent) => {
+    if (event.type === 'goal-updated') {
+      if (event.sessionId !== this.activeSessionId) return
+      const goal = event.payload.goal as HarnessGoal | null | undefined
+      if (goal) this.applyGoal(event.sessionId, goal)
+      else if (goal === null) void this.refreshSession(event.sessionId, this.generation)
+      return
+    }
     if (event.type === 'workspace-files-changed') {
       const { watchId, directory, paths, error } = event.payload
       if (typeof watchId === 'string' && typeof directory === 'string' && Array.isArray(paths) && paths.every(path => typeof path === 'string')) {
@@ -1218,13 +1317,21 @@ export class PilotController {
     if (!this.acceptRunEvent(event)) return
     if (event.type === 'tool-call' && event.sessionId === this.activeSessionId && !this.applyToolRecord(event)) return
     if (event.type === 'tool-call') this.settleToolPermission(event)
-    if (event.type === 'status' || event.type === 'run-start') this.applyStatusBadge(event.sessionId, event.type === 'run-start' ? 'running' : String(event.payload.state || ''), event.sessionId !== this.activeSessionId)
+    if (event.type === 'status' && ['idle', 'completed', 'failed', 'stopped'].includes(String(event.payload.state))) {
+      for (const request of [...this.pendingToolApprovals.values()]) if (request.sessionId === event.sessionId && (!request.runId || request.runId === event.runId)) this.forgetPermission(request.requestId, event.sessionId)
+    }
+    if (event.type === 'status' || event.type === 'run-start') this.applyStatusBadge(event.sessionId, event.type === 'run-start' ? 'running' : String(event.payload.state || ''), event.sessionId !== this.activeSessionId, event.runId)
     if (event.type === 'status' || event.type === 'title-updated') void this.refreshList().catch(error => this.fail(error))
     if (event.type === 'permission-request' && typeof event.payload.requestId === 'string') {
-      const request: HarnessPermissionRequest = { sessionId: event.sessionId, requestId: event.payload.requestId, title: String(event.payload.title || '请求权限'), detail: String(event.payload.detail || ''), ...(typeof event.payload.toolCallId === 'string' ? { toolCallId: event.payload.toolCallId } : {}), ...(typeof event.payload.runId === 'string' ? { runId: event.payload.runId } : event.runId ? { runId: event.runId } : {}) }
+      const request: HarnessPermissionRequest = { sessionId: event.sessionId, requestId: event.payload.requestId, title: String(event.payload.title || '请求权限'), detail: String(event.payload.detail || ''), ...(typeof event.payload.toolCallId === 'string' ? { toolCallId: event.payload.toolCallId } : {}), ...(typeof event.payload.runId === 'string' ? { runId: event.payload.runId } : event.runId ? { runId: event.runId } : {}), ...(event.payload.workflowReview ? { workflowReview: event.payload.workflowReview as HarnessPermissionRequest['workflowReview'] } : {}) }
+      if (!this.workflowEventRuns.has(request.runId || '')) for (const [key, previous] of this.pendingToolApprovals) {
+        if (previous.sessionId === request.sessionId && !this.workflowEventRuns.has(previous.runId || '')) this.pendingToolApprovals.delete(key)
+      }
+      this.pendingToolApprovals.set(request.requestId, request)
+      const first = this.workflowEventRuns.has(request.runId || '') ? [...this.pendingToolApprovals.values()].find(item => item.sessionId === event.sessionId)! : request
       this.permissionRevision++
-      if (event.sessionId === this.activeSessionId) this.update({ permission: request, pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: request } })
-      else this.update({ pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: request } })
+      if (event.sessionId === this.activeSessionId) this.update({ permission: first, pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: first } })
+      else this.update({ pendingPermissions: { ...this.state.pendingPermissions, [event.sessionId]: first } })
       return
     }
     if (event.type === 'memory-status' && event.sessionId === this.activeSessionId) {
@@ -1277,7 +1384,11 @@ export class PilotController {
     if (event.type === 'error') this.update({ error: String(event.payload.message || '任务执行失败') })
     if (event.type === 'run-activity' || event.type === 'tool-call') void this.refreshSession(event.sessionId, generation, false)
     if (event.type === 'message-complete' || event.type === 'interaction-created' || event.type === 'interaction-resolved' || event.type === 'plan-updated' || event.type === 'status' && event.payload.state !== 'running') {
-      if (event.type === 'status' && event.payload.state !== 'running') { this.permissionRevision++; this.update({ running: false, permission: undefined }) }
+      if (event.type === 'status' && event.payload.state !== 'running') {
+        const clearsPermission = !this.state.permission?.runId || this.state.permission.runId === event.runId
+        if (clearsPermission) this.permissionRevision++
+        this.update({ running: false, ...(clearsPermission ? { permission: undefined } : {}) })
+      }
       void this.refreshSession(event.sessionId, generation)
     }
   }
@@ -1319,7 +1430,26 @@ export class PilotController {
   }
   private acceptRunEvent(event: HarnessEvent) {
     if (event.eventId && this.seenEventIds.has(event.eventId)) return false
-    if (event.runId) {
+    const workflowType = event.type === 'workflow-event' && event.payload.event && typeof event.payload.event === 'object' ? (event.payload.event as { type?: unknown }).type : undefined
+    // Background workflows share the task, but never own its ordinary message cursor.
+    if (event.type === 'workflow-event') {
+      if (!event.runId || event.payload.runId !== event.runId || typeof workflowType !== 'string') return false
+      if (!this.workflowEventRuns.has(event.runId)) this.workflowEventRuns.set(event.runId, { sessionId: event.sessionId, sequence: -1 })
+      if (this.workflowEventRuns.size > 256) this.workflowEventRuns.delete(this.workflowEventRuns.keys().next().value!)
+    }
+    const workflow = event.runId ? this.workflowEventRuns.get(event.runId) : undefined
+    const pending = this.state.pendingPermissions[event.sessionId]
+    const settlesPending = event.type === 'tool-call' && pending && pending.runId === event.runId && pending.toolCallId === event.payload.id && pending.requestId === event.payload.approvalRequestId && ['ok', 'failed', 'cancelled'].includes(String(event.payload.status))
+    if (workflow && workflow.sessionId === event.sessionId) {
+      if (!['workflow-event', 'tool-call', 'permission-request', 'error'].includes(event.type)) return false
+      if (workflow.settled && (event.type === 'permission-request' || event.type === 'tool-call' && !['ok', 'failed', 'cancelled'].includes(String(event.payload.status)))) return false
+      if (typeof event.sequence === 'number') {
+        if (event.sequence <= workflow.sequence) return false
+        workflow.sequence = event.sequence
+      }
+      if (workflowType === 'run-settled') workflow.settled = true
+      if (workflowType === 'run-started') workflow.settled = false
+    } else if (event.runId && !settlesPending) {
       let current = this.eventRuns.get(event.sessionId)
       if (!current || current.id !== event.runId) {
         const startsRun = event.type === 'run-start' || event.type === 'status' && event.payload.state === 'running'
@@ -1351,7 +1481,7 @@ export class PilotController {
     }
     return true
   }
-  private applyStatusBadge(sessionId: string, state: string, isBackground: boolean) {
+  private applyStatusBadge(sessionId: string, state: string, isBackground: boolean, runId?: string) {
     this.runningRevisions.set(sessionId, ++this.runningRevision)
     const running = state === 'running' || state === 'rendering'
     const terminal = state === 'completed' || state === 'failed' || state === 'stopped'
@@ -1366,7 +1496,7 @@ export class PilotController {
       unreadIds.delete(sessionId)
     }
     const pendingPermissions = { ...this.state.pendingPermissions }
-    if (!running && isBackground) delete pendingPermissions[sessionId]
+    if (!running && isBackground && (!pendingPermissions[sessionId]?.runId || pendingPermissions[sessionId]?.runId === runId)) delete pendingPermissions[sessionId]
     this.update({ runningSessionIds: [...runningIds], unreadSessionIds: [...unreadIds], pendingPermissions })
   }
   private fail(error: unknown) { this.update({ error: error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : '操作失败' }) }

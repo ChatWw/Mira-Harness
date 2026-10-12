@@ -25,6 +25,9 @@ const harnessQueryKeys: Record<string, readonly string[]> = {
   '/workspace/projects': [],
   '/workspace/automations': [],
   '/workspace/usage': [],
+  '/settings/commands': ['from', 'project'],
+  '/settings/agents': ['from', 'project'],
+  '/settings/hooks': ['from', 'project', 'plugin'],
   '/workspace/history': ['q', 'project', 'model', 'status', 'range', 'archive', 'sort', 'page'],
   ...Object.fromEntries([
     '/settings', '/settings/general', '/settings/appearance', '/settings/personalization',

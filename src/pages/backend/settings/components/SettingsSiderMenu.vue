@@ -62,6 +62,9 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
   {
     label: '应用',
     items: [
+      { key: 'commands', label: '自定义命令', icon: 'lucide:terminal', path: '/settings/commands' },
+      { key: 'agents', label: '智能体', icon: 'lucide:bot', path: '/settings/agents' },
+      { key: 'hooks', label: 'Hooks', icon: 'lucide:webhook', path: '/settings/hooks' },
       { key: 'about', label: '关于', icon: 'InfoFilled', path: '/settings/about' },
     ],
   },

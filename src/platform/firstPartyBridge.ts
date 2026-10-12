@@ -57,6 +57,16 @@ export async function handleFirstPartyRequest(options: {
     try {
       return await api.invokeFirstPartyHarness(grantId, method, params)
     } catch (error) {
+      if (method === 'workflows.request') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['工作流请求无效', '工作流服务不可用', '工作流已变化，请刷新后重试', '工作流已经运行中', '工作流未运行', '这个工作流不能原样续跑', '工作流定义不存在', '工作流已存在、已移除或已被修改，请刷新后重试', '工作流续跑必须使用原模型和推理档位', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置', '工作流操作已取消']
+        throw new FirstPartyBridgeError('WORKFLOW_FAILED', failure.startsWith('工作流编译失败：\n') ? failure.slice(0, 4000) : known.includes(failure) ? failure : '工作流操作失败，请刷新后重试')
+      }
+      if (method.startsWith('goal.')) {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['目标已变化，请刷新后重试', '当前会话没有目标', '目标仍在运行，请先暂停并等待运行结束', '目标预算已用尽，请提高预算后继续', '目标已经完成，请创建新目标', '目标已经启用，请直接发送消息', '该会话正在运行', '请先处理待发送消息', '权限档位不可用', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置']
+        throw new FirstPartyBridgeError('GOAL_FAILED', known.includes(failure) ? failure : '目标操作失败，请刷新目标状态后重试。')
+      }
       if (method === 'context.compact') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
         const known = ['上下文压缩已在运行或排队', '待发送消息已存在且内容不同', '待发送消息已达 32 条上限', '该会话正在运行', '请先处理待发送消息', '请先打开已有对话，再压缩上下文', '请先完成当前确认，再压缩上下文', '对话已变化，请重新打开任务后重试', '上下文压缩已停止，原上下文保留', '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型', '请先选择一个可用模型', '当前 Agent 模型不可用，请检查 Provider 配置']
@@ -128,6 +138,10 @@ export async function handleFirstPartyRequest(options: {
           '图片文件超过 4 MiB 预览限制': '图片超过 4 MiB 预览限制，请使用外部应用打开。',
           '文件在读取期间发生变化，请重试': '文件在读取期间发生变化，请重试。',
           '图片读取失败，请重试': '图片读取失败，请重试。',
+          '此文件不是支持预览的音视频格式': '此文件不是支持预览的音视频格式，请使用外部应用打开。',
+          '媒体文件为空或大小不可读取': '媒体文件为空或大小不可读取，请检查文件后重试。',
+          '打开的媒体过多，请关闭部分媒体标签后重试': '打开的媒体过多，请关闭部分媒体标签后重试。',
+          '媒体预览服务不可用': '媒体预览服务不可用，请重新打开应用后重试。',
           'Git 未安装或不可用': 'Git 未安装或不可用，请安装 Git 后重试。',
           'Git 输出超过 8 MiB 限制，请缩小工作目录': 'Git 输出超过 8 MiB 限制，请缩小工作目录后重试。',
           'Git 状态读取超时，请重试': 'Git 状态读取超时，请重试。',
@@ -149,6 +163,7 @@ export async function handleFirstPartyRequest(options: {
         if (method === 'files.watch' || method === 'files.unwatch') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '文件变化监听失败，请使用手动刷新或重试。')
         if (method === 'files.open-editor') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '编辑器打开失败，请检查应用或选择其他打开方式。')
         if (method === 'files.read-image') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '图片读取失败，请重试。')
+        if (method === 'files.media-open' || method === 'files.media-close') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '媒体读取失败，请刷新文件后重试。')
         if (method === 'files.git-status' || method === 'files.git-ignored') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', 'Git 状态读取失败，请检查 Git 是否安装或稍后刷新重试。')
       }
       if (method === 'editors.list') throw new FirstPartyBridgeError('WORKSPACE_FILE_FAILED', '无法检测已安装应用，请重试。')

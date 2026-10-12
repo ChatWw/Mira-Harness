@@ -1,5 +1,47 @@
 # ZCode → Mira Harness 改编记录
 
+2026-10-12 已安装市场插件管理：参考 `packages/ui/src/settings/PluginStoreCard.tsx` 的卡片/详情共用启停及移除菜单，以及 `pluginEnabledChange.ts` 的宿主确认成功后再更新原则。Mira 新增自身命名的 `MiraPluginMenu`，使用现有 Radix 菜单与工作台主题，公开市场卡片/详情调用既有授权桥启停或移除登记；移除明确保留已下载文件。操作错误与目录加载错误分别展示，重试保留原操作身份，不用目录刷新冒充再次安装；目录重试只使该次读取刷新，后续返回仍可走缓存。Mira 不移植账户、付费、自动更新或上游卸载文件语义；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 MCP 浏览器授权与 Agent 服务范围：参考 CLI `packages/adapters/src/mcp/oauth-interactive.ts`、`oauth-credentials.ts`、`auth/localhost-callback.ts` 的 SDK 授权、PKCE、正确 state 回调和 canonical client/token pair，以及 `packages/core/src/subagent/profile-frontmatter.ts`、`borrowed-mcp-port.ts`、`runtime/methods/subagent.ts` 的父连接快照与服务名称限制。Mira 使用 `MiraMcpAuthorization`、`MiraMcpCredentialStore`、现有 MCP 管理器与 Vue 设置：URL 留在宿主、显式打开浏览器、凭据由 Electron safeStorage 加密、配置换代及退出关闭回调；项目授权探测独立于任务连接。用户/插件 Agent 的 `mcpServers` 使用父任务启动时选中且连接成功的真实快照，零工具服务保留；精确名称匹配、重名拒绝、tools/disallowedTools 与角色权限取交集，子任务仅借用连接。文件和变量采用 Mira 名称；未移植 ZCode 多进程共享 credential lease、RPC/账户、插件 OAuth 配置或预注册客户端，不宣称这些扩展已完成。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 工作流轨道与智能体记录：参考 `packages/ui/src/components/workflow-timeline/` 的 `WorkflowTimeline`、`WorkflowTimelineStation`、`WorkflowAgentPill`、`timeline-model`、`timeline-bands`、`timeline-geometry`，以及 `app-shell/WorkflowRunPhaseList.tsx` 与 `WorkflowActorSessionSidePane`。Mira 使用 `MiraWorkflowTimeline` 和自身模型/主题：审批与会话卡横向阶段轨道，运行侧面竖向脊线、折叠阶段和并行缩进，循环显示真实轮次；操作展开读取实际参数、结果与进展，仅精确匹配的 actor 提供对话入口。编译图首次冻结在绑定源码 hash 的独立 SQLite 表，重载读取批准时的图，不重编译伪造旧结构；旧记录缺图明确回退。智能体对话经所属父会话/run/site/ordinal 验证，从实际持久化 Pi 消息有界分页读取，支持思考与工具记录、刷新、错误重试和返回焦点，不伪装逐 token 流或可交互子对话。文件/内部变量采用 Mira 命名，原版权和 Apache LICENSE/NOTICE 保留；不移植上游 RPC 或账户。
+
+2026-10-12 工作流智能体能力：参考 `workflow-actor-tools.ts`、`workflow-facade.ts`、`workflow-driver.ts` 及 runtime-tools 的子执行体/Hook 边界。Mira 通过自身 HarnessRuntime 给工作流持有独立的选中项目/插件 MCP 连接，父普通回复结束不释放后台连接；沿既有工具审批、项目锁、声明版本与来源信任复核。各 actor 独立 Hook 生命周期，单 ask 取消传至真实 Hook，恢复上下文使用 SessionStart resume，资源等待所有 actor 收尾后关闭。工具调用记录按 actor 与模型响应区分，供应商重复调用 ID 不覆盖历史。保留 typed submit 的既有结算规则与 Hook 诊断继续语义，不添加上游未提供的 persona 权限/模型配置。提供版本的 ZCode 未完整继承项目 Hook admission；Mira 项目 Hook 使用自己已有的可信策略，不宣称此部分逐字移植。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 工作流创作与运行审阅：参考 ZCode builtin-workflow-command、dynamic-workflows 技能、CreateWorkflow/SaveWorkflow handlers、workflow-analysis-display 及 WorkflowPermissionBlock。Mira 使用自身 `/workflow` 指令、按需读取的真实编译器 facade、主会话 host-only 提交与独立保存授权；同一次 Worker 编译生成源码 hash、阶段/参与者/交接投影及执行体，成功后人工审阅，full/Hook allow 不绕过，Hook deny 仍生效。后台执行不替换父会话或普通 run，完成结果进入原会话串行队列；恢复固定原模型和源/参数。自写工具、文件和组件保持 Mira 命名，不复制 ZCode RPC、账户或 CLI。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 工作流发布产物增量：参考 `packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactBody.tsx`、`WorkflowArtifactCards.tsx` 与宿主 immutable publication receipt。Mira 自有 `miraFlowArtifactReader.ts` / `miraFlowArtifactSave.ts` / `MiraWorkflowArtifactPreview.tsx` 使用所属会话、运行、产物 ID 和版本从实际 journal 解析已发布副本；验证 receipt、元数据与 payload SHA-256、大小和文件身份，不读取后续变化的工作区源文件，不允许 renderer 输入路径或 URI。文本、Markdown 与受限位图可预览；HTML/SVG 仅源码、Markdown 不继承远程图像/链接，不加载 iframe；其他文件通过宿主原生保存对话框导出。预置看板没有伪文件下载。授权在异步读取、保存选择与提交前复核；不移植 ZCode RPC、账户或可执行 HTML。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 工作流桌面接线：Mira 自有 `miraFlowController.ts`、`miraFlowCommands.ts`、IPC/preload/第一方授权桥将上述运行器接入真实 HarnessRuntime、配置模型、既有工具审批与项目读写锁；普通 Stop、会话互斥及退出等待覆盖工作流。actor model pin 保留原模型/推理档位，命令以审批后的 argv 执行并清理取消时的进程树；供应商错误在写入 actor/journal 前脱敏。资源经桌面预构建及 `extraResources` 分发；不移植上游 CLI/RPC 或账户。下方 05:42“尚未接线”仅说明该历史批次，当前已有真实 Electron 工作流 UI 与执行链。原 Apache LICENSE/NOTICE 逐字保留。
+
+2026-10-12 工作流工作台：参考 ZCode `packages/ui/src/settings/saved-workflows/AutomationsPageTitleSwitch.tsx`、`SavedWorkflowsSection.tsx`、`SavedWorkflowCard.tsx`、`useSavedWorkflowLauncher.ts`、`SavedWorkflowMetaForm.tsx`、`SavedWorkflowArgsTable.tsx` 以及 `packages/ui/src/app-shell/WorkflowRunSidePane.tsx`、`workflowRunPanel.ts`。Mira 在 React `components/workflows/` 实现作用域分组、编辑/权威编译检查、参数与模型启动、运行历史、会话摘要和真实 journal 详情；侧栏沿既有自动化入口、工作区资源标签与 Mira 主题，文件/变量使用 Mira 名称。启动失败保留表单，宿主接受后才切会话，已接受但导航失败只重试打开；停止、原样续跑与并发设置使用 Mira 授权桥。续跑使用父会话记录的原模型/推理档位，不接受替换脚本或实参。节点/用量/报告/产物来源于实际 journal，不用进入下一阶段推算前阶段完成，不提供缺少字节读取接口的下载按钮；事件只刷新当前会话摘要或选中实例，不轮询全部工作流。未移植 ZCode RPC、账户、灰度、遥测或服务端；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 动态工作流基础：独立编译/分析/schema/lowering/engine 与子进程/VM/NDJSON runtime 改编为 `packages/mira-flow-kit`、`packages/mira-flow-runtime`。文件名统一 `mira-`，工作流公开类型及运行入口使用 MiraFlow 名称，运行目录改为 `.mira`；模型脚本 facade 和 wire 数据保持协议语义。逐文件上游路径与 SHA-256 见 `flow-sources.json`，每文件新增原作者 Apache-2.0 与改编说明。标准库由 `scripts/generate-mira-flow-libs.mjs` 在构建时从实际 TypeScript 版本生成，保留声明内原许可。05:42 新增真实 Pi Agent 持续 actor、SQLite journal/上下文、host-only 运行服务与文件/Git/产物端口的联合实现；实际 HarnessRuntime/生产模型工具、授权桥、工作流 UI/IPC 与发布资源仍未接入。原 LICENSE/NOTICE 不变。
+
+actor/世界/产物参考 `bootstrap/src/app/workflow-driver.ts`、`workflow-driver-submit-bridge.ts`、`workflow-driver-transcript.ts`、`workflow-world-read.ts` 与 `workflow-artifact-publish.ts`。Mira 使用自有 Pi Agent、宿主注入端口、SQLite 转录及 model pin、真实 submit_result 与 FIFO 收尾；world 使用真实 fs/rg/Git，命令由显式审批与 argv port 执行；产物为独立 SHA-256 不可变存储。运行服务冻结作者源与参数、验证原样续跑身份、隔离观察者异常并补偿未结算宿主失败；不移植上游账号、供应商/工具配置或 CLI/RPC。公开脚本协议保持，文件/变量采用 Mira 命名，每个参考文件保留原作者标记。
+
+Mira 后续适配：分析器提供共享 Program 入口，使图/schema/lowering 由同一源码编译；独立 Worker 绑定源码 SHA、取消/迟到与内存/墙钟边界。运行子进程只接 OS 启动路径及 Electron Node 模式，不继承宿主模型密钥/Node 注入项；VM 为受控运行环境，不声称 OS 隔离或可安全执行任意恶意脚本。定义存储/参数词汇参考上游 `core/src/tool/handlers/saved-workflows/{frontmatter.ts,args.ts,store.ts}` 及 `contracts/src/tools/saved-workflow.ts`，新文件采用 Mira 命名/注释标记、宿主注入目录、精确正文、版本冲突与符号链接检查，保存不赋予执行授权。TypeScript 原许可与第三方声明另保存在 `third-party-licenses/typescript`。
+
+SQLite journal 参考 `adapters/src/storage/session-store/repositories/dwf-journal.ts`、`dynamic-workflow/src/engine/journal-memory.ts` 与 `bootstrap/src/app/dynamic-workflow-run-reconcile.ts`：Mira 四张独立表、原子终态/产物、用量/并发窄写、事件游标分页；启动仅回收 run，不将可重派发的 running 节点伪改 failed。运行层修正预取消仍写入/启动的问题，并将 child/pipe 错误监听置于取消处理之前；停止原因沿原协议保留。
+
+2026-10-12 目标逐轮待办：参考 ZCode `conversationGoalSummaryModel.ts` 与 `ConversationStatusPanel.tsx` 的逐轮权威待办及完成数量。Mira 在既有 GoalStore、父任务活动和 React 摘要中记录/投影实际每轮计划，不由工具数量或核验通过推算待办，不重建缺失历史；待办全部完成仍独立等待目标核验。运行、轮次与目标身份隔离，重启保持历史并停止遗留运行项。长下一行动与停止理由在摘要截断，完整证据保留在目标详情。使用 Mira 文件/变量与存储协议，未移植上游 RPC、CLI 或命名，原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 首发选择与目标进展：参考 ZCode 项目范围 MCP 目录及启用的 ConversationStatusPanel/conversationGoalSummaryModel。Mira 匿名项目草稿可在首条消息前读取项目服务元数据并预选，不提前创建会话或连接；换项目移除旧项目选择，保留全局服务与输入。Goal 摘要从已有权威核验历史提取实际轮次行动和状态，按轮次去重，暂停/预算沿真实目标状态；缺历史不重建执行日志，不虚构完成率或未来轮次。使用 Mira 自有授权、草稿和命名，不改变原运行语义；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 项目 MCP：参考 ZCode 用户/工作区 MCP 配置范围及现有设置、服务选择交互。Mira 在 Vue 设置中管理已登记项目的 `.mira/mcp.json`，通过自有 projectId 授权桥解析目录，使用独立项目服务身份；公开 React 目录只提供名称、来源、类型和连接状态。任务仅连接显式选中的项目服务，stdio 工作目录由宿主固定，父任务持有连接、子任务借用，结束与取消回收。审批后复核项目配置及当前选择，修改、停用、删除与跨项目声明拒绝执行；读取不创建目录，损坏配置或符号链接拒绝覆盖。沿用成熟 MCP SDK 与 Mira 自有存储/运行时，不移植上游运行时或命名；OAuth 与 profile `mcpServers` 仍不在本批范围。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 全局 MCP 执行身份：将既有插件 MCP 的稳定 serverId/原工具名命名空间生成集中到 Mira `electron/adapters/mcpManager.ts`，插件包装不再二次命名，原插件执行名称保持。全局与插件工具均保留原名/服务元数据，远端调用仍使用原始工具名，模型描述补服务来源；解决同名跨服务和内置 read/bash 的注册/审批/实际调用错配。沿用上方子任务、记录与权限实现，不复制新的上游运行时；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 子智能体 MCP：参考 ZCode `apps/zcode-cli/packages/core/src/subagent/borrowed-mcp-port.ts`、`tool-policy.ts` 及 `runtime/methods/subagent.ts` 的父启动快照借用、连接生命周期归父、MCP 工具选择/禁用规则。Mira 在既有 `harnessSubtaskCoordinator`/`subtaskRuntime`/`harnessRuntime` 中借用同一父任务选中描述符和插件连接，子任务停止不关闭父连接，父任务结束回收；复用自有工具记录/审批和子任务 abort signal，执行前重新校验服务选择及插件内容。新增 Mira 工具规则 helper、Markdown 解析和 Vue 表单选项，不复制上游命名或运行时。Mira 已有 tester/implementer 可变更角色可用所选 MCP，explorer/reviewer 仍保留本地只读能力上限，声明只能缩减有效工具。高级 mcpServers/profile 服务字段和子智能体 Hook 全覆盖不在本批实现范围。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 目标模式：参考 ZCode `packages/ui/src/v4/conversationGoalSummaryModel.ts`、`packages/ui/src/ToolCallBlocks/renderers/goal.tsx`、`apps/zcode-cli/packages/cli/src/command-center/handlers/goal.ts` 和 `apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/goal-compact.ts` 的会话目标、目标摘要、暂停/恢复及逐轮完成核验交互。Mira 使用自有 `miraGoals.ts`、SQLite `harnessGoalStore.ts`、现有 Agent/权限/消息队列、第一方授权桥，以及 React `MiraGoalSummary`/`MiraGoalVerification`，保留 Mira 文件、变量及事件命名。完成核验独立、无工具，使用宿主记录的脱敏证据；未满足且有下一行动才续跑，异常暂停。累计 provider 实报的父/子任务、核验及压缩使用量，可选预算是请求边界，不声称计费或硬上限。重启回收暂停、版本和目标身份门禁、逐轮核验历史、摘要与正文避免遮挡均为 Mira 独立适配；没有移植上游 CLI、账户、服务端或遥测。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 插件 MCP：参考 ZCode `apps/zcode-cli/packages/adapters/src/plugins/mcp.ts` 的默认 `.mcp.json`、manifest 声明合并、服务隔离与变量解析，以及现有插件清单和 MCP 选择交互。Mira 使用自有 `miraPluginMcp.ts`、`harnessPluginMcp.ts` 与第一方会话目录协议；公开清单只提供身份、类型和不可用原因，不公开启动参数或凭证。父任务按会话选择，在当前项目目录建立独立 SDK 连接，工具使用 Mira 命名空间并接入已有审批、结果记录与停止回收，执行前重新校验插件修订和启用状态。没有移植 ZCode CLI、账户或运行时；子智能体插件 MCP、OAuth/auth、timeoutMs、user_config 及插件 data/session/skill 上下文变量仍未支持，并明确显示不可用。冻结目录失效后需要新建会话重新选择，不将重新打开旧会话描述为恢复办法。Apache LICENSE/NOTICE 保持。
+
+2026-10-12 Hooks：参考 ZCode `packages/shared/src/hooks.ts`、`packages/ui/src/settings/HookForm.tsx`、`HooksList.tsx`、`HooksSection.tsx` 及 CLI `hooks/output.ts`、`runtime/methods/hooks.ts` 的七事件、配置表单、匹配、输入输出和有限续写语义。Mira 使用 Vue/Element 设置、独立文件存储和宿主主 Frame IPC；本地真实进程按 JSON stdin 执行，支持命令/进程、超时、取消、异步回收与公开记录脱敏。项目声明需要当前修订信任，工具参数修改经 Mira schema 与危险命令门禁重新校验，Stop 最多续写三次。Mira 自有存储、运行时和名称，不移植 ZCode CLI、服务端、账户或遥测；权限规则动态更新暂未支持，明确拒绝而不伪装已应用。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-12 远程 MCP：参考 ZCode `packages/ui/src/settings/McpServerForm.tsx`、`McpServerList.tsx`、`McpFailurePresentation.tsx` 与 `apps/zcode-cli/packages/adapters/src/mcp/index.ts` 的传输选择、请求头/环境变量、连接状态和重连交互。Mira 沿用 Vue/Element 设置层、React Composer、既有 MCP 配置及权限桥，用成熟 MCP SDK 的 Streamable HTTP/SSE 实现实际远程连接，不复制上游服务层或命名。原 stdio 配置兼容；本批没有移植 OAuth、项目级配置或插件 MCP。Apache LICENSE/NOTICE 保持。
+
 2026-10-11 动态插件命令：参考 ZCode `apps/zcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts` 的 inline/fenced Shell 语法、顺序执行、30 秒超时、128 KiB 输出上限及 stdout 替换。Mira 使用自有 `miraPluginCommands.ts`、`miraPluginShell.ts` 和现有 Electron 工具/项目锁/审批/取消/SQLite，不移植上游 CLI 执行器。先识别原模板再一次替换参数，参数和 stdout 不产生新执行片段；显式重新生成重新执行，普通历史与 submission 重放复用结果。保留冻结模板校验与失败时的部分结果，计划模式及无人值守权限限制仍生效。model/allowed-tools 的解析不被当成上游已生效的能力。原 Apache LICENSE/NOTICE 保持。
 
 2026-10-11 首版收尾：参照当前 `WorkspaceSidebar.tsx` / `button.tsx` 的 32px 入口、14px 字号和 16px 图标，及 `MentionPanel` 的候选列表几何，校准 Mira 侧栏与 Composer；多任务候选列表使用 Mira 自有稳定实例 ID，保留第一方目录、模型和引用协议。没有把上游当前全宽 `+` Popover 改成旧版菜单。
@@ -392,6 +434,52 @@ Mira独立实现Electron SQLite按实际目录存储、最近30条、连续去�
 React只在空正文或翻阅状态处理无修饰↑/↓，编辑退出、候选与IME优先，
 回忆斜线不自动展开候选；主/旁对话共享目录历史但保持独立草稿及现有附件。
 不复制上游localStorage、不回放旧网页快照和附件，不新增渲染器任意目录读写。
+
+2026-10-11 内置/插件智能体模型覆盖追加：参考上游 `SubagentModelOverrideControl`
+及 `subagentsService` 的独立用户配置语义。Mira 使用全局 SQLite preferences
+按内置角色或插件 ID 与完整 Agent 名分别保存模型/推理覆盖，原插件正文不改写。
+Vue 行内选择即改即存，失败恢复所属行并保留其他草稿；真实子任务在启动、锁后及
+审批后复核配置和模型可用性，失效覆盖拒绝执行，不静默继承父任务模型。
+
+2026-10-11 智能体表单追加：参考上游 `packages/ui/src/settings/SubagentsSection.tsx`
+的名称、用途、颜色、模型、推理强度、工具、系统指令与 AGENTS 继承表单语义。
+Mira 在 `src/pages/backend/agents/index.vue` 中复用 Element Plus 设置组件，
+`src/config/miraUserAgentEditor.ts` 仅补丁修改已改变的 YAML 字段，保留正文与注释。
+模型来自 Mira 实际宿主目录，工具声明不能扩张实际角色权限；未知字段继续高级编辑，
+不引入上游账号、运行时或尚未支持的 MCP、后台运行等配置。
+
+2026-10-12 目标/计划互斥与 Composer 子任务入口：参考上游
+`packages/ui/src/v4/SessionPane.tsx` 的 Plan 下目标恢复门禁和
+`packages/ui/src/v4/composer/ConversationBackgroundWorkTrigger.tsx` 的真实后台工作计数。
+Mira 的命令与摘要恢复入口在计划模式下均阻止恢复并保留草稿；
+主/侧任务 Composer 只汇总各自实际 activeRun 中排队、运行和停止中的子智能体，
+单个进入既有子任务详情、多个进入既有执行面板，点击前复核会话/运行身份。
+没有任务即隐藏，不移植上游 workflow/后台 bash 协议或虚构计数。
+
+2026-10-12 插件 Hook：参考上游 CLI `adapters/src/plugins/hook-sources.ts` 与
+`plugins/index.ts` 的默认文件、manifest 声明、来源去重和事件明细，以及
+`core/src/hooks/configured-runner-input.ts` 的插件环境和 argv 上下文。
+Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中适配，
+已安装详情与 Vue Hooks 设置复用各自组件；插件 Hook 必须经宿主审阅授权，
+第三方声明不被修改。每次执行复核冻结身份、根路径、启用、声明版本及信任，
+保留 Mira 变量并支持上游兼容变量，命令 Shell 使用环境展开避免路径被解释为代码。
+未支持类型明确诊断；本切片仅接主任务既有七事件，不移植工作流或子任务新事件。
+
+- 2026-10-12：插件试用入口参考 `packages/ui/src/settings/PluginStoreDetailView.tsx`
+  与 `PluginStorePage.tsx`，卡片、详情和已安装列表交给 Mira 既有新建任务导航，
+  复用 Composer 的 canonical 插件引用，保留已有任务草稿，不自动发送或启动模型。
+  停用/失效插件不允许试用；提交待确认与导航失败保稿，重复添加去重。
+
+- 2026-10-12：项目音视频侧面板参考 `packages/shared/src/media-preview.ts` 和
+  `packages/ui/src/previewPaneMediaContent.tsx` 的格式分类、原生播放器及加载/错误状态。
+  Mira 使用宿主授权目录、随机逐文件句柄及支持 HTTP Range 的 loopback 流式读取，
+  不把绝对路径或整个媒体文件交给渲染器；切换/隐藏/关闭暂停并释放授权，返回保留进度。
+  不移植上游 Tauri 文件协议、不将预览冒称模型音视频附件，编码不支持明确提示重试或外部打开。
+
+- 2026-10-12：PDF 侧面板参考 `previewPanePdfContent.tsx` / `components/ui/pdf-viewer.tsx`，
+  使用同版 react-pdf 10.4.1 与 PDF.js 5.4.296，Mira 命名和授权 Range URL；
+  单页、翻页/页码/缩放/适合宽度/文本选择/密码及错误重试，隐藏释放授权。
+  worker、CMaps、标准字体和 WASM 随 React 包分发，不依赖 CDN；依赖 LICENSE 与资产内许可保留。
 
 - 本目录 `LICENSE` 与 `NOTICE.md` 是上游根文件的逐字副本，不编辑版权人、条款或正文。
 - 改编源码保留原版权与 Apache-2.0 标识，并链接到此目录。

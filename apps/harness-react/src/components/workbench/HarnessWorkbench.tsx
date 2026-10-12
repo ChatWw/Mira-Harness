@@ -17,6 +17,11 @@ import { HarnessWorkspaceContext } from './HarnessWorkspaceContext'
 import { MiraTaskTitleEditor } from './MiraTaskTitleEditor'
 import { SkillMarketView } from '../extensions/SkillMarketView'
 import { AutomationsView, type AutomationsNavigationHandle } from '../automations/AutomationsView'
+import { MiraWorkflowRunPane } from '../workflows/MiraWorkflowRunPane'
+import { MiraWorkflowDigest } from '../workflows/MiraWorkflowDigest'
+import { createWorkspaceWorkflowTab } from '../../state/workspace-state'
+import type { MiraFlowRunIdentity } from '../../../../../src/config/miraFlowWorkbench'
+import type { ActorRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'
 import { HarnessCommandCenter, type HarnessSearchCommand } from '../search/HarnessCommandCenter'
 import { PermissionResponseCard, type PermissionResponseCardProps } from '../conversation/AssistantMessageParts'
 import { MiraConversationDetailMemory, MiraConversationDetails } from '../conversation/MiraConversationDetails'
@@ -34,6 +39,7 @@ import { TaskSummary, type MiraTaskSummaryMode } from '../conversation/TaskSumma
 import { MiraBranchPicker } from '../git/MiraBranchPicker'
 import { projectTimelineMessages, projectTimelineRenderMessages, type TimelineRenderMessage } from '../conversation/conversation-model'
 import { HarnessComposer, type HarnessComposerHandle } from '../composer/HarnessComposer'
+import { MiraBackgroundTasksTrigger } from '../composer/MiraBackgroundTasksTrigger'
 import { WorkspaceLauncher } from '../workspace/WorkspaceLauncher'
 import { WorkspaceTabs } from '../workspace/WorkspaceTabs'
 import { OverviewPanel } from '../workspace/OverviewPanel'
@@ -79,6 +85,12 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const workspaceShortcut = commandKey === '⌘' ? '⌘⌥B' : 'Ctrl+Alt+B'
   const conversationDetails = useMemo(() => new MiraConversationDetailMemory(), [controller])
   const [summaryMode, setSummaryMode] = useState<MiraTaskSummaryMode>('auto')
+  const [goalDetails, setGoalDetails] = useState<{ owner?: string; revision: number }>({ revision: 0 })
+  const [workflowPresence, setWorkflowPresence] = useState<{ sessionId?: string; count: number }>({ count: 0 })
+  const [workflowActorLanding, setWorkflowActorLanding] = useState<{ sessionId: string; runId: string; siteId: string; ordinal: number; key: number }>()
+  const workflowLandingKey = useRef(0)
+  const goalDetailsRequest = goalDetails.owner === state.session?.id ? goalDetails.revision : 0
+  const showGoal = () => { setGoalDetails(previous => ({ owner: state.session?.id, revision: previous.revision + 1 })); setSummaryMode('panel') }
   const sidebarPreferenceStore = useMemo(() => new SidebarPreferenceStore(() => controller.getPreference(SIDEBAR_PREFERENCE_KEY), value => controller.setPreference(SIDEBAR_PREFERENCE_KEY, value, true)), [controller])
   const sidebarPreferences = useSyncExternalStore(sidebarPreferenceStore.subscribe, sidebarPreferenceStore.getSnapshot)
   useEffect(() => {
@@ -159,7 +171,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [permissionError, setPermissionError] = useState<{ requestId: string; message: string }>()
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
-  const newConversation = (projectId?: string, groupId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId)).catch(error => { controller.reportError(error); return false })
+  const newConversation = (projectId?: string, groupId?: string, pluginId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId, undefined, pluginId)).catch(error => { controller.reportError(error); return false })
   const openDraft = (id: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, undefined, false, undefined, id)).catch(error => { controller.reportError(error); return false })
   const commandCenterFocusRequest = useRef<string | undefined>(undefined)
   const openCommandCenter = () => { commandCenterFocusRequest.current = undefined; setCommandCenterFocusRequestNumber(value => value + 1); setCommandCenterOpen(true) }
@@ -225,13 +237,14 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const latestRunMessage = [...timelineMessages].reverse().find(message => message.role === 'assistant' && message.run)
   const latestRun = latestRunMessage?.run
   const latestRunId = state.session?.activeRun?.id ?? latestRunMessage?.runId
+  const runningSubtaskRun = state.session?.activeRun
   const taskState = getPilotTaskState(state)
   const taskTone = getPilotTaskTone(taskState)
   const isExecuting = taskTone === 'running'
   const activities = state.session?.activeRun?.activities || [...state.messages].reverse().find(message => message.run)?.run?.activities || []
   const changes = state.messages.flatMap(message => (message.fileChanges || []).map(change => ({ ...change, key: `${message.id}:${change.toolCallId}` })))
   const project = state.projects.find(item => item.id === state.session?.projectId)
-  const hasTaskProgress = state.messages.length > 0 || activities.length > 0 || Boolean(state.permission) || interaction?.status === 'waiting'
+  const hasTaskProgress = Boolean(state.session?.goal) || goalDetailsRequest > 0 || workflowPresence.sessionId === state.session?.id && workflowPresence.count > 0 || state.messages.length > 0 || activities.length > 0 || Boolean(state.permission) || interaction?.status === 'waiting'
   const workspaceSessionId = state.session?.id
   const workspaceOwnerId = workspaceSessionId || 'draft'
   const previousWorkspaceOwner = useRef(workspaceOwnerId)
@@ -416,6 +429,14 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     if (!selected) return
     updateWorkspace(current => addWorkspaceTab(current, createWorkspaceSubtaskTab(runId, subtaskId, selected.subtask.task)))
     setWorkspaceMounted(true); setWorkspaceOpen(true)
+  }
+
+  function openRunningSubtasks(runId: string, subtaskId?: string) {
+    const snapshot = controller.getSnapshot(), run = snapshot.session?.activeRun
+    if (!workspaceSessionId || snapshot.sessionLoading || snapshot.session?.id !== workspaceSessionId || run?.id !== runId || mainViewRef.current !== 'conversation') return
+    const active = (run.subtasks ?? []).filter(task => task.status === 'queued' || task.status === 'running' || task.status === 'stopping')
+    if (subtaskId) { if (active.some(task => task.id === subtaskId)) openSubtask(runId, subtaskId) }
+    else if (active.length) openRunProgress(runId)
   }
 
   async function stopSubtask(runId: string, subtaskId: string) {
@@ -742,7 +763,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     return () => window.cancelAnimationFrame(frame)
   }, [searchTarget, mainView, state.sessionLoading, state.session?.id, timelineMessages])
 
-  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string, resetDraft = false, groupId?: string, draftId?: string) {
+  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string, resetDraft = false, groupId?: string, draftId?: string, pluginId?: string) {
     const revision = ++viewRevision.current
     const current = () => isCurrent() && revision === viewRevision.current
     try {
@@ -767,7 +788,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           if (!await composerRef.current?.openDraft?.(draftId, current)) return false
         } else if (resetDraft) {
           if (composerRef.current?.startDraft) {
-            if (!await composerRef.current.startDraft(groupId, projectId, current)) return false
+            if (!await composerRef.current.startDraft(groupId, projectId, current, pluginId)) return false
           } else { setDraftProjectId(projectId); setPlanning(false); controller.newConversation() }
         } else if (composerRef.current?.openDraft) {
           if (!await composerRef.current.openDraft(undefined, current)) return false
@@ -872,6 +893,15 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     if (failure) throw failure
     return opened
   }
+  async function openWorkflowRun(identity: MiraFlowRunIdentity, actor?: ActorRecord) {
+    if (!await openTask(identity.sessionId)) throw new Error('工作流已启动，但会话切换未完成；请在运行记录中重新打开')
+    const owner = controller.getSnapshot().session?.id
+    if (!owner) throw new Error('工作流会话尚未就绪')
+    await loadWorkspacePreferences()
+    setWorkspaceSessions(previous => ({ ...previous, [owner]: addWorkspaceTab(previous[owner] || createWorkspaceSession(), createWorkspaceWorkflowTab(identity.sessionId, identity.runId)) }))
+    setWorkflowActorLanding(actor ? { ...identity, siteId: actor.siteId, ordinal: actor.ordinal, key: ++workflowLandingKey.current } : undefined)
+    setWorkspaceMounted(true); setWorkspaceOpen(true); setFocusedPane('workspace')
+  }
   async function openProjectFiles(projectId: string) {
     const selected = controller.getSnapshot().projects.find(item => item.id === projectId)
     if (!selected?.directoryExists) throw new Error('所选项目目录不可用，请重新选择')
@@ -964,8 +994,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               />}
           <MiraPanelGroup id="mira-workbench-body" elementRef={geometry.bodyRef} className="mira-workbench-body" onLayoutChanged={geometry.workspaceLayoutChanged}>
           <MiraPanel id="mira-conversation" elementRef={geometry.conversationRef} minSize="35%" className="mira-conversation-panel">
-          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background"><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} /></main>}
-          {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<AutomationsView ref={bindAutomations} host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} navigationBusy={navigationState.busy} onNavigationChange={target => { if (mainViewRef.current === 'automations') navigation.record(target) }} onDraftNavigation={() => { if (mainViewRef.current === 'automations') navigation.detach('automations') }} onDeleteTask={id => navigation.removeAutomation(id)} onOpenSession={async id => { await openTask(id) }} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
+          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background"><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} onTryPlugin={async id => { if (!await newConversation(undefined, undefined, id)) throw new Error(controller.getSnapshot().error || '任务打开失败，原稿已保留，请重试') }} /></main>}
+          {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}><div className="mira-market-return"><button type="button" onClick={() => menuAction(() => showView('conversation'))}><ArrowLeft size={14} />返回对话</button></div>{mainViewError}<AutomationsView ref={bindAutomations} host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} navigationBusy={navigationState.busy} onNavigationChange={target => { if (mainViewRef.current === 'automations') navigation.record(target) }} onDraftNavigation={() => { if (mainViewRef.current === 'automations') navigation.detach('automations') }} onDeleteTask={id => navigation.removeAutomation(id)} onOpenSession={async id => { await openTask(id) }} onOpenWorkflowRun={openWorkflowRun} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col" hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
           <MiraTaskGrid layout={taskLayout} active={mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} canPlace={taskPaneEntry.canDrag} onPlace={(id, anchor, side) => openTaskPane(id, false, undefined, { anchor, side })} onResize={layout => updateWorkspace(current => ({ ...current, taskLayout: layout }))}>
           <main key={MIRA_PRIMARY_TASK_PANE} data-mira-task-leaf={MIRA_PRIMARY_TASK_PANE} tabIndex={-1} className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress} hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
@@ -1000,7 +1030,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 <div className="mira-conversation-reading-region">
                 {hasTaskProgress && (
                 <div className="mira-summary-positioner">
-                  <TaskSummary key={JSON.stringify([workspaceSessionId, latestRunId])} mode={summaryMode} onModeChange={setSummaryMode} taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} plan={state.session?.activePlan} subtasks={state.session?.activeRun?.subtasks || latestRun?.subtasks || []} changes={new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={mainView === 'conversation'} blocked={Boolean(state.sessionLoading) || state.sessions.some(session => session.projectId === project.id && state.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={() => void openWorkspaceTab('changes')} onOpenProgress={latestRunId ? () => openRunProgress(latestRunId) : undefined} onOpenSubtask={latestRunId ? id => openSubtask(latestRunId, id) : undefined} onReviewPlan={() => { if (!conversationTimelineActions.current?.jumpToInteraction()) void openWorkspaceTab('overview') }} onStopSubtask={id => latestRunId ? stopSubtask(latestRunId, id) : Promise.resolve()} onError={error => controller.reportError(error)} />
+                  <TaskSummary key={JSON.stringify([workspaceSessionId, latestRunId])} mode={summaryMode} onModeChange={setSummaryMode} goal={state.session?.parentSessionId ? undefined : state.session?.goal} goalController={controller} goalSessionId={workspaceSessionId} goalDetailsRequest={goalDetailsRequest} goalPlanning={planning} taskState={taskState} taskTone={taskTone} running={isExecuting} activities={activities} plan={state.session?.activePlan} subtasks={state.session?.activeRun?.subtasks || latestRun?.subtasks || []} changes={new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={mainView === 'conversation'} blocked={Boolean(state.sessionLoading) || state.sessions.some(session => session.projectId === project.id && state.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={() => void openWorkspaceTab('changes')} onOpenProgress={latestRunId ? () => openRunProgress(latestRunId) : undefined} onOpenSubtask={latestRunId ? id => openSubtask(latestRunId, id) : undefined} onReviewPlan={() => { if (!conversationTimelineActions.current?.jumpToInteraction()) void openWorkspaceTab('overview') }} onStopSubtask={id => latestRunId ? stopSubtask(latestRunId, id) : Promise.resolve()} onError={error => controller.reportError(error)} />
                 </div>
               )}
 
@@ -1009,7 +1039,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                   <div className="flex min-h-full flex-col">
                     <div className="relative w-full flex-1">
                       <div className="mira-message-column mx-auto flex w-full flex-col gap-5 px-5 pt-16" style={{ overflowAnchor: 'none' }}>
-                        <MiraConversationTimeline messages={rendererMessages} memoryKey={conversationMemoryKey} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} viewportRef={messageViewportRef} scrollActionsRef={conversationScrollActions} actionsRef={conversationTimelineActions} components={{ UserMessage, AssistantMessage }} onActiveTurnChange={setActiveTurnId} />
+                        <MiraConversationTimeline goal={state.session?.goal} messages={rendererMessages} memoryKey={conversationMemoryKey} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} viewportRef={messageViewportRef} scrollActionsRef={conversationScrollActions} actionsRef={conversationTimelineActions} components={{ UserMessage, AssistantMessage }} onActiveTurnChange={setActiveTurnId} />
+                        <MiraWorkflowDigest host={controller} sessionId={state.session?.id} active={mainView === 'conversation' && !state.sessionLoading} onOpen={openWorkflowRun} onPresence={(sessionId, count) => setWorkflowPresence(previous => previous.sessionId === sessionId && previous.count === count ? previous : { sessionId, count })} />
                         <MiraPendingGuides key={workspaceSessionId} items={state.queue?.items ?? []} promotingItemId={state.queue?.promotingItemId} disabled={Boolean(state.sessionLoading)} onWithdraw={async itemId => { await composerRef.current?.withdrawPendingGuide(itemId) }} />
                         {changes.length > 0 && (
                           <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
@@ -1040,7 +1071,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 </div>
                 <div className="mira-composer-region" data-draft={!hasTaskProgress} data-confirmation={Boolean(permissionResponse) || interaction?.status === 'waiting' || undefined}>
                   <button type="button" className="mira-scroll-latest" aria-label="回到底部" title="回到底部" disabled={conversationAtBottom || Boolean(state.sessionLoading)} onClick={() => conversationScrollActions.current?.resume()}><ArrowDown size={16} /></button>
-                  <HarnessComposer ref={composerRef} keyboardActive={focusedPane === 'main'} active={mainView === 'conversation'} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} onDraftChange={setTaskDraft} onDraftAccepted={acceptTaskDraft} onShowConfirmation={showConfirmation} onOpenSideConversation={controller.supportsSideConversations ? openSideConversation : undefined} interactionSlot={permissionResponse ? <PermissionResponseCard key={permissionResponse.request.requestId} {...permissionResponse} /> : interaction?.status === 'waiting' ? <TaskInteraction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan(interaction.id)} onRevise={value => controller.continuePlan(interaction.kind === 'plan-review' ? interaction.planId : '', value)} onAnswer={value => controller.answerQuestion(value, interaction.id)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} /> : undefined} />
+                  <HarnessComposer ref={composerRef} keyboardActive={focusedPane === 'main'} active={mainView === 'conversation'} state={state} controller={controller} planning={planning} setPlanning={setPlanning} draftProjectId={draftProjectId} onDraftProjectChange={setDraftProjectId} onDraftChange={setTaskDraft} onDraftAccepted={acceptTaskDraft} onShowConfirmation={showConfirmation} onShowGoal={showGoal} onOpenSideConversation={controller.supportsSideConversations ? openSideConversation : undefined} leadingActions={runningSubtaskRun ? <MiraBackgroundTasksTrigger subtasks={runningSubtaskRun.subtasks ?? []} disabled={Boolean(state.sessionLoading)} onOpen={id => openRunningSubtasks(runningSubtaskRun.id, id)} /> : undefined} interactionSlot={permissionResponse ? <PermissionResponseCard key={permissionResponse.request.requestId} {...permissionResponse} /> : interaction?.status === 'waiting' ? <TaskInteraction key={interaction.id} interaction={interaction} plan={state.session?.activePlan} selectionReady={Boolean(state.selection)} onConfirm={() => controller.confirmPlan(interaction.id)} onRevise={value => controller.continuePlan(interaction.kind === 'plan-review' ? interaction.planId : '', value)} onAnswer={value => controller.answerQuestion(value, interaction.id)} onCancel={interaction.kind === 'plan-review' ? () => controller.cancelPlan(interaction.planId) : undefined} /> : undefined} />
                   {!hasTaskProgress && <div className="mira-task-suggestions" aria-label="任务示例">
                     {[{ icon: BookOpen, label: '整理资料', prompt: '请整理当前项目资料，先阅读目录和文档，再总结主要内容。' }, { icon: CircleAlert, label: '排查问题', prompt: '帮我分析当前项目，检查运行与构建配置，列出需要处理的问题。' }, { icon: FileText, label: '起草文档', prompt: '帮我写一份项目介绍，先分析已有资料，再给出文档草案。' }].map(({ icon: Icon, label, prompt }) => <button type="button" key={label} onClick={() => window.dispatchEvent(new CustomEvent('mira:compose-draft', { detail: prompt }))}><Icon size={15} />{label}</button>)}
                   </div>}
@@ -1065,7 +1096,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                     {tab.childSessionId && workspaceSessionId && <MiraSideConversation parentController={controller} parentId={workspaceSessionId} childSessionId={tab.childSessionId} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} keyboardActive={focusedPane === tab.childSessionId} requests={sideQuotes[tab.childSessionId] ?? []} onConsume={id => setSideQuotes(previous => ({ ...previous, [tab.childSessionId!]: (previous[tab.childSessionId!] ?? []).filter(request => request.id !== id) }))} onFocus={() => setFocusedPane(tab.childSessionId!)} onOpenFile={openActivityFile} />}
                     {tab.id === 'overview' && workspaceSessionId && <OverviewPanel session={state.session} sessionId={workspaceSessionId} runId={tab.runId} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} onOpenSubtask={openSubtask} onOpenFile={openActivityFile} />}
                     {tab.runId && tab.subtaskId && workspaceSessionId && <MiraSubtaskPanel session={state.session} sessionId={workspaceSessionId} runId={tab.runId} subtaskId={tab.subtaskId} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} onStopSubtask={id => stopSubtask(tab.runId!, id)} onOpenFile={openActivityFile} />}
-                    {tab.path && workspaceSessionId && <FilePreviewPanel controller={controller} sessionId={workspaceSessionId} path={tab.path} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id} onAddFile={addFileToConversation} workspaceWatch={workspaceWatch} selectedEditor={editorAccess.selectedEditor} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} />}
+                    {tab.runId && tab.workflowSessionId && <MiraWorkflowRunPane host={controller} identity={{ sessionId: tab.workflowSessionId, runId: tab.runId }} providers={state.providers} actorLanding={workflowActorLanding?.sessionId === tab.workflowSessionId && workflowActorLanding.runId === tab.runId ? workflowActorLanding : undefined} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} />}
+                    {tab.path && workspaceSessionId && <FilePreviewPanel controller={controller} sessionId={workspaceSessionId} path={tab.path} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onAddFile={addFileToConversation} workspaceWatch={workspaceWatch} selectedEditor={editorAccess.selectedEditor} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} />}
                     {tab.id === 'changes' && <ChangesPanel rootRef={changesFindRef} changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { updateWorkspace(current => ({ ...current, selectedChangeId: id })); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
                   </div>
                 ))}

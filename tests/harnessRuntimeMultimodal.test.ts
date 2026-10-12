@@ -43,6 +43,61 @@ function setup(multimodal = true) {
 }
 
 describe('Harness multimodal message ownership', () => {
+  it('executes the project command before a global name and preserves the expansion in later model history', async () => {
+    const view = setup(false), directory = join(view.root, 'project')
+    view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'GLOBAL_COMMAND $ARGUMENTS' })
+    const project = view.database.promptCommands.save({ scope: 'project', name: 'review', source: 'PROJECT_COMMAND $1 / $ARGUMENTS' }, directory)
+    await view.send('/review "actual input"', [])
+    expect(view.prompts[0]).toContain('PROJECT_COMMAND actual input / "actual input"')
+    expect(view.prompts[0]).not.toContain('GLOBAL_COMMAND')
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toMatchObject({ content: '/review "actual input"', command: { scope: 'project', revision: project.revision } })
+    await view.send('Follow up', [])
+    expect(JSON.stringify(view.contexts[1])).toContain('PROJECT_COMMAND')
+  })
+
+  it('revalidates custom input after queuing and preserves changed commands for withdrawal', async () => {
+    const view = setup(false)
+    let release!: () => void
+    const original = view.prompt.getMockImplementation()!
+    view.prompt.mockImplementationOnce(async function (this: Agent, ...args) { await new Promise<void>(resolve => { release = resolve }); return original.apply(this, args) })
+    const command = view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'BEFORE_EDIT $ARGUMENTS' })
+    const run = view.send('Hold current task', [])
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await view.runtime.submitMessage(view.sender, view.sessionId, 'queued-user-command', '/review saved arguments', [], selection, false)
+    view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'AFTER_EDIT $ARGUMENTS', expectedRevision: command.revision })
+    release(); await run
+    await vi.waitFor(() => expect(view.runtime.getMessageQueue(view.sessionId).paused).toBe('failed'))
+    expect(view.prompt).toHaveBeenCalledTimes(1)
+    expect(view.runtime.getMessageQueue(view.sessionId).items[0]).toMatchObject({ text: '/review saved arguments', command: { revision: command.revision } })
+  })
+
+  it('uses the same real approval path for dynamic custom commands and does not replay Shell on a follow-up', async () => {
+    const view = setup(false)
+    vi.mocked((view.runtime as any).tools).mockRestore()
+    view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'CUSTOM_DYNAMIC !`printf x >> custom-executions.txt; printf APPROVED_RESULT` $ARGUMENTS' })
+    const effect = join(view.root, 'project/custom-executions.txt'), run = view.send('/review actual argument', [])
+    await vi.waitFor(() => expect(view.runtime.listPendingPermissions(view.sessionId)).toHaveLength(1))
+    expect(existsSync(effect)).toBe(false)
+    expect(view.prompt).not.toHaveBeenCalled()
+    view.runtime.resolvePermission(view.runtime.listPendingPermissions(view.sessionId)[0].requestId, true)
+    await run
+    expect(readFileSync(effect, 'utf8')).toBe('x')
+    expect(view.prompts[0]).toContain('CUSTOM_DYNAMIC APPROVED_RESULT actual argument')
+    await view.send('Continue', [])
+    expect(readFileSync(effect, 'utf8')).toBe('x')
+  })
+
+  it('refuses deleted custom-command regeneration before truncating existing conversation history', async () => {
+    const view = setup(false)
+    const command = view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'CUSTOM_REGEN' })
+    await view.send('/review', [])
+    const before = view.database.harness.getSession(view.sessionId).messages
+    view.database.promptCommands.delete({ scope: 'global', name: 'review', expectedRevision: command.revision })
+    await expect(view.runtime.rerun(view.sender, view.sessionId, selection)).rejects.toThrow('已不存在')
+    expect(view.database.harness.getSession(view.sessionId).messages).toEqual(before)
+    expect(view.prompt).toHaveBeenCalledTimes(1)
+  })
+
   function commandFixture(body = 'MIRA_COMMAND_ORIGINAL: $ARGUMENTS') {
     const view = setup(false), packageRoot = join(view.root, 'commands-package')
     mkdirSync(join(packageRoot, '.mira-plugin'), { recursive: true }); mkdirSync(join(packageRoot, 'commands'))
@@ -117,6 +172,11 @@ describe('Harness multimodal message ownership', () => {
     await view.runtime.rerun(view.sender, view.sessionId, selection)
     expect(readFileSync(join(view.root, 'project/executions.txt'), 'utf8')).toBe('xx')
     expect(view.prompt).toHaveBeenCalledTimes(2)
+    writeFileSync(view.file, 'Updated !`printf y >> executions.txt; printf MIRA_NEW_TEMPLATE`.')
+    await view.runtime.rerun(view.sender, view.sessionId, selection)
+    expect(readFileSync(join(view.root, 'project/executions.txt'), 'utf8')).toBe('xxy')
+    expect(view.prompts[2]).toContain('Updated MIRA_NEW_TEMPLATE.')
+    expect(view.database.harness.getSession(view.sessionId).messages[0].command?.prompt).toContain('MIRA_NEW_TEMPLATE')
   })
 
   it('rechecks the directory after approval and cancels the tool without running in the replacement scope', async () => {
@@ -149,6 +209,27 @@ describe('Harness multimodal message ownership', () => {
     expect(existsSync(join(blocked.root, 'project/blocked.txt'))).toBe(false)
     expect(blocked.prompt).not.toHaveBeenCalled()
     expect(view.runtime.listPendingPermissions(view.sessionId)).toEqual([])
+    expect(view.prompt).not.toHaveBeenCalled()
+  })
+
+  it.each(['disabled', 'directory'])('rechecks plugin and scope after a project lock wait when %s changes', async change => {
+    const view = commandFixture('Inspect !`printf x > lock-race.txt`.')
+    vi.mocked((view.runtime as any).tools).mockRestore()
+    view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    const coordinator = (view.runtime as any).subtaskCoordinator
+    const acquire = vi.spyOn(coordinator, 'acquireProjectLock')
+    const before = view.database.harness.getSession(view.sessionId)
+    const release = await coordinator.acquireProjectLock(before.projectId, 'write')
+    const run = view.send('/mira-review:check', []).then(value => ({ value }), error => ({ error }))
+    await vi.waitFor(() => expect(acquire).toHaveBeenCalledTimes(2))
+    const directory = join(view.root, 'lock-other'); mkdirSync(directory)
+    if (change === 'disabled') view.database.plugins.setEnabled('mira-review@local', false)
+    else view.database.harness.updateSession({ ...view.database.harness.getSession(view.sessionId), workingDirectory: directory })
+    release()
+    expect(await run).toHaveProperty('error')
+    expect(existsSync(join(view.root, 'project/lock-race.txt'))).toBe(false)
+    expect(existsSync(join(directory, 'lock-race.txt'))).toBe(false)
+    expect(view.database.harness.getSession(view.sessionId).toolCalls[0].status).toBe('failed')
     expect(view.prompt).not.toHaveBeenCalled()
   })
 
@@ -228,11 +309,14 @@ describe('Harness multimodal message ownership', () => {
     await view.runtime.editAndRerun(view.sender, view.sessionId, user.id, '/mira-review:check changed args', selection)
     expect(view.prompts[2]).toContain('MIRA_COMMAND_ORIGINAL: changed args')
     writeFileSync(view.file, 'MIRA_COMMAND_CHANGED')
+    await view.runtime.rerun(view.sender, view.sessionId, selection)
+    expect(view.prompts[3]).toContain('MIRA_COMMAND_CHANGED')
+    view.database.plugins.setEnabled('mira-review@local', false)
     const saved = view.database.harness.getSession(view.sessionId)
-    await expect(view.runtime.rerun(view.sender, view.sessionId, selection)).rejects.toThrow('变化')
+    await expect(view.runtime.rerun(view.sender, view.sessionId, selection)).rejects.toThrow('停用')
     expect(view.database.harness.getSession(view.sessionId)).toEqual(saved)
     await view.runtime.editAndRerun(view.sender, view.sessionId, user.id, 'Plain edited instruction', selection)
-    expect(view.prompts[3]).toBe('Plain edited instruction')
+    expect(view.prompts[4]).toBe('Plain edited instruction')
     expect(view.database.harness.getSession(view.sessionId).messages[0]).not.toHaveProperty('command')
   })
 

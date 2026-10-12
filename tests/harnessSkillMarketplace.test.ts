@@ -47,6 +47,58 @@ function fixture(extra: Record<string, { content: string | Buffer; mode?: string
 }
 
 describe('public Skill marketplace', () => {
+  it('loads independent catalog entries in bounded batches while sharing concurrent browse requests', async () => {
+    const extra = Object.fromEntries(Array.from({ length: 10 }, (_, index) => [
+      [`skills/parallel-${index}/SKILL.md`, { content: SKILL.replace('name: Review', `name: parallel-${index}`) }],
+      [`skills/parallel-${index}/LICENSE.txt`, { content: `${APACHE}\nContributor ${index}` }],
+    ]).flat())
+    const view = fixture(extra), original = view.request.getMockImplementation()!
+    let active = 0, maximum = 0, hold = true
+    const releases: Array<() => void> = []
+    view.request.mockImplementation(async url => {
+      active++; maximum = Math.max(maximum, active)
+      try {
+        if (hold) await new Promise<void>(resolve => releases.push(resolve))
+        return await original(url)
+      } finally { active-- }
+    })
+    const first = view.service.browse(), shared = view.service.browse()
+    // The unlicensed entry is rejected before downloading; the first batch has five requests.
+    try { await vi.waitFor(() => expect(active).toBe(5)) }
+    finally { hold = false; releases.splice(0).reverse().forEach(release => release()); await Promise.all([first, shared]) }
+    const [catalog, same] = await Promise.all([first, shared])
+    expect(maximum).toBe(6)
+    expect(catalog).toEqual(same)
+    expect(catalog.items).toHaveLength(11)
+    expect(catalog.excludedCount).toBe(2)
+    expect(view.request.mock.calls.filter(([url]) => String(url).endsWith('/skills/parallel-9/SKILL.md'))).toHaveLength(1)
+  })
+
+  it('drains a failed catalog batch before allowing refresh and never publishes its partial results', async () => {
+    const view = fixture({
+      'skills/second/SKILL.md': { content: SKILL.replace('name: Review', 'name: second') },
+      'skills/second/LICENSE.txt': { content: `${APACHE}\nSecond contributor` },
+    }), original = view.request.getMockImplementation()!
+    let release!: () => void, started = false, settled = false
+    view.request.mockImplementation(async url => {
+      if (String(url).endsWith('/skills/review/LICENSE.txt')) return new Response('tampered')
+      if (String(url).endsWith('/skills/second/LICENSE.txt')) {
+        started = true
+        await new Promise<void>(resolve => { release = resolve })
+      }
+      return original(url)
+    })
+    const failed = view.service.browse().catch(error => { settled = true; return error })
+    try {
+      await vi.waitFor(() => expect(started).toBe(true))
+      expect(settled).toBe(false)
+    } finally { release?.(); await failed }
+    expect(await failed).toBeInstanceOf(Error)
+    expect((await failed).message).toContain('完整性')
+    view.request.mockImplementation(original)
+    expect((await view.service.browse(true)).items).toHaveLength(2)
+  })
+
   it('installs a real multi-Skill plugin with its namespace, full resources and upstream notices', async () => {
     const view = fixture({
       '.claude-plugin/marketplace.json': { content: JSON.stringify({ name: 'anthropic-agent-skills', plugins: [
@@ -80,11 +132,11 @@ describe('public Skill marketplace', () => {
 
   it('does not register or publish incomplete, revoked, unsupported or arbitrary plugin packages', async () => {
     const view = fixture({ '.claude-plugin/marketplace.json': { content: JSON.stringify({ name: 'anthropic-agent-skills', plugins: [
-      { name: 'review-kit', source: './', skills: ['./skills/review'], hooks: { command: 'never execute' } },
+      { name: 'review-kit', source: './', skills: ['./skills/review'], lspServers: { fixture: { command: 'never execute' } } },
       { name: 'remote-kit', source: 'https://example.invalid/package', skills: ['./skills/review'] },
     ] }) } })
     const id = 'review-kit@anthropic-agent-skills', plugins = new MiraPluginStore(view.paths)
-    expect((await view.service.browsePlugins()).items[0].unsupported).toEqual(['hooks'])
+    expect((await view.service.browsePlugins()).items[0].unsupported).toEqual(['lspServers'])
     await expect(view.service.installPlugin('remote-kit@anthropic-agent-skills')).rejects.toThrow('下载方式')
     await expect(view.service.installPlugin('https://example.invalid/package')).rejects.toThrow('不存在')
     const file = view.entries.find(entry => entry.path.endsWith('check.sh'))!
@@ -97,7 +149,7 @@ describe('public Skill marketplace', () => {
     await expect(view.service.installPlugin(id, () => { if (++calls === 4) throw new Error('授权已撤销') })).rejects.toThrow('授权已撤销')
     expect(plugins.list()).toEqual([]); expect(readdirSync(join(view.paths.root, 'plugins/anthropic-agent-skills'))).toEqual([])
     await view.service.installPlugin(id)
-    expect(plugins.list()[0].unsupported).toEqual(['hooks'])
+    expect(plugins.list()[0].unsupported).toEqual(['lspServers'])
     expect(readdirSync(view.paths.config).some(path => path.startsWith('.market-plugin-'))).toBe(false)
   })
 

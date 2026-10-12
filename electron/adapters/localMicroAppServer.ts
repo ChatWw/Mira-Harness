@@ -58,6 +58,7 @@ export interface LocalMicroAppApiRoute {
 }
 
 export interface LocalMicroAppServerOptions {
+  mediaHandler?: LocalMicroAppApiHandler
   /** 内置资源包名 -> 绝对目录（随安装包分发，dev/打包路径不同）。 */
   builtinRoots?: Record<string, string>
   /** 按微应用 id 注册的 POST API 处理器（如内置小说代理）。 */
@@ -73,8 +74,15 @@ export class LocalMicroAppServer {
   private _port?: number
 
   constructor(options: LocalMicroAppServerOptions = {}) {
+    this.mediaHandler = options.mediaHandler
     this.builtinRoots = options.builtinRoots ?? {}
     this.apiHandlers = options.apiHandlers ?? new Map()
+  }
+  private readonly mediaHandler?: LocalMicroAppApiHandler
+
+  getMediaUrl(id: string) {
+    if (!this._port || !/^[a-f0-9]{64}$/.test(id)) throw new Error('媒体预览服务不可用')
+    return `http://127.0.0.1:${this._port}/mira-media/${id}`
   }
 
   get port() {
@@ -197,6 +205,10 @@ export class LocalMicroAppServer {
       return
     }
     const match = url.pathname.match(/^\/apps\/([^/]+)\/?(.*)$/)
+    if (url.pathname.startsWith('/mira-media/') && this.mediaHandler) {
+      this.mediaHandler(url.pathname.slice('/mira-media/'.length), request, response)
+      return
+    }
     if (!match) {
       response.writeHead(404, corsHeadersFor(request)).end()
       return

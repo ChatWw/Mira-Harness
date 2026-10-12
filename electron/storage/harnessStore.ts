@@ -1416,12 +1416,13 @@ export class HarnessStore {
     for (const project of this.listProjects()) {
       const legacyTrash = join(project.directory, '.mira', 'trash')
       const target = this.paths.projectTrash(project.id)
-      if (existsSync(legacyTrash)) {
-        if (!existsSync(target)) atomicMove(legacyTrash, target)
-        else for (const entry of readdirSync(legacyTrash)) atomicMove(join(legacyTrash, entry), join(target, entry))
+      if (existsSync(legacyTrash) && lstatSync(legacyTrash).isDirectory() && !lstatSync(join(project.directory, '.mira')).isSymbolicLink()) {
+        for (const entry of readdirSync(legacyTrash, { withFileTypes: true })) {
+          // File trash used timestamp + eight UUID characters; other entries belong to project configuration.
+          if (entry.isDirectory() && /^\d+-[a-f0-9]{8}$/.test(entry.name)) atomicMove(join(legacyTrash, entry.name), join(target, entry.name))
+        }
       }
-      const legacyRoot = join(project.directory, '.mira')
-      if (existsSync(legacyRoot)) rmSync(legacyRoot, { recursive: true, force: true })
+      // Project MCP, agents, hooks and commands now share .mira; never recursively remove its root.
     }
   }
 }

@@ -47,6 +47,22 @@ describe('real subtask DTO side panels', () => {
     expect(document.querySelector('.mira-subtask-stop')).toBeNull()
   })
 
+  it('shows the actual qualified plugin Agent and source while retaining the inherited role', async () => {
+    const task = { ...child('child-a', 'completed'), agentName: 'review-kit:security', agentPluginId: 'review-kit@local' }
+    await render(<MiraSubtaskPanel {...props({ session: session(task) })} />)
+    expect(document.querySelector('.mira-subtask-heading h2')?.textContent).toBe('review-kit:security')
+    expect(document.querySelector('.mira-subtask-metadata')?.textContent).toContain('来源插件review-kit@local')
+    expect(document.querySelector('.mira-subtask-metadata')?.textContent).toContain('执行角色审查')
+    expect(document.querySelector('.mira-subtask-stop')).toBeNull()
+  })
+  it('shows a user Agent scope and actual child model without relabeling it as a plugin', async () => {
+    const task = { ...child('child-a', 'completed'), agentName: 'security-check', agentScope: 'project' as const, agentModelSelection: { providerId: 'other-provider', modelId: 'child-model' } }
+    await render(<MiraSubtaskPanel {...props({ session: session(task) })} />)
+    expect(document.querySelector('.mira-subtask-heading h2')?.textContent).toBe('security-check')
+    expect(text()).toContain('智能体来源当前项目'); expect(text()).toContain('执行角色审查'); expect(text()).toContain('执行模型other-provider / child-model')
+    expect(text()).not.toContain('来源插件')
+  })
+
   it('refuses a different session owner or a missing child instead of showing the latest data', async () => {
     await render(<MiraSubtaskPanel {...props({ sessionId: 'session-b' })} />)
     expect(text()).toContain('智能体记录不可用'); expect(text()).not.toContain('真实任务')

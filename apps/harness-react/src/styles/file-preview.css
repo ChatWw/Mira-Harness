@@ -16,6 +16,13 @@
 .mira-file-preview__actions > button:disabled { opacity: .4; cursor: default; }
 .mira-file-preview__indicator { margin-left: auto; }
 .mira-file-preview__body { display: flex; min-height: 0; min-width: 0; flex: 1; overflow: hidden; }
+.mira-media-preview { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; align-items: center; justify-content: center; gap: 12px; flex-direction: column; overflow: auto; padding: 24px; }
+.mira-media-preview video { display: block; max-width: 100%; max-height: 100%; border-radius: 8px; }
+.mira-media-preview audio { width: 100%; max-width: 672px; }
+.mira-media-preview audio, .mira-media-preview video { color-scheme: light; }
+.dark .mira-media-preview audio, .dark .mira-media-preview video { color-scheme: dark; }
+.mira-media-preview video:focus-visible, .mira-media-preview audio:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 3px; }
+.mira-media-preview__loading { display: flex; align-items: center; gap: 8px; color: var(--color-foreground-subtle); font-size: 13px; }
 .mira-file-preview__notice { display: flex; width: 100%; min-height: 0; align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 24px; overflow: auto; color: var(--color-foreground-subtle); font-size: 13px; text-align: center; }
 .mira-file-preview__notice[role="alert"] { color: var(--color-foreground); }
 .mira-file-preview__notice[role="alert"] p { color: inherit; font-size: inherit; }
@@ -39,4 +46,21 @@
 .mira-file-source__code pre, .mira-file-source__code code { margin: 0; padding: 0; border: 0; border-radius: 0; color: inherit; background: transparent; font: inherit; line-height: inherit; white-space: pre; tab-size: 2; }
 .mira-file-source.is-wrapped .mira-file-source__code pre, .mira-file-source.is-wrapped .mira-file-source__code code { overflow-wrap: anywhere; white-space: pre-wrap; }
 .mira-file-source ::selection { color: var(--color-foreground); background: var(--color-selected); }
+.mira-pdf-reader { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.mira-pdf-reader__controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; padding: 6px 8px; border-bottom: 1px solid var(--color-border); color: var(--color-foreground); background: var(--color-background); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mira-pdf-reader__controls button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 5px; }
+.mira-pdf-reader__controls button:hover:not(:disabled) { background: var(--color-surface); }
+.mira-pdf-reader__controls button:disabled { opacity: .4; cursor: default; }
+.mira-pdf-reader__controls label { display: flex; align-items: center; gap: 5px; }
+.mira-pdf-reader__controls input { width: 38px; height: 24px; padding: 2px 4px; border: 1px solid var(--color-border); border-radius: 4px; text-align: center; color: inherit; background: var(--color-background); }
+.mira-pdf-reader__divider { width: 1px; height: 16px; margin: 0 4px; background: var(--color-border); }
+.mira-pdf-reader__scale { width: 38px; text-align: center; }
+.mira-pdf-reader__viewport { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 16px; background: var(--color-surface); }
+.mira-pdf-reader__viewport .react-pdf__Document { width: max-content; min-width: 100%; }
+.mira-pdf-reader__viewport .react-pdf__Page { width: max-content; margin: 0 auto; background: white; }
+.mira-pdf-reader__viewport .textLayer ::selection { background: rgb(80 130 230 / .3); }
+.mira-pdf-reader__password { display: flex; width: 240px; max-width: 100%; margin: 32px auto; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--color-foreground); font-size: 13px; }
+.mira-pdf-reader__password label { display: flex; width: 100%; flex-direction: column; gap: 8px; }
+.mira-pdf-reader__password input { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 5px; background: var(--color-background); color: inherit; }
+.mira-pdf-reader button:focus-visible, .mira-pdf-reader input:focus-visible, .mira-pdf-reader__viewport:focus-visible { outline: 1px solid var(--color-input-border-focused); outline-offset: 2px; }
 .dark .mira-file-source .shiki, .dark .mira-file-source .shiki span { color: var(--shiki-dark, inherit) !important; background-color: var(--shiki-dark-bg, transparent) !important; font-style: var(--shiki-dark-font-style, inherit) !important; font-weight: var(--shiki-dark-font-weight, inherit) !important; text-decoration: var(--shiki-dark-text-decoration, inherit) !important; }

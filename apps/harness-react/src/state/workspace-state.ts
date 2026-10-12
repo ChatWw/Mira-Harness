@@ -5,8 +5,8 @@
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser' | 'side-chat'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}`
-export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; runId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; url?: string; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}` | `workflow:${string}`
+export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; url?: string; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
 export type WorkspaceSessionState = {
   tabs: WorkspaceTab[]
   activeTab: WorkspaceTabId
@@ -28,6 +28,7 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (id.startsWith('side-chat:')) return '旁路对话'
   if (id.startsWith('task:')) return '任务'
   if (id.startsWith('subtask:')) return '智能体'
+  if (id.startsWith('workflow:')) return '工作流'
   return { overview: '任务活动', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '旁路对话' }[id as WorkspaceResourceId]
 }
 
@@ -59,6 +60,10 @@ export function createWorkspaceFileTab(path: string): WorkspaceTab {
 
 export function createWorkspaceRunTab(runId?: string): WorkspaceTab {
   return { id: 'overview', label: '任务活动', runId }
+}
+
+export function createWorkspaceWorkflowTab(sessionId: string, runId: string): WorkspaceTab {
+  return { id: `workflow:${JSON.stringify([sessionId, runId])}`, label: '工作流', workflowSessionId: sessionId, runId }
 }
 
 export function createWorkspaceSubtaskTab(runId: string, subtaskId: string, label: string): WorkspaceTab {
@@ -102,7 +107,7 @@ export function createWorkspaceSession(): WorkspaceSessionState {
 
 export function withoutWorkspaceTaskOwners(sessions: Record<string, WorkspaceSessionState>, removed: ReadonlySet<string>): Record<string, WorkspaceSessionState> {
   return Object.fromEntries(Object.entries(sessions).filter(([owner]) => !removed.has(owner)).map(([owner, state]) => {
-    const keep = (tab: WorkspaceTab) => !removed.has(tab.taskSessionId || tab.childSessionId || '')
+    const keep = (tab: WorkspaceTab) => !removed.has(tab.taskSessionId || tab.childSessionId || tab.workflowSessionId || '')
     const tabs = state.tabs.filter(keep), recentClosedTabs = state.recentClosedTabs.filter(keep)
     if (tabs.length === state.tabs.length && recentClosedTabs.length === state.recentClosedTabs.length) return [owner, state]
     const index = state.tabs.findIndex(tab => tab.id === state.activeTab)
@@ -193,6 +198,8 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
           if (typeof tab.childSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.childSessionId) && tab.id === `side-chat:${tab.childSessionId}`) tabs.push(createWorkspaceSideConversationTab(tab.childSessionId))
         } else if (tab.id.startsWith('task:')) {
           if (typeof tab.taskSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.taskSessionId) && tab.taskSessionId !== sessionId && tab.id === `task:${tab.taskSessionId}`) tabs.push(createWorkspaceTaskTab(tab.taskSessionId, tab.label))
+        } else if (tab.id.startsWith('workflow:')) {
+          if (typeof tab.workflowSessionId === 'string' && typeof tab.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.workflowSessionId) && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.runId) && tab.id === createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId).id) tabs.push(createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId))
         } else if (tab.id.startsWith('subtask:')) {
           if (typeof tab.runId === 'string' && tab.runId && typeof tab.subtaskId === 'string' && tab.subtaskId && tab.id === createWorkspaceSubtaskTab(tab.runId, tab.subtaskId, tab.label).id) tabs.push({ id: tab.id, label: tab.label, runId: tab.runId, subtaskId: tab.subtaskId })
         } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'browser' && tab.faviconUrl !== undefined ? { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })

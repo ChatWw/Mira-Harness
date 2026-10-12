@@ -17,6 +17,16 @@ function bridge() {
 }
 
 describe('workspace editor and watch bridge boundaries', () => {
+  it('keeps media creation and release scoped to host identity, never renderer paths or URLs', async () => {
+    const { request, invoke } = bridge()
+    await request('files.media-open', { sessionId: 's', path: 'clips/sample.MP4', workspacePath: '/private/injected', mediaType: 'text/html' })
+    expect(invoke).toHaveBeenLastCalledWith('grant', 'files.media-open', { sessionId: 's', path: 'clips/sample.MP4' })
+    const id = 'a'.repeat(64)
+    await request('files.media-close', { id, url: 'file:///secret.wav', sessionId: 'other' })
+    expect(invoke).toHaveBeenLastCalledWith('grant', 'files.media-close', { id })
+    for (const path of ['file:///secret.wav', '../secret.wav', '/secret.wav', 'x\\secret.wav']) await expect(request('files.media-open', { sessionId: 's', path })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(request('files.media-close', { id: 'invalid' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
   it('passes only session and relative path to image preview, ignoring renderer MIME, size and root overrides', async () => {
     const { request, invoke } = bridge()
     await request('files.read-image', { sessionId: 's', path: 'images/a.png', mediaType: 'text/html', maxBytes: 999999999, workspacePath: '/private/injected' })

@@ -160,7 +160,7 @@ export class HarnessMessageQueue {
         return { confirmationRequired: true, queue: this.get(input.sessionId) }
       }
     }
-    if (!options.delivery && !options.pausedQueueDecision) return this.enqueue(sender, input, attachments, scope, fingerprint)
+    if ((!options.delivery || options.delivery === 'queue') && !options.pausedQueueDecision) return this.enqueue(sender, input, attachments, scope, fingerprint)
     if (this.deps.blocked(input.sessionId)) throw new Error('请先处理当前任务的确认')
     const frozen = structuredClone({ input, attachments, scope, options })
     const entry: Entry = { item: { ...frozen.input, id: randomUUID(), createdAt: Date.now() }, attachments: frozen.attachments, scope: frozen.scope, fingerprint, sender }
@@ -395,6 +395,7 @@ export class HarnessMessageQueue {
       sessionId, text: input.text, references: input.references.map(({ path, name }) => ({ path, name })),
       selection: { providerId: input.selection.providerId, modelId: input.selection.modelId, thinkingLevel: input.selection.thinkingLevel },
       planning: input.planning,
+      ...(options?.hasStructuredContext === undefined ? {} : { hasStructuredContext: options.hasStructuredContext }),
       ...(input.operation ? { operation: input.operation } : {}),
       ...(options?.permissionMode === undefined ? {} : { permissionMode: options.permissionMode }),
       ...(options?.skillIds === undefined ? {} : { skillIds: options.skillIds }),

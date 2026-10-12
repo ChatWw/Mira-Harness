@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { McpManager } from '../electron/adapters/mcpManager'
 import type { McpServerConfig } from '../electron/storage/mcpConfigStore'
 
-const sdk = vi.hoisted(() => ({ clients: [] as any[], next: undefined as { listGate?: Promise<void>; failList?: boolean } | undefined }))
+const sdk = vi.hoisted(() => ({ clients: [] as any[], next: undefined as { connectGate?: Promise<void>; listGate?: Promise<void>; failList?: boolean } | undefined }))
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: class {
   onclose?: () => void
   connect = vi.fn(async () => undefined)
@@ -11,19 +11,56 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: class {
   close = vi.fn(async () => { this.onclose?.() })
   constructor() {
     const plan = sdk.next; sdk.next = undefined
+    if (plan?.connectGate) this.connect.mockImplementation(async () => { await plan.connectGate })
     if (plan) this.listTools.mockImplementation(async () => { await plan.listGate; if (plan.failList) throw new Error('server error'); return { tools: [{ name: 'stale' }] } })
     sdk.clients.push(this)
   }
 } }))
-vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({ StdioClientTransport: class { constructor(public config: unknown) {} } }))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({ getDefaultEnvironment: () => ({ PATH: '/owned/bin' }), StdioClientTransport: class { constructor(public config: unknown) {} } }))
 const config: McpServerConfig = { id: 'review', name: 'Review', command: 'test-owned-server', args: [], enabled: true, createdAt: 1, updatedAt: 1 }
 const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(yes => { resolve = yes }); return { promise, resolve } }
 let manager: McpManager
 beforeEach(() => { sdk.clients = []; sdk.next = undefined; manager = new McpManager(); vi.spyOn(console, 'error').mockImplementation(() => undefined) })
-afterEach(async () => { await manager.closeAll(); vi.restoreAllMocks() })
+afterEach(async () => { await manager.closeAll(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('Mira MCP connection state', () => {
+  it('closes a plugin run handshake promptly on cancellation instead of waiting for its timeout', async () => {
+    const gate = deferred(); sdk.next = { connectGate: gate.promise }
+    const controller = new AbortController()
+    const pending = manager.refresh([config], controller.signal)
+    await tick(); controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sdk.clients[0].close).toHaveBeenCalledOnce()
+    expect(manager.getTools()).toEqual([])
+    gate.resolve(); await tick()
+    expect(manager.getTools()).toEqual([])
+  })
+  it('bounds an unresponsive transport handshake and continues connecting later servers', async () => {
+    vi.useFakeTimers(); const gate = deferred(); sdk.next = { connectGate: gate.promise }
+    const pending = manager.refresh([config, { ...config, id: 'later' }]); await tick()
+    expect(manager.getStatus(config.id).state).toBe('connecting')
+    await vi.advanceTimersByTimeAsync(15_000); await pending
+    expect(manager.getStatus(config.id)).toMatchObject({ state: 'failed', error: expect.any(String) })
+    expect(manager.getStatus('later')).toEqual({ state: 'connected', toolCount: 1 })
+    expect(sdk.clients[0].close).toHaveBeenCalledOnce()
+    gate.resolve(); await tick()
+    expect(manager.getStatus(config.id).state).toBe('failed')
+  })
+
+  it('immediately cancels a pending transport handshake on closeAll without waiting for its timeout', async () => {
+    const gate = deferred(); sdk.next = { connectGate: gate.promise }
+    const pending = manager.refresh([config]); await tick()
+    await manager.closeAll(); await pending
+    expect(manager.getStatus(config.id)).toEqual({ state: 'disconnected', toolCount: 0 })
+    gate.resolve(); await tick(); expect(manager.getTools()).toEqual([])
+  })
+
+  it('passes stdio env together with SDK default environment and keeps child stderr out of unredacted app logs', async () => {
+    await manager.refresh([{ ...config, env: { MIRA_TOKEN: 'private' } }])
+    expect(sdk.clients[0].connect.mock.calls[0][0].config).toMatchObject({ env: { PATH: '/owned/bin', MIRA_TOKEN: 'private' }, stderr: 'ignore' })
+  })
+
   it('reconnects only a failed enabled server and preserves a connected sibling', async () => {
     sdk.next = { failList: true }
     await manager.refresh([config, { ...config, id: 'sibling' }])
@@ -54,12 +91,12 @@ describe('Mira MCP connection state', () => {
     const stale = manager.reconnect(config); await tick(); sdk.clients[0].onclose()
     await manager.reconnect(config)
     gate.resolve(); await stale
-    expect(manager.getTools().map(tool => tool.name)).toEqual(['mira_review'])
+    expect(manager.getTools().map(tool => tool.miraMcpToolName)).toEqual(['mira_review'])
     expect(sdk.clients[1].close).not.toHaveBeenCalled()
     const nextGate = deferred(); sdk.clients[1].onclose(); sdk.next = { listGate: nextGate.promise }
     const oldConfig = manager.reconnect(config); await tick()
     await manager.refresh([{ ...config, command: 'replacement' }]); nextGate.resolve(); await oldConfig
-    expect(manager.getTools().map(tool => tool.name)).toEqual(['mira_review'])
+    expect(manager.getTools().map(tool => tool.miraMcpToolName)).toEqual(['mira_review'])
     expect(sdk.clients[2].close).toHaveBeenCalledOnce()
     expect(sdk.clients[3].close).not.toHaveBeenCalled()
   })
@@ -80,7 +117,7 @@ describe('Mira MCP connection state', () => {
   it('closes a failed client and reports no available tools', async () => {
     sdk.next = { failList: true }
     await manager.refresh([config])
-    expect(manager.getStatus(config.id)).toEqual({ state: 'failed', toolCount: 0 })
+    expect(manager.getStatus(config.id)).toMatchObject({ state: 'failed', toolCount: 0, error: expect.stringContaining('启动命令') })
     expect(manager.getTools()).toEqual([])
     expect(sdk.clients.at(-1).close).toHaveBeenCalledOnce()
   })
@@ -92,7 +129,7 @@ describe('Mira MCP connection state', () => {
     await manager.refresh([{ ...config, command: 'new-owned-server' }])
     gate.resolve(); await first
     expect(manager.getStatus(config.id)).toEqual({ state: 'connected', toolCount: 1 })
-    expect(manager.getTools().map(tool => tool.name)).toEqual(['mira_review'])
+    expect(manager.getTools().map(tool => tool.miraMcpToolName)).toEqual(['mira_review'])
     expect(sdk.clients[0].close).toHaveBeenCalledOnce()
     expect(sdk.clients[1].close).not.toHaveBeenCalled()
   })
