@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, writeFile, rm, symlink, rename, mkdir } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, symlink, rename, mkdir, truncate } from 'node:fs/promises'
 import { get } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,6 +20,25 @@ async function fixture() {
   return { root, media, server, content, owner, preview, url, revoke: () => { authorized = false } }
 }
 describe('workspace media streaming', () => {
+  it('serves Office binary bytes with exact MIME and rejects over-limit files before creating grants', async () => {
+    const value = await fixture()
+    for (const [path, kind, mediaType] of [
+      ['book.doc', 'word', 'application/msword'],
+      ['book.pptx', 'presentation', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+      ['book.docx', 'word', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      ['book.xlsx', 'sheet', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      ['book.xlsm', 'sheet', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+      ['book.xls', 'sheet', 'application/vnd.ms-excel'],
+    ]) {
+      await writeFile(join(value.root, path), Buffer.from([80, 75, 3, 4]))
+      const document = await value.media.open(value.root, path, value.owner, () => undefined), url = value.server.getMediaUrl(document.id)
+      expect(document).toMatchObject({ kind, mediaType, byteLength: 4 })
+      const response = await fetch(url); expect(response.status).toBe(200); expect(response.headers.get('content-type')).toBe(mediaType); expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([80, 75, 3, 4]))
+      value.media.release(document.id, value.owner); expect((await fetch(url)).status).toBe(404)
+      await truncate(join(value.root, path), 25 * 1024 * 1024 + 1)
+      await expect(value.media.open(value.root, path, value.owner, () => undefined)).rejects.toThrow('25 MiB')
+    }
+  })
   it('streams authorized PDF ranges with the PDF MIME type and invalidates changed or revoked documents', async () => {
     const value = await fixture(), bytes = Buffer.from('%PDF-1.7\nAuthorized PDF fixture')
     await writeFile(join(value.root, 'book.PDF'), bytes)

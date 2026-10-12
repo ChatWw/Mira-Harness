@@ -481,6 +481,23 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
   单页、翻页/页码/缩放/适合宽度/文本选择/密码及错误重试，隐藏释放授权。
   worker、CMaps、标准字体和 WASM 随 React 包分发，不依赖 CDN；依赖 LICENSE 与资产内许可保留。
 
+- 2026-10-12：Word/Excel侧面预览参考 `previewPaneOfficeContent.tsx`、
+  `previewPaneOfficeDocxContent.tsx`、`previewPaneOfficeXlsxContent.tsx` 和
+  `lib/officeFilePreview.ts`。沿 docx-preview 0.4.0 / react-xlsx 0.16.0，Mira使用
+  授权完整二进制读取、25MiB输入上限、ShadowRoot样式隔离与受控浏览器外链。
+  XLSX构建时仅适配opaque worker初始化队列与canvas链接两个接缝，不写vendor源文件；
+  本地worker/WASM及docx-preview/react-xlsx/JSZip/fflate/duke-sheets许可随包保留。
+  不移植Tauri/base64文件接口，不将Office预览冒称模型附件或完整Office兼容。
+
+- 2026-10-12：旧DOC与PPTX继续参考上游Office预览分派及阅读器交互，
+  Mira分别使用固定react-docx 0.8.1 / pptx-renderer 1.2.4；自有命名、授权二进制读取、
+  本地Word worker/WASM、只读分页及PPTX懒缩略图/翻页/缩放/受控链接，不复制上游文件接口。
+  Word构建仅适配worker构造与禁止主线程fallback两个接缝，不写node_modules；
+  react-docx、pptx-renderer及ECharts LICENSE/NOTICE/d3、zrender、tslib、pretext、
+  fast-png/iobuffer、utif/pako等所需原许可随React发布包保留，不改签为Mira MIT。
+  PPTX元素模型/索引仅为后续基础，不声明已交元素AI编辑或PDF导出。
+  目标首层入口参考上游新任务加号菜单，Mira只插入原生命令，不自动替换既有目标。
+
 - 本目录 `LICENSE` 与 `NOTICE.md` 是上游根文件的逐字副本，不编辑版权人、条款或正文。
 - 改编源码保留原版权与 Apache-2.0 标识，并链接到此目录。
 - 实现文件及自定义变量使用 Mira 命名；上游名称仅保留在必要来源与法律声明中。

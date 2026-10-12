@@ -87,7 +87,7 @@ export default function MiraWordReader({ buffer, path, onOpenLink, onError }: {
 
   return <div className="mira-word-reader" aria-busy={state === 'loading'} data-word-state={state}>
     {state === 'loading' && <div className="mira-word-reader__loading" role="status"><span>正在加载 Word 文档…</span><div className="mira-word-reader__skeleton" aria-hidden="true" /></div>}
-    <div className="mira-word-reader__scroll" hidden={state !== 'ready'} tabIndex={0} aria-label="Word 文档，使用方向键滚动">
+    <div className="mira-word-reader__scroll" hidden={state !== 'ready'} role="region" tabIndex={0} aria-label="Word 文档，使用方向键滚动">
       <div ref={viewport} className="mira-word-reader__viewport">
         <div className="mira-word-reader__frame" style={fit ? { width: fit.width, height: fit.height } : undefined}>
           <div ref={content} className="mira-word-reader__content" style={fit ? { position: 'absolute', transform: `scale(${fit.scale})` } : undefined}>

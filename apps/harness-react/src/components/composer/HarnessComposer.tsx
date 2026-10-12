@@ -275,6 +275,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const suggestionSections: ComposerSuggestionSection[] = []
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
+    ...(controller.supportsGoals && !sessionId && editorText === '' && !references.length ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', icon: <Target size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })

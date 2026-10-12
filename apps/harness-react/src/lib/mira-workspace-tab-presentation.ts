@@ -2,7 +2,7 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: local resource metadata and identity, Chinese labels, optional real times.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
-import { Activity, AudioLines, FileCode2, FileText, GitBranch, GitCompare, Globe2, MessageSquare, TerminalSquare, Users, Video } from 'lucide-react'
+import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, GitBranch, GitCompare, Globe2, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
 import { miraMediaFormat } from '../../../../src/config/miraMedia'
 import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceTab } from '../state/workspace-state'
 
@@ -12,6 +12,9 @@ export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
   if (tab.path) {
     const media = miraMediaFormat(tab.path)
     if (media?.kind === 'pdf') return { Icon: FileText, type: 'PDF', hint: tab.path, aliases: 'file document pdf 文档' }
+    if (media?.kind === 'word') return { Icon: FileText, type: 'Word', hint: tab.path, aliases: 'file document doc docx 文档' }
+    if (media?.kind === 'presentation') return { Icon: Presentation, type: 'PowerPoint', hint: tab.path, aliases: 'file presentation pptx 幻灯片 演示文稿' }
+    if (media?.kind === 'sheet') return { Icon: FileSpreadsheet, type: 'Excel', hint: tab.path, aliases: 'file spreadsheet xlsx xlsm xls 工作簿 表格' }
     return media ? { Icon: media.kind === 'video' ? Video : AudioLines, type: media.kind === 'video' ? '视频' : '音频', hint: tab.path, aliases: 'file media audio video' } : { Icon: FileCode2, type: '文件', hint: tab.path, aliases: 'file code' }
   }
   if (tab.childSessionId) return { Icon: MessageSquare, type: '旁路对话', hint: '', aliases: `side chat ${tab.childSessionId}` }

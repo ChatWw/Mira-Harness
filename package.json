@@ -89,12 +89,14 @@
     ]
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.4",
     "@assistant-ui/react": "0.15.22",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@earendil-works/pi-agent-core": "^0.84.1",
     "@earendil-works/pi-ai": "^0.84.1",
     "@element-plus/icons-vue": "^2.3.2",
+    "@extend-ai/react-docx": "0.8.1",
     "@extend-ai/react-xlsx": "0.16.0",
     "@iconify-json/lucide": "^1.2.121",
     "@iconify-json/material-symbols": "^1.2.88",

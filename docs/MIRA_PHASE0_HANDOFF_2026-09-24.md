@@ -1,5 +1,11 @@
 # Mira 续作交接（2026-09-24）
 
+2026-10-12 11:35 +08:00 暂停：用户关机，当前Goal首层入口/DOC/PPTX阅读交付保留。PPTX元素引用新切片只读审计完成，三个代理停止且未写新增代码。恢复直接看[首屏记录](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)顶部“暂停与接续”，其中有明确连接点、宿主执行入口/指纹校验和待实现列表；勿重做已交目标/阅读器。未提交/推送。
+
+2026-10-12 11:27 +08:00：从[首屏记录](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)顶部继续。新任务 `+ → 目标` 已补首层入口，或直接 `/goal <目标>`，选择不自动创建任务；沿现有执行/核验/暂停恢复/预算，不重做目标。旧DOC/PPTX阅读已接，最终17文件174项、类型/构建及真实Electron78cVvY通过，图片主画布已亲看；本地WASM/worker和许可随包。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，运行 `npm run desktop:dev`，配置模型体验目标，自己的DOC/PPTX从项目树打开。保留用户dev/数据，独立验收窗口已关闭。下次先首版侧栏/timeline/Composer/Goal/资源面板反馈，再PPTX元素引用与受控PDF导出、模型附件、剩余OAuth及供应商。真实旧DOC链接、原生同态/整体性能/Windows安装包未验；完整目标active、未提交/推送，下方历史。
+
+2026-10-12 10:53 +08:00：从[首屏记录](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)顶部继续。本批Word/Excel侧面预览并行接通，本地WASM/独立worker、多表键盘/明暗、文档内链与受控浏览器外链；损坏/超限/删除后恢复及资源释放真实Electron已验cVYu40。修复25MiB公开错误被桥泛化，相关101项/桥118项/标签1项及类型/构建通过。Goal已有完整链路，入口 `/goal <目标>`，不用重做。启动实际仓库 `npm run desktop:dev`，配置模型后体验Goal，选项目后打开DOCX/XLSX；独立验收窗口已关闭，旧dev PID60769不能当作当前状态。下次优先首版实际反馈，再旧DOC/PPTX/模型附件/剩余OAuth与供应商；原生同态/整体性能/Windows安装包未验。整体active、未提交/推送，下方历史。
+
 2026-10-12 10:24 +08:00：从[首屏记录](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)顶部继续。目标模式已交，`/goal <目标>`；本批两路并行完成PDF侧面阅读与工作流rg随包分发。PDF翻页/缩放/中文选择/密码/真实Range/独立worker和失败恢复已验，关闭/隐藏释放；7文件62项、搜索20项及Electron宿主定向1项（17跳过）、类型/构建通过。正式桌面证据oNGhTE详见首屏记录；原生工具仍不可用，不冒称ZCode逐项原生对等。检测到现有dev PID60769，保留不重启，不再创建第二正常预览；旧51714为历史。启动实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness` 的 `npm run desktop:dev`，配置模型后用Goal。下次优先首版反馈，再Office/PPTX、模型附件、剩余OAuth/真实供应商及Windows安装包；不重做Goal/工作流/已交OAuth。整体active、未提交/推送，下方历史。
 
 2026-10-12 09:56 +08:00：从[首屏记录](MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)顶部继续。Goal已交；本批补项目音视频侧面板、授权流式播放、暂停/seek、关闭/离页回收和保进度暂停恢复，修目录监听打断媒体，文本/文件树自动刷新保留。媒体109项/标签10项/定向IPC2项、类型/构建及正式Electron w8MkXF明暗/失败恢复通过，不称全仓或原生对等。正常PID51714/会话97061保原home打开，eZJTa2七入口匹配；之前45301已退出，未关闭用户活动。仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness` 启动 `npm run desktop:dev`，配置实际模型后 `/goal <目标>`，媒体从自己的项目文件树打开。下一步用户首版反馈，再按需补PDF/Office预览；模型音视频附件、真实供应商/rg发布、原生对照/总体性能/Windows安装包未验。不重做已交Goal/工作流/OAuth。完整active，未提交/推送，下方历史。

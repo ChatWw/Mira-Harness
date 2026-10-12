@@ -1,7 +1,14 @@
 /* Formats follow ZCode shared/media-preview.ts.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
-export type MiraMediaKind = 'audio' | 'video' | 'pdf'
+export type MiraMediaKind = 'audio' | 'video' | 'pdf' | 'word' | 'sheet' | 'presentation'
+export const MIRA_OFFICE_PREVIEW_LIMIT = 25 * 1024 * 1024
 const formats: Record<string, { kind: MiraMediaKind; mediaType: string }> = {
+  doc: { kind: 'word', mediaType: 'application/msword' },
+  pptx: { kind: 'presentation', mediaType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+  docx: { kind: 'word', mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+  xlsx: { kind: 'sheet', mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  xlsm: { kind: 'sheet', mediaType: 'application/vnd.ms-excel.sheet.macroEnabled.12' },
+  xls: { kind: 'sheet', mediaType: 'application/vnd.ms-excel' },
   pdf: { kind: 'pdf', mediaType: 'application/pdf' },
   mp4: { kind: 'video', mediaType: 'video/mp4' }, mov: { kind: 'video', mediaType: 'video/quicktime' },
   webm: { kind: 'video', mediaType: 'video/webm' }, m4v: { kind: 'video', mediaType: 'video/x-m4v' },

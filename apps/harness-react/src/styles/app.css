@@ -9,6 +9,10 @@
 @import "./style.css";
 @import "./file-drawer.css";
 @import "./file-preview.css";
+@import "./word-preview.css";
+@import "./legacy-word-preview.css";
+@import "./presentation-preview.css";
+@import "./sheet-preview.css";
 @import "react-pdf/dist/Page/TextLayer.css";
 @import "./workspace-editors.css";
 @import "./mira-subtasks.css";

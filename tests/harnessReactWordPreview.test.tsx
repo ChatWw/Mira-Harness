@@ -6,20 +6,27 @@ import MiraWordReader from '../apps/harness-react/src/components/workspace/MiraW
 
 const renderer = vi.hoisted(() => ({ render: vi.fn(), links: vi.fn(), disposeLinks: vi.fn() }))
 vi.mock('docx-preview', () => ({ renderAsync: renderer.render }))
-vi.mock('../apps/harness-react/src/lib/mira-document-links', () => ({ installMiraDocumentLinks: renderer.links }))
+vi.mock('../apps/harness-react/src/lib/mira-document-links', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apps/harness-react/src/lib/mira-document-links')>()
+  return { ...actual, installMiraDocumentLinks: renderer.links }
+})
 
 let root: Root, container: HTMLDivElement
 let resized: (() => void) | undefined
 const disconnected = vi.fn()
 function appendDocument(body: HTMLElement, styles: HTMLElement, text = '中文正文') {
   styles.innerHTML = '<style>body { background: red; } .mira-word-page { color: black; }</style>'
-  body.innerHTML = `<div class="mira-word-page-wrapper"><section class="mira-word-page"><header>页眉</header><p>${text}</p><img src="data:image/png;base64,AA=="><footer>脚注</footer></section><section class="mira-word-page"><p>第二节</p></section></div>`
+  body.innerHTML = `<div class="mira-word-page-wrapper"><section class="mira-word-page"><header>页眉</header><p>${text}</p><img src="data:image/png;base64,AA=="><a href="https://example.com" target="_blank">网站</a><a href="javascript:alert(1)">无效链接</a><footer>脚注</footer></section><section class="mira-word-page"><p>第二节</p></section></div>`
 }
-beforeEach(() => {
+beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resized = callback } observe() {} disconnect() { disconnected() } })
   renderer.render.mockReset().mockImplementation(async (_buffer, body, styles) => { appendDocument(body, styles) })
-  renderer.links.mockReset().mockReturnValue(renderer.disposeLinks)
+  const actual = await vi.importActual<typeof import('../apps/harness-react/src/lib/mira-document-links')>('../apps/harness-react/src/lib/mira-document-links')
+  renderer.links.mockReset().mockImplementation((body: HTMLElement, open?: (url: string) => void) => {
+    const dispose = actual.installMiraDocumentLinks(body, open)
+    return () => { renderer.disposeLinks(); dispose() }
+  })
   renderer.disposeLinks.mockClear(); disconnected.mockClear(); resized = undefined
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
@@ -37,7 +44,12 @@ describe('Word resource reader', () => {
     expect(shadow.querySelector('footer')?.textContent).toBe('脚注')
     expect(shadow.querySelector('img')?.src).toBe('data:image/png;base64,AA==')
     expect(renderer.links).toHaveBeenCalledWith(expect.any(HTMLElement), expect.any(Function))
-    renderer.links.mock.calls[0][1]('https://example.com'); expect(open).toHaveBeenCalledWith('https://example.com')
+    const link = shadow.querySelector('a')!
+    const click = new MouseEvent('click', { bubbles: true, composed: true, cancelable: true })
+    await act(async () => { link.dispatchEvent(click) })
+    expect(open).toHaveBeenCalledWith('https://example.com'); expect(click.defaultPrevented).toBe(true)
+    expect(link.getAttribute('target')).toBeNull()
+    expect(shadow.querySelectorAll('a')[1].getAttribute('href')).toBeNull()
     expect(renderer.render.mock.calls[0][3]).toMatchObject({ breakPages: true, ignoreLastRenderedPageBreak: true, renderHeaders: true, renderFootnotes: true, renderAltChunks: false, useBase64URL: true })
     expect(onError).not.toHaveBeenCalled()
   })
@@ -75,6 +87,19 @@ describe('Word resource reader', () => {
     expect(onError).toHaveBeenCalledWith(expect.stringContaining('外部应用'))
     expect(container.querySelector('[data-word-state="error"]')).toBeTruthy()
     expect(container.querySelector('[data-mira-word-document]')).toBeNull()
+  })
+  it('keeps the loaded document and scroll position when callback identities change', async () => {
+    const first = vi.fn(), second = vi.fn()
+    await act(async () => root.render(<MiraWordReader buffer={buffer} path="notes.docx" onError={vi.fn()} onOpenLink={first} />))
+    const doc = container.querySelector('[data-mira-word-document]')!
+    const scroll = container.querySelector<HTMLElement>('.mira-word-reader__scroll')!
+    scroll.scrollTop = 300
+    await act(async () => root.render(<MiraWordReader buffer={buffer} path="notes.docx" onError={vi.fn()} onOpenLink={second} />))
+    expect(renderer.render).toHaveBeenCalledOnce()
+    expect(container.querySelector('[data-mira-word-document]')).toBe(doc)
+    expect(scroll.scrollTop).toBe(300)
+    renderer.links.mock.calls[0][1]('https://example.com')
+    expect(first).not.toHaveBeenCalled(); expect(second).toHaveBeenCalledWith('https://example.com')
   })
   it('fits a narrow desktop pane without retaining unscaled scroll dimensions or enlarging pages', async () => {
     let available = 400, width = 800, height = 2000

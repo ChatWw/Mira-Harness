@@ -443,6 +443,19 @@ describe('first-party capability bridge', () => {
     expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
   })
 
+  it.each([false, true])('preserves safe Office preview recovery through media authorization (Electron wrapper: %s)', async wrapped => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const [source, recovery] of [
+      ['Office 文件超过 25 MiB 预览上限，请使用桌面文档应用打开。', 'Office 文件超过 25 MiB 预览上限，请使用桌面文档应用打开。'],
+      ['此文件不是支持预览的 Office、PDF 或音视频格式', '此文件不是支持预览的 Office、PDF 或音视频格式，请使用外部应用打开。'],
+    ]) {
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${source}` : source))
+      await expect(entry.request('harness.files.media-open', { sessionId: 's', path: 'book.docx' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: recovery })
+    }
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('ENOENT /private/confidential/book.docx'))
+    await expect(entry.request('harness.files.media-open', { sessionId: 's', path: 'book.docx' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: '媒体读取失败，请刷新文件后重试。' })
+  })
+
   it.each(['files.list', 'files.read'].flatMap(method => workspaceFileFailures.flatMap(failure => [false, true].map(wrapped => ({ method, ...failure, wrapped })))))('$method maps $source (Electron wrapper: $wrapped) to a safe workspace error', async ({ method, source, recovery, wrapped }) => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     const message = wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${source}` : source

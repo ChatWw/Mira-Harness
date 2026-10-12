@@ -248,7 +248,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
           const row = rows[item.index]
           const deleted = isDeletedFile(row)
           const bitmap = filePreviewKind(row.path) === 'bitmap'
-          const media = filePreviewKind(row.path) === 'media' || filePreviewKind(row.path) === 'pdf'
+          const media = ['media', 'pdf', 'office'].includes(filePreviewKind(row.path))
           const unsupportedImageAttachment = bitmap && !attachmentImageType(row.path)
           const canAddFile = Boolean(onAddFile) && !media && !unsupportedImageAttachment && !(bitmap && deleted)
           const decoration = fileGitDecoration(git.index, row.path, row.type)
@@ -276,7 +276,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
             <ContextMenu.Separator className="mira-session-menu__separator" />
             <ContextMenu.Item className="mira-session-menu__item" onSelect={() => void copyPath(row.path)}><Copy size={14} />复制相对路径</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(fileTreeAbsolutePath(directory!, row.path))}><Copy size={14} />复制绝对路径</ContextMenu.Item>
-            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media ? 'PDF 与音视频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
+            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media ? 'Office、PDF 与音视频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
           </ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
         })}
       </div>

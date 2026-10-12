@@ -1,6 +1,42 @@
 # Mira Harness 首屏完整对齐与验收
 
-## 当前交付：PDF 阅读与随包搜索（2026-10-12 10:24 +08:00）
+## 暂停与接续（2026-10-12 11:35 +08:00）
+
+用户要求完成手头工作后暂停关机。上一节11:27交付的目标首层入口、DOC/PPTX阅读为当前可验版本。本次续作只读对照了ZCode元素引用链路，三个代理已停止，没有开始新增元素引用代码，没有新提交/推送。恢复时先从本节开始，勿把方案当成已完成功能。
+
+下一切片为PPTX元素选择→AI编辑意见→Composer引用→发送→原页定位，统一接通后再开放入口。Reader拟用 `onAddElement(element, comment, selectedText?): Promise<void>`，父层沿Office/FilePreview/Workbench显式传递，并复核active、资源标签、会话与刷新代次；未接callback不显示选择按钮。沿现有 `getPageElements()` 与表格单元优先命中、选区范围提取，完整文字/划选文字分开；AI编辑mousedown保留原生选区，IME Esc不取消，取消只回选择状态，失败保评论，选择引用不自动发送。
+
+引用拟增加 `MiraPromptReference.kind: 'presentation'`，沿现有documents/草稿/队列存储，不做数据库迁移。独立payload包含sessionId、canonical-root identity、sourcePath/source SHA256、真实元素身份/页/坐标、comment/selectedText与capture时间；精确JSON围栏解析，类型仅 `shape/picture/chart/table/table-cell`，最多8项/64KiB。Composer当前只隐藏web尾块，须同时改editorDocument、applyPromptParts、onChange、移除和restore，防止正文编辑丢引用或露出JSON；不同元素意见独立，重复按源指纹/页/节点/单元坐标去重。
+
+宿主验证由当前session推导根目录，只收相对路径，授权目录/nofollow/25MiB/前后root与file身份和SHA256校验。首次submit在replay判定后、admission前校验；runPrepared实际执行再校验，含排队延迟。presentation引导回queue，避免直接steer绕过；editAndRerun在截断前、automation在写消息前、rerun在执行前校验。只检查本次待执行输入，不让所有旧历史引用阻塞普通续聊。历史/草稿芯片可打开原文件原页，源变化明确提示，不能按旧元数据误高亮；匹配时若高亮，必须从当前真实元素身份查找，不按名称猜。上述契约、媒体指纹、宿主校验、选择UI、Composer/历史与反向定位均**尚未实施**，恢复后需要一并完成定向回归、类型/构建与明暗桌面走查。PDF导出仍单列后续，不能打印整个Shell代替幻灯片。
+
+## 当前交付：目标首层入口、旧 Word 与 PowerPoint 阅读（2026-10-12 11:27 +08:00）
+
+完成：新任务正文为空且无附件时，Composer `+` 首层直接提供“目标”，选择只插入 `/goal `，不创建任务或请求模型；已有任务仍可通过 `/goal` 管理目标。执行沿已交逐轮计划、独立核验、暂停/恢复/清除与预算，不新增常驻开关。替换未完成目标仍须显式 `/goal replace`，与 ZCode v4 自动替换存在已知差异。
+
+资源预览：旧 `.doc` 使用固定 `@extend-ai/react-docx@0.8.1` 接通真实 CFB 文档，本地 WASM/独立 worker、只读分页、向下适合宽度与虚拟页滚动；`.pptx` 使用 `@aiden0z/pptx-renderer@1.2.4` 接通懒加载缩略图、翻页/页码/键盘、25–300% 缩放/适合窗口、表格和图片。外链进入所属任务的受控浏览器，PPTX shape 内链翻页；Word 内部书签采用限于旧 Word 的委派。隐藏/切换/离页清理阅读器，损坏文件可替换重试；Office 25MiB 输入限制及“预览不是模型附件”保持。解析模型与元素索引只是基础，尚无元素选择/AI 编辑引用或 PDF 导出界面，不提供假按钮。
+
+修复：真实指针操作发现父面板获焦点引起回调身份变化，PPTX 被重新渲染导致内部链接没有 click；先红回归，再将回调存入 ref，使渲染 effect 仅依赖文档和页码。Word 构建仅适配厂商 worker 构造与主线程 fallback 两处，依赖漂移阻止构建，不写 node_modules；本地依赖与传递依赖许可随包保留。
+
+验证：最终相关 **17 个测试文件、174 项通过、0 失败**，报告 `/tmp/mira-presentation-goal-final2-20261012.json`，不是全仓；Goal/Composer 另有相关 6 文件 332 项通过，不与前者累加。React/Vue 类型、媒体服务依赖链严格类型、React 与 Electron/Vue 生产构建及 diff 检查通过，原构建警告保留。最终桌面 `/tmp/mira-presentation-desktop-20261012.78cVvY/report.json` passed=true/errors=[]：隔离 home、自制真实九页中文 DOC 与 32 页 PPTX，实际 Electron/Vue/React/IPC/SQLite/授权 HTTP、本地 WASM/具名 worker，验证目标入口不自动创建、DOC 末段、PPTX 表格/图片/懒缩略图、真实指针内链、输入/键盘/缩放/外链、收起卸载、损坏替换、超限、明暗与离页回收。此前八张界面已审阅；最终图片页等待解码后亲看主画布蓝色图像正常。上一版图片空白截图源于驱动未等解码，未据此改产品。真实旧 DOC 内外链尚无保留链接/书签的 CFB 夹具验证，仅 helper 回归；不能称桌面链接已全部通过。
+
+剩余/下次入口：先处理可体验首版的侧栏、timeline、Composer、Goal 和资源面板实际反馈，再接 PPTX 元素引用/反向定位与受控 PDF 导出、模型附件、剩余插件 OAuth/预注册客户端/共享授权事务及真实供应商。25MiB 只是输入限制，不保证解压内存峰值；Word 完整编辑器布局仍在 renderer。原生 computer-use 不可调用，本批为 Playwright Electron/CDP/capturePage；原生 ZCode 同态对照、整体性能、Windows 和安装包未验。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，运行 `npm run desktop:dev`，配置模型后试 `/goal <目标>`；打开自己的 DOC/PPTX 到资源面板。本批未重启用户 dev、未改用户数据，独立验收窗口已关闭；分支 `codex/mira-harness-first-slice`，未提交/推送。整体目标 active，下方为历史。
+
+## 历史交付：Word/Excel 侧面预览与目标模式复核（2026-10-12 10:53 +08:00）
+
+完成：本次复核 Composer `/goal <目标>`→Controller→第一方桥→runtime/持久化→摘要/详情，链路完整；沿已交逐轮计划/独立核验、暂停/恢复/清除和预算。入口在 `/` 或 `+` 命令列表，无额外常驻模式切换按钮。两个代理并行交付Word/Excel阅读器，主线程完成授权、构建、链接和桌面整合；保留既有ZCode工作台/两层Shell，未提交/推送。
+
+预览：参考ZCode `previewPaneOfficeContent.tsx`、`previewPaneOfficeDocxContent.tsx`、`previewPaneOfficeXlsxContent.tsx`、`lib/officeFilePreview.ts`，使用 `docx-preview@0.4.0` / `@extend-ai/react-xlsx@0.16.0`。Word纸张/section、页眉页脚、表格、选择文字及仅向下适合宽度，ShadowRoot隔离OOXML样式。Excel只读、多表鼠标/方向键/Home/End、明暗及加载/空/失败状态。注册DOCX/XLSX/XLSM/XLS，本批真实桌面验证DOCX/XLSX；旧DOC/PPTX待接。Office预览不等于模型附件，加入对话禁用并说明。
+
+宿主与链接：沿逐文件授权URL，以可取消、严格类型/长度和25MiB上限读取完整二进制，读完即释放授权，隐藏/切换/关闭/离页取消并卸载；Office需要完整ZIP/OLE，不称按Range解码。本地WASM/worker/许可随包，无CDN。固定版本构建仅适配worker构造和canvas外链两个接缝，不写node_modules；opaque Blob worker缓存早到转移消息，导入后重放，失败/超时/native error销毁。外链净化后进入原任务受控浏览器资源标签，内部锚点/工作表链接留在文档；不patch全局window.open或放宽sandbox。
+
+修正/验证：25MiB宿主错误被桥泛化为“媒体读取失败”，先红2项 `/tmp/mira-office-bridge-red-20261012.json`，仅白名单补公开错误，最终桥文件118项 `/tmp/mira-office-bridge-final-20261012.json`通过；未知私有路径错误仍净化。动态unsafe→safe链接的禁用标记残留也修复并回归。Office/worker/链接/PDF/媒体/Goal/构建相关12文件101项 `/tmp/mira-office-goal-final-20261012.json`，标签另1项 `/tmp/mira-office-tabs-final-20261012.json`，Composer Goal定向16项/198跳过。最初误写WorkspaceTabs.tsx参数被忽略，随后真实`.ts`单独运行，不计为13文件。React/Vue类型、媒体依赖链严格类型、React/Electron/Vue生产构建、diff及原许可/随包资产比对通过，不称全仓或安装包通过。
+
+实际桌面：`/tmp/mira-office-desktop-20261012.cVYu40/report.json` passed=true/errors=[]。独立home/生成真实两页中文DOCX、表格及三表1000行XLSX，本地WASM200/application-wasm、具名dedicated worker、canvas外链打开第二受控浏览器/内链切表、只读与多表键盘、隐藏销毁、损坏文件替换重试、25MiB提示、删除后刷新恢复、明暗与离页卸载通过；无模型请求。主线程看最终5图，独立代理一次看全7图，无阻断。早期KfMhcM/QKzL4q等待超限文案失败，后者另有驱动之外的鼠标事件，不能归因产品标签回退；验收窗口移出可见屏幕后flsFpA明确复现桥消息缺陷，修复后cVYu40通过，未据额外操作修改产品导航。
+
+启动/下次：实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness` 运行 `npm run desktop:dev`，配置模型后 `/goal <目标>`；选项目后打开DOCX/XLSX即到资源面板。本批未重启用户dev或另留正常预览，独立测试窗口已关闭，PID60769仅属历史。优先修首版侧栏/timeline/Composer/Goal/资源面板实际反馈，再旧DOC/PPTX、模型音视频/PDF附件、剩余OAuth/预注册客户端/共享授权事务及真实供应商。25MiB只是压缩输入上限，不保证展开内存峰值或所有Word自动分页/VML/Excel公式图表兼容。原生computer-use仍不可调用，本批是Electron/CDP/capturePage；原生同态/整体性能/Windows/安装包未验。完整目标active，下方全部历史。
+
+## 历史交付：PDF 阅读与随包搜索（2026-10-12 10:24 +08:00）
 
 完成：目标模式已在当前版本，沿 `/goal <目标>`、逐轮计划/独立核验、暂停/恢复/清除和预算，不重复开发。本批两路并行：项目 PDF 在资源面板真正阅读；工作流搜索使用随包 rg，不再要求用户另装系统命令。保留既有 ZCode 工作台、两层 Shell、Vue 设置与 React 主应用，未提交/推送。
 

@@ -218,6 +218,30 @@ beforeEach(() => {
 
 describe('native Goal input in the shipped Composer', () => {
   const currentGoal = { id: 'goal', objective: '完成原目标', revision: 7, status: 'active' as const, tokenBudget: null, tokensUsed: 20, timeUsedSeconds: 5, iteration: 1, createdAt: 1, updatedAt: 7 }
+  it('offers Goal directly in the new empty task add menu and inserts without submitting', async () => {
+    const view = fixture({ queue: true, goals: true }); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain(); await view.plus(true)
+    const sections = view.panelProps().sections as ComposerSuggestionSection[]
+    expect(sections.find(section => section.id === 'add')?.items.find(item => item.id === 'add-goal')).toMatchObject({ label: '目标', action: { type: 'command', value: 'goal' } })
+    await view.select('add-goal')
+    expect(view.text()).toBe('/goal ')
+    expect(view.api.prepare).not.toHaveBeenCalled(); expect(view.api.send).not.toHaveBeenCalled()
+    await view.append('交付完整结果'); await view.plus()
+    expect(view.items().some(item => item.id === 'add-goal')).toBe(false)
+    expect(view.text()).toBe('/goal 交付完整结果')
+  })
+  it('keeps the quick Goal entry out of existing tasks and unsupported hosts', async () => {
+    const view = fixture({ goals: true }); await view.drain(); await view.plus()
+    expect(view.items().some(item => item.id === 'add-goal')).toBe(false)
+    view.state.session = undefined; view.api.supportsGoals = false; view.render(); await view.drain()
+    expect(view.items().some(item => item.id === 'add-goal')).toBe(false)
+  })
+  it('preserves an attached new task draft without offering the quick Goal control', async () => {
+    const view = fixture({ goals: true, draftPreference: Promise.resolve({ fileDrafts: { draft: [{ path: 'note.md', name: 'note.md' }] } }) }); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain(); await view.plus()
+    expect(view.items().some(item => item.id === 'add-goal')).toBe(false)
+    expect(view.attachmentPaths()).toEqual(['note.md'])
+  })
   it('inserts the native command and opens details without sending an empty Goal', async () => {
     const view = fixture({ queue: true, goals: true }); await view.drain()
     await view.type('/go'); await view.select('command-goal'); expect(view.text()).toBe('/goal ')

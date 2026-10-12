@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { constants, type BigIntStats, type ReadStream } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { miraMediaFormat, type MiraMediaKind } from '../../src/config/miraMedia'
+import { MIRA_OFFICE_PREVIEW_LIMIT, miraMediaFormat, type MiraMediaKind } from '../../src/config/miraMedia'
 import { corsHeadersFor } from '../adapters/localMicroAppServer'
 import { resolveHarnessWorkspacePath } from './harnessWorkspaceFiles'
 
@@ -26,11 +26,12 @@ export class MiraWorkspaceMedia {
     authorize()
     if (typeof path !== 'string' || !path.trim() || path.length > 2048 || path.includes('\0') || path.includes('\\') || /^[a-z][a-z\d+.-]*:/i.test(path) || path.split('/').includes('..')) throw new Error('路径无效')
     const format = miraMediaFormat(path)
-    if (!format) throw new Error('此文件不是支持流式预览的 PDF 或音视频格式')
+    if (!format) throw new Error('此文件不是支持预览的 Office、PDF 或音视频格式')
     const root = await realpath(workspace), rootStat = await lstat(root, { bigint: true })
     const resolved = await resolveHarnessWorkspacePath(root, path), stat = await lstat(resolved.target, { bigint: true })
     if (!stat.isFile()) throw new Error('目标不是文件')
     if (stat.size <= 0n || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('媒体文件为空或大小不可读取')
+    if (['word', 'sheet', 'presentation'].includes(format.kind) && stat.size > BigInt(MIRA_OFFICE_PREVIEW_LIMIT)) throw new Error('Office 文件超过 25 MiB 预览上限，请使用桌面文档应用打开。')
     authorize()
     if (this.entries.size >= 128) throw new Error('打开的媒体过多，请关闭部分媒体标签后重试')
     const id = randomBytes(32).toString('hex')
