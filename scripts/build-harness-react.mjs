@@ -106,7 +106,8 @@ async function buildHarnessReact() {
   await copyFile(resolve('apps/harness-react/NOTICE.md'), resolve(output, 'NOTICE.md'))
   await cp(resolve('third-party-licenses'), resolve(output, 'third-party-licenses'), { recursive: true })
   // Tailwind v4（CSS-first）：令牌与组件类统一由 CLI 编译，扫描 harness-react 源码与 streamdown 运行时类名。
-  execFileSync(resolve('node_modules/.bin/tailwindcss'), [
+  execFileSync(process.execPath, [
+    resolve('node_modules/@tailwindcss/cli/dist/index.mjs'),
     '-i', resolve('apps/harness-react/src/styles/app.css'),
     '-o', resolve(output, 'app.css'),
     '--minify',
