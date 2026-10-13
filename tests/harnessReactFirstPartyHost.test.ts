@@ -11,6 +11,84 @@ function fixture() {
 }
 
 describe('React Harness prepare-leave handshake', () => {
+  it('acknowledges consumed close only after its current workbench owner settles', async () => {
+    const { host, port, receive } = fixture()
+    let done!: (value: boolean) => void
+    const action = vi.fn(() => new Promise<boolean>(resolve => { done = resolve })), remove = host.onCloseContext(action)
+    receive({ type: 'mira:close-context', id: 'close-1', extra: true }); await Promise.resolve(); expect(action).not.toHaveBeenCalled()
+    receive({ type: 'mira:close-context', id: 'close-1' }); await Promise.resolve(); expect(action).toHaveBeenCalledOnce(); expect(port.postMessage).not.toHaveBeenCalled()
+    done(true); await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:close-ready', id: 'close-1', ok: true, consumed: true })
+    remove(); receive({ type: 'mira:close-context', id: 'close-2' }); await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(port.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'mira:close-ready', id: 'close-2', ok: false }))
+    host.close()
+  })
+  it('preserves failed close identity and cannot send a late close acknowledgement after teardown', async () => {
+    const { host, port, receive } = fixture()
+    host.onCloseContext(async () => { throw new Error('保存失败') })
+    receive({ type: 'mira:close-context', id: 'failure' }); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:close-ready', id: 'failure', ok: false, error: '保存失败' })
+    let done!: (value: boolean) => void
+    host.onCloseContext(() => new Promise<boolean>(resolve => { done = resolve }))
+    receive({ type: 'mira:close-context', id: 'late' }); await Promise.resolve(); host.close(); port.postMessage.mockClear(); done(false)
+    await Promise.resolve(); await Promise.resolve(); expect(port.postMessage).not.toHaveBeenCalled()
+  })
+  it('observes only valid host theme context and requests a Shell-owned toggle', async () => {
+    const { host, port, receive } = fixture(), listener = vi.fn(), remove = host.onThemeChange(listener)
+    expect(host.getTheme()).toBe('light')
+    for (const theme of ['system', 'red', undefined, null]) receive({ type: 'mira:context', context: { theme } })
+    expect(listener).not.toHaveBeenCalled()
+    receive({ type: 'mira:context', context: { theme: 'dark' } }); receive({ type: 'mira:context', context: { theme: 'dark' } })
+    expect(host.getTheme()).toBe('dark'); expect(listener).toHaveBeenCalledOnce()
+    const toggling = host.toggleTheme()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'appearance.toggle-theme', params: undefined })
+    receive({ type: 'mira:response', id: '1', ok: true, value: 'light' }); await expect(toggling).resolves.toBe('light')
+    expect(host.getTheme()).toBe('dark') // Only authoritative context changes the displayed theme.
+    remove(); receive({ type: 'mira:context', context: { theme: 'light' } }); expect(listener).toHaveBeenCalledOnce()
+    host.onThemeChange(listener); host.close(); receive({ type: 'mira:context', context: { theme: 'dark' } }); expect(listener).toHaveBeenCalledOnce()
+  })
+  it('reads complete output using only the captured canonical identity through its authorized port', async () => {
+    const { host, port, receive } = fixture()
+    const reading = host.readCommandOutput('owner', 'run', 'canonical-tool')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.command.output', params: { sessionId: 'owner', runId: 'run', toolId: 'canonical-tool' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: 'FIRST\nLAST' })
+    await expect(reading).resolves.toBe('FIRST\nLAST'); host.close()
+  })
+  it('carries the confirmed edit-and-rewind token and returns authoritative conflicts', async () => {
+    const { host, port, receive } = fixture(), selection = { providerId: 'p', modelId: 'm' }, workspace = { mode: 'rewind' as const, snapshotToken: 'a'.repeat(64) }
+    const request = host.editAndRerun('owner', 'input', 'changed', selection, [], workspace)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.run.edit-rerun', params: { sessionId: 'owner', messageId: 'input', content: 'changed', selection, references: [], workspace } })
+    const blocked = { disposition: 'blocked', message: '文件已变化', preview: { messageId: 'input', safeFiles: [], unsafeFiles: [], ignoredTools: [], canApply: false } }
+    receive({ type: 'mira:response', id: '1', ok: true, value: blocked }); await expect(request).resolves.toEqual(blocked); host.close()
+  })
+  it('sends a confirmed snapshot token or pending recovery identity without renderer file bytes', async () => {
+    const { host, port, receive } = fixture()
+    const result = { applied: true, preview: { messageId: 'input', safeFiles: [], unsafeFiles: [], ignoredTools: [], canApply: false }, message: '已恢复' }
+    const apply = host.applyFileRewind('owner', 'input', 'a'.repeat(64))
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.files.rewind-apply', params: { sessionId: 'owner', messageId: 'input', snapshotToken: 'a'.repeat(64) } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: result }); await expect(apply).resolves.toEqual(result)
+    const recover = host.recoverFileRewind('owner', 'recovery')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.files.rewind-recover', params: { sessionId: 'owner', recoveryId: 'recovery' } })
+    receive({ type: 'mira:response', id: '2', ok: true, value: result }); await recover; host.close()
+  })
+  it('requests a read-only rewind preview with the captured owner and message', async () => {
+    const { host, port, receive } = fixture()
+    const reading = host.previewFileRewind('owner', 'input')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.files.rewind-preview', params: { sessionId: 'owner', messageId: 'input' } })
+    const preview = { messageId: 'input', safeFiles: [], unsafeFiles: [], ignoredTools: [], canApply: false }
+    receive({ type: 'mira:response', id: '1', ok: true, value: preview })
+    await expect(reading).resolves.toEqual(preview); host.close()
+  })
+  it('distinguishes omitted history attachments from explicit removal through the authorized port', async () => {
+    const { host, port, receive } = fixture()
+    const selection = { providerId: 'provider', modelId: 'model' }
+    const legacy = host.editAndRerun('owner', 'message', 'changed', selection)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.run.edit-rerun', params: { sessionId: 'owner', messageId: 'message', content: 'changed', selection } })
+    receive({ type: 'mira:response', id: '1', ok: true }); await legacy
+    const removal = host.editAndRerun('owner', 'message', 'changed', selection, [])
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.run.edit-rerun', params: { sessionId: 'owner', messageId: 'message', content: 'changed', selection, references: [] } })
+    receive({ type: 'mira:response', id: '2', ok: true }); await removal; host.close()
+  })
   it('forwards Goal controls with both target identity and expected revision', async () => {
     const { host, port, receive } = fixture()
     const selection = { providerId: 'provider', modelId: 'model' }
@@ -114,6 +192,14 @@ describe('React Harness prepare-leave handshake', () => {
     receive({ type: 'mira:response', id: '1', ok: true, value: { id: 'child', parentSessionId: 'parent' } })
     await expect(creation).resolves.toEqual({ id: 'child', parentSessionId: 'parent' })
     host.close()
+  })
+  it('captures side first-input identity and model in one scoped host request', async () => {
+    const { host, port, receive } = fixture()
+    const input = { submissionId: 'side-first', text: '一个旁路问题', selection: { providerId: 'p', modelId: 'm', thinkingLevel: 'high' as const }, permissionMode: 'default' as const }
+    const creation = host.createSideConversation('parent', input)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.session.create-side', params: { parentId: 'parent', input } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { id: 'child', parentSessionId: 'parent' } })
+    await expect(creation).resolves.toEqual({ id: 'child', parentSessionId: 'parent' }); host.close()
   })
   it('preserves the Shell search focus request and acknowledges only the matching cancellation contract', () => {
     const { host, port, receive } = fixture(), listener = vi.fn()

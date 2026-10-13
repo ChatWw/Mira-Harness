@@ -42,6 +42,28 @@ async function flush() {
 }
 
 describe('HarnessMessageQueue', () => {
+  it('batches host command results behind the current run without crossing model or permission ownership', async () => {
+    const { queue, deps, setRunning } = setup(); setRunning(true)
+    const notice = (toolId: string, permissionMode = 'default' as HarnessQueuedMessage['permissionMode']) => ({ ...input(toolId), operation: 'command-notification' as const, backgroundCommands: [{ runId: 'run', toolId }], references: [], planning: false, permissionMode })
+    const first = queue.enqueueCommandNotification(sender, notice('one'), scope)
+    queue.enqueueCommandNotification(sender, notice('two'), scope)
+    queue.enqueueCommandNotification(sender, notice('two'), scope)
+    queue.enqueueCommandNotification(sender, notice('other-mode', 'full'), scope)
+    expect(queue.get('s').items).toHaveLength(2)
+    expect(queue.get('s').items[0].backgroundCommands).toEqual([{ runId: 'run', toolId: 'one' }, { runId: 'run', toolId: 'two' }])
+    await expect(queue.sendNow('s', first.id)).rejects.toThrow('不能立即发送')
+    await flush(); expect(deps.execute).not.toHaveBeenCalled()
+    setRunning(false); queue.onRunSettled('s', 'completed'); await flush()
+    expect(vi.mocked(deps.execute).mock.calls[0][0].backgroundCommands).toHaveLength(2)
+  })
+  it('holds command-result notices after stop and permits cancellation without running a model', async () => {
+    const { queue, deps, setRunning } = setup(); setRunning(true)
+    const receipt = queue.enqueueCommandNotification(sender, { ...input(), references: [], operation: 'command-notification', backgroundCommands: [{ runId: 'run', toolId: 'one' }] }, scope)
+    setRunning(false); queue.onRunSettled('s', 'aborted'); await flush()
+    expect(queue.get('s').paused).toBe('stopped'); expect(deps.execute).not.toHaveBeenCalled()
+    expect(queue.withdraw('s', receipt.id).item.operation).toBe('command-notification')
+    expect(queue.hasPending('s')).toBe(false)
+  })
   it('keeps control identity separate from literal text, blocks duplicate compact, and releases its guard on withdrawal', async () => {
     const { queue, deps, setRunning } = setup(); setRunning(true)
     const guard = vi.fn(), command = { ...input('compact'), text: '/compact', references: [], planning: false, operation: 'context-compaction' as const }
@@ -982,12 +1004,20 @@ describe('HarnessMessageQueue', () => {
     for (const [, snapshot] of vi.mocked(deps.publish).mock.calls) expect(snapshot.error ?? '').not.toMatch(/private|fake-secret|api-key/)
   })
 
-  it.each(['工作目录已变化，请撤回消息后重新发送', '目标会话不可用', '所选模型不属于当前供应商'])('preserves only an exact known host business failure: %s', async message => {
+  it.each(['工作目录已变化，请撤回消息后重新发送', '目标会话不可用', '所选模型不属于当前供应商', '演示文稿元素引用不属于当前任务，请重新引用', '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用', '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用', '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限'])('preserves only an exact known host business failure: %s', async message => {
     const { queue, deps, submit } = setup()
     vi.mocked(deps.execute).mockRejectedValueOnce(new Error(message))
     const receipt = submit()
     await flush()
     expect(queue.get('s')).toMatchObject({ paused: 'failed', error: message, items: [{ id: receipt.id }] })
+  })
+
+  it('does not expose private paths appended to a known presentation error', async () => {
+    const { queue, deps, submit } = setup()
+    vi.mocked(deps.execute).mockRejectedValueOnce(new Error('演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用 /Users/private/deck.pptx'))
+    submit(); await flush()
+    expect(queue.get('s')).toMatchObject({ paused: 'failed', error: recoverableError })
+    for (const [, snapshot] of vi.mocked(deps.publish).mock.calls) expect(snapshot.error ?? '').not.toContain('/Users/private')
   })
 
   it('sanitizes externally supplied pause reasons before putting them in snapshots', () => {

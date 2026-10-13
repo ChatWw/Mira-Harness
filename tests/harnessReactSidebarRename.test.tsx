@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionSidebar } from '../apps/harness-react/src/components/session/SessionSidebar'
+import { SidebarCollectionSection } from '../apps/harness-react/src/components/session/SidebarCollectionSection'
 import { SidebarPreferenceStore } from '../apps/harness-react/src/components/session/sidebar-preferences'
 import type { PilotController, PilotState } from '../apps/harness-react/src/state/pilot-state'
 
@@ -11,9 +13,55 @@ beforeEach(() => { vi.stubGlobal('React', React); vi.stubGlobal('IS_REACT_ACT_EN
 afterEach(async () => { await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done }); return { promise, resolve } }
 
+async function mountCollection() {
+  const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
+  const save = vi.fn(async (_name: string) => undefined), cancel = vi.fn()
+  let id = 'project-a', renaming = true
+  const render = async () => { await act(async () => root!.render(<React.StrictMode><Tooltip.Provider><SidebarCollectionSection id={id} name="项目名称" count={0} expanded sortable={false} renaming={renaming} onRename={save} onCancelRename={cancel} onBeginRename={() => undefined} onNewTask={() => undefined} onToggle={() => undefined}>{null}</SidebarCollectionSection></Tooltip.Provider></React.StrictMode>)) }
+  await render()
+  const input = () => container.querySelector<HTMLInputElement>('input')!
+  const change = async (value: string) => { await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value); input().dispatchEvent(new Event('input', { bubbles: true })) }) }
+  const submit = async () => { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))) }
+  const key = async (value: string, options: KeyboardEventInit = {}) => { const event = new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...options }); await act(async () => input().dispatchEvent(event)); return event }
+  return { container, save, cancel, input, change, submit, key, switchTo: async (next: string) => { id = next; await render() }, reopen: async () => { renaming = false; await render(); renaming = true; await render() } }
+}
+
+describe('sidebar project and group rename ownership', () => {
+  it('does not submit or cancel while composition or legacy IME keys own the editor', async () => {
+    const view = await mountCollection(); await view.change('中文名称')
+    await act(async () => view.input().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })))
+    await view.submit(); await view.key('Enter'); await view.key('Escape')
+    expect(view.save).not.toHaveBeenCalled(); expect(view.cancel).not.toHaveBeenCalled()
+    await act(async () => view.input().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })))
+    await view.key('Enter', { keyCode: 229 }); await view.key('Escape', { keyCode: 229 })
+    expect(view.save).not.toHaveBeenCalled(); expect(view.cancel).not.toHaveBeenCalled()
+    await view.key('Enter')
+    expect(view.save).toHaveBeenCalledExactlyOnceWith('中文名称'); expect(view.cancel).toHaveBeenCalledOnce()
+  })
+
+  it('accepts a single save before React renders its disabled input', async () => {
+    const view = await mountCollection(); await view.change('只保存一次')
+    const pending = deferred<void>(); view.save.mockReturnValueOnce(pending.promise)
+    await act(async () => { const form = view.container.querySelector('form')!; form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+    expect(view.save).toHaveBeenCalledExactlyOnceWith('只保存一次')
+    expect(view.input().disabled).toBe(true); await view.key('Escape'); expect(view.cancel).not.toHaveBeenCalled()
+    await act(async () => pending.resolve()); expect(view.cancel).toHaveBeenCalledOnce()
+  })
+
+  it.each(['another-owner', 'same-owner-reopened'] as const)('does not let a pending save close the %s editor', async next => {
+    const view = await mountCollection(); await view.change('旧名称')
+    const pending = deferred<void>(); view.save.mockReturnValueOnce(pending.promise); await view.submit()
+    if (next === 'another-owner') await view.switchTo('project-b'); else await view.reopen()
+    expect(view.input().disabled).toBe(false)
+    await view.change('新的待保存名称'); await act(async () => pending.resolve())
+    expect(view.cancel).not.toHaveBeenCalled(); expect(view.input().value).toBe('新的待保存名称')
+    await view.submit(); expect(view.save).toHaveBeenLastCalledWith('新的待保存名称'); expect(view.cancel).toHaveBeenCalledOnce()
+  })
+})
+
 async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<string, unknown> = { view: 'group', sort: 'manual' }, taskPaneEntry?: { open(id: string): Promise<unknown>; canOpen(id: string): boolean }) {
   const state = { sessions: ['a', 'b'].map(id => ({ id, title: `任务 ${id.toUpperCase()}`, createdAt: 1, updatedAt: 1, status: 'active' })), projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {}, error: undefined } as PilotState
-  const controller = { getSnapshot: () => state, renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), open: vi.fn(), reportError: vi.fn() }
+  const controller = { getSnapshot: () => state, renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), navigate: vi.fn<PilotController['navigate']>(async () => undefined), open: vi.fn(), reportError: vi.fn() }
   Object.assign(state, statePatch)
   const store = new SidebarPreferenceStore(async () => preferences, async () => undefined)
   await store.load()
@@ -34,6 +82,126 @@ async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<s
 }
 
 describe('sidebar task rename through real React and Radix DOM', () => {
+  it.each(['context', 'dropdown'] as const)('opens unified model settings from the %s task menu without selecting that task', async kind => {
+    const view = await mount()
+    if (kind === 'context') await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    else await act(async () => view.row('b').querySelector<HTMLButtonElement>('.mira-session-row__more')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    const settings = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '模型设置')
+    expect(settings).toBeDefined()
+    await act(async () => settings!.click())
+    expect(view.controller.navigate).toHaveBeenCalledExactlyOnceWith('/settings/model-config', true)
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it('keeps a settings navigation failure visible on its owning row for retry', async () => {
+    const view = await mount(); view.controller.navigate.mockRejectedValueOnce(new Error('侧任务草稿未保存'))
+    await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    const settings = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '模型设置')
+    expect(settings).toBeDefined()
+    await act(async () => settings!.click())
+    expect(view.row('b').querySelector('[role="alert"]')?.textContent).toBe('侧任务草稿未保存')
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it('groups project-task management before resources in the upstream action order', async () => {
+    const view = await mount({ projects: [{ id: 'p', name: '项目', directory: '/tmp/mira', directoryExists: true, createdAt: 1, updatedAt: 1 }], sessions: [{ id: 'a', title: '项目任务', projectId: 'p', createdAt: 1, updatedAt: 1, status: 'active' }] }, { view: 'project', sort: 'manual', expandedProjectIds: ['p'] })
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    const items = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(item => item.textContent)
+    expect(items.slice(0, 4)).toEqual(['置顶', '重命名', '归档', '标记为未读'])
+    expect(items.filter(item => item === '归档')).toHaveLength(1)
+  })
+
+  it('starts grouped-task menus with group movement followed by rename, archive and unread', async () => {
+    const view = await mount({}, { view: 'group', sort: 'manual', groups: [{ id: 'g', name: '研究', color: 'blue', collapsed: false, sessionIds: ['a', 'b'] }] })
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    const items = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(item => item.textContent)
+    expect(items.slice(0, 5)).toEqual(['移动到分组', '移动到顶部', '重命名', '归档', '标记为未读'])
+    expect(items).toContain('置顶'); expect(items).toContain('复制'); expect(items).toContain('删除会话')
+  })
+
+  it('shows host net counts for the owning task without navigating or deriving them from current conversation messages', async () => {
+    const view = await mount()
+    view.state.sessions[0].changeSummary = { files: [{ key: 'net-a', path: 'note.md', tool: 'edit', writes: 4, added: 2, removed: 1 }], added: 2, removed: 1, incomplete: false, estimated: false }
+    await view.render()
+    const counts = view.row().querySelector('.mira-session-row__changes')!
+    expect(counts.textContent).toBe('+2-1')
+    expect(counts.getAttribute('aria-label')).toBe('任务净变化：新增 2 行，删除 1 行')
+    expect(view.row('b').querySelector('.mira-session-row__changes')).toBeNull()
+    expect(view.row().querySelector('time')).not.toBeNull()
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it.each(['needs_input', 'awaiting_confirmation', 'permission'] as const)('suppresses net counts while the task is waiting for %s and restores them after resolution', async state => {
+    const view = await mount()
+    view.state.sessions[0].changeSummary = { files: [], added: 8, removed: 3, incomplete: false, estimated: false }
+    if (state === 'permission') view.state.pendingPermissions.a = { requestId: 'permission-a', sessionId: 'a', title: '允许编辑', detail: '等待授权' }
+    else view.state.sessions[0].planStatus = state
+    await view.render()
+    expect(view.row().querySelector('.mira-session-row__changes')).toBeNull()
+    expect(view.row().querySelector('.mira-session-interaction')).not.toBeNull()
+    delete view.state.pendingPermissions.a; delete view.state.sessions[0].planStatus
+    await view.render()
+    expect(view.row().querySelector('.mira-session-row__changes')?.textContent).toBe('+8-3')
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it('hides verified zero counts while distinguishing incomplete and estimated totals', async () => {
+    const view = await mount()
+    view.state.sessions[0].changeSummary = { files: [], added: 0, removed: 0, incomplete: false, estimated: false }
+    await view.render()
+    expect(view.row().querySelector('.mira-session-row__changes')).toBeNull()
+    view.state.sessions[0].changeSummary.incomplete = true; await view.render()
+    let counts = view.row().querySelector('.mira-session-row__changes')!
+    expect(counts.textContent).toBe('部分')
+    expect(counts.getAttribute('aria-label')).toContain('已知：新增 0 行，删除 0 行；部分文件缺少完整快照')
+    view.state.sessions[0].changeSummary = { files: [], added: 600, removed: 0, incomplete: false, estimated: true }; await view.render()
+    counts = view.row().querySelector('.mira-session-row__changes')!
+    expect(counts.textContent).toBe('+600约')
+    expect(counts.getAttribute('title')).toBe('估算：新增 600 行，删除 0 行')
+    expect(counts.querySelector('.mira-task-change-removed')).toBeNull()
+  })
+
+  it.each(['needs_input', 'awaiting_confirmation', 'permission'] as const)('shows a visible %s capsule without time or navigation', async state => {
+    const view = await mount()
+    if (state === 'permission') view.state.pendingPermissions.a = { requestId: 'permission-a', sessionId: 'a', title: '允许读取', detail: '真实权限' }
+    else view.state.sessions[0].planStatus = state
+    await view.render()
+    const expected = state === 'needs_input' ? '需输入' : state === 'awaiting_confirmation' ? '待确认' : '待授权'
+    expect(view.row().querySelector('.mira-session-interaction')?.textContent).toBe(expected)
+    expect(view.row().querySelector('time')).toBeNull()
+    expect(view.row().querySelectorAll('.mira-session-row__action')).toHaveLength(0)
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+  it.each(['context', 'dropdown'] as const)('offers same-group move to top through the real %s menu', async kind => {
+    const view = await mount({}, { view: 'group', sort: 'manual', groups: [{ id: 'g', name: '研究', color: 'blue', collapsed: false, sessionIds: ['b', 'a'] }] })
+    if (kind === 'context') await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    else await act(async () => view.row().querySelector<HTMLButtonElement>('.mira-session-row__more')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+    const move = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === '移动到顶部')!
+    expect(move).toBeDefined()
+    await act(async () => move.click())
+    expect(view.store.getSnapshot().preferences.groups[0].sessionIds).toEqual(['a', 'b'])
+    expect(view.store.getSnapshot().preferences.ungroupedSessionOrder).toEqual([])
+    expect(view.controller.open).not.toHaveBeenCalled()
+  })
+  it('shows the actual task directory to keyboard users and suspends it while a menu is open', async () => {
+    const view = await mount({ sessions: [{ id: 'a', title: '目录任务', workingDirectory: '/tmp/mira/真实目录', createdAt: 1, updatedAt: 1, status: 'active' }] })
+    const open = view.row().querySelector<HTMLButtonElement>('.mira-session-row__open')!
+    await act(async () => open.focus())
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('/tmp/mira/真实目录')
+    expect(open.hasAttribute('title')).toBe(false); expect(view.controller.open).not.toHaveBeenCalled()
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+  })
+  it('keeps a real pending authorization visible even when an older plan status says executing', async () => {
+    const view = await mount()
+    view.state.sessions[0].planStatus = 'executing'
+    view.state.pendingPermissions.a = { requestId: 'permission-a', sessionId: 'a', title: '允许读取', detail: '真实权限' }
+    await view.render()
+    const capsule = view.row().querySelector('.mira-session-interaction')!
+    expect(capsule.textContent).toBe('待授权'); expect(capsule.getAttribute('aria-label')).toBe('等待审批')
+    delete view.state.pendingPermissions.a; await view.render()
+    expect(view.row().querySelector('.mira-session-interaction')).toBeNull(); expect(view.row().querySelector('.mira-session-status')?.getAttribute('aria-label')).toBe('执行中')
+  })
   it('opens the requested existing task through Radix and keeps failures on its owning row', async () => {
     const entry = { open: vi.fn(async (_id: string) => { throw new Error('侧面任务打开失败') }), canOpen: vi.fn((_id: string) => true) }
     const view = await mount({}, { view: 'project', sort: 'manual' }, entry)

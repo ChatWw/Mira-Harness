@@ -2,7 +2,7 @@
   <main class="harness-react-host">
     <p v-if="error" class="harness-react-host__error" role="alert">{{ error }} <router-link to="/workspace/chat">使用旧版工作台</router-link></p>
     <p v-else-if="!url" class="harness-react-host__loading">正在加载 Harness…</p>
-    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
+    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :toggle-theme="toggleShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
     <p v-if="routeError" class="harness-react-host__route-error" role="alert">{{ routeError }}</p>
   </main>
 </template>
@@ -20,6 +20,7 @@ import FirstPartyFrame from '@/pages/frontend/microAppHost/FirstPartyFrame.vue'
 const api = getPlatformApi()
 const router = useRouter()
 const theme = useThemeStore()
+function toggleShellTheme() { theme.toggleThemeMode(); return theme.themeMode }
 const manifest = firstPartyAppManifests.find(item => item.appId === 'mira-harness')!
 const context = computed(() => ({ version: 1 as const, theme: theme.themeMode, language: navigator.language, primaryColor: theme.primaryColor, onPrimary: theme.onPrimaryColor, user: { id: 'platform', name: 'Mira' } }))
 const url = ref('')
@@ -31,7 +32,23 @@ const navigationSnapshot = appNavigation.getSavedSnapshot('mira-harness')
 const navigationOwner = appNavigation.register('mira-harness', command => appFrame.value?.navigateHistory(command) ?? false)
 const navigate = (path: string) => navigateHarnessHost(router, path)
 const openCommandCenter = () => appFrame.value?.openCommandCenter()
-onBeforeUnmount(() => { navigationOwner.release(); window.removeEventListener('mira:open-harness-command-center', openCommandCenter) })
+let disposed = false
+let closing = false
+function closeContext(event: Event) {
+  event.preventDefault()
+  if (closing) return
+  closing = true; routeError.value = ''
+  const activeFrame = appFrame.value
+  void (async () => {
+    try {
+      if (!activeFrame || error.value) throw new Error('Harness 连接尚未就绪，已保留当前窗口')
+      const consumed = await activeFrame.closeContext()
+      if (!consumed && !disposed && appFrame.value === activeFrame) await api?.windowCommand('close')
+    } catch (cause) { if (!disposed) routeError.value = cause instanceof Error ? cause.message : '关闭失败，已保留当前窗口' }
+    finally { closing = false }
+  })()
+}
+onBeforeUnmount(() => { disposed = true; navigationOwner.release(); window.removeEventListener('mira:open-harness-command-center', openCommandCenter); window.removeEventListener('mira:close-active-context', closeContext) })
 onBeforeRouteLeave(async () => {
   if (!url.value || error.value) return true
   routeError.value = ''
@@ -46,6 +63,7 @@ onBeforeRouteLeave(async () => {
 })
 onMounted(async () => {
   window.addEventListener('mira:open-harness-command-center', openCommandCenter)
+  window.addEventListener('mira:close-active-context', closeContext)
   if (!api) { error.value = 'Harness 仅在 Mira 桌面版可用'; return }
   try { url.value = new URL(manifest.entry.path, await api.resolveLocalMicroAppUrl('micro-mira-harness')).href }
   catch (cause) { error.value = cause instanceof Error ? cause.message : 'Harness 资源加载失败' }

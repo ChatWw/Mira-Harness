@@ -92,6 +92,16 @@ export class SkillStore {
     return this.list().filter(skill => skill.valid && skill.enabled && selected.has(skill.id))
   }
 
+  resolveNames(names: string[]) {
+    const skills = this.list().filter(skill => skill.valid && skill.enabled)
+    return [...new Set(names.map(name => {
+      const matches = skills.filter(skill => skill.name.toLowerCase() === name.toLowerCase())
+      if (!matches.length) throw new Error(`命令需要的 Skill ${name} 已停用或不可用，请在技能设置中启用`)
+      if (matches.length > 1) throw new Error(`命令需要的 Skill ${name} 存在重名，请在技能设置中保留一个启用项`)
+      return matches[0].id
+    }))]
+  }
+
   resolvePrompt(ids: string[], prompt: string, referencedIds?: string[]) {
     const mentioned = new Set<string>(referencedIds)
     let quoteDepth = 0

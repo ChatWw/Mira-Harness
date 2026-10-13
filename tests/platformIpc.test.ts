@@ -12,6 +12,7 @@ import * as workspaceFiles from '../electron/services/harnessWorkspaceFiles'
 import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 import { PlatformDatabase } from '../electron/storage/database'
+import { MiraPaths } from '../electron/storage/miraPaths'
 import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { HarnessRuntime } from '../electron/services/harnessRuntime'
 import { miraPluginItems } from '../src/config/miraPlugins'
@@ -25,6 +26,7 @@ const electron = vi.hoisted(() => ({
   showOpenDialog: vi.fn(),
   readClipboard: vi.fn(),
   openExternal: vi.fn(async () => undefined),
+  openPath: vi.fn(async () => ''),
   guestFromId: vi.fn(),
   browserSession: { on: vi.fn() },
 }))
@@ -36,7 +38,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: electron.fromWebContents, getFocusedWindow: electron.getFocusedWindow },
   dialog: { showOpenDialog: electron.showOpenDialog },
   clipboard: { readText: electron.readClipboard },
-  shell: { openExternal: electron.openExternal },
+  shell: { openExternal: electron.openExternal, openPath: electron.openPath },
 }))
 
 import { registerPlatformIpcHandlers } from '../electron/ipc/platformIpc'
@@ -83,6 +85,29 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('reads exact-task model records and diagnostic paths through the owner grant, and rechecks revoked asynchronous access', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-trace-ipc-')), database = new PlatformDatabase(root)
+    try {
+      const task = database.harness.createSession(), other = database.harness.createSession()
+      const view = register({ database, harnessRuntime: {} as never })
+      const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+      const record = { id: 'call', sessionId: task.id, source: 'main' as const, providerId: 'local', providerName: 'Local', modelId: 'model', startedAt: 1, status: 'completed' as const, request: { messages: [{ role: 'user', content: 'EXACT_TASK' }] } }
+      database.modelTrace.write(record)
+      const paths = view.invoke('platform:first-party-harness', grant, 'session.paths', { id: task.id, path: '/untrusted' }) as any
+      expect(paths.sessionFile).toBe(new MiraPaths(root).session(task.id))
+      expect(paths.modelTrace).toBe(database.modelTrace.path(task.id))
+      expect(paths.runtimeLog).toContain('harness-')
+      expect(await view.invoke('platform:first-party-harness', grant, 'session.trace', { id: task.id, path: '/untrusted' })).toMatchObject({ sessionId: task.id, records: [record] })
+      expect(await view.invoke('platform:first-party-harness', grant, 'session.trace', { id: other.id })).toMatchObject({ records: [] })
+      expect(() => view.invokeAs(2, 'platform:first-party-harness', grant, 'session.trace', { id: task.id })).toThrow('授权无效')
+      expect(() => view.invoke('platform:first-party-harness', grant, 'session.paths', { id: '../outside' })).toThrow()
+      await view.invoke('platform:first-party-harness', grant, 'session.trace.open', { id: task.id, path: '/untrusted' })
+      expect(electron.openPath).toHaveBeenLastCalledWith(database.modelTrace.directory)
+      const read = view.invoke('platform:first-party-harness', grant, 'session.trace', { id: task.id }) as Promise<unknown>
+      view.invoke('platform:revoke-first-party-grant', grant)
+      await expect(read).rejects.toThrow('授权无效')
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
   it('persists actual built-in model overrides through owner-checked IPC and refuses fake identities', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mira-agent-model-ipc-')), database = new PlatformDatabase(root)
     try {

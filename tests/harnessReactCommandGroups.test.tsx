@@ -100,6 +100,24 @@ describe('authoritative command stages', () => {
     expect(markup).toContain('1 项失败'); expect(markup).toContain('1 项已取消')
   })
 
+  it.each([['npm test', 'npm run build'], ['cat README.md', 'ls src']])('ends the command stage when all jobs finish while the model is still streaming: %j', (a, b) => {
+    const tools = [bash('a', a, { commandJob: { mode: 'background', status: 'completed', revision: 2, startedAt: 1 } }), bash('b', b, { commandJob: { mode: 'background', status: 'failed', revision: 2, startedAt: 1 } })]
+    const markup = html(tools, true)
+    expect(markup).toContain('data-tool-group-live="false"')
+    expect(markup).not.toContain('正在执行')
+    expect(markup).not.toContain('进行中')
+    expect(markup).toContain('1 项失败')
+  })
+
+  it('keeps an actual background command active after the assistant moves to text', () => {
+    const tools = [bash('a', 'npm test', { commandJob: { mode: 'background', status: 'running', revision: 1, startedAt: 1 } }), bash('b', 'npm run build')]
+    const markup = renderToStaticMarkup(<AssistantMessageParts message={message([...tools.map(part), { id: 'later', type: 'text', text: '模型已继续', state: 'complete', startedAt: 2 }])} toolsById={new Map(tools.map(tool => [tool.id, tool]))} />)
+    expect(markup).toContain('data-tool-group-live="true"')
+    expect(markup).toContain('正在执行')
+    expect(markup).toContain('npm test')
+    expect(markup).toContain('模型已继续')
+  })
+
   it('isolates group and tool expansion between two child owners within one session', async () => {
     const memory = new MiraConversationDetailMemory(), container = document.createElement('div')
     document.body.append(container); root = createRoot(container)

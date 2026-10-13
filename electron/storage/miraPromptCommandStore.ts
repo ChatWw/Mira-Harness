@@ -6,6 +6,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { MIRA_RESERVED_PROMPT_COMMANDS, parseMiraPromptCommandInvocation, type MiraPromptCommandDelete, type MiraPromptCommandDocument, type MiraPromptCommandInput, type MiraPromptCommandItem, type MiraPromptCommandScope, type MiraPromptCommandWrite } from '../../src/config/miraPromptCommands'
 import { parseMiraPluginCommand, prepareMiraPluginCommand } from './miraPluginCommands'
 import type { MiraPaths } from './miraPaths'
+import { SkillStore } from './skillStore'
 
 const LIMIT = 256 * 1024
 const reserved = new Set<string>(MIRA_RESERVED_PROMPT_COMMANDS)
@@ -38,16 +39,21 @@ function commandName(value: string) {
   if (name.length > 256 || name.split(':').length > 5 || !/^[a-z0-9][a-z0-9._-]*(?::[a-z0-9][a-z0-9._-]*)*$/.test(name)) throw new Error('命令名称无效，需要不超过五层的名称或命名空间')
   return name
 }
-function parseSource(name: string, source: string) {
+function parseSource(name: string, source: string, skills: SkillStore) {
   const parsed = parseMiraPluginCommand(source)
-  const unavailableReason = reserved.has(name) ? '此名称属于 Mira 内置命令，不能覆盖'
-    : parsed.unavailableReason || (parsed.skills.length ? '用户/项目命令的 Skill 依赖尚未接入' : /\$\{(?:MIRA|CLAUDE|ZCODE)_PLUGIN_ROOT\}/.test(parsed.body) ? '用户/项目命令不能使用插件目录变量' : undefined)
-  return { ...parsed, unavailableReason }
+  let unavailableReason = reserved.has(name) ? '此名称属于 Mira 内置命令，不能覆盖'
+    : parsed.unavailableReason || (/\$\{(?:MIRA|CLAUDE|ZCODE)_PLUGIN_ROOT\}/.test(parsed.body) ? '用户/项目命令不能使用插件目录变量' : undefined)
+  let requiredSkillIds: string[] | undefined
+  if (!unavailableReason && parsed.skills.length) {
+    try { requiredSkillIds = skills.resolveNames(parsed.skills) }
+    catch (error) { unavailableReason = (error as Error).message }
+  }
+  return { ...parsed, unavailableReason, requiredSkillIds }
 }
 
 /** Only the host-selected project and Mira's own global directory are writable. */
 export class MiraPromptCommandStore {
-  constructor(private readonly paths: MiraPaths) {}
+  constructor(private readonly paths: MiraPaths, private readonly skills = new SkillStore(paths)) {}
 
   private root(scope: MiraPromptCommandScope, directory?: string) {
     if (scope !== 'global' && scope !== 'project') throw new Error('命令范围无效')
@@ -71,7 +77,7 @@ export class MiraPromptCommandStore {
           const name = commandName(relative(root.path, file).replace(/\.md$/i, '').split(sep).join(':'))
           if (items.some(item => item.item.name === name)) throw new Error(`命令名称冲突：${name}`)
           if (items.length >= 128) throw new Error('每个命令范围最多支持 128 个命令')
-          const source = readSource(file), parsed = parseSource(name, source)
+          const source = readSource(file), parsed = parseSource(name, source, this.skills)
           items.push({ path: file, root: root.path, item: { id: digest(`${scope}:${root.path}:${name}`), scope, name, description: parsed.description, revision: digest(source), ...(parsed.argumentHint ? { argumentHint: parsed.argumentHint } : {}), ...(parsed.unavailableReason ? { unavailableReason: parsed.unavailableReason } : {}) } })
         }
       }
@@ -124,15 +130,16 @@ export class MiraPromptCommandStore {
     if (!invocation || reserved.has(invocation.name)) return
     const entry = [...(directory ? this.entries('project', directory) : []), ...this.entries('global')].find(entry => entry.item.name === invocation.name)
     if (!entry) return
-    const root = this.root(entry.item.scope, directory), source = readSource(checked(root.base, entry.path)), parsed = parseSource(entry.item.name, source)
+    const root = this.root(entry.item.scope, directory), source = readSource(checked(root.base, entry.path)), parsed = parseSource(entry.item.name, source, this.skills)
     if (parsed.unavailableReason) throw new Error(parsed.unavailableReason)
     if (options.interactive === false && parsed.disableNonInteractive) throw new Error('此自定义命令禁止无人值守执行')
+    if (options.allowSkills === false && parsed.requiredSkillIds?.length) throw new Error('计划模式暂不能调用需要 Skill 的自定义命令，请关闭计划模式后发送')
     const prepared = prepareMiraPluginCommand(entry.item.name, parsed.body, invocation.args, entry.root, [])
     if (options.allowSkills === false && prepared.shellParts) throw new Error('计划模式暂不能调用 Shell 动态自定义命令，请关闭计划模式后发送')
-    return { id: entry.item.id, scope: entry.item.scope, name: entry.item.name, revision: digest(source), sourceRoot: entry.root, path: entry.path, ...prepared }
+    return { id: entry.item.id, scope: entry.item.scope, name: entry.item.name, revision: digest(source), sourceRoot: entry.root, path: entry.path, ...prepared, ...(parsed.requiredSkillIds ? { requiredSkillIds: parsed.requiredSkillIds } : {}) }
   }
   assert(accepted: MiraPromptCommandInput, text: string, directory?: string) {
     const current = this.resolve(text, directory)
-    if (!current || current.id !== accepted.id || current.scope !== accepted.scope || current.name !== accepted.name || current.revision !== accepted.revision || current.sourceRoot !== accepted.sourceRoot || current.path !== accepted.path || current.prompt !== accepted.prompt || JSON.stringify(current.shellParts) !== JSON.stringify(accepted.shellParts)) throw new Error('自定义命令来源或内容已变化，请撤回后重新发送')
+    if (!current || current.id !== accepted.id || current.scope !== accepted.scope || current.name !== accepted.name || current.revision !== accepted.revision || current.sourceRoot !== accepted.sourceRoot || current.path !== accepted.path || current.prompt !== accepted.prompt || JSON.stringify(current.requiredSkillIds) !== JSON.stringify(accepted.requiredSkillIds) || JSON.stringify(current.shellParts) !== JSON.stringify(accepted.shellParts)) throw new Error('自定义命令来源或内容已变化，请撤回后重新发送')
   }
 }

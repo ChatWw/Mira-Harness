@@ -59,6 +59,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
 
   const mcpConfigStore = new McpConfigStore(miraPaths)
   database.harness.recoverInterruptedSubtasks()
+  database.harness.recoverInterruptedCommands()
   const mcpAuthorization = new MiraMcpAuthorization(new MiraMcpCredentialStore(miraPaths, {
     encryptString: value => safeStorage.encryptString(value), decryptString: value => safeStorage.decryptString(value),
     isAvailable: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),

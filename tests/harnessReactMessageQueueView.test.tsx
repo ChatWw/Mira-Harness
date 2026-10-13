@@ -29,6 +29,15 @@ function mount(count = 7) {
 }
 
 describe('Mira queue panel controls', () => {
+  it('labels host command-result batches without editable output or a preempting send-now action', () => {
+    const view = mount(1)
+    view.props.queue!.items[0] = { ...item(0), text: 'internal result payload', operation: 'command-notification', backgroundCommands: [{ runId: 'run', toolId: 'one' }, { runId: 'run', toolId: 'two' }] }
+    view.props.onSendNow = vi.fn(async () => undefined); view.render()
+    expect(view.nodes(props => props.className === 'mira-message-queue__text')[0].children).toBe('后台命令结果回报 · 2 条')
+    expect(view.button('编辑待发送消息 1')).toBeUndefined()
+    expect(view.button('立即发送待发送消息 1')).toBeUndefined()
+    expect(view.button('删除待发送消息 1')).toBeDefined()
+  })
   it('keeps pending guides out of the future queue without deleting or reordering authoritative items', () => {
     const view = mount(2)
     const guide = { ...item(9), delivery: 'guide' as const, targetRunId: 'running' }

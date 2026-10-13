@@ -1,10 +1,13 @@
 /* Office preview follows ZCode previewPaneOfficeContent.tsx.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
  * Mira uses bounded, owner-authorized binary reads and lazy isolated readers. */
-import { Component, lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FileText, LoaderCircle, RotateCw } from 'lucide-react'
 import { MIRA_OFFICE_PREVIEW_LIMIT, miraMediaFormat, type MiraMediaPreview } from '../../../../../src/config/miraMedia'
 import type { PilotController } from '../../state/pilot-state'
+import { readMiraPresentationReference, type MiraPresentationReference } from '../../../../../src/config/miraPresentation'
+import type { MiraPresentationElement } from '../../lib/presentation/mira-presentation-types'
+import type { MiraPresentationNavigation } from '../../lib/mira-presentation-reference'
 
 const MiraWordReader = lazy(() => import('./MiraWordReader'))
 const MiraSheetReader = lazy(() => import('./MiraSheetReader'))
@@ -17,12 +20,16 @@ class MiraOfficeBoundary extends Component<{ children: ReactNode; onError(messag
   render() { return this.state.failed ? null : this.props.children }
 }
 
-export function MiraOfficePreview({ controller, sessionId, path, active, refresh, onRetry, onOpenLink }: {
+export function MiraOfficePreview({ controller, sessionId, path, active, refresh, onRetry, onOpenLink, onAddPresentation, presentationNavigation }: {
   controller: Pick<PilotController, 'openMediaFor' | 'closeMedia'>; sessionId: string; path: string; active: boolean; refresh: number
   onRetry(): void; onOpenLink?(url: string): void
+  onAddPresentation?(reference: MiraPresentationReference): boolean
+  presentationNavigation?: MiraPresentationNavigation
 }) {
   const identity = JSON.stringify([sessionId, path, refresh])
-  const [source, setSource] = useState<{ identity: string; buffer: ArrayBuffer }>()
+  const [source, setSource] = useState<{ identity: string; buffer: ArrayBuffer; sourceFingerprint?: string; workspaceIdentity?: string }>()
+  const latest = useRef({ identity, source, active, onAddPresentation })
+  latest.current = { identity, source, active, onAddPresentation }
   const [error, setError] = useState('')
   const failed = useCallback((message: string) => { setError(message); setSource(undefined) }, [])
   const format = miraMediaFormat(path)
@@ -41,6 +48,7 @@ export function MiraOfficePreview({ controller, sessionId, path, active, refresh
         const url = new URL(preview.url)
         if (preview.path !== path || !format || !['word', 'sheet', 'presentation'].includes(format.kind) || preview.kind !== format.kind || preview.mediaType !== format.mediaType
           || !/^[a-f0-9]{64}$/.test(preview.id) || url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port || url.username || url.password || url.search || url.hash || url.pathname !== `/mira-media/${preview.id}`) throw new Error('文档预览响应不匹配，请重试。')
+        if (preview.kind === 'presentation' && (!/^sha256:[a-f0-9]{64}$/.test(preview.sourceFingerprint || '') || !/^sha256:[a-f0-9]{64}$/.test(preview.workspaceIdentity || ''))) throw new Error('演示文稿版本信息无效，请刷新重试。')
         if (!Number.isSafeInteger(preview.byteLength) || preview.byteLength <= 0 || preview.byteLength > MIRA_OFFICE_PREVIEW_LIMIT) throw new Error('Office 文件为空或超过 25 MiB 预览上限，请使用桌面文档应用打开。')
         const length = preview.byteLength
         const response = await fetch(preview.url, { signal: cancellation.signal, credentials: 'omit', redirect: 'error' })
@@ -56,7 +64,7 @@ export function MiraOfficePreview({ controller, sessionId, path, active, refresh
           }
           if (offset !== length) throw new Error('文档读取中断，请刷新重试。')
         } finally { await reader.cancel().catch(() => undefined); reader.releaseLock() }
-        if (!cancellation.signal.aborted) setSource({ identity, buffer: buffer.buffer })
+        if (!cancellation.signal.aborted) setSource({ identity, buffer: buffer.buffer, sourceFingerprint: preview.sourceFingerprint, workspaceIdentity: preview.workspaceIdentity })
       } catch (cause) {
         if (!cancellation.signal.aborted) failed(cause instanceof Error ? cause.message : '文档读取失败，请刷新重试。')
       } finally { release() }
@@ -67,6 +75,16 @@ export function MiraOfficePreview({ controller, sessionId, path, active, refresh
   if (error) return <div className="mira-file-preview__notice" role="alert"><FileText size={22} /><p>{error}</p><button type="button" className="pilot-inline-button" onClick={onRetry}><RotateCw size={14} />重试</button></div>
   const loading = <div className="mira-file-preview__notice" role="status"><LoaderCircle size={18} className="pilot-spin" /><span>正在加载{format?.kind === 'word' ? ' Word 文档' : format?.kind === 'presentation' ? '演示文稿' : '工作簿'}…</span></div>
   const buffer = source?.identity === identity ? source.buffer : undefined
+  const addElement = async (element: MiraPresentationElement, comment: string, selectedText?: string) => {
+    const current = latest.current
+    if (!current.active || current.identity !== identity || current.source !== source || !source || !current.onAddPresentation) throw new Error('文件或任务已切换，请重新选择元素。')
+    const reference = readMiraPresentationReference({ version: 1, id: crypto.randomUUID(), sessionId, sourcePath: path, sourceFingerprint: source.sourceFingerprint,
+      workspaceIdentity: source.workspaceIdentity, element, comment, ...(selectedText ? { selectedText } : {}), capturedAt: Date.now() })
+    if (!reference) throw new Error('元素内容过长或信息无效，请选择较短的文字后重试。')
+    if (!current.onAddPresentation(reference)) throw new Error('当前对话暂不能加入引用，请处理待确认内容后重试；修改意见已保留。')
+  }
+  const wrongWorkspace = presentationNavigation && source && (presentationNavigation.reference.sessionId !== sessionId || presentationNavigation.reference.sourcePath !== path || presentationNavigation.reference.workspaceIdentity !== source.workspaceIdentity)
+  if (buffer && format?.kind === 'presentation') return <MiraOfficeBoundary key={identity} onError={failed}><Suspense fallback={loading}><div className="mira-presentation-container">{wrongWorkspace && <div role="status" className="mira-presentation__notice">引用所在的任务或工作目录已变化，请重新选择元素。</div>}<MiraPresentationReader buffer={buffer} path={path} sourceFingerprint={source?.sourceFingerprint} navigation={wrongWorkspace ? undefined : presentationNavigation} onAddElement={onAddPresentation ? addElement : undefined} onOpenLink={onOpenLink} onError={failed} /></div></Suspense></MiraOfficeBoundary>
   const Reader = format?.kind === 'presentation' ? MiraPresentationReader : format?.kind === 'word' ? /\.doc$/i.test(path) ? MiraLegacyWordReader : MiraWordReader : MiraSheetReader
   return buffer ? <MiraOfficeBoundary key={identity} onError={failed}><Suspense fallback={loading}><Reader buffer={buffer} path={path} onOpenLink={onOpenLink} onError={failed} /></Suspense></MiraOfficeBoundary> : loading
 }

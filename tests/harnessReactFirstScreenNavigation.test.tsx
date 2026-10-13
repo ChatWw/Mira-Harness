@@ -8,7 +8,7 @@ import { createMiraPromptDocument } from '../apps/harness-react/src/lib/prompt-e
 import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-drafts'
 import { AutomationsView, type AutomationsNavigationHandle } from '../apps/harness-react/src/components/automations/AutomationsView'
 import { PilotController, type PilotHost } from '../apps/harness-react/src/state/pilot-state'
-import type { HarnessActiveRun, HarnessMessage, HarnessRunSummary, HarnessSession, HarnessSubtask } from '../src/config/harness'
+import type { HarnessActiveRun, HarnessMessage, HarnessProject, HarnessRunSummary, HarnessSession, HarnessSubtask } from '../src/config/harness'
 import { parseFirstPartyNavigationPath } from '../src/platform/firstPartyNavigation'
 import { SidebarPreferenceStore } from '../apps/harness-react/src/components/session/sidebar-preferences'
 import { ProjectFileDrawer } from '../apps/harness-react/src/components/workspace/ProjectFileDrawer'
@@ -16,17 +16,21 @@ import { MiraTaskTitleEditor } from '../apps/harness-react/src/components/workbe
 import { TaskSummary } from '../apps/harness-react/src/components/conversation/TaskSummary'
 import { WorkspaceTabs } from '../apps/harness-react/src/components/workspace/WorkspaceTabs'
 import { OverviewPanel } from '../apps/harness-react/src/components/workspace/OverviewPanel'
+import { MiraCommandPane } from '../apps/harness-react/src/components/workspace/MiraCommandPane'
 import { MiraSubtaskPanel } from '../apps/harness-react/src/components/workspace/MiraSubtaskPanel'
 import { MiraSideConversation } from '../apps/harness-react/src/components/workspace/MiraSideConversation'
 import { MiraTaskGrid } from '../apps/harness-react/src/components/workspace/MiraTaskGrid'
 import { ConversationTurnRail } from '../apps/harness-react/src/components/conversation/ConversationTurnRail'
 import { MiraTaskChangesPanel } from '../apps/harness-react/src/components/workspace/MiraTaskChangesPanel'
+import { MiraPlanDetail } from '../apps/harness-react/src/components/workspace/MiraPlanDetail'
 import { miraTaskPaneIds } from '../apps/harness-react/src/state/mira-task-layout'
 import { PermissionResponseCard, type PermissionResponseCardProps } from '../apps/harness-react/src/components/conversation/AssistantMessageParts'
 import { MiraTaskFind } from '../apps/harness-react/src/components/conversation/MiraTaskFind'
 import { TerminalPanel } from '../apps/harness-react/src/components/workspace/TerminalPanel'
 import { MiraBottomTerminal } from '../apps/harness-react/src/components/workspace/MiraBottomTerminal'
 import { MiraBrowserPanel } from '../apps/harness-react/src/components/workspace/MiraBrowserPanel'
+import { WorkspaceEditorButton } from '../apps/harness-react/src/components/workspace/WorkspaceEditorButton'
+import { MiraWorkbenchHelp } from '../apps/harness-react/src/components/workbench/MiraWorkbenchHelp'
 import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNavigationState, MiraAppNavigationTarget } from '../src/platform/appNavigation'
 
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
@@ -49,7 +53,14 @@ const task = (id: string, projectId?: string): HarnessSession => ({ version: 1, 
 function fixture({ autoRestore = true, snapshot }: { autoRestore?: boolean; snapshot?: MiraAppNavigationSnapshot } = {}) {
   let records = [task('a', 'project-a'), task('b', 'project-b')]
   const commands = new Set<(command: MiraAppNavigationCommand) => void>(), restores = new Set<(snapshot: MiraAppNavigationSnapshot | undefined) => void>()
+  let theme: 'light' | 'dark' = 'light'
+  let closeContext: (() => Promise<boolean>) | undefined
   const host = {
+    onEvent: vi.fn(() => () => undefined),
+    onCloseContext: (callback: () => Promise<boolean>) => { closeContext = callback; return () => { if (closeContext === callback) closeContext = undefined } },
+    requestWorkflow: vi.fn(async () => []),
+    getTheme: () => theme, toggleTheme: vi.fn(async () => { theme = theme === 'light' ? 'dark' : 'light'; return theme }),
+    selectProject: vi.fn<() => Promise<HarnessProject | null>>(async () => null),
     getPreference: vi.fn(async (_key: string) => null), setPreference: vi.fn(async (_key: string, _value: unknown) => undefined), navigate: vi.fn(async (_path: string) => undefined),
     getSession: vi.fn(async (id: string) => records.find(item => item.id === id) ?? task(id)), listPendingPermissions: vi.fn(async () => []),
     listSessions: vi.fn(async () => records), listProjects: vi.fn(async () => [{ id: 'project-a', name: 'A', directory: '/project-a', directoryExists: true }, { id: 'project-b', name: 'B', directory: '/project-b', directoryExists: true }, { id: 'empty', name: 'Empty', directory: '/empty', directoryExists: true }]),
@@ -64,7 +75,7 @@ function fixture({ autoRestore = true, snapshot }: { autoRestore?: boolean; snap
   const controller = new PilotController(host as unknown as PilotHost)
   Object.assign(controller.getSnapshot(), { initialized: true, session: records[0], sessions: records, projects: projectFixtures() })
   const navigation = () => host.publishNavigationState.mock.lastCall![0]
-  return { controller, host, navigation, restore: (value?: MiraAppNavigationSnapshot) => restores.forEach(listener => listener(value)), go: (direction: 'back' | 'forward', expectedRevision = navigation().revision) => commands.forEach(listener => listener({ type: 'mira:app-navigation-command', direction, expectedRevision })) }
+  return { controller, host, navigation, close: () => closeContext!(), restore: (value?: MiraAppNavigationSnapshot) => restores.forEach(listener => listener(value)), go: (direction: 'back' | 'forward', expectedRevision = navigation().revision) => commands.forEach(listener => listener({ type: 'mira:app-navigation-command', direction, expectedRevision })) }
 }
 function projectFixtures() { return [{ id: 'project-a', name: 'A', directory: '/project-a', directoryExists: true }, { id: 'project-b', name: 'B', directory: '/project-b', directoryExists: true }, { id: 'empty', name: 'Empty', directory: '/empty', directoryExists: true }] }
 
@@ -102,6 +113,222 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('first-screen navigation owns each awaited transition', () => {
+  it('uses the ZCode draft and task header action order without an editor on an unsent task', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const actions = () => React.Children.toArray(view.props(p => String(p.className).startsWith('harness-thread-header__actions')).children as React.ReactNode).filter(React.isValidElement)
+    expect(actions().some(element => element.type === WorkspaceEditorButton)).toBe(false)
+    expect(actions()[0].type).toBe(MiraWorkbenchHelp)
+    controller.getSnapshot().messages = [{ id: 'user', role: 'user', content: '已有任务', createdAt: 1 }]
+    view.render(); await view.drain()
+    expect(actions()[0].type).toBe(WorkspaceEditorButton)
+    expect(actions()[1].type).toBe(MiraWorkbenchHelp)
+    controller.getSnapshot().messages = []
+    view.render(); await view.drain()
+    expect(actions().some(element => element.type === WorkspaceEditorButton)).toBe(false)
+    view.unmount()
+  })
+  it('uses the ZCode panel close control and restores the header entry without removing resources', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    ;(view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    await tabs().onOpen('browser'); await view.drain()
+    const resourceId = tabs().active
+    expect(() => view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function')).toThrow('Missing workbench element')
+    tabs().onDismiss(); await view.drain()
+    expect(view.props(p => p.id === 'pilot-workspace')['aria-hidden']).toBe(true)
+    expect(tabs().active).toBe(resourceId); expect(tabs().tabs).toHaveLength(1)
+    ;(view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
+    expect(view.props(p => p.id === 'pilot-workspace')['aria-hidden']).toBe(false)
+    expect(tabs().active).toBe(resourceId)
+    view.unmount()
+  })
+  it('closes a measured bottom terminal even when the panel library resets its previous-size snapshot', () => {
+    const { controller } = fixture(), onClose = vi.fn()
+    const tree = MiraBottomTerminal({ controller, sessionId: 'a', directory: '/project', retainedSessionIds: ['a'], open: true, active: true, onClose, onFocus: vi.fn(), onOpenAddress: vi.fn(), children: null })
+    const panel = React.Children.toArray(tree.props.children).find(node => React.isValidElement<{ className: string }>(node) && node.props.className === 'mira-bottom-terminal-panel') as React.ReactElement<{ onResize(size: { asPercentage: number; inPixels: number }, id: string, previous?: { asPercentage: number; inPixels: number }): void }>
+    panel.props.onResize({ asPercentage: 0, inPixels: 0 }, 'mira-bottom-terminal-panel')
+    expect(onClose).not.toHaveBeenCalled()
+    panel.props.onResize({ asPercentage: 30, inPixels: 240 }, 'mira-bottom-terminal-panel')
+    panel.props.onResize({ asPercentage: 0, inPixels: 0 }, 'mira-bottom-terminal-panel', { asPercentage: 0, inPixels: 0 })
+    expect(onClose).toHaveBeenCalledOnce()
+    panel.props.onResize({ asPercentage: 0, inPixels: 0 }, 'mira-bottom-terminal-panel')
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('keeps terminal collapse synchronized when ResizeObserver coalesces a requested reopen and End', () => {
+    const { controller } = fixture(), onClose = vi.fn(), resize = vi.fn()
+    const tree = MiraBottomTerminal({ controller, sessionId: 'a', retainedSessionIds: ['a'], open: true, active: true, onClose, onFocus: vi.fn(), onOpenAddress: vi.fn(), children: null })
+    const panel = React.Children.toArray(tree.props.children).find(node => React.isValidElement<{ className: string }>(node) && node.props.className === 'mira-bottom-terminal-panel') as React.ReactElement<{ panelRef: { current: unknown }; onResize(size: { asPercentage: number; inPixels: number }, id: string): void }>
+    panel.props.onResize({ asPercentage: 0, inPixels: 0 }, 'mira-bottom-terminal-panel'); expect(onClose).not.toHaveBeenCalled()
+    panel.props.panelRef.current = { resize }
+    hooks.effects.splice(0).forEach(effect => effect())
+    expect(resize).toHaveBeenCalledWith('240px')
+    panel.props.onResize({ asPercentage: 0, inPixels: 0 }, 'mira-bottom-terminal-panel')
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it.each(['MacIntel', 'Win32'])('matches resource and terminal physical keys when the layout changes characters on %s', async platform => {
+    vi.stubGlobal('navigator', { platform })
+    const listeners = new Set<(event: KeyboardEvent) => void>()
+    vi.mocked(window.addEventListener).mockImplementation((type, listener) => { if (type === 'keydown') listeners.add(listener as (event: KeyboardEvent) => void) })
+    vi.mocked(window.removeEventListener).mockImplementation((type, listener) => { if (type === 'keydown') listeners.delete(listener as (event: KeyboardEvent) => void) })
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const key = async (options: Partial<KeyboardEvent>) => {
+      const event = { key: '∫', code: 'KeyB', metaKey: platform === 'MacIntel', ctrlKey: platform === 'Win32', altKey: true, shiftKey: false, repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, target: null, preventDefault() { this.defaultPrevented = true }, stopPropagation: vi.fn(), ...options } as unknown as KeyboardEvent
+      listeners.forEach(listener => listener(event)); await view.drain(); return event
+    }
+    const workspace = () => String(view.props(props => props.id === 'mira-inspector').className).includes(' is-open')
+    for (const options of [{ metaKey: true, ctrlKey: true }, { metaKey: platform === 'Win32', ctrlKey: platform === 'MacIntel' }, { shiftKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { code: 'KeyV' }, { altKey: false }]) {
+      await key(options); expect(workspace()).toBe(false)
+    }
+    const querySelector = vi.fn(() => ({})); Object.assign(document, { querySelector })
+    expect((await key({})).defaultPrevented).toBe(false); expect(workspace()).toBe(false)
+    querySelector.mockReturnValue(null as any)
+    expect((await key({})).defaultPrevented).toBe(true); expect(workspace()).toBe(true)
+    expect((await key({ key: 'B', code: '' })).defaultPrevented).toBe(true); expect(workspace()).toBe(false)
+    expect((await key({ key: 'о', code: 'KeyJ', altKey: false })).defaultPrevented).toBe(true)
+    expect(view.props((_, element) => element.type === MiraBottomTerminal).open).toBe(true)
+    expect((await key({ key: 'J', code: '', altKey: false })).defaultPrevented).toBe(true)
+    expect(view.props((_, element) => element.type === MiraBottomTerminal).open).toBe(false)
+    view.unmount(); expect(listeners.size).toBe(0)
+  })
+
+  it('closes only the visible active resource and grants window fallback only after drafts save', async () => {
+    const { controller, close } = fixture(), view = mount(controller); await view.drain()
+    const flush = vi.spyOn(controller, 'flushBeforeNavigation')
+    expect(await close()).toBe(false); expect(flush).toHaveBeenCalledWith(false)
+    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    await tabs().onOpen('terminal'); await view.drain(); const first = tabs().active
+    await tabs().onOpen('browser'); await view.drain(); const second = tabs().active
+    expect(await close()).toBe(true); await view.drain()
+    expect(tabs().tabs.map(tab => tab.id)).toEqual([first]); expect(tabs().recentClosedTabs?.some(tab => tab.id === second)).toBe(true)
+    flush.mockRejectedValueOnce(new Error('save blocked'))
+    expect(await close()).toBe(true); await view.drain(); expect(tabs().tabs.map(tab => tab.id)).toEqual([first])
+    expect(controller.getSnapshot().error).toContain('工作台保存失败')
+    tabs().onDismiss(); await view.drain()
+    expect(await close()).toBe(false); await view.drain(); expect(tabs().tabs.map(tab => tab.id)).toEqual([first])
+    flush.mockRejectedValueOnce(new Error('fallback save blocked')); expect(await close()).toBe(true)
+    expect(controller.getSnapshot().error).toContain('已保留当前标签和窗口')
+    view.unmount()
+  })
+  it('consumes a stale window fallback when a new resource opens during its save', async () => {
+    const { controller, close } = fixture(), view = mount(controller); await view.drain()
+    const held = deferred<void>(); vi.spyOn(controller, 'flushBeforeNavigation').mockReturnValueOnce(held.promise)
+    const closing = close()
+    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    await tabs().onOpen('browser'); await view.drain(); held.resolve(); expect(await closing).toBe(true)
+    expect(tabs().tabs).toHaveLength(1); view.unmount()
+  })
+  it('does not publish a late failed close into a newly selected task', async () => {
+    const { controller, close } = fixture(), view = mount(controller); await view.drain()
+    const held = deferred<void>(); vi.spyOn(controller, 'flushBeforeNavigation').mockReturnValueOnce(held.promise)
+    const report = vi.spyOn(controller, 'reportError'), closing = close()
+    await view.sidebar().onOpenSession('b'); await view.drain(); held.reject(new Error('old save failed'))
+    expect(await closing).toBe(true); expect(controller.getSnapshot().session?.id).toBe('b'); expect(report).not.toHaveBeenCalled()
+    view.unmount()
+  })
+  it('switches the Shell theme without navigating or flushing task drafts', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    const flush = vi.spyOn(controller, 'flushBeforeNavigation')
+    expect(view.commandCenter().commands.find(command => command.id === 'theme')?.label).toBe('切换为深色模式')
+    expect(await view.command('theme')).toBe(true); await view.drain()
+    expect(view.commandCenter().commands.find(command => command.id === 'theme')?.label).toBe('切换为浅色模式')
+    expect(host.toggleTheme).toHaveBeenCalledOnce(); expect(flush).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().session?.id).toBe('a'); expect(host.navigate).not.toHaveBeenCalled()
+    view.unmount()
+  })
+  it('holds duplicate theme toggles and allows retry after the owner rejects', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    const held = deferred<'light' | 'dark'>(); host.toggleTheme.mockReturnValueOnce(held.promise)
+    const first = view.command('theme'); expect(await view.command('theme')).toBe(false)
+    held.reject(new Error('主题切换失败')); await expect(first).rejects.toThrow('主题切换失败')
+    expect(await view.command('theme')).toBe(true); expect(host.toggleTheme).toHaveBeenCalledTimes(2)
+    view.unmount()
+  })
+  it('preserves the current task on project picker cancellation and save failure', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    expect(await view.command('open-project')).toBe(false); expect(controller.getSnapshot().session?.id).toBe('a')
+    vi.spyOn(controller, 'flushBeforeNavigation').mockRejectedValueOnce(new Error('输入未保存'))
+    await expect(view.command('open-project')).rejects.toThrow('输入未保存')
+    expect(host.selectProject).toHaveBeenCalledOnce(); expect(host.createSession).not.toHaveBeenCalled()
+    view.unmount()
+  })
+  it('opens the selected project as a draft only after saving, without creating or submitting a task', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    const order: string[] = []; vi.spyOn(controller, 'flushBeforeNavigation').mockImplementation(async () => { order.push('save') })
+    host.selectProject.mockImplementationOnce(async () => { order.push('select'); return projectFixtures()[2] })
+    expect(await view.command('open-project')).toBe(true); await view.drain()
+    expect(order[0]).toBe('save'); expect(order[1]).toBe('select')
+    expect(controller.getSnapshot().session).toBeUndefined()
+    expect(view.pageProps((_, element) => element.type === HarnessComposer).draftProjectId).toBe('empty')
+    expect(host.createSession).not.toHaveBeenCalled(); expect(host.prepareSession).not.toHaveBeenCalled()
+    view.unmount()
+  })
+  it('does not let a late directory picker replace a newer task, and prevents duplicate pickers', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    const held = deferred<HarnessProject | null>(); host.selectProject.mockReturnValueOnce(held.promise)
+    const first = view.command('open-project'); await view.drain()
+    expect(await view.command('open-project')).toBe(false); expect(host.selectProject).toHaveBeenCalledOnce()
+    await (view.sidebar().onOpenSession as (id: string) => Promise<void>)('b'); await view.drain()
+    held.resolve(projectFixtures()[2]); expect(await first).toBe(false); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    view.unmount()
+  })
+  it('rejects an unavailable project directory without changing the current task', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    host.selectProject.mockResolvedValueOnce({ ...projectFixtures()[2], directoryExists: false })
+    await expect(view.command('open-project')).rejects.toThrow('所选项目目录不可用')
+    expect(controller.getSnapshot().session?.id).toBe('a'); view.unmount()
+  })
+  it('exposes adjacent tasks separately from history and saves drafts before opening', async () => {
+    const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    const saved = deferred<void>(), flush = vi.spyOn(controller, 'flushBeforeNavigation').mockReturnValueOnce(saved.promise).mockResolvedValue(undefined)
+    const switching = view.command('next-task')
+    expect(host.getSession).not.toHaveBeenCalled()
+    expect(await view.command('next-task')).toBe(false)
+    saved.resolve(); expect(await switching).toBe(true); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    expect(flush).toHaveBeenCalled(); expect(host.getSession).toHaveBeenCalledExactlyOnceWith('b')
+    expect(await view.command('next-task')).toBe(false)
+    expect(await view.command('previous-task')).toBe(true); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    expect(view.commandCenter().commands.find(command => command.id === 'next-task')?.shortcut).toContain(']')
+    view.unmount()
+  })
+
+  it('keeps the original task and history if saving before adjacent navigation fails', async () => {
+    const { controller, host, navigation } = fixture(), view = mount(controller); await view.drain()
+    const before = navigation().snapshot
+    vi.spyOn(controller, 'flushBeforeNavigation').mockRejectedValueOnce(new Error('任务草稿保存失败'))
+    await expect(view.command('next-task')).rejects.toThrow('任务草稿保存失败'); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('a'); expect(navigation().snapshot).toEqual(before)
+    expect(host.getSession).not.toHaveBeenCalled()
+    expect(await view.command('next-task')).toBe(true); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    view.unmount()
+  })
+
+  it('does not navigate to another directory even when it shares the project', async () => {
+    const { controller, host } = fixture()
+    controller.getSnapshot().sessions[1].workingDirectory = '/other-directory'
+    controller.getSnapshot().sessions[1].projectId = 'project-a'
+    const view = mount(controller); await view.drain()
+    expect(await view.command('next-task')).toBe(false); expect(host.getSession).not.toHaveBeenCalled()
+    view.unmount()
+  })
+
+  it('switches relative to the focused side task without replacing the main task', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const entry = view.sidebar().taskPaneEntry as { open: (id: string) => Promise<boolean> }
+    await entry.open('b'); await view.drain()
+    expect(view.sidebar().activeSessionId).toBe('b')
+    expect(await view.command('previous-task')).toBe(true); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('a'); expect(view.sidebar().activeSessionId).toBe('a')
+    view.unmount()
+  })
+
   it('replaces only the focused anonymous side pane when selecting another ungrouped sidebar task', async () => {
     const { controller, host } = fixture()
     Object.assign(controller.getSnapshot(), { session: undefined })
@@ -171,6 +398,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const { controller: parentController } = fixture(), { controller: sideController } = fixture()
     const activity = { id: 'side-step', kind: 'plan' as const, label: '侧面步骤', status: 'running' as const, startedAt: 1 }
     const side = { ...task('b'), activeRun: { id: 'side-run', startedAt: 1, activities: [activity], subtasks: [] }, activePlan: { id: 'side-plan', status: 'awaiting_confirmation' as const, request: '侧面计划', understanding: '仅确认侧面任务', steps: [], risks: [], createdAt: 1, updatedAt: 1 }, pendingInteraction: { id: 'side-review', kind: 'plan-review' as const, status: 'waiting' as const, planId: 'side-plan', createdAt: 1 } }
+    side.toolCalls = [{ id: 'side-submission', tool: 'present_plan', status: 'ok', createdAt: 1, input: { text: JSON.stringify({ understanding: '# 侧面方案', steps: [{ label: '仅修改侧面任务' }] }), truncated: false } }]
     const messages: HarnessMessage[] = [{ id: 'side-user', role: 'user', content: '侧面请求', createdAt: 1 }, { id: 'side-reply', role: 'assistant', content: '侧面回复', createdAt: 2, fileChanges: [{ path: 'side-only.md', tool: 'write', toolCallId: 'side-write', diff: '+侧面内容' }] }]
     Object.assign(sideController.getSnapshot(), { session: side, messages })
     parentController.getSnapshot().messages = [{ id: 'main-reply', role: 'assistant', content: '主任务', createdAt: 2, fileChanges: [{ path: 'main-only.md', tool: 'write', toolCallId: 'main-write' }] }]
@@ -190,6 +418,16 @@ describe('first-screen navigation owns each awaited transition', () => {
     render()
     const summary = () => find(node => node.type === TaskSummary) as unknown as React.ComponentProps<typeof TaskSummary>
     expect(summary().activities).toEqual([activity]); expect(summary().changes).toBe(1)
+    expect(summary().plans?.map(plan => plan.id)).toEqual(['side-submission'])
+    summary().onOpenPlan!('side-submission'); render()
+    expect((find(node => node.type === MiraPlanDetail).plan as { id: string }).id).toBe('side-submission')
+    expect(find(node => node.props.className === 'mira-side-conversation__header').children).toEqual(expect.arrayContaining([expect.objectContaining({ props: expect.objectContaining({ children: '方案详情' }) })]))
+    expect(find(node => node.type === HarnessComposer).active).toBe(false)
+    expect(side.pendingInteraction.status).toBe('waiting')
+    ;(find(node => node.props['aria-label'] === '返回侧面任务').onClick as () => void)(); render()
+    expect(find(node => node.type === HarnessComposer).active).toBe(true)
+    summary().onOpenPlan!('unknown-plan'); render()
+    expect(() => find(node => node.type === MiraPlanDetail)).toThrow('Missing scoped task element')
     summary().onOpenProgress!(); render()
     expect(find(node => node.type === OverviewPanel)).toMatchObject({ sessionId: 'b', runId: 'side-run' })
     ;(find(node => node.props['aria-label'] === '返回侧面任务').onClick as () => void)(); render()
@@ -580,9 +818,9 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(side().keyboardActive).toBe(true); expect(mainFind().keyboardActive).toBe(false)
     await view.command('find'); await view.drain()
     expect(mainFind().keyboardActive).toBe(true); expect(side().keyboardActive).toBe(false)
-    if (!workspace()['aria-expanded']) { (workspace().onClick as () => void)(); await view.drain() }
+    if (view.props(props => props.id === 'pilot-workspace')['aria-hidden']) { (workspace().onClick as () => void)(); await view.drain() }
     ;(side().onFocus as () => void)(); await view.drain()
-    ;(workspace().onClick as () => void)(); await view.drain()
+    ;(view.props((_, element) => element.type === WorkspaceTabs).onDismiss as () => void)(); await view.drain()
     expect(mainFind().keyboardActive).toBe(true); expect(side().active).toBe(false)
     view.unmount()
   })
@@ -602,7 +840,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(mainFind().keyboardActive).toBe(true); expect(composer().keyboardActive).toBe(true)
     ;(resource().onPointerDownCapture as () => void)(); await view.drain()
     expect(composer().keyboardActive).toBe(false)
-    ;(toggle().onClick as () => void)(); await view.drain()
+    ;(view.props((_, element) => element.type === WorkspaceTabs).onDismiss as () => void)(); await view.drain()
     expect(mainFind().keyboardActive).toBe(true); expect(composer().keyboardActive).toBe(true)
     view.unmount()
   })
@@ -625,7 +863,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     browser().onRequestHandled(firstRequest); await view.drain(); expect(browser().request?.url).toBe('https://mira.test/second')
     browser().onRequestHandled(browser().request!); await view.drain()
     tabs().onActivate(terminalId); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    tabs().onDismiss(); await view.drain()
     oldCallback('https://mira.test/closed'); await view.drain(); expect(tabs().active).toBe(terminalId)
     await view.sidebar().onOpenSession('b'); await view.drain()
     oldCallback('https://mira.test/wrong-task'); await view.drain(); expect(tabs().tabs).toEqual([])
@@ -694,6 +932,52 @@ describe('first-screen navigation owns each awaited transition', () => {
     await opening; await view.drain()
     expect(controller.getSnapshot().session).toBeUndefined()
     expect(createSideConversation).toHaveBeenCalledExactlyOnceWith('a')
+    expect(host.getSession).not.toHaveBeenCalled()
+    const saved = host.setPreference.mock.calls.filter(call => call[0] === 'harness-react-workspace').at(-1)?.[1] as Record<string, { tabs: Array<{ childSessionId?: string }> }>
+    expect(saved.a.tabs).toEqual([expect.objectContaining({ childSessionId: 'side' })])
+    view.unmount()
+  })
+  it('admits each side first input independently from a bare side creation', async () => {
+    const { controller, host } = fixture()
+    const bare = deferred<HarnessSession>(), first = deferred<HarnessSession>(), second = deferred<HarnessSession>()
+    const createSideConversation = vi.fn((_parent: string, input?: { submissionId: string }) => input?.submissionId === 'first' ? first.promise : input ? second.promise : bare.promise)
+    Object.assign(host, { createSideConversation })
+    const view = mount(controller); await view.drain()
+    const open = view.pageProps((_, element) => element.type === HarnessComposer).onOpenSideConversation as (input?: { submissionId: string; text: string; selection: { providerId: string; modelId: string } }) => Promise<boolean>
+    const input = { submissionId: 'first', text: '检查问题', selection: { providerId: 'provider', modelId: 'model' } }
+    const empty = open(), one = open(input), two = open({ ...input, submissionId: 'second', text: '另一个问题' })
+    await view.drain()
+    expect(createSideConversation).toHaveBeenCalledTimes(3)
+    expect(createSideConversation).toHaveBeenNthCalledWith(2, 'a', input)
+    bare.resolve({ ...task('bare'), parentSessionId: 'a' }); first.resolve({ ...task('first'), parentSessionId: 'a' }); second.resolve({ ...task('second'), parentSessionId: 'a' })
+    await expect(one).resolves.toBe(true); await expect(two).resolves.toBe(true); await empty; await view.drain()
+    const saved = host.setPreference.mock.calls.filter(call => call[0] === 'harness-react-workspace').at(-1)?.[1] as Record<string, { tabs: Array<{ childSessionId?: string }> }>
+    expect(saved.a.tabs.map(tab => tab.childSessionId)).toEqual(['bare', 'first', 'second'])
+    view.unmount()
+  })
+  it('propagates side first-input failure to preserve the Composer draft and allow a retry', async () => {
+    const { controller, host } = fixture()
+    const createSideConversation = vi.fn().mockRejectedValueOnce(new Error('提交失败')).mockResolvedValueOnce({ ...task('side'), parentSessionId: 'a' })
+    Object.assign(host, { createSideConversation })
+    const view = mount(controller); await view.drain()
+    const input = { submissionId: 'retry', text: '保持原问题', selection: { providerId: 'provider', modelId: 'model' } }
+    const open = view.pageProps((_, element) => element.type === HarnessComposer).onOpenSideConversation as (request: typeof input) => Promise<boolean>
+    await expect(open(input)).rejects.toThrow('提交失败'); await view.drain()
+    await expect(open(input)).resolves.toBe(true); await view.drain()
+    expect(createSideConversation.mock.calls).toEqual([['a', input], ['a', input]])
+    view.unmount()
+  })
+  it('attaches an accepted side first input to its original owner after navigation', async () => {
+    const { controller, host } = fixture()
+    const creation = deferred<HarnessSession>()
+    Object.assign(host, { createSideConversation: vi.fn(() => creation.promise) })
+    const view = mount(controller); await view.drain()
+    const input = { submissionId: 'late', text: '原任务问题', selection: { providerId: 'provider', modelId: 'model' } }
+    const open = view.pageProps((_, element) => element.type === HarnessComposer).onOpenSideConversation as (request: typeof input) => Promise<boolean>
+    const opening = open(input); await view.drain(); view.newTask(); await view.drain()
+    creation.resolve({ ...task('side'), parentSessionId: 'a' })
+    await expect(opening).resolves.toBe(true); await view.drain()
+    expect(controller.getSnapshot().session).toBeUndefined()
     expect(host.getSession).not.toHaveBeenCalled()
     const saved = host.setPreference.mock.calls.filter(call => call[0] === 'harness-react-workspace').at(-1)?.[1] as Record<string, { tabs: Array<{ childSessionId?: string }> }>
     expect(saved.a.tabs).toEqual([expect.objectContaining({ childSessionId: 'side' })])
@@ -1221,7 +1505,7 @@ describe('Header and sidebar own one persisted grouping store', () => {
     const view = headerFixture(); await view.drain()
     const store = view.sidebar().preferenceStore as SidebarPreferenceStore
     const commandKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl '
-    expect(view.props(p => p['aria-label'] === '会话')['aria-keyshortcuts']).toBe('Meta+B Control+B')
+    expect(view.props(p => p['aria-label'] === '会话')['aria-keyshortcuts']).toBe(commandKey === '⌘' ? 'Meta+B' : typeof navigator === 'undefined' || !navigator.platform ? 'Meta+B Control+B' : 'Control+B')
     expect(view.props(p => p.title === `收起会话侧栏 (${commandKey}B)`)).toBeDefined()
     ;(view.props(p => p['aria-label'] === '会话').onClick as () => void)(); await view.drain()
     expect(view.props(p => p.className === 'mira-sidebar-panel')).toMatchObject({ 'aria-hidden': true, inert: true })
@@ -1516,6 +1800,44 @@ describe('Workbench run and child panels keep their captured owners', () => {
     expect(api.overview()).toMatchObject({ sessionId: 'a', runId: 'run-a', active: true, session: api.controller.getSnapshot().session })
     expect(api.view.props(props => props.id === 'pilot-workspace')['aria-hidden']).toBe(false)
     expect(api.host.prepareSession).not.toHaveBeenCalled(); expect(api.host.createSession).not.toHaveBeenCalled()
+  })
+
+  it('opens the exact command from summary, retains history on a new run and rejects a stale task callback', async () => {
+    const api = runFixture()
+    api.controller.getSnapshot().session!.toolCalls = [{ id: 'bash-one', runId: 'run-a', tool: 'bash', status: 'running', createdAt: 1, input: { text: JSON.stringify({ command: 'npm run build' }), truncated: false }, output: { text: 'real snapshot', truncated: false } }]
+    await api.view.drain()
+    const opening = api.summary().onOpenCommand!
+    expect(api.summary().commands?.map(tool => tool.id)).toEqual(['bash-one'])
+    opening('run-a', 'bash-one'); await api.view.drain()
+    const original = api.tabs().tabs[0]
+    expect(original).toMatchObject({ runId: 'run-a', commandToolId: 'bash-one', label: 'npm run build' })
+    const pane = () => api.view.props((_, element) => element.type === MiraCommandPane) as unknown as React.ComponentProps<typeof MiraCommandPane>
+    expect(pane()).toMatchObject({ sessionId: 'a', runId: 'run-a', toolId: 'bash-one', active: true })
+    api.nextRun(); await api.view.drain()
+    expect(api.summary().commands).toEqual([])
+    expect(pane()).toMatchObject({ runId: 'run-a', toolId: 'bash-one' })
+    api.tabs().onClose(original.id); await api.view.drain()
+    api.tabs().onReopen(original.id); await api.view.drain()
+    expect(pane()).toMatchObject({ runId: 'run-a', toolId: 'bash-one' })
+    await api.openOtherSession(); opening('run-a', 'bash-one'); await api.view.drain()
+    expect(api.tabs().tabs).toEqual([])
+    expect(api.host.prepareSession).not.toHaveBeenCalled()
+  })
+
+  it('routes overview commands to output and never substitutes a different run or ambiguous execution', async () => {
+    const api = runFixture()
+    const tool = { id: 'bash-one', runId: 'run-a', tool: 'bash', status: 'ok' as const, createdAt: 1, target: 'printf result' }
+    api.controller.getSnapshot().session!.toolCalls = [tool]
+    await api.view.drain(); api.summary().onOpenProgress!(); await api.view.drain()
+    api.overview().onOpenCommand!('run-a', 'bash-one'); await api.view.drain()
+    expect(api.tabs().tabs).toHaveLength(2)
+    const before = api.tabs().active
+    api.summary().onOpenCommand!('other-run', 'bash-one'); await api.view.drain()
+    expect(api.tabs().active).toBe(before)
+    api.controller.getSnapshot().session!.toolCalls = [tool, { ...tool }]
+    api.tabs().onActivate('overview'); await api.view.drain()
+    api.overview().onOpenCommand!('run-a', 'bash-one'); await api.view.drain()
+    expect(api.tabs().active).toBe('overview')
   })
 
   it('opens the captured Header run, including a historical run after a newer run starts', async () => {

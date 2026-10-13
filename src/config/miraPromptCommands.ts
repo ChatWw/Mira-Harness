@@ -31,6 +31,8 @@ export interface MiraPromptCommandInput {
   sourceRoot: string
   path: string
   prompt: string
+  /** Local enabled Skill identities resolved by the host from command metadata. */
+  requiredSkillIds?: string[]
   shellParts?: Array<{ text: string } | { command: string }>
   expandedPrompt?: string
   expansionStatus?: 'running' | 'complete' | 'failed'

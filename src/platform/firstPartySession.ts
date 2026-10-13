@@ -8,6 +8,7 @@ export class FirstPartyConnectionSession {
   private active?: { grantId: string; port: FirstPartyPortLike }
   private leaveSequence = 0
   private pendingLeave = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
+  private pendingClose = new Map<string, { resolve: (consumed: boolean) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
 
   constructor(private readonly revoke: (grantId: string) => void | Promise<void>) {}
 
@@ -65,6 +66,29 @@ export class FirstPartyConnectionSession {
     return true
   }
 
+  closeContext(send: (message: { type: 'mira:close-context'; id: string }) => void): Promise<boolean> {
+    if (!this.active) return Promise.reject(new Error('Harness 连接尚未就绪，已保留当前窗口'))
+    const id = `close-${++this.leaveSequence}`
+    return new Promise<boolean>((resolve, reject) => {
+      const timer = setTimeout(() => { this.pendingClose.delete(id); reject(new Error('关闭确认超时，已保留当前窗口，请重试')) }, 5000)
+      this.pendingClose.set(id, { resolve, reject, timer })
+      try { send({ type: 'mira:close-context', id }) }
+      catch (error) { clearTimeout(timer); this.pendingClose.delete(id); reject(error instanceof Error ? error : new Error('Harness 连接已关闭')) }
+    })
+  }
+
+  receiveCloseReady(value: unknown) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || (value as { type?: unknown }).type !== 'mira:close-ready') return false
+    const message = value as { id?: unknown; ok?: unknown; consumed?: unknown; error?: unknown }
+    if (Object.keys(value).some(key => !['type', 'id', 'ok', 'consumed', 'error'].includes(key)) || typeof message.id !== 'string' || typeof message.ok !== 'boolean' || message.ok && typeof message.consumed !== 'boolean') return true
+    const pending = this.pendingClose.get(message.id)
+    if (!pending) return true
+    this.pendingClose.delete(message.id); clearTimeout(pending.timer)
+    if (message.ok) pending.resolve(message.consumed as boolean)
+    else pending.reject(new Error(typeof message.error === 'string' ? message.error : '关闭失败，已保留当前窗口'))
+    return true
+  }
+
   invalidate() {
     this.generation += 1
     const previous = this.active
@@ -74,6 +98,8 @@ export class FirstPartyConnectionSession {
       pending.reject(new Error('Harness 连接已失效，草稿尚未确认保存'))
     }
     this.pendingLeave.clear()
+    for (const pending of this.pendingClose.values()) { clearTimeout(pending.timer); pending.reject(new Error('Harness 连接已失效，已保留当前窗口')) }
+    this.pendingClose.clear()
     previous?.port.close()
     if (previous) void Promise.resolve(this.revoke(previous.grantId)).catch(() => undefined)
   }

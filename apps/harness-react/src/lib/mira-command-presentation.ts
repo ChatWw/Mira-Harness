@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from '../../../../src/config/harness'
+import type { HarnessSession, ToolCallRecord } from '../../../../src/config/harness'
 
 export type MiraExplorationKind = 'read' | 'list' | 'search'
 
@@ -12,6 +12,19 @@ export function miraCompleteCommand(tool: ToolCallRecord): string | undefined {
 }
 
 export function miraRecordedCommand(tool: ToolCallRecord) { return miraCompleteCommand(tool) ?? tool.target }
+
+/** Presentation only: a successful launch can still own a running or failed process. */
+export function miraCommandExecutionStatus(tool: ToolCallRecord): ToolCallRecord['status'] {
+  const job = tool.tool === 'bash' && !tool.inherited ? tool.commandJob : undefined
+  return !job ? tool.status : job.status === 'running' ? 'running' : job.status === 'completed' ? 'ok' : job.status === 'failed' ? 'failed' : 'cancelled'
+}
+
+/** Never replace a missing execution with a newer command or a provider call ID. */
+export function miraSessionCommand(session: HarnessSession | undefined, sessionId: string, runId: string, toolId: string) {
+  if (session?.id !== sessionId) return undefined
+  const matches = session.toolCalls.filter(tool => tool.tool === 'bash' && tool.runId === runId && tool.id === toolId)
+  return matches.length === 1 ? matches[0] : undefined
+}
 
 /** Display semantics only, never an authorization or shell execution policy. */
 function staticCommandSegments(command: string): string[][] | undefined {

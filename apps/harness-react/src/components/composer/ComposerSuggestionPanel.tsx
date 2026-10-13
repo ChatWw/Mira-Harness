@@ -1,3 +1,5 @@
+// Scroll-edge feedback adapted from ZCode MentionPanel/scrollMask (Apache-2.0).
+// Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode/.
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
 import type { MiraPromptTrigger } from '../../lib/prompt-input-triggers'
@@ -37,14 +39,22 @@ export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIn
   const layoutSignature = JSON.stringify(sections.map(section => [section.id, section.title, section.loading, section.error, section.empty, section.items.map(item => [item.id, item.label, item.description])]))
   useLayoutEffect(() => {
     const list = listRef.current
-    if (!list || !selectedId) return
+    if (!list) return
+    const updateScrollEdges = () => {
+      const remaining = list.scrollHeight - list.clientHeight - list.scrollTop
+      list.dataset.miraScrollTop = String(list.scrollTop > 1)
+      list.dataset.miraScrollBottom = String(remaining > 1)
+    }
     const revealSelected = () => {
       const target = list.querySelector<HTMLElement>('[aria-selected="true"]')
-      if (!target) return
-      const viewport = list.getBoundingClientRect(), bounds = target.getBoundingClientRect()
-      if (!viewport.height || !bounds.height) return
-      if (bounds.top < viewport.top) list.scrollTop += bounds.top - viewport.top
-      else if (bounds.bottom > viewport.bottom) list.scrollTop += bounds.bottom - viewport.bottom
+      if (target) {
+        const viewport = list.getBoundingClientRect(), bounds = target.getBoundingClientRect()
+        if (viewport.height && bounds.height) {
+          if (bounds.top < viewport.top) list.scrollTop += bounds.top - viewport.top
+          else if (bounds.bottom > viewport.bottom) list.scrollTop += bounds.bottom - viewport.bottom
+        }
+      }
+      updateScrollEdges()
     }
     // Keep scrolling inside the candidate list, including asynchronous catalog and popup layout changes.
     revealSelected()
@@ -52,11 +62,13 @@ export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIn
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(revealSelected) : undefined
     observer?.observe(list)
     list.querySelectorAll('.mira-composer-suggestions__section').forEach(section => observer?.observe(section))
-    return () => { cancelAnimationFrame(frame); observer?.disconnect() }
+    list.addEventListener('scroll', updateScrollEdges, { passive: true })
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); list.removeEventListener('scroll', updateScrollEdges) }
   }, [selectedId, layoutSignature])
   let offset = 0
   return <div className="mira-composer-suggestions" data-has-query={hasQuery}>
     <div ref={listRef} className="mira-composer-suggestions__list" role="listbox" id={listId} aria-label="上下文与能力" aria-busy={sections.some(section => section.loading)}>
+      {!sections.length && <div className="mira-composer-suggestions__status">没有匹配的上下文</div>}
       {sections.map(section => {
         const start = offset; offset += section.items.length
         return <div key={section.id} role="group" aria-label={section.title} className="mira-composer-suggestions__section">

@@ -1,5 +1,98 @@
 # ZCode → Mira Harness 改编记录
 
+2026-10-13 08:56 +08:00 任务配置入口：参考当前v3.15.1的packages/ui/src/TaskActionMenuContent.tsx中onOpenProviderConfig／“前往配置”入口，Mira在自有SessionMenuItems增加“模型设置”，沿自身PilotController导航与保存守卫打开现有Vue统一模型页，不复制上游配置文件／RPC或变量，不新建配置系统。现有版权／Apache LICENSE／NOTICE保持；458项和实际Electron19项证据见首屏记录顶部，分享排除，原生ZCode／实体输入／远端复杂负载／Windows未验。
+
+2026-10-13 08:46 +08:00 上游版本核对：当前参考仓库为 aac47556（v3.15.1），LICENSE保持原文，NOTICE.md同步该版本原文；此前副本来自旧版本，并非当前上游逐字相同。声明中的远控、Bot、营销等是上游功能说明，不代表Mira实现或接入这些服务；Mira仍本地优先且排除分享链接。
+
+2026-10-13 08:40 +08:00 侧栏菜单与改名：参考ZCode packages/ui/src/TaskActionMenuContent.tsx、workspace-grouped-tasks/task-context-menu-content.tsx的项目／分组菜单层级，group-item.tsx的组合输入保护；Mira沿既有SessionSidebar／SidebarCollectionSection与任务改名保护实现，使用自身groupedActions、请求身份守卫和原资源动作，不移植上游RPC／store／文件名。文件与变量沿Mira命名，原Apache LICENSE／NOTICE与版权保持。278项及隔离Electron23项／明暗四图见首屏记录顶部；合成IME不代替实体输入，原生ZCode／远端复杂负载／Windows和整体性能未验，分享排除，整体active。
+
+2026-10-13 07:20 +08:00 Composer菜单复核：对照ZCode packages/ui/src/v4/composer/V4ComposerModeControls.tsx、ModelConfigSelect.tsx与WorkspaceSidebar.tsx当前接入，Mira既有Radix权限／独立计划、供应商子菜单和排序入口保持；本批仅补自有HarnessComposer计划标记关闭后的Lexical焦点与禁用保护，不复制新上游实现，不宣称上游已有该焦点行为。命名沿Mira，原Apache LICENSE／NOTICE／版权不变，分享排除。312项及隔离Electron16项／明暗三图证据见首屏记录顶部；原生ZCode／实体IME／远端复杂负载／Windows与完整性能未验，目标active。
+
+2026-10-13 07:09 +08:00 Header动作语义：参考ZCode `packages/ui/src/WorkspaceHeader.tsx`、`WorkspaceHeaderSections/WorkspaceHeaderActionSection.tsx`及`WorkspaceSidePaneToggleButton.tsx`的草稿隐藏编辑器、动作顺序、展开面板不重复开关和PanelRightOpen。Mira沿HarnessWorkbench／hasTaskProgress、自有资源标签／焦点ref实现，显式面板关闭后归还入口焦点，不移植上游RPC／store或窗控；Electron／Vue Shell继续承担原窗控。文件与变量沿Mira名称，原Apache LICENSE／NOTICE／版权保持，分享排除。最终195项及隔离Electron22项／导航23项、明暗3图见首屏记录；原生ZCode／系统IME／远端复杂模型／Windows与完整性能未验，目标active。
+
+2026-10-13 06:56 +08:00 新任务欢迎区：参考ZCode `packages/ui/src/v4/ConversationDraftEmptyState.tsx`的标题自身容器测量、ResizeObserver／帧合并及六时段本地问候边界。Mira以自有MiraDraftWelcome、原HarnessWorkbench／layout.css实现，保留Mira标志／文案与既有28px最大字号（上游30px），不移植上游组件名、store或RPC；应用隐藏清理、回焦刷新和测量裁剪沿Mira实现。原Apache LICENSE／NOTICE／版权保持。相关141项及同产物隔离Electron欢迎14项／导航23项／状态50项证据见首屏记录顶部；分享排除，原生ZCode／远端复杂负载／Windows尚未验，目标active。
+
+2026-10-13 06:36 +08:00 轨迹工具条与正文复制：参考ZCode packages/ui/src/ModelTrajectoryPane.tsx、ModelTrajectoryExpansion.ts、ModelTrajectoryExpansionMenu.tsx、ModelTrajectoryRoleStyles.ts及ModelTrajectoryExpandableMessage.tsx的独立六类／默认展开、直接全部按钮、持续开关菜单、展开正文复制与实际标题／用量摘要。Mira沿自有MiraModelTracePane／miraTraceSections／miraTraceSummary、Radix与本地provider记录实现，使用Mira命名，不移植上游Context／RPC／store；保留参数／用量诊断分类并修自身虚拟列表补偿与搜索定位。原Apache LICENSE／NOTICE／版权不改。76项与最新隔离Electron41项／200调用50项证据见首屏记录顶部；分享排除，原生ZCode／远端／Windows尚未验，目标active。
+
+2026-10-13 06:16 +08:00 轨迹虚拟化与增量输入：参考ZCode packages/ui/src/ModelTrajectoryTimeline.tsx的可见调用挂载、先调用再精确文本搜索、首请求及后续输入增量，以及ModelTrajectoryExpandableMessage.tsx的全局展开与临时搜索展开分离。Mira以自有miraTraceCalls／MiraModelTracePane验证序列前缀并隔离已知agent上下文，原始模型IO存储不修改，增加完整请求上下文查看模式；使用现有TanStack与Radix、不移植上游Context／RPC。文件、变量、section身份沿Mira命名，Apache LICENSE／NOTICE／版权保持。70项及实际Electron35项、合成200调用38项和同产物长历史34项详见首屏记录；分享排除，原生ZCode／远端／Windows和性能上限未验。
+
+2026-10-13 06:01 +08:00 轨迹逐处搜索：参考ZCode packages/ui/src/ModelTrajectorySearch.ts、ModelTrajectorySearchHighlight.ts及ModelTrajectorySearchBar.tsx的非重叠命中、跨空白归一、原文偏移、当前命中与滚动导航。Mira自行实现miraTraceTextMatches及自有section／mark投影，不移植上游Context、CSS Highlight注册或轨迹RPC；标题／正文可查、相同段落逐处定位、Unicode大小写扩展保持原文偏移，关闭不保留延迟搜索高亮。文件／变量沿Mira命名，原Apache LICENSE／NOTICE及版权不变。当前66项及实际Electron35项／3图、同产物长历史34项证据见首屏记录，分享排除，原生ZCode／远端模型／Windows及整体性能上限尚未验。
+
+2026-10-13 05:45 +08:00 模型轨迹与任务日志菜单：参考ZCode packages/ui/src/TaskActionMenuContent.tsx、ModelTrajectoryPane.tsx及services/src/zcode-agent/modelTrajectory.ts的真实model-IO、最近200条、右侧资源、搜索／分类展开与路径菜单。Mira自行实现miraModelTrace／MiraModelTraceStore／MiraModelTracePane、Pi实际payload与终态观察、授权IPC及本地目录，未移植上游CLI runner／RPC／store；文件／变量保持Mira风格，旧记录不补造，原Apache LICENSE／NOTICE.md／版权保持，分享排除。756项及隔离Electron28项／3图见首屏记录，原生ZCode／远端／Windows和总体性能未验。
+
+
+2026-10-13 模型时间线边界：参考ZCode CLI `zcode-protocol-v4/product-projection.ts`的TurnStarted模型事实及UI `ConversationRowView.tsx`的modelChange轻分隔。Mira以自有HarnessRunModel、SQLite消息元数据、运行事件与miraModelChanges投影记录实际provider/model，首次使用不显示切换，选择未发送不改变历史，同名模型跨供应商仍区分；提示在对应用户输入前，纯续跑在助手段前。未移植上游RPC／reducer／store，不把提示插入模型上下文；字段与函数沿Mira名称，原Apache LICENSE／NOTICE.md及版权保持，分享排除。
+
+2026-10-13 04:51 +08:00 原生PDF／视频附件：参考ZCode `packages/ui/src/lib/chatAttachments.ts`、`ChatMediaAttachmentPreviewDialog.tsx`及CLI `attachment-media-resolver`／`media-capability`／`attachment-pdf`／`attachment-video`／`adapters/model/transform.ts`的原始媒体协议、独立能力与预览状态。Mira以自有miraModelMedia包装Pi onPayload，保留SDK文本／图片与工具流，在原用户所属消息编码file／video_url；自有SQLite冻结存储、队列、历史／压缩、Vue能力开关、MiraBinaryAttachmentPreview与本地PDF阅读器贯通，不移植上游CLI／RPC／store。文件与变量沿Mira风格，原Apache LICENSE／NOTICE.md及版权保持，分享排除。相关回归、隔离macOS Electron15项／4图证据见首屏记录；商业模型、全部codec、原生ZCode、Windows及总体性能未验收。
+
+2026-10-13 04:20 +08:00 整窗缩放：参考ZCode `packages/desktop/src/main/desktopZoom.ts`、`desktopCommandHandlers.ts`、`desktopApplicationMenu.ts`和`desktopWindowChrome.ts`的范围／步长、原生菜单及加载后恢复语义。Mira使用自有miraDesktopZoom、WindowManager、SQLite偏好和Vue安全区，不移植上游设置store／RPC；每次主页面加载读取最新比例，修复重置后刷新沿旧创建值。文件／变量沿Mira命名，原Apache LICENSE／NOTICE.md／版权保持。51项及隔离Electron20项／3图证据见首屏记录，不冒称原生OS快捷键／ZCode或Windows实机通过，分享排除。
+
+2026-10-13 04:03 +08:00 键盘布局回退：参考ZCode `packages/ui/src/lib/keyboardShortcuts.ts` 的字符／物理键双匹配，Mira仅在现有资源／终端快捷键补KeyB／KeyJ，保留自己的平台修饰与所有者保护，不移植上游完整绑定系统。另修自身MiraBottomTerminal尺寸观察器合并重开／收起时的状态同步，PTY／授权沿Mira实现。文件／变量保持Mira名称，原Apache LICENSE／NOTICE.md／版权保持；157项与实际Electron64项证据见首屏记录，不声称原生ZCode或实体键盘布局同态，分享排除。
+
+2026-10-13 03:47 +08:00 平台主快捷键：参考ZCode `lib/keyboardShortcuts.ts`、`shortcuts/bindings.ts`及shared `shortcutCommands.ts`的CmdOrCtrl按平台隔离语义。Mira以自有isMiraPrimaryModifier／miraPrimaryKeyShortcuts复用现有Shell／React所有者，保留明确Ctrl工具／后台命令及编辑器边界，不移植上游可配置绑定store或RPC，文件／变量仍Mira风格。Apache LICENSE／NOTICE.md与版权保持，分享排除；实际证据／平台边界见首屏记录。
+
+2026-10-13 03:32 +08:00 选区一致性：参考ZCode `packages/ui/src/mentions/activePromptInputToken.ts`及历史ChatPromptEditor的Lexical插件，Mira主输入／历史编辑使用自有函数式状态快照，按选区事件顺序保留完整查询／替换范围和退出null；正文／焦点／owner及原子引用保护沿自身实现。不复制上游nodeKey／store／CLI，文件／变量仍为Mira风格；Apache LICENSE／NOTICE.md与版权保持。上游短token跳出同样关闭，原生ZCode同态未验；证据见首屏记录，分享排除。
+
+2026-10-13 03:13 +08:00 Slash技能和历史候选：参考ZCode `packages/ui/src/slashCommandPanelSections.tsx`、`lib/slashApplyMentionPayload.ts`及`SlashCommandPlugin.tsx`，Mira主输入／历史编辑以$展示技能但按自有目录ID取真实名称插入，历史Slash三类／首尾停止／来源错误合并，其他引用空组隐藏。沿Mira文件／变量、授权／canonical payload／Lexical／Radix，不复制上游CLI或目录store；原Apache LICENSE／NOTICE和版权保持。实际验收边界及连续键盘选区待查见首屏记录，分享排除。
+
+2026-10-13 02:52 +08:00 Slash分类和键盘：参考ZCode `packages/ui/src/slashCommandPanelSections.tsx`／`SlashCommandPlugin.tsx`的三类和首尾停止语义，Mira在HarnessComposer合并现有来源目录，保留Mira授权／身份／管理操作及依赖不可用原因。自有nextMiraSuggestionIndex增加非循环模式，仅Slash启用；@与历史编辑循环保持。未复制CLI或上游store，文件／变量沿Mira风格，Apache LICENSE/NOTICE／版权保持，分享排除。
+
+2026-10-13 02:39 +08:00 用户／项目命令Skill依赖：参考ZCode `apps/zcode-cli/packages/contracts/src/commands/index.ts`的声明依赖语义与命令提交契约。Mira沿自有SkillStore、PromptCommandStore、运行时／消息队列及第一方桥实现名称解析、宿主身份冻结／复核、当前运行指令和可恢复错误；不移植上游CLI或Skill工具。当前上游model/allowed-tools仅解析、未沿提交链执行，Mira保留明确不可用。文件／变量采用Mira名称，原Apache LICENSE/NOTICE与版权保持，分享排除。
+
+2026-10-13 01:43 +08:00 上下文分类与中文搜索：参考ZCode `packages/ui/src/mentions/mentionSearch.ts`的可见分类与汉字查询规则，Mira在HarnessComposer沿原候选身份筛除@/#/$已就绪空分类、保留加载/错误/重试；全空提供一条上下文提示，/与+及MCP分类规则保留。prompt-input-triggers使用自有评分与命名，汉字只匹配连续前缀/子串，英文子序列保留；文件候选沿授权宿主检索不二次丢弃。原Apache LICENSE/NOTICE及改编版权保持，分享排除。
+
+2026-10-13 01:22 +08:00 Composer滚动边缘：参考ZCode `packages/ui/src/mentions/components/MentionPanel.tsx`与`scrollMask.ts`的24px上下渐隐，Mira在现有ComposerSuggestionPanel与composer.css中实现自有data属性/样式变量。仅裁切方向渐隐、手动滚动不强制追选中项，键盘选项露出后更新提示，加载/错误空列表与resize也同步；不新增React状态/渲染器或移植上游虚拟列表。文件/变量沿Mira风格，原Apache LICENSE/NOTICE及版权保持。首屏和三块矩阵另做现状核对，分享仍排除。
+
+2026-10-13 01:02 +08:00 原生关闭上下文：参考ZCode `packages/ui/src/lib/closeActiveContext.ts`、App/Root的资源优先事件及`packages/desktop/src/main/desktopApplicationMenu.ts`不使用close role的设计。Mira采用自有closeActiveResource、Vue事件、第一方grant端口与本地草稿保存/资源回收；沿自身文件/变量命名，不复制RPC/账号。保存失败单提示、失效/超时/迟到保护和窗口设置回落已接；280项与隔离Electron原生菜单回调15项通过，未声称原生上游/实体OS快捷键/商业模型/Windows对等。Apache LICENSE/NOTICE与版权保留，分享排除。
+
+2026-10-13 00:38 +08:00 工作台命令与终端收起：参考ZCode共享快捷键表的主题和打开项目，以及底部面板的收起/重开语义。Mira以自有miraWorkbenchShortcut/useMiraWorkbenchShortcuts、Vue主题owner、第一方context和已有Electron目录准入实现；修复自有MiraBottomTerminal动态约束造成的收起占位。沿既有Radix/Lucide/主题及Mira命名，不复制RPC/变量/账号。真实面板回归及隔离Electron19项通过，未声称原生ZCode computer-use、商业模型或Windows对等。Apache LICENSE/NOTICE及改编版权保持，分享排除。
+
+2026-10-13 00:07 +08:00 任务导航：参考ZCode `packages/ui/src/lib/quickPickConversationNavigation.ts`、App.tsx及`packages/shared/src/shortcutCommands.ts`的工作目录内相邻任务和独立历史导航。Mira以自有miraAdjacentTasks/useMiraTaskNavigationShortcut、侧栏排序和第一方导航保存契约实现，文件/变量沿Mira命名，不复制上游query cache/RPC/账号。214项及实际Electron16项/2图通过，不声称原生ZCode computer-use、商业模型或Windows对等。新增改编文件保留Apache版权/SPDX，原LICENSE/NOTICE保持；分享排除。
+
+2026-10-12 23:47 +08:00 完整输出：参考 `packages/ui/src/app-shell/BackgroundBashOutputSidePane.tsx` 的完整文件入口→独立CodeViewer交互。Mira以自有MiraCommandOutputs/MiraCommandOutputFile、canonical任务/run/tool、第一方grant和现有FilePreviewPanel/TanStack虚拟行实现，不复制上游RPC、文件命名或变量。主资源标签与独立侧面owner、脱敏本地日志、失败/停止/正常重启读取、换行/全内容复制已接；沿既有16MiB限制，强制崩溃中途输出未承诺恢复。523项及实际生产Electron32项/3图通过；不声称原生ZCode、商业模型或Windows发布对等。Apache LICENSE/NOTICE及版权保持，账号/分享排除。
+
+2026-10-12 23:07 +08:00 全局前台命令快捷键：对照ZCode `packages/shared/src/shortcutCommands.ts` 的CmdOrCtrl+B侧栏和CLI `contracts/src/tools/bash.ts` 的手动后台说明，Mira自有useMiraCommandShortcut/焦点handler与既有侧栏派发实现上下文优先级，不声称直接移植上游GUI后台快捷键。canonical当前run/root bash、主/侧焦点、草稿、终端/编辑器行为、禁自动化和失败反馈沿Mira权限/桥；不复制上游RPC/变量/账号。148项及最终真实Electron21项通过，不声称原生/商业模型/Windows发布对等。原Apache LICENSE/NOTICE与版权保持，分享排除。
+
+2026-10-12 22:50 +08:00 后台结果回报与归属：参考ZCode `apps/zcode-cli/packages/core/src/runtime/methods/background-notifications.ts`、`runtime-command-queue.ts` 和 `tool/handlers/bash.ts` 的内部结果批次、模型续接及idle任务限制。Mira以自己的HarnessMessageQueue、canonical任务/run/tool、内部消息JSON元数据和stopOwned registry实现，不复制上游RPC/变量/运行器；待发通知仅内存，已消费身份持久化。自动化保持前台；actor/子任务结束回收自身命令。沿既有execute-group/explore改编组件修复真实job终态和长摘要收缩，保留完整title。最终UI82项和实际Electron15项/5图通过，不声称原生/商业模型/Windows发布对等。原Apache LICENSE/NOTICE及版权保持，不复制账号/云端分享。
+
+2026-10-12 22:09 +08:00 后台命令：参考ZCode `apps/zcode-cli/packages/core/src/tool/handlers/bash-background-policy.ts`、`bash-background-lifecycle.ts`、`apps/zcode-cli/packages/adapters/src/exec/node-execution-adapter-lifecycle.ts` 的同执行转后台/取消/独立生命周期，以及既有BackgroundBashOutputSidePane与ConversationStatusPanel。Mira以MiraCommandJobs/MiraCommandJob、canonical任务/run/tool、Pi Bash、第一方桥和SQLite独立实现，保持自身秒数timeout、审批、插件Shell与输出脱敏预算；不复制上游变量、RPC或执行器。命令资源/Composer计数/胶囊与过程反映实际job，正常退出回收、重启失去控制不重跑。当前689项与实际Electron23项通过；通知轮次、全量输出访问及actor/自动化/子任务生命周期仍待完成，不声称原生/商业供应商/Windows发布对等。原Apache LICENSE/NOTICE及版权保留，不复制账号/云端分享。
+
+2026-10-12 21:10 +08:00 命令输出侧面板：参考 `packages/ui/src/app-shell/BackgroundBashOutputSidePane.tsx` 与 `v4/ConversationStatusPanel.tsx` 的输出导航、滚动跟随及暂停/恢复。Mira以MiraCommandPane/MiraCommandOutput与自有workspace-state命名复用Radix/Lucide、canonical任务/run/tool快照和第一方宿主，不复制RPC或上游变量。当前实现真实前台bash的有界输出资源，未移植后台进程生命周期或完整输出文件。实际Electron22项/7次受控SSE/5图通过，不声称原生上游、商业授权、后台运行或发布对等。原Apache LICENSE/NOTICE与版权保留，不复制账号/分享。
+
+2026-10-12 20:39 +08:00 工作过程可见性：参考 `packages/ui/src/v4/conversationTurnRenderUnits.ts` 与 `ConversationTurnGroup.tsx` 的当前/异常/无最终回复默认展开，MiraAssistantProcess沿自身canonical消息与Radix组件实现，不照搬变量/RPC。停止保稿、历史焦点与摘要runId归属沿Mira状态和宿主契约；明暗实际生产Electron87项/19次受控SSE验证，不声称原生上游、商业授权或性能/发布对等。原LICENSE/NOTICE与版权说明保持，不复制账号/分享。
+
+2026-10-12 20:22 +08:00 工作台首屏提示与资源标签：参考 `packages/ui/src/WorkspaceSidebar.tsx`、`app-shell/SidePaneTabTrigger.tsx` 的拖拽释放点击保护、`SidePaneTabTitleTooltip.tsx` 的1500ms提示及拖拽关闭，以及 `AnimatedSidePanePanel.tsx` 的320px纵向空态入口。Mira使用现有SessionSidebar/WorkspaceTabs命名、Radix组件、自有资源状态和授权接口；删除宽面板卡片网格并隔离旧字号覆盖。实际明暗生产Electron37项验证，不声称原生上游或商业供应商对等；不复制账号/分享。原LICENSE/NOTICE与既有版权说明保持。
+
+2026-10-12 19:55 +08:00 历史编辑文件联动：参考 `v4/ConversationRowView.tsx` 普通preserve/文件时钟rewind，以及 `ConversationFileRewindDialog.tsx` 的editConflict/ConversationOnly；Mira复用自身Radix弹窗、第一方授权桥和SQLite日志，实现MiraHistoryEditWorkspace/Blocked契约、文件恢复/历史截断同提交与失败补偿。净变化的unchanged字节判定由Mira私有快照派生，保留历史记录和空文件变更。实际生产Electron65项/12次本机受控SSE通过，不冒称原生上游、断电、商业模型或Windows对等。不复制RPC/账号/云端分享，文件/变量沿Mira命名，原LICENSE/NOTICE与改编版权保持。
+
+2026-10-12 19:28 +08:00 独立文件恢复：沿ZCode文件恢复对话和workspace rewind语义，Mira使用自有授权token/SQLite日志/逐项游标/文件替换与失败补偿，退休快照并更新任务净变化；不复制RPC/账号/分享。实际Electron47项包含显式注入中断夹具，不宣称原生ZCode或断电/Windows对等。历史编辑preserve/rewind联动仍待接。原LICENSE/NOTICE与Mira命名/版权保持。
+
+2026-10-12 逐轮快照与只读恢复预览：参考CLI `runtime/methods/file-rewind.ts`、`rewind-message.ts`、contracts/rewind及 `packages/ui/src/v4/ConversationFileRewindDialog.tsx` 的checkpoint边界、安全/冲突/忽略列表与只读预览。Mira采用自身命名 `miraFileRewind`、`MiraFileRewindPreview` 与自有SQLite/第一方授权协议；真实工具执行前后快照、消息祖先链、UTF-8字节与路径边界由Mira实现，复用现有Radix/Lucide/主题，不复制RPC、账户或云端分享。此次只接只读预览，没有移植实际apply/恢复日志/编辑冲突选择，不据此声称完整rewind对等。文件/变量采用Mira命名，改编组件/服务/类型保留原版权与Apache-2.0说明，原LICENSE/NOTICE保持。
+
+2026-10-12 历史编辑候选与附件：参考 `packages/ui/src/v4/ConversationRowView.tsx:985–1028` 的完整编辑附件列表/显式删空、`prompt-editor/ChatPromptEditor.tsx` 的候选和附件交互。Mira自有 `MiraHistoryPromptEditor` 复用已有Lexical/Radix、授权目录、附件暂存/导入与IPC；新增@、/、#/$提示插入、附件增删/粘贴/拖入、拒绝保稿和原生Escape事件消费。保留Mira旧接口不传附件时的兼容语义，保留原历史冻结字节，宿主验证累计限额和编辑后图片能力，不移植上游RPC、账号/分享或项目文件rewind。实际隔离Electron验收25项，不声称完整原生ZCode对等。文件/变量采用Mira命名，原Apache LICENSE/NOTICE与既有版权说明保持。
+
+2026-10-12 用户引用与历史编辑：参考 `packages/ui/src/v4/ConversationUserInputContent.tsx` 与 `v4/ConversationRowView.tsx` 的引用chip、正文前上下文卡和rich editor。Mira自有 `miraUserPrompt` 共用既有canonical解析，复用自有Lexical/Radix与原宿主重跑；上下文移除/失败保稿/查找可见标签，不移植上游projection/RPC、账户、云端分享或文件回滚。原附件只读保留，新增候选/附件删改仍待对齐。文件/变量采用Mira命名，原Apache LICENSE/NOTICE与既有改编版权说明保持。
+
+2026-10-12 长用户消息阅读：参考 `packages/ui/src/v4/ConversationUserInputBody.tsx` 的120px折叠、渐隐、展开/收起和异步尺寸测量。Mira使用自有 `MiraUserMessageBody`，完整原文保留用于复制、编辑和查找；按会话/消息隔离展示状态，查找先展开真实正文再定位，隐藏窗格不覆盖可用尺寸。组件/变量使用Mira命名，改编组件保留版权与Apache-2.0说明，原LICENSE/NOTICE保持；不引入上游会话分享。
+
+2026-10-12 首屏帮助与键盘：参考 `WorkspaceHelpMenuButton.tsx` 的帮助入口、`ConversationStatusPanel.tsx` 的1280px摘要布局以及 `SlashCommandPlugin.tsx` 未命中候选时归还按键的行为。Mira使用自有 `MiraWorkbenchHelp`、已有Radix/草稿保存/授权桥/Vue设置；空候选发送、Shift+Enter、可自定义compress归属及目录失败保稿沿Mira实际协议，不移植上游账户或CLI。新任务渐隐构图参考 `ConversationDraftEmptyState.tsx`，线框由Mira自有M标志派生，不复制ZCode标识。文件/变量采用Mira命名，原Apache LICENSE/NOTICE保持。
+
+2026-10-12 连续输出性能：本轮保存优化是Mira自有SQLite/JSON实现，不复制ZCode存储代码；仅当前助手行增量写入并保留完整恢复快照，原UI改编文件、Mira命名、上游Apache LICENSE/NOTICE均保持。最终生产Electron重验109项通过，原计划/旁路交互无变化；不据本机受控基线声明与上游商业性能完全对等。
+
+2026-10-12 历史方案目录：参考 `packages/ui/src/v4/conversationStatusPanelModel.ts` 的 settled 工具目录、`v4/ConversationStatusPanel.tsx` 的 SessionPlansStatusSection，以及 `app-shell/PlanDetailSidePane.tsx` / `lib/planToolCall.ts` 的独立Markdown详情。Mira自有 `miraSessionPlans.ts`、`MiraPlanDetail.tsx` 和 `planToolId` 标签身份，直接派生既有真实present_plan公开输入，不移植RPC/lease/projection全套或另造重复历史库。摘要短标题与审批/详情Markdown复用同一格式化函数，旧缺失/截断输入明确不完整。侧面任务焦点/导航、任务隔离及持久化沿Mira原协议；原Apache LICENSE/NOTICE保持，文件/变量使用Mira命名。
+
+2026-10-12 模型错误恢复：参考 `packages/ui/src/ChatErrorBanner.tsx` 的简短摘要、独立Radix详情、复制及模型设置交互。Mira自有 `MiraModelErrorBanner.tsx`、`miraModelErrors.ts` 与宿主/控制器适配，使用已有Vue设置路由和草稿保存守卫，实际stream错误来源识别、脱敏及8KiB诊断上限，不按文本猜测模型配置缺失。保留任务/run/message身份和历史恢复，不移植ZCode付费升级、账户、反馈服务或RPC。文件/变量采用Mira命名，新增组件含来源说明，原Apache LICENSE/NOTICE保持。
+
+2026-10-12 连续运行呈现：继续参考 `packages/ui/src/v4/ConversationTurnGroup.tsx` 的TurnChatLoadingSlot及AssistantHistoryStatus。Mira既有 `MiraAssistantProcess` 使用自有run.startedAt/durationMs，轻量首token/文本流状态、运行工作行耗时、审批无spinner和终态timer回收，主/旁路共用；不复制上游API重试projection或捏造重试次数。已有来源/版权及Apache LICENSE/NOTICE保持，Mira文件和变量命名不变。
+
+2026-10-12 任务净贡献：参考 `packages/ui/src/TaskListItem.tsx`、`packages/ui/src/lib/taskChangeSummary.ts` 与 `packages/shared/src/lineChangeStat.ts`。Mira在 `src/config/miraTaskChanges.ts` 和 `electron/services/miraTaskChanges.ts` 保留来源/Apache说明，采用任务首次修改前与最后修改后语义和有界LCS；自有SQLite私有基线、现有工具/取消及跨项目身份、脱敏紧凑patch、侧栏/摘要/面板接入。原文不经公开桥传输，缺少快照不假定完整；不移植上游RPC/账户/持久化接口，不把Git总变化当单任务贡献。Mira名称及原Apache LICENSE/NOTICE保持。
+
+2026-10-12 旁路首条消息：参考 `packages/ui/src/v4/slashCommands.ts` 的带问题旁路解析，以及 `v4/SessionPane.tsx` 的 `handleOpenSelectionSideConversationWithPrompt`、权威命令覆盖与send-time分派。Mira在既有HarnessComposer/Workbench中适配非空纯文本 `/side`、`/btw`，菜单裸别名只开空旁路；保留自定义同名命令优先、无能力/附件/结构化上下文普通提交。Mira自身的 `HarnessSideConversationInput`、第一方授权桥和canonical消息队列持久化唯一提交身份、输入指纹及错误重试，失败/未确定接纳不丢稿、导航后不抢新主任务；不复制上游RPC、账户或CLI。新增文件/变量使用Mira命名，原版权与Apache LICENSE/NOTICE保持。首屏变更数字后续按ZCode任务首末文件快照语义接入，不把项目Git工作树总变化当作单任务贡献。
+
+2026-10-12 首屏核心交互：参考当前 `packages/ui/src/workspace-grouped-tasks/view.ts`、`task-row.tsx` 与 `TaskInteractionBadge.tsx`，Mira组内置顶保留所属分组、标题显示实际目录提示、真实等待状态使用已有语义token。参考 `packages/ui/src/v4/SessionPane.tsx` 原生 `/plan` 分派与 `prompt-editor/ChatPromptActionMenu.tsx` 工作流首层入口，Mira仅消费本地命令前缀并保留显式发送/保稿和Goal互斥。参考 `packages/ui/src/v4/ConversationStatusPanel.tsx` 的WorkflowStatusSection及mini状态，Mira新增 `useMiraWorkflowRuns` 为timeline/常驻摘要共享一份owner列表，复用已有运行详情与宿主协议，不复制上游RPC/服务端或伪造运行。文件/变量使用Mira命名，原Apache LICENSE/NOTICE不变。
+
+2026-10-12 PPTX 元素引用：参考 `packages/ui/src/components/ui/pptx-preview-viewer.tsx`、`pptx-selection-action-bar.tsx`、`packages/ui/src/lib/pptxElementReference.ts` 和 `packages/ui/src/v4/composer/PptxElementReferenceChip.tsx`。Mira 使用 `MiraPresentationReader`、`MiraPresentationContexts` 与 `mira-presentation-reference.ts`，保留真实元素索引、表格单元优先命中、原生文字划选、悬浮 AI 编辑意见、逐元素引用和原页导航；取消不退出选择，失败保留意见，加入引用不自动发送。宿主契约、所属任务/工作目录身份、源文件 SHA-256、排队与执行前复核由 Mira 自行实现，沿既有草稿/队列/历史保存，不复制上游 RPC、账户或任意路径访问。反向导航只定位原幻灯片，不按旧坐标伪造高亮；源变化提示重新引用。文件和变量采用 Mira 命名，改编文件保留原版权与 Apache-2.0 标记，原 LICENSE/NOTICE 不变。该记录不声明已完成 PPTX 编辑结果保真、模型 Office 附件或 PDF 导出。
+
 2026-10-12 已安装市场插件管理：参考 `packages/ui/src/settings/PluginStoreCard.tsx` 的卡片/详情共用启停及移除菜单，以及 `pluginEnabledChange.ts` 的宿主确认成功后再更新原则。Mira 新增自身命名的 `MiraPluginMenu`，使用现有 Radix 菜单与工作台主题，公开市场卡片/详情调用既有授权桥启停或移除登记；移除明确保留已下载文件。操作错误与目录加载错误分别展示，重试保留原操作身份，不用目录刷新冒充再次安装；目录重试只使该次读取刷新，后续返回仍可走缓存。Mira 不移植账户、付费、自动更新或上游卸载文件语义；原 Apache LICENSE/NOTICE 保持。
 
 2026-10-12 MCP 浏览器授权与 Agent 服务范围：参考 CLI `packages/adapters/src/mcp/oauth-interactive.ts`、`oauth-credentials.ts`、`auth/localhost-callback.ts` 的 SDK 授权、PKCE、正确 state 回调和 canonical client/token pair，以及 `packages/core/src/subagent/profile-frontmatter.ts`、`borrowed-mcp-port.ts`、`runtime/methods/subagent.ts` 的父连接快照与服务名称限制。Mira 使用 `MiraMcpAuthorization`、`MiraMcpCredentialStore`、现有 MCP 管理器与 Vue 设置：URL 留在宿主、显式打开浏览器、凭据由 Electron safeStorage 加密、配置换代及退出关闭回调；项目授权探测独立于任务连接。用户/插件 Agent 的 `mcpServers` 使用父任务启动时选中且连接成功的真实快照，零工具服务保留；精确名称匹配、重名拒绝、tools/disallowedTools 与角色权限取交集，子任务仅借用连接。文件和变量采用 Mira 名称；未移植 ZCode 多进程共享 credential lease、RPC/账户、插件 OAuth 配置或预注册客户端，不宣称这些扩展已完成。原 Apache LICENSE/NOTICE 保持。

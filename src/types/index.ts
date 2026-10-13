@@ -166,7 +166,10 @@ export interface PlatformApi {
   restoreDefaults(): Promise<PlatformSnapshot>
   setTitleBarChrome(chrome: { color: string; symbolColor: string; height?: number }): Promise<void>
   windowCommand(action: string): Promise<void>
+  getDesktopZoomFactor?(): number
+  onDesktopZoomChanged?(listener: (factor: number) => void): () => void
   onWindowNavigate(listener: (path: string) => void): () => void
+  onWindowCloseContext?(listener: () => void): () => void
   listModelProviders(): Promise<import('@/config/harness').ModelProviderSummary[]>
   getModelConfigPath(): Promise<string>
   getModelProviderApiKey(id: string): Promise<string>
@@ -252,7 +255,7 @@ export interface PlatformApi {
   continueHarnessPlan(sessionId: string, planId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
   cancelHarnessPlan(sessionId: string, planId: string): Promise<unknown>
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
-  editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
+  editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection, references?: import('@/config/harness').HarnessFileReference[]): Promise<void>
   listMcpServers(scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord[]>
   saveMcpServer(config: Partial<import('@/config/miraMcp').MiraMcpServerConfig>, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord>
   deleteMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<void>
@@ -260,6 +263,9 @@ export interface PlatformApi {
   authorizeMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection | undefined>
   abortHarnessRun(sessionId: string): Promise<void>
   stopHarnessSubtasks(sessionId: string, ids?: string[]): Promise<void>
+  backgroundHarnessCommand(sessionId: string, runId: string, toolId: string): Promise<void>
+  stopHarnessCommand(sessionId: string, runId: string, toolId: string): Promise<void>
+  readHarnessCommandOutput(sessionId: string, runId: string, toolId: string): Promise<string>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
   getHarnessGitConfig(): Promise<import('@/config/harness').HarnessGitConfig>

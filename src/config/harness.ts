@@ -1,6 +1,7 @@
 import type { MiraPluginCommandInput, MiraPluginSnapshot } from './miraPlugins'
 import type { MiraPromptCommandInput } from './miraPromptCommands'
 import type { MiraFlowReview } from './miraFlowReview'
+import type { MiraModelError } from './miraModelErrors'
 
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 
@@ -292,7 +293,15 @@ export interface HarnessRunUsage {
   total?: HarnessTokenUsage
 }
 
+/** Host-recorded provider/model identity, independent of unsent Composer choices. */
+export interface HarnessRunModel {
+  providerId: string
+  providerName: string
+  modelId: string
+}
+
 export interface HarnessActiveRun {
+  model?: HarnessRunModel
   id: string
   /** Context maintenance has progress, but does not create an assistant reply. */
   kind?: 'context-compaction'
@@ -306,6 +315,7 @@ export interface HarnessActiveRun {
 export interface HarnessRunSummary {
   status?: 'completed' | 'failed' | 'stopped'
   error?: string
+  modelError?: MiraModelError
   startedAt: number
   completedAt: number
   durationMs: number
@@ -402,6 +412,10 @@ export interface HarnessSource {
 }
 
 export interface HarnessMessage {
+  /** Actual model of this assistant segment; absent on legacy history. */
+  model?: HarnessRunModel
+  /** Host-created, model-only command results. Never supplied by renderer input. */
+  backgroundCommands?: Array<{ runId: string; toolId: string }>
   id: string
   role: 'user' | 'assistant'
   content: string
@@ -448,11 +462,14 @@ export interface HarnessToolText {
 export interface HarnessFileReference {
   path: string
   name: string
-  mediaType?: HarnessImageMediaType
+  mediaType?: HarnessAttachmentMediaType
   size?: number
 }
 
 export type HarnessImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+export type HarnessAttachmentMediaType = HarnessImageMediaType | 'application/pdf' | 'video/mp4' | 'video/x-m4v' | 'video/quicktime' | 'video/webm' | 'video/x-matroska' | 'video/x-msvideo'
+export const HARNESS_ATTACHMENT_MEDIA_TYPES: readonly HarnessAttachmentMediaType[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf', 'video/mp4', 'video/x-m4v', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/x-msvideo']
+export function isHarnessImageMediaType(value?: string): value is HarnessImageMediaType { return Boolean(value?.startsWith('image/')) }
 
 export interface HarnessAttachmentImportFile {
   name: string
@@ -466,7 +483,8 @@ export interface HarnessMessageAttachment extends HarnessFileReference {
 
 export interface HarnessQueuedMessage {
   hasStructuredContext?: boolean
-  operation?: 'context-compaction'
+  operation?: 'context-compaction' | 'command-notification'
+  backgroundCommands?: HarnessMessage['backgroundCommands']
   id: string
   submissionId: string
   sessionId: string
@@ -524,7 +542,7 @@ export type HarnessMessageSubmissionResult = HarnessMessageSubmissionReceipt | {
   queue: HarnessMessageQueueSnapshot
 } | {
   retryRequired: true
-  reason?: 'image-model-unsupported' | 'permission-mode-disabled' | 'skill-unavailable'
+  reason?: 'image-model-unsupported' | 'media-model-unsupported' | 'permission-mode-disabled' | 'skill-unavailable'
   queue: HarnessMessageQueueSnapshot
 }
 
@@ -535,7 +553,13 @@ export interface HarnessMessageWithdrawal {
 
 export interface ToolCallRecord {
   id: string
+  /** Canonical input that owned this operation; stable across later guided input. */
+  messageId?: string
+  /** Historical copy in a fork, not this task's own file contribution. */
+  inherited?: boolean
   tool: string
+  /** Original project for file operations; remains stable when a task is moved. */
+  fileChangeDirectory?: string
   /** Public tool name; execution identity remains in tool. */
   label?: string
   target?: string
@@ -544,6 +568,7 @@ export interface ToolCallRecord {
   providerCallId?: string
   input?: HarnessToolText
   output?: HarnessToolText
+  commandJob?: import('./miraCommandJobs').MiraCommandJob
   approvalRequestId?: string
   diff?: string
   /** No process was started; distinct from execution failure or user cancellation. */
@@ -556,6 +581,8 @@ export interface ToolCallRecord {
 
 export interface HarnessSession {
   goal?: import('./miraGoals').HarnessGoal
+  /** Public projection only; source snapshots stay in the host database. */
+  changeSummary?: import('./miraTaskChanges').MiraTaskChangeSummary
   version: 1
   /** Plugin identity/capability declarations frozen at first runtime creation. */
   pluginCatalog?: MiraPluginSnapshot[]
@@ -612,6 +639,7 @@ export interface HarnessSkillSettings {
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {
+  changeSummary?: import('./miraTaskChanges').MiraTaskChangeSummary
   isRunning?: boolean
   projectName?: string
   workingDirectory?: string
@@ -766,7 +794,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
+  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'command-job' | 'task-changes' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
   payload: Record<string, unknown>
 }
 
@@ -798,6 +826,8 @@ export interface ProviderModelConfig {
   enabled: boolean
   reasoning: boolean
   multimodal?: boolean
+  pdfInput?: boolean
+  videoInput?: boolean
   contextWindow: number
   pricing?: ModelPricing
 }
@@ -864,6 +894,13 @@ export interface ModelSelection {
   providerId: string
   modelId: string
   thinkingLevel?: ThinkingLevel
+}
+
+export interface HarnessSideConversationInput {
+  submissionId: string
+  text: string
+  selection: ModelSelection
+  permissionMode?: PermissionMode
 }
 
 export type AutomationTrigger =

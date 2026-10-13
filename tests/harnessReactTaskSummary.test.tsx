@@ -4,6 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TaskSummary, type MiraTaskSummaryMode } from '../apps/harness-react/src/components/conversation/TaskSummary'
 import type { HarnessSubtask } from '../src/config/harness'
+import type { RunRecord } from '../packages/mira-flow-kit/src/engine/mira-types'
+import { MiraPlanDetail } from '../apps/harness-react/src/components/workspace/MiraPlanDetail'
+import { miraSessionPlans } from '../src/config/miraSessionPlans'
+import type { HarnessSession } from '../src/config/harness'
+import { TaskInteraction } from '../apps/harness-react/src/components/interactions/TaskInteraction'
 
 let root: Root | undefined
 beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); vi.useFakeTimers() })
@@ -39,6 +44,93 @@ async function mount(overrides: Partial<Props> = {}) {
 }
 
 describe('task summary through real React DOM and Radix', () => {
+  it('replaces the completed-model capsule with live or failed independent command state', async () => {
+    const command = { id: 'job', runId: 'old-run', tool: 'bash', status: 'ok' as const, createdAt: 1, commandJob: { mode: 'background' as const, status: 'running' as const, revision: 1, startedAt: 1 } }
+    const view = await mount({ changes: 0, running: false, taskTone: 'completed', taskState: '最近任务已完成', commands: [command] })
+    expect(view.button('展开任务摘要').textContent).toContain('1 条命令运行中')
+    expect(document.querySelector('[aria-label="任务摘要"]')?.getAttribute('data-task-tone')).toBe('running')
+    view.props.commands = [{ ...command, commandJob: { ...command.commandJob, status: 'failed', revision: 2, error: 'exit 7' } }]; await view.render()
+    expect(view.button('展开任务摘要').textContent).toContain('1 条后台命令异常')
+    expect(document.querySelector('[aria-label="任务摘要"]')?.getAttribute('data-task-tone')).toBe('partial')
+  })
+  it('keeps command-only summaries visible and opens a captured execution without rerunning it', async () => {
+    const onOpenCommand = vi.fn()
+    const view = await mount({ changes: 0, activities: [], commands: [{ id: 'bash-one', runId: 'run-one', tool: 'bash', status: 'running', createdAt: 1, target: 'npm run build' }], onOpenCommand })
+    expect(view.button('展开任务摘要').textContent).toContain('1 条命令进行中')
+    await view.click('展开任务摘要')
+    await view.click('在右侧查看命令 npm run build')
+    expect(onOpenCommand).toHaveBeenCalledExactlyOnceWith('run-one', 'bash-one')
+    expect(view.props.onOpenProgress).not.toHaveBeenCalled()
+    view.props.commands = [{ ...view.props.commands![0], status: 'failed' }]; await view.render()
+    expect(document.querySelector('[aria-label="命令摘要"]')?.textContent).toContain('失败')
+  })
+  it('uses a short readable current-plan title and renders the approval content as Markdown', async () => {
+    const plan = { id: 'pending', status: 'awaiting_confirmation' as const, request: '制定方案', understanding: '# **待确认方案**\n\n第一段说明。\n\n- 可审阅内容', steps: [{ label: '核对范围', detail: '保留 **边界**。' }], risks: ['无需自动执行'], createdAt: 1, updatedAt: 1 }
+    const view = await mount({ changes: 0, plan, running: false, taskTone: 'waiting', taskState: '等待确认' })
+    await view.click('展开任务摘要')
+    expect(document.querySelector('.mira-summary-plan')?.textContent).toBe('待确认方案')
+    const onConfirm = vi.fn(async () => undefined), onRevise = vi.fn(async () => undefined), onCancel = vi.fn(async () => undefined)
+    await act(async () => root!.render(<TaskInteraction interaction={{ id: 'review', kind: 'plan-review', status: 'waiting', planId: plan.id, createdAt: 1 }} plan={plan} selectionReady onConfirm={onConfirm} onRevise={onRevise} onCancel={onCancel} onAnswer={async () => undefined} />))
+    const body = document.querySelector('[aria-label="方案内容"]')!
+    expect(body.querySelector('h1')?.textContent).toBe('待确认方案')
+    expect(body.querySelector('ol strong')?.textContent).toBe('边界')
+    expect(body.textContent).not.toContain('**')
+    expect(body.textContent).toContain('无需自动执行')
+    expect(onConfirm).not.toHaveBeenCalled(); expect(onRevise).not.toHaveBeenCalled(); expect(onCancel).not.toHaveBeenCalled()
+  })
+  it('keeps submitted-plan history visible after cancellation and only opens the selected immutable snapshot', async () => {
+    const session = { toolCalls: [
+      { id: 'first', tool: 'present_plan', status: 'ok', createdAt: 1, input: { text: JSON.stringify({ understanding: '# 首版方案\n\n保留 **原始内容**。', steps: [{ label: '核对范围', detail: '不修改原方案' }], risks: ['查看不会执行'] }), truncated: false } },
+      { id: 'revision', tool: 'present_plan', status: 'cancelled', createdAt: 2, input: { text: JSON.stringify({ understanding: '# 修订方案', steps: [{ label: '调整范围' }] }), truncated: false } },
+      { id: 'legacy', tool: 'present_plan', status: 'failed', createdAt: 3 },
+    ] } as HarnessSession
+    const plans = miraSessionPlans(session), onOpenPlan = vi.fn()
+    const view = await mount({ changes: 0, running: false, taskTone: 'idle', taskState: '就绪', plans, onOpenPlan })
+    expect(view.button('展开任务摘要').textContent).toContain('历史方案')
+    await view.click('展开任务摘要')
+    expect([...document.querySelectorAll('[data-plan-directory-id]')].map(node => node.getAttribute('data-plan-directory-id'))).toEqual(['legacy', 'revision', 'first'])
+    expect(document.querySelector('[data-plan-directory-id="legacy"] [aria-label="内容不完整"]')).not.toBeNull()
+    await view.click('在右侧打开方案 首版方案')
+    expect(onOpenPlan).toHaveBeenCalledExactlyOnceWith('first')
+    expect(view.props.onReviewPlan).not.toHaveBeenCalled()
+    expect(view.props.onOpenProgress).not.toHaveBeenCalled()
+    await act(async () => root!.render(<MiraPlanDetail plan={plans[2]} />))
+    expect(document.querySelector('article[data-plan-detail-id="first"] h1')?.textContent).toBe('首版方案')
+    expect(document.querySelector('article strong')?.textContent).toBe('原始内容')
+    expect(document.querySelector('article ol')?.textContent).toContain('不修改原方案')
+    expect(document.querySelector('article ul')?.textContent).toContain('查看不会执行')
+    expect(document.querySelector('article button')).toBeNull()
+    await act(async () => root!.render(<MiraPlanDetail plan={plans[0]} />))
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('无法还原全部细节')
+    await act(async () => root!.render(<MiraPlanDetail />))
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('方案已不可用')
+  })
+  it('keeps workflow-only tasks visible, exposes live and ended rows and opens the owned run', async () => {
+    const runs = [{ runId: 'live', name: '资料核对', status: 'running', spentTokens: 12 }, { runId: 'done', name: '报告汇总', status: 'completed', spentTokens: 24 }] as RunRecord[]
+    const onOpenWorkflow = vi.fn(async () => undefined)
+    const view = await mount({ changes: 0, activities: [], running: false, taskTone: 'completed', taskState: '最近任务已完成', workflows: { sessionId: 'task-A', runs, error: '', loading: false, refresh: vi.fn() }, onOpenWorkflow })
+    expect(view.button('展开任务摘要').textContent).toContain('1 个工作流运行中')
+    expect(view.button('展开任务摘要').querySelector('[data-mira-workflow-summary-icon]')).not.toBeNull()
+    await view.click('展开任务摘要')
+    expect(document.querySelector('[aria-label="工作流摘要"]')?.textContent).toContain('报告汇总')
+    await view.click('在右侧打开工作流 资料核对')
+    expect(onOpenWorkflow).toHaveBeenCalledWith({ sessionId: 'task-A', runId: 'live' })
+    view.props.workflows = { ...view.props.workflows!, runs: [runs[1]] }; await view.render()
+    expect(view.button('展开任务摘要').textContent).toContain('1 个工作流已结束')
+  })
+  it('keeps current confirmation ahead of workflow activity and renders workflow errors with retry', async () => {
+    const refresh = vi.fn()
+    const view = await mount({ changes: 0, taskTone: 'waiting', taskState: '等待确认', workflows: { sessionId: 'task-A', runs: [{ runId: 'live', status: 'running', spentTokens: 0 } as RunRecord], error: '工作流读取失败', loading: false, refresh }, onOpenWorkflow: vi.fn(async () => undefined) })
+    expect(view.button('展开任务摘要').textContent).toContain('等待确认')
+    await view.click('展开任务摘要')
+    expect(document.querySelector('[aria-label="工作流摘要"]')?.textContent).toContain('工作流读取失败')
+    await view.click('重试工作流摘要'); expect(refresh).toHaveBeenCalledOnce()
+  })
+  it('does not let a completed parent turn mask a live workflow in its persistent summary', async () => {
+    const view = await mount({ changes: 0, running: false, taskTone: 'completed', taskState: '最近任务已完成', activities: [{ id: 'tool', kind: 'tool', label: '已启动工作流', status: 'completed', startedAt: 1 }], workflows: { sessionId: 'task-A', runs: [{ runId: 'live', status: 'running', spentTokens: 0 } as RunRecord], error: '', loading: false, refresh: vi.fn() } })
+    expect(view.button('展开任务摘要').textContent).toContain('1 个工作流运行中')
+    expect(document.querySelector('.mira-task-summary__header > span')?.textContent).toBe('工作流运行中')
+  })
   it('does not render a zero Goal request when only live agents need a summary', async () => {
     const view = await mount({ changes: 0, goalController: {} as NonNullable<Props['goalController']>, goalDetailsRequest: 0, subtasks: [agent()] })
     await view.click('展开任务摘要')

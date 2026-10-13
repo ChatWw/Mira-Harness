@@ -2,11 +2,15 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: local resource metadata and identity, Chinese labels, optional real times.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
-import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, GitBranch, GitCompare, Globe2, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
+import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, GitBranch, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
 import { miraMediaFormat } from '../../../../src/config/miraMedia'
 import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceTab } from '../state/workspace-state'
 
 export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
+  if (tab.traceSessionId) return { Icon: Activity, type: '模型轨迹', hint: '', aliases: `model trace trajectory 请求 响应 ${tab.traceSessionId}` }
+  if (tab.fullCommandOutput) return { Icon: FileText, type: '完整命令输出', hint: '', aliases: `command output log 完整输出 ${tab.runId || ''}` }
+  if (tab.commandToolId) return { Icon: TerminalSquare, type: '命令输出', hint: '', aliases: `command output bash 执行输出 ${tab.runId || ''}` }
+  if (tab.planToolId) return { Icon: ListChecks, type: '方案', hint: '', aliases: 'plan proposal 会话计划 历史方案' }
   if (isWorkspaceBrowserTab(tab.id)) return { Icon: Globe2, type: '浏览器', hint: tab.url || '', aliases: 'browser web' }
   if (isWorkspaceTerminalTab(tab.id)) return { Icon: TerminalSquare, type: '终端', hint: '', aliases: 'terminal shell command' }
   if (tab.path) {

@@ -24,6 +24,21 @@ function activityFixture() {
 }
 
 describe('subtask runtime policy', () => {
+  it('waits for owned command cleanup before releasing the project lock and reporting child completion', async () => {
+    const f = activityFixture()
+    let finishCleanup!: () => void
+    const cleanup = vi.fn(() => new Promise<void>(resolve => { finishCleanup = resolve }))
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: Agent) { f.report(this) })
+    const task = f.create({ toolsForTask: () => ({ tools: [], prepareTool: () => '', settleTool: () => {}, cancelPending: () => {}, stopCommands: cleanup }) })
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce())
+    expect(f.finished).not.toHaveBeenCalled()
+    expect(f.runtime.active().map(task => task.id)).toContain(task.id)
+    let drained = false
+    const waiting = f.runtime.wait().then(() => { drained = true })
+    await Promise.resolve(); expect(drained).toBe(false)
+    finishCleanup(); await waiting; expect(f.finished).toHaveBeenCalledOnce()
+    expect(task.status).toBe('completed'); await f.runtime.close()
+  })
   it('cancels a child waiting for the project lock without restarting it after release', async () => {
     const lock = new ProjectTaskLock(), release = await lock.acquire('project', 'write')
     const runtime = new SubtaskRuntime((_role, signal) => lock.acquire('project', 'read', signal))

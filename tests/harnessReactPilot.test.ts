@@ -43,6 +43,130 @@ function fixture() {
 
 const goal = (revision = 1, id = 'goal'): HarnessGoal => ({ id, objective: '完成目标', revision, status: 'active', tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, iteration: 1, createdAt: 1, updatedAt: revision })
 
+describe('model error diagnostics ownership', () => {
+  it('merges the admitted model on run-start after the running status without waiting for a snapshot', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    vi.mocked(host.getSession).mockImplementation(() => new Promise(() => {}))
+    emit('status', { state: 'running' }, 'a', 'model-run', { sequence: 1 })
+    const model = { providerId: 'provider', providerName: 'Test', modelId: 'model' }
+    emit('run-start', { startedAt: 10, messageId: 'reply', model }, 'a', 'model-run', { sequence: 2 })
+    expect(controller.getSnapshot().session?.activeRun?.model).toEqual(model)
+    controller.dispose()
+  })
+  it('accepts canonical background output after a model turn closes and while a newer turn runs, without reopening either turn', async () => {
+    const { controller, snapshots, emit } = fixture()
+    const command = { id: 'job', runId: 'old-run', tool: 'bash', status: 'ok' as const, createdAt: 1, commandJob: { mode: 'background' as const, status: 'running' as const, revision: 2, startedAt: 1 } }
+    snapshots.set('a', { ...session('a'), toolCalls: [structuredClone(command)] }); await controller.start()
+    emit('run-start', {}, 'a', 'new-run')
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, revision: 3, output: { text: 'old real progress', truncated: false } } }, 'a', 'old-run')
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.output?.text).toBe('old real progress')
+    expect(controller.getSnapshot().session?.activeRun?.id).toBe('new-run')
+    expect(controller.getSnapshot().running).toBe(true)
+    emit('command-job', { id: 'job', runId: 'wrong-run', commandJob: { ...command.commandJob, revision: 4 } }, 'a', 'wrong-run')
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.revision).toBe(3)
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, revision: 2 } }, 'a', 'old-run')
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.revision).toBe(3)
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, revision: 4, status: 'completed' } }, 'a', 'old-run')
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, revision: 5 } }, 'a', 'old-run')
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.status).toBe('completed')
+    await controller.open('b')
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, revision: 6 } }, 'a', 'old-run')
+    expect(controller.getSnapshot().session?.id).toBe('b')
+    expect(controller.getSnapshot().session?.toolCalls).toEqual([])
+    controller.dispose()
+  })
+  it('does not let an older in-flight model snapshot overwrite a newer background revision', async () => {
+    const { controller, snapshots, host, emit } = fixture()
+    const command = { id: 'job', runId: 'old-run', tool: 'bash', status: 'ok' as const, createdAt: 1, commandJob: { mode: 'background' as const, status: 'running' as const, revision: 2, startedAt: 1 } }
+    snapshots.set('a', { ...session('a'), toolCalls: [command] }); await controller.start()
+    let resolveSnapshot!: (snapshot: HarnessSession) => void
+    vi.mocked(host.getSession).mockImplementationOnce(() => new Promise(resolve => { resolveSnapshot = resolve }))
+    emit('task-changes', {})
+    emit('command-job', { id: 'job', runId: 'old-run', commandJob: { ...command.commandJob, status: 'completed', revision: 4, output: { text: 'final output', truncated: false } } }, 'a', 'old-run')
+    resolveSnapshot({ ...session('a'), title: 'delayed snapshot applied', toolCalls: [structuredClone(command)] })
+    await vi.waitFor(() => expect(controller.getSnapshot().session?.title).toBe('delayed snapshot applied'))
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob).toMatchObject({ status: 'completed', revision: 4, output: { text: 'final output' } })
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.revision).toBe(4)
+    controller.dispose()
+  })
+  it.each(['inherited', 'other-run', 'duplicate'] as const)('does not graft a background snapshot across ambiguous ownership: %s', async kind => {
+    const { controller, snapshots, host, emit } = fixture()
+    const command = { id: 'job', runId: 'old-run', tool: 'bash', status: 'ok' as const, createdAt: 1, commandJob: { mode: 'background' as const, status: 'running' as const, revision: 4, startedAt: 1 } }
+    snapshots.set('a', { ...session('a'), toolCalls: kind === 'duplicate' ? [command, structuredClone(command)] : [command] }); await controller.start()
+    const incoming = { ...structuredClone(command), ...(kind === 'inherited' ? { inherited: true } : kind === 'other-run' ? { runId: 'other-run' } : {}), commandJob: { ...command.commandJob, revision: 2 } }
+    vi.mocked(host.getSession).mockResolvedValueOnce({ ...session('a'), title: 'new owner snapshot', toolCalls: [incoming] })
+    emit('task-changes', {})
+    await vi.waitFor(() => expect(controller.getSnapshot().session?.title).toBe('new owner snapshot'))
+    expect(controller.getSnapshot().session?.toolCalls[0].commandJob?.revision).toBe(2)
+    controller.dispose()
+  })
+  const modelError = { code: 'MODEL_REQUEST_FAILED', message: '模型请求失败，请查看详情或检查模型设置', detail: '401 invalid_api_key [REDACTED]' }
+  it('keeps structured details across the matching request rejection, clears on dismiss and shows repeated errors again', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    emit('error', { message: modelError.message, modelError })
+    controller.reportError(new Error(modelError.message))
+    expect(controller.getSnapshot().modelError).toEqual(modelError)
+    controller.clearError(modelError.message)
+    expect(controller.getSnapshot()).toMatchObject({ error: undefined, modelError: undefined })
+    emit('error', { message: modelError.message, modelError })
+    expect(controller.getSnapshot().modelError).toEqual(modelError)
+    emit('run-start', {}, 'a', 'next-run')
+    expect(controller.getSnapshot()).toMatchObject({ error: undefined, modelError: undefined })
+    controller.dispose()
+  })
+  it('does not leak model diagnostics to another task or attach them to a subsequent local failure', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    emit('error', { message: modelError.message, modelError })
+    await controller.open('b')
+    emit('error', { message: modelError.message, modelError }, 'a')
+    expect(controller.getSnapshot()).toMatchObject({ error: undefined, modelError: undefined })
+    emit('error', { message: modelError.message, modelError }, 'b')
+    controller.reportError(new Error('草稿保存失败'))
+    expect(controller.getSnapshot()).toMatchObject({ error: '草稿保存失败', modelError: undefined })
+    controller.dispose()
+  })
+  it('rejects malformed diagnostics and never classifies model config from arbitrary message text', async () => {
+    const { controller, emit } = fixture(); await controller.start()
+    emit('error', { message: 'Model config is missing', modelError: { code: 'UNKNOWN', message: 'bad', detail: 'bad' } })
+    expect(controller.getSnapshot()).toMatchObject({ error: 'Model config is missing', modelError: undefined })
+    emit('error', { message: 'failure', modelError: { ...modelError, detail: 401 } })
+    expect(controller.getSnapshot().modelError).toBeUndefined()
+    controller.dispose()
+  })
+  it('restores only the last failed model run when reopening a failed task', async () => {
+    const { controller, snapshots } = fixture()
+    const failed = { ...session('a'), status: 'failed' as const, messages: [{ id: 'failed-answer', role: 'assistant' as const, content: '', createdAt: 1, run: { startedAt: 1, completedAt: 2, durationMs: 1, activities: [], status: 'failed' as const, error: modelError.message, modelError: { ...modelError, code: 'MODEL_REQUEST_FAILED' as const } } }] }
+    snapshots.set('a', failed); await controller.start()
+    expect(controller.getSnapshot().modelError).toEqual(modelError)
+    controller.clearError(modelError.message); await controller.open('b')
+    expect(controller.getSnapshot().modelError).toBeUndefined()
+    await controller.open('a')
+    expect(controller.getSnapshot().modelError).toEqual(modelError)
+    snapshots.set('a', { ...failed, messages: [...failed.messages, { id: 'next-user', role: 'user', content: '新要求', createdAt: 3 }] })
+    await controller.open('a')
+    expect(controller.getSnapshot().modelError).toBeUndefined()
+    controller.dispose()
+  })
+  it('saves before settings navigation and propagates a failed flush to the recovery component', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    const navigate = vi.fn(async () => undefined); host.navigate = navigate
+    emit('error', { message: modelError.message, modelError })
+    const save = vi.fn(async () => { throw new Error('save failed') })
+    const unregister = controller.registerBeforeNavigation(save)
+    await expect(controller.navigate('/settings/model-config', true)).rejects.toThrow('save failed')
+    expect(navigate).not.toHaveBeenCalled(); expect(controller.getSnapshot().modelError).toEqual(modelError)
+    unregister()
+    const calls: string[] = []
+    controller.registerBeforeNavigation(async () => { calls.push('save') })
+    navigate.mockImplementation(async () => { calls.push('navigate') })
+    await controller.navigate('/settings/model-config', true)
+    expect(calls).toEqual(['save', 'navigate'])
+    expect(navigate).toHaveBeenCalledWith('/settings/model-config')
+    controller.dispose()
+  })
+})
+
 describe('workflow source review projection', () => {
   it('retains both parallel actor approvals and advances to the next after the current tool settles', async () => {
     const { controller, emit, host } = fixture(); await controller.start()
@@ -1585,6 +1709,22 @@ describe('React Harness pilot controller', () => {
     expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [], session: session('a'), running: true, permission: { sessionId: 'a', requestId: 'permission', title: '写入', detail: 'file.md' } })).toBe('等待确认')
   })
 
+  it.each([50, 100, 150])('does not borrow another run failure even when its timestamp is %s', createdAt => {
+    const completed = { ...session('a'), status: 'completed' as const, toolCalls: [{ id: 'old-tool', runId: 'old-run', tool: 'read', status: 'failed' as const, createdAt }] }
+    const messages: HarnessMessage[] = [{ id: 'answer', runId: 'current-run', role: 'assistant', content: '完成', createdAt: 100, run: { status: 'completed', startedAt: 100, completedAt: 200, durationMs: 100, activities: [] } }]
+    const state = { sessions: [], projects: [], providers: [], messages, session: completed, running: false }
+    expect(getPilotTaskState(state)).toBe('最近任务已完成')
+    expect(getPilotTaskTone(getPilotTaskState(state))).toBe('completed')
+  })
+
+  it('uses canonical run identity for a failed tool despite a backwards wall clock', () => {
+    const completed = { ...session('a'), status: 'completed' as const, toolCalls: [{ id: 'current-tool', runId: 'current-run', tool: 'read', status: 'failed' as const, createdAt: 50 }] }
+    const messages: HarnessMessage[] = [{ id: 'answer', runId: 'current-run', role: 'assistant', content: '完成', createdAt: 100, run: { status: 'completed', startedAt: 100, completedAt: 200, durationMs: 100, activities: [] } }]
+    const state = { sessions: [], projects: [], providers: [], messages, session: completed, running: false }
+    expect(getPilotTaskState(state)).toBe('部分操作未完成')
+    expect(getPilotTaskTone(getPilotTaskState(state))).toBe('partial')
+  })
+
   it('renders the controlled stream for both the optimistic and authoritative assistant node', () => {
     expect(shouldRenderPilotStream('optimistic', true, 'stream-1')).toBe(true)
     expect(shouldRenderPilotStream('stream-1', false, 'stream-1')).toBe(true)
@@ -2624,6 +2764,20 @@ describe('React Harness pilot controller', () => {
     controller.dispose()
   })
 
+  it('returns file conflicts without claiming acceptance or losing canonical history', async () => {
+    const { controller, host, snapshots } = fixture()
+    snapshots.set('a', { ...session('a'), messages: [{ id: 'user', role: 'user', content: '原要求', createdAt: 1 }] })
+    const result = { disposition: 'blocked' as const, message: '文件已变化', preview: { messageId: 'user', safeFiles: [], unsafeFiles: [{ path: 'note.txt', operationCount: 1, reason: 'external_modified' as const }], ignoredTools: [], canApply: false } }
+    host.editAndRerun = vi.fn().mockResolvedValue(result)
+    await controller.start()
+    const callback = vi.fn(), workspace = { mode: 'rewind' as const, snapshotToken: 'a'.repeat(64) }
+    expect(await controller.editAndRerun('user', '修改要求', [], workspace, callback)).toBe(false)
+    expect(host.editAndRerun).toHaveBeenLastCalledWith('a', 'user', '修改要求', controller.getSnapshot().selection, [], workspace)
+    expect(callback).toHaveBeenLastCalledWith(result)
+    expect(controller.getSnapshot()).toMatchObject({ running: false, messages: [{ content: '原要求' }] })
+    expect(controller.getSnapshot().error).toBeUndefined(); controller.dispose()
+  })
+
   it('does not admit a history edit while a permission, queue, or question is waiting', async () => {
     const { controller, host, snapshots, emit } = fixture()
     host.editAndRerun = vi.fn(async () => undefined)
@@ -2670,6 +2824,29 @@ describe('React Harness pilot controller', () => {
       snapshots.set('a', { ...session('a'), messages: [{ ...oldMessage, content: '修改后的要求' }] })
       finish(); await request; controller.dispose()
     }
+  })
+
+  it('requires the exact edited attachment identities before admitting a same-text history edit', async () => {
+    const { controller, host, snapshots, emit } = fixture()
+    const message: HarnessMessage = { id: 'user', role: 'user', content: '原要求', attachments: [{ path: 'old.txt', content: 'Old snapshot' }], createdAt: 1 }
+    snapshots.set('a', { ...session('a'), messages: [message] })
+    let finish!: () => void
+    host.editAndRerun = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    await controller.start()
+    const outcomes: boolean[] = [], references = [{ path: 'new.txt', name: 'new.txt' }]
+    const pending = controller.editAndRerun('user', '原要求', references).then(result => outcomes.push(result))
+    const activeRun = { id: 'attachment-edit', startedAt: 10, activities: [], subtasks: [] }
+    snapshots.set('a', { ...session('a'), messages: [message], activeRun })
+    emit('run-start', { startedAt: 10 }, 'a', activeRun.id)
+    for (let i = 0; i < 12; i++) await Promise.resolve()
+    expect(outcomes).toEqual([])
+    snapshots.set('a', { ...session('a'), messages: [{ ...message, attachments: [{ path: 'new.txt', content: 'New snapshot' }] }], activeRun })
+    emit('run-activity', { activities: [] }, 'a', activeRun.id)
+    for (let i = 0; i < 12; i++) await Promise.resolve()
+    try {
+      expect(outcomes).toEqual([true])
+      expect(host.editAndRerun).toHaveBeenCalledWith('a', 'user', '原要求', { providerId: 'provider', modelId: 'model' }, references)
+    } finally { finish(); await pending; controller.dispose() }
   })
 
   it('unsubscribes a pending history edit on navigation and consumes the old IPC rejection', async () => {

@@ -9,6 +9,7 @@ export interface MiraConversationFindBarProps {
   open: boolean
   keyboardActive?: boolean
   allowChanges?: boolean
+  pending?: boolean
   focusRequestId: number
   query: string
   scope: 'conversation' | 'changes'
@@ -20,11 +21,12 @@ export interface MiraConversationFindBarProps {
   onClose: () => void
 }
 
-export function MiraConversationFindBar({ open, keyboardActive = true, allowChanges = true, focusRequestId, query, scope, count, index, onQueryChange, onScopeChange, onNavigate, onClose }: MiraConversationFindBarProps) {
+export function MiraConversationFindBar({ open, keyboardActive = true, allowChanges = true, pending = false, focusRequestId, query, scope, count, index, onQueryChange, onScopeChange, onNavigate, onClose }: MiraConversationFindBarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const composing = useRef(false)
   const descriptionId = useId()
-  const hasMatches = Boolean(query.trim()) && count > 0
+  const searching = pending && Boolean(query.trim())
+  const hasMatches = !pending && Boolean(query.trim()) && count > 0
   const currentIndex = index >= 0 && index < count ? index : 0
   const nextScope = scope === 'conversation' ? 'changes' : 'conversation'
   const nextScopeLabel = nextScope === 'changes' ? '文件变更' : '对话'
@@ -58,8 +60,8 @@ export function MiraConversationFindBar({ open, keyboardActive = true, allowChan
       const direction = event.key === 'ArrowUp' || event.key === 'Enter' && event.shiftKey ? -1 : event.key === 'ArrowDown' || event.key === 'Enter' ? 1 : undefined
       if (direction !== undefined) { event.preventDefault(); navigate(direction) }
     }} />
-    <span className="mira-conversation-find__count" aria-hidden="true">{hasMatches ? `${currentIndex + 1}/${count}` : '0/0'}</span>
-    <span className="mira-conversation-find__sr-only" role="status" aria-live="polite" aria-atomic="true">{query.trim() ? hasMatches ? `第 ${currentIndex + 1} 项，共 ${count} 项匹配` : '没有匹配结果' : '输入关键词开始查找'}</span>
+    <span className="mira-conversation-find__count" aria-hidden="true">{searching ? '查找中…' : hasMatches ? `${currentIndex + 1}/${count}` : '0/0'}</span>
+    <span className="mira-conversation-find__sr-only" role="status" aria-live="polite" aria-atomic="true">{searching ? '正在查找' : query.trim() ? hasMatches ? `第 ${currentIndex + 1} 项，共 ${count} 项匹配` : '没有匹配结果' : '输入关键词开始查找'}</span>
     <div className="mira-conversation-find__controls">
       {control('上一处匹配', 'Shift+Enter / ↑', () => navigate(-1), <ArrowUp size={14} aria-hidden="true" />, !hasMatches)}
       {control('下一处匹配', 'Enter / ↓', () => navigate(1), <ArrowDown size={14} aria-hidden="true" />, !hasMatches)}

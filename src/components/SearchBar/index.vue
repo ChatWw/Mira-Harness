@@ -110,6 +110,7 @@ import { findCommandNavigation, getCommandNavigationItems } from '@/config/comma
 import { navigateToPath } from '@/config/navigation'
 import type { CommandNavigationCategory, CommandNavigationItem } from '@/config/commandPalette'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
+import { isMiraPrimaryModifier } from '@/platform/workbenchShortcuts'
 import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 
@@ -297,7 +298,7 @@ function focusInput() {
 
 function handleKeydown(event: KeyboardEvent) {
   const key = event.key.toLowerCase()
-  if (!event.defaultPrevented && !event.isComposing && event.keyCode !== 229 && !event.repeat && !event.altKey && (event.ctrlKey || event.metaKey) && (event.shiftKey ? key === 'p' : key === 'k')) {
+  if (!event.defaultPrevented && !event.isComposing && event.keyCode !== 229 && !event.repeat && !event.altKey && isMiraPrimaryModifier(event) && (event.shiftKey ? key === 'p' : key === 'k')) {
     event.preventDefault()
     paletteStore.open()
   } else if (event.key === 'Escape' && paletteStore.visible) {

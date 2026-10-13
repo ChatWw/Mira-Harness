@@ -35,7 +35,7 @@ describe('controlled Harness attachment IPC', () => {
     const { harness, call, references } = fixture()
     electron.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/selected-by-user/file.txt'] })
     await expect(call('attachments.select')).resolves.toEqual(references)
-    expect(electron.showOpenDialog).toHaveBeenCalledWith({ defaultPath: '/temporary-workspace', properties: ['openFile', 'multiSelections'], title: '选择附件（文本或图片）' })
+    expect(electron.showOpenDialog).toHaveBeenCalledWith({ defaultPath: '/temporary-workspace', properties: ['openFile', 'multiSelections'], title: '选择附件（文本、图片、PDF 或视频）' })
     expect(harness.assertAttachmentSessionWritable).toHaveBeenCalledTimes(2)
     expect(harness.selectMessageAttachments).toHaveBeenCalledWith('s', ['/selected-by-user/file.txt'])
   })

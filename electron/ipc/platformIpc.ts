@@ -2,7 +2,7 @@ import { BrowserWindow, clipboard, dialog, ipcMain, shell, webContents, type Ope
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { MiraWorkspaceMedia } from '../services/miraWorkspaceMedia'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { PlatformDatabase } from '../storage/database'
@@ -389,12 +389,45 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       }
       case 'providers.list': return database.models.list()
       case 'editors.list': return getInstalledHarnessEditors(call.refresh)
-      case 'session.create-side': return database.harness.createSideConversation(call.parentId)
+      case 'session.create-side': {
+        if (!call.input) return database.harness.createSideConversation(call.parentId)
+        const { input } = call
+        const previous = database.harness.getSideConversationForInput(call.parentId, input)
+        if (!previous) {
+          harnessRuntime.assertMessageSelection(input.selection)
+          const config = database.harness.getPermissionConfig()
+          if (input.permissionMode === 'auto-approve' && !config.autoApproveEnabled || input.permissionMode === 'full' && !config.fullAccessEnabled) throw new Error('所选权限档位已停用，请重新选择')
+        }
+        const child = previous || database.harness.createSideConversation(call.parentId, input)
+        return Promise.resolve(harnessRuntime.submitMessage(event.sender, child.id, input.submissionId, input.text, [], input.selection, false, input.permissionMode === undefined ? {} : { permissionMode: input.permissionMode })).then(receipt => {
+          assertMarketAuthorized()
+          if (!('submissionId' in receipt)) throw new Error('reason' in receipt && receipt.reason === 'permission-mode-disabled' ? '所选权限档位已停用，请重新选择' : '旁路问题未被接收，请重试')
+          return harnessRuntime.getSession(child.id)
+        })
+      }
       case 'session.fork': {
         harnessRuntime.assertSessionMutable(call.id)
         return database.harness.forkConversation(call.id, call.messageId, call.requestId)
       }
       case 'session.get': return harnessRuntime.getSession(call.id)
+      case 'session.paths': return database.harnessDiagnosticPaths(call.id)
+      case 'session.trace': {
+        database.harness.getSession(call.id)
+        return database.modelTrace.read(call.id).then(trace => { assertMarketAuthorized(); database.harness.getSession(call.id); return trace })
+      }
+      case 'session.trace.open': {
+        database.harness.getSession(call.id)
+        return mkdir(database.modelTrace.directory, { recursive: true }).then(async () => {
+          assertMarketAuthorized()
+          database.harness.getSession(call.id)
+          const error = await shell.openPath(database.modelTrace.directory)
+          if (error) throw new Error('模型轨迹目录打开失败，请重试')
+          assertMarketAuthorized()
+        })
+      }
+      case 'files.rewind-preview': return harnessRuntime.previewFileRewind(call.sessionId, call.messageId).then(preview => { assertMarketAuthorized(); return preview })
+      case 'files.rewind-apply': return harnessRuntime.applyFileRewind(event.sender, call.sessionId, call.messageId, call.snapshotToken, assertMarketAuthorized)
+      case 'files.rewind-recover': return harnessRuntime.recoverFileRewind(event.sender, call.sessionId, call.recoveryId, assertMarketAuthorized)
       case 'goal.pause': return harnessRuntime.pauseGoal(event.sender, call.sessionId, call.expectedRevision, call.expectedGoalId)
       case 'goal.resume': return harnessRuntime.resumeGoal(event.sender, call.sessionId, call.expectedRevision, call.selection, call.permissionMode, call.expectedGoalId)
       case 'goal.budget': return harnessRuntime.updateGoalBudget(event.sender, call.sessionId, call.tokenBudget, call.expectedRevision, call.expectedGoalId)
@@ -520,7 +553,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'attachments.select': {
         const session = database.harness.assertAttachmentSessionWritable(call.sessionId)
         const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
-        const options: OpenDialogOptions = { ...(session.workingDirectory ? { defaultPath: session.workingDirectory } : {}), properties: ['openFile', 'multiSelections'], title: '选择附件（文本或图片）' }
+        const options: OpenDialogOptions = { ...(session.workingDirectory ? { defaultPath: session.workingDirectory } : {}), properties: ['openFile', 'multiSelections'], title: '选择附件（文本、图片、PDF 或视频）' }
         return (async () => {
           const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
           // 原生窗口等待期间授权、会话归档/删除都可能变化；不得用旧授权发布附件。
@@ -540,9 +573,12 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'context.compact': return harnessRuntime.compactConversation(event.sender, call.sessionId, call.selection, assertMarketAuthorized, call.submissionId)
       case 'memory.save': return harnessRuntime.saveProjectMemory(event.sender, call.sessionId, call.selection)
       case 'subtask.stop': return harnessRuntime.stopSubtasks(call.sessionId, call.subtaskId ? [call.subtaskId] : undefined)
+      case 'command.background': return harnessRuntime.backgroundCommand(call.sessionId, call.runId, call.toolId)
+      case 'command.stop': return harnessRuntime.stopCommand(call.sessionId, call.runId, call.toolId)
+      case 'command.output': return harnessRuntime.readCommandOutput(call.sessionId, call.runId, call.toolId, assertMarketAuthorized)
       case 'run.abort': return harnessRuntime.abort(call.sessionId, call.expectedRunId)
       case 'run.rerun': return harnessRuntime.rerun(event.sender, call.sessionId, call.selection)
-      case 'run.edit-rerun': return harnessRuntime.editAndRerun(event.sender, call.sessionId, call.messageId, call.content, call.selection)
+      case 'run.edit-rerun': return harnessRuntime.editAndRerun(event.sender, call.sessionId, call.messageId, call.content, call.selection, call.references, call.workspace, assertMarketAuthorized)
       case 'message.run': return harnessRuntime.runMessage(event.sender, call.sessionId, call.text, call.references, call.selection, call.planning)
       case 'message.submit': return call.options === undefined
         ? harnessRuntime.submitMessage(event.sender, call.sessionId, call.submissionId, call.text, call.references, call.selection, call.planning)

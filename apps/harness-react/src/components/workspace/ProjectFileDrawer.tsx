@@ -11,7 +11,7 @@ import { FileTreeDataSource, fileTreeAbsolutePath, fileTreeAncestors, fileTreeFo
 import { FileSearchDataSource, fileSearchRows } from '../../lib/file-search'
 import { FileGitDataSource, fileGitChangedRows, fileGitDecoration, fileGitStatusLabel, fileGitTreeDirectories } from '../../lib/file-git'
 import { filePreviewKind } from '../../lib/file-preview'
-import { attachmentImageType } from '../../lib/attachment-input'
+import { attachmentBinaryType, attachmentImageType } from '../../lib/attachment-input'
 import { getEmptyWorkspaceWatch, subscribeWithoutWorkspaceWatch, type WorkspaceWatchDataSource } from '../../lib/workspace-watch'
 import type { PilotController } from '../../state/pilot-state'
 import type { WorkspaceEditorInfo } from '../../lib/workspace-editors'
@@ -250,7 +250,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
           const bitmap = filePreviewKind(row.path) === 'bitmap'
           const media = ['media', 'pdf', 'office'].includes(filePreviewKind(row.path))
           const unsupportedImageAttachment = bitmap && !attachmentImageType(row.path)
-          const canAddFile = Boolean(onAddFile) && !media && !unsupportedImageAttachment && !(bitmap && deleted)
+          const canAddFile = Boolean(onAddFile) && (!media || Boolean(attachmentBinaryType(row.path))) && !unsupportedImageAttachment && !deleted
           const decoration = fileGitDecoration(git.index, row.path, row.type)
           const descendantLabel = decoration.statuses.map(status => fileGitStatusLabel[status]).join('、')
           return <ContextMenu.Root key={row.path}><ContextMenu.Trigger asChild><div
@@ -276,7 +276,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
             <ContextMenu.Separator className="mira-session-menu__separator" />
             <ContextMenu.Item className="mira-session-menu__item" onSelect={() => void copyPath(row.path)}><Copy size={14} />复制相对路径</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(fileTreeAbsolutePath(directory!, row.path))}><Copy size={14} />复制绝对路径</ContextMenu.Item>
-            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media ? 'Office、PDF 与音视频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
+            {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media && !attachmentBinaryType(row.path) ? 'Office 和音频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
           </ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
         })}
       </div>

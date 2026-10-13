@@ -6,6 +6,36 @@ function port() {
 }
 
 describe('first-party frame session lifecycle', () => {
+  it.each([true, false])('accepts only the matching typed close acknowledgement: consumed=%s', async consumed => {
+    const session = new FirstPartyConnectionSession(vi.fn()), send = vi.fn()
+    session.activate(session.begin(), 'grant', port())
+    const closing = session.closeContext(send), id = send.mock.calls[0][0].id
+    expect(session.receiveCloseReady({ type: 'mira:leave-ready', id, ok: true })).toBe(false)
+    for (const value of [{ type: 'mira:close-ready', id, ok: true }, { type: 'mira:close-ready', id, ok: true, consumed: 'yes' }, { type: 'mira:close-ready', id, ok: true, consumed, extra: 1 }]) session.receiveCloseReady(value)
+    session.receiveCloseReady({ type: 'mira:close-ready', id: 'other', ok: true, consumed })
+    session.receiveCloseReady({ type: 'mira:close-ready', id, ok: true, consumed })
+    await expect(closing).resolves.toBe(consumed); session.invalidate()
+  })
+  it('retains the window on close errors, invalidation, no connection and port failure', async () => {
+    const session = new FirstPartyConnectionSession(vi.fn()), send = vi.fn()
+    await expect(session.closeContext(send)).rejects.toThrow('连接尚未就绪')
+    session.activate(session.begin(), 'grant', port())
+    const closing = session.closeContext(send), assertion = expect(closing).rejects.toThrow('保存失败')
+    session.receiveCloseReady({ type: 'mira:close-ready', id: send.mock.calls[0][0].id, ok: false, error: '保存失败' }); await assertion
+    await expect(session.closeContext(() => { throw new Error('port closed') })).rejects.toThrow('port closed')
+    const pending = expect(session.closeContext(send)).rejects.toThrow('连接已失效'); session.invalidate(); await pending
+  })
+  it('never grants window close after the acknowledgement times out', async () => {
+    vi.useFakeTimers()
+    try {
+      const session = new FirstPartyConnectionSession(vi.fn()), send = vi.fn()
+      session.activate(session.begin(), 'grant', port())
+      const assertion = expect(session.closeContext(send)).rejects.toThrow('关闭确认超时')
+      await vi.advanceTimersByTimeAsync(5000); await assertion
+      session.receiveCloseReady({ type: 'mira:close-ready', id: send.mock.calls[0][0].id, ok: true, consumed: false })
+      expect(vi.getTimerCount()).toBe(0); session.invalidate()
+    } finally { vi.useRealTimers() }
+  })
   it('forwards workspace changes only to their active grant and port', () => {
     const session = new FirstPartyConnectionSession(vi.fn())
     const activePort = port()

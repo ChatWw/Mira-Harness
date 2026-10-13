@@ -65,4 +65,51 @@ describe('createHarnessModelProvider', () => {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
     }
   })
+
+  it('preserves PDF and video bytes and message ownership through real SDK requests and follow-ups', async () => {
+    const bodies: any[] = []
+    const trace: any[] = []
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      bodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      response.end(`data: ${JSON.stringify({ id: 'media', choices: [{ index: 0, delta: { role: 'assistant', content: 'Received' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const { port } = server.address() as { port: number }
+      const { model, models } = (createHarnessModelProvider as any)({ ...provider, endpoint: `http://127.0.0.1:${port}/v1`, authMode: 'none' }, { ...configuredModel, pdfInput: true, videoInput: true }, '', { sessionId: 'task-media', runId: 'run-media', source: 'main', store: { write: (record: any) => trace.push(structuredClone(record)) } })
+      const media = [
+        { path: 'owned-pdf', name: '报告.pdf', mediaType: 'application/pdf', content: Buffer.from('%PDF-1.7\n%%EOF').toString('base64') },
+        { path: 'owned-video', name: 'sample.mp4', mediaType: 'video/mp4', content: Buffer.from('native-video-bytes').toString('base64') },
+      ]
+      const first: any = { role: 'user', content: 'Read both', timestamp: 1, miraMedia: media }
+      const reply = await models.completeSimple(model, { messages: [first] })
+      expect(reply.stopReason).toBe('stop')
+      await models.completeSimple(model, { messages: [first, reply, { role: 'user', content: 'Follow up', timestamp: 2 }] })
+      await Promise.resolve()
+      expect(trace.filter(record => record.request).map(record => record.request)).toEqual(bodies)
+      expect(trace.filter(record => record.response)).toHaveLength(2)
+      expect(trace.every(record => record.sessionId === 'task-media' && record.runId === 'run-media')).toBe(true)
+      for (const body of bodies) {
+        const users = body.messages.filter((message: any) => message.role === 'user')
+        expect(users[0].content).toEqual([
+          { type: 'text', text: 'Read both' },
+          { type: 'file', file: { filename: '报告.pdf', file_data: `data:application/pdf;base64,${media[0].content}` } },
+          { type: 'video_url', video_url: { url: `data:video/mp4;base64,${media[1].content}` } },
+        ])
+        expect(body.messages).not.toContainEqual(expect.objectContaining({ miraMedia: expect.anything() }))
+      }
+      expect(bodies[1].messages.filter((message: any) => message.role === 'user')[1].content).toBe('Follow up')
+      expect(first.content).toBe('Read both'); expect(first.miraMedia).toBe(media)
+      const disabled = createHarnessModelProvider({ ...provider, endpoint: `http://127.0.0.1:${port}/v1`, authMode: 'none' }, configuredModel, '')
+      const refused = await disabled.models.completeSimple(disabled.model, { messages: [first] })
+      expect(refused.stopReason).toBe('error'); expect(refused.errorMessage).toContain('PDF')
+      expect(bodies).toHaveLength(2)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    }
+  })
 })

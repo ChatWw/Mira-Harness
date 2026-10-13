@@ -21,7 +21,7 @@ vi.mock('@/config/navigation', () => ({ navigateToPath: vi.fn() }))
 const Component = withVueClientRender(SearchBar, pathToFileURL(resolve('src/components/SearchBar/index.vue')))
 let app: App | undefined
 let removeHarnessListener: (() => void) | undefined
-beforeEach(() => { setActivePinia(createPinia()); route.currentRoute.value.path = '/workspace/harness-react' })
+beforeEach(() => { setActivePinia(createPinia()); route.currentRoute.value.path = '/workspace/harness-react'; vi.spyOn(navigator, 'platform', 'get').mockReturnValue('') })
 afterEach(() => { app?.unmount(); app = undefined; removeHarnessListener?.(); removeHarnessListener = undefined; document.body.replaceChildren(); vi.restoreAllMocks() })
 
 async function mount() {
@@ -47,6 +47,19 @@ async function mount() {
 }
 
 describe('Shell search shortcuts through the mounted Vue component', () => {
+  it.each(['MacIntel', 'Win32'])('uses the same platform-specific search bindings from Shell focus on %s', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
+    const view = await mount()
+    const primary = platform === 'MacIntel' ? 'metaKey' : 'ctrlKey', other = primary === 'metaKey' ? 'ctrlKey' : 'metaKey'
+    for (const shortcut of [{ key: 'k' }, { key: 'p', shiftKey: true }]) {
+      await view.key(shortcut.key, { [other]: true, shiftKey: shortcut.shiftKey })
+      await view.key(shortcut.key, { metaKey: true, ctrlKey: true, shiftKey: shortcut.shiftKey })
+    }
+    expect(view.applicationSearch).not.toHaveBeenCalled(); expect(view.palette.visible).toBe(false)
+    await view.key('k', { [primary]: true }); await view.key('p', { [primary]: true, shiftKey: true })
+    expect(view.applicationSearch).toHaveBeenCalledTimes(2); expect(view.palette.visible).toBe(false)
+  })
+
   it.each(['metaKey', 'ctrlKey'] as const)('routes K and Shift+P from Shell focus to one Harness search with %s', async modifier => {
     const view = await mount()
     for (const shortcut of [{ key: 'k' }, { key: 'P', shiftKey: true }]) {

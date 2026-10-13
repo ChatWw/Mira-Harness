@@ -1,12 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { miraInitialTaskLayout, miraTaskPaneIds, splitMiraTaskLayout, removeMiraTaskPane, resizeMiraTaskSplit, readMiraTaskLayout, miraTaskLayoutGeometry, miraTaskDropSide } from '../apps/harness-react/src/state/mira-task-layout'
-import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
+import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspacePlanTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
+import { miraSearchWorkspaceTabs } from '../apps/harness-react/src/lib/mira-workspace-tab-presentation'
 
 const NOW = 1_791_664_800_000
 beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(NOW))
 afterEach(() => vi.restoreAllMocks())
 
 describe('React Harness workspace state', () => {
+  it('restores multiple historical plan tabs by immutable tool identity, without persisting copied plan content', () => {
+    const first = createWorkspacePlanTab('first', '首版方案'), revised = createWorkspacePlanTab('revised', '修订方案')
+    let state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), first), revised)
+    state = openWorkspaceTab(state, first)
+    expect(state.tabs).toHaveLength(2)
+    expect(state.activeTab).toBe(first.id)
+    state = reorderWorkspaceTabs(state, revised.id, first.id)
+    const closed = closeWorkspaceTab(state, first.id)
+    const restored = readWorkspaceSessions({ task: JSON.parse(JSON.stringify(closed)) }).task
+    expect(restored.tabs).toEqual(closed.tabs)
+    expect(restored.recentClosedTabs[0]).toMatchObject({ id: first.id, planToolId: 'first' })
+    const reopened = restoreWorkspaceTab(restored, first.id)
+    expect(reopened.tabs.map(tab => tab.planToolId)).toEqual(['revised', 'first'])
+    expect(reopened.activeTab).toBe(first.id)
+    expect(miraSearchWorkspaceTabs(reopened.tabs, '历史方案 首版')).toEqual([reopened.tabs[1]])
+    expect(workspaceTabLabel(first.id)).toBe('方案')
+    const malformed = [
+      { ...first, id: 'plan:another' }, { ...first, planToolId: '' },
+      { ...first, planToolId: 'bad\nidentity', id: 'plan:bad\nidentity' },
+      { ...first, planToolId: 'x'.repeat(513), id: `plan:${'x'.repeat(513)}` },
+    ]
+    expect(readWorkspaceSessions({ task: { ...state, tabs: malformed } }).task.tabs).toEqual([])
+    expect(readWorkspaceSessions({ task: { ...state, tabs: [{ ...first, markdown: 'must not persist', runId: 'unrelated' }] } }).task.tabs[0]).toEqual(first)
+  })
   it('replaces a task in its exact split leaf while keeping resource identity, ratios and reopen history', () => {
     let state = placeWorkspaceTask(createWorkspaceSession(), createWorkspaceTaskTab('b', '原任务'), '$primary', 'left')
     state = placeWorkspaceTask(state, createWorkspaceTaskTab('c', '邻近任务'), 'b', 'down')

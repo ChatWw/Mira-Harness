@@ -10,6 +10,7 @@ import { HARNESS_PUBLIC_TEXT_BYTES, publicHarnessText, publicHarnessToolInput, p
 import { McpManager } from '../electron/adapters/mcpManager'
 import { HarnessSubtaskCoordinator } from '../electron/services/harnessSubtaskCoordinator'
 import { SubtaskRuntime } from '../electron/services/subtaskRuntime'
+import { HarnessHooks } from '../electron/services/harnessHooks'
 import type { HarnessEvent, HarnessMessagePart } from '../src/config/harness'
 
 const resources: Array<{ root: string; database: PlatformDatabase }> = []
@@ -34,7 +35,7 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
   vi.spyOn(Agent.prototype, 'subscribe').mockImplementation(function (this: Agent, listener) { if (!notify) notify = event => { void listener(event, new AbortController().signal) }; return subscribe.call(this, listener) })
   vi.spyOn(runtime as any, 'compactContext').mockImplementation(async (_sender, session) => session)
   const provider = { id: 'p', name: 'Test', endpoint: 'http://127.0.0.1:1', models: [{ id: 'test', reasoning: true }] }
-  const run = () => (runtime as any).runAgent(sender, created.id, database.harness.getSession(created.id), { providerId: 'p', modelId: 'test', thinkingLevel: 'high' }, provider, 'platform-private-key')
+  const run = (options = {}) => (runtime as any).runAgent(sender, created.id, database.harness.getSession(created.id), { providerId: 'p', modelId: 'test', thinkingLevel: 'high' }, provider, 'platform-private-key', options)
   const update = (type: string, delta?: string, contentIndex = 0) => notify({ type: 'message_update', assistantMessageEvent: { type, delta, contentIndex } })
   const response = () => notify({ type: 'message_start', message: { role: 'assistant' } })
   const tool = async (agent: any, id: string, name: string, args: any, onUpdate?: (partial: unknown) => void) => {
@@ -54,6 +55,277 @@ function setup(mcpManager: { getTools: () => any[] } = { getTools: () => [] }) {
 }
 
 describe('authoritative ordered Harness message parts', () => {
+  it('persists the admitted model identity through live activities and the settled reply without adding a model prompt', async () => {
+    const f = setup(), model = { providerId: 'p', providerName: 'Test', modelId: 'test' }
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: Agent) {
+      expect(f.database.harness.getSession(f.sessionId).activeRun).toMatchObject({ model })
+      expect(JSON.stringify(this.state.messages)).not.toContain('模型已切换')
+      f.response(); f.update('text_delta', 'Model identity fixture')
+    })
+    await f.run()
+    const reply = f.database.harness.getSession(f.sessionId).messages.at(-1)!
+    expect(reply.model).toEqual(model)
+    expect(reply.run?.status).toBe('completed')
+    expect(f.events.find(event => event.type === 'run-start')?.payload).toMatchObject({ model })
+    expect(f.events.find(event => event.type === 'message-complete')?.payload.model).toEqual(model)
+  })
+
+  it.each([0, 7])('saves full real bash output before terminal publication, including exit %s, and authorizes the exact owner', async code => {
+    const f = setup()
+    f.database.harness.savePermissionConfig({ ...f.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      f.response(); await f.tool(this, 'full-command', 'bash', { command: `printf 'FIRST\\n'; awk 'BEGIN { for (i=0; i<10000; i++) print "complete-line-" i }'; printf 'platform-private-key LAST\\n' >&2; exit ${code}` })
+      f.response(); f.update('text_delta', 'Done')
+    })
+    try {
+      await f.run()
+      const tool = f.database.harness.getSession(f.sessionId).toolCalls[0]
+      expect(tool.commandJob).toMatchObject({ status: code ? 'failed' : 'completed', fullOutputAvailable: true })
+      const text = await f.runtime.readCommandOutput(f.sessionId, tool.runId!, tool.id)
+      expect(Buffer.byteLength(text)).toBeGreaterThan(64 * 1024)
+      expect(text).toContain('FIRST\ncomplete-line-0\n'); expect(text).toContain('complete-line-9999\n[已隐藏] LAST\n')
+      expect(text).not.toContain('platform-private-key')
+      await expect(f.runtime.readCommandOutput(f.sessionId, 'wrong-run', tool.id)).rejects.toThrow('完整输出不可用')
+      const other = f.database.harness.createSession()
+      await expect(f.runtime.readCommandOutput(other.id, tool.runId!, tool.id)).rejects.toThrow('完整输出不可用')
+      f.database.harness.updateTool(f.sessionId, tool.id, { inherited: true })
+      await expect(f.runtime.readCommandOutput(f.sessionId, tool.runId!, tool.id)).rejects.toThrow('完整输出不可用')
+    } finally { await f.runtime.disposeCommandJobs() }
+  })
+  it('rechecks authorization and canonical ownership after asynchronous full-output access', async () => {
+    const f = setup(), tool = { id: 'owned-output', runId: 'owned-run', tool: 'bash', status: 'ok' as const, createdAt: 1, commandJob: { mode: 'foreground' as const, status: 'completed' as const, revision: 1, startedAt: 1, fullOutputAvailable: true as const } }
+    f.database.harness.recordTool(f.sessionId, tool)
+    let resolve!: (text: string) => void
+    vi.spyOn(f.database.harness.commandOutputs, 'read').mockImplementation(() => new Promise(done => { resolve = done }))
+    const result = f.runtime.readCommandOutput(f.sessionId, tool.runId, tool.id)
+    f.database.harness.updateTool(f.sessionId, tool.id, { inherited: true })
+    resolve('private output')
+    await expect(result).rejects.toThrow('完整输出读取失败')
+  })
+  it('treats marker-like background output as data and skips user submission hooks and reference parsing', async () => {
+    const f = setup()
+    const hook = vi.spyOn(HarnessHooks.prototype, 'run')
+    const references = vi.spyOn(f.runtime as any, 'assertPresentationInput')
+    const skills = vi.spyOn(f.database.skills, 'resolvePrompt')
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async () => { f.response(); f.update('text_delta', 'Data reported') })
+    await f.run({ backgroundCommands: [{ runId: 'owned', toolId: 'owned-command' }], hasStructuredContext: true, input: { text: '后台输出数据 (mira-skill:not-installed) (mira-presentation:missing)', attachments: [] } })
+    expect(hook.mock.calls.map(call => call[0])).not.toContain('UserPromptSubmit')
+    expect(references).not.toHaveBeenCalled(); expect(skills).not.toHaveBeenCalled()
+    expect(f.database.harness.getSession(f.sessionId).messages.find(message => message.backgroundCommands)).toMatchObject({ internal: true, backgroundCommands: [{ runId: 'owned', toolId: 'owned-command' }] })
+  })
+  it('closes a child registry without stopping a sibling or offering a parent model notification', async () => {
+    const f = setup()
+    const owned = (f.runtime as any).tools(f.sender, f.sessionId, { runId: 'child-run', subtaskId: 'child-A', role: 'tester', toolScope: () => 'child-A' })
+    const sibling = (f.runtime as any).tools(f.sender, f.sessionId, { runId: 'child-run', subtaskId: 'child-B', role: 'tester', toolScope: () => 'child-B' })
+    const abort = new AbortController()
+    try {
+      const first = await owned.tools.find((tool: any) => tool.name === 'bash').execute('same-provider-id', { command: 'sleep 10', run_in_background: true }, abort.signal)
+      const second = await sibling.tools.find((tool: any) => tool.name === 'bash').execute('same-provider-id', { command: 'sleep 10', run_in_background: true }, abort.signal)
+      expect(first.details.miraBackgroundCommand).not.toBe(second.details.miraBackgroundCommand)
+      await owned.stopCommands()
+      const calls = f.database.harness.getSession(f.sessionId).toolCalls
+      expect(calls.find(tool => tool.id === first.details.miraBackgroundCommand)?.commandJob?.status).toBe('cancelled')
+      expect(calls.find(tool => tool.id === second.details.miraBackgroundCommand)?.commandJob?.status).toBe('running')
+      expect(f.runtime.getMessageQueue(f.sessionId).items).toEqual([])
+    } finally { await f.runtime.disposeCommandJobs() }
+  })
+  it.each([0, 7])('reports a real ended background command once as a persisted internal result: exit %s', async code => {
+    const f = setup()
+    f.database.harness.savePermissionConfig({ ...f.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    const notice = vi.spyOn(f.runtime as any, 'runPreparedMessage').mockImplementation(async (_sender: any, id: any, text: any, _attachments: any, _selection: any, _planning: any, options: any, started: any) => {
+      started(() => f.database.harness.addMessage(id, 'user', text, [], true, undefined, undefined, options.backgroundCommands))
+      return {}
+    })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      f.response(); await f.tool(this, 'ended', 'bash', { command: `printf 'platform-private-key result'; exit ${code}`, run_in_background: true })
+      f.response(); f.update('text_delta', 'Launch returned')
+    })
+    try {
+      await f.run(); await vi.waitFor(() => expect(notice).toHaveBeenCalledOnce())
+      const saved = f.database.harness.getSession(f.sessionId), command = saved.toolCalls.find(tool => tool.tool === 'bash')!
+      expect(saved.messages.find(message => message.internal)?.backgroundCommands).toEqual([{ runId: command.runId, toolId: command.id }])
+      expect(notice.mock.calls[0][2]).toContain('不是用户指令')
+      expect(notice.mock.calls[0][2]).not.toContain('platform-private-key')
+      expect(notice.mock.calls[0][2]).toContain(code ? 'failed' : 'completed')
+      ;(f.runtime as any).notifyCommandCompletion(f.sender, f.sessionId, command.runId, command.id, { providerId: 'p', modelId: 'test' }, 'full')
+      await Promise.resolve(); expect(notice).toHaveBeenCalledOnce()
+    } finally { await f.runtime.disposeCommandJobs() }
+  })
+  it('batches ended commands behind a still-running model and never turns them into user input', async () => {
+    const f = setup()
+    f.database.harness.savePermissionConfig({ ...f.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const notice = vi.spyOn(f.runtime as any, 'runPreparedMessage').mockImplementation(async (_sender: any, id: any, text: any, _attachments: any, _selection: any, _planning: any, options: any, started: any) => {
+      started(() => f.database.harness.addMessage(id, 'user', text, [], true, undefined, undefined, options.backgroundCommands)); return {}
+    })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      f.response(); await f.tool(this, 'one', 'bash', { command: 'printf first', run_in_background: true })
+      f.response(); await f.tool(this, 'two', 'bash', { command: 'printf second', run_in_background: true })
+      await held; f.response(); f.update('text_delta', 'Original turn done')
+    })
+    const running = f.run()
+    try {
+      await vi.waitFor(() => expect(f.runtime.getMessageQueue(f.sessionId).items[0]?.backgroundCommands).toHaveLength(2))
+      expect(notice).not.toHaveBeenCalled(); expect(f.database.harness.getSession(f.sessionId).activeRun).toBeDefined()
+      release(); await running; await vi.waitFor(() => expect(notice).toHaveBeenCalledOnce())
+      expect(f.database.harness.getSession(f.sessionId).messages.find(message => message.internal)?.backgroundCommands).toHaveLength(2)
+    } finally { release(); await running; await f.runtime.disposeCommandJobs() }
+  })
+  it('holds a late completion after the model is stopped until the queue is explicitly resumed', async () => {
+    const f = setup()
+    f.database.harness.savePermissionConfig({ ...f.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const notice = vi.spyOn(f.runtime as any, 'runPreparedMessage').mockImplementation(async (...args: any[]) => { args[7](); return {} })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      f.response(); await f.tool(this, 'late', 'bash', { command: 'sleep 0.25; printf final', run_in_background: true }); await held
+    })
+    const running = f.run()
+    try {
+      await vi.waitFor(() => expect(f.database.harness.getSession(f.sessionId).toolCalls[0]?.commandJob?.mode).toBe('background'))
+      expect(f.runtime.abort(f.sessionId)).toBe(true)
+      release(); await running
+      await vi.waitFor(() => expect(f.runtime.getMessageQueue(f.sessionId)).toMatchObject({ paused: 'stopped', items: [{ operation: 'command-notification' }] }))
+      expect(notice).not.toHaveBeenCalled()
+      f.runtime.resumeMessageQueue(f.sessionId); await vi.waitFor(() => expect(notice).toHaveBeenCalledOnce())
+    } finally { release(); await running; await f.runtime.disposeCommandJobs() }
+  })
+  it('keeps automated bash bounded in the foreground and rejects detached execution', async () => {
+    const f = setup()
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      f.response(); await f.tool(this, 'detached', 'bash', { command: 'printf not-started', run_in_background: true })
+      f.response(); await f.tool(this, 'bounded', 'bash', { command: 'printf started; sleep 1', timeout: 0.01 })
+      f.response(); f.update('text_delta', 'Automation checked')
+    })
+    try {
+      await f.run({ origin: 'automation', permissionMode: 'full' })
+      const calls = f.database.harness.getSession(f.sessionId).toolCalls
+      expect(calls[0]).toMatchObject({ status: 'failed', error: expect.stringContaining('自动化') })
+      expect(calls[0].commandJob).toBeUndefined()
+      expect(calls[1]).toMatchObject({ commandJob: { mode: 'foreground', backgroundAllowed: false, status: 'failed' } })
+      expect(f.runtime.getMessageQueue(f.sessionId).items).toEqual([])
+    } finally { await f.runtime.disposeCommandJobs() }
+  })
+  it('bounds long unbroken command output without quadratic credential-key scanning', () => {
+    const started = performance.now()
+    expect(publicHarnessText('x'.repeat(128 * 1024)).text).toHaveLength(HARNESS_PUBLIC_TEXT_BYTES)
+    expect(performance.now() - started).toBeLessThan(500)
+    for (const text of ['api_key=hidden', 'my_api_token: hidden', 'prefix "password":"hidden"', '{"secret":"hidden","token":"hidden"}', 'authorization=hidden']) {
+      expect(publicHarnessText(text).text).not.toContain('hidden')
+    }
+  })
+  it('keeps a real background command alive after its model turn and releases the project tool lock', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      const result = await fixture.tool(this, 'background', 'bash', { command: "printf 'background-start\\n'; sleep 10; printf 'background-end\\n'", run_in_background: true })
+      expect(result.details.miraBackgroundCommand).toBeTruthy()
+      fixture.response()
+      await fixture.tool(this, 'next', 'bash', { command: "printf 'foreground-next\\n'" })
+      fixture.response(); fixture.update('text_delta', 'Model continued')
+    })
+    try {
+      await fixture.run()
+      const session = fixture.database.harness.getSession(fixture.sessionId), command = session.toolCalls.find(tool => tool.providerCallId === 'background')!
+      expect(session.activeRun).toBeUndefined()
+      expect(command).toMatchObject({ status: 'ok', commandJob: { mode: 'background', status: 'running' } })
+      expect(session.toolCalls.find(tool => tool.providerCallId === 'next')?.output?.text).toContain('foreground-next')
+      expect(fixture.runtime.isProjectRunning(session.projectId!)).toBe(true)
+      expect(() => fixture.runtime.assertSessionMutable(session.id)).toThrow('命令')
+      await expect(fixture.runtime.stopCommand('other-task', command.runId!, command.id)).rejects.toThrow()
+      await fixture.runtime.stopCommand(session.id, command.runId!, command.id)
+      expect(fixture.database.harness.getSession(session.id).toolCalls.find(tool => tool.id === command.id)).toMatchObject({ status: 'ok', commandJob: { status: 'cancelled' } })
+      expect(fixture.runtime.isProjectRunning(session.projectId!)).toBe(false)
+      expect(fixture.events.some(event => event.type === 'command-job' && event.payload.id === command.id && event.payload.commandJob.status === 'cancelled')).toBe(true)
+    } finally { await fixture.runtime.disposeCommandJobs() }
+  })
+
+  it('never starts a background process when its original command approval is denied', async () => {
+    const fixture = setup()
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      const pending = fixture.tool(this, 'denied-background', 'bash', { command: "printf 'denied'", run_in_background: true })
+      await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
+      fixture.runtime.resolvePermission(fixture.runtime.listPendingPermissions(fixture.sessionId)[0].requestId, false)
+      await pending
+      fixture.response(); fixture.update('text_delta', 'Denied')
+    })
+    await fixture.run()
+    expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]).toMatchObject({ status: 'cancelled' })
+    expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0].commandJob).toBeUndefined()
+    expect(fixture.events.some(event => event.type === 'command-job')).toBe(false)
+  })
+
+  it('marks persisted running jobs interrupted on restart without replaying or changing launch success', () => {
+    const fixture = setup(), time = Date.now()
+    fixture.database.harness.recordTool(fixture.sessionId, { id: 'old-job', runId: 'old-run', tool: 'bash', status: 'ok', createdAt: time, commandJob: { mode: 'background', status: 'running', revision: 3, startedAt: time, output: { text: 'preserved', truncated: false } } })
+    fixture.database.harness.recoverInterruptedCommands()
+    const command = fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]
+    expect(command).toMatchObject({ status: 'ok', commandJob: { mode: 'background', status: 'interrupted', revision: 4, output: { text: 'preserved' } } })
+    fixture.database.harness.recoverInterruptedCommands()
+    expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0].commandJob?.revision).toBe(4)
+  })
+
+  it('lets the model stop its own background execution through the canonical status tool', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response()
+      const result = await fixture.tool(this, 'background', 'bash', { command: 'sleep 10', run_in_background: true })
+      fixture.response()
+      const stopped = await fixture.tool(this, 'stop-exact', 'command_status', { tool_id: result.details.miraBackgroundCommand, action: 'stop' })
+      expect(JSON.parse(stopped.content[0].text).status).toBe('cancelled')
+      fixture.response(); fixture.update('text_delta', 'Stopped only the command')
+    })
+    try { await fixture.run(); expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls.find(tool => tool.tool === 'bash')).toMatchObject({ status: 'ok', commandJob: { status: 'cancelled' } }) }
+    finally { await fixture.runtime.disposeCommandJobs() }
+  })
+
+  it('keeps sleep timeout as failure without transferring it to background', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response(); await fixture.tool(this, 'sleep-deadline', 'bash', { command: 'sleep 1', timeout: 0.02 })
+      fixture.response(); fixture.update('text_delta', 'Timeout observed')
+    })
+    try { await fixture.run(); expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]).toMatchObject({ status: 'failed', commandJob: { mode: 'foreground', status: 'failed', error: expect.stringContaining('timed out') } }) }
+    finally { await fixture.runtime.disposeCommandJobs() }
+  })
+
+  it('stops a real command exceeding the shared 16 MiB output budget', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response(); await fixture.tool(this, 'output-budget', 'bash', { command: quote(process.execPath) + ' -e ' + quote('process.stdout.write("x".repeat(17*1024*1024))') })
+      fixture.response(); fixture.update('text_delta', 'Output budget observed')
+    })
+    try {
+      await fixture.run()
+      const tool = fixture.database.harness.getSession(fixture.sessionId).toolCalls[0]
+      expect(tool).toMatchObject({ status: 'failed', commandJob: { status: 'failed', error: expect.stringContaining('16 MiB') } })
+      expect(Buffer.byteLength(tool.commandJob!.output?.text || '')).toBeLessThanOrEqual(HARNESS_PUBLIC_TEXT_BYTES)
+    } finally { await fixture.runtime.disposeCommandJobs() }
+  })
+
+  it('withholds a split credential prefix from live main-command snapshots', async () => {
+    const fixture = setup()
+    fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
+      fixture.response(); await fixture.tool(this, 'split-secret', 'bash', { command: "printf 'platform-private'; sleep 0.2; printf '%s' '-key end'" })
+      fixture.response(); fixture.update('text_delta', 'Done')
+    })
+    try {
+      await fixture.run()
+      for (const event of fixture.events.filter(event => event.type === 'tool-call' || event.type === 'command-job')) {
+        const output = event.payload.output?.text ?? event.payload.commandJob?.output?.text
+        if (output !== undefined) expect(output).not.toContain('platform-private')
+      }
+      expect(fixture.database.harness.getSession(fixture.sessionId).toolCalls[0].commandJob?.output?.text).toBe('[已隐藏] end')
+    } finally { await fixture.runtime.disposeCommandJobs() }
+  })
   it.each(['preparation', 'response'] as const)('persists stopped rather than failed activities when cancellation occurs during %s', async stage => {
     const fixture = setup()
     if (stage === 'preparation') vi.mocked((fixture.runtime as any).compactContext).mockImplementation(async () => {
@@ -76,8 +348,12 @@ describe('authoritative ordered Harness message parts', () => {
 
   it('retains a real failed tool before a later reply is stopped', async () => {
     const manager = new McpManager()
-    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool: vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'Tool rejected' }] }) }, 'Test MCP', 'test-mcp')
-    const fixture = setup({ getTools: () => [tool] })
+    const client = { callTool: vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'Tool rejected' }] }) }
+    ;(manager as any).clients.set('test-mcp', client)
+    ;(manager as any).connections.set('test-mcp', { state: 'connected', toolCount: 1 })
+    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, client, 'Test MCP', 'test-mcp')
+    ;(manager as any).toolsByServer.set('test-mcp', [tool])
+    const fixture = setup(manager)
     fixture.database.harness.updateSession({ ...fixture.database.harness.getSession(fixture.sessionId), activeMcpServerIds: ['test-mcp'] })
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {
@@ -329,7 +605,10 @@ describe('authoritative ordered Harness message parts', () => {
     const manager = new McpManager()
     const callTool = vi.fn().mockResolvedValueOnce({ content: [{ type: 'image', data: 'RAW-MCP-IMAGE-BLOB', mimeType: 'image/png' }] })
       .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Image result' }, { type: 'image', data: 'RAW-MCP-IMAGE-BLOB', mimeType: 'image/png' }] })
-    const tool = (manager as any).toAgentTool({ name: 'mcp_image' }, { callTool }, 'Test MCP', 'test-mcp')
+    const client = { callTool }
+    ;(manager as any).clients.set('test-mcp', client)
+    ;(manager as any).connections.set('test-mcp', { state: 'connected', toolCount: 1 })
+    const tool = (manager as any).toAgentTool({ name: 'mcp_image' }, client, 'Test MCP', 'test-mcp')
     expect(publicHarnessToolOutput(await tool.execute('image-1', {}))).toBeUndefined()
     const mixed = publicHarnessToolOutput(await tool.execute('image-2', {}))!
     expect(mixed.text).toContain('Image result')
@@ -347,8 +626,12 @@ describe('authoritative ordered Harness message parts', () => {
   it('treats a real MCP server error as a failed parent tool and activity', async () => {
     const manager = new McpManager()
     const callTool = vi.fn().mockResolvedValue({ isError: true, content: [{ type: 'text', text: 'MCP server rejected the request' }] })
-    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, { callTool }, 'Test MCP', 'test-mcp')
-    const fixture = setup({ getTools: () => [tool] })
+    const client = { callTool }
+    ;(manager as any).clients.set('test-mcp', client)
+    ;(manager as any).connections.set('test-mcp', { state: 'connected', toolCount: 1 })
+    const tool = (manager as any).toAgentTool({ name: 'mcp_failure' }, client, 'Test MCP', 'test-mcp')
+    ;(manager as any).toolsByServer.set('test-mcp', [tool])
+    const fixture = setup(manager)
     fixture.database.harness.updateSession({ ...fixture.database.harness.getSession(fixture.sessionId), activeMcpServerIds: ['test-mcp'] })
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
     vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: any) {

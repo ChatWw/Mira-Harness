@@ -70,7 +70,7 @@ const AssistantReasoning = memo(function AssistantReasoning({ part, memoryKey }:
   </details>
 })
 
-export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId, rendererId = message.id, onOpenFile, hasPlan = false, subtaskForTool, onOpenSubtask, onStopSubtask }: {
+export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId, rendererId = message.id, onOpenFile, onOpenCommand, hasPlan = false, subtaskForTool, onOpenSubtask, onStopSubtask }: {
   message: HarnessMessage
   toolsById: ReadonlyMap<string, ToolCallRecord>
   streaming?: boolean
@@ -78,20 +78,21 @@ export function AssistantMessageParts({ message, toolsById, streaming = false, p
   permissionPartId?: string
   rendererId?: string
   onOpenFile?: (path: string) => void
+  onOpenCommand?: (runId: string, toolId: string) => void
   hasPlan?: boolean
   subtaskForTool?: (toolId: string) => HarnessSubtask | undefined
   onOpenSubtask?: (subtaskId: string) => void
   onStopSubtask?: (subtaskId: string) => Promise<void>
 }) {
   return <div className="mira-assistant-parts">{miraAssistantWorkItems(message, toolsById, streaming, permissionPartId).map(item => {
-    if (item.kind === 'exploration') return <MiraToolExploration key={`exploration:${item.firstId}`} item={item} onOpenFile={onOpenFile} />
-    if (item.kind === 'commands') return <MiraToolCommandGroup key={`commands:${item.firstId}`} item={item} />
+    if (item.kind === 'exploration') return <MiraToolExploration key={`exploration:${item.firstId}`} item={item} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} />
+    if (item.kind === 'commands') return <MiraToolCommandGroup key={`commands:${item.firstId}`} item={item} onOpenCommand={onOpenCommand} />
     const { part, tool } = item
     if (hasPlan && tool?.tool === 'set_plan' && tool.status === 'ok') return null
     const child = tool?.tool === 'delegate_task' ? subtaskForTool?.(tool.id) : undefined
     return <div key={part.id} className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
       {part.type === 'text' ? <div data-mira-selectable="assistant" data-mira-selection-region={part.id}><MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /></div> : part.type === 'reasoning' ? <AssistantReasoning part={part} memoryKey={JSON.stringify(['reasoning', message.runId ?? message.id, part.id])} /> : <>
-        {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
+        {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
         {permission && permissionPartId === part.id && <PermissionResponseCard {...permission} />}
       </>}
     </div>

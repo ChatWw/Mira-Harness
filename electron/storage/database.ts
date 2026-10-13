@@ -16,6 +16,7 @@ import { ModelConfigStore } from './modelConfigStore'
 import { FileMemoryStore } from './fileMemoryStore'
 import { InstructionStore } from './instructionStore'
 import { RunLogStore } from './runLogStore'
+import { MiraModelTraceStore } from './miraModelTraceStore'
 import { SkillStore } from './skillStore'
 import { MiraPluginStore } from './miraPluginStore'
 import { MiraPromptCommandStore } from './miraPromptCommandStore'
@@ -77,6 +78,7 @@ export class PlatformDatabase {
   readonly memories: FileMemoryStore
   readonly instructions: InstructionStore
   readonly logs: RunLogStore
+  readonly modelTrace: MiraModelTraceStore
   readonly skills: SkillStore
   readonly plugins: MiraPluginStore
   readonly promptCommands: MiraPromptCommandStore
@@ -101,9 +103,10 @@ export class PlatformDatabase {
     this.memories = new FileMemoryStore(this.paths)
     this.instructions = new InstructionStore(this.paths)
     this.logs = new RunLogStore(this.paths)
+    this.modelTrace = new MiraModelTraceStore(this.paths)
     this.skills = new SkillStore(this.paths)
     this.plugins = new MiraPluginStore(this.paths)
-    this.promptCommands = new MiraPromptCommandStore(this.paths)
+    this.promptCommands = new MiraPromptCommandStore(this.paths, this.skills)
     this.userAgents = new MiraUserAgentStore(this.paths)
     this.hooks = new MiraHookStore(this.paths)
     this.agentModels = new MiraAgentModelStore(this.database, this.models, this.plugins)
@@ -121,6 +124,12 @@ export class PlatformDatabase {
       // 只在 Runtime 启动前回收：运行中的队列/未确认提交可能还没有写入持久草稿。
       this.harness.reclaimStagedAttachments(roots.references, roots.protectedOwners)
     }
+  }
+
+  harnessDiagnosticPaths(id: string): import('../../src/config/miraModelTrace').MiraTaskDiagnosticPaths {
+    const session = this.harness.getSession(id)
+    const timestamp = session.activeRun?.startedAt ?? session.messages.findLast(message => message.role === 'assistant' && message.runId)?.createdAt ?? Date.now()
+    return { sessionFile: this.paths.session(id), runtimeLog: join(this.paths.logs, `harness-${new Date(timestamp).toISOString().slice(0, 10)}.jsonl`), modelTrace: this.modelTrace.path(id) }
   }
 
   private harnessDraftRoots() {

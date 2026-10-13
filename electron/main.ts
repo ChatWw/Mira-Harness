@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
   // Windows uses application-drawn controls, so theme transitions no longer touch native title-bar chrome.
   registerWindowIpcHandlers()
   setupApplicationMenu()
-  createMainWindow({ getCloseWindowBehavior, isQuitting: () => isQuitting, legacyNovelApi: { baseUrl: services.localMicroAppServer.getApiBaseUrl('novel'), token: services.legacyNovelApiToken } })
+  createMainWindow({ getCloseWindowBehavior, isQuitting: () => isQuitting, getDesktopZoomLevel: () => services?.database.getSnapshot().preferences.desktopZoomLevel, saveDesktopZoomLevel: level => services?.database.savePreference('desktopZoomLevel', level), legacyNovelApi: { baseUrl: services.localMicroAppServer.getApiBaseUrl('novel'), token: services.legacyNovelApiToken } })
   setupWindowsTray()
   app.on('activate', showMainWindow)
 })
@@ -77,7 +77,8 @@ app.on('before-quit', event => {
   shutdown = (async () => {
     try {
       // Workflow actors finish abort/persistence before the desktop process exits.
-      await services?.miraFlowController.dispose()
+      await Promise.all([services?.harnessRuntime.disposeCommandJobs(), services?.miraFlowController.dispose()])
+      await services?.database.modelTrace.flush()
       await Promise.allSettled([services?.mcpManager.closeAll(), services?.mcpAuthorization.closeAll(), services?.localMicroAppServer.stop()])
     } finally {
       shutdownComplete = true

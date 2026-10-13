@@ -30,9 +30,10 @@ export function MiraActivityTimes({ createdAt, startedAt, completedAt }: { creat
   return <dl className="mira-subtask-metadata">{entries.map(([label, timestamp]) => timestamp !== undefined && <div key={label}><dt>{label}</dt><dd><time dateTime={new Date(timestamp).toISOString()}>{new Date(timestamp).toLocaleString()}</time></dd></div>)}{startedAt !== undefined && completedAt !== undefined && <div><dt>用时</dt><dd>{Math.max(0, completedAt - startedAt) / 1000} 秒</dd></div>}</dl>
 }
 
-function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stopping, error, canStop, onStop, onOpenFile }: {
+function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stopping, error, canStop, onStop, onOpenFile, onOpenCommand }: {
   subtask: HarnessSubtask; tools: ToolCallRecord[]; owner: string; runId: string; active: boolean
   stopping: boolean; error?: string; canStop: boolean; onStop: () => void; onOpenFile: (path: string) => void
+  onOpenCommand?: (runId: string, toolId: string) => void
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const scrollActions = useRef<ConversationScrollActions | null>(null)
@@ -82,7 +83,7 @@ function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stoppin
         <div className="mira-subtask-messages">
           <div className="mira-subtask-request" data-mira-turn-id={`${owner}:request`}><p>{subtask.task}</p></div>
           <div className="mira-subtask-reply" data-mira-turn-id={`${owner}:reply`}>
-            <AssistantMessageParts message={message} toolsById={toolsById} streaming={running} onOpenFile={active ? onOpenFile : undefined} />
+            <AssistantMessageParts message={message} toolsById={toolsById} streaming={running} onOpenFile={active ? onOpenFile : undefined} onOpenCommand={active ? onOpenCommand : undefined} />
             {!hasText && subtask.report && <MessageMarkdown content={subtask.report} />}
             {parts.length === 0 && !subtask.report && <p className="mira-subtask-empty" role="status">{running ? '正在等待智能体回复…' : '本次子任务未记录对话正文。'}</p>}
             {subtask.error && <p className="mira-subtask-error" role="alert">{subtask.error.message}<small>{subtask.error.code}</small></p>}
@@ -95,10 +96,11 @@ function MiraSubtaskConversation({ subtask, tools, owner, runId, active, stoppin
   </article>
 }
 
-export function MiraSubtaskPanel({ session, sessionId, runId, subtaskId, directory, active, onStopSubtask, onOpenFile }: {
+export function MiraSubtaskPanel({ session, sessionId, runId, subtaskId, directory, active, onStopSubtask, onOpenFile, onOpenCommand }: {
   session?: HarnessSession; sessionId: string; runId: string; subtaskId: string; active: boolean
   directory?: string
   onStopSubtask: (subtaskId: string) => Promise<void>; onOpenFile: (path: string) => void
+  onOpenCommand?: (runId: string, toolId: string) => void
 }) {
   const selected = session?.id === sessionId ? selectMiraSubtask(session, runId, subtaskId) : undefined
   const owner = JSON.stringify([sessionId, runId, subtaskId])
@@ -128,7 +130,7 @@ export function MiraSubtaskPanel({ session, sessionId, runId, subtaskId, directo
       }
     }
   }
-  if (subtask.parts !== undefined) return <MiraConversationDetails memory={childDetailMemory} scope={owner} directory={directory}><MiraSubtaskConversation key={owner} subtask={subtask} tools={tools} owner={owner} runId={runId} active={active} stopping={stopping} error={error} canStop={canStop} onStop={() => void stop()} onOpenFile={onOpenFile} /></MiraConversationDetails>
+  if (subtask.parts !== undefined) return <MiraConversationDetails memory={childDetailMemory} scope={owner} directory={directory}><MiraSubtaskConversation key={owner} subtask={subtask} tools={tools} owner={owner} runId={runId} active={active} stopping={stopping} error={error} canStop={canStop} onStop={() => void stop()} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /></MiraConversationDetails>
   return <article className="mira-subtask-panel" data-subtask-panel-id={subtask.id} data-subtask-run-id={runId}>
     <header className="mira-subtask-heading"><Users size={17} aria-hidden="true" /><h2 title={subtask.agentPluginId}>{subtask.agentName || `${miraSubtaskRoleLabels[subtask.role]}智能体`}</h2><span className="mira-subtask-status" data-status={subtask.status}>{miraSubtaskStatusLabels[subtask.status]}</span>{canStop && <button type="button" className="mira-subtask-stop" disabled={stopping} aria-label={`停止智能体 ${subtask.task}`} onClick={() => void stop()}>{stopping ? <LoaderCircle size={13} className="animate-spin" /> : <Square size={12} />}停止</button>}</header>
     <p className="mira-subtask-task">{subtask.task}</p>
@@ -139,7 +141,7 @@ export function MiraSubtaskPanel({ session, sessionId, runId, subtaskId, directo
     {error && <p role="alert" className="mira-subtask-error">{error}</p>}
     {!!subtask.files?.length && <section className="mira-subtask-section"><h3>文件范围</h3><div className="mira-subtask-files">{subtask.files.map((file, index) => isWorkspaceRelativePath(file.path) ? <button type="button" key={JSON.stringify([file.path, index])} disabled={!active} title={file.path} onClick={() => onOpenFile(file.path)}><FileText size={13} aria-hidden="true" />{file.path}</button> : <span key={index}>{file.path}</span>)}</div></section>}
     <section className="mira-subtask-section"><h3>执行活动</h3><MiraActivityList activities={subtask.activities} /></section>
-    {!!tools.length && <section className="mira-subtask-section"><h3>工具记录</h3><div className="mira-tool-records">{tools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={active ? onOpenFile : undefined} />)}</div></section>}
+    {!!tools.length && <section className="mira-subtask-section"><h3>工具记录</h3><div className="mira-tool-records">{tools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={active ? onOpenFile : undefined} onOpenCommand={active ? onOpenCommand : undefined} />)}</div></section>}
     {subtask.error && <section className="mira-subtask-section"><h3>执行错误</h3><p className="mira-subtask-error">{subtask.error.message}</p><small className="mira-subtask-empty">{subtask.error.code}</small></section>}
     <section className="mira-subtask-section"><h3>最终报告</h3>{subtask.report ? <MessageMarkdown content={subtask.report} /> : <p className="mira-subtask-empty">{subtask.status === 'queued' || subtask.status === 'running' || subtask.status === 'stopping' ? '子任务结束后，最终报告会显示在这里。' : '本次子任务未记录最终报告。'}</p>}</section>
     {subtask.usage && <section className="mira-subtask-section"><h3>用量</h3><dl className="mira-subtask-metadata"><div><dt>总 token</dt><dd>{subtask.usage.totalTokens}</dd></div><div><dt>输入 / 输出</dt><dd>{subtask.usage.input} / {subtask.usage.output}</dd></div>{subtask.usage.cost?.priced && <div><dt>费用</dt><dd>{subtask.usage.cost.total.toFixed(4)} {subtask.usage.cost.currency}</dd></div>}</dl></section>}

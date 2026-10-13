@@ -13,6 +13,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
 import { useAppNavigationStore } from '@/stores/appNavigation'
 import { miraAppNavigationShortcut } from '@/platform/appNavigation'
+import { isMiraPrimaryModifier, miraWorkbenchShortcut } from '@/platform/workbenchShortcuts'
 import { getPlatformApi } from '@/platform'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
@@ -26,13 +27,20 @@ const globalLoading = useLoading()
 const router = useRouter()
 
 function handleGlobalKeydown(event: KeyboardEvent) {
+  if (miraWorkbenchShortcut(event) === 'theme') {
+    const target = event.target instanceof Element ? event.target : document.activeElement
+    if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .xterm') || [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], .el-dialog, .el-drawer, .mira-app-switcher-popper')].some(element => element.getClientRects().length > 0)) return
+    event.preventDefault()
+    themeStore.toggleThemeMode()
+    return
+  }
   const direction = miraAppNavigationShortcut(event)
   if (direction && router.currentRoute.value.path === '/workspace/harness-react') {
     const modalOpen = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], .el-dialog, .el-drawer, .mira-app-switcher-popper')].some(element => element.getClientRects().length > 0)
     if (!modalOpen && appNavigation.go(direction)) event.preventDefault()
     return
   }
-  if (!event.ctrlKey && !event.metaKey) return
+  if (!isMiraPrimaryModifier(event) || event.defaultPrevented || event.shiftKey || event.altKey || event.repeat || event.isComposing || event.keyCode === 229) return
 
   if (event.key === ',') {
     event.preventDefault()
@@ -53,16 +61,23 @@ function openSettingsPage(path: string) {
 }
 
 let removeWindowNavigateListener: (() => void) | undefined
+let removeWindowCloseListener: (() => void) | undefined
 let removeHarnessEventListener: (() => void) | undefined
 
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener = window.platform?.onWindowNavigate(path => { void openSettingsPage(path) })
+  removeWindowCloseListener = window.platform?.onWindowCloseContext?.(() => {
+    const request = new Event('mira:close-active-context', { cancelable: true })
+    window.dispatchEvent(request)
+    if (!request.defaultPrevented) void window.platform?.windowCommand('close')
+  })
   removeHarnessEventListener = getPlatformApi()?.onHarnessEvent(harnessStore.applyEvent)
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener?.()
+  removeWindowCloseListener?.()
   removeHarnessEventListener?.()
 })
 // 主题已在 store 初始化时应用

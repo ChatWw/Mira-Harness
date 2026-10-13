@@ -24,7 +24,7 @@
 import WindowsTitlebar from '@/layouts/components/WindowsTitlebar.vue'
 import SettingsSiderMenu from './SettingsSiderMenu.vue'
 
-defineProps<{ title: string, wide?: boolean, workspace?: boolean, showTitle?: boolean }>()
+withDefaults(defineProps<{ title: string, wide?: boolean, workspace?: boolean, showTitle?: boolean }>(), { showTitle: true })
 
 const windowChrome = window.platform?.windowChrome ?? 'standard'
 const isMacOverlay = windowChrome === 'macos-overlay'

@@ -1,0 +1,44 @@
+.mira-model-trace { display: flex; height: 100%; min-height: 0; min-width: 0; flex-direction: column; color: var(--color-foreground); background: var(--color-background); }
+.mira-model-trace__toolbar { display: flex; flex-wrap: wrap; flex: none; align-items: center; gap: 8px; min-height: 42px; padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.mira-model-trace__toolbar > strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-model-trace__summary { display: flex; width: 100%; min-width: 0; gap: 6px; color: var(--color-foreground-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-model-trace__summary > span { flex: none; }
+.mira-model-trace__summary > span:last-child { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-model-trace__actions { display: flex; gap: 2px; margin-inline-start: auto; }
+.mira-model-trace button { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: 26px; min-height: 26px; padding: 4px; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; cursor: pointer; }
+.mira-model-trace button:hover:not(:disabled), .mira-model-trace button[aria-pressed="true"] { color: var(--color-foreground); background: var(--color-hover); }
+.mira-model-trace button:disabled { opacity: .45; cursor: default; }
+.mira-model-trace :is(button, input, summary):focus-visible { outline: 2px solid var(--color-foreground-subtle); outline-offset: 2px; }
+.mira-model-trace__search { display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border); color: var(--color-foreground-subtle); }
+.mira-model-trace__search input { min-width: 0; flex: 1; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--color-foreground); font-size: 12px; }
+.mira-model-trace__search input::placeholder { color: var(--color-foreground-subtle); }
+.mira-model-trace__search [role="status"] { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-model-trace__notice { padding: 8px 12px; color: var(--color-foreground-subtle); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.mira-model-trace__notice[role="alert"] { color: var(--color-foreground); background: var(--color-hover); }
+.mira-model-trace__notice button { margin-inline-start: 8px; font-size: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.mira-model-trace__body { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; scrollbar-width: thin; scrollbar-color: var(--color-foreground-subtle) transparent; }
+.mira-model-trace__menu { min-width: 208px; }
+.mira-model-trace__category-switch { display: inline-flex; flex: none; width: 28px; height: 16px; margin-inline-start: auto; padding: 2px; border-radius: 10px; background: var(--color-selected); }
+.mira-model-trace__category-switch::after { width: 12px; height: 12px; border-radius: 50%; background: var(--color-foreground-subtle); content: ''; }
+.mira-model-trace__category-switch[data-checked="true"] { background: var(--color-foreground); }
+.mira-model-trace__category-switch[data-checked="true"]::after { transform: translateX(12px); background: var(--color-background); }
+.mira-model-trace__empty { display: flex; min-height: 180px; flex-direction: column; justify-content: center; gap: 8px; padding: 24px; text-align: center; font-size: 13px; }
+.mira-model-trace__empty p { font-size: 12px; line-height: 1.6; }
+.mira-model-trace__call { padding: 12px 14px 16px; border-bottom: 1px solid var(--border); }
+.mira-model-trace__call header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.mira-model-trace__call header span { flex: none; font-size: 11px; color: var(--color-foreground-subtle); }
+.mira-model-trace__metadata { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 5px 0 12px; color: var(--color-foreground-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-model-trace__metadata > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.mira-model-trace details { margin-top: 4px; border-radius: 4px; }
+.mira-model-trace details[data-search-active="true"] { outline: 1px solid var(--color-foreground-subtle); }
+.mira-model-trace summary { display: flex; align-items: center; gap: 6px; padding: 6px 2px; color: var(--color-foreground-subtle); font-size: 11px; cursor: pointer; list-style: none; }
+.mira-model-trace summary::-webkit-details-marker { display: none; }
+.mira-model-trace summary svg { flex: none; transform: rotate(-90deg); }
+.mira-model-trace details[open] > summary svg { transform: none; }
+.mira-model-trace summary:hover { color: var(--color-foreground); }
+.mira-model-trace summary small { margin-inline-start: auto; font-size: 10px; font-variant-numeric: tabular-nums; }
+.mira-model-trace pre { margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--color-hover); color: var(--color-foreground); font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
+.mira-model-trace__section-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 28px; }
+.mira-model-trace__feedback { color: var(--color-foreground-subtle); font-size: 11px; }
+.mira-model-trace mark { border-radius: 2px; color: var(--color-foreground); background: var(--color-selected); outline: 1px solid var(--color-foreground-subtle); }
+.mira-model-trace mark[data-trace-match-active="true"] { background: var(--color-find-highlight-active, var(--color-selected)); outline-width: 2px; }

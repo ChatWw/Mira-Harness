@@ -63,6 +63,17 @@ function rootOrder(view: ReturnType<typeof sidebar>) {
 }
 
 describe('Mira sidebar collections through actual component callbacks', () => {
+  it('moves a grouped task to its own group start and preserves membership, root order and project scope', async () => {
+    const view = sidebar(); await view.drain()
+    const row = () => view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's1')
+    await (row().onMoveTop as () => Promise<void>)(); await view.drain()
+    expect(view.saved().groups.map(group => group.sessionIds)).toEqual([['s1', 's2'], []])
+    expect(view.saved().ungroupedSessionOrder).toEqual([])
+    expect(view.controller.open).not.toHaveBeenCalled(); expect(view.controller.moveSession).not.toHaveBeenCalled()
+    const writes = view.controller.setPreference.mock.calls.length
+    await (row().onMoveTop as () => Promise<void>)(); await view.drain()
+    expect(view.controller.setPreference).toHaveBeenCalledTimes(writes)
+  })
   it('selects the explicitly focused side task rather than the primary task in both sidebar modes', async () => {
     const view = sidebar('group', { activeSessionId: 's2' }); view.state.session = { id: 's1' }; await view.drain()
     expect(view.props(p => p.session && (p.session as HarnessSessionSummary).id === 's2').active).toBe(true)
@@ -216,8 +227,8 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(view.state.sessions.find(session => session.id === 's2')!.projectId).toBe('p')
     expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.moveSession).not.toHaveBeenCalled(); expect(view.controller.reorderSessions).not.toHaveBeenCalled()
   })
-  it('moves a grouped project task to the root first position in one complete snapshot, without pinning or navigation', async () => {
-    const view = sidebar('group', {}, { groupedRootOrder: [{ type: 'group', id: 'g2' }, { type: 'group', id: 'g1' }] }); await view.drain()
+  it('moves an ungrouped project task to the root first position in one complete snapshot, without pinning or navigation', async () => {
+    const view = sidebar('group', {}, { groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: ['s1'] }, { id: 'g2', name: '写作', color: 'green', collapsed: false, sessionIds: [] }], groupedRootOrder: [{ type: 'group', id: 'g2' }, { type: 'group', id: 'g1' }] }); await view.drain()
     await (view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's2').onMoveTop as () => Promise<void>)(); await view.drain()
     expect(view.saved().groups.map(group => group.sessionIds)).toEqual([['s1'], []])
     expect(view.saved().ungroupedSessionOrder).toEqual(['s2'])
@@ -636,7 +647,7 @@ describe('Mira sidebar collections through actual component callbacks', () => {
   it('keeps the rename editor open on failure and ignores IME Enter', async () => {
     const onRename = vi.fn().mockRejectedValueOnce(new Error('保存失败')), onCancelRename = vi.fn()
     const view = mount(() => SidebarCollectionSection({ id: 'p', name: '项目', count: 0, expanded: true, sortable: false, renaming: true, onRename, onCancelRename, onBeginRename: vi.fn(), onNewTask: vi.fn(), onToggle: vi.fn(), children: null } as SidebarCollectionProps))
-    const input = view.props(p => p['aria-label'] === '重命名项目'), event = { key: 'Enter', nativeEvent: { isComposing: true }, preventDefault: vi.fn() }
+    const input = view.props(p => p['aria-label'] === '重命名项目'), event = { key: 'Enter', nativeEvent: { isComposing: true }, preventDefault: vi.fn(), stopPropagation: vi.fn() }
     ;(input.onKeyDown as (event: unknown) => void)(event)
     expect(event.preventDefault).toHaveBeenCalledOnce(); expect(onRename).not.toHaveBeenCalled()
     ;(view.props(p => typeof p.onSubmit === 'function').onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() }); await view.drain()

@@ -4,12 +4,14 @@ import { defaultRangeExtractor, measureElement as measureVirtualElement, useVirt
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
 import type { HarnessGoal } from '../../../../../src/config/miraGoals'
 import { MiraGoalVerification } from './MiraGoalVerification'
-import { goalVerificationsByMessage } from './conversation-model'
+import { goalVerificationsByMessage, miraModelChanges } from './conversation-model'
+import { ArrowRightLeft } from 'lucide-react'
 import type { ConversationScrollActions } from '../../hooks/useConversationScroll'
 import { conversationScrollMemory } from '../../lib/conversation-scroll'
 import { buildConversationRenderTurns, createConversationHeightCache, indexConversationTurnMessages, type ConversationRenderTurn, type ConversationTimelineActions } from '../../lib/conversation-timeline'
 import type { TimelineRenderMessage } from './conversation-model'
 import { MIRA_REVEAL_PROCESS } from '../../lib/mira-assistant-process'
+import { MIRA_REVEAL_USER_BODY } from './MiraUserMessageBody'
 
 type MessageComponents = { UserMessage: ComponentType<TimelineRenderMessage>; AssistantMessage: ComponentType<TimelineRenderMessage & { streaming: boolean }> }
 
@@ -17,8 +19,9 @@ function TimelineMessage({ message, liveMessageId, components }: { message: Time
   return message.original.role === 'user' ? <components.UserMessage {...message} /> : message.original.role === 'assistant' ? <components.AssistantMessage {...message} streaming={message.original.id === liveMessageId} /> : null
 }
 
-export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange, goal }: {
+export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange, goal, providers }: {
   goal?: HarnessGoal
+  providers?: Array<{ id: string; name: string }>
   messages: TimelineRenderMessage[]
   memoryKey: string | null
   liveMessageId?: string
@@ -30,6 +33,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
 }) {
   const turns = useMemo(() => buildConversationRenderTurns(messages, liveMessageId), [messages, liveMessageId])
   const goalVerifications = useMemo(() => goalVerificationsByMessage(goal), [goal])
+  const modelChanges = useMemo(() => miraModelChanges(messages, providers), [messages, providers])
   const liveTurn = turns[turns.length - 1]?.running ? turns[turns.length - 1] : undefined
   const history = liveTurn ? turns.slice(0, -1) : turns
   const messageIndex = useMemo(() => indexConversationTurnMessages(turns, messages), [turns, messages])
@@ -179,6 +183,12 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
         const land = () => {
           if (cancelled) return
           const target = messageElement(id)
+          const foldedBody = findTargetKey && target?.querySelector('[data-mira-user-body][data-expanded="false"]')
+          if (foldedBody) {
+            foldedBody.dispatchEvent(new CustomEvent(MIRA_REVEAL_USER_BODY))
+            if (++frames < 30) navigationFrame.current = requestAnimationFrame(land)
+            return
+          }
           if (target && findTargetKey && ![...target.querySelectorAll<HTMLElement>('[data-mira-find-target]')].some(element => element.dataset.miraFindTarget === findTargetKey)) {
             target.querySelector('.mira-assistant-process-layout')?.dispatchEvent(new CustomEvent(MIRA_REVEAL_PROCESS, { detail: findTargetKey }))
             if (++frames < 30) navigationFrame.current = requestAnimationFrame(land)
@@ -272,7 +282,16 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
   }, [firstTurnId, getScrollElement, onActiveTurnChange])
   useEffect(() => { requestActiveTurnUpdate.current?.() }, [mountedKey, totalSize, turns])
 
-  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => <Fragment key={messages[index].rendererId}><TimelineMessage message={messages[index]} liveMessageId={liveMessageId} components={components} />{(goalVerifications.get(messages[index].original.id) ?? goalVerifications.get(messages[index].original.id.replace(/^stream-/, '')))?.map(verification => <MiraGoalVerification key={verification.id} verification={verification} />)}</Fragment>)}</div>
+  const renderTurn = (turn: ConversationRenderTurn) => <div className="flex min-w-0 flex-col gap-5" style={{ paddingBottom: turn === turns[turns.length - 1] ? 0 : 20 }}>{turn.messageIndexes.map(index => {
+    const message = messages[index], change = modelChanges.get(message.rendererId)
+    return <Fragment key={message.rendererId}>
+      {change && <div className="mira-model-boundary" data-mira-model-boundary={message.rendererId} data-mira-find-ignore>
+        <span aria-hidden="true" /><span><ArrowRightLeft size={14} aria-hidden="true" /><span>模型已切换 {change.from.providerName}/{change.from.modelId} → {change.to.providerName}/{change.to.modelId}</span></span><span aria-hidden="true" />
+      </div>}
+      <TimelineMessage message={message} liveMessageId={liveMessageId} components={components} />
+      {(goalVerifications.get(message.original.id) ?? goalVerifications.get(message.original.id.replace(/^stream-/, '')))?.map(verification => <MiraGoalVerification key={verification.id} verification={verification} />)}
+    </Fragment>
+  })}</div>
   return <div ref={containerRef} className="relative w-full" onFocusCapture={retainInteractions} onBlurCapture={() => queueMicrotask(retainInteractions)}>
     <div data-mira-virtual-history="true" style={{ height: totalSize }} aria-hidden="true" />
     {/* Keep a turn under the same keyed parent when the running tail becomes history. */}

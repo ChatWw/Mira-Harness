@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { PlatformDatabase } from '../electron/storage/database'
 import { firstPartyAppManifests } from '../src/config/firstPartyApps'
 import type { HarnessMessageQueueSnapshot, HarnessMessageSubmissionReceipt, HarnessMessageWithdrawal } from '../src/config/harness'
 import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
@@ -12,6 +16,16 @@ describe('clarification answer bridge', () => {
   })
   it.each([null, 42, '\0', 'x'.repeat(20_001)])('rejects an invalid custom answer %j', custom => {
     expect(() => parseFirstPartyHarnessCall('interaction.answer', { ...base, answers: [{ id: 'q', selected: ['资料'], custom }] })).toThrow('自定义回答无效')
+  })
+})
+describe('side first-input authority parser', () => {
+  const input = { submissionId: 'side-first', text: '旁路问题', selection: { providerId: 'p', modelId: 'm', thinkingLevel: 'high' as const }, permissionMode: 'default' as const }
+  it('captures bounded input while stripping credentials and injected planning or references', () => {
+    const params = { parentId: 'parent', input: { ...input, planning: true, references: [{ path: 'fake' }], selection: { ...input.selection, apiKey: 'secret' } } }
+    expect(parseFirstPartyHarnessCall('session.create-side', params)).toEqual({ method: 'session.create-side', parentId: 'parent', input })
+  })
+  it.each([null, [], {}, { ...input, text: '' }, { ...input, text: '\0' }, { ...input, text: 'x'.repeat(100_001) }, { ...input, submissionId: '' }, { ...input, selection: {} }, { ...input, permissionMode: 'full-access' }])('rejects malformed first input %j', value => {
+    expect(() => parseFirstPartyHarnessCall('session.create-side', { parentId: 'parent', input: value })).toThrow()
   })
 })
 import { handleFirstPartyRequest } from '../src/platform/firstPartyBridge'
@@ -51,6 +65,93 @@ function ipcFixture(firstPartyManifests = firstPartyAppManifests) {
   const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
   return { runtime, sender, invoke, grantId }
 }
+
+describe('side first-input IPC admission', () => {
+  beforeEach(() => { electron.handlers.clear(); vi.clearAllMocks() })
+  const input = { submissionId: 'side-first', text: '解释已完成的思路', selection, permissionMode: 'default' as const }
+  function fixture() {
+    const root = mkdtempSync(join(tmpdir(), 'mira-side-input-ipc-')), database = new PlatformDatabase(root)
+    const directory = join(root, 'project'); mkdirSync(directory)
+    const project = database.harness.createProject(directory), parent = database.harness.createSession(project.id)
+    const runtime = { assertMessageSelection: vi.fn(), submitMessage: vi.fn(() => receipt), getSession: vi.fn((id: string) => database.harness.getSession(id)) }
+    registerPlatformIpcHandlers({ database, localMicroAppServer: {}, harnessRuntime: runtime } as unknown as PlatformIpcDependencies)
+    const sender = Object.assign(new EventEmitter(), { id: 1, isDestroyed: () => false })
+    const invoke = (grant: string, params: unknown) => electron.handlers.get('platform:first-party-harness')!({ sender }, grant, 'session.create-side', params)
+    const grantId = electron.handlers.get('platform:create-first-party-grant')!({ sender }, 'mira-harness') as string
+    return { database, runtime, sender, invoke, grantId, parent, close: () => { database.close(); rmSync(root, { recursive: true, force: true }) } }
+  }
+  it('retains existing workbench-only capability and strips extra first-input privileges at the Vue bridge', async () => {
+    const view = bridge(vi.fn(async () => ({ id: 'child' })))
+    await expect(view.request('session.create-side', { parentId: 'parent', input: { ...input, selection: { ...selection, apiKey: 'secret' }, references: ['injected'], planning: true } })).resolves.toEqual({ id: 'child' })
+    expect(view.invokeFirstPartyHarness).toHaveBeenCalledExactlyOnceWith('host-held-grant', 'session.create-side', { parentId: 'parent', input })
+    view.options.manifest.capabilities = []
+    await expect(view.request('session.create-side', { parentId: 'parent', input })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+    expect(view.invokeFirstPartyHarness).toHaveBeenCalledOnce()
+  })
+  it('passes actual sender and captured input once, reuses child on retry and preserves legacy empty creation', async () => {
+    const view = fixture()
+    try {
+      const child: any = await view.invoke(view.grantId, { parentId: view.parent.id, input })
+      expect(view.runtime.submitMessage).toHaveBeenLastCalledWith(view.sender, child.id, input.submissionId, input.text, [], selection, false, { permissionMode: 'default' })
+      expect(view.runtime.getSession).toHaveBeenLastCalledWith(child.id)
+      view.runtime.assertMessageSelection.mockImplementation(() => { throw new Error('模型已停用') })
+      const repeated: any = await view.invoke(view.grantId, { parentId: view.parent.id, input })
+      expect(repeated.id).toBe(child.id); expect(view.runtime.assertMessageSelection).toHaveBeenCalledOnce()
+      expect(view.database.harness.sideConversationIds(view.parent.id)).toEqual([child.id])
+      const legacy: any = view.invoke(view.grantId, { parentId: view.parent.id })
+      expect(legacy.id).not.toBe(child.id); expect(view.runtime.submitMessage).toHaveBeenCalledTimes(2)
+      expect(() => view.invoke('forged', { parentId: view.parent.id, input })).toThrow('授权无效')
+    } finally { view.close() }
+  })
+  it('rejects invalid model and disabled permissions before reserving any child', () => {
+    const view = fixture()
+    try {
+      view.runtime.assertMessageSelection.mockImplementationOnce(() => { throw new Error('当前 Agent 模型不可用，请检查 Provider 配置') })
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input })).toThrow('模型不可用')
+      expect(view.database.harness.sideConversationIds(view.parent.id)).toEqual([])
+      view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), fullAccessEnabled: false })
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input: { ...input, permissionMode: 'full' } })).toThrow('权限档位已停用')
+      expect(view.database.harness.sideConversationIds(view.parent.id)).toEqual([])
+      expect(view.runtime.submitMessage).not.toHaveBeenCalled()
+    } finally { view.close() }
+  })
+  it('retains allocated child after uncertain admission and does not return it before acceptance', async () => {
+    const view = fixture()
+    try {
+      view.runtime.submitMessage.mockImplementationOnce(() => { throw new Error('临时接收失败') })
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input })).toThrow('临时接收失败')
+      const [childId] = view.database.harness.sideConversationIds(view.parent.id)
+      expect(childId).toBeTruthy(); expect(view.runtime.getSession).not.toHaveBeenCalled()
+      const child: any = await view.invoke(view.grantId, { parentId: view.parent.id, input })
+      expect(child.id).toBe(childId)
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input: { ...input, text: '不同问题' } })).toThrow('内容已变化')
+      view.database.harness.deleteSession(child.id)
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input })).toThrow('已不存在')
+    } finally { view.close() }
+  })
+  it('does not convert queue retry or delayed admission failure into successful creation', async () => {
+    const view = fixture()
+    try {
+      view.runtime.submitMessage.mockReturnValueOnce({ retryRequired: true, reason: 'permission-mode-disabled', queue } as never)
+      await expect(view.invoke(view.grantId, { parentId: view.parent.id, input })).rejects.toThrow('权限档位已停用')
+      view.runtime.submitMessage.mockReturnValueOnce(Promise.reject(new Error('持久化失败')) as never)
+      await expect(view.invoke(view.grantId, { parentId: view.parent.id, input })).rejects.toThrow('持久化失败')
+      expect(view.runtime.getSession).not.toHaveBeenCalled()
+      expect(view.database.harness.sideConversationIds(view.parent.id)).toHaveLength(1)
+    } finally { view.close() }
+  })
+  it('rejects prepared, archived and nested parents before any model input', () => {
+    const view = fixture()
+    try {
+      const prepared = view.database.harness.createSession(undefined, undefined, true)
+      const child = view.database.harness.createSideConversation(view.parent.id)
+      for (const parentId of [prepared.id, child.id]) expect(() => view.invoke(view.grantId, { parentId, input })).toThrow('可用的主任务')
+      view.database.harness.archiveSessions([view.parent.id])
+      expect(() => view.invoke(view.grantId, { parentId: view.parent.id, input })).toThrow('可用的主任务')
+      expect(view.runtime.submitMessage).not.toHaveBeenCalled()
+    } finally { view.close() }
+  })
+})
 
 describe('React Harness first-party message queue contracts', () => {
   beforeEach(() => { electron.handlers.clear(); vi.clearAllMocks() })

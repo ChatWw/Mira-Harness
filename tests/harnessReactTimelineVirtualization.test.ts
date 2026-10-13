@@ -196,6 +196,24 @@ describe('Mira virtual conversation turn boundaries', () => {
 })
 
 describe('Mira virtual conversation message navigation index', () => {
+  it.each(['true', 'false'])('expands the matching user body before find positions a live turn (measured overflow %s)', measured => {
+    const dom = new Window(), view = mountTimeline(undefined, 'answer-2')
+    dom.document.body.innerHTML = '<div data-user-message-id="task-2"><div data-mira-user-body data-expandable="true" data-expanded="false"><p data-mira-find-target="user-body">隐藏的匹配</p></div></div>'
+    const target = dom.document.querySelector<HTMLElement>('[data-user-message-id]')!, body = target.querySelector<HTMLElement>('[data-mira-user-body]')!
+    body.dataset.expandable = measured
+    target.scrollIntoView = vi.fn()
+    const ready = vi.fn(), reveal = vi.fn(() => { body.dataset.expanded = 'true' })
+    body.addEventListener('mira-reveal-user-body', reveal)
+    vi.stubGlobal('CustomEvent', dom.CustomEvent); vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) })
+    view.viewport.querySelectorAll.mockImplementation(selector => (selector === '[data-user-message-id], [data-assistant-message-id]' ? [target] : view.turns) as never)
+    view.actionsRef.current!.jumpToMessage('task-2', 'center', ready, 'user-body')
+    view.frame(); expect(reveal).toHaveBeenCalledOnce(); expect(ready).not.toHaveBeenCalled()
+    view.frame(); expect(target.scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: 'center', behavior: 'auto' }); expect(ready).toHaveBeenCalledOnce()
+    body.dataset.expanded = 'false'; reveal.mockClear()
+    view.actionsRef.current!.jumpToMessage('task-2'); view.frame()
+    expect(reveal).not.toHaveBeenCalled(); expect(body.dataset.expanded).toBe('false')
+  })
+
   it('focuses only its owner dock outside the scroll viewport without targeting another pane', () => {
     const dom = new Window(), view = mountTimeline()
     dom.document.body.innerHTML = '<div class="mira-conversation-root"><section tabindex="-1" data-interaction-id="main"></section></div><div class="mira-conversation-root" id="side-root"><div id="viewport"></div><section tabindex="-1" aria-label="计划确认" data-interaction-id="side"></section></div>'

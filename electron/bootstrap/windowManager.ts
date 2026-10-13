@@ -5,11 +5,14 @@ import { shouldBlockReloadShortcut } from '../windowShortcuts'
 import { isTrustedShellNavigation } from '../security/shellNavigation'
 import { shouldAuthorizeLegacyNovelApiRequest } from '../security/legacyNovelApiAuth'
 import { HOSTED_BROWSER_PARTITION, isAllowedHostedBrowserUrl } from '../security/hostedBrowser'
+import { applyMiraZoom, miraZoomLevel } from './miraDesktopZoom'
 
 export interface WindowManagerOptions {
   getCloseWindowBehavior: () => 'background' | 'quit'
   isQuitting: () => boolean
   legacyNovelApi: { baseUrl: string; token: string }
+  getDesktopZoomLevel?: () => unknown
+  saveDesktopZoomLevel?: (level: number) => void
 }
 
 let tray: Tray | null = null
@@ -50,8 +53,14 @@ export function setupDevelopmentDockIcon() {
 }
 
 export function setupApplicationMenu() {
+  const zoom = (action: 'in' | 'out' | 'reset', window?: BrowserWindow | null) => applyMiraZoom(window ?? BrowserWindow.getFocusedWindow(), action, windowManagerOptions?.saveDesktopZoomLevel)
   const viewMenu: MenuItemConstructorOptions[] = [
     { label: '切换全屏', role: 'togglefullscreen' },
+    { type: 'separator' },
+    { id: 'mira-zoom-in', label: '放大界面', accelerator: 'CmdOrCtrl+Plus', click: (_item, window) => zoom('in', window as BrowserWindow | undefined) },
+    { id: 'mira-zoom-in-equal', label: '放大界面', accelerator: 'CmdOrCtrl+=', visible: false, click: (_item, window) => zoom('in', window as BrowserWindow | undefined) },
+    { id: 'mira-zoom-out', label: '缩小界面', accelerator: 'CmdOrCtrl+-', click: (_item, window) => zoom('out', window as BrowserWindow | undefined) },
+    { id: 'mira-zoom-reset', label: '恢复默认大小', accelerator: 'CmdOrCtrl+0', click: (_item, window) => zoom('reset', window as BrowserWindow | undefined) },
   ]
   if (!app.isPackaged) {
     viewMenu.unshift(
@@ -87,7 +96,10 @@ export function setupApplicationMenu() {
     { label: '窗口', submenu: [
       { label: '最小化', role: 'minimize' },
       { label: '缩放', role: 'zoom' },
-      { label: '关闭窗口', role: 'close' },
+      { label: '关闭标签或窗口', accelerator: 'CmdOrCtrl+W', click: (_item, window) => {
+        const target = (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow()
+        target?.webContents.send('window:close-context')
+      } },
     ] },
   ]
 
@@ -105,7 +117,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     frame: !isWindows,
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
     ...(isMac ? { trafficLightPosition: { x: 24, y: 12 } } : {}),
-    webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true },
+    webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true, zoomFactor: 1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.()) },
   })
   window.on('close', event => {
     if (options.isQuitting() || options.getCloseWindowBehavior() === 'quit') return
@@ -148,6 +160,12 @@ export function createMainWindow(options: WindowManagerOptions) {
   window.webContents.on('before-input-event', (event, input) => {
     if (shouldBlockReloadShortcut(input, app.isPackaged)) event.preventDefault()
   })
+  window.webContents.on('did-finish-load', () => {
+    // Chromium can replay the creation/origin zoom on reload; use the latest preference.
+    const factor = 1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.())
+    window.webContents.setZoomFactor(factor)
+    window.webContents.send('window:zoom-changed', factor)
+  })
   window.once('ready-to-show', () => window.show())
   if (process.env.ELECTRON_RENDERER_URL) window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else window.loadFile(rendererPath)
@@ -169,6 +187,9 @@ export function handleWindowCommand(event: IpcMainEvent, action: string) {
     case 'reload': if (!app.isPackaged) window.webContents.reload(); break
     case 'toggleDevTools': window.webContents.toggleDevTools(); break
     case 'toggleFullscreen': window.setFullScreen(!window.isFullScreen()); break
+    case 'zoomIn': applyMiraZoom(window, 'in', windowManagerOptions?.saveDesktopZoomLevel); break
+    case 'zoomOut': applyMiraZoom(window, 'out', windowManagerOptions?.saveDesktopZoomLevel); break
+    case 'resetZoom': applyMiraZoom(window, 'reset', windowManagerOptions?.saveDesktopZoomLevel); break
     case 'minimize': window.minimize(); break
     case 'maximize': window.isMaximized() ? window.unmaximize() : window.maximize(); break
     case 'close': window.close(); break

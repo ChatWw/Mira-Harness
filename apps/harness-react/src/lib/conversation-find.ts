@@ -12,6 +12,7 @@ import type { HarnessFileChange, HarnessMessage } from '../../../../src/config/h
 import { installHarnessCitations } from '../../../../src/utils/harnessCitations'
 import type { TimelineRenderMessage } from '../components/conversation/conversation-model'
 import { parseDiff } from './diff'
+import { miraUserPrompt } from './mira-user-prompt'
 
 export type TaskFindScope = 'conversation' | 'changes'
 export interface TaskFindTarget { key: string; text: string; messageId?: string; changeId?: string; streaming?: boolean }
@@ -39,13 +40,38 @@ export function createTaskFindProjector() {
   return (messages: TimelineRenderMessage[]) => messages.flatMap(({ original, rendererId }) => {
     const saved = cache.get(original)
     if (saved?.rendererId === rendererId) return saved.targets
-    const parts = original.role === 'user' ? [{ id: 'body', text: original.content, streaming: false }]
+    const parts = original.role === 'user' ? [{ id: 'body', text: miraUserPrompt(original.content).visibleBody, streaming: false }]
       : original.parts !== undefined ? original.parts.flatMap(part => part.type === 'text' ? [{ id: part.id, text: part.text, streaming: part.state === 'streaming' }] : [])
         : [{ id: 'body', text: original.content, streaming: original.id.startsWith('stream-') }]
     const targets = parts.map(part => ({ key: taskFindTargetKey(rendererId, part.id), messageId: rendererId, streaming: part.streaming, text: original.role === 'user' ? part.text : part.streaming ? streamingMarkdownFindText(part.text) : markdownFindText(part.text, original.sources) }))
     cache.set(original, { rendererId, targets })
     return targets
   })
+}
+
+/** Yield between batches so opening find cannot synchronously parse a whole history. */
+export function scheduleTaskFindTargets(messages: TimelineRenderMessage[], project: ReturnType<typeof createTaskFindProjector>, onReady: (targets: TaskFindTarget[]) => void) {
+  const targets: TaskFindTarget[] = []
+  let cursor = 0, cancelled = false, timer: ReturnType<typeof setTimeout> | undefined
+  const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield: () => Promise<void> } }).scheduler
+  const step = () => {
+    timer = undefined
+    if (cancelled) return
+    const started = performance.now()
+    while (cursor < messages.length) {
+      const end = Math.min(cursor + 16, messages.length)
+      targets.push(...project(messages.slice(cursor, end)))
+      cursor = end
+      if (performance.now() - started >= 4) break
+    }
+    if (cursor < messages.length) {
+      if (scheduler?.yield) void scheduler.yield().then(step)
+      else timer = setTimeout(step, 0)
+    }
+    else onReady(targets)
+  }
+  step()
+  return () => { cancelled = true; if (timer !== undefined) clearTimeout(timer) }
 }
 
 export function changeFindTargets(changes: Array<HarnessFileChange & { key: string }>): TaskFindTarget[] {
@@ -80,5 +106,6 @@ export function taskFindOffsets(text: string, query: string): Array<{ start: num
 }
 
 export function taskFindMatches(targets: TaskFindTarget[], query: string): TaskFindMatch[] {
+  if (!query.trim()) return []
   return targets.flatMap(target => taskFindOffsets(target.text, query).map((offset, occurrence) => ({ ...target, ...offset, occurrence })))
 }

@@ -1,4 +1,5 @@
 import type { AutomationRunStatus } from '../config/harness'
+import { isMiraPrimaryModifier } from './workbenchShortcuts'
 
 export type MiraAppNavigationDirection = 'back' | 'forward'
 export type MiraAppNavigationTarget =
@@ -59,7 +60,7 @@ export function readMiraAppNavigationCommand(value: unknown): MiraAppNavigationC
 }
 
 export function miraAppNavigationShortcut(event: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; shiftKey?: boolean; altKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean }, platform = typeof navigator === 'undefined' ? '' : navigator.platform): MiraAppNavigationDirection | undefined {
-  const modifier = platform ? /Mac/i.test(platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey : event.metaKey || event.ctrlKey
+  const modifier = isMiraPrimaryModifier(event, platform)
   if (!modifier || event.shiftKey || event.altKey || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return undefined
   if (event.key === '[') return 'back'
   if (event.key === ']') return 'forward'

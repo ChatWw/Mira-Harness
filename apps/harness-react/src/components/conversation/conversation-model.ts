@@ -2,6 +2,26 @@ import type { HarnessActiveRun, HarnessMessage, HarnessRunSummary, ToolCallRecor
 
 export interface TimelineRenderMessage { rendererId: string; original: HarnessMessage }
 
+/** Adapted from ZCode ProductProjection's TurnStarted model boundaries (Apache-2.0).
+ * Copyright 2026 Z.AI Co., Ltd. Unsent choices and unknown legacy history are not model facts. */
+export function miraModelChanges(messages: TimelineRenderMessage[], providers: Array<{ id: string; name: string }> = []) {
+  const changes = new Map<string, { from: NonNullable<HarnessMessage['model']>; to: NonNullable<HarnessMessage['model']> }>()
+  const names = new Map(providers.map(provider => [provider.id, provider.name]))
+  let previous: HarnessMessage['model'], promptId: string | undefined
+  for (const { original, rendererId } of messages) {
+    if (original.internal) continue
+    if (original.role === 'user') { promptId = rendererId; continue }
+    const current = original.model
+    if (current && previous && (current.providerId !== previous.providerId || current.modelId !== previous.modelId)) changes.set(promptId ?? rendererId, {
+      from: { ...previous, providerName: names.get(previous.providerId) || previous.providerName || previous.providerId },
+      to: { ...current, providerName: names.get(current.providerId) || current.providerName || current.providerId },
+    })
+    previous = current
+    promptId = undefined
+  }
+  return changes
+}
+
 /** Only persisted verifier entries belong in the transcript, at their original reply. */
 export function goalVerificationsByMessage(goal?: import('../../../../../src/config/miraGoals').HarnessGoal) {
   const entries = new Map<string, import('../../../../../src/config/miraGoals').HarnessGoalVerification>()
@@ -41,14 +61,14 @@ export function projectTimelineMessages(messages: HarnessMessage[], activeRun?: 
   if (activeRun.messageId) {
     const streamId = `stream-${activeRun.messageId}`
     const index = messages.findIndex(message => message.role === 'assistant' && (message.id === activeRun.messageId || message.id === streamId))
-    if (index >= 0) return messages.map((message, position) => position === index ? { ...message, id: streamId, runId: activeRun.id, run } : message)
-    return [...messages, { id: streamId, role: 'assistant', content: '', runId: activeRun.id, createdAt: activeRun.startedAt, run }]
+    if (index >= 0) return messages.map((message, position) => position === index ? { ...message, id: streamId, runId: activeRun.id, ...(activeRun.model ? { model: activeRun.model } : {}), run } : message)
+    return [...messages, { id: streamId, role: 'assistant', content: '', runId: activeRun.id, model: activeRun.model, createdAt: activeRun.startedAt, run }]
   }
   const last = messages[messages.length - 1]
-  if (last?.role === 'assistant' && last.id.startsWith('stream-')) return [...messages.slice(0, -1), { ...last, run }]
+  if (last?.role === 'assistant' && last.id.startsWith('stream-')) return [...messages.slice(0, -1), { ...last, ...(activeRun.model ? { model: activeRun.model } : {}), run }]
   // 恢复中的持久化消息可能还没有 stream id，不能把历史回复改成当前运行。
-  if (last?.role === 'assistant' && last.createdAt >= activeRun.startedAt && !last.run?.status) return [...messages.slice(0, -1), { ...last, id: `stream-${activeRun.id}`, run }]
-  return [...messages, { id: `stream-${activeRun.id}`, role: 'assistant', content: '', runId: activeRun.id, createdAt: activeRun.startedAt, run }]
+  if (last?.role === 'assistant' && last.createdAt >= activeRun.startedAt && !last.run?.status) return [...messages.slice(0, -1), { ...last, id: `stream-${activeRun.id}`, ...(activeRun.model ? { model: activeRun.model } : {}), run }]
+  return [...messages, { id: `stream-${activeRun.id}`, role: 'assistant', content: '', runId: activeRun.id, model: activeRun.model, createdAt: activeRun.startedAt, run }]
 }
 
 /** 按运行边界关联已有记录，子任务记录仍由子任务摘要承载。 */

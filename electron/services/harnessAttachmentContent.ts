@@ -1,5 +1,5 @@
 import { TextDecoder } from 'node:util'
-import type { HarnessAttachmentImportFile, HarnessImageMediaType, HarnessMessageAttachment } from '../../src/config/harness'
+import type { HarnessAttachmentImportFile, HarnessAttachmentMediaType, HarnessImageMediaType, HarnessMessageAttachment } from '../../src/config/harness'
 
 export const HARNESS_ATTACHMENT_LIMITS = {
   count: 12,
@@ -18,6 +18,20 @@ export function harnessAttachmentImageType(bytes: Buffer): HarnessImageMediaType
   return undefined
 }
 
+/** Container admission only; the provider/browser still decides codec and document compatibility. */
+export function harnessAttachmentMediaType(bytes: Buffer, name = ''): HarnessAttachmentMediaType | undefined {
+  const image = harnessAttachmentImageType(bytes)
+  if (image) return image
+  if (bytes.length >= 5 && bytes.toString('ascii', 0, 5) === '%PDF-') return 'application/pdf'
+  const extension = name.split('.').pop()?.toLowerCase()
+  if (bytes.length >= 16 && bytes.toString('ascii', 4, 8) === 'ftyp') {
+    return extension === 'mov' ? 'video/quicktime' : extension === 'm4v' ? 'video/x-m4v' : 'video/mp4'
+  }
+  if (bytes.length >= 8 && bytes.readUInt32BE(0) === 0x1a45dfa3) return extension === 'mkv' ? 'video/x-matroska' : 'video/webm'
+  if (bytes.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'AVI ') return 'video/x-msvideo'
+  return undefined
+}
+
 function assertImageStructure(bytes: Buffer, mediaType: HarnessImageMediaType) {
   // 校验容器签名与基本完整性；这不是图片解码器，provider 仍负责解码兼容性。
   const valid = mediaType === 'image/png'
@@ -31,13 +45,14 @@ function assertImageStructure(bytes: Buffer, mediaType: HarnessImageMediaType) {
 }
 
 export function harnessAttachmentFromBytes(path: string, name: string, bytes: Buffer, declaredMediaType?: string): HarnessMessageAttachment {
-  const mediaType = harnessAttachmentImageType(bytes)
+  const mediaType = harnessAttachmentMediaType(bytes, name)
   if (mediaType) {
-    if (bytes.length > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error('单张图片不得超过 20 MiB')
-    assertImageStructure(bytes, mediaType)
+    if (bytes.length > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error('单个图片、PDF 或视频附件不得超过 20 MiB')
+    if (mediaType.startsWith('image/')) assertImageStructure(bytes, mediaType as HarnessImageMediaType)
     return { path, name, mediaType, size: bytes.length, content: bytes.toString('base64') }
   }
   if (declaredMediaType?.startsWith('image/')) throw new Error('图片附件签名无效；目前支持 PNG、JPEG、GIF 和 WebP')
+  if (declaredMediaType === 'application/pdf' || declaredMediaType?.startsWith('video/')) throw new Error('PDF 或视频附件签名无效，请选择完整的文件')
   if (bytes.length > HARNESS_ATTACHMENT_LIMITS.textFileBytes) throw new Error(`引用文件过大：${name}；文本附件不得超过 256 KiB`)
   let content: string
   try { content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) } catch { throw new Error(`不支持引用二进制文件或非 UTF-8 文本：${name}`) }
@@ -47,7 +62,7 @@ export function harnessAttachmentFromBytes(path: string, name: string, bytes: Bu
 
 export function decodeHarnessAttachmentImport(file: HarnessAttachmentImportFile): Buffer {
   const maxEncodedLength = Math.ceil(HARNESS_ATTACHMENT_LIMITS.imageFileBytes / 3) * 4
-  if (typeof file.data !== 'string' || file.data.length > maxEncodedLength) throw new Error('单张图片不得超过 20 MiB；文本附件不得超过 256 KiB')
+  if (typeof file.data !== 'string' || file.data.length > maxEncodedLength) throw new Error('单个图片、PDF 或视频附件不得超过 20 MiB；文本附件不得超过 256 KiB')
   const padding = file.data.endsWith('==') ? 2 : file.data.endsWith('=') ? 1 : 0
   const firstPadding = file.data.indexOf('=')
   if (file.data.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(file.data) || (firstPadding !== -1 && firstPadding !== file.data.length - padding)) throw new Error('附件必须使用规范的 base64 编码')
@@ -64,5 +79,5 @@ export function assertHarnessAttachmentTotals(attachments: readonly HarnessMessa
     else textBytes += Buffer.byteLength(attachment.content, 'utf8')
   }
   if (textBytes > HARNESS_ATTACHMENT_LIMITS.textTotalBytes) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
-  if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片附件总大小不得超过 40 MiB')
+  if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
 }

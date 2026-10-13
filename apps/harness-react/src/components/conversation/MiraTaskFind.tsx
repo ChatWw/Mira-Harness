@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { HarnessFileChange } from '../../../../../src/config/harness'
-import { changeFindTargets, createTaskFindProjector, taskFindMatches, type TaskFindScope } from '../../lib/conversation-find'
+import { isMiraPrimaryModifier } from '../../../../../src/platform/workbenchShortcuts'
+import { changeFindTargets, createTaskFindProjector, scheduleTaskFindTargets, taskFindMatches, type TaskFindScope, type TaskFindTarget } from '../../lib/conversation-find'
 import { applyTaskFindHighlights, clearTaskFindHighlights, revealTaskFindRange } from '../../lib/conversation-find-dom'
 import { buildConversationRenderTurns, type ConversationTimelineActions } from '../../lib/conversation-timeline'
 import type { TimelineRenderMessage } from './conversation-model'
@@ -34,12 +35,18 @@ export function MiraTaskFind({ active, keyboardActive = active, sessionId, loadi
   const lastNavigation = useRef('')
   const interruptedNavigation = useRef('')
   const projector = useMemo(() => createTaskFindProjector(), [sessionId])
+  const [projection, setProjection] = useState<{ messages: TimelineRenderMessage[]; projector: typeof projector; targets: TaskFindTarget[] }>()
   const visible = open && active && Boolean(sessionId)
-  const targets = useMemo(() => !visible || loading ? [] : scope === 'conversation' ? projector(messages) : changeFindTargets(changes), [visible, loading, scope, projector, messages, changes])
+  const indexing = visible && !loading && scope === 'conversation' && (projection?.messages !== messages || projection?.projector !== projector)
+  useEffect(() => {
+    if (!indexing) return
+    return scheduleTaskFindTargets(messages, projector, targets => setProjection({ messages, projector, targets }))
+  }, [indexing, messages, projector])
+  const targets = useMemo(() => !visible || loading ? [] : scope === 'conversation' ? indexing ? [] : projection!.targets : changeFindTargets(changes), [visible, loading, scope, indexing, projection, changes])
   const matches = useMemo(() => taskFindMatches(targets, query), [targets, query])
   const index = matches.length ? Math.min(selection, matches.length - 1) : -1
   const match = matches[index]
-  const liveTarget = useMemo(() => Boolean(liveMessageId && scope === 'conversation' && buildConversationRenderTurns(messages, liveMessageId).some(turn => turn.running && turn.messageIndexes.some(index => messages[index].rendererId === match?.messageId))), [liveMessageId, scope, messages, match?.messageId])
+  const liveTarget = useMemo(() => Boolean(match && liveMessageId && scope === 'conversation' && buildConversationRenderTurns(messages, liveMessageId).some(turn => turn.running && turn.messageIndexes.some(index => messages[index].rendererId === match.messageId))), [liveMessageId, scope, messages, match?.messageId])
   const current = useRef({ onOpenChanges, match })
   current.current = { onOpenChanges, match }
 
@@ -66,7 +73,7 @@ export function MiraTaskFind({ active, keyboardActive = active, sessionId, loadi
   useEffect(() => {
     if (!active || !keyboardActive || !sessionId) return
     const handleKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'f') return
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat || event.altKey || event.shiftKey || !isMiraPrimaryModifier(event) || event.key.toLowerCase() !== 'f') return
       if (document.querySelector('[role="dialog"]:not([aria-modal="false"]), [role="menu"][data-state="open"]')) return
       const target = event.target as HTMLElement | null
       const conversation = viewportRef.current?.closest('.mira-conversation-layout, .mira-side-conversation')
@@ -78,7 +85,7 @@ export function MiraTaskFind({ active, keyboardActive = active, sessionId, loadi
   }, [active, keyboardActive, sessionId, loading, open])
 
   useEffect(() => {
-    if (!visible || !keyboardActive || loading || !query.trim()) { clearTaskFindHighlights(highlightOwner.current); return }
+    if (!visible || !keyboardActive || loading || indexing || !query.trim()) { clearTaskFindHighlights(highlightOwner.current); return }
     let frame: number | undefined, disposed = false, navigationReady = false, stableFrames = 0, previousTop: number | undefined, cancelNavigation: void | (() => void)
     const intentKey = JSON.stringify([sessionId, scope, query, navigationRequest, match?.key, match?.occurrence])
     const navigationKey = JSON.stringify([intentKey, match?.streaming, liveTarget])
@@ -122,9 +129,9 @@ export function MiraTaskFind({ active, keyboardActive = active, sessionId, loadi
     if (canNavigate() && scope === 'changes' && lastNavigation.current !== navigationKey) void current.current.onOpenChanges?.(match?.changeId).then(ready)
     schedule()
     return () => { disposed = true; cancelNavigation?.(); observer.disconnect(); root?.removeEventListener('wheel', stopNavigation); root?.removeEventListener('pointerdown', stopNavigation); root?.removeEventListener('keydown', stopKeyboardNavigation); if (frame !== undefined) cancelAnimationFrame(frame); clearTaskFindHighlights(highlightOwner.current) }
-  }, [visible, keyboardActive, loading, sessionId, scope, query, navigationRequest, match?.key, match?.occurrence, match?.streaming, liveTarget, viewportRef, changesRef, timelineRef])
+  }, [visible, keyboardActive, loading, indexing, sessionId, scope, query, navigationRequest, match?.key, match?.occurrence, match?.streaming, liveTarget, viewportRef, changesRef, timelineRef])
 
-  return <MiraConversationFindBar open={visible} keyboardActive={keyboardActive} allowChanges={Boolean(changesRef && onOpenChanges)} focusRequestId={focusRequest} query={query} scope={scope} count={matches.length} index={index}
+  return <MiraConversationFindBar open={visible} keyboardActive={keyboardActive} allowChanges={Boolean(changesRef && onOpenChanges)} pending={loading || indexing} focusRequestId={focusRequest} query={query} scope={scope} count={matches.length} index={index}
     onQueryChange={value => { setQuery(value); setSelection(0); setNavigationRequest(request => request + 1) }}
     onScopeChange={value => { if (value === 'changes' && !onOpenChanges) return; setScope(value); setSelection(0); setNavigationRequest(request => request + 1); if (value === 'changes') void onOpenChanges?.() }}
     onNavigate={direction => { if (matches.length) { setSelection((index + direction + matches.length) % matches.length); setNavigationRequest(request => request + 1) } }} onClose={close} />

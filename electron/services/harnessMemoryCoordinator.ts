@@ -94,7 +94,7 @@ export class HarnessMemoryCoordinator {
     if (!session.messages.some(message => message.role === 'user') || !session.messages.some(message => message.role === 'assistant')) throw new Error('当前对话还没有可保存的内容')
     const { provider, apiKey } = options.requireProvider(selection)
     const modelConfig = providerModel(provider, selection!.modelId)!
-    const { model, models } = createHarnessModelProvider(provider, modelConfig, apiKey)
+    const { model, models } = createHarnessModelProvider(provider, modelConfig, apiKey, { sessionId, source: 'memory', store: this.database.modelTrace })
     const task = this.saveLongTerm(sender, sessionId, models, model, modelConfig.reasoning ? selection!.thinkingLevel || 'medium' : 'off', options.toAgentMessage)
     this.track(sessionId, task)
     await task
@@ -265,9 +265,11 @@ export class HarnessMemoryCoordinator {
     this.log({ event: 'tool', sessionId, tool: 'memory_auto_save', target, status: 'running', timestamp: startedAt })
     this.publish(sender, { sessionId, type: 'tool-call', payload: { id: recordId, tool: 'memory_auto_save', target, status: 'running' } })
     try {
+      const memoryModels: typeof models = Object.create(models)
+      memoryModels.completeSimple = (currentModel, context, options) => models.completeSimple(currentModel, context, { ...options, sessionId: `${sessionId}:memory` })
       const result = await generateSummaryWithUsage(
         session.messages.map(message => toAgentMessage(message, model)) as any,
-        models,
+        memoryModels,
         model,
         2048,
         undefined,

@@ -8,6 +8,7 @@ import * as modelProvider from '../electron/services/harnessModelProvider'
 import { PlatformDatabase } from '../electron/storage/database'
 import type { HarnessEvent, HarnessMessageSubmissionReceipt, ModelSelection } from '../src/config/harness'
 import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
+import { MIRA_MODEL_ERROR_MESSAGE } from '../src/config/miraModelErrors'
 
 function deferred() {
   let resolve!: () => void
@@ -86,6 +87,62 @@ function setup(steps: Step[]) {
 }
 
 describe('real installed Agent turn-boundary guidance', () => {
+  it('loads user/project command skill dependencies for that run only, including queued commands and regeneration', async () => {
+    const gate = deferred(), fixture = setup([{ text: 'Original answer', wait: gate }, { text: 'Command answer' }, { text: 'Regenerated answer' }, { text: 'Ordinary answer' }])
+    const directory = join(fixture.database.paths.skills, 'research'); mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), '# Research\n\nMIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    const skill = fixture.database.skills.list()[0]; fixture.database.skills.setEnabled(skill.id, true)
+    fixture.database.promptCommands.save({ scope: 'project', name: 'review', source: '---\nskills: [Research]\n---\nReview $ARGUMENTS' }, fixture.directory)
+    const first = fixture.run(); await fixture.entered.promise
+    const receipt = await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'command-skill-intent', '/review notes', [], fixture.selection, false, { delivery: 'guide', expectedRunId: fixture.runtime.getSession(fixture.sessionId).activeRun!.id, skillIds: [] })
+    expect(receipt).toMatchObject({ delivery: 'queue', queue: { items: [{ fallbackReason: 'plugins', command: { requiredSkillIds: [skill.id] } }] } })
+    expect(fixture.prompts[0]).not.toContain('MIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    gate.resolve(); await first
+    await vi.waitFor(() => expect(fixture.runtime.getSession(fixture.sessionId).activeRun).toBeUndefined())
+    expect(fixture.prompts[1]).toContain('MIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    expect(fixture.contexts[1].at(-1)?.content).toContainEqual({ type: 'text', text: expect.stringContaining('Review notes') })
+    await fixture.runtime.rerun(fixture.sender, fixture.sessionId, fixture.selection)
+    expect(fixture.prompts[2]).toContain('MIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    await fixture.run('Next ordinary task')
+    expect(fixture.prompts[3]).not.toContain('MIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    expect(fixture.runtime.getSession(fixture.sessionId).activeSkillIds || []).toEqual([])
+  })
+
+  it('preserves a queued command when its dependency is disabled before dispatch and resumes after re-enabling', async () => {
+    const gate = deferred(), fixture = setup([{ text: 'Original answer', wait: gate }, { text: 'Command answer' }])
+    const directory = join(fixture.database.paths.skills, 'research'); mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), '# Research\n\nMIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    const skill = fixture.database.skills.list()[0]; fixture.database.skills.setEnabled(skill.id, true)
+    fixture.database.promptCommands.save({ scope: 'project', name: 'review', source: '---\nskills: [Research]\n---\nReview $ARGUMENTS' }, fixture.directory)
+    const first = fixture.run(); await fixture.entered.promise
+    const receipt = await fixture.runtime.submitMessage(fixture.sender, fixture.sessionId, 'disabled-command-skill', '/review notes', [], fixture.selection, false, { delivery: 'queue', expectedRunId: fixture.runtime.getSession(fixture.sessionId).activeRun!.id }) as HarnessMessageSubmissionReceipt
+    fixture.database.skills.setEnabled(skill.id, false)
+    gate.resolve(); await first
+    await vi.waitFor(() => expect(fixture.runtime.getMessageQueue(fixture.sessionId)).toMatchObject({ paused: 'failed', items: [{ id: receipt.id, text: '/review notes' }] }))
+    expect(fixture.contexts).toHaveLength(1)
+    expect(fixture.runtime.getSession(fixture.sessionId).messages.some(message => message.content === '/review notes')).toBe(false)
+    fixture.database.skills.setEnabled(skill.id, true)
+    fixture.runtime.resumeMessageQueue(fixture.sessionId)
+    await vi.waitFor(() => expect(fixture.runtime.getSession(fixture.sessionId).messages.at(-1)?.content).toBe('Command answer'))
+    expect(fixture.contexts).toHaveLength(2)
+    expect(fixture.prompts[1]).toContain('MIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+  })
+
+  it('rechecks command dependencies after awaiting pending memory before requesting the model', async () => {
+    const gate = deferred(), entered = deferred(), fixture = setup([{ text: 'Must not request' }])
+    const directory = join(fixture.database.paths.skills, 'research'); mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), '# Research\n\nMIRA_COMMAND_DEPENDENCY_INSTRUCTIONS')
+    const skill = fixture.database.skills.list()[0]; fixture.database.skills.setEnabled(skill.id, true)
+    fixture.database.promptCommands.save({ scope: 'project', name: 'review', source: '---\nskills: [Research]\n---\nReview $ARGUMENTS' }, fixture.directory)
+    fixture.addRelease(() => gate.resolve())
+    vi.spyOn((fixture.runtime as any).memoryCoordinator, 'waitForPending').mockImplementation(async () => { entered.resolve(); await gate.promise })
+    const task = fixture.run('/review notes'); await entered.promise
+    fixture.database.skills.setEnabled(skill.id, false)
+    gate.resolve(); await expect(task).rejects.toThrow('Skill')
+    expect(fixture.contexts).toHaveLength(0)
+    expect(fixture.runtime.getSession(fixture.sessionId).activeRun).toBeUndefined()
+  })
+
   it('preserves bounded skill identities through both first-party parsers', () => {
     const input = { sessionId: 's', submissionId: 'intent', text: 'Task', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false, options: { skillIds: ['research'], permissionMode: 'default' } }
     const parsed = parseFirstPartyHarnessCall('message.submit', input)
@@ -480,7 +537,7 @@ describe('real installed Agent turn-boundary guidance', () => {
     const fixture = setup([{ text: 'Before', wait: gate }, { text: 'Partial after', fail: true }])
     const task = fixture.run(); await fixture.entered.promise
     const receipt = fixture.guide()
-    gate.resolve(); await expect(task).rejects.toThrow('Fixture model failure')
+    gate.resolve(); await expect(task).rejects.toMatchObject({ message: MIRA_MODEL_ERROR_MESSAGE, modelError: { code: 'MODEL_REQUEST_FAILED', detail: expect.stringContaining('Fixture model failure') } })
     expect(fixture.runtime.getSession(fixture.sessionId).messages.map(message => message.content)).toEqual(['Original task', 'Before', 'Change the result', 'Partial after'])
     expect(fixture.runtime.getSession(fixture.sessionId).messages.filter(message => message.id === receipt.id)).toHaveLength(1)
     expect(fixture.runtime.getSession(fixture.sessionId).messages.at(-1)?.run?.status).toBe('failed')
@@ -494,7 +551,7 @@ describe('real installed Agent turn-boundary guidance', () => {
     const receipt = fixture.guide()
     if (outcome === 'stopped') fixture.runtime.abort(fixture.sessionId)
     gate.resolve()
-    if (outcome === 'failed') await expect(task).rejects.toThrow('Fixture model failure'); else await task
+    if (outcome === 'failed') await expect(task).rejects.toMatchObject({ message: MIRA_MODEL_ERROR_MESSAGE, modelError: { code: 'MODEL_REQUEST_FAILED', detail: expect.stringContaining('Fixture model failure') } }); else await task
     expect(fixture.runtime.getMessageQueue(fixture.sessionId)).toMatchObject({ paused: outcome, items: [{ id: receipt.id, requestedDelivery: 'guide', fallbackReason: 'run-ended' }] })
     expect(fixture.runtime.getMessageQueue(fixture.sessionId).items[0]!.delivery).toBeUndefined()
     expect(fixture.runtime.getSession(fixture.sessionId).messages.some(message => message.delivery === 'guide')).toBe(false)

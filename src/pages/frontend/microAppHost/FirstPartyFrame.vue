@@ -32,6 +32,7 @@ const props = defineProps<{
   context: PlatformContext
   route: string
   navigate: (path: string) => void | Promise<void>
+  toggleTheme?: () => 'light' | 'dark'
   navigationSnapshot?: MiraAppNavigationSnapshot
 }>()
 const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: [] }>()
@@ -89,7 +90,12 @@ function prepareLeave() {
   if (disposed || !activePort) return Promise.reject(new Error('Harness 连接尚未就绪，无法确认草稿保存'))
   return session.prepareLeave(message => activePort.postMessage(message))
 }
-defineExpose({ prepareLeave, openCommandCenter, navigateHistory })
+function closeContext() {
+  const activePort = port
+  if (disposed || !activePort || !hasHarnessNavigation()) return Promise.reject(new Error('Harness 连接尚未就绪，已保留当前窗口'))
+  return session.closeContext(message => activePort.postMessage(message))
+}
+defineExpose({ prepareLeave, openCommandCenter, navigateHistory, closeContext })
 
 
 async function connect() {
@@ -140,6 +146,7 @@ async function connect() {
     const navigationState = readMiraAppNavigationState(event.data)
     if (navigationState) { if (hasHarnessNavigation()) emit('navigationState', navigationState); return }
     if (session.receiveLeaveReady(event.data)) return
+    if (session.receiveCloseReady(event.data)) return
     if (!isFirstPartyRequest(event.data)) return
     const request = event.data
     try {
@@ -151,6 +158,7 @@ async function connect() {
           context: props.context,
           route: props.route,
           navigate: props.navigate,
+          toggleTheme: props.toggleTheme,
         }, ['harness.browser.viewport', 'harness.browser.pick', 'harness.browser.protection'].includes(request.method) ? { ...request, params: { ...(request.params as Record<string, unknown>), guestId } } : request)
         if (!session.isActive(nextGrant, activePort)) throw new Error('应用授权已失效')
         return value

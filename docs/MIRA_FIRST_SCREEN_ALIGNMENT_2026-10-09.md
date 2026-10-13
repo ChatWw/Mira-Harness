@@ -1,6 +1,630 @@
 # Mira Harness 首屏完整对齐与验收
 
-## 暂停与接续（2026-10-12 11:35 +08:00）
+## 当前交付：任务菜单模型设置与跨窗格归属（2026-10-13 08:56 +08:00）
+
+完成：对照 ZCode v3.15.1 TaskActionMenuContent 的“前往配置”，在 Mira 侧栏右键／更多及标题共用菜单中补“模型设置”，进入现有 Vue /settings/model-config。沿原 PilotController.navigate(path, true) 先保存所有窗格草稿，失败留在工作台并反馈所属任务，不另建配置页或打开上游配置文件。产品仅新增 SessionSidebar 一项菜单，Electron／Vue／CSS没有改动。
+
+验证：新增三项真实DOM回归修改前均失败（/tmp/mira-menu-settings-repro-20261013.json）；最终4文件458项通过，/tmp/mira-menu-settings-final-20261013.json，含既有控制器“保存失败不导航／先保存后导航”。React类型与生产构建通过，/tmp/mira-menu-settings-build-20261013.log，原highlight警告保持；不是全库或新宿主／安装包验收。
+
+当前隔离生产macOS Electron [跨窗格最终报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-cross-pane-desktop-20261013.Z8nRXi/report.json)：19项通过、errors=[]，2次localhost受控SSE经过真实Pi／preload／IPC／SQLite。主侧轨迹不串记录，Header改名只作用主任务且保持输入焦点，菜单内快捷键避让，Shell右上角搜索关闭旧菜单；两个菜单进入已渲染Vue模型页，经真实“返回应用”按钮往返保留分屏、两边草稿及两个轨迹标签ID。实际设置保存失败的隔离Electron故障注入未做，该边界由DOM错误反馈和既有控制器回归覆盖，不冒称实机失败链已验。明暗轨迹与两个深色菜单截图核对沿既有Mira视觉，不再另换方案。
+
+产物：最终19项报告首尾五入口一致，ReactJS 37cef3371936cb64743e9abd73d93ea99d7f6ae98dc5b354efd177ef9febbc32；main／preload／VueHTML与08:40一致，CSS b21e6c2345aeced9f99f3b0f7502c6fba613876b63c6d73fdc9d11a30b8e29d5。此前iZOHFO10项与Efqp3w13项属于旧ec6…React，VKPMVq16项／fDhz1B17项是同新产物较小范围，不累加作19项通过。lq2PWF缺少明确模型selection、9FfIJt误期待菜单内CmdK越过既有避让，均修驱动，没有为这些夹具假设改产品。所有驱动／报告位于临时目录，MIRA_TEST_HOME隔离，实例正常退出，未动用户资料，未提交／推送。
+
+剩余与接续：共用菜单／设置往返及跨任务轨迹归属本批已验证。继续首屏三块整体核对主对话timeline／摘要与Composer在审批、停止、失败和恢复下的状态，优先明确遗漏，不重开文件／附件支线。工具清单仍无可调用原生computer-use，原生ZCode同态、实体IME／系统按键、远端复杂模型／媒体／并发、Windows／安装包和总体性能仍未闭环，整体active，分享排除。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支 codex/mira-harness-first-slice，npm run desktop:dev。下方历史。
+
+## 当前交付：侧栏项目／分组改名与任务菜单（2026-10-13 08:40 +08:00）
+
+完成：按 ZCode 当前 TaskActionMenuContent 与分组任务菜单接入，项目任务前置置顶→改名→归档→未读，分组任务前置移动到分组→移到顶部→改名→归档→未读；保留 Mira 的侧面任务、项目迁移、资源、轨迹、复制与删除入口，归档只出现一次。项目／分组改名补输入法组合与旧 keyCode 229 保护、同步重复提交守卫及请求身份校验，迟到保存不能关闭其他对象或重新打开的编辑器，失败保留名称和编辑态。仅改 SessionSidebar、SidebarCollectionSection 与相关既有测试，没有改 Electron／Vue／CSS。
+
+复现与回归：修正缺少 Tooltip.Provider 的测试夹具后，改名前四项真实行为回归全部失败（/tmp/mira-collection-rename-repro-fixed-fixture-20261013.json）；任务菜单顺序两项修改前失败（/tmp/mira-task-menu-order-repro-20261013.json）。最终 5 文件 278 项通过，/tmp/mira-sidebar-menus-final-20261013.json；React 类型与生产构建通过，/tmp/mira-sidebar-menus-final-build-20261013.log。原 highlight 警告保持，不累加中间276项结果。
+
+隔离生产 macOS Electron [最终侧栏报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-sidebar-menus-desktop-20261013.hG0HBZ/report.json)：23项通过、errors=[]，真实 Vue／React／preload／IPC／SQLite。验证浏览其他项目文件不切任务、项目改名与合成组合输入、非当前任务跨项目移动及 workingDirectory、置顶／未读、分组移动／改名／颜色／解散、归档恢复、项目隐藏恢复、重载元数据及主草稿保持；无模型请求，MIRA_TEST_HOME 隔离，实例正常退出。最终项目菜单浅色、任务菜单浅色、分组任务与分组菜单深色四图已检查，菜单可读且没有新增遮挡。合成 composition／键码不等于实体中文 IME 验收。
+
+产物身份：最终报告首尾一致，main 1b7ccb2a078c1e5d0ae5432ce651912c2e03ebbed16a61609e301771c436f985，preload 2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee，Vue HTML b8b63ad93ea0c2e130d6c820ce468a3f98a4675a5c410f69a84b2af0ce5a018c，React JS ec6ea9bc31f1cd6b1180b21315c40b8fbd9ed8bc6159639de99b751d5c4c5a25，CSS b21e6c2345aeced9f99f3b0f7502c6fba613876b63c6d73fdc9d11a30b8e29d5。旧导航／运行状态／性能报告保持原构建身份。
+
+中间失败保留：JelT3e 错误 hover 集合而非标题，0sUH4I 在文件抽屉替换侧栏后读取任务行，Kj4fMV 使用不存在的 getPreference，HWaRBz 将已未读任务误断言为“标记为未读”；均修临时驱动，没有为夹具错误改产品。qDbL8E／K11WSS 分别18／20项通过但属于旧React构建，不作为本次最新验收。驱动与报告仅临时目录，未新增QA文档，未提交／推送。
+
+接续：侧栏本批缺口已交，下一步核对跨主／侧任务的共用菜单及资源／轨迹归属，结合整页状态检查明确差异，不重开文件、附件或欢迎区支线。当前仍无可调用原生computer-use，ZCode实时同态、实体IME／系统快捷键、远端复杂模型／多任务／媒体、Windows／安装包及总体性能仍未闭环；整体active，分享排除。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支 codex/mira-harness-first-slice，启动 npm run desktop:dev。下方历史。
+
+交付补核：当前ZCode已更新至aac47556／v3.15.1，旧NOTICE副本与当前上游不同，已同步当前原文并记录来源；不把历史“逐字相同”描述套用到更新后的上游。LICENSE保持原文。仅第三方告知更新，不接入上游远控、Bot、营销或分享功能。
+
+交付检查：七份现有进展／规格／改编文档已同步；更新告知后的生产构建通过（/tmp/mira-sidebar-menus-delivery-build-20261013.log），五入口hash与23项已验报告逐项一致。LICENSE／NOTICE与当前上游、发布目录ADAPTATIONS／NOTICE与仓库分别逐字相同，git diff --check通过。跨主／侧菜单资源归属已开始源码核对，尚无本批新增运行验收，不把核对过程描述为已完成。
+
+## 当前交付：Composer 菜单与计划标记焦点（2026-10-13 07:20 +08:00）
+
+完成：对照 ZCode 当前 V4ComposerModeControls、ModelConfigSelect 与 WorkspaceSidebar 的实际接入，权限独立单选／计划勾选、计划标记 hover 与键盘焦点切换 X、供应商子菜单及排序入口已有实现，不重复重写。实际生产 Electron 复现键盘移除计划标记后焦点掉到 body；本批仅在 HarnessComposer 关闭标记时归还自己的 Lexical 输入焦点，并保留配置禁用保护、草稿与权限，不提交任务。此焦点修正是 Mira 自身补足，不宣称上游已有同样实现；Electron／Vue／CSS 没有修改。
+
+验证：新增两项回归，修改前 1 通过／1 失败，/tmp/mira-plan-marker-repro-20261013.json；最终三个相关文件 312 项全部通过，/tmp/mira-menus-delivery-20261013.json。React 类型检查与生产构建通过，/tmp/mira-menus-react-build-20261013.log；原 highlight 构建警告保持，不声称本批全库／新宿主／安装包检查。
+
+隔离生产 macOS Electron [最终菜单报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-menus-desktop-20261013.Sca3Hb/report.json)：16 项通过、errors=[]，验证独立计划／权限、Tab 聚焦移除图标、移除后回输入、供应商方向键、41 项长模型列表 End 定位与选中、跨供应商搜索、深色空态／管理入口、Escape 回输入与保草稿；无模型请求，MIRA_TEST_HOME 隔离，实例正常退出。已查看最终权限浅色、供应商长列表浅色、搜索空态深色三图，无本批新增遮挡。长列表 clientHeight=286／scrollHeight=1400，末项 scrollTop=1114 且可见，子菜单右边界1390.9小于1440画布宽度；这些不是整体性能上限指标。
+
+失败边界：5b6bgr 报告是真实计划移除焦点失败；Ef2M0x 是驱动用鼠标模态下 focus() 冒充 focus-visible，5LuANc 未展开种子项目，b7eFqb 打开了单模型供应商而非长列表；DxN2RD／IFwLB9／br63bW 在 Radix 异步移动／关闭焦点稳定前读取。驱动改为真实 Tab、展开项目、选择目标供应商并等待实际焦点后最终通过，没有为这些驱动错误改产品。所有中间报告保留，不累加为通过。
+
+产物身份：最终报告首尾五入口 hash 一致；React JS 81860b173a0eab1261963fc553855f66853aefe2907f6e039bf4ce556a5af2f2，CSS b21e6c2345aeced9f99f3b0f7502c6fba613876b63c6d73fdc9d11a30b8e29d5，main／preload／Vue HTML 沿07:09产物。旧导航、状态及性能报告保持原构建身份，本批不重标全量复验。驱动和报告均在系统临时目录，无新增仓库测试文档；未提交／推送。
+
+接续：集中检查侧栏项目／分组／任务菜单整条操作路径及整页同状态差异，不重复重写已交 Composer 或进入文件支线。工具清单再次确认没有可调用 computer-use；原生 ZCode 同态、实体键盘／IME、远端复杂模型／多任务／媒体、Windows／安装包与完整性能仍未闭环，整体 active，分享排除。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支 codex/mira-harness-first-slice，启动 npm run desktop:dev。下方历史。
+
+## 当前交付：标题栏动作与面板关闭焦点（2026-10-13 07:09 +08:00）
+
+完成：逐行对照 ZCode 当前接入的 `WorkspaceHeader.tsx`、`WorkspaceHeaderActionSection.tsx` 与 `WorkspaceSidePaneToggleButton.tsx`，新任务／未发送页隐藏编辑器组，已有任务操作顺序为编辑器→帮助→终端→资源面板；沿 Mira 既有 hasTaskProgress 判别，不把仅准备的会话当成已发送任务。资源面板展开后主标题栏不再重复展示开关，关闭使用面板自身入口，主标题栏用 PanelRightOpen。实际 Electron 复现关闭后焦点未返回，已让显式面板关闭在入口重新挂载后归还焦点；Composer 内快捷键开合仍保持输入焦点。标签、选中资源、草稿与布局释放保持，Shell 窗控仍由 Vue／Electron 承担，分享排除。
+
+验证：新增两项行为回归修改前均失败，`/tmp/mira-header-actions-repro-20261013.json`。更新旧测试中“重复标题栏按钮收起”的操作为实际面板关闭后，6 文件 195 项全部通过，`/tmp/mira-header-actions-delivery-fixed-20261013.json`；React 类型与生产构建通过，日志 `/tmp/mira-header-actions-delivery-fixed-types-20261013.log`、`/tmp/mira-header-actions-final-build-20261013.log`，原 highlight 警告保持。中途误用不存在的类型配置路径已改为 `apps/harness-react/tsconfig.json`；另一次焦点修复漏引入 useLayoutEffect 导致类型／运行失败，改用已有 useEffect 后通过。中间失败不累加为最终通过证据，未声称全库或新宿主构建通过。
+
+隔离生产 macOS Electron [标题栏报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-header-actions-desktop-20261013.jx3bhs/report.json)：22 项、passed=true、errors=[]，1 次 localhost 受控模型请求走真实 Pi／IPC／SQLite，使未发送页转为真实已有任务；验证顺序、明暗面板唯一入口、四次显式关闭焦点／布局、资源标签保留、快捷键保输入焦点、重载草稿及无额外运行。初次 PB5dla 在焦点断言失败，gHUWUw 属上述 Hook 漏引入导致渲染失败，均保留原报告。已检查最终新任务浅色、已有任务浅色与展开面板深色 3 图，未见新增遮挡。
+
+同构建[整页导航报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-audit-20261013.ZzBBmD/report.json)23 项通过、errors=[]，临时驱动沿新交互从面板关闭，不用已移除按钮；继续覆盖共享搜索、侧栏／面板、@ 中文与空态、+ 滚动、/goal、模型菜单及自动化／市场往返保稿。上轮50项运行状态与欢迎区14项属06:56构建，本轮不复用为新构建结果。
+
+两份最终报告五入口首尾 hash 相同：React JS `3e724e706340d9d89a0636130f62298309ced10b41db5d64ae0f71b94ae23fe4`；CSS `b21e6c2345aeced9f99f3b0f7502c6fba613876b63c6d73fdc9d11a30b8e29d5`，main／preload／Vue HTML 保持06:56身份。只改 HarnessWorkbench 与相关现有测试，驱动／夹具均系统临时目录，MIRA_TEST_HOME 隔离、实例正常退出，未动真实用户资料，未提交／推送。
+
+剩余与接续：继续侧栏／Composer 菜单及整页同状态对照，优先可观察的明确差异；不重做欢迎区、轨迹或文件支线。再次核对工具清单仍无 computer-use，原生 ZCode 逐项比较、实体键盘／IME、远端复杂模型／多任务／媒体、Windows／安装包与完整性能目标仍未闭环。源码对齐与 Playwright Electron 证据不替代原生上游验收，整体 active。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方为历史。
+
+## 当前交付：新任务欢迎区与整页联动复验（2026-10-13 06:56 +08:00）
+
+完成：参考 ZCode `ConversationDraftEmptyState.tsx`，新任务欢迎区按自己的对话画布测量字号，保留 Mira 标志、文案与 28px 最大字号，窄画布降至最低 20px；测量文字不进入无障碍正文或产生横向滚动。问候按本地 05／09／12／14／18／23 点切换，预约下一个边界，在窗口回焦和可见性变化时刷新；应用视图隐藏后释放定时器、观察器和待执行帧。实现位于 `MiraDraftWelcome.tsx`，接入现有 HarnessWorkbench／layout.css，不重构 Electron、Vue 或其他功能。
+
+回归：相关 5 文件 141 项通过，`/tmp/mira-welcome-final-20261013.json`；覆盖六个时段、跨日、回焦、隐藏清理、宽度缩放／恢复及既有导航、终端、快捷键和帮助。React 类型及生产构建通过，构建日志 `/tmp/mira-welcome-react-build-20261013.log`；原 highlight warning 保持。这不是全库、宿主新构建或安装包验收。
+
+最新隔离生产 macOS Electron：欢迎区[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-welcome-desktop-20261013.PCBdct/report.json)14 项通过、errors=[]，宽画布及恢复后 28px／39.20px 行高，1100px 桌面打开资源面板后明暗均 25px／35px、一行显示、scrollWidth=clientWidth=445；草稿、自动化往返、重载保持。已检查该报告宽浅色、分屏深色两图。初始复现 2Sckrq 为窄画布 28px 两行；中间 yLYNZ5 暴露隐藏测量文字横向溢出，增加裁剪容器后修复。iCW6if 明暗比较失败是驱动尚未等既有 resize 自动收起完成，改为 resize→等待稳定→明确展开后 PCBdct 通过；不将临时几何当成主题差异或改产品迎合驱动。
+
+同一最新产物的整页导航[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-audit-20261013.954nxI/report.json)23 项通过、errors=[]，覆盖侧栏／资源面板反复开合、共用命令中心、@ 文件／中文／空查询、+ 滚动渐隐、目标命令、模型菜单、主题切换及自动化／市场返回保稿，没有启动模型。运行状态[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-states-20261013.xhjJh7/report.json)50 项通过、errors=[]、6 次 localhost 受控请求，经过真实 Pi／IPC／SQLite 链路，覆盖首 token 前、工具审批／实际写入、主侧流式独立、计时、切任务、完成、停止保部分回复与未发草稿、失败详情及刷新恢复。已检查导航报告的任务浅色、+ 浅色、工作区深色、自动化深色 4 图，以及状态报告全部 5 图，未见本批新增遮挡；没有以截图检查代替原生上游同态验收。
+
+以上三份报告首尾及相互产物身份一致：main `1b7ccb2a078c1e5d0ae5432ce651912c2e03ebbed16a61609e301771c436f985`、preload `2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee`、Vue HTML `b8b63ad93ea0c2e130d6c820ce468a3f98a4675a5c410f69a84b2af0ce5a018c`、React JS `c3770c0de48836cb698ed45574148b246dadb51150056684b40adb5725ad758c`、CSS `b21e6c2345aeced9f99f3b0f7502c6fba613876b63c6d73fdc9d11a30b8e29d5`。06:36 轨迹与性能报告属于旧 React 产物，不称本次全量性能复验。驱动／报告仅系统临时目录，MIRA_TEST_HOME 隔离，实例已正常退出，未动用户数据，未提交／推送。
+
+交付检查：同步现有 PRD、交互规格、对齐文档、交接、DESIGN 与改编说明后，`npm run harness:build` 通过（`/tmp/mira-welcome-delivery-build-20261013.log`），上述五个运行产物 hash 与已验报告逐项相同。上游原 Apache LICENSE／NOTICE 逐字一致，产物 ADAPTATIONS 与仓库更新一致，`git diff --check` 通过。
+
+剩余与下次入口：可运行首版已有侧栏、主对话／胶囊、Composer 与资源面板，下一步继续整页同状态视觉／菜单／焦点对照及明确差异收口，不重新拆出文件、轨迹或欢迎区支线。当前工具清单仍无可调用 computer-use，完整原生 ZCode 逐项比较、实体快捷键／中文 IME、远端复杂模型与多任务／媒体、Windows／安装包及总体性能上限尚未证明。Playwright Electron 与本机模型夹具不替代这些要求；整体目标 active，分享链接排除。仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方为历史批次。
+
+## 当前交付：轨迹分类、直接展开与复制（2026-10-13 06:36 +08:00）
+
+完成：对照ZCode ModelTrajectoryPane／Expansion／ExpansionMenu／ExpandableMessage，把分类菜单与一键全部展开／折叠分开；系统、用户、思考、模型回复、工具调用和工具结果独立控制，六类默认展开，诊断参数／用量默认收起。分类开关连续选择不关菜单，隐藏／换任务关闭portal；搜索只临时揭示命中内容。展开正文支持准确复制、成功／失败反馈和迟到保护，不带搜索高亮或工具条文字。标题来自轨迹所属任务，摘要只累计provider实际有限totalTokens与已记录modelId，不估算未记录用量。沿现有Radix／Lucide／Mira主题与两层Shell，分享排除。
+
+复现与回归：修改前18项12通过／6失败，/tmp/mira-trace-toolbar-repro-20261013.json；最终相关6文件76项通过，/tmp/mira-trace-toolbar-final-20261013.json，覆盖分类／直接全量动作、准确复制／失败重试／换任务迟到、类别菜单portal、实际用量／目标标题及先前搜索／虚拟化边界。React类型、正式构建与diff通过；构建日志 /tmp/mira-trace-toolbar-react-build-20261013.log，原highlight warning保持。本轮未改Electron／Vue源码，没有全库或新安装包验收声明。
+
+最新隔离生产macOS Electron：[真实链报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-trace-desktop-20261013.z6zrZZ/report.json)41项／errors=[]、5次localhost受控请求，实际Pi工具续轮、原payload／响应、分类菜单连续操作、一键展开折叠、实际Electron剪贴板与原文精确相等、真实总用量、非当前任务、搜索／停止／失败／重启均通过。最新分类浅色与1100px深色截图已检查，既有布局无新增遮挡；这不是原生ZCode同态或实体键盘验收。
+
+200调用当前[负载报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-trace-load-20261013.BWyfqv/report.json)50项／errors=[]，3次独立进程：打开316／333／316ms，初始scrollTop=0且第一条可见，5调用／309 DOM节点，首中末搜索83–106ms；命中须为新query、准确call身份且两帧后仍在视口，单次<1秒检查通过。手动展开离屏恢复、完整请求模式1/200、切回增量1/1及刷新保持均通过；observer采样无longtask，仅覆盖这些受控操作，不证明整体性能上限。旧06:16长历史34项属于旧React产物，本轮没有重测或套用其数字。
+
+中间问题如实保留：wXiagd在28检查后遇到mark卸载的驱动竞态，改从稳定pane一次读取当前query／mark／几何；cOaAHs虽38项通过，却暴露初始scrollTop=2123。lJCi7v新增首条断言真实失败；仅禁浏览器锚定不足，原因是Mira错误地让TanStack对所有可见行高度差补偿，改为无搜索时使用库默认的上方行补偿。NCIIR1虽41项通过，但中段搜索两次约5.18秒，不作为性能验收；原因是搜索中全局measure清缓存与scrollToIndex持续定位争抢。改为仅测当前挂载行，以公开scrollToOffset完成精确文本定位，不改库私有状态，最终BWyfqv补准确call／两帧稳定和时延断言通过。原始失败／中间报告保留，不累加为最终通过数。
+
+产物：上述41／50报告首尾hash一致且同一构建，React JS 0c3f2710a87a872f5d8637bbe2c64f721d6b5f19243da49b3cf3dd0917865db5、CSS e02480231ee48cc39baf3ba025e6eac015a4acfb8c56b869e2352891bd84acc0；main／preload／VueHTML沿06:16身份。原Apache LICENSE／NOTICE与上游逐字一致，改编说明同步现有文件；驱动与报告仅系统临时目录，使用MIRA_TEST_HOME，实例已正常退出，未动用户资料，未提交／推送。
+
+剩余／下一入口：此处明确的工具条缺口已交，回完整首屏矩阵按侧栏、对话、Composer、资源面板整体检查，不再重开该缺口。原生computer-use当前仍不可调用，完整ZCode同状态逐项对照、实体IME／OS按键、远端复杂模型与多任务／媒体、Windows及安装包仍未验；本轮不声称整体完成或性能无可改进。目标active。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支 codex/mira-harness-first-slice，npm run desktop:dev。下方06:16及更早为历史。
+
+## 当前交付：轨迹虚拟列表与增量输入（2026-10-13 06:16 +08:00）
+
+完成：源码确认ZCode ModelTrajectoryTimeline只挂可见调用，后续主会话展示新增的非assistant输入。Mira改为现有TanStack虚拟列表（估高240、overscan3），保留全部200调用数据／总计，离屏搜索先定位调用再测量／滚动到精确mark，不因为搜索改变已保存的展开选择；手动展开用稳定call/section身份跨卸载保持。新增miraTraceCalls展示投影：主会话与已知agentSessionId分别跟踪序列前缀，完全相同前缀才省略已有消息与已记录输出的assistant；上下文改变／缩短／辅助调用独立prompt保留全部，前输出未记录则不隐藏新增assistant。请求、响应及本地JSONL不修改；菜单“显示完整请求上下文”恢复完整请求展示／搜索，默认增量并明确省略数量。
+
+复现与验证：新增真实React增量用例修改前11通过／1失败（两个system而不是一个），/tmp/mira-trace-delta-before-20261013.json。最终相关6文件70项全部通过，/tmp/mira-trace-delta-final-20261013.json，覆盖辅助prompt／压缩／改写、未知与交错agent、缺响应、原文／输出section身份、完整视图、200调用挂载边界、先前逐处查找及关闭后恢复折叠。React类型／正式构建与diff通过，/tmp/mira-trace-delta-react-build-20261013.log；本轮没有宿主源码变更或全库／新宿主构建声明。
+
+真实生产macOS Electron：[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-trace-desktop-20261013.avQBbS/report.json)，35项／errors=[]，5次localhost受控请求；真实Pi工具续轮、实际payload、侧栏／Header菜单、独立任务、逐处长段／标题搜索、全部展开折叠、停止／失败脱敏、路径复制、重载／进程重启及1100px桌面保持。浅色搜索及深色小桌面图已查看；沿现有字体／tokens和两层Shell，不重画视觉方向。
+
+200调用负载：以实际PlatformDatabase／MiraModelTraceStore生成明确标记的合成记录，每请求带累计历史，真实授权IPC／renderer，没有模型或UI stub。修改前原产物e9a684的[正确导航基线](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-trace-load-20261013.ioyLKS/report.json)1轮：打开3651ms、200调用／41000段／287822 DOM节点，搜索200／100／1分别2905／2773／3204ms，其中前回复因重放历史计101／200处。更早T7aUbI三轮打开3521–3613ms与DOM数有效，但后两次查询驱动只等待任意旧mark，没有等待新query，导航数字不作为可靠基线。修正临时driver等待新mark原文、视口及计数，未改产品迎合夹具。
+
+最终[负载报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-trace-load-20261013.MGfKDZ/report.json)38项／errors=[]、3次独立进程：打开316／314／348ms（含面板动画与自动化动作），初始8调用／41段／356 DOM节点；末／中／首查找55–110ms，首中末最多9调用、全部1/1。手动系统展开经滚出／回首仍保留；完整模式恢复1/200且下一处准确位于调用2的请求，切回增量恢复1/1，刷新总数／搜索保持。初始heap约30–31MB与基线168–190MB仅各自时点观测，不做精确内存回收或峰值保证；初始打开及常规增量查找observer没有longtask，完整模式额外负载不因此被证明无长任务。负载明暗边界以报告说明为准，本次只检查浅色合成负载图及上述真实链明暗图。首次ZSzJdU仅26项，为完整查看／展开保持扩展前记录，不累加。
+
+同最新构建的[长历史性能](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-desktop-20261013.k5MpWB/report.json)34项／errors=[]：新profile／进程输入就绪782／835／772ms，未清OS文件缓存；合成100／500／2000轮首次切换185／146／197ms、首轮查找147／94／146ms、回底71–72ms，末尾6轮／12消息；9次后续切换58–184ms含原任务选择。180次beforeinput到第二帧中位25.3ms、16.1–35.2ms，不是实体IME或INP。实际click到最终面板几何打开285–301ms／关闭289–293ms，含200ms动画及40/50ms轮询，不当模型／OS延迟。2000轮截图归该报告，不把旧2ufn61数字套到新构建。
+
+产物：以上35／38／34项报告首尾hash一致，三报告同main 1b7ccb2a078c1e5d0ae5432ce651912c2e03ebbed16a61609e301771c436f985、preload 2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee、VueHTML b8b63ad93ea0c2e130d6c820ce468a3f98a4675a5c410f69a84b2af0ce5a018c、ReactJS 847cdb5028ebee043103eb433b595e89f0413db0d38c68df13834fea410b16e7、CSS c98759e4093eca22ab03254b4fa78b6d9d5485cdc7594d9ce0111dea7f536cb3。原Apache LICENSE／NOTICE与上游逐字相同。驱动／夹具源在/tmp，ESM bundle在忽略的node_modules/.cache，报告在系统临时目录，各MIRA_TEST_HOME隔离、实例已关闭，没有新repo QA文档。真实链与最终负载有少量并行，时延不做精确竞争消除声明。
+
+剩余与下一入口：继续对照ZCode轨迹工具条的分类／直接全量展开和复制入口，随后回完整首屏矩阵，避免模糊地反复验证已交项。当前仍无可调用原生computer-use，原生ZCode同状态逐功能／实体IME、远端真实复杂流式和多任务／媒体负载、Windows／安装包与整体性能上限未证明。目标active，分享排除，未提交／推送；实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness、分支 codex/mira-harness-first-slice、npm run desktop:dev。下方06:01及更早为历史。
+
+## 当前交付：轨迹逐处查找与当前版本性能复验（2026-10-13 06:01 +08:00）
+
+完成：对照ZCode ModelTrajectorySearch／SearchHighlight／SearchBar，Mira搜索从“命中段落数”改为每处非重叠命中，标题及正文显示高亮；自动展开命中段并滚动到精确mark，支持上下、Enter／Shift+Enter和首尾循环。跨行／多空白归一、大小写扩展后的原文偏移、字面特殊字符与emoji保持；重复点搜索保留查询并聚焦，关闭立即去掉高亮，不等待deferredQuery。沿既有明暗tokens与资源面板，不修改Electron／Vue源码或模型执行协议。
+
+验证：新增两个真实React用例在修改前4通过／2失败，/tmp/mira-trace-search-repro-20261013.json，分别复现单段三次命中仅计1处和跨行搜索漏查。最终相关6文件66项全部通过，/tmp/mira-trace-search-final-20261013.json；React类型与生产构建通过，日志 /tmp/mira-trace-search-react-build-20261013.log，git diff --check通过。最初类型检查发现ES2021不支持Array.at，改为普通末项索引后通过。这里没有重跑全库测试或宿主新构建，不累加旧756项。
+
+最新隔离生产macOS Electron：[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-trace-desktop-20261013.1MwG7F/report.json)，35项通过／errors=[]，5次localhost受控请求。真实工具续轮／实际provider payload／SQLite沿原链，三处同一长段命中逐处滚动、键盘／循环／改查询／无匹配／标题及关闭清理、旧任务空态、非当前目标、授权路径复制、失败脱敏／停止、重载／重启与1100px桌面保持；浅色搜索和两张深色桌面图已检查。ipnb0f中间报告17项后发现关闭时延迟查询仍有旧高亮，增加searchOpen即时门控后1MwG7F通过，失败不抹掉也不累加。驱动 /tmp/mira-model-trace-desktop-20261013.mjs，MIRA_TEST_HOME隔离，不动真实用户资料。
+
+同一最新构建性能：[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-desktop-20261013.2ufn61/report.json)，34项通过／errors=[]。三次独立新profile／进程输入就绪791／854／778ms，未清OS文件缓存；真实PlatformDatabase／SQLite生成的合成100／500／2000轮首次切换181／163／212ms，首轮查找147／96／158ms，回底68／69／60ms，末尾只挂6轮／12消息。9次后续切换94–205ms包含原任务选择，不冒称全部warm加速；180次beforeinput到第二动画帧16.2–34.7ms、中位25.4ms，不等于OS输入／IME或INP。9次面板实际click事件到动画类移除与最终几何，打开296–303ms／关闭287–292ms，含200ms动画及50ms轮询；driverMs另保留自动化派发等待，不把旧测试中早于展开完成的点击耗时当产品退化。历史observer采样未记录到longtask，仅覆盖observer安装后的受控renderer操作，不证明全应用主线程／性能上限。观测请求资源3,051,641 bytes不是压缩包或全闭包。最终2000轮截图已查看，实例正常退出。
+
+当前产物hash：main 1b7ccb2a078c1e5d0ae5432ce651912c2e03ebbed16a61609e301771c436f985；preload 2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee；VueHTML b8b63ad93ea0c2e130d6c820ce468a3f98a4675a5c410f69a84b2af0ce5a018c；ReactJS e9a68430c54a33034b65a604b6a010516e0181808c5c1881d483bb81239eab43；CSS c98759e4093eca22ab03254b4fa78b6d9d5485cdc7594d9ce0111dea7f536cb3。35项功能与34项性能报告各自首尾一致，且两个报告相同。原LICENSE／NOTICE与ZCode逐字比对，改编记录同步发布目录。
+
+夹具失败保留：dEenAH的/tmp ESM无法从NODE_PATH解析better-sqlite3；6vnL9x的CJS尝试遇到Pi import-only导出。最终使用仓库node_modules/.cache中的ESM bundle及createRequire，适配包解析；未改产品依赖。jDVMtr在搜索修复前产物e69bd2上34项通过，只是历史基线，不当新版验收；最新以2ufn61为准。临时驱动／报告仅/tmp及系统临时目录，生成夹具在忽略的node_modules/.cache，不新增repo QA文档。
+
+剩余：当前工具清单仍无可调用原生computer-use，完整ZCode同状态逐功能、实体快捷键／IME、远端真实模型／复杂流式多任务与大媒体、Windows／安装包和整体性能上限未证明。下一步按下方完整首屏矩阵查明确遗漏，并在原生工具可用时补同态走查，不重开文件／附件支线。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支 codex/mira-harness-first-slice，npm run desktop:dev；目标active，分享排除，未提交／推送。下方05:45与更早内容为历史。
+
+## 当前交付：任务模型轨迹与日志菜单（2026-10-13 05:45 +08:00）
+
+已交：
+
+- 侧栏右键／更多菜单与Header更多菜单新增「查看模型轨迹」，复制子菜单新增任务文件／运行日志路径。轨迹作为独立目标的资源标签，查看非当前任务不打开其对话，标签偏好可恢复，删除目标清理引用。
+- Electron自有Pi provider观察最终OpenAI-compatible payload及SDK终态响应，保持原流实例／事件／result语义；主任务、标题、压缩、记忆、子智能体、工作流和目标核验分类。PDF／视频转换后记录媒体类型／长度，省略二进制，已知密钥及凭据字段脱敏；不记录HTTP头／密钥，不把观测数据传回模型。
+- 每任务本地JSONL异步顺序写，只在请求／终态写入，不逐token写；读取异步尾部8MiB／最近200调用，按ID合并、精确匹配任务，显式提示截断／损坏／写入错误；payload字符预算256Ki及单字符串64Ki，非完整内容明确标记。正常退出flush已提交记录，突然终止仍可能只有请求，显示「响应未记录」，不猜测为正在运行。
+- 右侧面板按角色展示系统／用户／模型／工具、请求参数与响应元数据用量，提供刷新、搜索高亮／前后定位、类别／全部展开折叠、来源目录、空态／错误与重试。旧对话没有真实记录时明确不补造。任务文件为现有JSON快照，运行日志为最后实际助手轮／active run日期对应UTC共享日志；未运行任务返回当日预期路径，路径不承诺存在。
+
+验证与产物身份：
+
+- 红测：/tmp/mira-model-trace-before-20261013.json，真实SDK媒体用例新增轨迹断言后1项失败／8项通过；改动后最终 /tmp/mira-model-trace-final-20261013.json 为13文件756项通过。覆盖流语义、最终媒体协议、调用分类、脱敏、失败不改变模型运行、尾部上限／截断、记录合并／重启／任务隔离、授权撤销后读取拒绝、资源偏好、空态／失败恢复／隐藏页迟到保护及既有消息／记忆／面板链。数字不与旧批累加。
+- Vue／React类型通过，React生产构建日志 /tmp/mira-model-trace-react-build-20261013.log，Electron／Vue生产构建日志 /tmp/mira-model-trace-host-build-20261013.log；git diff --check通过。LICENSE／NOTICE保留并与上游比对。
+- 最新隔离生产macOS Electron：[报告](/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-trace-desktop-20261013.FAI4Uv/report.json)，28项通过／errors为空，5次本机受控调用，真实list_files工具续轮、非当前任务菜单、刷新失败／401脱敏／停止、SQLite快照／UTC运行日志路径复制、搜索／展开折叠、重载／进程重启与1100px桌面尺寸通过。三张明暗截图已查看，1440px面板520px及1100px面板367px，控件与正文最终边界均在viewport内。临时驱动 /tmp/mira-model-trace-desktop-20261013.mjs，报告／截图仅系统临时目录，不新增repo QA文档。
+- 当前hash：main 1b7ccb2a078c1e5d0ae5432ce651912c2e03ebbed16a61609e301771c436f985；preload 2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee；VueHTML b8b63ad93ea0c2e130d6c820ce468a3f98a4675a5c410f69a84b2af0ce5a018c；ReactJS e69bd2449051cc2927cfb4901e2b4fc08c09a8aee1156c91f5e82c75c86c9990；CSS 2ad0e51ba0689253d9c4e14d7f3bdc6582baaeb9babe706e5b462b00ec10572d。报告首尾一致。
+
+失败身份：TqKRWX检查7项后找不到未hover隐藏的任务更多按钮，改驱动用真实右键；0PMAhl输入早于owner／草稿加载导致后续回填，BAO6YX未搜索展开供应商子菜单，改驱动明确等待选型及正文；gqY7GI截图／控件判断仍在展开动画中，测量证明是既有动画的临时固定内宽／透明度，等待最终几何后FAI4Uv28项通过，没有为驱动失败改产品发送默认或重做布局。I0esdM25项与CMslyp23项为同阶段早期证据，最新以FAI4Uv为准。
+
+剩余：完整原生ZCode同状态逐功能computer-use、实体快捷键／IME、真实远端模型／复杂任务、当前产物全负载性能及Windows／发布验收仍未完成。再次检查工具清单没有可调用computer-use，Playwright Electron不冒称原生验收；本轮没有新整体性能采样，04:53旧报告不可套用。分享入口排除。下一步从首屏矩阵收口差异／当前bundle性能复验，不重做轨迹、文件、附件支线。实际仓库 /Volumes/VrenDisk/project/Mira/Mira-Harness，分支codex/mira-harness-first-slice，npm run desktop:dev，目标active，未提交／推送。下方05:13与更早记录为历史。
+
+
+## 当前交付：实际模型切换的时间线分隔（2026-10-13 05:13 +08:00）
+
+完成：对照ZCode CLI `product-projection.ts`的TurnStarted模型边界、`ConversationRowView.tsx`及保留的10月9日原生截图，补Mira主／侧对话的模型切换轻分隔。宿主在实际运行开始后记录provider ID／模型 ID／供应商名称，活动、流式各段、指导消息边界和完成／失败／停止记录沿同一事实；SQLite JSON持久化，无新增表。普通首轮不显示切换，未发送选择不写历史，同名模型跨供应商仍显示；分隔位于所属用户输入前，纯续跑位于助手段前。当前目录改名只刷新展示名称，删除供应商后保留存储标签；未知旧历史不补造模型。提示不进入模型上下文，不参与消息编辑／分支／任务内正文搜索。分享继续排除。
+
+验证：新增宿主用例在修改前实际失败，`/tmp/mira-model-history-before-20261013.json`；最终5文件423项全部通过，`/tmp/mira-model-history-final-20261013.json`，覆盖流式／完成事实、同名身份、未发送／首轮、指导／纯续跑、目录改名及旧历史。Vue／React类型、Electron／Vue和React生产构建、diff通过；许可及NOTICE与原ZCode逐字一致，改编记录与生成目录同步。不是严格Electron全量类型或安装包验收。
+
+最新隔离生产macOS Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-history-desktop-20261013.rfwJvb/report.json`，21项、passed=true／errors=[]，4次本机受控SSE。真实Vue／React／IPC／SQLite／Pi链验证同名双供应商A→B→B→A、首token前分隔、正确轮顶、完成不重复、名称改动水合、980px桌面无分隔溢出、刷新／进程重启、未发送草稿与选择不执行；浅色live／完成和深色／小桌面4图逐张检查。MIRA_TEST_HOME隔离用户数据，实例与服务正常退出。main `5b629ad1…`、preload `2a550598…`、Vue `85d21561…`、React `38029aae…`、CSS `02e4ab6c…`，完整hash在报告。此前LEP1sH为名称水合前20项产物，不累加；首轮LkV2YY两个请求均使用B，驱动错误假设初始默认为A，显式选择A后通过，未改产品默认选择。先前04:53性能数据属于旧产物，本批没有重新采样，不沿用为新构建性能结论。
+
+剩余／下一入口：核对侧栏任务菜单的模型轨迹／日志入口与现有执行详情的差距，再按下方完整矩阵补明确遗漏；不重开附件、文件预览或独立视觉方案。当前仍无可调用原生computer-use，Playwright与受控SSE不冒称实时ZCode同态、实体IME或远端模型验收。完整原生逐项对照、真实模型／复杂负载、Windows／安装包及整体性能目标仍未闭环；目标active，未提交／推送。下方日期保留历史。
+
+## 当前补验：附件交付后的完整历史性能（2026-10-13 04:53 +08:00）
+
+最新受控macOS生产Electron报告`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-trace-20261013.JHUR79/report.json`：34项、passed=true/errors=[]，没有新性能代码修改。重新按当前PlatformDatabase源码生成合成历史夹具，真实SQLite保存／IPC／Vue／React渲染；三次独立新profile／进程输入就绪808／815／838ms，未清OS文件缓存。100／500／2000轮首次切换172／177／210ms，首轮查找130／119／153ms，回底71／67／67ms，末尾只挂6轮／12消息。九次后续打开57–190ms，包括一次已在原任务，不据此夸大warm加速。180次Playwright输入→第二动画帧中位24.8ms，最大34.2ms，不等于OS IME或INP；九次资源面板真实click→宽度归零211–214ms，含既有200ms动画，草稿保持。
+
+4份trace中完整持续事件最大46.465ms、历史最大45.316ms、keydown最大5.775ms，没有记录到≥50ms单事件；当前trace不含完整RunTask，因此不证明所有主线程任务或全产品性能到顶。请求文件总计3,032,372 bytes是观测资源体积，不是压缩闭包或网络冷启动。产物hash与下方GKLuUz附件报告完全一致（Reactfbc484／CSSc1104d）。首次2vn4za因新夹具bundle缺CJS require导致历史造数失败，只有启动采样、没有历史通过；修正临时夹具打包后JHUR79通过，不将它作为产品修复或累加通过。隔离实例正常关闭，测试数据仅系统临时目录，正常用户数据不操作。
+
+当前没有新证据支持额外性能重构。下一入口按下方完整侧栏／对话／Composer矩阵补实际遗漏及状态对照；真实流式／多任务／大媒体负载、原生ZCode computer-use／OS IME、远端模型、Windows／安装包等仍未覆盖。目标active，分享排除，未提交／推送。
+
+## 当前交付：PDF／视频原始模型附件（2026-10-13 04:51 +08:00）
+
+完成：参照ZCode chatAttachments、ChatMediaAttachmentPreviewDialog和CLI媒体解析／能力／model transform，接通Mira自己的PDF／视频类型、二进制签名接纳、冻结存储、第一方桥、模型独立能力和Pi provider原始file／video_url转换。图片／文本保持既有SDK契约，媒体使用宿主私有miraMedia信封，在payload用户所属位置转换，拒绝所有者数量不一致；不会伪装成图片或仅提取文字。首发、后续历史、编辑移除／重跑及压缩请求带原件。附件-only队列冻结后即使源文件删除仍发送原字节；模型不支持时接纳前拒绝，不改变canonical历史／队列，草稿保留。
+
+UI：Composer和历史附件以文件名／PDF或视频图标展示，图片图库只接图片；资源中的PDF／视频可加入对话。PDF懒加载既有本地阅读器，视频提供加载状态／播放控件／错误重试，不自动播放，退出释放Blob URL。媒体弹窗最大1024px、保存与关闭右对齐。Vue设置分别确认PDF／视频能力，默认关闭、独立于图片；模型切换不自动沿用旧能力。草稿恢复白名单已补媒体，提交保留媒体类型。
+
+验证：最终11文件554项全部通过，`/tmp/mira-native-media-final-20261013.json`；新增源文件删除后的排队原件回归2文件137项通过，`/tmp/mira-native-media-queue-final-20261013.json`；最后媒体预览状态／样式修正后2文件28项通过，`/tmp/mira-native-media-preview-final-20261013.json`。这三份覆盖不同时间与重叠范围，不累加为全量检查。Vue／React类型通过，宿主生产构建和最终React生产构建通过，diff通过；未宣称严格Electron全量类型或安装包验收。
+
+最新隔离生产macOS Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-native-media-desktop-20261013.GKLuUz/report.json`，15项、passed=true、errors=[]、2次本机受控SSE。真实Vue／React／IPC／SQLite／Pi链证明模型请求包含PDF／视频原件字节，后续请求重放历史，禁用能力保稿且无请求；刷新后PDF、进程重启后视频与草稿可恢复。浅色Composer／PDF／视频及深色历史PDF共4图检查，最后3图确认尺寸及标头修正。使用MIRA_TEST_HOME，与真实用户数据隔离，实例正常关闭。DOM拖入不是OS选择器，受控兼容接口不是远端商业模型。中间NN5EdY／06bwxJ失败是驱动把async页面谓词当成同步完成：当时session消息空、请求0；改为逐次await宿主快照后通过，不将失败计为产品模型修复。更早定位／初始化失败保留历史。
+
+报告前后产物SHA-256一致：main `da2058589c8d8ff5443c1c50fa597564bdbc3d238ec67af36e94f5d6ae0d59b9`；preload `2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee`；Vue HTML `85d21561d42ed4a8d441b689fd44a938dcd97514b1866fd3204e2710d27ae3d4`；React JS `fbc4842ab854149d8a8aafd3077ebe7bda273e9c5b567037feda99025bb6b465`／CSS `c1104d8cf42246e72d534d35fdd9be082cb94ac8ef0730646cef779158a9c6b6`。原Apache LICENSE／NOTICE与ZCode一致，改编归因和产物记录同步。
+
+边界／下一入口：容器签名接纳不证明所有PDF文档／视频codec可解码或远端供应商接受；单媒体20MiB、合计40MiB、文本256KiB／1MiB及12项保持，不称与ZCode所有大视频限额对等。Office／音频仍仅资源阅读，不是原始模型附件；子任务默认不继承父会话媒体，沿既有委派输入契约，未新增隐式继承。回下方完整侧栏／对话／Composer矩阵集中收口，再对最新产物测首开、输入／流式、长历史和资源切换。原生ZCode逐项同态、实体快捷键／OS IME、远端模型、Windows／安装包和总体性能目标未闭环；工具清单仍无可调用computer-use。目标active，分享排除，未提交／推送；下方为历史。
+
+## 当前交付：整窗缩放与刷新恢复（2026-10-13 04:20 +08:00）
+
+完成：参考ZCode desktopZoom／desktopCommandHandlers／desktopApplicationMenu／desktopWindowChrome，将整窗放大、缩小和恢复默认接到Electron菜单及Windows自绘菜单，快捷键说明同步。范围为-3至5档，每档1.1倍（约75%–161%），等号键提供隐藏别名；SQLite保存当前档位，Shell与React iframe同步。macOS缩小时保留原生窗口按钮物理安全区。生产桌面发现重启后恢复默认再刷新，会重放窗口创建时的1.1比例；主页面每次did-finish-load改读最新偏好，不用固定初始值。命名沿Mira，Apache许可和NOTICE保持，无分享入口。
+
+验证：原缩放入口红测2通过／1失败；新增加载生命周期回归修改前4通过／1失败，`/tmp/mira-zoom-reload-repro-20261013.json`。最终5文件51项通过，`/tmp/mira-zoom-reload-delivery-20261013.json`；此前50项报告为重叠旧批次，不累加。Vue类型通过，最终Electron-vite生产构建通过，日志`/tmp/mira-zoom-reload-host-build-20261013.log`，diff通过；React产物未变，不重复声称新React构建或严格Electron类型／安装包验收。
+
+隔离生产macOS Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-display-zoom-desktop-20261013.Q4NKGA/report.json`，20项、passed=true/errors=[]。真实Menu回调／platform命令、主页面与iframe比例、上下限、安全区、默认恢复后刷新再放大、草稿及重启恢复通过；最大浅色／最小浅色／放大深色3图逐张检查。使用MIRA_TEST_HOME，不请求模型，实例正常关闭；Windows入口在macOS执行同一IPC，不作为Windows实机或OS菜单实体点击验收。Playwright实体菜单快捷键未触发，不能冒称原生按键通过。
+
+产物SHA-256：main `925a398e18c8ca8631326222895346c1851a82fa9216d64dbcf8a15a06277a79`；preload `2a55059818e7e63ed6f18803e4a2047f59ea34b62836a6beb22dd54e0582ddee`；Vue HTML `45613fa8cf84456f86b0107a83ea37f27e1b81ee69e9fee4c6954a589a0a262f`；React JS `06f851c7f2043215d44cfff953a3c70302884ba65b73f4f16aa38be423217429`／CSS `c313b147e98fa11d22980ac348a415714a715a27e6400d5dbbc8bb2d3ebccbc7`。报告前后hash一致。失败报告f6qK44为合成OS按键未触发，wWx7yr为真实刷新比例错误，保留但不累加为通过证据。
+
+附件契约核对：当前HarnessFileReference.mediaType仍只允许图片，harnessAttachmentContent仅接图片／UTF-8文本；Pi SDK的UserMessage及模型input声明仅text/image。ZCode chatAttachments→attachment-media-resolver→media-capability→adapters/model/transform有真实PDF/file和video提交，不是侧面预览。下一步需要媒体类型判别、宿主接纳／存储、Composer／历史渲染、模型格式能力和供应商转换，再贯通压缩／队列／子任务；不把PDF提取文字或阅读面板当作同等媒体附件支持。尚未开始这条模型协议改造。
+
+剩余：原生ZCode逐项同态、实体快捷键／OS IME、远端模型授权、PDF／视频模型附件、Windows／安装包及整体性能目标未闭环。当前工具清单无可调用computer-use；Playwright生产Electron证据不替代原生ZCode。目标active，分享排除，未提交／推送。下方日期为历史。
+
+## 当前交付：键盘布局兼容与终端收起同步（2026-10-13 04:03 +08:00）
+
+完成：对照ZCode `packages/ui/src/lib/keyboardShortcuts.ts`，资源面板与底部终端保留字符匹配，并增加KeyB／KeyJ物理键回退；Option把⌥⌘B的字符改成∫时仍能切换面板。主修饰键、Shift／Alt约束、IME、重复、已消费及菜单保护保持。真实桌面另复现“重开终端后立即End，尺寸为0但标头仍展开”：ResizeObserver可合并重开／收起，不保证交付中间正尺寸。Mira记录已请求或已测量的展开，收到0尺寸时一次同步关闭；初始未展开的0尺寸不误关，PTY、高度与草稿保留。Impeccable用于交互边界和明暗截图核对，无CSS、Electron或Vue源码修改。
+
+验证：快捷键修改前119通过／2失败，`/tmp/mira-layout-keys-repro-20261013.json`；终端旧快照条件121通过／1失败，`/tmp/mira-terminal-collapse-repro-20261013.json`。最终4文件157项通过，`/tmp/mira-layout-keys-delivery-20261013.json`，覆盖Mac／Win匹配、保护、初始化0尺寸、观察器合并及既有首屏／侧栏／终端布局。React类型、正式React构建与diff通过，日志`/tmp/mira-layout-keys-delivery-build-20261013.log`；原highlight／包体积警告保持，本批没有新宿主构建或安装包验收。
+
+最新隔离macOS生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-layout-keys-desktop-20261013.N5brsb/report.json`，64项、passed=true/errors=[]，明暗2图已检查无新增遮挡。真实Vue／React／授权端口／IPC、资源面板与PTY、End收起、草稿与正常重启恢复通过；∫／KeyB和非拉丁字符／KeyJ为生产DOM合成事件，不冒称实体键盘布局／OS IME。目录选择器返回受控临时目录，无模型请求，用户数据未动，实例正常关闭。React JS SHA-256 `06f851c7f2043215d44cfff953a3c70302884ba65b73f4f16aa38be423217429`；CSS c313b／main16eb0e／preload71c409／Vue fb76ab沿前批，报告完整hash前后一致。
+
+失败保留：6kMkPk的无Option合成字符被Lexical消费，但资源面板未打开、草稿未变；驱动改为验证面板／草稿，不要求编辑器绝不消费自身事件。AwS6W3／tQTPpn两次End确实未同步，31GJue的仅测量标记修复仍失败，XMgXF9临时诊断确认最终open=true／0尺寸前没有正尺寸回调；最终同时记录展开请求后N5brsb通过，临时诊断已移除。这些失败报告不累加为通过证据。
+
+上轮性能测量已归档：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-trace-20261013.XWO2hX/report.json`，34项通过，使用上轮React 7684be产物，不能冒称本次06f851的性能验收。3次新profile／新进程就绪818–1444ms（未清OS缓存）；真实SQLite合成100／500／2000轮首次切换178–228ms、离屏首轮查找103–156ms、回底62–65ms，末尾仅挂载6轮／12消息。180次beforeinput→第二动画帧14.9–33.3ms，不等于INP／OS IME。复核4份trace记录的完整renderer事件均未见≥50ms单事件，启动最大FunctionCall49.183ms，历史最大47.098ms，keydown最大6.118ms；trace没有完整RunTask事件，不能据此证明所有主线程任务或总体性能上限。面板计时含原200ms动画与驱动轮询，本批未据此改动画或进行推测性性能重构。
+
+剩余／下次入口：继续完整侧栏／对话／Composer矩阵，核对真实模型附件契约及尚无完整证据的交互；不重开已交候选、键盘匹配和文件支线。当前工具清单仍无原生computer-use，原生ZCode逐项同态、实体布局／OS IME、真实远端模型授权、媒体模型附件、Windows／安装包及整体性能上限未完成。目标active，分享排除，未提交／推送。下方日期保留历史。
+
+## 当前交付：平台快捷键与文本编辑让位（2026-10-13 03:47 +08:00）
+
+完成：对照ZCode `lib/keyboardShortcuts.ts`、`shortcuts/bindings.ts`及shared `shortcutCommands.ts`，共享isMiraPrimaryModifier统一已接全局命令，macOS仅Command、Windows仅Ctrl，同时按下不命中。Shell／Harness搜索、侧栏、新建、主题／项目、相邻任务与历史导航、任务查找、终端／资源面板及Shell设置入口按平台隔离，保留IME／重复／已消费和各编辑／菜单所有者保护。ARIA快捷键声明按平台显示。显式Ctrl+B优先转当前焦点任务的前台命令；macOS无可转命令时不再回落侧栏，保留文本编辑。Ctrl+M／Shift+M／T工具条键保持，不修改CSS或模型发送偏好。
+
+验证：新增5文件10项平台测试修改前51通过／10失败，`/tmp/mira-primary-shortcuts-repro-20261013.json`，真实挂载React／Lexical及Vue Shell都复现错平台／双修饰触发。最终13文件635项通过，`/tmp/mira-primary-shortcuts-final-delivery-20261013.json`，含MacIntel／Win32、错平台／双修饰、Ctrl+B、Shell设置、既有首屏导航／候选／历史编辑及焦点保护。React与Vue类型、React和Electron-vite生产构建、diff通过；日志`/tmp/mira-primary-shortcuts-react-build-20261013.log`、`/tmp/mira-primary-shortcuts-host-build-20261013.log`，原包体积／highlight警告保持，不称全量严格Electron类型／安装包验收。
+
+实际隔离macOS生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-primary-shortcuts-desktop-20261013.B7zkAH/report.json` passed=true/errors=[]，48项。真实Mac平台／ARIA、Shell与Composer错Ctrl和Ctrl+Command不新建／开搜索／切任务／主题／请求目录／开终端资源面板，Command搜索与主题／目录动作和显式Ctrl+M保持；原稿、取消目录／目录去重、真实终端实例／收起及正常重启恢复通过。不请求模型，目录选择器返回受控临时路径，不冒称OS原生选择器点击。明暗2图检查无新增遮挡，用户数据未动，实例正常关闭。五入口hash稳定，React JS `7684be61f9c32e406bd60b157e73140e30542d77215a3e7a36ba5effb620f722`，CSS c313b／main16eb0e／preload71c409沿前批，Vue入口 `fb76abd61c2b486caa9c66223323e0e867018a540b06328ee0d452806d44b7a0`。
+
+中间结果保留：8文件159通过／14失败，`/tmp/mira-primary-shortcuts-final-20261013.json`，旧happy-dom夹具沿宿主Linux平台却混合期待Meta/Ctrl；明确未知平台夹具并保留新增实际Mac／Win两分支后173项通过。13文件634通过／1失败，`/tmp/mira-primary-shortcuts-delivery-20261013.json`，唯一旧ARIA断言仍要求两平台同时展示，更新为当前平台后最终635通过，不改产品去迎合旧断言。
+
+剩余／下一入口：沿完整首屏矩阵继续核对真实差异，后续性能检查使用最新产物身份；不重开已交技能选区与文件支线。原生ZCode逐项computer-use仍缺可调用工具，Playwright不替代它或OS IME；真实远端模型授权、媒体模型附件、Windows／安装包及总体性能上限未证明，整体active，分享排除，未提交／推送。下方历史。
+
+## 当前交付：主输入与历史编辑的选区一致性（2026-10-13 03:32 +08:00）
+
+完成：对照ZCode `mentions/activePromptInputToken.ts`，主Composer用函数式状态更新逐次协调合并到同一React渲染前的选区事件，保留明确的null退出状态；历史编辑也保持已发现的完整查询和替换范围，词内移动不再退回短前缀、混入无关候选。非折叠选区／离开范围关闭，下次进入重新发现；正文修改／失焦清空快照，按任务与正文隔离，原子引用重叠保护不变。沿Mira命名与既有Lexical／Radix，不改CSS、Electron或Vue源码。
+
+验证：主输入红测272通过／2失败，`/tmp/mira-caret-token-before-20261013.json`；历史实际React／Lexical红测24通过／2失败，`/tmp/mira-history-caret-repro-20261013.json`。最终相关4文件334项通过，`/tmp/mira-history-caret-final-20261013.json`，覆盖主输入连续事件、完整查询／替换、历史非折叠选区／退出再发现／正文更新及原附件、显式保存保护。React类型、正式React构建与diff通过，构建日志`/tmp/mira-history-caret-react-build-20261013.log`，原体积／highlight警告保留，不称新宿主或安装包验收。
+
+最新隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-caret-keyboard-desktop-20261013.gaJri6/report.json`，passed=true/errors=[]，25项／2次localhost受控SSE。主输入Slash／$、历史Slash以Playwright方向键在完整发现词内移动，候选与高亮稳定，canonical草稿／正文保持，选择不发送／不改会话技能；显式保存后真实IPC／SQLite／Pi重跑加载技能。浅深3图逐张检查无新增遮挡，实例与本机服务正常关闭，用户数据未动。五入口hash稳定；React JS `3167ac03be96b75c22ae5f9122e6c2621ef7676ad8dcc03dee2d74757c1f1b67`，CSS c313b／main16eb0e／preload71c409／Vue入口baf4c沿前批。
+
+中间证据不混用：SwhV6N为旧06686产物，MxtE4N／paFiOZ为中间新版的键盘定位超时，失败报告保留；trace实际选区15→4→6直接跳出刚发现的短token，运行给定ZCode源码同样返回null，不能将其算作待修差距。源重放`/tmp/mira-caret-upstream-replay-20261013.json`区分该情形与15→4→5→6的逐次发现。tqRBUJ为主输入修复后、历史完整查询修复前的22项通过产物，不覆盖本批历史稳定查询；最终331→334的报告为递增而非累计。
+
+剩余／下一入口：按下方侧栏／对话／Composer／资源完整矩阵集中收口，核对还没有源码或桌面证据的差距；不再重开已交选区、技能标记或文件支线。原生ZCode逐项computer-use仍没有可调用工具，本批Playwright不是实体按键／OS IME或原生上游同态。真实远端模型授权、媒体模型附件、Windows发布与总体性能上限尚未证明。整体active，分享排除，未提交／推送。下方日期保留历史身份。
+
+## 当前交付：技能标记与历史编辑候选一致性（2026-10-13 03:13 +08:00）
+
+完成：对照ZCode `slashCommandPanelSections.tsx`与`lib/slashApplyMentionPayload.ts`，主Composer／历史编辑的Slash技能候选显示`$技能名`，`$`入口仍显示原名；插入按目录ID读取真实名称，不把展示标记写入名称，也不剥离名称本身的$。canonical引用、单条技能上下文、会话配置和前后正文保持。实际截图发现历史编辑仍分列自定义／插件命令，现合为命令／技能／子智能体三类，来源失败／重试和禁用保持；非开头命令只提示一次，Slash方向键首尾停止，其他引用仍循环，就绪空上下文组隐藏。沿现有Lexical／Radix及主题，无CSS／Electron／Vue源码改动；Impeccable用于既有状态与截图检查。
+
+验证：标记修改前287通过／2失败；标记与名称最终4文件324项通过，`/tmp/mira-slash-skill-final-20261013.json`。历史分类正确夹具修改前20通过／3失败，`/tmp/mira-history-categories-repro-20261013.json`；全部修改后4文件327项通过，`/tmp/mira-history-categories-final-20261013.json`，覆盖两编辑入口／真实$前缀名称／匹配词尾保留／分类／禁用跳过／首尾／来源错误。React类型、正式React构建与diff通过，构建日志`/tmp/mira-history-categories-react-build-20261013.log`，原体积与highlight警告保持。本批未改宿主，不称新安装包或严格Electron类型验收。
+
+最新隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-slash-skill-desktop-20261013.zKcTpB/report.json` passed=true/errors=[]，22项、2次localhost受控SSE。真实IPC／SQLite／Lexical／Pi Agent验证主输入Slash／$候选、canonical草稿、原子引用与正文、选择不发送／不改会话技能，以及历史三类／键盘边界／空态、选择不提交、显式保存后真实重跑加载技能。光标定位使用DOM Range并派发selectionchange，按键选择仍走Playwright；不冒称实体键盘／OS IME。明暗最终3图逐张检查，实例／本机服务正常关闭，用户数据未动。五入口hash稳定；React JS `06686f97d6135b50e297722b7e37fd1a46e2117be54e5adf2dc4a31f21158bcb`，CSS c313b，main16eb0e／preload71c409／Vue入口baf4c沿前批。
+
+中间结果不累加：YgYVsk因Home未到行首而未打开目录；D9vL2P为标记版16项通过，早于历史分类改动。最新分类产物SlDwIh／vo0UA4／vyrR5V使用自动化连续移动光标，分别未插入、留下匹配词尾、候选未打开；改为明确DOM Range后zKcTpB通过，但这不证明真实连续键盘选区问题已解决，保留为下一核查项。历史分类首轮测试漏listSkills宿主能力，修夹具后才取得上述三个真实差异红测。脚本／报告仅/tmp，原Apache LICENSE／NOTICE及Mira命名保持。
+
+剩余／下次入口：先对照ZCode selection-only discovery并复现连续键盘移动的token／选区同步，判断上述失败是驱动或产品交互差异；再集中按完整侧栏／对话／Composer矩阵收口，不重开文件支线。原生ZCode逐项computer-use当前仍无可调用工具；真实远端OAuth／模型、媒体模型附件、Windows发布及总体性能上限仍未证明。整体active，分享排除，未提交／推送。下方日期为历史。
+
+## 当前交付：Slash 三类目录与键盘边界（2026-10-13 02:52 +08:00）
+
+完成：对照ZCode `slashCommandPanelSections.tsx`、`SlashCommandPlugin.tsx`与MentionPanel，Mira的`/`现在只有命令／技能／子智能体三类。内置、项目、全局和插件命令合并，管理命令在命令类；用户／内置／插件Agent合并，管理Agent在子智能体类。来源、优先级、不可用原因、插件40项提示及管理入口保留；加载与来源错误按所属类展示，其他已就绪候选仍可选，重试恢复来源。三类各自空态沿上游保留，未擅自改成@单提示。Slash上下方向键在首尾停止并跳过不可用项，@及历史引用编辑器循环不变；沿既有ID选中和候选内滚动，无CSS／Electron／Vue改动。
+
+验证：修改前两个差异用例真实失败，298通过/2失败，`/tmp/mira-slash-categories-before-20261013.json`。最终实际4文件318项通过，`/tmp/mira-slash-categories-final-20261013.json`，含三类身份／来源／管理、首尾及禁用跳过、加载失败保留其他来源并重试、既有主Composer和历史编辑回归。React类型／正式React构建／diff通过；仅React变更，不称本批重新验宿主／严格Electron类型／安装包。构建日志`/tmp/mira-slash-categories-react-build-20261013.log`，原体积/highlight警告保持。
+
+实际隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-slash-categories-desktop-20261013.h2MTR3/report.json` passed=true/errors=[]，20项；真实IPC/SQLite/Lexical命令与Skill/Agent目录。三类与来源／管理、首尾禁用跳过、15次方向键到末项／列表内滚动、aria-activedescendant、Enter原子插入不发送、全禁用无选中、三类空态、Escape保稿与焦点、@单提示及+入口保稿通过。浅色默认／末项、深色空态3图逐张检查。没有模型请求，实例正常退出，正常用户数据未动。五入口hash稳定，React JS `032f61f656511ea0f68b893287d218b37c0d451231c94f9bc2a38a29c1dd0a61`，CSS沿c313b；宿主沿前批16eb0e／71c409／baf4c。
+
+中间失败：299通过/1失败是旧测试明确要求Slash循环，与已核对上游相悖，更新该契约；@循环测试保持。f4T7j2为临时Agent源漏name，kjnXNw通过前12项后全禁用断言失败，因/inspect-00按英文子序列也命中启用的/inspect-10；改用独立disabled-only夹具，产品搜索不改变。最终h2MTR3替代，不叠加。脚本／报告只在/tmp，未新增仓库测试文档。Apache LICENSE/NOTICE与Mira命名保持。
+
+剩余／下一入口：核对技能候选在Slash中的$标记及实际插入语义，再按侧栏／对话／Composer矩阵继续集中收口。原生ZCode逐项computer-use仍缺可调用工具，远端模型／授权、媒体模型附件、Windows发布与总体性能上限仍未证明；不把本批窄验收当成全复刻完成。目标active，分享排除，未提交／推送。以下日期记录为历史。
+
+## 当前交付：用户／项目命令 Skill 依赖（2026-10-13 02:39 +08:00）
+
+完成：自定义命令skills按名称解析本地已启用且有效的Skill，大小写兼容、身份去重；缺失／停用／重名显示不可用，项目优先项不静默回落。宿主冻结依赖，公开目录不泄露路径或指令。执行前、等待记忆后及建立Agent上下文前复核；排队期间停用保留消息并暂停，可启用后恢复。命令执行及重新生成加载依赖，后续普通任务不自动激活；复用原Skill系统指令，不调用插件loader。计划模式保留明确限制。桌面发现依赖错误被桥吞成通用提交失败，现给出固定、可恢复的技能设置提示，未知宿主错误仍脱敏。
+
+上游计划纠正：ZCode `adapters/src/commands/index.ts`解析model/allowed-tools，但`bootstrap/src/custom-command-prompt.ts`只返回展开提示词，`app/input-facade.ts`没有应用这两个字段，不能算上游已执行而Mira缺失。`contracts/src/commands/index.ts`对skills生成Skill工具要求，Mira复用自己的Skill上下文实现依赖语义，未复制CLI或运行时。Mira命名及原Apache LICENSE/NOTICE保持。
+
+验证：最终5文件306项通过，`/tmp/mira-command-skills-final-delivery-20261013.json`，涵盖冻结／篡改／重名、计划限制、队列停用保留与恢复、记忆等待停用不请求模型、重新生成及后续不泄漏、插件／Shell和桥脱敏。React/Vue类型、React与Electron-vite生产构建、diff通过；不声称全量Electron严格类型／安装包验收。构建日志`/tmp/mira-command-skills-react-build-20261013.log`、`/tmp/mira-command-skills-host-build-final-20261013.log`；原体积/highlight警告保持。
+
+最终隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-command-skills-desktop-20261013.VokF8H/report.json` passed=true/errors=[]，12项；真实IPC/SQLite/Lexical/Pi Agent及4次本机受控SSE，验证项目／全局命令展开、实际developer指令、后续无依赖、停用菜单、缺失目录、拒绝请求／失败保稿及启用恢复。浅色命令、深色停用与失败保稿3图逐张检查；实例及服务器正常退出，正常数据未动，五入口hash稳定。main `16eb0e01f08f669e248b15d0c141ecc774726a568c284b9457bdd5fc22dc6940`，Vue入口`baf4c87a663ab8585d31612bf191a4fc4c2572f0f3add98ca54a052cd621e794`；React沿前批4bc31b/c313b。ZfJovo同产物12项通过但停用图滚到下方，最终VokF8H校准截图后替代，不累加。
+
+中间失败保留在/tmp：最初测试误把Pi文本块当字符串／名称大小写不符，队列用例漏expectedRunId，桥重试用例漏selection，均纠正契约。4VhiLD/y9fyQw为驱动漏developer role／可选activeSkillIds；MlxchS/F5HFPb发现真实通用失败提示，产品桥已修。初始依赖3项红测及桥193通过/3失败不是最终交付结果。
+
+剩余／下一入口：回Composer `/`列表，对照ZCode实际分类／查找规则核对本批截图中重复空分类、禁用候选键盘选中与自动滚动，只修真实差异，不重开文件支线或虚构model/allowed-tools覆盖。完整原生ZCode逐项computer-use仍无可调用工具，商业模型／远程授权、媒体模型附件、Windows／安装包及总体性能上限仍未证明。目标active，分享排除，未提交／推送。以下日期记录为历史。
+
+## 当前交付：任务查找响应与面板耗时归因（2026-10-13 02:17 +08:00）
+
+完成：trace与CPU样本定位此前59.346ms键盘事件为2000轮历史首次Cmd+F，在React同步渲染中建立可见Markdown索引（Markdown投影约51.8ms），不是资源关闭或历史装载。MiraTaskFind改为查找栏先显示，按约4ms预算分批投影；桌面使用scheduler.yield，缺少该API时使用可取消timer。沿原WeakMap复用消息投影，完整结果就绪才发布；索引中显示“查找中…”并禁用上下项，关闭、任务切换、scope切换与卸载取消旧工作，保持虚拟消息定位/阅读接管和草稿。空查询不扫描匹配，没有选中结果时不构建live turn。此为Mira自有调度改动，既有Apache版权/LICENSE/NOTICE保持，无新上游代码复制。
+
+验证：新增真实DOM回归修改前5通过/1失败（打开时同步解析4000条），`/tmp/mira-task-find-slicing-before-20261013.json`；最终实际4文件46项通过，`/tmp/mira-task-find-scheduler-delivery-20261013.json`，涵盖完整结果、timer/scheduler取消、旧任务迟到、运行中消息导航、独立pane与查找栏状态。React类型、正式React构建及diff通过，既有体积/::highlight警告保留；本批未改Electron/Vue源码，不冒称新宿主/安装包检查。最终JS `4bc31b0623861b6780942a1410b80505ca950a22296b156b24c32a1f1f7a762a`，CSS仍为`c313b147e98fa11d22980ac348a415714a715a27e6400d5dbbc8bb2d3ebccbc7`。
+
+实际隔离生产Electron最终trace：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-trace-20261013.F5b8xN/report.json`34项/errors=[]，100/500/2000轮仍只挂6轮/12消息。该轨迹最大keydown从旧Z5BrHo的59.346ms降至5.921ms，本轮观察区间无50ms以上长任务；完整查找定位165/139/174ms，同trace的2000轮旧值156ms，不能称总查询耗时变快或全产品性能上限。180次自动化输入第二帧中位25.4ms/最大33.7ms，不等于实体IME/INP。九次面板真实document click到宽度归零208–212ms，旧约500ms包含驱动等待前一次打开动画稳定及轮询；保留原200ms布局动画，没有“修复”正确约束。
+
+实际查找交互：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-task-find-desktop-20261013.HFrJQh/report.json`10项/errors=[]，验证真实scheduler、首末未挂载消息、精确结果计数、无结果禁导航、改词、跨任务结果隔离、关闭/往返保稿，观察到真实“正在查找”状态；明暗2张最终图逐张查看。两报告五入口hash前后稳定，实例正常退出，正常用户数据未动，未发送模型请求。rnZDNB已通过前8项，但返回任务仍期待末轮挂载，忽略既有阅读位置恢复而超时；仅纠正临时驱动，不改变产品阅读记忆。
+
+中间证据不累加：92zUnr的固定64条timer分批消除键盘阻塞但2000轮查找842ms，已废弃；1cRXrS改时间预算降到243ms，最终用桌面scheduler消除嵌套timer等待。假timer冻结performance.now导致一项回归误判，测试改为显式时间预算后通过。下一入口核对`electron/storage/miraPluginCommands.ts`中明确不可用的model/allowed-tools与ZCode对应命令契约，再处理实际功能差异；不要重新开启已交的文件/关闭/查找支线。完整原生ZCode逐项computer-use仍缺工具，商业模型/远程授权、媒体模型附件及Windows/安装包未验或未交，整体active，分享排除，未提交/推送。以下有日期记录为历史产物。
+
+## 当前交付：上下文结果收口与当前产物性能（2026-10-13 01:52 +08:00）
+
+完成：对照ZCode mentionSearch/buildVisibleMentionGroups，@/#/$只显示有结果、加载中或错误的分类，保留重试与候选身份；无结果只显示一条提示，/、+与MCP分类保持原语义。移除候选列表64px最小高度，单一32px结果不再多出空白。中文查询含汉字时只接受连续前缀/子串，英文子序列发现保留；已由授权宿主查出的文件不二次本地过滤。原Apache许可/NOTICE与Mira命名保留。
+
+复现与验证：新增三项在修改前均失败，`/tmp/mira-context-groups-before-20261013.json`295通过/3失败；修改后`/tmp/mira-context-groups-after-20261013.json`实际4文件417项全部通过，React类型及正式React构建通过。最终隔离Electron`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-audit-20261013.goLgm3/report.json`23项/errors=[]，真实@notes仅一组无标题/空白/遮罩、全空单提示、@探件不误匹配探索文件、@探索仍命中explorer；保留共享搜索、键盘选择/原子文件插入、+/goal/模型入口、渐隐、资源开合及自动化/市场草稿往返。最新明暗文件候选与空态3图逐张确认，其他图沿前批同态检查与本批操作断言，不冒称12图全部重看。JS `ae826abd5a0ea72e656f00fcaa022b64e9de1e463ad7201395b177fd95407650`，CSS `c313b147e98fa11d22980ac348a415714a715a27e6400d5dbbc8bb2d3ebccbc7`，五入口hash前后稳定。中间KjWtot22项早于最小高度修正，由goLgm3替代，不累加。
+
+当前性能：最终同一产物`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-desktop-20261013.FKzOav/report.json`34项/errors=[]。3个新隔离profile从启动到输入可用1163/888/813ms（没有清OS缓存，不叫物理冷启动）；100/500/2000轮合成历史沿真实SQLite/HarnessStore，每次只挂6轮/12消息行。首次切换163/160/212ms，首轮查找122/97/139ms、返回底部64/71/63ms；九次暖路径57.6–201.5ms，第一次同任务选择包含在内，不全部当作跨任务切换。180次Playwright输入到第二animation frame中位25.7ms/最大35ms，不等于OS IME/INP；九次资源开合保稿、实际归零，开104–116ms、关466–506ms，含驱动等待/动画/轮询，不当纯渲染耗时。renderer观察到一项57ms长任务，仍需trace归因，不能宣称性能无可改进。当前构建没有重新测流式模型性能。实例正常退出，正常用户数据未动，五入口hash一致。
+
+性能驱动失败保留：RZA7pa在历史fixture创建时因旧CommonJS方式无法加载当前ESM Pi依赖失败；改fixture打包为ESM并解析外部依赖后成功。n2VcwN/UbJlwl分别属于渐隐及分类改动中间产物，不累加或冒称最终性能；最终以FKzOav为准。脚本/报告只在系统临时目录，无新仓库测试文档。
+
+下一入口：对当前57ms长任务与资源关闭路径取trace，区分驱动等待和产品渲染；继续原三主体剩余交互对齐，禁止把完成的文件支线重开。完整原生ZCode同态逐项computer-use仍缺可调用工具，商业模型/远程授权/Windows安装包未验，当前范围不足以证明性能上限，整体active，分享排除，未提交/推送。下方有日期的记录均为对应产物历史。
+
+## 历史交付：候选列表滚动提示与首屏状态复核（2026-10-13 01:33 +08:00）
+
+完成：沿现有ComposerSuggestionPanel补齐ZCode MentionPanel/scrollMask的24px边缘渐隐。只在还有内容的方向显示；底部快捷键区不参与遮罩，手动滚动不追赶选中项，键盘选项露出/目录异步更新/resize后同步。加载与错误空列表也更新，卸载释放监听；只使用DOM属性与CSS变量，不增加React状态。原Apache许可、NOTICE与Mira命名保持。
+
+验证：`/tmp/mira-candidate-edges-20261013.json`实际3文件406项通过，React类型、正式React构建与diff检查通过。此次未改Electron/Vue源码，不称重新通过全量Electron严格类型或安装包。最新React JS `0bdb21132a8215e2ad293566be616489d079954706e22e0de05ef9e23c6c0f64`，CSS `da361fc412cdad1fe5bf4f3db5b67622df19b6575cd5c868170115b0cc5f5ac8`。
+
+实际隔离生产Electron两批分别通过：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-audit-20261013.RYZZLv/report.json`18项，涵盖首屏入口/共享搜索、@文件插入、+/goal/模型菜单、渐隐与滚动、三轮资源开合及草稿保留；`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-states-20261013.o9nLLL/report.json`50项，涵盖真实IPC/SQLite/Pi Agent与本机受控SSE、真实审批后写文件、首token前/后过程提示、主/旁路并行、重载归属、Escape停止后保留部分回复与未发草稿、无token失败及查看详情。两批errors=[]、同一五入口hash前后不变，10张首屏与5张运行状态截图本次全部逐张检查，未见本批新遮挡；实例和服务正常退出，正常用户数据未动。受控SSE不代表商业模型验收。
+
+历史驱动失败保留，不累加通过数：`mira-firstscreen-audit-20261013.T85YKi`第二次wheel在截图移走鼠标后没有重新hover候选列表，最终驱动已修；早期文件stage与Ctrl+M断言等待不足已按当前异步焦点协议纠正。`mira-live-process-desktop-20261012.U9IBhN`仍找失败banner的供应商原文，而当前交互把原文放进查看详情；最终50项已验证正确位置。此前Vjdpih44项由最终o9nLLL替代。
+
+验收矩阵已按当前源码重写22行，清除Goal/workflow、插件Agent/Hook/MCP/动态Shell、媒体与Office阅读等过时“未实现”描述，保留实际字段/模型附件/进程内通知限制。右侧展开时不允许拖到零、关闭后宽度释放沿ZCode AnimatedSidePanePanel当前语义；已实际检查三轮，不能套用底部终端修复。
+
+剩余/下一入口：继续当前构建的启动、长历史、输入与资源开合性能测量，依据实际瓶颈改动；完整原生ZCode同态逐项computer-use仍缺可调用工具，不把Playwright Electron当作原生ZCode操作。商业模型/远程授权、Windows/安装包和全工作台性能上限尚未验，分享排除，整体active，未提交/推送。以下历史。
+
+## 历史交付：原生关闭请求优先资源标签（2026-10-13 01:02 +08:00）
+
+完成：参考ZCode `lib/closeActiveContext.ts`、App/Root的可取消请求与`desktopApplicationMenu.ts`不使用Electron close role的做法。Mira原生窗口菜单提供“关闭标签或窗口”/CmdOrCtrl+W，经preload可清理listener、Vue事件派发和第一方端口到React。工作台可见且资源面板展开时关闭活动资源，不误关主/分屏任务；隐藏资源或没有活动标签时先保存工作台草稿/资源偏好，再沿现有windowCommand/closeWindowBehavior处理窗口。设置等其他页面直接沿Shell关闭逻辑；标题栏实体关闭仍保留明确关窗语义。
+
+保护：Vue去重待处理请求；端口确认必须匹配当前授权会话、请求ID和typed consumed结果。发送失败/5秒超时/授权撤销保留窗口，迟到回复不授权后续请求。React沿已有closeWorkspaceTab及flushBeforeNavigation回收资源；保存失败由工作台消费并只显示一条“工作台保存失败，已保留当前标签和窗口，请重试。”。页面/owner切换及新增资源使旧fallback失效，迟到失败不污染新任务；卸载解除各层owner/listener。快捷键设置页同步。没有新增分享/账户/云端入口。
+
+验证：最终9文件280项全部通过，`/tmp/mira-close-context-final-delivery-20261013.json`，包括真实菜单构造/preload listener、Shell派发/回落、实际Harness专用Host去重/失败/卸载、授权frame/端口确认、超时/失效、资源准确关闭/保存失败/隐藏回落/晚响应、既有workspace/tab交互。早期221/279及current280报告与最终重叠，不累加。React/Vue类型、React及Electron-vite生产构建、diff通过；最终React日志`/tmp/mira-close-context-react-build-final-delivery-20261013.log`，宿主日志`/tmp/mira-close-context-host-build-20261013.log`。最后只调整React失败提示，不重复称宿主新构建；既有构建警告保留，不声称严格Electron全量类型或安装包验收。
+
+最终实际隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-close-context-desktop-20261013.dFTkjj/report.json` passed=true/errors=[]，15项。调用真实native Menu已构建回调，通过preload/MessagePort/IPC/SQLite关闭活动浏览器资源、保留文件标签和原稿；隔离IPC注入偏好拒绝后保持资源/窗口，再重试关闭最后资源并确认原稿持久化。无资源保存失败保窗，恢复后按background设置隐藏；正常重启恢复最新稿和关闭记录，设置页没有旧Harness拦截。未发送模型请求，项目文件原字节不变，5生产入口hash稳定。最终明暗2图逐张检查；沿Impeccable和既有主题，没有重做Shell。实例正常退出，正常用户数据未动。
+
+验证边界/失败：Lyz5J4前三项通过，实际保存拒绝已保留文件/窗口，但既有泛化“平台调用失败”未匹配脚本期待的保存提示；不是关闭保护失效。随后明确失败提示，2Z0Xy5通过15项但出现React/Shell双提示；最终由React消费保存失败，dFTkjj验证单提示与全部15项。原生菜单回调不是实体系统按键/菜单点击，更不是原生ZCode computer-use；当前无可调用电脑工具，不扩大验收范围。
+
+剩余/下次：资源关闭批次已交，回到三块首屏验收矩阵，按当前代码与ZCode源码逐项核对侧栏、对话、Composer和关联资源面板；修实际差异，避免重复已验关闭/主题/目录/完整输出。待发后台通知仍仅内存；完整原生ZCode同态对比、商业模型/远程授权、整体性能、Windows/安装包仍未验。分享排除，整体active，未提交/推送。以下历史。
+
+## 当前交付：Shell 主题、打开项目与终端收起（2026-10-13 00:38 +08:00）
+
+完成：对照 ZCode 的工作台快捷键表补“切换为浅色/深色模式”（Cmd/Ctrl+Shift+L）和“打开项目”（Cmd/Ctrl+O）及命令搜索入口。主题通过第一方端口交由 Vue theme store 修改并广播权威 context，不直接改 React 偏好；实际 Harness 专用 Host 已接线。菜单、搜索弹窗、终端、文件编辑器和 IME 不抢键。打开目录复用 Electron picker/项目准入，先保存草稿，取消保持当前任务和搜索，成功展开项目并进入未提交的新任务草稿；重复目录不重复建项目，迟到结果不导航。
+
+实际桌面暴露终端收起后仍占空间：动态 collapsible/disabled 约束阻止即时 collapse。MiraBottomTerminal 改为稳定可折叠约束，取消禁止调整大小；缩至零时同步 open 状态。保留同一终端实例、用户高度和任务草稿。新增测试使用真实 react-resizable-panels 而非 div mock，旧行为可复现 flexGrow=30 而非0；修复后关闭/重开/再次关闭通过。实际 Electron 另验分隔线 End 键收起并同步标头。
+
+验证：最终15文件494项全部通过，`/tmp/mira-shell-commands-post-terminal-final-20261013.json`，包含此前13文件481项及终端13项，不相加重复报告。React/Vue类型、React生产构建、diff通过；最后React日志 `/tmp/mira-shell-commands-react-build-post-terminal-20261013.log`，已修Harness接线的宿主构建 `/tmp/mira-shell-commands-host-build-final-20261013.log` 通过，最后仅终端React变更不重复称宿主新构建。既有highlight CSS/包体积/动态图标提示保留。
+
+最终隔离生产 Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-shell-commands-desktop-20261013.XkoCh6/report.json` passed=true/errors=[]，19项。真实键盘/MessagePort/IPC/SQLite覆盖Shell及React主题同步、菜单/搜索/终端保护、零高度收起及End键、重开同终端/高度/原稿、取消/选择项目、目录去重、原稿返回和正常重启。目录对话框在隔离实例中受控返回临时路径，未声称点击原生OS选择器；未发送模型请求。5生产入口hash稳定，2张最终明暗图逐张检查，无本批新增遮挡；沿Impeccable及已有Radix/Lucide/主题。所有隔离实例正常关闭，正常用户数据未动。
+
+失败身份：TrTP7R发现专用Harness Host漏传theme owner，产品接线已修并加实际路由测试；4EZX46的空Lexical正文是换行，改用trim且按初始会话数核验。0u0nAB误用“关闭底部终端”标签，真实按钮为“收起”；RU2B4T/po3Fet/PNNHQp暴露真正的收起占位，不能归为仅脚本问题。去掉disabled后真实面板回归仍失败，最终稳定collapsible修复。FwQJfr已通过19项，XkoCh6另加入真实End键确认，以后者为最终证据；历史报告不删除、不混计。
+
+剩余/下次：Cmd/Ctrl+W目前原生菜单直接关闭窗口；按ZCode先关闭可见资源活动标签、保存失败不关闭、无资源再回落窗口，下一批从此开始，并继续侧栏/对话/Composer完整对照收口。待发后台通知仍仅内存。完整原生ZCode computer-use当前无可调用工具，商业模型/远程授权、整体性能、Windows/安装包未验。分享排除，整体active，未提交/推送。以下历史。
+
+## 当前交付：工作目录内的上一个/下一个任务（2026-10-13 00:07 +08:00）
+
+完成：参考ZCode `lib/quickPickConversationNavigation.ts`、App.tsx的runVisibleWorkspaceCommand与共享快捷键表，补齐上一个/下一个任务，与历史后退/前进区分。自有miraAdjacentTasks/useMiraTaskNavigationShortcut沿当前焦点任务工作目录选择；没有目录时仅按明确项目身份，不猜全局目录。保留置顶、更新/创建时间和手动分组/根节点排序，边界不循环，无活动项时按上游首/末项语义。宿主列表排除归档/准备态/旁路子任务，局部兼容完整记录归档/准备标记；折叠分组保留任务身份。Cmd/Ctrl+Shift+[、]兼容Shift后的花括号/code；菜单/模态/非模态弹窗、终端/文件编辑器、IME/repeat不抢键。主/侧焦点及草稿复用openTask/navigation.visit/flushBeforeNavigation，异步去重，保存失败保留原任务。命令搜索及Vue快捷键页同步。
+
+验证：最终7文件214项通过，`/tmp/mira-adjacent-task-final-20261012.json`（文件名沿开始时日期，交付跨日）。涵盖真实React/Lexical、目录/身份/排序、菜单/终端/编辑器、回调清理、保存失败/重试、去重、侧面焦点及历史导航。首次187通过/1失败为重复手动ID覆盖首次位置，已修复，原`/tmp/mira-adjacent-task-regression-20261012.json`保留。React/Vue类型、React及Electron-vite生产构建、diff通过；宿主日志`/tmp/mira-adjacent-task-host-build-20261013.log`。既有CSS highlight/包体积/动态图标提示保留，不声称严格Electron全量类型或安装包验收。
+
+实际隔离生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-adjacent-task-desktop-20261013.oipyio/report.json` passed=true/errors=[]，16项。真实键盘/MessagePort/IPC/SQLite覆盖草稿往返、命令搜索、首末不循环/不跨目录、独立历史后退、菜单/搜索保护、已有主/侧窗格焦点及双方草稿、终端不抢键、重载和正常重启。不发送模型请求，任务消息/工具保持为空；5生产入口hash稳定。浅色搜索/深色分屏2图逐张看，无本批新增遮挡/溢出。沿Impeccable及现有Radix/Lucide主题，不重做Shell。实例正常关闭，正常用户数据未动。
+
+脚本失败身份：2dRwbu假定空任务有当前任务菜单；0y1P2o的默认role查询误把Radix aria-hidden背景判为消失；f5o5Ur重载后复用旧iframe locator。仅修临时脚本定位，保留原报告，产品未为过测改动；以oipyio为准。
+
+剩余/下次：继续首屏命令入口与侧栏/对话/Composer差异。上游切换主题、打开项目/关闭上下文等键位需核对Mira Shell/原生菜单后接入，不能仅因设置页未列而判缺失。待发后台通知仍仅内存；原生ZCode逐项computer-use无可调用工具，商业模型/远程授权、整体性能、Windows/安装包未验。分享排除，整体active，未提交/推送。以下历史。
+
+## 当前交付：真实完整命令输出与资源预览（2026-10-12 23:47 +08:00）
+
+完成：参考ZCode `BackgroundBashOutputSidePane.tsx` 的fullFile→独立CodeViewer交互，MiraCommandPane提供“查看完整输出”，主工作区建立独立command-output资源标签，侧面任务保持自身session/run/tool详情归属。复用FilePreviewPanel及TanStack虚拟行，支持手动刷新、换行、复制全内容；私有执行产物不展示项目路径复制、加入对话或外部编辑器按钮，不传虚假的项目路径。完整标签支持关闭/重开、搜索、序列化，恢复时丢弃界面注入的路径/输出字段。重载和正常进程重启后标签/日志可恢复；沿现有行为，工作区默认收起，需要用户点“工作区”展开。
+
+宿主：Pi Bash长输出临时spill会随环境清理，因此MiraCommandOutputs从真实stdout/stderr回调保存合并输出，与64KiB模型/对话快照分离。每命令沿既有16MiB上限，超限停止并保留接受范围内UTF-8前缀，不承诺无界输出；失败/停止也保存。运行时手动读取内存快照，终态发布/通知之前完成脱敏、0600临时文件写入/fsync/原子rename，按任务哈希目录和完整身份哈希索引，任务删除清理自己的日志。完整输出读取仅接session/run/tool，前后重验canonical记录和第一方grant，拒绝继承、错run、不存在/非bash/歧义记录及文件symlink。秘密跨chunk前缀在live隐藏，终态未完成前缀同样隐藏。旧命令没有完整记录时明确失败，不把摘要冒称全文。运行中输出尚未保存到最终日志，不承诺强制崩溃/断电恢复未结算日志。
+
+验证：最终11文件523项全部通过，`/tmp/mira-command-full-output-final-20261012.json`，包含真实成功/exit7 Bash完整首尾与stderr、脱敏/16MiB、身份隔离/迟到响应、任务清理、文件读取边界、第一方传参、全内容复制、虚拟行及资源持久化。早前351/100/209项报告与最终重叠，不累加。React/Vue类型、React生产构建与最终Electron-vite生产构建通过，宿主日志 `/tmp/mira-full-output-host-build-final-20261012.log`；保留既有highlight CSS/包体积/动态图标提示，不声称严格Electron全量类型或Windows安装包通过。
+
+实际生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-full-output-desktop-20261012.ZIPgyc/report.json` passed=true/errors=[]，32项/11次本机受控模型请求。真实12,004行命令输出首尾、凭据脱敏、可见行小于100、正常重启/重载不重跑、失败、真实后台完成后刷新至12,005行、停止保留、独立目录侧面记录、主/侧草稿返回、错误run拒绝和5入口产物hash稳定通过。3张浅色/失败深色/侧面深色图逐张检查，没有本批新遮挡或溢出；沿Impeccable有限验证与既有Radix/Lucide主题。隔离实例/服务正常关闭，正常用户数据未动。生产受控模型不等于商业模型或原生ZCode computer-use对照。
+
+历史脚本失败：evnXY4没有先展开成功后默认折叠的工作过程；3kvH5I错误假设资源按钮是role=tab；qKwfsP错误假设重载自动展开工作区；UEh41x假设OS合并stdout/stderr的末尾顺序固定，最终夹具统一同一流并由写完回调结束；DcOJZq未等最终UI且绕过后台计数入口。均保留原失败报告，仅修临时脚本的真实交互/夹具，未为过测改产品。以ZIPgyc最终证据为准。
+
+剩余/下次：回到侧栏/对话/timeline/悬浮摘要/Composer @、/、+和资源面板的完整剩余差异清单，集中首版收口，不重做此完整输出批次。待发送后台通知仍仅内存；完整原生ZCode computer-use没有可调用工具，商业供应商/远程授权、总体性能与Windows/安装包未验。分享链接排除，整体active，未提交/推送。以下历史。
+
+## 当前交付：全局前台命令转后台快捷键（2026-10-12 23:07 +08:00）
+
+完成：ZCode桌面 `packages/shared/src/shortcutCommands.ts` 的CmdOrCtrl+B是侧栏动作，CLI `contracts/src/tools/bash.ts` 另有Ctrl+B手动后台契约；Mira选择明确的上下文优先级，没有假称上游GUI的同名全局动作。主/独立侧面任务注册焦点command handler，由原useHarnessSessionShortcuts先派发，消除mount顺序和Lexical消费竞态。Control+B转换当前焦点任务当前run最近的可后台前台bash；排除继承、subtask、旧run、非bash、歧义、自动化禁后台记录。终端/其他编辑器不拦截，输出面板仍控制它的精确命令；没有可转命令保留原侧栏行为，Mac Cmd+B始终切侧栏。防重复请求及原任务失败反馈，局部面板也补repeat/IME/修饰键保护；设置说明同步。
+
+验证：最终四文件148项全部通过，`/tmp/mira-global-command-shortcut-final-current-20261012.json`，包括真实Lexical/React事件、焦点切换/挂载次序、current-run/归属/歧义、继承与自动化、模态/编辑器/终端、pending去重及旧任务错误隔离。React/Vue类型通过，React和Electron正式构建通过，Electron日志 `/tmp/mira-global-command-build-20261012.log`；不声称严格Electron全量类型或Windows发布。报告与上一批重叠，不累加。
+
+实际生产Electron：最终 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-command-notice-desktop-20261012.ryvkre/report.json` passed=true/errors=[]，21项/24次受控请求，保留上一批15项通知/几何回归，新增6项真实快捷键检查。原任务启动3轮真实前台bash，分别从Composer、终端返回和侧面对话返回转后台；独立目录的侧面任务同时运行并仅转换自身，主任务对应canonical命令仍前台，双方草稿和侧栏保留。终端Ctrl+B不转换模型命令，Cmd+B继续开关侧栏。6张图包含上批5个同场景与并行主/侧深色图；本轮逐张复核最新并行图，通知/摘要视觉依据22:50已检查的5图和最新同态几何断言，不称再次完成原生ZCode视觉对比。生产五入口hash稳定，实例/服务正常关闭，正常用户数据未动。
+
+历史失败：初次 `/tmp/mira-global-command-shortcut-20261012.json` 的6项新测试夹具错误地传value给实际editor，修正为已有text契约；原141项通过不算全批通过。huXYZh实际脚本误读取前台commandJob.output，前台沿tool.output而后台沿job.output；仅修临时等待条件，产品运行已真实启动，没改产品来迎合夹具。以ryvkre和最终148项为准。
+
+剩余/下次：完整输出文件授权访问，再核对剩余首屏/性能/发布关口。待发通知仍仅内存；完整原生ZCode computer-use无可调用工具，商业供应商/远程授权、总体性能、Windows/安装包未验。分享排除，整体active，未提交/推送。以下历史。
+
+## 当前交付：后台结束回报、执行归属与摘要收口（2026-10-12 22:50 +08:00）
+
+完成：对照ZCode runtime/methods/background-notifications.ts、runtime-command-queue.ts与tool/handlers/bash.ts。自然completed/failed的后台执行进入原任务FIFO；待发通知按模型/权限/项目/目录合并，精确run/tool去重，不抢正在运行的模型。dispatch再次读取canonical记录和当前有界脱敏输出，排除继承、歧义、错轮、子任务、非bash和未完成记录，以内部模型专用输入续接；不解析结果里的技能/演示引用或斜杠命令，不触发用户提交Hook。明确启用的会话技能保留。
+
+交互：队列显示“后台命令结果回报 · N 条”，保留暂停/恢复、删除、排序，不提供编辑、恢复输入或立即发送。自然结束才回报，取消/中断/退出不唤起模型。停止模型后迟到通知保持暂停，显式恢复或新的有效用户提交解除；用户草稿不被消费，内部通知不生成用户泡泡/输入历史。通知已消费的run/tool元数据存SQLite消息JSON，重载/重启不重复；未消费待发队列仅内存，尚无durable pending ledger，不声称重启恢复未消费通知。
+
+归属：自动化禁止显式、手动与超时转后台，保留自身前台timeout。workflow actor和子任务finally只stopOwned自身registry的精确命令，等待drain后才释放项目活动和结束状态；子任务wait也等待cleanup。不取消兄弟任务，不为actor/子任务创建父任务通知轮。退出先设置closing、暂停队列和abort模型，再回收命令，防退出过程启动通知。
+
+视觉修复：上一版wrISaD的batched-queue-light.png发现长命令横向溢出及所有命令结束仍报“正在执行”。修复执行/查阅分组状态，只让真实running命令显示动态摘要，后台命令可跨正文阶段持续，迟到前台状态不恢复已结束阶段；终态统计不再被模型streaming误标。补分组最小宽度与摘要flex收缩，动作标签保留宽度，完整命令title保留。最终实际group/row均800px，命令可见602px/内容2810px，hidden/ellipsis和边界断言通过。
+
+验证：此前相关10文件632项全部通过，报告 `/tmp/mira-command-notice-final-current-20261012.json`；最新ownership三文件71项 `/tmp/mira-command-notice-owner-final-20261012.json`，含真实workflow actor bash后台及typed结果后回收。此次最终UI四文件82项 `/tmp/mira-command-notice-ui-final-20261012.json`，包含执行/查阅终态和真实后台跨阶段回归；三个报告重叠，不累加。修改前CommandGroups32项中4项失败（含2项已有迟到前台边界），`/tmp/mira-command-group-before-20261012.json`保留；修复后通过。React类型与正式React构建、diff通过；此前通知宿主Electron构建及Vue类型已过，这次仅改React，没有冒称再次严格检查Electron全量类型或安装包。既有CSS highlight和包体积提示保留。
+
+实际生产Electron：最终 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-command-notice-desktop-20261012.w3GSL7/report.json` passed=true/errors=[]，15项/16次本机受控HTTP请求、4次真实通知续接；Electron/Vue/React/MessagePort/IPC/SQLite/Pi Agent及真实bash覆盖自然完成、合并队列、exit7真实stderr、停止后保持暂停/显式恢复、独立取消、退出不回报、重载/重启不重复、草稿与内部消息可见性，以及上述命令几何/终态断言。5张完成/运行分组/合并队列浅色、失败/暂停深色图逐张查看，确认这两处缺陷修复。五个生产入口hash运行前后相同；隔离实例与本机服务正常关闭，正常用户数据未动。
+
+历史夹具失败：CRbE3F假设了不存在的preload队列API，03mFnG假设了不存在的深色class；仅改临时脚本，改用真实队列DOM和既有主题偏好/重载，不新增伪产品API。wrISaD为此前13项通过但含视觉缺陷的结果，不能作为最终无溢出依据；以w3GSL7为准。
+
+剩余/下次：全局Ctrl+B与完整输出文件授权访问，再回首版剩余交互清单与性能/发布关口。原生ZCode逐项computer-use无可调用工具，商业供应商/远程授权、总体性能、Windows/安装包未验，不能声称完整复刻。分享链接排除，整体active，未提交/推送。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。以下历史。
+
+## 当前交付：真实后台命令生命周期（2026-10-12 22:09 +08:00）
+
+完成：对照ZCode的bash-background-policy、bash-background-lifecycle和node-execution-adapter-lifecycle，Mira新增MiraCommandJobs，沿既有Pi Bash、审批、项目工具锁、SQLite与第一方授权桥实现同一真实进程转后台。支持run_in_background显式、输出面板手动和前台等待超时自动转后台；timeout仍是Mira秒数（默认120、上限600），首token为sleep时保留超时失败。后台结果释放模型及单工具锁，不重新执行；模型停止不停止已分离命令，独立停止等待实际进程结算，模型可用command_status精确查询/停止。插件Shell保持原30秒前台限制。
+
+交互：主/侧对话、命令输出资源、运行过程、Composer后台计数和悬浮摘要读取独立job状态；启动工具成功不伪造后台执行成功，失败强制过程可见并在胶囊提示。Ctrl+B目前仅命令输出面板聚焦时生效。canonical session/run/tool控制，不用供应商call ID或命令文本；跨模型新轮和重载保持旧任务输出与草稿。后台活动阻止所属任务迁移/归档，以及重叠目录的Git变更和文件恢复；普通工具仍可与后台命令并行，启动结果告知模型并发事实。
+
+边界与修复：后台输出250ms节流，共享stdout/stderr 16 MiB预算，公开记录沿既有有界脱敏且隐藏分块凭证前缀。真实17 MiB命令测试定位原脱敏规则长连续文本平方扫描，已加键起始边界并保留JSON/相邻键语义；128 KiB回归要求小于500ms。后台publish失败仍drain已启动执行；迟到会话快照不能覆盖更高job revision，匹配为线性，继承/错轮/重复归属不嫁接。正常quit等待abort与回收；启动恢复将遗留running标记interrupted，说明失去控制，既不重跑也不承诺强制崩溃后已杀进程。
+
+验证：当前10文件689项全部通过，报告 `/tmp/mira-command-jobs-closeout-final-20261012.json`；包含8项真实子进程生命周期、34项Runtime/输出边界、225项Pilot及第一方/摘要/消息/导航覆盖。早前679和34项报告存在重叠，不累加。React/Vue类型、React与Electron生产构建及diff通过；存在既有highlight CSS/体积/动态图标构建提示，不称严格Electron全量类型或安装包验收。
+
+实际生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-command-jobs-desktop-20261012.331zlq/report.json` passed=true/errors=[]，23项、14次本机受控SSE及7次真实bash：手动、新轮前台、前台停止、超时后台、显式后台/模型查询、exit7失败、退出清理。真实授权MessagePort/IPC/SQLite/Pi Agent覆盖模型继续、call ID复用但canonical身份不同、旧轮输出不串新轮、任务隔离、深色重载/草稿、Esc保留后台、独立停止、自然完成stderr、失败可见、quit回收实际PID、重启不重跑；5入口hash前后一致。4张运行/停止/完成/失败明暗截图均逐张查看，未见本批新遮挡/裁切。隔离实例与服务已关闭，正常用户数据未动。
+
+历史失败证据：rDm6Dh暴露后台失败被成功launch折叠/胶囊误报，已修；hMlTO5夹具包含shutdown文字，被既有危险命令规则拒绝，改夹具quit保留产品规则。输出预算测试因真实脱敏性能问题挂住，已结束自有测试进程并修复后重验，不将失败轮累加。EZYNkS虽通过但早于脱敏与最终快照修复，最新以331zlq为准。临时验收报告留系统临时目录，不新增仓库报告文件。
+
+剩余/下次：从ZCode runtime-command-queue的task-notification批次继续，完成后台结束通知及后续模型回报，防重复/旧任务/退出和用户新输入冲突；再接全量输出文件授权访问与全局Ctrl+B。工作流actor、自动化及子任务目前共用managed bash，尚未逐项证明后台生命周期/停止约束，应在通知续接前处理，不能以主任务通过替代。完整原生ZCode逐项computer-use（当前工具缺失）、真实商业供应商、总体性能、Windows/安装包仍未完成，不能声称完整复刻。分享链接排除，整体active，未提交/推送；仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。以下历史。
+
+## 当前交付：命令输出侧面板与摘要导航（2026-10-12 21:10 +08:00）
+
+完成：参考ZCode `app-shell/BackgroundBashOutputSidePane.tsx` 的独立输出、暂停/恢复跟随，以及 `v4/ConversationStatusPanel.tsx` 的命令入口。新增MiraCommandPane，复用MiraCommandOutput与既有资源标签；主对话、查阅/连续命令分组、悬浮摘要、Overview与子任务详情接通输出入口。旁路/侧面任务在自身检查面板查看，返回保留原对话和草稿，不将子任务输出挂到主任务。
+
+归属与展示：资源身份由当前任务及canonical runId/toolId确定，不使用命令文本或供应商call ID；重复/缺失/错轮记录拒绝替代，新一轮不覆盖旧面板。偏好只保存身份和标题，不复制输出；关闭重开、标签搜索、任务切换后从既有“工作区”入口恢复，以及重载均读取真实宿主记录。滚动向上冻结阅读快照，箭头/滚到底部恢复最新输出；隐藏面板不强制滚动，完成或停止继续保留已记录stdout/stderr与错误，截断记录明确提示。命令输出与交互式终端分开，不新增IPC或执行系统。
+
+验证：入口接线前6项中2项复现缺失导航；最终6文件242项全部通过 `/tmp/mira-command-pane-final-green-20261012.json`（含7项输出资源、106项首屏导航、26项摘要），React类型、React正式构建和diff通过。此批仅改React，不声称新Electron/Vue构建、全仓或安装包验收。
+
+实际生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-command-pane-desktop-20261012.MXWO4D/report.json` passed=true/errors=[]，22项、7次本机受控SSE，沿真实IPC/SQLite/Pi Agent执行4次真实前台bash。覆盖实际输出更新/上滚冻结/箭头恢复、关闭重开、跨任务隔离、深色重载与草稿、供应商call ID复用下的新旧轮输出、摘要打开新命令、旁路命令归属/返回保稿、Esc真正停止并保留输出/草稿。5张最终明暗截图全部逐张检查，未见本批新遮挡/裁切；5入口hash前后一致。隔离实例与服务已关，正常开发数据未操作。
+
+失败记录保留：10Mq1n脚本假定任务切换自动展开资源面板，9IyhBv假定空任务标头已有标题，hqBMPr沿用重载前旧iframe locator；均按现有真实入口与当前iframe修正，未改产品迎合脚本，不累加失败检查。临时文件留在系统临时目录，没有新增仓库测试报告文档。
+
+剩余/下次：先核对ZCode后台bash的启动、转后台、取消、通知、全量输出文件与重启契约，再结合Mira真实运行能力实现；当前独立面板只展示前台工具的有界公开记录，不声称完整后台bash复刻。继续首屏余项与整体性能/发布验收；完整原生ZCode逐项computer-use（无可调用工具）、商业供应商授权、Windows/安装包仍未完成。分享链接排除，整体active，未提交/推送。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。以下为历史。
+
+## 当前交付：运行过程可见性、停止保稿与摘要轮次归属（2026-10-12 20:39 +08:00）
+
+完成：对照ZCode `v4/conversationTurnRenderUnits.ts` 的默认展开/异常强制展开，以及 `ConversationTurnGroup.tsx` 的工作过程折叠。Mira当前运行、等待权限、失败、停止及没有最终回复的工具过程保持可见，不显示可折叠箭头；成功且有最终正文时自动收起，历史手动展开/查找仍沿用现有记忆。删除重复的live展开状态，没有新增组件系统。折叠完成过程只恢复已消失工具控件的焦点，不抢最终正文或外部焦点；箭头旋转样式只作用于箭头，不误转状态图标。
+
+摘要修复：`getPilotTaskState` 优先按canonical runId判断失败工具归属，另一轮失败不因相同时间/系统时钟回退影响新一轮；本轮失败即使createdAt早于startedAt仍为部分未完成。缺少runId的旧记录保留既有时间兼容规则，不猜归属、不修改存储。实际停止沿原宿主准入，已生成内容/未发送草稿保留，未新增终止实现或文件恢复支线。
+
+验证：新增8项回归，其中7项在修复前复现失败；初次2文件251项中9失败包含6个新增缺陷及3个历史编辑旧参数断言，后者同步已有接纳回调契约，不为旧断言改产品。中间整组614项中焦点回归1失败，已修并复核。最终7文件615项 `/tmp/mira-turn-state-final-green-20261012.json` success=true/0失败；React类型、React正式构建与diff通过。本批未改Electron/Vue源码，不称全仓类型或安装包验证。
+
+实际生产Electron：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-turn-state-desktop-20261012.vkjGeo/report.json` passed=true/errors=[]，87项、19次本机受控SSE，5入口hash前后一致。覆盖首token前/持续正文/工具审批/失败详情、主侧pane并行与任务隔离；明暗真实运行→Esc停止→停止摘要、过程/部分回复保留、草稿未提交与重载恢复；工具后无最终正文仍可见；真实read失败后继续发送，新轮成功且旧错误记录仍保留。12张最终截图均逐张查看，有限动画与两帧后捕获，未发现本批新遮挡/裁切。时钟回退/同时间归属由单元回归覆盖，桌面正常时钟未人为修改；不冒称真实商业供应商、原生ZCode或完整四态全功能对等。
+
+失败身份保留：61N40W为复用旧脚本直接查找已移到“查看详情”的供应商原文；rYP26k为跨主题在同任务重复同文回复使宽泛文本选择命中两行。最终按真实详情入口与当前live-turn/runId、新增消息后缀限定验证，未用旧回复证明新轮通过，不累加失败轮检查数。
+
+剩余/下次：这批收口过程显示与状态归属，继续按文件/终端/浏览器资源面板及悬浮摘要的真实导航、当前任务/历史轮次关联核对，不重做已交文件恢复。完整原生ZCode逐项computer-use（无可调用工具）、商业供应商授权、总体性能、Windows与安装包仍未验收；分享链接排除，整体active，未提交/推送。隔离窗口/服务已关闭，正常开发窗口/用户数据未操作；实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方历史。
+
+## 当前交付：工作台导航提示、资源标签与侧面板空态（2026-10-12 20:22 +08:00）
+
+完成：重查真实浅/深主题首屏及ZCode源码。侧栏新建任务/自动化/插件市场复用现有Radix提示，新建任务显露真实N快捷键；资源标签采用上游1500ms悬浮提示、键盘焦点显示完整标题/路径、拖拽时关闭提示及释放点击保护。新指针手势或Enter仍可激活，Space排序/Escape取消、中键关闭、搜索精确恢复保持。发现侧面板空态被旧资源规则覆盖成11px标题，已隔离覆盖；移除宽面板卡片网格，恢复ZCode纵向列表（320px内容列、20px标题、14px说明、48px入口）。文件/终端/浏览器及现有Mira能力入口保留，Shell不重做。
+
+验证：新增标签交互回归先复现失败后通过；最终7文件223项 `/tmp/mira-workbench-controls-green-20261012.json`、React类型与正式React构建、diff通过。最终实际隔离生产Electron报告 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-workbench-controls-20261012.fCIHJT/report.json` passed=true/errors=[]，37项及6张明暗截图逐张检查，5入口hash稳定。覆盖四导航提示、真实鼠标排序不切任务/下一次点击、键盘拖拽取消后Enter、中键关闭/概览重开、共享搜索、Composer加号取消保稿/@与/候选，以及真实自动化页面往返保稿、空态实际字号/布局。此批未发送商业模型请求，未称完整运行四态或全部工作台性能通过；前一只读首屏aolJAq有受控SSE正文/计划验证，与本次37项分列。
+
+失败记录保留：EnpkAP/tyNKqT/phAmpc/Ka6Tnx为脚本入口名、偏好命名空间/方法错误；rRke3C为dnd-kit释放后50ms文档click保护；E0CYyz点击后重复focus不产生新焦点提示；sYwS4Q键盘sensor异步安装；ScWR2z未等待异步关闭；oGWeuH误用textbox查询cmdk combobox；1iNEXE自动化返回后面板默认收起；rYTfyq跨主题沿用已恢复草稿。均未改写成通过。f4JZ3n交互通过但截图未等布局动画，最终fCIHJT等待有限动画/两帧后确认，不累加两轮37项。
+
+剩余/下次：继续从对话运行中/等待确认/失败/停止的首屏、timeline/悬浮摘要与资源面板同状态对照开始，不扩文件支线。总体原生ZCode逐项computer-use（当前无可调用工具）、商业供应商授权、整体性能、Windows和安装包仍未验收；保持既有恢复边界。分享链接排除，整体active，未提交/推送。隔离实例已关闭，正常窗口/用户数据未操作；实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。以下为历史。
+
+## 当前交付：历史编辑与文件恢复联动（2026-10-12 19:55 +08:00）
+
+完成：对照ZCode `ConversationRowView.tsx` 的普通preserve/文件时钟rewind与 `ConversationFileRewindDialog.tsx` 的冲突后conversation-only路径。Mira普通“保存并重跑”保留当前文件，新增文件时钟“恢复文件并重跑”，在既有Radix弹窗预览已记录的整段修改；可返回编辑、恢复文件后重跑或显式保留文件并重跑。外部修改/缺失快照禁用整段恢复，保留文件路径仍可选；新任务/owner/卸载不消费旧响应。提交中禁止重复操作/Escape/外部关闭，模型拒绝保留原消息和编辑稿，未完成恢复先显式撤销。
+
+跨层：新增Mira命名的workspace选择/token与blocked结果，授权parser剥离renderer文件操作和原文。宿主在任何文件/对话写入前验证模型/附件/图片/引用/命令及准入，异步规划后再校验授权、消息、快照、同目录运行和模型。实际文件恢复后，快照退休/净变化/历史截断在同一SQLite事务内提交；提交失败撤销已尝试文件并保持原对话，日志仍可用于重启补偿。SQLite提交后再写JSON备份，备份失败不能反向撤销已提交状态；后续模型运行失败保留已接纳的编辑和恢复文件，不自动恢复旧对话。本机测试覆真实SQLite触发器提交失败、备份失败和模型运行失败，不冒称文件系统与SQLite跨系统原子性/断电保证。
+
+净变化：私有首末快照字节相同标记unchanged，摘要/资源标签/变更面板计数不包含已恢复文件；已知空文件新建和仅换行改动仍是变更，未知老快照保持原保守语义。逐次文件记录保留，“查看文件操作记录”用于0净变化，不隐藏操作历史。旧已经写入的净变化记录没有unchanged标记时不猜测；下一次真实写入/恢复按快照重算。
+
+验证：最终11文件690项 `/tmp/mira-history-workspace-net-green-20261012.json` 全通过；最后底部入口改动后前端3文件137项 `/tmp/mira-history-net-link-postcheck-20261012.json` 通过，两组重叠，不累加成827。React/Vue类型、React及Electron/Vue正式构建、diff通过，不称全仓严格Electron类型或安装包已验。最终实际生产Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-history-workspace-desktop-20261012.gKeKzx/report.json` passed=true/errors=[]，65项，12次本机受控SSE。沿真实Pi Agent/IPC/SQLite文件工具覆盖独立恢复及注入中断日志，还覆盖编辑返回保稿/停用模型拒绝/恢复并单次重跑/截断后缀/快照退休/重启/确认后外部修改/显式保留后单次重跑，以及净变化胶囊清零/新增两文件不误算三文件。5入口hash前后一致；明暗确认/冲突/恢复后界面按既有视觉检查。Impeccable沿用现有Radix和主题，不重做Shell或另造组件系统。
+
+失败身份保留：G5wrPT/DJDIdi/Ja3so9/YqXjd1脚本重用同文回复，错误地在新轮完成前冻结历史；改为轮询宿主新消息数量和结束状态。hucutc为Radix模态aria-hidden使role选择器找不到后台编辑稿，I2bXEP为SSE夹具把结构化content字符串化成object。R8e79L的62项联动已通过，但未修净变化计数；yoH6FV为64项中间态，gKeKzx才含最新底部入口。净变化早期690项中1失败为原diff空字符串契约，已保留该契约并最终全绿；不将失败轮或中间态算最终通过。
+
+剩余/下次：独立恢复、历史编辑preserve/rewind联动已交，回首版完整侧栏/对话/Composer/侧面板同态走查与性能证据，不再扩文件支线。总体原生ZCode逐项computer-use（当前无可调用工具）、商业供应商授权、最坏同步恢复性能、Windows和安装包未验收。终端/MCP、非法UTF-8/二进制/超限/缺失快照仍不猜恢复；目录fsync/断电/跨进程文件竞态仍无保证。分享链接排除，整体active，未提交/推送；所有证据在临时目录，不新增仓库历史测试文档。隔离实例已关，用户正常窗口/数据未动；实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方历史。
+
+
+## 当前交付：独立文件恢复与中断补偿（2026-10-12 19:28 +08:00）
+
+完成：真实恢复已记录的write/edit/delete文件；确认token绑定任务/消息/工作目录及快照，异步规划后再次验证授权、完整历史、任务与同目录活动，再全批检查当前字节。同步写入采用同目录独占临时文件、文件fsync及替换；记录每次尝试前的持久化游标。SQLite事务退休所选快照并刷新任务首末净变化，不修改历史消息或工具记录。写入/事务失败补偿已尝试文件，不覆盖外部修改；中断日志重启后保留，阻止重叠目录的新运行，通过显式重试撤销清除。
+
+验证：11文件475项 `/tmp/mira-file-rewind-apply-green-20261012.json`；最终checkpoint竞态重验后3文件85项 `/tmp/mira-file-rewind-apply-postrace-20261012.json`（重叠，不相加）。React/Vue类型、React及Electron/Vue正式构建、diff通过。最终实际隔离生产Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-file-rewind-apply-desktop-20261012.MtNbeR/report.json` passed=true/errors=[]，47项、4次本机受控SSE：两轮真实Pi Agent文件工具、取消/冲突/旧token/单轮及更早轮恢复、BOM/CRLF、新建删除、净变化与重启均通过；另显式注入持久化中断日志验证重启、阻止新模型运行、保留外部修改和重试补偿。中断测试是夹具，不冒称强制杀死生产写入或断电验收。前次41项GSGmcI的明暗5图全部已看，最终MtNbeR使用相同生产hash并新增中断检查；ZRlp9g/fU89L5为验证脚本对比取色/旧frame定位问题的失败轮，保留真实身份。
+
+剩余/下次：独立恢复已交；历史编辑选择“保留文件”或“恢复文件后重跑”尚未接通，必须在同一宿主准入内处理，不拆成renderer先恢复再重跑。终端/MCP未追踪，缺失/二进制/超限快照不猜恢复。最多128操作/16MiB同步批次的最坏性能未测，目录fsync/断电保证、跨进程文件竞态、Windows未验收。完整原生ZCode逐项computer-use、商业供应商、整体性能与安装包仍剩，当前没有可调用computer-use工具。分享链接排除，整体active，未提交/推送。隔离实例已关，正常开发窗口和用户数据未动；实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，启动 `npm run desktop:dev`。下方历史。
+
+
+## 当前交付：逐轮文件快照与只读恢复预览（2026-10-12 18:59 +08:00）
+
+完成：对照ZCode `runtime/methods/file-rewind.ts`、`rewind-message.ts`、contracts/rewind与 `ConversationFileRewindDialog.tsx`，真实write/edit/delete在执行前保存私有SQLite快照，完成或写后异常时记录实际结果。工具记录冻结canonical用户消息归属，快照保存用户消息祖先链，按消息身份选择恢复范围；相同时间、系统时钟回退、读取中追加指导均不靠时间猜轮次。保留文件的历史编辑会截断对话，但其后续文件效果与祖先链留存；fork不继承源任务私有快照，删除任务同时删除所属记录。单文件最多1MiB，预览先查metadata，最多128操作/16MiB才载入私有全文。
+
+恢复预览通过真实第一方授权桥，只接收sessionId/messageId；renderer传入的路径/原文/记录被剥离，返回文件名、操作次数、恢复/移除意图与冲突原因，没有原文或私有目录。逐个比较当前文件与末次快照以及相邻工具边界：外部修改、缺失/中断/不可读快照、换工作目录明确列入冲突；终端和MCP单列未追踪，不宣称能回退其修改。快照按UTF-8字节校验，BOM/CRLF保留，非法UTF-8/二进制/过大拒绝安全判定；canonical根冻结，符号链接别名或改指向不视为可恢复文件。
+
+用户消息动作新增文件时钟入口，主/侧pane复用Radix弹窗，运行/审批时禁用；不依赖可用模型。弹窗可查看安全/冲突/未追踪列表，加载、失败重试和空态有明确反馈；关闭/切换owner/禁用会丢弃迟到响应。只有返回对话，没有假恢复按钮。关闭回原消息动作焦点；Impeccable有界明暗观察发现小字偏浅，限定弹窗提高对比并增加键盘焦点，不重做视觉方向。
+
+验证：10文件453项 `/tmp/mira-file-rewind-preview-final-20261012.json` 全通过；最终焦点/样式改动后受影响2文件33项 `/tmp/mira-file-rewind-preview-postvisual-20261012.json` 全通过，重叠不相加。React/Vue类型、React生产构建、Electron/Vue生产构建与diff通过。最终实际隔离生产Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-file-rewind-preview-desktop-20261012.flHRDP/report.json` passed=true/errors=[]，26项、两轮真实Pi Agent/IPC文件操作及4次本机受控SSE请求；第一轮3文件4操作、第二轮排除早先新建文件、外部冲突/取消/Escape/焦点/重载/进程重启/fork隔离均通过。明暗最终3图全部已看，说明/按钮文字对比浅7.94:1、深6.68:1，5入口hash稳定。DwEOEW为修说明对比与焦点前的中间态，不算最终视觉交付。
+
+剩余/下次：**真正写回文件与preserve/rewind冲突选择尚未实现，不称文件回退完成。** 下一步从真实apply开始：预览身份/当前状态在执行前重验，项目运行与文件工具互斥，多文件持久化恢复日志与失败补偿，成功后更新快照/净变化及前端面板；再把编辑并重跑接上“保留文件/恢复文件”的真实宿主契约。旧缺失快照不可猜恢复，终端/MCP仍须明确排除或另行实现。完整原生ZCode逐项computer-use、商业供应商授权、Windows/安装包及总体性能关口仍未完成；当前没有可调用computer-use工具。分享链接排除。整体目标active，未提交/推送。隔离服务/窗口已关，正常开发窗口与用户数据未动；仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方均为历史。
+
+## 当前交付：历史编辑候选与附件修改（2026-10-12 18:27 +08:00）
+
+完成：沿ZCode `v4/ConversationRowView.tsx:985–1028` 与 `prompt-editor/ChatPromptEditor.tsx`，历史编辑新增 `@`、`/` 工具栏及键入候选，复用Mira现有Radix列表、Lexical、授权后的文件/插件/技能/智能体/项目命令目录；`#` 引用本地对话、`$` 引用技能。候选只插入提示，不自动发送、改变权限或执行主Composer的应用状态命令；自定义/插件命令只在正文开头可选。Enter/Tab确认候选，方向键选择，输入法及Shift+Enter保留原语义。实际Electron发现Radix文档捕获Escape后Lexical再次取消编辑，已尊重被消费的原生事件：第一次只关候选，第二次取消编辑。
+
+附件支持选择器、新增工作区文件、逐项移除、文件粘贴/拖入和长文本转附件；表格HTML剪贴板仍走正文。移除只改变这条消息的编辑列表，不删除文件。读取期间禁止提交/重复文件操作，但可继续打字；迟到的引用不覆盖新正文，已读附件保留并提示重选；切换任务或卸载后不继续读取/写新owner。取消、读取失败与模型拒绝保留原canonical消息，成功才截断后续并重跑。
+
+跨层契约：保留旧调用不传references的语义；实际改附件或纯附件提交显式传当前完整列表，`[]` 表达删空。宿主先验证用户消息/附件身份/最多12个及文本1MiB、图片40MiB总量，再校验模型与命令，随后截断；原附件使用历史冻结字节/名称，不信任renderer伪造内容。图像能力验证只看编辑后保留的历史，删除的图片和将截断的未来图片不会继续阻止文字模型。Controller提前关闭编辑器须确认新run中的canonical正文及完整有序附件身份，不凭同文或run-start猜测接纳。
+
+验证：8文件615项通过 `/tmp/mira-history-final-regression-20261012.json`；Escape修复后受影响历史编辑/canonical/Lexical三文件60项通过 `/tmp/mira-history-editor-postescape-20261012.json`，两组有重叠，不相加冒称675项。React/Vue类型、React与Electron/Vue正式构建、diff检查通过；不是全仓严格Electron类型/安装包验收。最终实际生产Electron `/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-history-editor-desktop-20261012.aufpvB/report.json` passed=true/errors=[]，25项、7次显式本机受控模型请求：真实第一方IPC/Pi Agent、Tab/Enter引用、自定义命令宿主展开、工作区冻结附件、模型停用拒绝保稿/原历史不变、恢复模型、附件-only、删空、取消、选择器、粘贴/拖入、重载及双Escape均通过。选择器由隔离Electron dialog受控返回临时文件，粘贴/拖入为实际Chromium DOM事件，不冒称原生OS手势。最终明暗5图全部已看，四生产入口hash不变，窗口/服务已关闭。首轮gs7Y2x前19项通过但Escape失败，保留真实失败身份；随后修产品并回归，不把旧轮算通过。
+
+剩余/下次：已查ZCode `apps/zcode-cli/packages/core/src/runtime/methods/rewind-message.ts`、contracts/rewind及UI `ConversationFileRewindDialog.tsx`；上游按目标消息选择逐次checkpoint，并预览安全/外部修改/缺失快照文件，再恢复文件和对话。Mira当前 `harness_task_files` 只有任务首次原文与有界公开净diff，没有每次工具前后全文和消息关联，不能据此还原任意历史轮次。下一步先补真实工具/轮次私有快照与只读预览，再接恢复/冲突交互；旧缺失快照不得猜测恢复。当前只改消息，不回滚项目文件。完整原生ZCode逐项computer-use、真实商业供应商/授权、安装包和Windows验收仍未完成；当前无可调用computer-use工具。分享链接排除，整体目标active，未提交/推送。正常开发窗口和用户数据未操作，实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。以下均为历史快照。
+
+## 当前交付：用户引用展示与历史富文本编辑（2026-10-12 17:54 +08:00）
+
+完成：参考ZCode `v4/ConversationUserInputContent.tsx`、`v4/ConversationRowView.tsx`，用户消息使用与Composer相同的技能、插件、内置/命名空间智能体和插件命令解析；未知普通@名称及邮箱保持普通文本，展示不授予权限。网页/PPT卡位于正文上方，统一右对齐换行，不进入正文折叠。`miraUserPrompt`为发送后正文、历史编辑和查找提供共同解析，查找匹配可见标签，不索引隐藏URI、网页快照或PPT元数据；复制保留canonical原文。发送行移除重复解析。
+
+历史编辑复用真实Lexical，保留引用chip、换行和缩进；网页/PPT为独立可移除卡，支持逐项/全部移除，末项移除返回编辑焦点。仅上下文消息仍可重跑，删空后禁用提交。待接纳时阻止重复提交，拒绝/异常保留编辑正文和引用；取消及中文输入法Escape互不干扰，错误与编辑器关联。沿原宿主编辑重跑契约，原文件/媒体附件保持只读和保留，未实现附件删改或项目文件回滚。编辑框沿上游36rem上限、已有Mira输入色和圆角；首次截图发现基础编辑器CSS覆盖边框/内边距，限定选择器修复后确认。
+
+验证：相关10文件131项全部通过 `/tmp/mira-message-reference-final-20261012.json`，修正编辑器样式后受影响2文件33项通过 `/tmp/mira-message-reference-postvisual-20261012.json`（子集，不相加冒称164项）。React类型、正式React构建及diff通过；没有改宿主，不声称新Electron/Vue构建或全仓回归。最终实际生产Electron `/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-message-reference-desktop-20261012.z3VVbX/report.json` passed=true/errors=[]、25项通过、3次显式本机受控模型运行；包含真实IPC/Pi Agent、引用标签查找与Range高亮、原文剪贴板、模型停用拒绝且原数据不变、恢复模型保留引用重跑、移除引用后修改提交、暗色重载和Escape取消。最终5图全部已看，源码/生产hash稳定。64E23h为功能通过但未修编辑框样式的中间态；12m93S为脚本直接调用宿主遗漏model selection，tJRUxB为脚本未按宿主既有trim比较原文，不伪造产品修复。原49项中8个失败属于textarea夹具；更换真实DOM选择/粘贴及IME事件后有真实回归证明。
+
+剩余/下次：历史编辑仍缺上游的新增@与/候选入口、附件删改及安全文件回滚；下一步从历史编辑候选与附件契约核对继续，不将本批称完整ChatPromptEditor复刻。总体原生ZCode逐项computer-use、真实商业供应商/授权、安装包和Windows验收仍未完成；当前无可调用computer-use工具，本批仅源码对照与实际Mira Electron。分享链接排除。整体目标active，未提交/推送。隔离窗口/服务已关闭，正常开发窗口与用户数据未操作。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方均为历史。
+
+## 当前交付：长用户消息展开与查找（2026-10-12 17:29 +08:00）
+
+完成：对照ZCode `v4/ConversationUserInputBody.tsx`，Mira用户正文超过120px默认渐隐折叠，提供可键盘操作的展开/收起；完整文字仍在原消息内，复制、编辑和模型提交不截断。缩进使用pre-wrap保留，附件/网页/PPT引用保持独立。实际自然正文525px，折叠120px、展开525px；尺寸通过ResizeObserver/RAF合并读取，隐藏窗格不覆盖可用尺寸，不额外改变虚拟化结构。查找先展开所属用户消息，再走原挂载/高亮/精确Range定位，首次尺寸尚未测出也能展开；单纯轮次跳转保持折叠。
+
+验证：新增用户消息8项与timeline定位2项；初始7项均复现失败，最终6文件95项全部通过 `/tmp/mira-user-body-green-20261012.json`。React类型、正式React构建及diff通过。本批只改React，不重跑无关Electron/Vue构建。最终实际生产Electron `/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-user-body-desktop-20261012.N8CxPH/report.json` 14项通过、errors=[]、仅1次显式受控本机模型提交；主/侧正文、完整原文复制/编辑/存储、折叠末尾查找、重载与暗色均验证，四入口hash稳定。最终5张截图均已查看；搜索验证在关闭查找前确认高亮，截图在Escape后保留展开状态。LZTDXF/gtvG9c为夹具漏展开项目/等待编辑器初始化，dDlWDR为异步复制未等待，hGC93Q为重载后错找主pane；这些失败记录保留，不当作产品通过或伪造产品修复。
+
+剩余/下次：目标已恢复active，继续核对首屏用户消息/Composer引用显示及历史编辑差异，再完成其余真实授权/供应商/安装包/Windows验收；不引入分享链接。原生ZCode同态computer-use仍无可调用工具，本批是源码对照与实际Mira Electron，未声称完整复刻完成。隔离窗口/服务已关闭，未操作正常开发窗口或用户数据，未提交/推送。仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。下方均为历史快照。
+
+## 范围更正：本地优先，不提供分享链接（2026-10-12 17:02 +08:00）
+
+按用户要求，会话分享链接、云端发布及对应分享入口不纳入 Mira，也不作为 ZCode 对齐的剩余项。保留既有本地“复制为 Markdown”；本次仅更正规划，未新增分享实现。后续从首版其余交互差异、真实供应商授权及安装包/Windows验收继续；整体目标当前暂停，下方历史中的 active 不代表当前运行状态。
+
+## 当前交付：首屏帮助、输入键盘与摘要布局（2026-10-12 16:53 +08:00）
+
+完成：标头新增 Radix 帮助菜单，连接既有 Vue 快捷键、常规与关于页；先保存各任务草稿，失败保留菜单和输入并允许重试。Ctrl+M、Ctrl+Shift+M、Ctrl+T 与控件提示/设置说明对齐。修复设置页可选 Boolean 未传被 Vue 转为 false 而隐藏标题的问题，明确默认显示、显式 false 仍隐藏。
+
+Composer：候选处理返回是否消费按键，空匹配/全部禁用时 Enter 和配置的修饰键发送不再被吞；Shift+Enter 优先留给真实 Lexical 换行，IME 不发送。有可选候选仍只确认候选。`/compact` 保持保留命令；裸 `/compress` 先核对当前任务的自定义命令目录，项目/全局未被覆盖的命令走真实宿主解析，无自定义时才压缩；目录未就绪/失败保稿，不猜测命令归属。切换任务不复用旧目录。
+
+视觉：去掉手动展开摘要在 800px 开始缩小正文的规则，统一沿既有 1280px 宽会话规则预留区域；本次实测会话约 1158px，正文保持 x=426.5px、宽840px，输入框位置/宽度均不变。新任务增加以 Mira 现有 M 标志为基础的渐隐线框，并将问候字重降到500；不复制 ZCode 商标。
+
+验证：Composer 整文件264项通过，其中本批21项先复现后修复；另5文件220项、设置/导航/帮助4文件55项均通过（帮助测试有重叠，不相加声称全仓结果）。React/Vue 类型、React及Electron生产构建、diff检查通过。最终实际隔离 Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-final-desktop-20261012.aED2eH/report.json` 22项全部通过、errors=[]，四次受控模型请求：真实set_plan/回复、空候选发送、自定义compress展开；三种Ctrl快捷键、帮助→Vue设置→返回保稿、明暗主题通过。R53R9r六张截图均已查看；快捷键说明更正为实际“自动审核”后，aED2eH复验22项，新任务明暗与展开摘要三图再次确认，视觉源码不变。桌面验收等待控件启用及React焦点提交；中途旧脚本的门户定位与异步就绪失败不当作最终验收。设置标题缺失的真实失败另有3项回归先红后绿。
+
+剩余/下次：整体复刻尚未完成；继续核对首版其余交互差异与真实供应商授权行为，再完成安装包/Windows验收。会话分享链接和云端发布已排除，不照搬上游账号入口。当前没有可调用computer-use工具，ZCode参照来自已有截图和源码；本批不是实时操控原生ZCode或商业模型验收。隔离窗口/服务已关闭，未操作用户数据，未提交/推送。正常 localhost:5173 此刻未监听，勿沿用上批“200”状态；需要启动时在实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness` 运行 `npm run desktop:dev`。分支 `codex/mira-harness-first-slice`。以下均为历史。
+
+## 当前交付：连续输出保存优化（2026-10-12 16:10 +08:00）
+
+完成：真实Runtime持续输出测量定位到250ms批次仍删除重插全部历史结构化行。`harnessStore.ts` 现在仅对严格匹配当前run/message的助手增量做INSERT/UPDATE，保持原rowid、完整SQLite状态快照、事务、时间戳、图片冻结及恢复JSON的临时文件替换；没有缓存或新存储模型。身份不符、旧计划规范化、图片变化、缺当前行等走原完整保存，重复历史messageId继续报错并回滚。去掉getSession为工作目录迁移而重复的JSON.parse，原始目录缺失检查和legacy迁移保留。数据库提交与文件替换仍是原有先后顺序，不声称跨SQLite/文件原子事务。
+
+实测：同100/500/2000轮合成持久历史、各80段中文/16批实际保存，真实Runtime/Pi Agent/本机HTTP/Store前后测量。单批append中位17.73→4.28ms、51.03→14.59ms、131.93→91.05ms；2000轮16批累计2096→1386ms、事件循环p99约141→101ms。最终 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-stream-persistence-performance-20261012.Q5Mopt/report.json` 18项通过，三种规模均5751字节完整、parts/完成/idle及数据库重开正常。UKkvng为优化前，Izj0QM为仅SQL快路的中间态，最终以Q5Mopt为准。单次本机受控测量、Node宿主且SSE同进程受阻塞影响，不等于商业模型速度或平台通用承诺；全量JSON快照和同步I/O仍有开销，不能称超长会话无阻塞。
+
+验证：新增13项Store回归，SQL触发器先红后绿证明历史消息/工具/计划/交互/run/activity/subtask未重写；身份冲突rollback、旧数据/图片、缺行修复、重启、搜索及fork/side隔离覆盖。React/Vue类型和React/Electron生产构建通过。最新生产实际Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-plan-directory-desktop-20261012.HysRTy/report.json` 109项通过、errors=[]、两次模型请求、五入口hash稳定，计划修订/取消/历史标签/侧面导航/重载/进程重启保持通过；代理核对暗色图无视觉变化。扩大Runtime回归发现两条Guidance旧文案断言，已同步既有模型诊断契约，同时验证原失败详情仍在，不改产品迎合测试。
+
+最终回归：Store/Runtime相关14文件427项分批全部通过；其中最后只重跑受影响Store82项与Guidance33项，`/tmp/mira-stream-store-guidance-final-20261012.json` success=true、115项/0失败，另外12文件312项保持前序通过。该单份报告只覆盖115项，不冒称全仓或一份427项报告。React/Vue类型、生产双构建、diff与既有许可同步通过。
+
+剩余/下次：本轮收口长会话已测瓶颈，不扩大到文件支线。下次先检查首版整体侧栏→对话→Composer→右侧资源的剩余交互差异，再按真实反馈处理；极长历史进一步优化需保持恢复契约另立测量。商业供应商、原生ZCode同态computer-use、共享授权、Windows/安装包验收仍未全部完成，整体目标active。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。隔离服务/窗口已关闭，正常dev仍5173返回200且未替换，用户数据未操作；当前宿主加载新底层需先保稿/无运行后安全重启。本批未提交/推送。以下为历史。
+
+## 当前交付：历史方案目录与独立详情（2026-10-12 15:47 +08:00）
+
+完成：悬浮摘要新增“会话计划”，按真实已结算 `present_plan` 工具记录倒序列出每次提交，修订/取消不覆盖旧版；点击在右侧打开独立方案标签，支持多个版本、关闭/重开、搜索、任务隔离及重载/进程重启。既有 activePlan 表确实只保存当前版本，但公开工具输入已保留历史，本批直接派生，没有另建重复存储或虚构历史。截断、无效、旧记录缺内容明确显示不完整；fork 继承记录只读。查看不批准、不执行、不请求模型，当前待确认方案仍走原审批入口。
+
+交互：摘要使用短标题，审批卡与历史详情共用现有 Markdown 渲染，理解/编号步骤/详情/风险完整；原始 #/** 不再泄漏成正文标记。侧面任务共用目录，打开方案自动聚焦返回键，返回原目录按钮；真实文件/消息/执行导航清掉旧方案详情，不叠层或隐藏线程。目录及详情沿现有中性色 tokens、Lucide、资源标签与滚动，保持 Vue Shell 和 React 主布局。
+
+验证：最终相关10文件278项通过 `/tmp/mira-plan-directory-final-regression-20261012.json`；React/Vue 类型、React 与 Electron/Vue 生产构建及 diff 通过。扩大回归时旧偏好测试缺 useCallback/onEvent/document/SessionMenuItems 测试环境，已补真实现有契约后通过，未为夹具改产品。实际桌面最终 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-plan-directory-desktop-20261012.WA9NTZ/report.json` passed=true/errors=[]，109项、两次真实本机SSE模型请求；上述修改/取消/标签/任务隔离/重载/重启、审批Markdown和侧面焦点/全局搜索导航通过，五产物入口hash稳定。主代理看最终浅色审批与深色详情，执行代理看最终三图。首轮 Aa6WqK 功能93项通过但审批仍原始Markdown，已批量修正后最终确认；SJyLfW是脚本未hover侧栏菜单而无法定位，不冒充产品故障。
+
+性能基线（同批只读）：真实生产Electron隔离profile首开三次1.180/1.092/0.880秒；通过真实Store合成100/500/2000轮历史（不是模型生成），切入186/144/213ms、查找首轮114/112/164ms、回底73/71/67ms，均挂载6轮/12消息。2000轮首次查找一项68ms longtask；约5MB历史单次Store保存107ms/读取28ms。源码确认助手增量250ms节流，仍完整getSession/saveSession，连续流成本需另测，未据单次夹具重写存储。报告 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-performance-desktop-20261012.J0sypi/report.json` passed=true，16项与五产物hash稳定。首开14资源对应文件约2.96MB，ResourceTiming byte字段0是跨源观测限制，不等于无传输；fresh profile不等于清OS缓存。截图虽名2000轮实际最后切回100轮，不当2000轮视觉证据，不为命名另跑一轮。本机未打包/无商业模型和Windows性能证据，当前常规规模无重写canonical/虚拟化依据。
+
+旁路恢复复核：真实Electron `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-side-restore-desktop-20261012.KBPPfL/report.json` passed=true/errors=[]，64项、两次模型请求、五产物hash稳定；同一child在显式收起重开、切任务返回、renderer重载与整个进程重启后由可见标头工作区入口恢复，原回复/旁路未发草稿和独立主稿全部保留。隔离SQLite只读确认2父+1原child，没有新建替代。代理看最终两张明暗截图；主代理复核报告与源码。ZCode taskSidePaneMemory为renderer模块级Map，默认收起，workspace共享tabs/owner折叠偏好，不称它提供磁盘重启恢复。Mira任务私有偏好实际持久恢复更强；未发现需改产品的恢复缺陷。隔离窗口/服务已关闭，不操作正常dev。
+
+边界/下次：重载/重启后资源面板默认收起，标头工作区入口可见，点开双方案/旁路标签恢复；本批没有自动展开偏好，也没有把数据留存称为界面自动恢复。首开/长会话和旁路恢复已验，下一步持续流下的历史保存成本。Goal/错误诊断/插件市场不重做；商业供应商、原生ZCode同态computer-use、OAuth/共享授权、Windows和安装包尚未完整验收，整体目标active。本机无原生computer-use工具，使用真实Playwright Electron/IPC/SQLite/Pi Agent，不能称原生完整对等。隔离窗口/服务已关闭，正常dev和用户数据未操作；本批未提交/推送。以下为历史。
+
+
+## 当前交付：模型错误诊断与恢复（2026-10-12 15:14 +08:00）
+
+完成：参考 ZCode `ChatErrorBanner.tsx`，Composer 显示简短错误栏，提供查看详情、复制错误、模型设置和关闭。详情使用现有 Radix Dialog，不把供应商长错误撑进对话；使用现有 Mira 主题与 Lucide 图标。设置入口接通 `/settings/model-config`，先完成所有工作台草稿保存；保存或导航失败保留输入与提示，重试不会自动重新发送任务。关闭只影响当前提示，同文的新运行失败会再次显示。重新打开或重载失败任务恢复最后一条失败回复的诊断，其他任务不继承；旧错误不会越过后续消息重新出现。
+
+宿主：新增 `MiraModelError` 公共数据，依据实际模型 stream 的错误来源识别，不通过 HTTP 字样或 `Agent.errorMessage` 猜测；SDK 也会将 Hook/工具生命周期异常压成同一字段，这些继续保留通用错误语义。供应商详情先脱敏再按 UTF-8 限制为 8KiB，摘要、持久化、事件、日志与拒绝异常均使用安全文本。事件绑定真实 run/message 身份，历史回复保存诊断，停止不误报模型失败。未添加缺少真实事件的自动重试次数，也未复制 ZCode 付费升级/账户反馈流程。
+
+验证：最终相关8文件750项通过 `/tmp/mira-model-final-regression-20261012.json`；React/Vue 类型、React 与 Electron/Vue 生产构建、diff 检查通过。覆盖真实安装 SDK 的 HTTP400/401、计划模式、密钥/日志/异常堆栈脱敏、多字节长度、SQLite 重新打开、实际 SDK 生命周期异常区分，以及详情/复制失败/设置失败/草稿顺序/重复错误/任务隔离与历史恢复。不是全仓测试或商业供应商验收。初次相关集合加载到仍在修改的旧 Hook 测试，后者错误期待 PostToolUse 异常终止 SDK；最终改为实际 `prepareNextTurnWithContext` 异常路径再完整通过，没有修改产品以满足错误测试。
+
+真实桌面：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-model-error-desktop-20261012.yLwwaK/report.json` passed=true/errors=[]，58项通过，真实 Electron/Vue/React/IPC/SQLite/Pi Agent 加受控本机 HTTP400/401。三次实际请求、原生剪贴板、详情/Escape、关闭后同文新运行、任务切换、Vue 模型设置与草稿保存/返回、重载恢复、明暗主题均验；五生产入口 hash 不变。最终明暗详情由执行代理查看，主代理另看最终深色详情和浅色错误栏。首轮 elK1Rp 功能通过但详情使用半透明 surface，已改用现有实色 menu token并在最后一轮确认；不是提升 z-index。早先驱动误用无命名空间的草稿键，修为实际第一方偏好键后通过。当前无原生 computer-use 工具，不宣称与商业 ZCode 原生软件完整对等。
+
+剩余/下次开始：会话计划目录仍只保留 activePlan，需要保留真实历史计划并接通查看；随后真实首开/长会话性能测量、旁路标签重载后的发现/恢复。Goal/旁路/插件市场不重做；原生同态、商业模型、OAuth/共享授权、Windows 与安装包仍未完整验收，整体目标 active。隔离测试窗口/服务已关闭，正常dev未操作、5173仍200；旧宿主未安全重启，不能把生产隔离结果当作原正常窗口已更新。本批未提交/推送。
+
+## 历史交付：连续工作状态与真实耗时（2026-10-12 14:49 +08:00）
+
+完成：参考 ZCode ConversationTurnGroup 的独立加载槽和工作历史状态，主/旁路共用 MiraAssistantProcess。真实运行首token前不再显示旧大进度卡，使用轻量状态；纯文本输出后保持运行提示，进入工具/思考阶段使用工作行。耗时按真实run.startedAt每秒更新，等待审批停止旋转但保留耗时，完成/失败/停止立即停止计时，历史只读已保存durationMs。run换身份或卸载清理timer；没有run不捏造耗时，空会话不创建虚假助手消息。无输出失败有可见错误，工作详情仍打开原右侧面板，不改变审批/草稿/消息身份。
+
+验证：最终8文件436项通过 `/tmp/mira-live-process-final-20261012.json`，含新增13项生命周期与计时回归；React/Vue类型、React/Electron生产构建与diff通过。旧审批键盘测试曾假定section箭头抢焦点，与现有嵌套工作流保护guard冲突，只修测试的起始焦点并验证section不抢键，没有改产品guard或放宽不自动授权的断言。先前14:35净统计414项集合保持独立证据，不相加为全仓通过。
+
+真实桌面：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-live-process-desktop-20261012.JBr9SI/report.json` passed=true/errors=[]，43项通过，真实Electron/Vue/React/IPC/SQLite/Pi Agent及受控localhost HTTP SSE。验首token前真实时钟增长、写工具审批/实际文件字节/批准后继续运行、纯文本间隙、主旁路并发独立、切空会话/返回原任务、运行中renderer重载、HTTP400无token失败和终态无spinner；五产物入口hash未变化。已亲看最终实际dark主/旁路及light审批两图，初始light首token图亦看过。csgUu4已通过功能但所谓dark图实际浅色；7ZlGkn临时驱动错误期待renderer重载自动显示原旁路，最终改为重载主任务确认主题后再创建旁路，没有为驱动改产品。其失败证据保留；不声称旁路标签的重载恢复已验。不是原生computer-use或商业供应商验收。
+
+剩余/下次开始：优先模型错误的可操作诊断、详情/复制及既有模型设置入口，随后会话计划目录（当前activePlan覆盖旧计划），再真实首开/长会话性能测量。旁路标签重载后的可发现/恢复另需检查；宿主中的子任务继续运行不等于界面标签已恢复。API自动重试次数暂无实际事件，不能模拟显示；Goal/旁路提交/插件市场沿既有能力，不另重写。原生ZCode同态、真实模型、OAuth/共享授权及Windows/安装包仍未验，整体active。隔离测试窗口已关闭，正常dev保留、用户数据未改、本批未提交/推送；生产验收与未安全重启的原正常宿主进程分开。
+
+## 历史交付：任务首末快照与首屏净变更（2026-10-12 14:35 +08:00）
+
+完成：按 ZCode TaskListItem/taskChangeSummary/lineChangeStat 的任务贡献语义，侧栏新增真实净增删，悬浮摘要、资源标签和变更入口统一按唯一文件数显示。宿主保存任务第一次修改前的私有基线，每次成功修改更新最终快照；右侧面板展示首末净差异并保留逐次工具记录，重复编辑不重复累计，回退原文或新建后删除为零。不同任务与 fork 不合并贡献，任务移到其他项目后同名文件保持独立。上游工具落盘后观察到取消也捕获真实变化，不伪称磁盘已回退。旧记录缺少基线、二进制/大文件/不可读取明确显示未知，超过有界 LCS 预算标为估算。
+
+数据与性能：原文仅在宿主 SQLite，列表只传统计元数据；选中任务净 patch 使用成熟 diff 库的三行上下文、25ms 算法预算和总 64KiB 脱敏传输上限。15,000 行文件的一处编辑只返回附近正确行号的紧凑 patch，恢复原文的 patch 为空。复用列表已有会话解析，未再重复加载。单文件快照上限 1MiB；不将整个项目 Git 状态当任务贡献，也不声称覆盖 bash/MCP/外部编辑产生的全部文件变化。
+
+验证：最终相关11文件414项通过 `/tmp/mira-task-final-regression-20261012.json`；React/Vue 类型、React 与 Electron/Vue 生产构建及 diff 检查通过。迁移同名文件、落盘后取消、无变化写入和截断元数据有针对性回归。首次回归的3处 MCP 测试夹具缺少现有连接身份/状态，修正夹具后通过，没有修改产品连接守卫。额外裸宿主 tsc 仍被 agentTools 既有 API 签名等依赖诊断阻止，不称宿主严格类型全过。
+
+真实桌面：`/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-task-changes-desktop-20261012.LWl4iY/report.json` passed=true/errors=[]，59项通过；隔离 home/项目，真实 Electron/Vue/React/IPC/SQLite/Pi Agent 和 localhost HTTP SSE，七轮 edit/write/delete、逐轮实际字节、侧栏/面板净统计和逐次记录、回退、新建删除、完整进程重启均通过，五入口 SHA 保持一致。已亲看 net-diff-light、net-changes-dark、revert-light 三图；其余截图保存但不称逐张验收。不是商业模型或原生 computer-use 验收。
+
+剩余/下次开始：回到对话首屏 header/timeline/工具状态和悬浮摘要的 ZCode 源码差距；补真实首开/长会话性能测量。Goal、旁路提交与插件市场沿既有能力，不另重写。原生 ZCode 同态操作、真实公开模型、OAuth/共享授权、Windows/安装包未验，整体 active。本批未提交/推送，没有清空用户数据或关闭正常开发实例；原 `npm run desktop:dev` 的5173服务仍返回200，正常实例未经本批重启，宿主升级需下次安全重启，生产验证与该旧进程不混用。
+
+## 历史交付：旁路首条消息与可靠重试（2026-10-12 13:57 +08:00）
+
+完成：现有主任务可直接输入 `/side <问题>` 或 `/btw <问题>`，在右侧新建独立旁路并发送去掉命令前缀的首条消息；主任务运行时按钮为“发送旁路问题”，不停止或向主任务提交问题。已接通 React Composer、工作台、第一方授权桥、Electron canonical 队列和真实存储。主输入与旁路草稿各自保存，提交成功只清除原输入版本，期间新写的草稿保留；迟到结果归原主任务，不抢新任务焦点。
+
+边界：菜单选择裸别名只打开空旁路；直接发送裸别名、含附件或结构化上下文不由本地带问题路由接管。子会话、准备中任务、匿名草稿和没有能力回调时正常提交，不展示假的旁路动作。非空纯文本先读取权威命令目录，同名自定义命令优先；目录未就绪保稿。已保存的旁路重试保持原提交 ID、路由、模型和权限，能力丢失不降级到主发送。
+
+可靠性：宿主提交前验证新请求的模型和权限，按父任务/提交 ID 原子保留唯一旁路与输入指纹；未确定接纳重试不再次继承更新后的历史。接纳重放沿 canonical 队列，不重复模型请求；同 ID 改正文/模型/权限拒绝，已删除或归档的旁路不会重建。新请求在供应商停用时拒绝，已接纳请求仍可取回原结果。桥层保留可恢复提示并隐藏非白名单宿主错误。
+
+验证：最后相关 **11 个实际测试文件、962 项通过、0 失败**，`/tmp/mira-side-final-20261012.json`，不是全仓；React/Vue 类型、React 与 Electron/Vue 生产构建、diff 检查通过，原构建警告保留。真实 Electron 最终 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-side-desktop-20261012.Ti0Rlb/report.json` passed=true/errors=[]，20 项验证覆盖主/旁路同时运行、草稿隔离、两别名新建、空菜单不发送、同名自定义命令、重载和完整进程重启去重、供应商停用重放/新请求拒绝/恢复重试。最后三张明暗图已逐张查看，含暗色上下文说明浮层；真实 Electron/Vue/React/IPC/SQLite/Pi Agent，模型 HTTP SSE 为受控本机回复，不称商业供应商验收。早期失败是驱动默认折叠、异步轮询误判断、迟等标签切换与旧终态误判，修临时脚本，没有修改产品以放宽验收；证据保留。隔离 home，测试窗口及服务已关闭，未改用户数据。
+
+正常预览（2026-10-12 13:59 +08:00）：已在实际仓库运行 `npm run desktop:dev`，Electron PID69127、长驻会话98091，renderer `http://localhost:5173/` 返回200。启动前确认没有正常开发进程，没有关闭其他应用或写入验收项目/供应商；测试隔离home不用于正常预览。启动会重新生成开发版main/preload，生产验收仍以Ti0Rlb报告为准，不把正常dev窗口冒称本批生产桌面验收。React发布目录的改编说明与仓库一致，重建前5个生产入口hash与Ti0Rlb一致。
+
+剩余 / 下次开始：继续首屏 header、timeline、工具状态和悬浮摘要核对，补真实任务变更 +/-，测量首开和长会话。已查 ZCode `TaskListItem`/`taskChangeSummary`：它的数字是**该任务实际文件变更的首末快照汇总**，不能把整个项目 Git 工作树变化或工具累计写入次数冒充该任务净变化；此前“Git +/-”规划需按此修正。PPTX PDF 导出、模型附件、剩余 OAuth/真实供应商、总体性能、Windows/安装包仍未验。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`，启动 `npm run desktop:dev`。整体目标 active，本批未提交/推送；下方均为历史。
+
+## 历史交付：侧栏、Composer 与工作流悬浮摘要（2026-10-12 13:31 +08:00）
+
+完成：回到首屏核心交互，三线并行对照 ZCode 当前入口。分组任务“移动到顶部”保留所属分组，右键和更多菜单一致；任务标题悬浮显示真实工作目录，待补充、方案确认和授权分别显示“需输入 / 待确认 / 待授权”，不伪造倒计时。Composer 直接输入或粘贴 `/plan <正文>` 按计划模式提交且消费前缀，保留正文内部空白；裸 `/plan` 仅开启模式，不创建任务或调用模型，附件/结构化上下文和活动目标明确保稿阻止。纯空白主任务且既有工作流能力可用时 `+` 首层提供“工作流”，只插入 `/workflow `。原提交重试保留 submission ID、模型与模式。
+
+摘要：会话拥有一份工作流列表和事件订阅，同时供 timeline 与常驻摘要使用，合并在途刷新并隔离旧任务迟到结果，读取失败保留已知列表并可重试。仅工作流、没有对话消息的任务也显示悬浮胶囊；展开显示真实待运行/运行中/已结束数量，点击打开对应右侧详情。普通任务结束不会隐藏仍运行的工作流，待用户输入仍优先显示。没有改动 Vue Shell、标题栏职责或重复开发已交 Goal。
+
+验证：最终相关 **12 个实际测试文件、512 项通过、0 失败**，报告 `/tmp/mira-firstscreen-final-20261012.json`，不是全仓；React/Vue 类型及 React、Electron/Vue 生产构建、diff 检查通过。最终真实桌面 `/private/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-firstscreen-desktop-20261012.Qd1ojZ/report.json` passed=true/errors=[]，10 项断言覆盖实际偏好持久化、裸命令不执行、工作流插入、计划工具/等待标签、工作流胶囊/详情/结束。生产 Electron/Vue/React/IPC/SQLite/编译器/worker/Pi Agent 真实，本机模型 HTTP SSE 回复受控，不称真实商业供应商验收。前一份同源码 lB2y4B 的八张明暗图已批量亲看；最终等待有限动画完成补图，详情/结束/Composer 三图已确认，5 个生产入口 SHA 与当前匹配。临时偏好键名、按钮动态名称、等待确认时误等可编辑、macOS `/var` 链接路径均是驱动问题，只修临时脚本；没有为通过验证削弱产品约束。测试窗口和服务已退出，未修改用户 home。
+
+原生对照：实际安装 ZCode 3.14.5 的首屏及 `⌘K` 搜索已用 macOS 系统自动化截图并查看（`/tmp/mira-zcode-firstscreen-native-20261012.png`、`/tmp/mira-zcode-search-native-20261012.png`），观察搜索分类/快捷提示后 Esc 关闭并恢复原前台应用，没有发送请求或改其项目。`computer-use@电脑` 当前仍无可调用工具，系统自动化不冒称该插件或完整同状态逐功能对等。
+
+剩余 / 下次开始：先接 `/side <问题>` 与 `/btw <问题>` 的旁路首条消息，保留用户自定义同名命令优先级及主输入；再核对 header/timeline/工具状态、侧栏悬浮真实 Git +/- 数据与摘要语义，测量首开和长会话。PPTX PDF 导出、模型附件、剩余 OAuth/真实供应商、整体性能、Windows/安装包继续分批。启动实际仓库根 `npm run desktop:dev`；分支 `codex/mira-harness-first-slice`，本批未提交/推送。整体目标 active，此切片通过不等于完整复刻完成；下方均为历史。
+
+## 历史交付：PPTX 元素引用完整链路（2026-10-12 13:05 +08:00）
+
+用户返回并要求继续，整体目标已恢复 active。完成元素选择→独立修改意见→Composer 引用→模型输入→历史卡片→原幻灯片导航，保留既有 ZCode 工作台、两层 Shell 与 Mira 命名。实际仓库 `/Volumes/VrenDisk/project/Mira/Mira-Harness`，分支 `codex/mira-harness-first-slice`；恢复时 HEAD 已为外部提交的 `20199f5`，本批只保留工作树增量，未提交/推送。
+
+交互：阅读器使用真实元素索引与坐标，表格单元优先命中，可在选中元素内划选原生文字。Radix 悬浮 AI 编辑意见，IME Esc 不误取消；取消只返回选择态，添加失败保留意见，加入输入框不自动发送。每个元素独立保存 comment/selectedText，重复引用同一源版本/页/节点/单元更新该项意见。Composer 正文、网页上下文与元素引用同时保留；编辑正文、移除其他上下文、草稿恢复和队列恢复不露出或丢失 JSON。历史卡片与草稿均可打开原文件原页；不按旧坐标伪造元素高亮。
+
+契约与执行：独立 `src/config/miraPresentation.ts` 定义任务、canonical 工作目录身份、相对 PPTX 路径、实际文件 SHA-256、元素身份/文字/边界与意见；最多 8 项、共 64KiB，无数据库迁移。宿主 `miraPresentationReferences.ts` 校验所属任务、目录身份、有界 nofollow 文件读取、前后身份与实际字节；首次提交在重放判断之后、接纳之前检查，排队执行、异步准备后及首次模型请求前再检查。引导带引用时降级普通队列；编辑重跑在截断历史前、自动化在写消息前校验。仅验证本次输入，旧引用不阻挡普通后续对话或目标继续。引用卡片定位重新授权当前文件，源版本/目录变化明确提示重新引用；独立意见是模型输入数据，不授予额外文件权限。
+
+验证：最后相关 **15 个测试文件、713 项通过、0 失败/跳过**，报告 `/tmp/mira-presentation-reference-final-20261012.json`；不是全仓。React/Vue 类型及媒体/引用宿主依赖链严格类型、React 和 Electron/Vue 生产构建、diff 检查通过，既有构建警告保留。最终真实桌面报告 `/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-element-desktop-20261012.fhdM9B/report.json` 为 passed=true/errors=[]；隔离 home、自制真实 OOXML、生产 Electron/Vue/React/第一方桥/SQLite 与本地 HTTP SSE，真实点击选择/意见/卡片、正文编辑保留、原页定位、重载草稿恢复、历史和合法源改版提示通过。模型请求实收 owner/hash/comment，共两次请求含标题生成；回复为确定性夹具，未验证商业模型实际改写 PPTX。七张明暗截图已批量亲看；报告记录的 195 个产物 SHA 与当前逐项一致。窗口/服务已关闭，未动用户 home。早期启动路径、selector 重复、消息 text-parts 形态与破坏 ZIP 的夹具误判均为驱动问题，仅改临时脚本，未据此修改产品。
+
+剩余与下次入口：本切片收口，先回到可体验首版的侧栏、timeline/工具状态、Composer、Goal 与资源面板联动走查，按实际缺口修复，不继续因文件支线延迟主界面。再分批补 PPTX 受控 PDF 导出、模型附件、插件 OAuth/预注册客户端/共享授权事务及真实供应商。PPTX 引用传递不等于保真编辑；完整 Office 兼容、真实旧 DOC 链接、整体性能、Windows/安装包仍未验。当前是 Playwright Electron/CDP/capturePage，原生 computer-use 不可调用，不能称已完成原生 ZCode 同态逐项对比。启动仓库根 `npm run desktop:dev`，选项目/任务后打开 PPTX→“选择元素”→“AI 编辑”→“添加到对话”，再显式发送。整体目标 active，下方均为历史。
+
+## 历史暂停与接续（2026-10-12 11:35 +08:00）
 
 用户要求完成手头工作后暂停关机。上一节11:27交付的目标首层入口、DOC/PPTX阅读为当前可验版本。本次续作只读对照了ZCode元素引用链路，三个代理已停止，没有开始新增元素引用代码，没有新提交/推送。恢复时先从本节开始，勿把方案当成已完成功能。
 
@@ -10,7 +634,7 @@
 
 宿主验证由当前session推导根目录，只收相对路径，授权目录/nofollow/25MiB/前后root与file身份和SHA256校验。首次submit在replay判定后、admission前校验；runPrepared实际执行再校验，含排队延迟。presentation引导回queue，避免直接steer绕过；editAndRerun在截断前、automation在写消息前、rerun在执行前校验。只检查本次待执行输入，不让所有旧历史引用阻塞普通续聊。历史/草稿芯片可打开原文件原页，源变化明确提示，不能按旧元数据误高亮；匹配时若高亮，必须从当前真实元素身份查找，不按名称猜。上述契约、媒体指纹、宿主校验、选择UI、Composer/历史与反向定位均**尚未实施**，恢复后需要一并完成定向回归、类型/构建与明暗桌面走查。PDF导出仍单列后续，不能打印整个Shell代替幻灯片。
 
-## 当前交付：目标首层入口、旧 Word 与 PowerPoint 阅读（2026-10-12 11:27 +08:00）
+## 历史交付：目标首层入口、旧 Word 与 PowerPoint 阅读（2026-10-12 11:27 +08:00）
 
 完成：新任务正文为空且无附件时，Composer `+` 首层直接提供“目标”，选择只插入 `/goal `，不创建任务或请求模型；已有任务仍可通过 `/goal` 管理目标。执行沿已交逐轮计划、独立核验、暂停/恢复/清除与预算，不新增常驻开关。替换未完成目标仍须显式 `/goal replace`，与 ZCode v4 自动替换存在已知差异。
 
@@ -1674,35 +2298,40 @@ Composer 与同一条历史消息共用图片组预览：箭头/方向键循环�
 - 2026-10-09 用户确认：插件市场本轮接公开开源来源，支持真实浏览和安装，不只做本地 Skill/MCP 管理。已接 `anthropics/skills` 固定审查提交 `683bc88e56f3e09ba94f7055977f3d3aa499f202`，19 个目录中 14 个 Apache-2.0 包可安装；特殊许可的 docx/pdf/pptx/xlsx 与无包许可的 doc-coauthoring 排除。刷新重新校验同一提交，不自动跟随 main。MCP 仍管理实际配置，不冒充在线 MCP 市场。
 - 现有统一设置继续是配置事实来源，包括浅/深主题与发送快捷键。React 不另建主题、快捷键或模型设置系统。
 - 保留既有计划、权限、记忆确认、委派、审批和草稿保存能力；UI 重排不授权删掉真实能力。
-- 不默认引入上游账号、付费、云端分享、远控、画板、Goal 持续运行或工作流引擎。缺底层数据的内容不造占位功能；这些产品扩展须单独讨论。
+- 不引入上游账号、付费、云端分享、远控或画板。Goal和工作流后来经用户要求已接入，以下早期“未接”记录不再代表当前状态；缺底层数据的内容不造占位功能。分享链接仍按用户明确要求排除。
 - 上游“移除项目入口”保留历史，Mira `deleteProject` 会删除关联会话、回收站和自动化。两者不得共用一个假装等价的按钮。
 
 ## 三块验收矩阵
 
-下表区分已接入的真实交互与剩余缺口，最新状态见本页顶部记录。代码实现不等于原生同态验收；历史宿主检查保留原构建身份，不扩大为全部工作台状态或完整同态。
+本表于2026-10-13按当前源码重新核对，替换过时的“Goal/workflow、自定义Agent、插件Hook/MCP、PDF/视频未接”和卡片式launcher描述。实现依据为当前代码，历史验收保持本页各批次的产物身份；不能把各批次数字累加或当作最新产物全量验收。本次首屏限定桌面检查的范围见顶部，完整原生ZCode同状态对照仍未完成。
 
-| 区域 | 对齐内容 | 当前发现与要求 |
+| 区域 | 对齐内容 | 当前实现与剩余边界 |
 | --- | --- | --- |
-| 侧栏顶部 | 新建、搜索、自动化、插件市场；hover、选中、快捷键 | 已接共享命令中心、React自动化、公开独立Skill与固定来源Skill插件包浏览/详情/完整下载；已安装条、管理、@引用和导航中安装结果有07:37限定Electron验证。安装包静态命令已接/选择/参数/宿主展开与冻结上下文；通用外部来源、动态Shell/模型工具覆盖、Agent/Hook及插件MCP执行未接，原生hover/快捷键完整对照未完成 11:55补双目录局部错误/加载/重试、详情隔离与已安装离线刷新/启停，明暗Electron10项/6图已验；12:06市场Radix键盘切换、详情准确回焦/滚动和真实固定源Skill安装有明暗Electron12项/10图验证；12:14已安装条焦点裁剪修复，明暗Electron6项/4图已验 |
-| 任务视图 | 自定义分组 / 项目、排序、时间线、全部折叠 | 已接独立组名/7 色/新任务/折叠/移入移出/解散/组与组内手动排序，偏好保存；时间线按日期分桶、20 条分页、项目来源副标题，仍只有分组/项目两个一级标签。项目/组全部展开折叠独立保存；原生重载保持明确折叠，不改变活动会话。空组任务重启保留有存储回归；折叠项目/组按完整成员显示未读/执行/待确认，展开不切任务或清未读，11:30明暗生产Electron12项已验 |
-| 项目区与长列表 | 原生目录新增、分区开合/排序、hover 操作、悬浮组标题与完整任务可达 | 已接项目/个人分区独立持久折叠与鼠标/键盘排序、空/折叠个人新草稿、项目任务每次 +5/折叠重置；父/子全部开合一个事务，添加后目标可见。运行/审批保留原归属。自定义组与未分组完整展示，组内/混合根层 >80 虚拟化，焦点/菜单/异步操作及错误保留；悬浮组标题接真实组动作。目录新增/改名/文件树/打开方式/隐藏恢复保留；11:40补目录不可用警告/菜单说明、禁用目录操作但历史/元数据可用，真实改名刷新及菜单不被Tooltip遮挡有明暗Electron10项/6图验证，完整原生选择、拖拽与 ZCode 同态待验 11:48补添加项目实际清单刷新、隐藏身份恢复/展开及侧栏安全失败/重试，明暗Electron10项/8图已验； |
-| 任务行 | hover/focus、状态/未读/待确认、置顶/改名/移动/归档/复制/打开方式 | 跨组/空组/根交错及组边缘拖拽、任务 hover 快捷操作、原位归档确认和不切任务的文件树已通过限定 Electron 验证；组首/根首临时草稿、准备时隐藏、首发接纳后提升、关闭复开及 F5 自动恢复已通过。任务更多统一Radix悬浮/键盘提示，菜单独立menuOpen保留按钮及定位；原生菜单/快捷键完整同态仍待验 |
-| 归档 | 切换视图、分页、打开、恢复、确认永久删除 | 查询/恢复/分页/二步单项删除与全量快照批量永久删除已接；精确数量、取消/晚响应、写入状态复查与逐项结果已有回归及独立 Electron UI 验证 |
-| 底部与设置 | 设置、技能、MCP、用量、浅深模式及返回 | 已接分离入口和 pathname/query 白名单、React 来源返回；统一设置仍是事实来源。本批实际 Vue 引导设置保存、浅深往返与重载通过，完整设置矩阵/原生草稿恢复待验 |
-| Header | 标题、目录/路径/分支信息、更多、编辑器/终端/面板 | 已接目录详情/复制/打开、任务菜单与分组移动；标题重命名的 IME、拒绝保稿、真实成功与迟到旧任务隔离已有本批明暗宿主验证。Git 分支归摘要环境入口，状态/文件树不在 Header 常驻。当前任务更多统一Radix悬浮/键盘提示有11:30明暗Electron验证；完整原生同态待验 |
-| timeline | 用户附件/引用、轮次 rail、hover 预览、点击定位、滚动恢复 | 已接会话/root 隔离的 renderer 阅读记忆、正文/rail 分别虚拟化，运行轮保持正常流；Radix Hover Card、Home/End/Page 与迟到保护已接。焦点或正在编辑的轮次保留，编辑取消后释放编辑保留、焦点离开后释放焦点保留，本批 100 轮明暗宿主验证有界 DOM。rail/搜索/摘要先挂载再定位，guide 保留独立 query 导航；正文/变更查找、跨节点高亮、流式/终态定位和阅读接管沿用既有协议，不承诺进程重启恢复 |
-| 共享搜索 | Shell/侧栏同一入口、实际结果动作、搜索历史与跨 frame 焦点 | 已接工作区隔离的 20 条偏好历史，默认 6 条、展开/清空/重放/失败重试，只有成功打开结果才记录。取消由发起层还焦，当前 port 一次性身份与入口有效性保护；动作/导航不回旧按钮，重复打开保留 query 重新聚焦。晚结果/关闭不抢新焦点；完整原生/ZCode 同态仍待验 |
-| 执行过程 | 思考、工具参数/结果、进行中/等待/完成/失败/停止/部分失败 | 已接父任务有序 text/reasoning/tool parts、有界输入输出和工具内审批；拒绝/超时/Stop 保留取消记录。展开状态按会话/run/条目隔离，流式转终态及虚拟重挂载恢复。错误 Radix Popover 支持复制反馈与 Tab/Shift+Tab/Escape，文件按钮调用真实受控服务且不切父详情，本批明暗验证通过。旧无 parts 历史兼容、不生成虚假思考，真实模型与原生同态待验 |
-| 消息操作 | 复制反馈、编辑重跑、准确目标的重试与分支 | 已接复制反馈与仅最新合格回复重试；历史用户编辑保稿与宿主权威受理已有限定验证。从准确回复分支、独立历史/图片、源消息返回、草稿隔离、迟到ACK及真实Agent续写有09:30明暗生产Electron验证；不回滚文件、不重复计历史用量，原生ZCode同态仍未完成 |
-| 悬浮胶囊 | 有内容才出现；计划/待办/文件变更/子任务区和操作 | 已接真实计划/子任务停止/变更及 auto/mini/panel；Workbench 生命周期切任务保留、重载 auto。步骤优先、各区独立折叠、子任务默认收起/晚错误隔离已接。长待办当前窗口与前后预览、完整计划已接。10:26修复小桌面panel遮挡Composer：阅读区边界、可键盘滚动、低空间胶囊回退与焦点保护有明暗生产Electron10项验证；不扩大为全部窗口状态。Goal/workflow与原生同态未验 |
-| Composer 壳 | 项目条、附件、左侧 + /权限/计划，右侧用量/模型/思考/发送 | 保留统一顺序和真实能力，已接 Lexical PlainText/History、状态 placeholder/准备 spinner/hover 移除计划；短标签引用与 canonical 正文分离。匿名/prepared/accepted 保持编辑器，真正切 owner 或清稿隔离历史；本批限定浅深宿主及截图复核通过，不另画常驻 @、/ 按钮 |
-| `@` / `$` / `#` | 光标触发、分类搜索、真实上下文选择与插入 | @含已启用本地插件、四种内置子智能体、当前项目文件/对话；$为本次消息Skill原子引用；#跨本地Controller项目查询公开对话正文。角色引用不执行、不改委派/权限，受项目/计划/委派门禁约束；真实reviewer只读执行与回传已验。100k/owner/目录/revision与附件DTO保护保持，skillIds/pluginIds冻结与撤回恢复已接。自定义/插件Agent及原生同态未验 |
-| `/` | 光标 token、能力目录、保留前后正文、键盘和空态 | Lexical token替换保前后文/引用；命令/技能/内置子智能体分组，跨组默认选最佳匹配。/side连接真实旁路，主任务可用、草稿/旁路不嵌套、不自动发送。/mcp真实状态/工具数、只读刷新、选择与Vue管理保稿，后台连接/在途清理/定向重连已接且实际stdio和Agent恢复通过。/compact及/compress、用量浮窗、FIFO压缩/防重复、真实摘要/图片/停止/重试/保稿/续写有10:05明暗生产Electron验证；安装包静态命令/嵌套名/原子标签/参数/必需Skill与计划门禁、短历史/冻结展开、实时队列复核与撤回已接；动态Shell/模型工具覆盖、自定义Agent、远程OAuth与实体IME完整矩阵待验 |
-| `+` | 同一上下文面板，附件/插件/子智能体/文件/对话，焦点/键盘 | Radix统一分类面板/底部切换；插件与内置角色原子chip保正文不自动发送，真实Lexical/Agent/Electron已验。项目文件复用@的stage/owner协议，失败保range不覆盖新输入；独立附件与token分离。隐藏视图停用快捷键/portal，完整原生输入与ZCode同态未验 |
-| ↑/↓输入历史 | 空正文或翻阅中、编辑退出、目录隔离、重载保持 | 12:53已接宿主SQLite最近30条、连续去重/有界载荷/仅接纳记录；主旁路共享目录历史、跨任务实时刷新及独立草稿，斜线回忆不自动展开候选。迟到选区覆盖已修复，实际Agent/本机SSE、明暗Electron16项、F5及进程重开已验；实体IME与ZCode同态待验 |
-| 运行中输入 | 可继续写；空稿停止，有稿入队/指导；队列撤回 | 已接宿主权威队列、撤回恢复/排序/原子立即发送、暂停确认/恢复，以及统一设置控制的 queue/guide。引导在当前助手/工具批次完成后由同一运行消费，待消费项内联展示且可撤回；停止保留为暂停队列，不支持的输入明确降级。晚ACK/重载不重复提交。队列为进程内状态，不宣称应用进程重启恢复 |
-| 输入边界 | 统一发送偏好、IME、Enter/换行、Esc、模型/推理快捷键、保存 | 保留 host-owned `sendShortcut/showContextUsage`、revision/flush；已接原子引用删除、canonical 纯文本复制/剪切、写失败不删稿及 plain paste。owner version 1 文档匹配正文/附件，偏好超限先省略可选元数据；静态回归与限定隐藏宿主通过。复制/剪切和首发 ACK 是明确受控夹具，实体剪贴板/IME 与真实模型尚待验 |
-| 附件完整性 | 文本/多媒体、拖拽/粘贴、预览/失败、附件-only | 图片/UTF-8 文本冻结、模型能力拒绝/切换重试、选择/拖拽/粘贴、附件-only、消息与 Composer 图片组预览/保存及启动 GC 已接；prepared owner 的正文/附件关闭复开与 F5 自动恢复已有正式 UI 验证。旧图片批次重启失败保留，当前不扩大为所有图片/原生选择保存/真实模型同态通过；PDF/视频未接 |
+| 侧栏顶部 | 新建、搜索、自动化、插件市场；hover、选中、快捷键 | SessionSidebar已有四个真实入口、Radix提示及共享命令中心；自动化/工作流中心和公开Skill/插件市场已接。插件Agent、Hook、项目MCP及动态Shell命令后来均已交，不能再统称未实现。插件命令model覆盖和部分allowed-tools字段仍明确不可用，见miraPluginCommands；全入口原生hover/菜单同态待验。 |
+| 任务视图 | 自定义分组 / 项目、排序、时间线、全部折叠 | 仍是分组/项目两个一级标签；项目时间线为日期分桶与20条分页。独立组名/颜色/成员/手动排序、分区与集合独立展开折叠、状态聚合和偏好持久化已接。完整原生拖拽、键盘与ZCode同态待验。 |
+| 项目区与长列表 | 原生目录新增、分区开合/排序、hover操作、悬浮组标题与完整任务可达 | 目录选择/隐藏恢复、目录不可用状态、独立文件树、展开分页及长分组虚拟化已接；本页各批次保留准确范围。任务没有被文件树打开动作切换。原生目录选择器、长列表和拖拽的完整同态待验。 |
+| 任务行 | hover/focus、状态/未读/待确认、置顶/改名/移动/归档/复制/打开方式 | 主要任务菜单、分组内移动到顶部、归档确认、真实目录提示与任务净文件变化已接，主/侧任务归属保留；准备草稿到首发接纳有独立生命周期。05:45批次补任务文件／共享UTC日运行日志路径复制及真实模型轨迹入口，侧栏／Header共用菜单。08:40项目／分组菜单层级与改名组合输入／重复提交／迟到保护已交，278项及当前构建Electron23项见顶部。完整原生菜单和快捷操作同态待验。 |
+| 模型轨迹 | 真实请求／响应／工具轮次、来源、刷新／搜索／展开与本地路径 | 真实IO／独立任务标签、逐处搜索、增量与完整请求、虚拟列表已交。06:36补独立六类与直接全量按钮、默认展开／连续菜单、原文复制反馈、真实任务标题和用量，修首次滚动偏移与搜索定位争抢。该批Electron41项、200调用负载50项与76项回归按06:36产物记录，不冒称06:56欢迎区构建重验；原生ZCode同态及远端复杂负载仍待验。 |
+| 归档 | 切换视图、分页、打开、恢复、确认永久删除 | 已接查询/恢复/分页、二步单项删除和全量快照批量删除；此前静态及隔离Electron证据见对应批次，不再标为“批量动作缺失”。完整原生/ZCode对照待验。 |
+| 底部与设置 | 设置、技能、MCP、用量、浅深模式及返回 | 独立入口沿Vue统一设置事实来源；应用级主题命令已交，设置往返沿保存确认协议。React不重复实现模型/主题配置。完整原生设置矩阵、跨应用Novel搜索和Windows待验；Novel独立应用不在此仓库虚构实现。 |
+| Header | 标题、目录/路径/分支信息、更多、编辑器/终端/面板 | MiraTaskTitleEditor、目录操作、当前任务菜单、帮助、编辑器、底部终端和资源面板已接；状态和文件树没有恢复到标头，Git分支归摘要环境。07:09按上游接入隐藏未发任务编辑器、已有任务编辑器→帮助→终端顺序；面板开时不重复开关，自身关闭后归还入口焦点，输入快捷键保持焦点。最终195项及同产物Electron22项／整页导航23项见顶部，完整原生同态待验。 |
+| timeline | 用户附件/引用、轮次rail、hover预览、点击定位、滚动恢复 | rail/正文虚拟化、HoverCard、定位与阅读记忆、跨轮迟到保护、编辑/焦点保留均已接。用户长消息/引用展示与历史富文本编辑后来已交。renderer阅读记忆不承诺进程重启恢复；完整原生同态待验。 |
+| 模型分隔 | 实际运行选型、同名供应商身份、轮顶位置、历史恢复 | 05:13批次已接宿主真实模型元数据、主／侧timeline分隔及目录名称水合；首轮／未发送不产提示、旧历史不造事实。最新隔离桌面21项见顶部，完整原生ZCode同态待验。 |
+| 共享搜索 | Shell/侧栏同一入口、实际结果动作、搜索历史与跨frame焦点 | Harness侧栏、Shell搜索和Cmd/Ctrl+K共用当前应用弹层；工作区历史有界、成功打开才记录、关闭和迟到结果保焦点。Novel当前回退平台导航，不展示Harness业务结果；独立Novel搜索未接。完整原生同态待验。 |
+| 执行过程 | 思考、工具参数/结果、进行中/等待/完成/失败/停止/部分失败 | 有序消息parts、思考/工具组、运行/失败/停止展开规则、准确run归属、审批与停止保部分回复已接。后台命令生命周期、结果回报、Ctrl+B和独立完整输出后来已交；待发送后台通知仍仅内存，不承诺未消费通知跨进程恢复。真实商业模型与原生同态待验。 |
+| 消息操作 | 复制反馈、编辑重跑、准确目标的重试与分支 | 复制、精确重试、回复分支、历史引用/附件编辑与文件恢复预览/确认/冲突保留均已接；普通编辑默认保留文件，不能再统称“不支持文件恢复”。文件恢复不回滚整项目Git。完整原生剪贴板、IME及同态待验。 |
+| 悬浮胶囊 | 有内容才出现；计划/待办/文件变更/子任务区和操作 | TaskSummary已接真实计划、净变化、子任务/命令、Goal与workflow列表；按canonical任务/run打开侧面详情。目标暂停/恢复/核验与工作流运行/审批已有单独交付，不再标未实现。低空间胶囊、正文及Composer位置保护已接；完整原生同态待验。 |
+| 新任务欢迎区 | 标志／本地问候、按对话画布适配、隐藏清理 | MiraDraftWelcome按六个时段切换；画布宽度测量、20–28px字号、回焦刷新和隐藏释放已接。06:56相关141项及同构建Electron欢迎14项／整页导航23项／运行状态50项通过；实际两种主题分屏25px一行，关面板恢复28px。没有将上游未接入的CollapsedRail当成首屏要求，原生完整同态仍待验。 |
+| Composer壳 | 项目条、附件、左侧+/权限/计划，右侧用量/模型/思考/发送 | Lexical编辑器、项目/分支条、附件、权限/独立计划、模型/推理/用量/发送顺序保持。已接自适应toolbar、状态placeholder、首发owner迁移及保存保护。不增加常驻@和/按钮；完整实体IME/原生同态待验。 |
+| `@` / `$` / `#` | 光标触发、分类搜索、真实上下文选择与插入 | @已有插件Skill、文件、对话、内置及用户/插件智能体；本地Skill由$、Slash及/skills引用，#为本地公开对话。选择只插引用，真实委派由主Agent完成，冻结来源和owner。用户Agent专属模型/工具上限已接；插件Agent支持字段仍由miraPluginAgents明确列出，不能冒称支持上游全部元数据。完整实体输入和同态待验。 |
+| `/` | 光标token、能力目录、保留前后正文、键盘和空态 | 内置/用户/插件命令、嵌套名/参数/动态Shell、MCP、压缩、目标、工作流、旁路/首条提问已接；用户/项目命令本地Skill依赖已交，停用/重名提示、队列保留与恢复、单次上下文保持。主输入／历史编辑均合并命令/技能/子智能体三类，来源／空态／不可用保持，Slash首尾停止、禁用跳过。Slash技能$标记及canonical名称插入已交，主输入管理／列表滚动沿前批。合并选区事件和历史完整查询／替换范围保持已交，并通过Playwright连续词内方向键检查；短token跳出沿上游关闭规则。model/allowed-tools仍明确不可用，给定上游提交链同样未应用，不标为已证实差距。真实远程OAuth/实体IME及完整原生同态待验。 |
+| `+` | 同一上下文面板，附件/插件/子智能体/文件/对话，焦点/键盘 | 统一分类面板与底部切换已有用户/插件Agent及真实引用；符合条件的空稿提供目标/工作流入口。文件插入复用stage/owner和失败保选区；隐藏视图停用快捷键/portal。完整原生输入与同态待验。 |
+| ↑/↓输入历史 | 空正文或翻阅中、编辑退出、目录隔离、重载保持 | SQLite最近30条、去重/有界载荷、目录共享与任务草稿隔离、实时刷新及重载恢复已接；实体IME与完整原生同态待验。 |
+| 运行中输入 | 可继续写；空稿停止，有稿入队/指导；队列撤回 | 宿主权威FIFO、撤回/排序/立即发送/暂停恢复和同一运行guide已接；统一设置控制followupMode。队列与未发后台通知仅进程内，不宣称进程重启恢复。真实供应商并发/停止和原生同态待验。 |
+| 输入边界 | 统一发送偏好、IME、Enter/换行、Esc、模型/推理快捷键、保存 | host-owned偏好、revision/flush、原子引用删除/复制/剪切/纯文本粘贴、空候选发送与Shift+Enter优先已接。Ctrl+M/Shift+M/T和控件提示已有实际Electron检查；全部实体剪贴板、IME和ZCode同态待验。 |
+| 附件完整性 | 文本/多媒体、拖拽/粘贴、预览/失败、附件-only | 模型附件支持图片/UTF-8文本及PDF/视频原始file/video_url；独立能力默认关闭，历史/编辑/压缩/队列与草稿保持冻结字节，最新隔离桌面15项见顶部。视频容器与codec兼容分开，单媒体20MiB/总40MiB；Office/音频仅资源阅读，PPTX元素意见为结构化上下文。原生选择/保存、完整格式与商业模型待验。 |
+| 关联资源面板 | 文件/变更/终端/浏览器、方案/执行/工作流/子任务、关闭与恢复 | 纵向launcher、真实资源标签/重开/排序、授权文件预览/监听、独立旁路/分屏及各类详情已接。Cmd/Ctrl+W先资源后窗口，底部终端独立。右侧展开时不允许拖到零、显式关闭释放布局，沿ZCode当前语义；不要照搬底部终端的约束修复。完整原生同态、浏览器商业站点和Windows待验。 |
+| Shell与性能 | 两层Shell、应用切换、主题/目录/任务导航、整窗缩放、长会话/首开 | Electron底层、Vue layout/设置和React应用分工保持；主题/项目/相邻任务/导航及持久化整窗缩放已交，刷新读取最新档位，macOS安全区保持。06:16启动／输入／100/500/2000轮历史与资源切换34项、06:36轨迹负载50项按各自产物记录；06:56新构建复验的是欢迎区与整页导航／状态，不套用旧性能数字。原生缩放按键／IME／ZCode对照、远端复杂流式与多任务／大媒体、完整请求模式峰值／最大载荷及Windows实机仍待验，不证明性能已无可改进。 |
 
 ## 实施与验收顺序
 

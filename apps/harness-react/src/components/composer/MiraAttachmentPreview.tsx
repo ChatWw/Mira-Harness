@@ -6,6 +6,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { ArrowLeft, ArrowRight, Download, ImageOff, LoaderCircle, Minus, Plus, RotateCw, X } from 'lucide-react'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
+import { isHarnessImageMediaType } from '../../../../../src/config/harness'
+import { MiraBinaryAttachmentPreview } from './MiraBinaryAttachmentPreview'
 
 export type MiraAttachmentGalleryItem = {
   path: string; name: string; attachment?: HarnessMessageAttachment; error?: string; onRetry?: () => void
@@ -28,7 +30,8 @@ export function MiraAttachmentPreview({ attachment, gallery, onSave, onClose }: 
   const lifetime = useRef(0)
   const currentItem = useRef(attachment?.path)
   const drag = useRef<{ id: number; x: number; y: number; offset: typeof offset } | null>(null)
-  const imageMode = Boolean(attachment?.mediaType)
+  const imageMode = isHarnessImageMediaType(attachment?.mediaType)
+  const binaryMode = Boolean(attachment?.mediaType && !imageMode)
   const items = imageMode && gallery?.length ? gallery : attachment ? [{ path: attachment.path, name: attachment.name, attachment }] : []
   const selectedPath = selection.origin === attachment?.path ? selection.path : attachment?.path
   const index = Math.max(0, items.findIndex(item => item.path === selectedPath))
@@ -79,7 +82,7 @@ export function MiraAttachmentPreview({ attachment, gallery, onSave, onClose }: 
   return <Dialog.Root open onOpenChange={open => { if (!open) onClose() }}>
     <Dialog.Portal container={document.getElementById('root')}>
       <Dialog.Overlay className="mira-attachment-preview__overlay" />
-      <Dialog.Content className={`mira-attachment-preview${imageMode ? ' mira-attachment-preview--gallery' : ''}`} onOpenAutoFocus={() => { restoreFocus.current = document.activeElement as HTMLElement | null }} onCloseAutoFocus={event => {
+      <Dialog.Content className={`mira-attachment-preview${imageMode ? ' mira-attachment-preview--gallery' : binaryMode ? ' mira-attachment-preview--binary' : ''}`} onOpenAutoFocus={() => { restoreFocus.current = document.activeElement as HTMLElement | null }} onCloseAutoFocus={event => {
         event.preventDefault(); if (restoreFocus.current?.isConnected) restoreFocus.current.focus()
       }} onKeyDown={event => {
         if (!imageMode || event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
@@ -95,12 +98,12 @@ export function MiraAttachmentPreview({ attachment, gallery, onSave, onClose }: 
           }}>{saving ? <LoaderCircle size={18} className="animate-spin" /> : <Download size={18} />}</button>}
           <Dialog.Close type="button" aria-label="关闭附件预览" title="关闭附件预览"><X size={18} /></Dialog.Close>
         </div>
-        <Dialog.Description className="sr-only">{imageMode ? '使用左右方向键切换图片，缩放后可拖动查看。' : '已添加文本附件的内容预览'}</Dialog.Description>
+        <Dialog.Description className="sr-only">{imageMode ? '使用左右方向键切换图片，缩放后可拖动查看。' : binaryMode ? '已添加文件的原始内容预览' : '已添加文本附件的内容预览'}</Dialog.Description>
         {imageMode && items.length > 1 && <>
           <button type="button" className="mira-attachment-preview__previous" aria-label="上一张图片" title="上一张图片（←）" onClick={() => navigate(-1)}><ArrowLeft size={18} /></button>
           <button type="button" className="mira-attachment-preview__next" aria-label="下一张图片" title="下一张图片（→）" onClick={() => navigate(1)}><ArrowRight size={18} /></button>
         </>}
-        <div className="mira-attachment-preview__body" ref={viewport} onPointerDown={event => {
+        <div className={`mira-attachment-preview__body${binaryMode ? ' mira-attachment-preview__body--binary' : ''}`} ref={viewport} onPointerDown={event => {
           if (!imageMode || !decoded || scale <= 1 || event.button !== 0) return
           event.currentTarget.setPointerCapture(event.pointerId)
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, offset }
@@ -111,7 +114,7 @@ export function MiraAttachmentPreview({ attachment, gallery, onSave, onClose }: 
           {imageMode ? item?.error || decodeError ? <div className="mira-attachment-preview__notice" role="alert"><ImageOff size={24} /><p>{item?.error || '图片无法解码，请重试或切换其他图片。'}</p><button type="button" onClick={() => { setImageState(undefined); setAttempt(previous => previous + 1); item?.onRetry?.() }}><RotateCw size={14} />重试</button></div>
             : value?.content ? <><img key={`${item.path}:${attempt}`} ref={image} src={`data:${value.mediaType};base64,${value.content}`} alt={item.name} draggable={false} onLoad={() => { reset(); setImageState({ attachment: value, attempt, failed: false }) }} onError={() => setImageState({ attachment: value, attempt, failed: true })} style={{ visibility: decoded ? 'visible' : 'hidden', transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }} />{!decoded && <LoaderCircle size={24} className="mira-attachment-preview__loading animate-spin" aria-label="正在加载图片" />}</>
               : <LoaderCircle size={24} className="animate-spin" aria-label="正在读取图片" />
-            : <pre>{value?.content}</pre>}
+            : binaryMode && value ? <MiraBinaryAttachmentPreview key={value.path} attachment={value} /> : <pre>{value?.content}</pre>}
         </div>
         {imageMode && <div className="mira-attachment-preview__zoom" aria-label="图片缩放">
           <button type="button" aria-label="缩小图片" title="缩小图片" disabled={!decoded || scale <= 0.5} onClick={() => zoom(-0.5)}><Minus size={16} /></button>

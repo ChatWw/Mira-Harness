@@ -17,6 +17,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
   const [terminals, setTerminals] = useState<MiraTerminalState>({ tabs: [], selected: {} })
   const panelRef = useRef<PanelImperativeHandle>(null)
   const height = useRef(240)
+  const expanded = useRef(false)
   const exitedOwner = useRef<string | undefined>(undefined)
   const currentTabs = terminals.tabs.filter(tab => tab.sessionId === sessionId)
   const selected = currentTabs.find(tab => tab.id === terminals.selected[sessionId]) ?? currentTabs[0]
@@ -41,8 +42,8 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
     })
   }, [retainedSessionIds, sessionId])
   useEffect(() => {
-    if (open) panelRef.current?.resize(`${height.current}px`)
-    else panelRef.current?.collapse()
+    if (open && panelRef.current) { expanded.current = true; panelRef.current.resize(`${height.current}px`) }
+    else { expanded.current = false; panelRef.current?.collapse() }
   }, [open])
   useEffect(() => {
     if (exitedOwner.current === sessionId) { exitedOwner.current = undefined; onClose() }
@@ -67,7 +68,11 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
   return <Group orientation="vertical" className="mira-terminal-layout">
     <Panel id="mira-primary-thread" minSize="50%" className="mira-primary-thread">{children}</Panel>
     {open && <Separator className="mira-terminal-resize" aria-label="调整底部终端高度" />}
-    <Panel id="mira-bottom-terminal-panel" panelRef={panelRef} defaultSize="0px" minSize="140px" maxSize="50%" collapsedSize="0px" collapsible={!open} disabled={!open} onResize={size => { if (open && size.inPixels >= 140) height.current = size.inPixels }} className="mira-bottom-terminal-panel">
+    <Panel id="mira-bottom-terminal-panel" panelRef={panelRef} defaultSize="0px" minSize="140px" maxSize="50%" collapsedSize="0px" collapsible onResize={size => {
+      if (open && size.inPixels >= 140) height.current = size.inPixels
+      if (open && size.inPixels > 0) expanded.current = true
+      if (open && size.asPercentage === 0 && expanded.current) { expanded.current = false; onClose() }
+    }} className="mira-bottom-terminal-panel">
       {terminals.tabs.length > 0 && <section id="mira-bottom-terminal" className="mira-bottom-terminal" aria-label="底部终端" aria-hidden={!open} inert={!open} onFocusCapture={onFocus} onPointerDownCapture={onFocus}>
         <div className="mira-bottom-terminal__toolbar">
           <span className="mira-bottom-terminal__title">终端</span>

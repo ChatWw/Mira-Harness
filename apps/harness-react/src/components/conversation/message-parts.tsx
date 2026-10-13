@@ -1,9 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
-import { Check, CircleAlert, Copy, FileText, GitCompare, GitFork, LoaderCircle, Pencil, RotateCw } from 'lucide-react'
-import type { HarnessFileChange, HarnessMessage } from '../../../../../src/config/harness'
+import { useEffect, useId, useRef, useState, type Ref } from 'react'
+import { AtSign, Check, CircleAlert, Copy, FileText, GitCompare, GitFork, LoaderCircle, Paperclip, Pencil, RotateCw, Slash, X } from 'lucide-react'
+import type { HarnessFileChange, HarnessFileReference, HarnessMessage } from '../../../../../src/config/harness'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
+import { isHarnessImageMediaType } from '../../../../../src/config/harness'
 import { MiraAttachmentPreview } from '../composer/MiraAttachmentPreview'
 import type { PilotController } from '../../state/pilot-state'
+import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../../../../src/config/miraFileRewind'
+import { MiraFileRewindPreviewButton } from './MiraFileRewindPreview'
+import { MiraPromptEditor, type MiraPromptEditorHandle } from '../composer/MiraPromptEditor'
+import { MiraHistoryPromptEditor, type MiraHistoryPromptEditorHandle } from '../composer/MiraHistoryPromptEditor'
+import { MiraBrowserContexts } from '../composer/MiraBrowserContexts'
+import { MiraPresentationContexts } from '../composer/MiraPresentationContexts'
+import { miraPromptContexts, withMiraPromptContexts } from '../../lib/mira-presentation-reference'
+import { serializeMiraPromptDocument } from '../../lib/prompt-editor-document'
+import { miraUserPrompt } from '../../lib/mira-user-prompt'
+import { MIRA_PASTED_TEXT_THRESHOLD, MIRA_TEXT_FILE_BYTES, readAttachmentFile, validateAttachmentFiles } from '../../lib/attachment-input'
+import type { MiraPresentationReference } from '../../../../../src/config/miraPresentation'
 
 export function EditIcon() { return <Pencil size={13} /> }
 
@@ -15,7 +27,7 @@ export function MessageCopyButton({ content, label = '复制回复', onError }: 
 }
 
 /** 消息附件使用实际保存的文件引用，不把附件正文再次写入气泡。 */
-export function UserMessageAttachments({ message, onOpen, sessionId, controller, active = true }: { message?: HarnessMessage; onOpen: (path: string) => void; sessionId?: string; controller?: Pick<PilotController, 'getAttachment'> & Partial<Pick<PilotController, 'saveAttachment' | 'supportsAttachmentSave'>>; active?: boolean }) {
+export function UserMessageAttachments({ message, onOpen, sessionId, controller, active = true, onRemove }: { message?: HarnessMessage; onOpen: (path: string) => void; sessionId?: string; controller?: Pick<PilotController, 'getAttachment'> & Partial<Pick<PilotController, 'saveAttachment' | 'supportsAttachmentSave'>>; active?: boolean; onRemove?: (path: string) => void }) {
   const [loaded, setLoaded] = useState<Record<string, { attachment?: HarnessMessageAttachment; error?: string }>>({})
   const [retry, setRetry] = useState(0)
   const [preview, setPreview] = useState<{ scope: string; controller?: Pick<PilotController, 'getAttachment'>; attachment: HarnessMessageAttachment }>()
@@ -65,15 +77,17 @@ export function UserMessageAttachments({ message, onOpen, sessionId, controller,
     const fileKey = key(attachment.path), state = active ? loaded[fileKey] : undefined
     const ready = state?.error ? undefined : attachment.content || !attachment.mediaType ? attachment : state?.attachment
     const loading = Boolean(attachment.mediaType && !ready && !state?.error)
-    return <button key={`${attachment.path}:${index}`} type="button" className={attachment.mediaType ? 'mira-message-attachment--image' : undefined} title={state?.error ? `${state.error}\n点击重试` : external && !frozenPreview ? `${attachment.path}\n外部附件，不在当前工作区中` : frozenPreview ? attachment.name : attachment.path} aria-label={`${state?.error ? '重试附件' : loading ? '正在读取附件' : '预览附件'} ${attachment.name || attachment.path}`} aria-busy={loading || undefined} disabled={!active || external && !frozenPreview || loading} onClick={() => {
+    const image = isHarnessImageMediaType(attachment.mediaType)
+    const previewButton = <button key={`${attachment.path}:${index}`} type="button" className={image ? 'mira-message-attachment--image' : undefined} title={state?.error ? `${state.error}\n点击重试` : external && !frozenPreview ? `${attachment.path}\n外部附件，不在当前工作区中` : frozenPreview ? attachment.name : attachment.path} aria-label={`${state?.error ? '重试附件' : loading ? '正在读取附件' : '预览附件'} ${attachment.name || attachment.path}`} aria-busy={loading || undefined} disabled={!active || external && !frozenPreview || loading} onClick={() => {
       if (!isCurrent(fileKey)) return
       if (state?.error) retryAttachment(attachment.path)
       else if (frozenPreview && ready) setPreview({ scope, controller, attachment: ready })
       else if (!external) onOpen(attachment.path)
-    }}>{state?.error ? <><CircleAlert size={18} className="mx-auto" /><span>重试</span><span className="sr-only" role="alert">{state.error}</span></> : attachment.mediaType ? ready ? <img src={`data:${ready.mediaType};base64,${ready.content}`} alt={attachment.name} onError={() => {
+    }}>{state?.error ? <><CircleAlert size={18} className="mx-auto" /><span>重试</span><span className="sr-only" role="alert">{state.error}</span></> : image ? ready ? <img src={`data:${ready.mediaType};base64,${ready.content}`} alt={attachment.name} onError={() => {
       if (isCurrent(fileKey)) setLoaded(previous => ({ ...previous, [fileKey]: { error: '图片无法解码，请重试。' } }))
     }} /> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <><FileText size={15} /><span>{attachment.name || attachment.path}</span></>}</button>
-  })}</div><MiraAttachmentPreview attachment={active && preview?.scope === scope && preview.controller === controller && attachments.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={attachments.filter(file => file.mediaType).map(file => {
+    return onRemove ? <div key={`${attachment.path}:${index}`} className="mira-history-attachment">{previewButton}<button type="button" className="mira-history-attachment__remove" aria-label={`移除附件 ${attachment.name || attachment.path}`} title="仅从这条消息移除，保留本地文件" disabled={!active} onMouseDown={event => event.preventDefault()} onClick={() => onRemove(attachment.path)}><X size={12} /></button></div> : previewButton
+  })}</div><MiraAttachmentPreview attachment={active && preview?.scope === scope && preview.controller === controller && attachments.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={attachments.filter(file => isHarnessImageMediaType(file.mediaType)).map(file => {
     const state = active ? loaded[key(file.path)] : undefined
     return { path: file.path, name: file.name, attachment: state?.error ? undefined : file.content ? file : state?.attachment, error: state?.error, onRetry: () => retryAttachment(file.path) }
   })} onSave={sessionId && controller?.supportsAttachmentSave && controller.saveAttachment ? attachment => controller.saveAttachment!(sessionId, attachment.path) : undefined} onClose={() => setPreview(undefined)} /></>
@@ -134,25 +148,101 @@ function MiraForkAction({ onFork }: { onFork: (requestId: string) => Promise<boo
 }
 
 /** 用户消息行内编辑：确认后截断后续并重跑。 */
-export function UserMessageEditor({ original, content, onCancel, onConfirm, disabled = false }: { original?: HarnessMessage; content: string; onCancel: () => void; onConfirm: (next: string) => Promise<boolean>; disabled?: boolean }) {
-  const [value, setValue] = useState(content)
+export function UserMessageEditor({ original, content, onCancel, onConfirm, onOpenPresentation, controller, sessionId, onOpenFile, disabled = false }: { original?: HarnessMessage; content: string; onCancel: () => void; onConfirm: (next: string, references?: HarnessFileReference[], workspace?: MiraHistoryEditWorkspace) => Promise<boolean | MiraHistoryEditBlocked>; onOpenPresentation?: (reference: MiraPresentationReference) => void; controller?: PilotController; sessionId?: string; onOpenFile?: (path: string) => void; disabled?: boolean }) {
+  const [prompt, setPrompt] = useState(() => miraUserPrompt(content))
+  const [contexts, setContexts] = useState(() => miraPromptContexts(prompt.document))
+  const [attachments, setAttachments] = useState(() => original?.attachments ?? [])
+  const attachmentsChanged = useRef(false)
+  const [filesBusy, setFilesBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepth = useRef(0)
+  const fileOperation = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const editor = useRef<MiraHistoryPromptEditorHandle | MiraPromptEditorHandle>(null)
+  const value = serializeMiraPromptDocument(prompt.body)
+  const nextContent = serializeMiraPromptDocument(withMiraPromptContexts(prompt.body, contexts)).trim()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const errorId = useId()
   const pending = useRef(false)
-  const composing = useRef(false)
-  const submit = async () => {
-    if (disabled || pending.current || !original || !value.trim()) return
+  useEffect(() => { editor.current?.focus() }, [])
+  const submit = async (workspace?: MiraHistoryEditWorkspace): Promise<boolean | MiraHistoryEditBlocked> => {
+    if (disabled || pending.current || fileOperation.current || !original || !nextContent && !attachments.length) return false
     pending.current = true; setSubmitting(true); setError('')
-    try { if (!await onConfirm(value.trim())) setError('消息未能重新发送，请检查任务状态或模型后重试。') }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '重新发送失败，请重试。') }
-    finally { pending.current = false; setSubmitting(false) }
+    try {
+      const references = attachmentsChanged.current || !nextContent ? attachments.map(({ path, name, mediaType, size }) => ({ path, name: name || path.split(/[\\/]/).pop()!, mediaType, size })) : undefined
+      const accepted = workspace ? await onConfirm(nextContent, references, workspace) : references === undefined ? await onConfirm(nextContent) : await onConfirm(nextContent, references)
+      if (mounted.current && accepted === false) setError('消息未能重新发送，请检查任务状态或模型后重试。')
+      return accepted
+    }
+    catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : '重新发送失败，请重试。'); return false }
+    finally { pending.current = false; if (mounted.current) setSubmitting(false) }
   }
-  return <div className="grid w-full gap-2" aria-busy={submitting || undefined}>
-    <textarea autoFocus value={value} disabled={submitting} onChange={event => setValue(event.target.value)} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }} onKeyDown={event => { if (event.key !== 'Escape') return; event.stopPropagation(); if (!composing.current && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !pending.current) { event.preventDefault(); onCancel() } }} aria-label="编辑消息" aria-invalid={Boolean(error)} rows={Math.min(8, value.split('\n').length + 1)} className="w-full rounded-xl border border-brand bg-card px-2.5 py-2 text-ui-base text-foreground" />
-    {error && <p role="alert" className="text-ui-sm text-destructive wrap-anywhere">{error}</p>}
+  const addFiles = async (files?: File[]) => {
+    if (!controller || !sessionId || disabled || pending.current || fileOperation.current) return
+    fileOperation.current = true; setFilesBusy(true); setError('')
+    const current = () => mounted.current && controller.getSnapshot().session?.id === sessionId
+    try {
+      let selected: HarnessFileReference[]
+      if (files) {
+        validateAttachmentFiles(files, attachments.length, attachments)
+        const uploads = await Promise.all(files.map(readAttachmentFile))
+        if (!current()) return
+        selected = await controller.importAttachments(sessionId, uploads)
+      } else selected = await controller.selectAttachments(sessionId)
+      if (!current()) return
+      const added = selected.filter((file, index) => !attachments.some(existing => existing.path === file.path) && selected.findIndex(value => value.path === file.path) === index)
+      if (attachments.length + added.length > 12) throw new Error('一次最多引用 12 个文件，请先移除已有附件。')
+      const values = await Promise.all(added.map(file => controller.getAttachment(sessionId, file.path)))
+      if (current() && values.length) { attachmentsChanged.current = true; setAttachments(previous => [...previous, ...values]) }
+    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : '添加附件失败，请重试。') }
+    finally { fileOperation.current = false; if (mounted.current) { setFilesBusy(false); if (current()) editor.current?.focus() } }
+  }
+  const addWorkspaceFile = async (path: string, name: string) => {
+    if (!controller || !sessionId || disabled || pending.current || fileOperation.current) return
+    if (attachments.length >= 12) throw new Error('一次最多引用 12 个文件，请先移除已有附件。')
+    fileOperation.current = true; setFilesBusy(true)
+    try {
+      const reference = await controller.stageAttachment(sessionId, path)
+      if (!mounted.current || controller.getSnapshot().session?.id !== sessionId) return
+      const attachment = await controller.getAttachment(sessionId, reference.path)
+      if (!mounted.current || controller.getSnapshot().session?.id !== sessionId) return
+      attachmentsChanged.current = true
+      setAttachments(values => [...values.filter(file => file.path !== reference.path), attachment])
+      return { ...reference, name }
+    } finally { fileOperation.current = false; if (mounted.current) setFilesBusy(false) }
+  }
+  const editorProps = {
+    text: value, document: prompt.body, disabled: disabled || submitting,
+    onChange: (body: typeof prompt.body) => setPrompt(previous => ({ ...previous, body })),
+    onKeyDown: (event: globalThis.KeyboardEvent) => { if (event.key !== 'Escape') return; event.stopPropagation(); if (!event.isComposing && event.keyCode !== 229 && !pending.current) { event.preventDefault(); onCancel() } },
+    onError: (cause: Error) => setError(cause.message),
+    onPaste: (event: ClipboardEvent) => {
+      if (!controller?.supportsAttachments || disabled || submitting || filesBusy || !event.clipboardData) return
+      const text = event.clipboardData.getData('text/plain'), html = event.clipboardData.getData('text/html')
+      const files = Array.from(event.clipboardData.files ?? [])
+      if (files.length && !(text && /<table[\s>]/i.test(html))) { event.preventDefault(); void addFiles(files) }
+      else if (text.length >= MIRA_PASTED_TEXT_THRESHOLD && new Blob([text]).size <= MIRA_TEXT_FILE_BYTES) { event.preventDefault(); void addFiles([new File([text], '粘贴的文本.txt', { type: 'text/plain' })]) }
+    },
+    'aria-label': '编辑消息', 'aria-describedby': error ? errorId : undefined, className: 'mira-history-editor',
+  }
+  const canAddFiles = controller?.supportsAttachments && !disabled && !submitting && !filesBusy
+  return <div className={`grid w-full gap-2${dragOver ? ' mira-history-editor--drag-over' : ''}`} aria-busy={submitting || filesBusy || undefined}
+    onDragEnter={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); if (canAddFiles) { dragDepth.current++; setDragOver(true) } }}
+    onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = canAddFiles ? 'copy' : 'none' } }}
+    onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false) } }}
+    onDrop={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); dragDepth.current = 0; setDragOver(false); if (canAddFiles) void addFiles(Array.from(event.dataTransfer.files)) }}>
+    <UserMessageAttachments message={original && { ...original, attachments }} controller={controller} sessionId={sessionId} onOpen={onOpenFile ?? (() => undefined)} active={!disabled && !submitting && !filesBusy} onRemove={path => { attachmentsChanged.current = true; setAttachments(values => values.filter(file => file.path !== path)); editor.current?.focus() }} />
+    {contexts.length > 0 && <div className="mira-message-contexts"><MiraBrowserContexts references={contexts.filter(reference => reference.kind === 'web')} disabled={submitting} onRemove={id => setContexts(values => values.filter(value => value.id !== id))} onRemoveAll={() => setContexts(values => values.filter(value => value.kind !== 'web'))} onReturnFocus={() => editor.current?.focus()} /><MiraPresentationContexts references={contexts.filter(reference => reference.kind === 'presentation')} disabled={submitting} onOpen={onOpenPresentation} onRemove={id => setContexts(values => values.filter(value => value.id !== id))} onRemoveAll={() => setContexts(values => values.filter(value => value.kind !== 'presentation'))} onReturnFocus={() => editor.current?.focus()} /></div>}
+    {controller && sessionId ? <MiraHistoryPromptEditor {...editorProps} ref={editor as Ref<MiraHistoryPromptEditorHandle>} controller={controller} sessionId={sessionId} onAddFile={addWorkspaceFile} /> : <MiraPromptEditor {...editorProps} ref={editor} />}
+    {error && <p id={errorId} role="alert" className="text-ui-sm text-destructive wrap-anywhere">{error}</p>}
     <div className="flex justify-end gap-2">
+      {controller?.supportsAttachments && sessionId && <button type="button" className="mira-message-action mr-auto" aria-label="添加历史消息附件" title="添加文件附件" disabled={disabled || submitting || filesBusy} onClick={() => void addFiles()}>{filesBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Paperclip size={16} />}</button>}
+      {controller && sessionId && <><button type="button" className="mira-message-action" aria-label="引用上下文" title="引用上下文 @" disabled={disabled || submitting || filesBusy} onMouseDown={event => event.preventDefault()} onClick={() => { if (editor.current && 'openTrigger' in editor.current) editor.current.openTrigger('@') }}><AtSign size={16} /></button><button type="button" className="mira-message-action" aria-label="命令与能力" title="命令与能力 /" disabled={disabled || submitting || filesBusy} onMouseDown={event => event.preventDefault()} onClick={() => { if (editor.current && 'openTrigger' in editor.current) editor.current.openTrigger('/') }}><Slash size={16} /></button></>}
+      {controller?.supportsFileRewindApply && sessionId && original && <MiraFileRewindPreviewButton controller={controller} sessionId={sessionId} messageId={original.id} disabled={disabled || filesBusy || !nextContent && !attachments.length} onEdit={submit} />}
       <button type="button" className="rounded-lg border border-border bg-card px-3 py-1.5 text-ui-sm text-foreground" onClick={onCancel} disabled={submitting}>取消</button>
-      <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1.5 text-ui-sm text-on-accent disabled:opacity-50" disabled={disabled || !value.trim() || !original || submitting} onClick={() => void submit()}>{submitting ? '重新发送中…' : '保存并重跑'}</button>
+      <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1.5 text-ui-sm text-on-accent disabled:opacity-50" title="保留当前项目文件，保存消息并重新运行" disabled={disabled || !nextContent && !attachments.length || !original || submitting || filesBusy} onClick={() => void submit()}>{submitting ? '重新发送中…' : '保存并重跑'}</button>
     </div>
   </div>
 }

@@ -1,4 +1,4 @@
-import type { HarnessFileReference, HarnessMessageSubmissionOptions, HarnessQueuedMessage, ModelSelection, PermissionMode, ThinkingLevel } from '../../../../src/config/harness'
+import { HARNESS_ATTACHMENT_MEDIA_TYPES, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type ModelSelection, type PermissionMode, type ThinkingLevel } from '../../../../src/config/harness'
 import { validateMiraPromptDocument, type MiraPromptDocument } from './prompt-editor-document'
 import { isMiraPluginId } from '../../../../src/config/miraPlugins'
 
@@ -37,6 +37,7 @@ export interface ComposerDraftSubmission {
   selection: ModelSelection
   options?: HarnessMessageSubmissionOptions
   draft?: ComposerTaskDraft
+  sideInput?: true
 }
 
 function taskDraft(value: unknown): ComposerTaskDraft | undefined {
@@ -54,7 +55,7 @@ export function appendComposerReferences(existing: HarnessFileReference[], selec
   if (references.length > 12) throw new Error('一次最多引用 12 个文件，请先移除部分文件。')
   const imageBytes = references.reduce((sum, file) => sum + (file.mediaType ? file.size || 0 : 0), 0)
   const textBytes = references.reduce((sum, file) => sum + (!file.mediaType ? file.size || 0 : 0), 0)
-  if (imageBytes > 40 * 1024 * 1024 || textBytes > 1024 * 1024) throw new Error('附件总大小超过上限（图片 40 MiB，文本 1 MiB），请先移除部分附件。')
+  if (imageBytes > 40 * 1024 * 1024 || textBytes > 1024 * 1024) throw new Error('附件总大小超过上限（图片、PDF、视频合计 40 MiB，文本 1 MiB），请先移除部分附件。')
   return references
 }
 
@@ -72,7 +73,9 @@ function submission(value: unknown): ComposerDraftSubmission | undefined {
   if (!text(item.id, 128) || typeof item.text !== 'string' || item.text.length > 100_000 || item.text.includes('\0') || !text(selection.providerId, 256) || !text(selection.modelId, 256)) return
   if (selection.thinkingLevel !== undefined && !['off', 'low', 'medium', 'high'].includes(selection.thinkingLevel as string)) return
   if (typeof item.planning !== 'boolean') return
+  if (item.sideInput !== undefined && (item.sideInput !== true || item.planning !== false || !/^\/(side|btw)\s+\S/i.test(item.text as string))) return
   if (!Array.isArray(item.references) || item.references.length > 12) return
+  if (item.sideInput && item.references.length) return
   const references: HarnessFileReference[] = []
   for (const raw of item.references) {
     const file = object(raw)
@@ -96,7 +99,7 @@ function submission(value: unknown): ComposerDraftSubmission | undefined {
     if (raw.delivery === 'guide' && (typeof raw.expectedRunId !== 'string' || raw.pausedQueueDecision !== undefined)) return
     options = { ...(raw.hasStructuredContext !== undefined ? { hasStructuredContext: raw.hasStructuredContext as boolean } : {}), ...(raw.permissionMode !== undefined ? { permissionMode: raw.permissionMode as PermissionMode } : {}), ...(raw.skillIds !== undefined ? { skillIds: [...new Set(raw.skillIds as string[])] } : {}), ...(raw.pluginIds !== undefined ? { pluginIds: [...new Set(raw.pluginIds as string[])] } : {}), ...(raw.delivery ? { delivery: raw.delivery as 'immediate' | 'guide' | 'queue' } : {}), ...(raw.pausedQueueDecision ? { pausedQueueDecision: raw.pausedQueueDecision as 'retain' | 'discard' } : {}), ...(raw.expectedRunId !== undefined ? { expectedRunId: raw.expectedRunId as string | null } : {}), ...(raw.expectedQueueRevision !== undefined ? { expectedQueueRevision: raw.expectedQueueRevision as number } : {}), ...(raw.expectedQueueItemIds !== undefined ? { expectedQueueItemIds: raw.expectedQueueItemIds as string[] } : {}) }
   }
-  return { id: item.id as string, text: item.text as string, references, selection: { providerId: selection.providerId as string, modelId: selection.modelId as string, ...(selection.thinkingLevel ? { thinkingLevel: selection.thinkingLevel as ThinkingLevel } : {}) }, planning: item.planning, ...(options ? { options } : {}), ...(taskDraft(item.draft) ? { draft: taskDraft(item.draft) } : {}) }
+  return { id: item.id as string, text: item.text as string, references, selection: { providerId: selection.providerId as string, modelId: selection.modelId as string, ...(selection.thinkingLevel ? { thinkingLevel: selection.thinkingLevel as ThinkingLevel } : {}) }, planning: item.planning, ...(options ? { options } : {}), ...(item.sideInput ? { sideInput: true } : {}), ...(taskDraft(item.draft) ? { draft: taskDraft(item.draft) } : {}) }
 }
 
 function recovery(value: unknown, owner: string): HarnessQueuedMessage | undefined {
@@ -163,7 +166,7 @@ export function readComposerDrafts(value: unknown): ComposerDraftSnapshot {
 
 function referenceMetadata(path: string, name: string, file: Record<string, unknown>): HarnessFileReference {
   return { path, name,
-    ...(['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.mediaType as string) ? { mediaType: file.mediaType as HarnessFileReference['mediaType'] } : {}),
+    ...(HARNESS_ATTACHMENT_MEDIA_TYPES.includes(file.mediaType as NonNullable<HarnessFileReference['mediaType']>) ? { mediaType: file.mediaType as HarnessFileReference['mediaType'] } : {}),
     ...(typeof file.size === 'number' && Number.isSafeInteger(file.size) && file.size >= 0 ? { size: file.size } : {}),
   }
 }

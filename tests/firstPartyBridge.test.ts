@@ -3,6 +3,7 @@ import type { FirstPartyAppManifest } from '../src/config/firstPartyApps'
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '../src/platform/firstPartyBridge'
 import { FirstPartyNavigationError } from '../src/platform/firstPartyNavigation'
 import type { PlatformApi, PlatformContext } from '../src/types'
+import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
 
 const manifest: FirstPartyAppManifest = {
   appId: 'mira-novel-studio',
@@ -65,6 +66,78 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
 }
 
 describe('first-party capability bridge', () => {
+  it.each([
+    ['命令需要的 Skill Research 已停用或不可用，请在技能设置中启用', '命令依赖的 Skill 已停用或不可用，请在技能设置中启用后重试。'],
+    ['命令需要的 Skill Research 存在重名，请在技能设置中保留一个启用项', '命令依赖的 Skill 存在重名，请在技能设置中保留一个启用项后重试。'],
+    ['计划模式暂不能调用需要 Skill 的自定义命令，请关闭计划模式后发送', '计划模式暂不能调用需要 Skill 的自定义命令，请关闭计划模式后发送'],
+  ])('shows an actionable local command dependency failure without exposing host text (%s)', async (failure, recovery) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValue(new Error(`Error invoking remote method 'platform:first-party-harness': Error: ${failure}`))
+    await expect(entry.request('harness.message.submit', { sessionId: 's', submissionId: 'submit', text: '/review notes', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false })).rejects.toMatchObject({ code: 'COMMAND_DEPENDENCY_FAILED', message: recovery })
+    await expect(entry.request('harness.run.rerun', { sessionId: 's', selection: { providerId: 'p', modelId: 'm' } })).rejects.toMatchObject({ code: 'COMMAND_DEPENDENCY_FAILED', message: recovery })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValue(new Error('internal /private/config/secret'))
+    await expect(entry.request('harness.message.submit', { sessionId: 's', submissionId: 'submit', text: '/review notes', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false })).rejects.toMatchObject({ code: 'MESSAGE_SUBMISSION_FAILED', message: '消息提交失败，内容已保留，请稍后重试。' })
+  })
+
+  it('delegates a theme toggle to the Shell owner instead of a namespaced preference', async () => {
+    const toggleTheme = vi.fn(() => 'dark' as const), entry = bridge()
+    const result = await handleFirstPartyRequest({ manifest, grantId: 'grant', api: entry.api, context, route: '/', navigate: entry.navigate, toggleTheme }, { type: 'mira:request', id: 'theme', method: 'appearance.toggle-theme' })
+    expect(result).toBe('dark'); expect(toggleTheme).toHaveBeenCalledOnce()
+    expect(entry.api.savePreference).not.toHaveBeenCalled(); expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+  })
+  it('rejects unsupported, disabled and custom theme mutations without writing', async () => {
+    const entry = bridge(), toggleTheme = vi.fn(() => 'dark' as const)
+    const options = { manifest, grantId: 'grant', api: entry.api, context, route: '/', navigate: entry.navigate, toggleTheme }
+    const request = { type: 'mira:request' as const, id: 'theme', method: 'appearance.toggle-theme' }
+    await expect(handleFirstPartyRequest({ ...options, toggleTheme: undefined }, request)).rejects.toMatchObject({ code: 'UNSUPPORTED_METHOD' })
+    await expect(handleFirstPartyRequest({ ...options, manifest: { ...manifest, enabled: false } }, request)).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+    for (const params of [{ theme: 'red' }, { preference: 'auth' }, null, []]) await expect(handleFirstPartyRequest(options, { ...request, params })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(toggleTheme).not.toHaveBeenCalled()
+  })
+  it('sanitizes a failing Shell theme action', async () => {
+    const entry = bridge(), toggleTheme = () => { throw new Error('/private/local-secret') }
+    await expect(handleFirstPartyRequest({ manifest, grantId: 'grant', api: entry.api, context, route: '/', navigate: entry.navigate, toggleTheme }, { type: 'mira:request', id: 'theme', method: 'appearance.toggle-theme' })).rejects.toMatchObject({ code: 'THEME_SWITCH_FAILED', message: '主题切换失败，请重试' })
+  })
+  it('validates explicit history-edit workspace choice and strips file operations', () => {
+    const params = { sessionId: 's', messageId: 'm', content: 'changed', selection: { providerId: 'p', modelId: 'm' } }, token = 'a'.repeat(64)
+    expect(parseFirstPartyHarnessCall('run.edit-rerun', { ...params, workspace: { mode: 'rewind', snapshotToken: token, operations: [{ path: '/outside', restored: 'forged' }] } })).toHaveProperty('workspace', { mode: 'rewind', snapshotToken: token })
+    expect(parseFirstPartyHarnessCall('run.edit-rerun', { ...params, workspace: { mode: 'preserve', snapshotToken: token } })).toHaveProperty('workspace', { mode: 'preserve' })
+    for (const workspace of [{ mode: 'rewind' }, { mode: 'rewind', snapshotToken: 'A'.repeat(64) }, { mode: 'rewind', snapshotToken: 'short' }, { mode: 'auto' }]) expect(() => parseFirstPartyHarnessCall('run.edit-rerun', { ...params, workspace })).toThrow('文件恢复选择')
+  })
+  it('keeps explicit edit attachment lists, strips renderer content, and validates attachment-only edits', () => {
+    const params = { sessionId: 's', messageId: 'm', content: 'changed', selection: { providerId: 'p', modelId: 'm' } }
+    expect(parseFirstPartyHarnessCall('run.edit-rerun', params)).not.toHaveProperty('references')
+    expect(parseFirstPartyHarnessCall('run.edit-rerun', { ...params, references: [] })).toHaveProperty('references', [])
+    expect(parseFirstPartyHarnessCall('run.edit-rerun', { ...params, content: '', references: [{ path: 'mira-attachment:one', name: 'one.txt', content: 'forged' }] })).toHaveProperty('references', [{ path: 'mira-attachment:one', name: 'one.txt' }])
+    expect(() => parseFirstPartyHarnessCall('run.edit-rerun', { ...params, content: '', references: [] })).toThrow('任务内容')
+    expect(() => parseFirstPartyHarnessCall('run.edit-rerun', { ...params, references: [{ path: '../outside.txt', name: 'outside' }] })).toThrow()
+    expect(() => parseFirstPartyHarnessCall('run.edit-rerun', { ...params, references: Array.from({ length: 13 }, (_, i) => ({ path: `file-${i}`, name: 'file' })) })).toThrow('12')
+  })
+  const presentationCalls = [
+    ...harnessModelCalls.filter(call => ['message.run', 'plan.continue', 'run.rerun', 'run.edit-rerun'].includes(call.method)).map(call => ({ ...call, params: { ...call.params, selection: { providerId: 'p', modelId: 'm' } } })),
+    { method: 'message.submit', params: { sessionId: 's', submissionId: 'submit', text: 'Task', references: [], selection: { providerId: 'p', modelId: 'm' }, planning: false } },
+    { method: 'queue.resume', params: { sessionId: 's' } },
+  ]
+  const presentationErrors = ['演示文稿元素引用不属于当前任务，请重新引用', '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用', '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用', '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限']
+  it.each(presentationCalls.flatMap(call => presentationErrors.flatMap(message => [false, true].map(wrapped => ({ ...call, message, wrapped })))))('$method preserves the exact presentation recovery (Electron wrapper: $wrapped)', async ({ method, params, message, wrapped }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${message}` : message))
+    await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'PRESENTATION_REFERENCE_FAILED', message })
+  })
+
+  it.each(presentationCalls)('$method leaves unknown/path-bearing presentation failures for the frame sanitizer', async ({ method, params }) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const source of ['演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用 /Users/private/deck.pptx', 'ENOENT /Users/private/deck.pptx']) {
+      const error = new Error(source)
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(error)
+      if (method === 'message.submit' || method === 'queue.resume') {
+        const result = await entry.request(`harness.${method}`, params).catch(error => error)
+        expect(result).toMatchObject({ code: method === 'message.submit' ? 'MESSAGE_SUBMISSION_FAILED' : 'MESSAGE_QUEUE_FAILED' })
+        expect(result.message).not.toMatch(/Users|private|deck\.pptx/)
+      } else await expect(entry.request(`harness.${method}`, params)).rejects.toBe(error)
+    }
+  })
+
   it.each([false, true])('explains a vanished selected project directory, Electron wrapper=%s', async wrapped => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     const message = '项目目录不存在'
@@ -97,6 +170,18 @@ describe('first-party capability bridge', () => {
     await expect(entry.request('harness.context.compact', params)).rejects.toMatchObject({ code: 'COMPACTION_FAILED', message: '上下文压缩已停止，原上下文保留' })
     vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/model key=secret'))
     await expect(entry.request('harness.context.compact', params)).rejects.toMatchObject({ code: 'COMPACTION_FAILED', message: '上下文压缩失败，请检查模型配置后重试；原上下文保留。' })
+  })
+  it.each([false, true])('preserves side input retry guidance without leaking host details (wrapped=%s)', async wrapped => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const params = { parentId: 'parent', input: { submissionId: 'retry', text: '原问题', selection: { providerId: 'provider', modelId: 'model' } } }
+    for (const message of ['旁路问题内容已变化，请重新发送', '旁路对话已不存在，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型']) {
+      vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${message}` : message))
+      await expect(entry.request('harness.session.create-side', params)).rejects.toMatchObject({ code: 'SIDE_CONVERSATION_FAILED', message })
+    }
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/provider key=secret'))
+    const error = await entry.request('harness.session.create-side', params).catch(error => error)
+    expect(error).toMatchObject({ code: 'SIDE_CONVERSATION_FAILED', message: '旁路对话创建或提交失败，请重试；原输入保留。' })
+    expect(error.stack).not.toContain('secret')
   })
 
   it.each(['marketplace.browse', 'plugin-marketplace.browse', 'plugin-marketplace.install'])('provides actionable market errors without leaking main-process details for %s', async method => {
@@ -231,6 +316,9 @@ describe('first-party capability bridge', () => {
     await expectCall('memory.respond', { requestId: 'r', approved: true })
     await expectCall('memory.save', { sessionId: 's', selection: { providerId: 'p', modelId: 'm' } })
     await expectCall('subtask.stop', { sessionId: 's', subtaskId: 't' })
+    await expectCall('command.background', { sessionId: 's', runId: 'run', toolId: 'run:response-0:provider' })
+    await expectCall('command.stop', { sessionId: 's', runId: 'run', toolId: 'run:response-0:provider' })
+    await expectCall('command.output', { sessionId: 's', runId: 'run', toolId: 'run:response-0:provider' })
     await expectCall('run.rerun', { sessionId: 's', selection: { providerId: 'p', modelId: 'm' } })
     await expectCall('run.edit-rerun', { sessionId: 's', messageId: 'm', content: '改后内容', selection: { providerId: 'p', modelId: 'm' } })
     await expectCall('message.run', { sessionId: 's', text: '任务', references: [{ path: 'docs/a.md', name: 'a.md' }], selection: { providerId: 'p', modelId: 'm' }, planning: false })
@@ -246,6 +334,40 @@ describe('first-party capability bridge', () => {
     await expect(entry.request('harness.memory.respond', { requestId: 'r', approved: 'ok' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(entry.request('harness.project.open', { sessionId: 's', target: 'dev-tools' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
     await expect(entry.request('harness.subtask.stop', { sessionId: 's', subtaskId: 42 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    for (const method of ['command.background', 'command.stop', 'command.output']) {
+      for (const toolId of ['', null, 42, 'x'.repeat(2049)]) await expect(entry.request(`harness.${method}`, { sessionId: 's', runId: 'run', toolId })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+      expect(parseFirstPartyHarnessCall(method, { sessionId: 's', runId: 'run', toolId: 'canonical', command: 'forged', pid: 123, path: '/private/injected', output: 'forged' })).toEqual({ method, sessionId: 's', runId: 'run', toolId: 'canonical' })
+    }
+  })
+
+  it('validates confirmed recovery tokens and strips all renderer file operations', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await entry.request('harness.files.rewind-apply', { sessionId: 's', messageId: 'm', snapshotToken: 'a'.repeat(64), files: ['/private/file'], before: 'forged' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.rewind-apply', { sessionId: 's', messageId: 'm', snapshotToken: 'a'.repeat(64) })
+    for (const snapshotToken of ['', null, 4, 'a'.repeat(63), 'a'.repeat(65), 'g'.repeat(64)]) await expect(entry.request('harness.files.rewind-apply', { sessionId: 's', messageId: 'm', snapshotToken })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await entry.request('harness.files.rewind-recover', { sessionId: 's', recoveryId: 'recovery', files: [], directory: '/forged' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.rewind-recover', { sessionId: 's', recoveryId: 'recovery' })
+    await expect(entry.request('harness.files.rewind-recover', { sessionId: 's', recoveryId: '' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
+
+  it('routes model diagnostics by task ID and ignores renderer-selected filesystem paths', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    for (const method of ['session.trace', 'session.trace.open', 'session.paths']) {
+      await entry.request(`harness.${method}`, { id: 'task', path: '/private/forged', directory: '/private/forged' })
+      expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', method, { id: 'task' })
+      for (const id of ['', null, 42, 'x'.repeat(129)]) await expect(entry.request(`harness.${method}`, { id })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+  })
+
+  it('validates rewind identity and strips renderer-supplied snapshots and paths', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    await expect(entry.request('harness.files.rewind-preview', { sessionId: 's', messageId: 'm', path: '/private/forged', before: 'forged', records: [] })).resolves.toEqual({ method: 'files.rewind-preview' })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'files.rewind-preview', { sessionId: 's', messageId: 'm' })
+    for (const field of ['sessionId', 'messageId']) for (const value of ['', null, 4, 'x'.repeat(513)]) {
+      await expect(entry.request('harness.files.rewind-preview', { sessionId: 's', messageId: 'm', [field]: value })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+    const denied = bridge({ appId: 'mira-novel-studio', capabilities: [] })
+    await expect(denied.request('harness.files.rewind-preview', { sessionId: 's', messageId: 'm' })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
   })
 
   it('routes only the validated Harness surface through the owning grant', async () => {

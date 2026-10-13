@@ -5,9 +5,10 @@ import { ToolRecord } from '../conversation/run-progress'
 import { MiraActivityList, MiraActivityTimes, miraSubtaskRoleLabels, miraSubtaskStatusLabels } from './MiraSubtaskPanel'
 import '../../styles/mira-subtasks.css'
 
-export function OverviewPanel({ session, sessionId, runId, active, onOpenSubtask, onOpenFile }: {
+export function OverviewPanel({ session, sessionId, runId, active, onOpenSubtask, onOpenFile, onOpenCommand }: {
   session?: HarnessSession; sessionId: string; runId?: string; active: boolean
   onOpenSubtask: (runId: string, subtaskId: string) => void; onOpenFile: (path: string) => void
+  onOpenCommand?: (runId: string, toolId: string) => void
 }) {
   const run = session?.id === sessionId && runId ? selectMiraRunActivity(session, runId) : undefined
   if (!run) return <div className="mira-subtask-panel" role="status"><h2>任务活动</h2><p className="mira-subtask-empty">{runId ? '这轮运行的记录已不可用。' : '当前任务尚无可查看的执行记录。发送任务后，可从标题栏、侧栏任务菜单或任务摘要查看执行详情。'}</p></div>
@@ -17,7 +18,7 @@ export function OverviewPanel({ session, sessionId, runId, active, onOpenSubtask
     <MiraActivityTimes startedAt={run.startedAt} completedAt={run.completedAt} />
     {run.error && <p className="mira-subtask-error">{run.error}</p>}
     <section className="mira-subtask-section"><h3>执行活动</h3><MiraActivityList activities={run.activities} /></section>
-    {!!run.tools.length && <section className="mira-subtask-section"><h3>工具记录</h3><div className="mira-tool-records">{run.tools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={active ? onOpenFile : undefined} />)}</div></section>}
+    {!!run.tools.length && <section className="mira-subtask-section"><h3>工具记录</h3><div className="mira-tool-records">{run.tools.map(tool => <ToolRecord key={tool.id} tool={tool} onOpenFile={active ? onOpenFile : undefined} onOpenCommand={active ? onOpenCommand : undefined} />)}</div></section>}
     {!!run.subtasks.length && <section className="mira-subtask-section"><h3>智能体</h3><div className="mira-run-subtasks">{run.subtasks.map(subtask => <button type="button" key={subtask.id} disabled={!active} data-subtask-id={subtask.id} aria-label={`在右侧打开智能体 ${subtask.task}`} title={subtask.task} onClick={() => onOpenSubtask(run.runId, subtask.id)}><Users size={14} aria-hidden="true" /><span><strong>{subtask.task}</strong><small>{miraSubtaskRoleLabels[subtask.role]} · {miraSubtaskStatusLabels[subtask.status]}</small></span><ArrowUpRight size={14} aria-hidden="true" /></button>)}</div></section>}
     {run.usage?.total && <section className="mira-subtask-section"><h3>总用量</h3><dl className="mira-subtask-metadata"><div><dt>总 token</dt><dd>{run.usage.total.totalTokens}</dd></div>{run.usage.total.cost?.priced && <div><dt>费用</dt><dd>{run.usage.total.cost.total.toFixed(4)} {run.usage.total.cost.currency}</dd></div>}</dl></section>}
   </article>

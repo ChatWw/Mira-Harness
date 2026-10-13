@@ -30,8 +30,8 @@
 .pilot-inspector__head button:hover { color: var(--text); background: var(--hover); }
 /* Resource typography must not override the shared conversation renderer. */
 .pilot-inspector section:not(:where(.mira-side-conversation__thread *, .pilot-terminal)) { padding: 17px 19px; border-bottom: 1px solid var(--border); }
-.pilot-inspector h2:not(:where(.mira-side-conversation__thread *, .mira-side-conversation__empty *)) { margin: 0 0 12px; font-size: 11px; font-weight: 650; }
-.pilot-inspector p:not(:where(.mira-side-conversation__thread *, .mira-side-conversation__empty *)), .pilot-activity small { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.pilot-inspector h2:not(:where(.mira-side-conversation__thread *, .mira-side-conversation__empty *, .mira-workspace-launcher *)) { margin: 0 0 12px; font-size: 11px; font-weight: 650; }
+.pilot-inspector p:not(:where(.mira-side-conversation__thread *, .mira-side-conversation__empty *, .mira-workspace-launcher *)), .pilot-activity small { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .pilot-path { overflow-wrap: anywhere; }
 .pilot-open-directory { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 0; border: 0; color: var(--accent); background: transparent; font-size: 11px; }
 .pilot-open-directory:disabled { cursor: not-allowed; opacity: .45; }

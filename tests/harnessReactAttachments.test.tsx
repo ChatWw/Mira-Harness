@@ -39,6 +39,24 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Mira attachment controls', () => {
+  it.each(['application/pdf', 'video/mp4'] as const)('previews %s as a named file rather than an image and excludes it from the image gallery', async mediaType => {
+    const file = { path: 'mira-attachment:media', name: mediaType === 'application/pdf' ? '报告.pdf' : '片段.mp4', mediaType, content: 'frozen-native-media' }
+    const controller = { supportsAttachments: true, getAttachment: vi.fn(async () => file) } as unknown as PilotController
+    const onBlocked = vi.fn()
+    const view = mounted(() => MiraComposerAttachments({ references: [file], ownerId: 'owner', controller, active: true, disabled: false, onRemove: vi.fn(), onBlocked }))
+    await view.drain()
+    expect(view.query((_, type) => type === 'img')).toBeUndefined()
+    expect(onBlocked).toHaveBeenLastCalledWith(false)
+    ;(view.find(props => props['aria-label'] === `预览附件 ${file.name}`).onClick as () => void)(); await view.drain()
+    expect(view.find((_, type) => type === MiraAttachmentPreview)).toMatchObject({ attachment: file, gallery: [] })
+  })
+
+  it('admits PDF/video sizes using binary limits while preserving the text limit', () => {
+    expect(() => validateAttachmentFiles([{ name: 'report.pdf', type: 'application/pdf', size: 1024 * 1024 }, { name: 'clip.mp4', type: 'video/mp4', size: 10 * 1024 * 1024 }] as File[], 0)).not.toThrow()
+    expect(() => validateAttachmentFiles([{ name: 'clip.mp4', type: 'video/mp4', size: 21 * 1024 * 1024 }] as File[], 0)).toThrow('20 MiB')
+    expect(() => validateAttachmentFiles([{ name: 'report.pdf', type: 'application/pdf', size: 20 * 1024 * 1024 }] as File[], 2, [{ mediaType: 'video/mp4', size: 21 * 1024 * 1024 }])).toThrow('40 MiB')
+    expect(() => validateAttachmentFiles([{ name: 'notes.txt', type: 'text/plain', size: 1024 * 1024 }] as File[], 0)).toThrow('256 KiB')
+  })
   it('blocks pending images, loads the host snapshot, previews and removes the selected attachment', async () => {
     const read = deferred<HarnessMessageAttachment>(), onRemove = vi.fn(), onBlocked = vi.fn()
     const controller = { supportsAttachments: true, getAttachment: vi.fn(() => read.promise) } as unknown as PilotController

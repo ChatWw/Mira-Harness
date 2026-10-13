@@ -207,7 +207,12 @@ describe('Mira tool-local permission placement', () => {
       card.props.onKeyDown(event as never)
       return event
     }
-    section.focus(); key('ArrowDown'); expect(dom.document.activeElement).toBe(buttons[0])
+    section.focus()
+    const sectionArrow = key('ArrowDown')
+    expect(dom.document.activeElement).toBe(section)
+    expect(sectionArrow.preventDefault).not.toHaveBeenCalled()
+    expect(sectionArrow.stopPropagation).not.toHaveBeenCalled()
+    buttons[0].focus()
     key('ArrowDown'); expect(dom.document.activeElement).toBe(buttons[1])
     key('Home'); expect(dom.document.activeElement).toBe(buttons[0])
     key('End', { nativeEvent: { isComposing: true } }); expect(dom.document.activeElement).toBe(buttons[0])

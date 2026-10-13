@@ -15,6 +15,14 @@ afterEach(async () => { await act(async () => root.unmount()); document.body.rep
 const settle = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)) }) }
 
 describe('Composer candidate panel ownership', () => {
+  it('gives an unmatched context query one empty message without a footer or phantom section', async () => {
+    await act(async () => root.render(<ComposerSuggestionPanel listId="empty-context" hasQuery sections={[]} selectedIndex={-1} onHighlight={() => {}} onSelect={() => {}} onTrigger={() => {}} />))
+    expect(container.textContent).toBe('没有匹配的上下文')
+    expect(container.querySelector('[role="option"]')).toBeNull()
+    expect(container.querySelector('.mira-composer-suggestions__section')).toBeNull()
+    expect(container.querySelector('.mira-composer-suggestions__footer')).toBeNull()
+  })
+
   async function scrollFixture() {
     let agentTop = 230, viewportHeight = 224
     const frames = new Map<number, FrameRequestCallback>(), observers: Array<{ update: () => void; targets: Set<Element> }> = []
@@ -55,6 +63,34 @@ describe('Composer candidate panel ownership', () => {
     await key(view.list, 'ArrowUp')
     expect(view.list.scrollTop).toBe(40)
     expect(view.timeline.scrollTop).toBe(70); expect(view.outerScroll).not.toHaveBeenCalled()
+  })
+
+  it('shows only the clipped scroll edges without pulling manual scroll back to the selection', async () => {
+    const view = await scrollFixture()
+    Object.defineProperties(view.list, { clientHeight: { configurable: true, value: 224 }, scrollHeight: { configurable: true, value: 424 } })
+    const scroll = (top: number) => { view.list.scrollTop = top; view.list.dispatchEvent(new Event('scroll')) }
+    scroll(0)
+    expect(view.list.dataset.miraScrollTop).toBe('false'); expect(view.list.dataset.miraScrollBottom).toBe('true')
+    scroll(70)
+    expect(view.list.dataset.miraScrollTop).toBe('true'); expect(view.list.dataset.miraScrollBottom).toBe('true')
+    expect(view.list.scrollTop).toBe(70)
+    expect(view.list.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('file')
+    scroll(200)
+    expect(view.list.dataset.miraScrollTop).toBe('true'); expect(view.list.dataset.miraScrollBottom).toBe('false')
+    Object.defineProperty(view.list, 'scrollHeight', { configurable: true, value: 224 }); scroll(0)
+    expect(view.list.dataset.miraScrollTop).toBe('false'); expect(view.list.dataset.miraScrollBottom).toBe('false')
+    expect(view.timeline.scrollTop).toBe(70); expect(view.outerScroll).not.toHaveBeenCalled()
+  })
+
+  it('keeps scroll feedback for loading/error-only sections and removes its listener on unmount', async () => {
+    await act(async () => root.render(<ComposerSuggestionPanel listId="loading-candidates" hasQuery sections={[{ id: 'files', title: '文件', loading: true, items: [] }, { id: 'agents', title: '智能体', error: '目录读取失败', items: [] }]} selectedIndex={-1} onHighlight={() => {}} onSelect={() => {}} onTrigger={() => {}} />))
+    const list = container.querySelector<HTMLElement>('[role="listbox"]')!
+    Object.defineProperties(list, { clientHeight: { value: 64 }, scrollHeight: { value: 200 } })
+    list.dispatchEvent(new Event('scroll'))
+    expect(list.dataset.miraScrollTop).toBe('false'); expect(list.dataset.miraScrollBottom).toBe('true')
+    await act(async () => root.render(null))
+    list.scrollTop = 136; list.dispatchEvent(new Event('scroll'))
+    expect(list.dataset.miraScrollTop).toBe('false'); expect(list.dataset.miraScrollBottom).toBe('true')
   })
 
   it('reveals the same selection after async catalog layout changes, then a popup viewport resize', async () => {

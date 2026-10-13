@@ -75,6 +75,8 @@ function normalizeModel(value: unknown): ProviderModelConfig | undefined {
     enabled: model.enabled !== false,
     reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : inferModelReasoning(id),
     ...(typeof model.multimodal === 'boolean' ? { multimodal: model.multimodal } : {}),
+    ...(typeof model.pdfInput === 'boolean' ? { pdfInput: model.pdfInput } : {}),
+    ...(typeof model.videoInput === 'boolean' ? { videoInput: model.videoInput } : {}),
     contextWindow: contextWindow(model.contextWindow),
     ...(pricing ? { pricing } : {}),
   }

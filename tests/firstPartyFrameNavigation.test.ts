@@ -3,9 +3,10 @@ import { h, nextTick, reactive, ref } from 'vue'
 import FirstPartyFrame from '../src/pages/frontend/microAppHost/FirstPartyFrame.vue'
 import { createVueNodeRenderer, withVueClientRender } from './helpers/vueNodeRenderer'
 import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot } from '../src/platform/appNavigation'
+import { handleFirstPartyRequest, isFirstPartyRequest } from '../src/platform/firstPartyBridge'
 
 vi.mock('@/platform/firstPartyBridge', () => ({
-  FirstPartyBridgeError: class extends Error {}, isFirstPartyRequest: () => false, handleFirstPartyRequest: vi.fn(),
+  FirstPartyBridgeError: class extends Error {}, isFirstPartyRequest: vi.fn(() => false), handleFirstPartyRequest: vi.fn(),
 }))
 
 class Port {
@@ -28,8 +29,9 @@ function mountFrame(options: { appId?: string; capabilities?: string[]; restore?
     manifest: { appId: options.appId || 'mira-harness', capabilities: options.capabilities || ['harness:workbench'] },
     context: { version: 1, theme: 'light', language: 'zh-CN', user: { id: 'platform', name: 'Mira' } },
     route: '/', navigate: vi.fn(), navigationSnapshot: options.restore,
+    toggleTheme: vi.fn(() => { props.context.theme = props.context.theme === 'light' ? 'dark' : 'light'; return props.context.theme }),
   })
-  const exposed = ref<{ navigateHistory(command: MiraAppNavigationCommand): boolean }>()
+  const exposed = ref<{ navigateHistory(command: MiraAppNavigationCommand): boolean; closeContext(): Promise<boolean> }>()
   const renderer = createVueNodeRenderer()
   const { app } = renderer.mount({ setup: () => () => h(Frame, { ...props, ref: exposed, onNavigationState: states, onNavigationReset: resets, onError: errors } as never) })
   mounts.push(app)
@@ -41,11 +43,36 @@ function mountFrame(options: { appId?: string; capabilities?: string[]; restore?
 
 beforeEach(() => {
   channels.length = 0
+  vi.mocked(isFirstPartyRequest).mockReturnValue(false)
+  vi.mocked(handleFirstPartyRequest).mockReset()
   vi.stubGlobal('MessageChannel', class { port1 = new Port(); port2 = new Port(); constructor() { channels.push(this) } })
 })
 afterEach(() => { for (const app of mounts.splice(0)) app.unmount(); vi.unstubAllGlobals() })
 
 describe('authorized first-party navigation messages', () => {
+  it('waits for its active port close acknowledgement and rejects on grant replacement', async () => {
+    const frame = mountFrame(); await frame.connect(); const active = channels[0].port1
+    const closing = frame.exposed.value!.closeContext(), id = active.postMessage.mock.lastCall![0].id
+    expect(active.postMessage).toHaveBeenLastCalledWith({ type: 'mira:close-context', id })
+    await active.receive({ type: 'mira:close-ready', id, ok: true, consumed: true }); await expect(closing).resolves.toBe(true)
+    const late = frame.exposed.value!.closeContext(), assertion = expect(late).rejects.toThrow('连接已失效')
+    frame.props.url = 'https://mira.test/other'; await nextTick(); await assertion
+    await active.receive({ type: 'mira:close-ready', id, ok: true, consumed: false })
+    await expect(frame.exposed.value!.closeContext()).rejects.toThrow('连接尚未就绪')
+  })
+  it('passes theme changes through the active Shell owner and blocks a revoked port', async () => {
+    const frame = mountFrame(); await frame.connect(); const active = channels[0].port1
+    vi.mocked(isFirstPartyRequest).mockReturnValue(true)
+    vi.mocked(handleFirstPartyRequest).mockImplementation(async options => options.toggleTheme?.())
+    const request = { type: 'mira:request', id: 'theme', method: 'appearance.toggle-theme' }
+    await active.receive(request); await nextTick()
+    expect(frame.props.toggleTheme).toHaveBeenCalledOnce()
+    expect(active.postMessage.mock.calls.map(([message]) => message)).toContainEqual({ type: 'mira:context', context: frame.props.context })
+    expect(active.postMessage.mock.calls.map(([message]) => message)).toContainEqual({ type: 'mira:response', id: 'theme', ok: true, value: 'dark' })
+    frame.props.url = 'https://mira.test/replaced'; await nextTick()
+    await active.receive(request); expect(frame.props.toggleTheme).toHaveBeenCalledOnce()
+    expect(frame.api.revokeFirstPartyGrant).toHaveBeenCalledWith('grant-1')
+  })
   it('sends context followed by one initial restore only after the grant activates', async () => {
     const saved = snapshot(), frame = mountFrame({ restore: saved })
     expect(frame.exposed.value?.navigateHistory(command())).toBe(false)

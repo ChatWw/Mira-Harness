@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraDocumentPreview } from '../apps/harness-react/src/components/workspace/MiraDocumentPreview'
 import { FilePreviewPanel } from '../apps/harness-react/src/components/workspace/FilePreviewPanel'
 import { filePreviewKind } from '../apps/harness-react/src/lib/file-preview'
+import { MiraBinaryAttachmentPreview } from '../apps/harness-react/src/components/composer/MiraBinaryAttachmentPreview'
 import type { MiraMediaPreview } from '../src/config/miraMedia'
 
 const decoder = vi.hoisted(() => ({ throws: false }))
@@ -14,6 +15,26 @@ beforeEach(() => { decoder.throws = false; vi.stubGlobal('IS_REACT_ACT_ENVIRONME
 afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 const source = (id = 'a'.repeat(64)): MiraMediaPreview => ({ id, path: 'book.pdf', kind: 'pdf', mediaType: 'application/pdf', byteLength: 1000, url: `http://127.0.0.1:2345/mira-media/${id}` })
 describe('PDF authorized reader lifecycle', () => {
+  it('previews frozen binary bytes and revokes the blob when switching attachments or unmounting', async () => {
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:pdf').mockReturnValueOnce('blob:video')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const pdf = { path: 'owned-pdf', name: 'report.pdf', mediaType: 'application/pdf' as const, content: btoa('%PDF-1.7') }
+    await act(async () => root.render(<MiraBinaryAttachmentPreview attachment={pdf} />))
+    await act(async () => undefined)
+    expect(container.querySelector('[data-reader="blob:pdf"]')).toBeTruthy()
+    expect(create.mock.calls[0][0].type).toBe('application/pdf')
+    await act(async () => root.render(<MiraBinaryAttachmentPreview attachment={{ path: 'owned-video', name: 'clip.mp4', mediaType: 'video/mp4', content: btoa('video') }} />))
+    expect(revoke).toHaveBeenCalledWith('blob:pdf')
+    const video = container.querySelector('video')!
+    expect(video.src).toBe('blob:video'); expect(video.controls).toBe(true); expect(video.autoplay).toBe(false)
+    expect(container.querySelector('[aria-label="正在加载视频"]')).not.toBeNull()
+    expect(video.style.visibility).toBe('hidden')
+    await act(async () => video.dispatchEvent(new Event('loadedmetadata')))
+    expect(container.querySelector('[aria-label="正在加载视频"]')).toBeNull()
+    expect(video.style.visibility).toBe('')
+    await act(async () => root.render(null))
+    expect(revoke).toHaveBeenCalledWith('blob:video')
+  })
   it('contains a reader module failure inside the resource panel and releases its authorization', async () => {
     decoder.throws = true; vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const host = { openMediaFor: vi.fn(async () => source()), closeMedia: vi.fn(async () => undefined) }

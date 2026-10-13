@@ -5,8 +5,8 @@
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser' | 'side-chat'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}` | `workflow:${string}`
-export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; url?: string; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
+export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
 export type WorkspaceSessionState = {
   tabs: WorkspaceTab[]
   activeTab: WorkspaceTabId
@@ -27,8 +27,12 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (id.startsWith('file:')) return id.slice(5).split('/').pop() || '文件'
   if (id.startsWith('side-chat:')) return '旁路对话'
   if (id.startsWith('task:')) return '任务'
+  if (id.startsWith('trace:')) return '模型轨迹'
   if (id.startsWith('subtask:')) return '智能体'
   if (id.startsWith('workflow:')) return '工作流'
+  if (id.startsWith('plan:')) return '方案'
+  if (id.startsWith('command:')) return '命令输出'
+  if (id.startsWith('command-output:')) return '完整输出.log'
   return { overview: '任务活动', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '旁路对话' }[id as WorkspaceResourceId]
 }
 
@@ -62,6 +66,18 @@ export function createWorkspaceRunTab(runId?: string): WorkspaceTab {
   return { id: 'overview', label: '任务活动', runId }
 }
 
+export function createWorkspacePlanTab(planToolId: string, title: string): WorkspaceTab {
+  return { id: `plan:${planToolId}`, label: title, planToolId }
+}
+
+export function createWorkspaceCommandTab(runId: string, commandToolId: string, label: string): WorkspaceTab {
+  return { id: `command:${JSON.stringify([runId, commandToolId])}`, label, runId, commandToolId }
+}
+
+export function createWorkspaceCommandOutputTab(runId: string, commandToolId: string): WorkspaceTab {
+  return { id: `command-output:${JSON.stringify([runId, commandToolId])}`, label: '完整输出.log', runId, commandToolId, fullCommandOutput: true }
+}
+
 export function createWorkspaceWorkflowTab(sessionId: string, runId: string): WorkspaceTab {
   return { id: `workflow:${JSON.stringify([sessionId, runId])}`, label: '工作流', workflowSessionId: sessionId, runId }
 }
@@ -76,6 +92,10 @@ export function createWorkspaceSideConversationTab(childSessionId: string): Work
 
 export function createWorkspaceTaskTab(sessionId: string, title: string): WorkspaceTab {
   return { id: `task:${sessionId}`, label: title || '新任务', taskSessionId: sessionId }
+}
+
+export function createWorkspaceTraceTab(sessionId: string, title: string): WorkspaceTab {
+  return { id: `trace:${sessionId}`, label: title ? `${title} · 模型轨迹` : '模型轨迹', traceSessionId: sessionId }
 }
 
 export function placeWorkspaceTask(state: WorkspaceSessionState, tab: WorkspaceTab, anchor: string, side: MiraTaskSplitSide): WorkspaceSessionState {
@@ -107,7 +127,7 @@ export function createWorkspaceSession(): WorkspaceSessionState {
 
 export function withoutWorkspaceTaskOwners(sessions: Record<string, WorkspaceSessionState>, removed: ReadonlySet<string>): Record<string, WorkspaceSessionState> {
   return Object.fromEntries(Object.entries(sessions).filter(([owner]) => !removed.has(owner)).map(([owner, state]) => {
-    const keep = (tab: WorkspaceTab) => !removed.has(tab.taskSessionId || tab.childSessionId || tab.workflowSessionId || '')
+    const keep = (tab: WorkspaceTab) => !removed.has(tab.taskSessionId || tab.childSessionId || tab.workflowSessionId || tab.traceSessionId || '')
     const tabs = state.tabs.filter(keep), recentClosedTabs = state.recentClosedTabs.filter(keep)
     if (tabs.length === state.tabs.length && recentClosedTabs.length === state.recentClosedTabs.length) return [owner, state]
     const index = state.tabs.findIndex(tab => tab.id === state.activeTab)
@@ -196,10 +216,18 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
           if (/^terminal:[\w-]{1,128}$/.test(tab.id)) tabs.push({ id: tab.id, label: tab.label })
         } else if (tab.id.startsWith('side-chat:')) {
           if (typeof tab.childSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.childSessionId) && tab.id === `side-chat:${tab.childSessionId}`) tabs.push(createWorkspaceSideConversationTab(tab.childSessionId))
+        } else if (tab.id.startsWith('trace:')) {
+          if (typeof tab.traceSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.traceSessionId) && tab.id === `trace:${tab.traceSessionId}`) tabs.push({ id: tab.id, label: tab.label, traceSessionId: tab.traceSessionId })
         } else if (tab.id.startsWith('task:')) {
           if (typeof tab.taskSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.taskSessionId) && tab.taskSessionId !== sessionId && tab.id === `task:${tab.taskSessionId}`) tabs.push(createWorkspaceTaskTab(tab.taskSessionId, tab.label))
         } else if (tab.id.startsWith('workflow:')) {
           if (typeof tab.workflowSessionId === 'string' && typeof tab.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.workflowSessionId) && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.runId) && tab.id === createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId).id) tabs.push(createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId))
+        } else if (tab.id.startsWith('plan:')) {
+          if (typeof tab.planToolId === 'string' && tab.planToolId.length > 0 && tab.planToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.planToolId) && tab.id === `plan:${tab.planToolId}`) tabs.push(createWorkspacePlanTab(tab.planToolId, tab.label))
+        } else if (tab.id.startsWith('command-output:')) {
+          if (typeof tab.runId === 'string' && tab.runId.length > 0 && tab.runId.length <= 512 && !/[\u0000-\u001f]/.test(tab.runId) && typeof tab.commandToolId === 'string' && tab.commandToolId.length > 0 && tab.commandToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.commandToolId) && tab.id === createWorkspaceCommandOutputTab(tab.runId, tab.commandToolId).id) tabs.push(createWorkspaceCommandOutputTab(tab.runId, tab.commandToolId))
+        } else if (tab.id.startsWith('command:')) {
+          if (typeof tab.runId === 'string' && tab.runId.length > 0 && tab.runId.length <= 512 && !/[\u0000-\u001f]/.test(tab.runId) && typeof tab.commandToolId === 'string' && tab.commandToolId.length > 0 && tab.commandToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.commandToolId) && tab.id === createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label).id) tabs.push(createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label))
         } else if (tab.id.startsWith('subtask:')) {
           if (typeof tab.runId === 'string' && tab.runId && typeof tab.subtaskId === 'string' && tab.subtaskId && tab.id === createWorkspaceSubtaskTab(tab.runId, tab.subtaskId, tab.label).id) tabs.push({ id: tab.id, label: tab.label, runId: tab.runId, subtaskId: tab.subtaskId })
         } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'browser' && tab.faviconUrl !== undefined ? { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })

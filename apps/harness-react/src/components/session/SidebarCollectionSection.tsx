@@ -4,7 +4,7 @@
  * Mira adaptation of ZCode GroupItem / WorkspaceSidebarItem interaction structure.
  * Upstream license: third-party-licenses/zcode/.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -59,11 +59,18 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
   const [draft, setDraft] = useState(name)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const renameRequest = useRef<object | undefined>(undefined)
+  const composingName = useRef(false)
   const [creating, setCreating] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const menuVisible = menuOpen || contextMenuOpen
   useEffect(() => { if (!renaming) setDraft(name) }, [name, renaming])
+  useEffect(() => {
+    renameRequest.current = undefined; composingName.current = false; setSaving(false)
+    if (renaming) { setDraft(name); setError('') }
+    return () => { renameRequest.current = undefined }
+  }, [id, renaming])
   const run = (action: () => void | Promise<void>) => {
     setError('')
     void Promise.resolve().then(action).catch(cause => setError(cause instanceof Error ? cause.message : '操作失败，请重试'))
@@ -75,11 +82,13 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
   }
   const commit = async () => {
     const next = draft.trim().slice(0, 64)
-    if (!next || saving) return
+    if (!renaming || !next || renameRequest.current || composingName.current) return
+    const request = {}
+    renameRequest.current = request
     setSaving(true); setError('')
-    try { await onRename(next); onCancelRename() }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '重命名失败，请重试') }
-    finally { setSaving(false) }
+    try { await onRename(next); if (renameRequest.current === request) onCancelRename() }
+    catch (cause) { if (renameRequest.current === request) setError(cause instanceof Error ? cause.message : '重命名失败，请重试') }
+    finally { if (renameRequest.current === request) { renameRequest.current = undefined; setSaving(false) } }
   }
   const menu = (kind: 'context' | 'dropdown') => <SidebarCollectionMenu kind={kind} name={name} color={color} disabled={directoryBlocked || creating} unavailableReason={unavailableReason} onNewTask={create} onBeginRename={onBeginRename} onOpenFiles={onOpenFiles ? openFiles : undefined} onOpenDirectory={onOpenDirectory ? target => { if (!directoryBlocked) run(() => onOpenDirectory(target)) } : undefined} onColor={onColor} onHide={onHide} onUngroup={onUngroup} />
   const portal = document.getElementById('root')
@@ -87,7 +96,15 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
     <ContextMenu.Root onOpenChange={setContextMenuOpen}><ContextMenu.Trigger asChild disabled={renaming}><div ref={props.headerDropRef} data-sidebar-drop-id={props.headerDropId} data-collection-header data-menu-open={menuVisible || undefined} className="mira-collection-head">
       {sortable && <button type="button" className="mira-collection-grip" aria-label={`拖拽排序 ${name}`} {...attributes} {...listeners}><GripVertical size={12} /></button>}
       {color && onColor ? <DropdownMenu.Root><SidebarActionHint suspended={menuVisible} title="分组颜色"><DropdownMenu.Trigger asChild><button type="button" className="mira-collection-color" aria-label={`${name} 的颜色`}><Hash size={12} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={portal}><DropdownMenu.Content className="mira-session-menu" sideOffset={4}><DropdownMenu.Label className="mira-session-menu__label">分组颜色</DropdownMenu.Label><DropdownMenu.RadioGroup value={color} onValueChange={value => onColor(value as SidebarGroupColor)}>{SIDEBAR_GROUP_COLORS.map(value => <DropdownMenu.RadioItem key={value} value={value} className="mira-session-menu__item"><span className="mira-collection-swatch" data-group-color={value} />{colorLabels[value]}<DropdownMenu.ItemIndicator className="mira-session-menu__arrow"><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root> : <Folder size={13} className="mira-collection-folder" />}
-      {renaming ? <form className="mira-session-rename" onSubmit={event => { event.preventDefault(); void commit() }}><input autoFocus aria-label={`重命名${color ? '分组' : '项目'}`} maxLength={64} value={draft} disabled={saving} onFocus={event => event.currentTarget.select()} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); if (!saving) onCancelRename() } }} /><button type="submit" aria-label="保存名称" disabled={saving || !draft.trim()}>{saving ? <LoaderCircle size={13} className="pilot-spin" /> : <Check size={13} />}</button><button type="button" aria-label="取消重命名" disabled={saving} onClick={onCancelRename}><X size={13} /></button></form> : <>
+      {renaming ? <form className="mira-session-rename" onSubmit={event => { event.preventDefault(); void commit() }}><input autoFocus aria-label={`重命名${color ? '分组' : '项目'}`} aria-invalid={Boolean(error)} maxLength={64} value={draft} disabled={saving} onFocus={event => event.currentTarget.select()} onChange={event => setDraft(event.target.value)} onCompositionStart={() => { composingName.current = true }} onCompositionEnd={() => { composingName.current = false }} onKeyDown={event => {
+        if (event.key !== 'Enter' && event.key !== 'Escape') return
+        const ime = composingName.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
+        event.stopPropagation()
+        if (ime) { if (event.key === 'Enter') event.preventDefault(); return }
+        event.preventDefault()
+        if (event.key === 'Enter') void commit()
+        else if (!renameRequest.current) onCancelRename()
+      }} /><button type="submit" aria-label="保存名称" disabled={saving || !draft.trim()}>{saving ? <LoaderCircle size={13} className="pilot-spin" /> : <Check size={13} />}</button><button type="button" aria-label="取消重命名" disabled={saving} onClick={() => { if (!renameRequest.current) onCancelRename() }}><X size={13} /></button></form> : <>
         <SidebarActionHint suspended={menuVisible} title={directory ? `${name}\n${directory}` : name}><button type="button" className="mira-collection-title" aria-expanded={expanded} onClick={onToggle}><span>{name}</span><ChevronRight size={12} className={expanded ? 'is-open' : ''} /></button></SidebarActionHint>
         {!expanded && <>
           {hasUnread && <SidebarActionHint suspended={menuVisible} title={`${name} 有未读回复`}><span role="img" tabIndex={0} aria-label={`${name} 有未读回复`} className="mira-collection-status mira-session-status--unread"><span /></span></SidebarActionHint>}

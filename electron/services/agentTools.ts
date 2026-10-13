@@ -21,7 +21,7 @@ export function redactHarnessText(value: string, secrets: string[] = []) {
   for (const secret of secrets) if (secret) text = text.split(secret).join('[已隐藏]')
   text = text.replace(/data:(?:image|audio|video)\/[^;,\s]+;base64,[a-z\d+/=]+/gi, '[媒体数据不记录]')
     .replace(/((?:Bearer|Basic)\s+)[^\s"']+/gi, '$1[已隐藏]')
-    .replace(/(["']?(?:[a-z\d_-]*(?:api[_-]?key|token|password|secret|credential|authorization|base64|image[_-]?url)[a-z\d_-]*|data|raw)["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\s,;}\]]+)/gi, '$1"[已隐藏]"')
+    .replace(/(^|[^a-z\d_-])(["']?(?:[a-z\d_-]*(?:api[_-]?key|token|password|secret|credential|authorization|base64|image[_-]?url)[a-z\d_-]*|data|raw)["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\s,;}\]]+)/gi, '$1$2"[已隐藏]"')
   return text
 }
 
@@ -180,6 +180,10 @@ export function wrapHarnessTool(
   hooks: {
     record: (tool: string, target: string) => string
     finish: (id: string, status: 'ok' | 'failed', diff?: string) => void
+    snapshot?: (id: string, path: string, before: string | null | undefined, after: string | null | undefined) => void
+    readSnapshot?: (path: string) => Promise<string | null | undefined>
+    beforeSnapshot?: (id: string, path: string, before: string | null | undefined) => void
+    afterSnapshot?: (id: string, after: string | null | undefined) => void
     target: (params: any) => string
   },
   description?: string,
@@ -193,10 +197,28 @@ export function wrapHarnessTool(
     execute: async (toolCallId: string, params: any, signal?: AbortSignal, onUpdate?: any) => {
       const id = hooks.record(tool.name, hooks.target(params))
       try {
+        const before = hooks.readSnapshot && (tool.name === 'edit' || tool.name === 'write') ? await hooks.readSnapshot(params.path) : undefined
+        if (hooks.readSnapshot && (tool.name === 'edit' || tool.name === 'write')) hooks.beforeSnapshot?.(id, params.path, before)
         const previous = tool.name === 'write'
           ? await context.env.readTextFile(params.path, signal).then(result => result.ok ? result.value : '')
           : undefined
-        const result = await tool.execute(toolCallId, params, signal, onUpdate, context)
+        let result
+        try {
+          result = await tool.execute(toolCallId, params, signal, onUpdate, context)
+        } catch (error) {
+          // Upstream tools may observe cancellation after the write has landed.
+          if (hooks.readSnapshot && (hooks.snapshot || hooks.afterSnapshot) && (tool.name === 'edit' || tool.name === 'write')) {
+            const after = await hooks.readSnapshot(params.path)
+            hooks.afterSnapshot?.(id, after)
+            if (before !== after) hooks.snapshot?.(id, params.path, before, after)
+          }
+          throw error
+        }
+        if (hooks.readSnapshot && (tool.name === 'edit' || tool.name === 'write')) {
+          const after = await hooks.readSnapshot(params.path)
+          hooks.afterSnapshot?.(id, after)
+          hooks.snapshot?.(id, params.path, before, after)
+        }
         const diff = result?.details?.diff || (tool.name === 'write'
           ? await context.env.readTextFile(params.path, signal).then(next => next.ok ? displayDiff(previous || '', next.value) : undefined)
           : undefined)

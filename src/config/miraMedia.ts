@@ -23,4 +23,6 @@ export function miraMediaFormat(path: string) {
 }
 export interface MiraMediaPreview {
   id: string; path: string; kind: MiraMediaKind; mediaType: string; byteLength: number; url: string
+  sourceFingerprint?: string
+  workspaceIdentity?: string
 }

@@ -140,6 +140,11 @@ button.mira-session-group__head:hover { color: var(--color-foreground); }
 .mira-session-row--timeline .mira-session-row__open { height: 42px; }
 .mira-session-row__project { color: var(--color-foreground-subtlest); font-size: 10px; line-height: 14px; }
 .mira-session-row__time { flex: 0 0 auto; color: var(--color-foreground-subtlest); font-size: 10px; font-variant-numeric: tabular-nums; }
+.mira-session-row__changes { display: inline-flex; flex: 0 0 auto; gap: 3px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-task-change-added { color: var(--color-diff-added); }
+.mira-task-change-removed { color: var(--color-diff-removed); }
+.mira-task-change-note { color: var(--color-foreground-subtle); }
+.mira-session-row:is(:hover, :focus-within, [data-archive-confirming], [aria-busy], [data-menu-open]) .mira-session-row__changes { display: none; }
 .mira-session-row__actions { display: none; flex: 0 0 auto; align-items: center; gap: 1px; }
 .mira-session-row:hover .mira-session-row__actions, .mira-session-row:focus-within .mira-session-row__actions, .mira-session-row[data-archive-confirming] .mira-session-row__actions, .mira-session-row[aria-busy] .mira-session-row__actions, .mira-session-row[data-menu-open] .mira-session-row__actions { display: flex; }
 .mira-session-row__action, .mira-session-row__more { display: grid; width: 22px; height: 25px; place-items: center; padding: 0; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; cursor: pointer; }
@@ -158,6 +163,9 @@ button.mira-session-group__head:hover { color: var(--color-foreground); }
 .mira-session-status--waiting, .mira-session-status--plan { color: var(--color-warning); }
 .mira-session-status--failed { color: var(--color-destructive); }
 .mira-session-status--unread > span { width: 5px; height: 5px; border-radius: 50%; background: var(--color-brand); }
+.mira-session-interaction { height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.mira-session-interaction--input { color: var(--color-interaction-ask-foreground); background: var(--color-interaction-ask-surface); }
+.mira-session-interaction--confirmation { color: var(--color-interaction-confirmation-foreground); background: var(--color-interaction-confirmation-surface); }
 .mira-session-hint { margin: 9px 8px; color: var(--color-foreground-subtle); font-size: 11px; line-height: 1.6; }
 .mira-session-more { display: block; padding: 6px 9px; border: 0; color: var(--color-foreground-subtle); background: transparent; text-align: left; font-size: 11px; cursor: pointer; }
 .mira-session-more:hover { color: var(--color-foreground); }

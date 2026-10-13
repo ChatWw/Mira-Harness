@@ -7,10 +7,12 @@ import { MiraWorkflowEditor } from '../apps/harness-react/src/components/workflo
 import { MiraWorkflowLaunch } from '../apps/harness-react/src/components/workflows/MiraWorkflowLaunch'
 import { MiraWorkflowRunPane } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunPane'
 import { MiraWorkflowDigest } from '../apps/harness-react/src/components/workflows/MiraWorkflowDigest'
+import { useMiraWorkflowRuns } from '../apps/harness-react/src/components/workflows/useMiraWorkflowRuns'
 import { workflowActorModelLabel, workflowNodeLabel, type MiraWorkflowHost } from '../apps/harness-react/src/components/workflows/workflow-model'
 import type { HarnessEvent, HarnessProject, ModelProviderSummary } from '../src/config/harness'
 import type { MiraFlowRunSnapshot, MiraFlowWorkbenchRequest } from '../src/config/miraFlowWorkbench'
 import type { MiraWorkflowDocument } from '../src/config/miraWorkflows'
+import type { RunRecord } from '../packages/mira-flow-kit/src/engine/mira-types'
 import { createWorkspaceSession, createWorkspaceWorkflowTab, openWorkspaceTab, readWorkspaceSessions, withoutWorkspaceTaskOwners } from '../apps/harness-react/src/state/workspace-state'
 
 const project: HarnessProject = { id: 'project', name: 'Mira project', icon: '', directory: '/project', directoryExists: true, sessionCount: 0, createdAt: 1, updatedAt: 1 }
@@ -180,11 +182,40 @@ describe('real workflow journal pane and conversation digest', () => {
     expect(withoutWorkspaceTaskOwners({ owner: state }, new Set(['session'])).owner.tabs).toEqual([])
   })
   it('loads only the active conversation digest and reports presence for an empty launch conversation', async () => {
-    const view = hostFixture(request => request.action === 'runs.list' ? [snapshot.run] : request.action === 'runs.snapshot' ? snapshot : undefined), presence = vi.fn(), onOpen = vi.fn(async () => undefined)
-    await mount(<MiraWorkflowDigest host={view.host} sessionId="session" active onPresence={presence} onOpen={onOpen} />)
-    expect(view.request).toHaveBeenCalledWith({ action: 'runs.list', sessionId: 'session' }); expect(presence).toHaveBeenLastCalledWith('session', 1)
+    const view = hostFixture(request => request.action === 'runs.list' ? [snapshot.run] : request.action === 'runs.snapshot' ? snapshot : undefined), onOpen = vi.fn(async () => undefined)
+    function Host() { const workflows = useMiraWorkflowRuns(view.host, 'session', true); return <><span aria-label="摘要工作流数量">{workflows.runs.length}</span><MiraWorkflowDigest host={view.host} workflows={workflows} active onOpen={onOpen} /></> }
+    await mount(<Host />)
+    expect(view.request).toHaveBeenCalledWith({ action: 'runs.list', sessionId: 'session' }); expect(document.querySelector('[aria-label="摘要工作流数量"]')?.textContent).toBe('1')
+    expect(view.request.mock.calls.filter(([request]) => request.action === 'runs.list')).toHaveLength(1)
     const count = view.request.mock.calls.length
     await view.emit('other', 'run'); expect(view.request).toHaveBeenCalledTimes(count)
     await click('查看工作流 核对'); expect(onOpen).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' })
+  })
+  it('shares fresh workflow lists, coalesces burst events and rejects late previous-owner responses', async () => {
+    const late = deferred<RunRecord[]>(), pending = deferred<RunRecord[]>(); let current = 0
+    const view = hostFixture(request => request.action === 'runs.list' ? request.sessionId === 'old' ? late.promise : ++current === 2 ? pending.promise : [{ ...snapshot.run, name: `当前-${current}` }] : undefined)
+    function Host({ sessionId, active = true }: { sessionId: string; active?: boolean }) {
+      const workflows = useMiraWorkflowRuns(view.host, sessionId, active)
+      return <><span aria-label="共享工作流">{workflows.runs.map(run => run.name).join(',')}</span><span aria-label="共享错误">{workflows.error}</span><button aria-label="重新读取工作流" onClick={workflows.refresh}>刷新</button></>
+    }
+    const render = await mount(<Host sessionId="old" />)
+    await render(<Host sessionId="current" />)
+    expect(document.querySelector('[aria-label="共享工作流"]')?.textContent).toBe('当前-1')
+    await act(async () => late.resolve([{ ...snapshot.run, name: '旧任务' }]))
+    expect(document.body.textContent).not.toContain('旧任务')
+    await view.emit('unrelated', 'run'); expect(current).toBe(1)
+    await view.emit('current', 'run'); await view.emit('current', 'run'); await view.emit('current', 'run'); expect(current).toBe(2)
+    await act(async () => pending.resolve([{ ...snapshot.run, name: '当前-2' }]))
+    expect(current).toBe(3); expect(document.body.textContent).toContain('当前-3')
+    await render(<Host sessionId="current" active={false} />)
+    expect(view.listeners.size).toBe(0); expect(document.querySelector('[aria-label="共享工作流"]')?.textContent).toBe('')
+  })
+  it('retries a list failure without erasing previously known workflow runs', async () => {
+    let attempt = 0
+    const view = hostFixture(request => { if (request.action === 'runs.list') { if (++attempt === 2) throw new Error('列表读取失败'); return [snapshot.run] } })
+    function Host() { const workflows = useMiraWorkflowRuns(view.host, 'session', true); return <><span>{workflows.runs.length}</span><p role="alert">{workflows.error}</p><button aria-label="重新读取工作流" onClick={workflows.refresh}>刷新</button></> }
+    await mount(<Host />); await click('重新读取工作流')
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('列表读取失败'); expect(document.querySelector('span')?.textContent).toBe('1')
+    await click('重新读取工作流'); expect(document.querySelector('[role="alert"]')?.textContent).toBe(''); expect(attempt).toBe(3)
   })
 })

@@ -24,6 +24,7 @@ vi.mock('react', async importOriginal => ({
     }]
   },
   useRef: (initial: unknown) => (hooks.slots[hooks.cursor++] ??= { value: { current: initial } }).value,
+  useCallback: (callback: unknown) => callback,
   useMemo: (factory: () => unknown, deps: readonly unknown[]) => {
     const slot = hooks.slots[hooks.cursor++] ??= {}
     if (!slot.deps || deps.length !== slot.deps.length || deps.some((value, index) => !Object.is(value, slot.deps![index]))) { slot.value = factory(); slot.deps = deps }
@@ -38,7 +39,7 @@ vi.mock('react', async importOriginal => ({
     hooks.effects.push(() => { slot.cleanup?.(); slot.cleanup = effect() })
   },
 }))
-vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', useHarnessSessionShortcuts: vi.fn() }))
+vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', SessionMenuItems: 'session-menu', useHarnessSessionShortcuts: vi.fn() }))
 vi.mock('../apps/harness-react/src/hooks/useModalFocusTrap', () => ({ useModalFocusTrap: vi.fn() }))
 
 const KEY = 'harness-react-workspace'
@@ -57,7 +58,7 @@ function fixture(read: () => Promise<unknown> = async () => null) {
   const navigate = vi.fn(async (_path: string) => undefined)
   const browserProtected = vi.fn(async (_id: string, _browser: string) => ({ protected: false }))
   const browserListeners = new Set<(event: any) => void>()
-  const host = { getPreference, setPreference, navigate, browserProtected, onBrowserEvent: (listener: (event: any) => void) => { browserListeners.add(listener); return () => browserListeners.delete(listener) } } as unknown as PilotHost
+  const host = { onEvent: vi.fn(() => () => undefined), getPreference, setPreference, navigate, browserProtected, onBrowserEvent: (listener: (event: any) => void) => { browserListeners.add(listener); return () => browserListeners.delete(listener) } } as unknown as PilotHost
   const controller = new PilotController(host)
   const session: HarnessSession = { version: 1, id: 'a', title: 'a', permissionMode: 'default', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
   Object.assign(controller.getSnapshot(), { initialized: true, session, sessions: [session] })
@@ -109,6 +110,7 @@ function mount(controller: PilotController) {
 beforeEach(() => {
   hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hooks.effects = []
   vi.stubGlobal('React', React)
+  vi.stubGlobal('document', { getElementById: () => null })
   vi.stubGlobal('window', { setTimeout, clearTimeout, addEventListener: vi.fn(), removeEventListener: vi.fn(), matchMedia: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) })
 })
 afterEach(() => { vi.unstubAllGlobals() })

@@ -57,6 +57,14 @@ describe('Mira composer caret triggers and replacements', () => {
     expect(source.map(item => item.label)).toEqual(['review', '/plan', 'read-version'])
   })
 
+  it('requires a contiguous Chinese match while keeping English subsequence discovery', () => {
+    const source = [{ label: '浏览器操作' }, { label: '/browser', description: '浏览器操作' }, { label: 'reader', keywords: '浏器' }, { label: 'read-version' }]
+    expect(filterMiraSuggestions(source, '浏器').map(item => item.label)).toEqual(['reader'])
+    expect(filterMiraSuggestions(source, '浏览').map(item => item.label)).toEqual(['浏览器操作', '/browser'])
+    expect(filterMiraSuggestions(source, 'rvr').map(item => item.label)).toEqual(['read-version'])
+    expect(filterMiraSuggestions(source, '浏r').map(item => item.label)).toEqual([])
+  })
+
   it('uses real visible conversation content and does not leak internal prompt messages', () => {
     expect(formatMiraConversationReference({ title: '资料\n总结', messages: [{ role: 'user', content: '需求' }, { role: 'assistant', content: '结论' }, { role: 'assistant', content: 'private', internal: true }] })).toBe('【引用对话：资料 总结】\n用户：\n需求\n\nMira：\n结论\n【引用结束】\n')
     expect(() => formatMiraConversationReference({ title: 'empty', messages: [] })).toThrow('暂无可引用')

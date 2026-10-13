@@ -2,6 +2,20 @@
 .harness-composer__error { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; color: var(--color-destructive); background: var(--color-surface); font-size: var(--text-ui-sm); line-height: 20px; }
 .harness-composer__error > span { flex: 1; }
 .harness-composer__error > svg { flex: none; margin-top: 2px; }
+.mira-model-error { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-foreground); font-size: var(--text-ui-sm); }
+.mira-model-error > svg { flex: none; color: var(--color-destructive); }
+.mira-model-error > span { flex: 1; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-model-error button, .mira-model-error-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: none; min-height: 28px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; font-size: var(--text-ui-sm); }
+.mira-model-error button:hover, .mira-model-error-dialog button:hover { background: var(--color-hover); }
+.mira-model-error button:disabled, .mira-model-error-dialog button:disabled { opacity: .5; cursor: default; }
+.mira-model-error .mira-model-error-dismiss { width: 28px; padding: 0; border-color: transparent; }
+.mira-model-error-action { margin: 0 0 10px; color: var(--color-destructive); font-size: var(--text-ui-sm); }
+.mira-model-error-dialog { position: fixed; z-index: 121; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(640px, calc(100vw - 64px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: 14px; background: var(--color-menu); color: var(--color-foreground); box-shadow: 0 16px 48px rgb(0 0 0 / .2); }
+.mira-model-error-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mira-model-error-dialog h2 { margin: 0; font-size: var(--text-ui-lg); font-weight: 600; }
+.mira-model-error-dialog p { margin: 0; font-size: var(--text-ui-sm); }
+.mira-model-error-dialog pre { min-height: 0; max-height: 55vh; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); user-select: text; }
+.mira-model-error-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--text-ui-sm); color: var(--color-foreground-subtle); }
 .harness-composer__compaction { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--color-foreground); font-size: var(--text-ui-sm); line-height: 20px; }
 .harness-composer__compaction > span { flex: 1; }
 .harness-composer__compaction > svg { flex: none; }
@@ -101,7 +115,14 @@
 .mira-browser-contexts__meta { color: var(--color-foreground-subtle); font-family: var(--font-mono); }
 .mira-browser-contexts__source { color: var(--color-foreground-subtlest); }
 .mira-browser-contexts__remove { margin-top: 2px; border-radius: 4px; }
-.mira-message-contexts { display: flex; max-width: 100%; justify-content: flex-end; margin-top: 8px; }
+.mira-message-contexts { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; justify-content: flex-end; margin-bottom: 8px; }
+.mira-presentation-context__open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 8px; padding: 0; border: 0; border-radius: 4px; text-align: left; color: inherit; background: transparent; font: inherit; }
+.mira-presentation-context__open > svg { flex: none; margin-top: 4px; color: var(--color-foreground-subtle); }
+.mira-presentation-context__open:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 2px; }
+.mira-presentation-context__title, .mira-presentation-context__source { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-presentation-context__title { font-weight: 500; }
+.mira-presentation-context__source { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
+.mira-presentation-context__comment { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-foreground-subtle); }
 .harness-composer__footer { display: flex; min-height: 28px; align-items: flex-end; justify-content: space-between; gap: 12px; }
 @container (max-width: 200px) {
   .harness-composer__footer { flex-wrap: wrap; gap: 4px; }
@@ -211,7 +232,10 @@
 .mira-composer-panel-anchor { position: absolute; top: 0; left: 0; width: 100%; height: 1px; pointer-events: none; }
 .mira-composer-panel-popover { z-index: 80; width: var(--radix-popover-trigger-width); max-width: calc(100vw - 24px); outline: none; }
 .mira-composer-suggestions { overflow: hidden; border: 1px solid var(--color-popover-border); border-radius: 16px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); font-size: var(--text-ui-base); }
-.mira-composer-suggestions__list { max-height: min(384px, calc(var(--radix-popover-content-available-height, 480px) - 48px)); min-height: 64px; overflow-y: auto; padding: 3px 4px; scrollbar-color: var(--color-border-hover) transparent; scrollbar-width: thin; }
+.mira-composer-suggestions__list { max-height: min(384px, calc(var(--radix-popover-content-available-height, 480px) - 48px)); overflow-y: auto; padding: 3px 4px; scrollbar-color: var(--color-border-hover) transparent; scrollbar-width: thin; }
+.mira-composer-suggestions__list[data-mira-scroll-top='true'] { --mira-candidate-top: transparent; }
+.mira-composer-suggestions__list[data-mira-scroll-bottom='true'] { --mira-candidate-bottom: transparent; }
+.mira-composer-suggestions__list[data-mira-scroll-top='true'], .mira-composer-suggestions__list[data-mira-scroll-bottom='true'] { mask-image: linear-gradient(to bottom, var(--mira-candidate-top, black), black 24px, black calc(100% - 24px), var(--mira-candidate-bottom, black)); }
 .mira-composer-suggestions[data-has-query='true'] .mira-composer-suggestions__list { max-height: min(224px, var(--radix-popover-content-available-height, 480px)); }
 .mira-composer-suggestions__heading { display: flex; height: 34px; align-items: center; overflow: hidden; padding: 0 12px; color: var(--color-foreground-subtle); font-size: var(--text-ui-base); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .mira-composer-suggestions__option { display: flex; width: 100%; min-width: 0; height: 32px; align-items: center; gap: 12px; margin: 1px 0; padding: 0 12px; border: 0; border-radius: 12px; color: inherit; background: transparent; font: inherit; text-align: left; }

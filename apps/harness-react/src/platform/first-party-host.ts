@@ -1,5 +1,6 @@
 import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
+import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../../../src/config/miraFileRewind'
 import type { PilotBrowserEvent, PilotHost } from '../state/pilot-state'
 import type { MiraPluginItem, MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../../../src/config/miraPlugins'
 import type { HarnessAttachmentSaveResult, HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../src/platform/firstPartyHarness'
@@ -14,6 +15,7 @@ import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../
 import type { MiraBrowserPickResult } from '../../../../src/platform/miraBrowserPicker'
 import type { HarnessGoal } from '../../../../src/config/miraGoals'
 import type { MiraFlowWorkbenchRequest } from '../../../../src/config/miraFlowWorkbench'
+import type { HarnessSideConversationInput } from '../../../../src/config/harness'
 
 export class FirstPartyHarnessHost implements PilotHost {
   readonly supportsQueueSubmissionOptions = true
@@ -24,15 +26,25 @@ export class FirstPartyHarnessHost implements PilotHost {
   private commandCenterListeners = new Set<(focusRequestId?: string) => void>()
   private navigationCommandListeners = new Set<(command: MiraAppNavigationCommand) => void>()
   private navigationRestoreListeners = new Set<(snapshot: MiraAppNavigationSnapshot | undefined) => void>()
+  private theme: 'light' | 'dark' = 'light'
+  private themeListeners = new Set<() => void>()
   private navigationRestoreReceived = false
   private navigationRestoreSnapshot?: MiraAppNavigationSnapshot
   private prepareLeave?: () => Promise<void>
+  private closeContext?: () => Promise<boolean>
   private closed = false
 
   constructor(private port: MessagePort) {
     port.onmessage = message => {
       if (this.closed) return
       const data = message.data
+      if (data?.type === 'mira:context') {
+        const theme = data.context?.theme
+        if ((theme === 'light' || theme === 'dark') && this.theme !== theme) {
+          this.theme = theme; this.themeListeners.forEach(listener => listener())
+        }
+        return
+      }
       if (data?.type === 'mira:app-navigation-command') {
         const command = readMiraAppNavigationCommand(data)
         if (command) this.navigationCommandListeners.forEach(listener => listener(command))
@@ -54,6 +66,14 @@ export class FirstPartyHarnessHost implements PilotHost {
           if (!this.prepareLeave || this.closed) throw new Error('Harness 尚未准备好保存草稿')
           return this.prepareLeave()
         }).then(() => this.replyLeave(id, true), error => this.replyLeave(id, false, error))
+        return
+      }
+      if (data?.type === 'mira:close-context' && !Array.isArray(data) && Object.keys(data).length === 2 && typeof data.id === 'string' && data.id.length > 0 && data.id.length <= 128) {
+        const id = data.id
+        void Promise.resolve().then(() => {
+          if (!this.closeContext || this.closed) throw new Error('Harness 尚未准备好关闭，请重试')
+          return this.closeContext()
+        }).then(consumed => this.replyClose(id, true, consumed), error => this.replyClose(id, false, undefined, error))
         return
       }
       if (data?.type === 'mira:harness-event') {
@@ -88,13 +108,22 @@ export class FirstPartyHarnessHost implements PilotHost {
   }
 
   onPrepareLeave(callback: () => Promise<void>) { this.prepareLeave = callback }
+  onCloseContext(callback: () => Promise<boolean>) {
+    if (!this.closed) this.closeContext = callback
+    return () => { if (this.closeContext === callback) this.closeContext = undefined }
+  }
+  private replyClose(id: string, ok: boolean, consumed?: boolean, error?: unknown) {
+    if (this.closed) return
+    try { this.port.postMessage({ type: 'mira:close-ready', id, ok, ...(ok ? { consumed } : { error: error instanceof Error ? error.message : '关闭失败，已保留当前窗口' }) }) }
+    catch { /* The authorized host has already disconnected. */ }
+  }
   private replyLeave(id: string, ok: boolean, error?: unknown) {
     if (this.closed) return
     try { this.port.postMessage({ type: 'mira:leave-ready', id, ok, ...(!ok ? { error: error instanceof Error ? error.message : '草稿保存失败' } : {}) }) }
     catch { /* 宿主已离开，端口无法接收保存确认。 */ }
   }
 
-  createSideConversation = (parentId: string) => this.call<HarnessSession>('session.create-side', { parentId })
+  createSideConversation = (parentId: string, input?: HarnessSideConversationInput) => this.call<HarnessSession>('session.create-side', { parentId, ...(input ? { input } : {}) })
   requestWorkflow = <T,>(request: MiraFlowWorkbenchRequest) => this.call<T>('workflows.request', { request })
   pauseGoal = (sessionId: string, expectedRevision: number, expectedGoalId: string) => this.call<HarnessGoal>('goal.pause', { sessionId, expectedRevision, expectedGoalId })
   resumeGoal = (sessionId: string, expectedRevision: number, expectedGoalId: string, selection: ModelSelection, permissionMode?: PermissionMode) => this.call<HarnessGoal>('goal.resume', { sessionId, expectedRevision, expectedGoalId, selection, ...(permissionMode ? { permissionMode } : {}) })
@@ -120,6 +149,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   renameProject = (id: string, name: string) => this.call<void>('projects.rename', { id, name })
   openProject = (projectId: string, target: 'file-manager' | 'terminal' = 'file-manager') => this.call<string>('projects.open', { projectId, target })
   selectProject = () => this.call<HarnessProject | null>('projects.select')
+  getTheme = () => this.theme
+  onThemeChange = (listener: () => void) => { this.themeListeners.add(listener); return () => { this.themeListeners.delete(listener) } }
+  toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
   dismissCommandCenterFocus = (focusRequestId: string) => {
     if (this.closed || !focusRequestId || focusRequestId.length > 128) return false
@@ -153,6 +185,12 @@ export class FirstPartyHarnessHost implements PilotHost {
   abortAutomationRun = (id: string) => this.call<void>('automations.abort', { id })
   getHarnessPermissionConfig = () => this.call<PermissionConfig>('permissions.config')
   getSession = (id: string) => this.call<HarnessSession>('session.get', { id })
+  readModelTrace = (id: string) => this.call<import('../../../../src/config/miraModelTrace').MiraModelTrace>('session.trace', { id })
+  openModelTraceDirectory = (id: string) => this.call<void>('session.trace.open', { id })
+  getTaskDiagnosticPaths = (id: string) => this.call<import('../../../../src/config/miraModelTrace').MiraTaskDiagnosticPaths>('session.paths', { id })
+  previewFileRewind = (sessionId: string, messageId: string) => this.call<import('../../../../src/config/miraFileRewind').MiraFileRewindPreview>('files.rewind-preview', { sessionId, messageId })
+  applyFileRewind = (sessionId: string, messageId: string, snapshotToken: string) => this.call<import('../../../../src/config/miraFileRewind').MiraFileRewindResult>('files.rewind-apply', { sessionId, messageId, snapshotToken })
+  recoverFileRewind = (sessionId: string, recoveryId: string) => this.call<import('../../../../src/config/miraFileRewind').MiraFileRewindResult>('files.rewind-recover', { sessionId, recoveryId })
   createSession = (projectId?: string) => this.call<HarnessSession>('session.create', { projectId })
   prepareSession = (projectId?: string) => this.call<HarnessSession>('session.create', { projectId, prepared: true })
   importAttachments = (sessionId: string, files: Array<{ name: string; mediaType: string; data: string }>) => this.call<HarnessFileReference[]>('attachments.import', { sessionId, files })
@@ -238,14 +276,18 @@ export class FirstPartyHarnessHost implements PilotHost {
   respondMemory = (requestId: string, approved: boolean) => this.call<void>('memory.respond', { requestId, approved })
   saveMemory = (id: string, selection: ModelSelection) => this.call<void>('memory.save', { sessionId: id, selection })
   stopSubtasks = (id: string, subtaskId?: string) => this.call<void>('subtask.stop', { sessionId: id, subtaskId })
+  backgroundCommand = (id: string, runId: string, toolId: string) => this.call<void>('command.background', { sessionId: id, runId, toolId })
+  stopCommand = (id: string, runId: string, toolId: string) => this.call<void>('command.stop', { sessionId: id, runId, toolId })
+  readCommandOutput = (id: string, runId: string, toolId: string) => this.call<string>('command.output', { sessionId: id, runId, toolId })
   rerun = (id: string, selection: ModelSelection) => this.call<void>('run.rerun', { sessionId: id, selection })
-  editAndRerun = (id: string, messageId: string, content: string, selection: ModelSelection) => this.call<void>('run.edit-rerun', { sessionId: id, messageId, content, selection })
+  editAndRerun = (id: string, messageId: string, content: string, selection: ModelSelection, references?: HarnessFileReference[], workspace?: MiraHistoryEditWorkspace) => this.call<void | MiraHistoryEditBlocked>('run.edit-rerun', { sessionId: id, messageId, content, selection, ...(references === undefined ? {} : { references }), ...(workspace === undefined ? {} : { workspace }) })
   cancelPlan = (id: string, planId: string) => this.call<void>('plan.cancel', { sessionId: id, planId })
   continuePlan = (id: string, planId: string, message: string, references: HarnessFileReference[], selection: ModelSelection) => this.call<void>('plan.continue', { sessionId: id, planId, message, references, selection })
 
   close() {
     this.closed = true
     this.prepareLeave = undefined
+    this.closeContext = undefined
     this.port.close()
     this.pending.forEach(request => request.reject(new Error('Harness 连接已关闭')))
     this.pending.clear()
@@ -254,6 +296,7 @@ export class FirstPartyHarnessHost implements PilotHost {
     this.commandCenterListeners.clear()
     this.navigationCommandListeners.clear()
     this.navigationRestoreListeners.clear()
+    this.themeListeners.clear()
     this.navigationRestoreReceived = false
     this.navigationRestoreSnapshot = undefined
   }

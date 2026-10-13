@@ -58,6 +58,24 @@ async function setup(steps: Array<{ name: string; args: unknown }>, choose?: (re
 }
 
 describe('actual production workflow model, tools and permission integration', () => {
+  it('drains a real actor-owned background command when its typed workflow answer closes the actor', async () => {
+    const view = await setup([
+      { name: 'bash', args: { command: 'sleep 10', run_in_background: true } },
+      { name: 'submit_result', args: { result: { text: 'ACTOR-DONE' } } },
+    ])
+    try {
+      const identity = await view.start(await view.save('return await agent("writer").ask<{text: string}>("Run the test command, then submit the typed answer");'))
+      await vi.waitFor(() => expect(view.runtime.listPendingPermissions(identity.sessionId)).toHaveLength(1), { timeout: 10_000 })
+      view.runtime.resolvePermission(view.runtime.listPendingPermissions(identity.sessionId)[0].requestId, true)
+      await vi.waitFor(async () => expect((await view.snapshot(identity)).run.status).toBe('completed'), { timeout: 10_000 })
+      await vi.waitFor(() => expect(view.controller.hasActiveSession(identity.sessionId)).toBe(false))
+      const session = view.runtime.getSession(identity.sessionId)
+      expect(session.toolCalls.find(tool => tool.tool === 'bash')).toMatchObject({ status: 'ok', commandJob: { mode: 'background', status: 'cancelled' } })
+      expect(view.runtime.isProjectRunning(session.projectId!)).toBe(false)
+      expect(view.runtime.getMessageQueue(session.id).items).toEqual([])
+      expect(view.requests).toHaveLength(2)
+    } finally { await view.close() }
+  }, 20_000)
   it('executes files.grep through the production workflow host with packaged search and no system PATH', async () => {
     const view = await setup([])
     try {

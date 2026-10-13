@@ -64,6 +64,18 @@ beforeEach(() => {
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals() })
 
 describe('Mira conversation find bar shipped interactions', () => {
+  it('reports pending search without presenting stale results as navigable or empty', () => {
+    const view = fixture({ pending: true })
+    expect(view.find(props => props.className === 'mira-conversation-find__count').children).toBe('查找中…')
+    expect(view.find(props => props.role === 'status').children).toBe('正在查找')
+    expect(view.find(props => props['aria-label'] === '下一处匹配').disabled).toBe(true)
+    view.key('Enter'); view.click('下一处匹配')
+    expect(view.props.onNavigate).not.toHaveBeenCalled()
+    view.props.pending = false; view.render()
+    expect(view.find(props => props.className === 'mira-conversation-find__count').children).toBe('1/3')
+    view.key('Enter'); expect(view.props.onNavigate).toHaveBeenCalledWith(1)
+  })
+
   it('renders a nonmodal labelled bar and controlled input without mutating the query', () => {
     const view = fixture()
     expect(view.find(props => props.role === 'dialog')['aria-modal']).toBe('false')

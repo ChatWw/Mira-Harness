@@ -15,6 +15,20 @@ const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA
 const cleanups: Array<() => void> = []
 afterEach(() => { cleanups.splice(0).reverse().forEach(cleanup => cleanup()) })
 
+it('stores native PDF/video attachments as immutable bytes rather than text or images', () => {
+  const { store, session } = fixture()
+  const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF')
+  const video = Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex')
+  const refs = store.importMessageAttachments(session.id, [input('report.pdf', pdf, 'application/pdf'), input('clip.mp4', video, 'video/mp4')])
+  expect(refs.map(file => file.mediaType)).toEqual(['application/pdf', 'video/mp4'])
+  store.addMessage(session.id, 'user', '', store.resolveMessageAttachments(session.id, refs))
+  const saved = store.getSession(session.id).messages[0]
+  expect(saved.attachments?.map(file => file.content)).toEqual(['', ''])
+  expect(store.hydrateMessageAttachments(session.id, saved).attachments?.map(file => file.content)).toEqual([pdf.toString('base64'), video.toString('base64')])
+  expect(() => store.importMessageAttachments(session.id, [input('bad.pdf', Buffer.from('plain text'), 'application/pdf')])).toThrow('签名')
+  expect(() => store.importMessageAttachments(session.id, [input('bad.mp4', Buffer.from('plain text'), 'video/mp4')])).toThrow('签名')
+})
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'mira-attachments-'))
   const database = new Database(join(root, 'state.sqlite'))

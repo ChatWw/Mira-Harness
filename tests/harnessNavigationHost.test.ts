@@ -9,18 +9,25 @@ import type { MiraAppNavigationSnapshot } from '../src/platform/appNavigation'
 const bridge = vi.hoisted(() => ({
   send: vi.fn(() => true), prepareLeave: vi.fn(async () => undefined), resolveUrl: vi.fn(async () => 'https://mira.test/apps/'),
   state: undefined as undefined | ((value: unknown) => void), reset: undefined as undefined | (() => void),
-  frameProps: undefined as undefined | { navigationSnapshot?: MiraAppNavigationSnapshot },
+  frameProps: undefined as undefined | { navigationSnapshot?: MiraAppNavigationSnapshot; toggleTheme?: () => 'light' | 'dark'; context?: { theme: 'light' | 'dark' } },
+  themeToggle: vi.fn(), themeStore: undefined as undefined | { themeMode: 'light' | 'dark' },
+  closeContext: vi.fn<() => Promise<boolean>>(async () => true), windowCommand: vi.fn(async (_action: string) => undefined),
   leave: undefined as undefined | (() => Promise<boolean>),
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({}), onBeforeRouteLeave: (callback: () => Promise<boolean>) => { bridge.leave = callback } }))
-vi.mock('@/platform', () => ({ getPlatformApi: () => ({ resolveLocalMicroAppUrl: bridge.resolveUrl }) }))
+vi.mock('@/platform', () => ({ getPlatformApi: () => ({ resolveLocalMicroAppUrl: bridge.resolveUrl, windowCommand: bridge.windowCommand }) }))
 vi.mock('@/platform/firstPartyNavigation', () => ({ navigateHarnessHost: vi.fn() }))
-vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ themeMode: 'light', primaryColor: '#000', onPrimaryColor: '#fff' }) }))
+vi.mock('@/stores/theme', async () => {
+  const { reactive } = await import('vue')
+  const theme = reactive({ themeMode: 'light' as 'light' | 'dark', primaryColor: '#000', onPrimaryColor: '#fff', toggleThemeMode: () => { bridge.themeToggle(); theme.themeMode = theme.themeMode === 'light' ? 'dark' : 'light' } })
+  bridge.themeStore = theme
+  return { useThemeStore: () => theme }
+})
 vi.mock('@/pages/frontend/microAppHost/FirstPartyFrame.vue', async () => {
   const { defineComponent, h } = await import('vue')
-  return { default: defineComponent({ props: ['navigationSnapshot', 'url'], emits: ['navigationState', 'navigationReset', 'error'], setup: (props, { emit, expose }) => {
+  return { default: defineComponent({ props: ['navigationSnapshot', 'url', 'toggleTheme', 'context'], emits: ['navigationState', 'navigationReset', 'error'], setup: (props, { emit, expose }) => {
     bridge.frameProps = props; bridge.state = value => emit('navigationState', value); bridge.reset = () => emit('navigationReset')
-    expose({ navigateHistory: bridge.send, prepareLeave: bridge.prepareLeave, openCommandCenter: vi.fn() })
+    expose({ navigateHistory: bridge.send, prepareLeave: bridge.prepareLeave, openCommandCenter: vi.fn(), closeContext: bridge.closeContext })
     return () => h('div', { 'data-frame': true })
   } }) }
 })
@@ -37,11 +44,45 @@ async function mount() {
 beforeEach(() => {
   setActivePinia(createPinia()); bridge.send.mockReset().mockReturnValue(true); bridge.prepareLeave.mockReset().mockResolvedValue(undefined); bridge.resolveUrl.mockClear()
   bridge.frameProps = undefined; bridge.state = undefined; bridge.reset = undefined; bridge.leave = undefined
+  bridge.themeStore!.themeMode = 'light'; bridge.themeToggle.mockClear()
+  bridge.closeContext.mockReset().mockResolvedValue(true); bridge.windowCommand.mockClear()
   vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('navigator', { language: 'zh-CN' })
 })
 afterEach(() => { for (const app of mounts.splice(0)) app.unmount(); vi.unstubAllGlobals() })
 
 describe('Harness navigation across the Vue settings boundary', () => {
+  it('claims native close and deduplicates it while the active resource is saving', async () => {
+    await mount()
+    let done!: (value: boolean) => void
+    bridge.closeContext.mockReturnValueOnce(new Promise(resolve => { done = resolve }))
+    const event = new Event('mira:close-active-context', { cancelable: true })
+    window.dispatchEvent(event); window.dispatchEvent(new Event('mira:close-active-context', { cancelable: true }))
+    expect(event.defaultPrevented).toBe(true); expect(bridge.closeContext).toHaveBeenCalledOnce(); expect(bridge.windowCommand).not.toHaveBeenCalled()
+    done(true); await Promise.resolve(); await nextTick(); expect(bridge.windowCommand).not.toHaveBeenCalled()
+    bridge.closeContext.mockResolvedValueOnce(false)
+    window.dispatchEvent(new Event('mira:close-active-context', { cancelable: true })); await Promise.resolve(); await nextTick()
+    expect(bridge.windowCommand).toHaveBeenCalledExactlyOnceWith('close')
+  })
+  it('keeps the window on failed save and discards a fallback acknowledgement after unmount', async () => {
+    const { renderer, app } = await mount()
+    bridge.closeContext.mockRejectedValueOnce(new Error('输入保存失败'))
+    window.dispatchEvent(new Event('mira:close-active-context', { cancelable: true })); await Promise.resolve(); await nextTick()
+    expect(bridge.windowCommand).not.toHaveBeenCalled(); expect(renderer.all().some(node => node.props.role === 'alert' && node.text === '输入保存失败')).toBe(true)
+    let done!: (value: boolean) => void
+    bridge.closeContext.mockReturnValueOnce(new Promise(resolve => { done = resolve }))
+    window.dispatchEvent(new Event('mira:close-active-context', { cancelable: true })); app.unmount(); mounts.splice(mounts.indexOf(app), 1)
+    done(false); await Promise.resolve(); await nextTick(); expect(bridge.windowCommand).not.toHaveBeenCalled()
+    const event = new Event('mira:close-active-context', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
+  })
+  it('wires the actual Harness route to the Shell theme owner and republishes its context', async () => {
+    await mount()
+    expect(bridge.frameProps?.context?.theme).toBe('light')
+    expect(bridge.frameProps?.toggleTheme?.()).toBe('dark'); await nextTick()
+    expect(bridge.themeToggle).toHaveBeenCalledOnce(); expect(bridge.frameProps?.context?.theme).toBe('dark')
+    expect(bridge.frameProps?.toggleTheme?.()).toBe('light'); await nextTick()
+    expect(bridge.frameProps?.context?.theme).toBe('light')
+    expect(bridge.prepareLeave).not.toHaveBeenCalled(); expect(bridge.send).not.toHaveBeenCalled()
+  })
   it('holds one initial snapshot for each host mount and restores the latest draft identity after settings', async () => {
     const store = useAppNavigationStore(), first = await mount()
     expect(bridge.frameProps?.navigationSnapshot).toBeUndefined(); expect(store.state).toBeNull()

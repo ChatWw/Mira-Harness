@@ -155,6 +155,11 @@
           <el-checkbox v-model="modelDraft.multimodal" aria-describedby="model-image-support-tip">支持图片输入</el-checkbox>
           <p id="model-image-support-tip" class="field-tip">已知模型自动填写，未知模型默认关闭；可按供应商实际能力调整。</p>
         </el-form-item>
+        <el-form-item label="文档与视频输入">
+          <el-checkbox v-model="modelDraft.pdfInput" aria-describedby="model-media-support-tip">支持 PDF 输入</el-checkbox>
+          <el-checkbox v-model="modelDraft.videoInput" aria-describedby="model-media-support-tip">支持视频输入</el-checkbox>
+          <p id="model-media-support-tip" class="field-tip">默认关闭，请按供应商实际支持的文件格式启用。图片能力不代表支持 PDF 或视频。</p>
+        </el-form-item>
         <el-form-item label="上下文长度">
           <el-input-number v-model="modelDraft.contextWindow" :min="16384" :step="16000" :precision="0" controls-position="right" />
           <span class="input-suffix">token</span>
@@ -357,7 +362,7 @@ async function testConnection() {
 }
 
 function resetModelDraft(model?: ProviderModelConfig) {
-  Object.assign(modelDraft, model ? { ...model, multimodal: isMultimodal(model), pricing: { ...model.pricing || DEFAULT_MODEL_PRICING } } : { id: '', enabled: true, reasoning: false, multimodal: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
+  Object.assign(modelDraft, { pdfInput: false, videoInput: false }, model ? { ...model, multimodal: isMultimodal(model), pricing: { ...model.pricing || DEFAULT_MODEL_PRICING } } : { id: '', enabled: true, reasoning: false, multimodal: false, contextWindow: DEFAULT_CONTEXT_WINDOW, pricing: { ...DEFAULT_MODEL_PRICING } })
   pricingEnabled.value = Boolean(model?.pricing)
 }
 
@@ -367,6 +372,7 @@ function applyModelKnowledge() {
   const knowledge = lookupModelKnowledge(modelDraft.id)
   modelDraft.reasoning = knowledge?.reasoning ?? inferModelReasoning(modelDraft.id)
   modelDraft.multimodal = knowledge?.multimodal ?? false
+  modelDraft.pdfInput = false; modelDraft.videoInput = false
   modelDraft.contextWindow = knowledge?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
   pricingEnabled.value = Boolean(knowledge?.pricing)
   modelDraft.pricing = { ...knowledge?.pricing || DEFAULT_MODEL_PRICING }
@@ -375,7 +381,7 @@ function confirmModel() {
   const id = modelDraft.id.trim()
   if (!id) return ElMessage.warning('请输入模型名称')
   if (form.models.some((model, index) => model.id === id && index !== editingModelIndex.value)) return ElMessage.warning('该模型已存在')
-  const next = { id, enabled: modelDraft.enabled, reasoning: modelDraft.reasoning, multimodal: modelDraft.multimodal, contextWindow: modelDraft.contextWindow, ...(pricingEnabled.value ? { pricing: { ...modelDraft.pricing! } } : {}) }
+  const next = { id, enabled: modelDraft.enabled, reasoning: modelDraft.reasoning, multimodal: modelDraft.multimodal, pdfInput: modelDraft.pdfInput === true, videoInput: modelDraft.videoInput === true, contextWindow: modelDraft.contextWindow, ...(pricingEnabled.value ? { pricing: { ...modelDraft.pricing! } } : {}) }
   if (editingModelIndex.value === -1) form.models.push(next)
   else form.models.splice(editingModelIndex.value, 1, next)
   modelDialogVisible.value = false

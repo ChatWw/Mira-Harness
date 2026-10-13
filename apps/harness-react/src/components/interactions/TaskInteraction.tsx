@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import type { HarnessPendingInteraction, HarnessPlan, HarnessUserAnswer } from '../../../../../src/config/harness'
+import { miraPlanMarkdown } from '../../../../../src/config/miraSessionPlans'
+import { MessageMarkdown } from '../conversation/markdown'
 
 export function TaskInteraction({ interaction, plan, selectionReady, onConfirm, onRevise, onAnswer, onCancel }: { interaction: HarnessPendingInteraction; plan?: HarnessPlan; selectionReady: boolean; onConfirm: () => Promise<void>; onRevise: (message: string) => Promise<void>; onAnswer: (answers: HarnessUserAnswer[]) => Promise<void>; onCancel?: () => Promise<void> }) {
   const [submitting, setSubmitting] = useState(false)
@@ -18,7 +20,7 @@ export function TaskInteraction({ interaction, plan, selectionReady, onConfirm, 
       try { await action() } catch (cause) { setError(`${cause instanceof Error ? cause.message : '操作失败'}。请重试。`) }
       finally { busyRef.current = false; setSubmitting(false) }
     }
-    return <section className="pilot-action mira-task-interaction" aria-label="计划确认" aria-busy={submitting} tabIndex={-1} data-interaction-id={interaction.id}><ShieldCheck size={19} aria-hidden="true" /><div className="mira-interaction-content"><header className="mira-interaction-header"><strong>方案已生成 · {planReady ? plan.steps.length : 0} 步</strong></header><div className="mira-interaction-body" tabIndex={0} role="region" aria-label="方案内容">{planReady ? <><p>{plan.understanding}</p><ol className="pilot-plan-steps">{plan.steps.map((step, index) => <li key={index}><strong>{step.label}</strong>{step.detail && <span>{step.detail}</span>}</li>)}</ol>{plan.risks.length > 0 && <p>风险：{plan.risks.join('；')}</p>}</> : <p>计划内容未加载，暂不能确认。</p>}
+    return <section className="pilot-action mira-task-interaction" aria-label="计划确认" aria-busy={submitting} tabIndex={-1} data-interaction-id={interaction.id}><ShieldCheck size={19} aria-hidden="true" /><div className="mira-interaction-content"><header className="mira-interaction-header"><strong>方案已生成 · {planReady ? plan.steps.length : 0} 步</strong></header><div className="mira-interaction-body" tabIndex={0} role="region" aria-label="方案内容">{planReady ? <MessageMarkdown content={miraPlanMarkdown(plan)} /> : <p>计划内容未加载，暂不能确认。</p>}
       {revising && <textarea ref={revisionRef} className="pilot-plan-revision" disabled={!selectionReady || submitting} value={revision} onChange={event => { if (!busyRef.current) { setRevision(event.target.value); setError('') } }} placeholder="说明需要修改的步骤或边界" aria-label="计划修改要求" />}
       </div>
       <footer className="mira-interaction-footer">

@@ -8,8 +8,8 @@ import type { PilotController, PilotState } from '../apps/harness-react/src/stat
 import { MiraPromptEditor } from '../apps/harness-react/src/components/composer/MiraPromptEditor'
 
 let root: Root | undefined
-beforeEach(() => { vi.stubGlobal('React', React); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true) })
-afterEach(async () => { await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); vi.unstubAllGlobals() })
+beforeEach(() => { vi.stubGlobal('React', React); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); vi.spyOn(navigator, 'platform', 'get').mockReturnValue('') })
+afterEach(async () => { await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 async function mount(withComposer = false) {
   const actions = { newTask: vi.fn(), search: vi.fn(), sidebar: vi.fn() }
@@ -47,6 +47,23 @@ async function mount(withComposer = false) {
 }
 
 describe('workbench-owned shortcuts through real React keyboard events', () => {
+  it.each(['MacIntel', 'Win32'])('uses only the platform primary modifier for task/search/sidebar on %s', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
+    const view = await mount(true), composer = view.element('实际 Composer')
+    const primary = platform === 'MacIntel' ? 'metaKey' : 'ctrlKey', other = primary === 'metaKey' ? 'ctrlKey' : 'metaKey'
+    for (const shortcut of [{ key: 'n' }, { key: 'k' }, { key: 'p', shiftKey: true }, { key: 'b' }]) {
+      await view.key(shortcut.key, { [other]: true, shiftKey: shortcut.shiftKey }, composer)
+      await view.key(shortcut.key, { ctrlKey: true, metaKey: true, shiftKey: shortcut.shiftKey }, composer)
+    }
+    Object.values(view.actions).forEach(action => expect(action).not.toHaveBeenCalled())
+    await view.key('n', { [primary]: true }, composer); expect(view.actions.newTask).toHaveBeenCalledOnce()
+    await view.key('k', { [primary]: true }, composer); await view.closeSearch()
+    await view.key('p', { [primary]: true, shiftKey: true }, composer); await view.closeSearch()
+    await view.key('b', { [primary]: true }, composer)
+    expect(view.actions.search).toHaveBeenCalledTimes(2); expect(view.actions.sidebar).toHaveBeenCalledOnce()
+    expect(view.composerChanged).not.toHaveBeenCalled(); expect(composer.textContent).toBe('保留的任务内容')
+  })
+
   it('shows the search alias on focus while keeping only K in the sidebar button', async () => {
     const state: PilotState = { sessions: [], projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
     const controller = { getSnapshot: () => state } as PilotController
@@ -58,6 +75,23 @@ describe('workbench-owned shortcuts through real React keyboard events', () => {
     expect(search.querySelector('kbd')!.textContent).toMatch(/K$/); expect(search.textContent).not.toContain('Shift')
     await act(async () => search.focus())
     expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('Shift P')
+  })
+
+  it('shows navigation hints on focus without changing the new-task, automation and market actions', async () => {
+    const state: PilotState = { sessions: [], projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
+    const controller = { getSnapshot: () => state } as PilotController
+    const preferences = new SidebarPreferenceStore(async () => ({}), async () => undefined); await preferences.load()
+    const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
+    const newTask = vi.fn(), automate = vi.fn(), market = vi.fn()
+    await act(async () => root!.render(<SessionSidebar state={state} controller={controller} width={264} onClose={() => undefined} onNewConversation={newTask} onOpenAutomations={automate} onOpenExtensions={market} preferenceStore={preferences} />))
+    const buttons = [container.querySelector<HTMLElement>('[aria-label="新建任务"]')!, ...['自动化', '插件市场'].map(label => [...container.querySelectorAll<HTMLButtonElement>('.mira-session-actions button')].find(button => button.textContent === label)!)]
+    for (const [index, button] of buttons.entries()) {
+      await act(async () => button.focus())
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(['N', '自动化', '插件市场'][index])
+      await act(async () => button.click())
+    }
+    expect(buttons[0].getAttribute('aria-keyshortcuts')).toBe('Meta+N Control+N')
+    for (const action of [newTask, automate, market]) expect(action).toHaveBeenCalledOnce()
   })
 
   it.each(['metaKey', 'ctrlKey'] as const)('toggles the sidebar with %s+B while it is open and closed', async modifier => {

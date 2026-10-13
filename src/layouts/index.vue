@@ -1,5 +1,5 @@
 <template>
-  <div class="mira-shell" :class="`mira-shell--${windowChrome}`">
+  <div class="mira-shell" :class="`mira-shell--${windowChrome}`" :style="{ '--mira-desktop-zoom': desktopZoomFactor }">
     <header class="mira-shell__bar">
       <div class="mira-shell__identity">
         <img :src="miraLogo" alt="" class="mira-shell__logo" />
@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import miraLogo from '@/asset/mira-logo.png'
 import { applications, findRuntimeMicroApp } from '@/config/runtime'
@@ -67,6 +67,13 @@ const router = useRouter()
 const commandPaletteStore = useCommandPaletteStore()
 const appNavigation = useAppNavigationStore()
 const windowChrome = window.platform?.windowChrome ?? 'standard'
+const desktopZoomFactor = ref(window.platform?.getDesktopZoomFactor?.() ?? 1)
+let removeZoomListener: (() => void) | undefined
+onMounted(() => {
+  removeZoomListener = window.platform?.onDesktopZoomChanged?.(factor => { if (Number.isFinite(factor) && factor > 0) desktopZoomFactor.value = factor })
+  desktopZoomFactor.value = window.platform?.getDesktopZoomFactor?.() ?? 1
+})
+onUnmounted(() => removeZoomListener?.())
 const globalSearchLabel = `全局搜索 (${windowChrome === 'macos-overlay' ? '⌘K' : 'Ctrl+K'})`
 const navigationShortcut = windowChrome === 'macos-overlay' ? '⌘' : 'Ctrl+'
 const showAppNavigation = computed(() => route.path === '/workspace/harness-react' && Boolean(appNavigation.state))
@@ -117,6 +124,7 @@ function openSettings() {
 }
 
 .mira-shell--standard .mira-shell__bar { padding-left: 16px; }
+.mira-shell--macos-overlay .mira-shell__bar { padding-left: max(92px, calc(92px / var(--mira-desktop-zoom, 1))); }
 .mira-shell--windows-overlay .mira-shell__bar { padding-left: 302px; padding-right: 148px; }
 
 .mira-shell__identity,

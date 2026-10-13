@@ -43,6 +43,69 @@ function setup(multimodal = true) {
 }
 
 describe('Harness multimodal message ownership', () => {
+  it('replays native PDF/video bytes in the host-only provider envelope and rejects unsupported history before mutation', async () => {
+    const view = setup(false)
+    const pdf: HarnessMessageAttachment = { path: 'report.pdf', name: 'report.pdf', mediaType: 'application/pdf', content: Buffer.from('%PDF-1.7\n%%EOF').toString('base64') }
+    const video: HarnessMessageAttachment = { path: 'clip.mp4', name: 'clip.mp4', mediaType: 'video/mp4', content: Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex').toString('base64') }
+    const configure = (enabled: boolean) => view.database.models.save({ id: selection.providerId, name: 'Fixture', endpoint: 'http://127.0.0.1:1/v1', authMode: 'none', enabled: true, models: [{ id: selection.modelId, enabled: true, reasoning: false, contextWindow: 100000, multimodal: false, pdfInput: enabled, videoInput: enabled }] })
+    configure(true)
+    view.resolveAttachments.mockImplementation((_id, refs = []) => refs.map(ref => structuredClone(ref.path === pdf.path ? pdf : video)))
+    await view.send('', [pdf, video])
+    expect(view.prompts[0].miraMedia).toEqual([expect.objectContaining({ name: pdf.name, mediaType: pdf.mediaType, content: pdf.content }), expect.objectContaining({ name: video.name, mediaType: video.mediaType, content: video.content })])
+    expect(JSON.stringify(view.prompts[0].content)).not.toContain('"type":"image"')
+    await view.send('Follow up', [])
+    expect(view.contexts[1][0].miraMedia.map((file: HarnessMessageAttachment) => file.content)).toEqual([pdf.content, video.content])
+    const before = view.database.harness.getSession(view.sessionId), queue = view.runtime.getMessageQueue(view.sessionId)
+    configure(false)
+    expect(view.runtime.submitMessage(view.sender, view.sessionId, 'unsupported-media', 'Keep draft', [], selection, false)).toEqual({ retryRequired: true, reason: 'media-model-unsupported', queue })
+    await expect(view.runtime.editAndRerun(view.sender, view.sessionId, before.messages[0].id, 'Keep media', selection)).rejects.toThrow('PDF')
+    expect(view.database.harness.getSession(view.sessionId)).toEqual(before)
+    await view.runtime.editAndRerun(view.sender, view.sessionId, before.messages[0].id, 'Text only', selection, [])
+    expect(view.prompts.at(-1)).toBe('Text only')
+  })
+
+  it('includes original PDF/video bytes in the actual compaction request without reclassifying them as images', async () => {
+    const view = setup(false)
+    const pdf: HarnessMessageAttachment = { path: 'report.pdf', name: 'report.pdf', mediaType: 'application/pdf', content: Buffer.from('%PDF-1.7\n%%EOF').toString('base64') }
+    view.database.harness.addMessage(view.sessionId, 'user', 'Older PDF question', [pdf])
+    view.database.harness.addMessage(view.sessionId, 'assistant', 'Older reply')
+    view.database.harness.addMessage(view.sessionId, 'user', 'Latest question')
+    const before = view.database.harness.addMessage(view.sessionId, 'assistant', 'Latest reply')
+    const models = { completeSimple: vi.fn(async () => ({ role: 'assistant', content: [{ type: 'text', text: 'PDF summary' }], stopReason: 'stop', usage: { input: 8, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 12 } })) }
+    const saved = await (view.runtime as any).compactContext(view.sender, before, { id: 'fixture', provider: 'mira-openai', api: 'openai-completions', contextWindow: 100000, maxTokens: 4000 }, models, new AbortController(), 'off', [], vi.fn(), undefined, { manual: true })
+    const request = (models.completeSimple.mock.calls as any)[0][1].messages[0]
+    expect(request.miraMedia[0]).toMatchObject({ content: pdf.content, mediaType: 'application/pdf' })
+    expect(JSON.stringify(request.content)).not.toContain('"type":"image"')
+    expect(saved.messages).toEqual(before.messages)
+    expect(saved.context.summary).toBe('PDF summary')
+    expect(JSON.stringify(view.sender.send.mock.calls)).not.toContain(pdf.content)
+  })
+  it('removes all edited images before image-model validation and replays only the retained history', async () => {
+    const view = setup(true)
+    await view.send('Original image')
+    const original = view.database.harness.getSession(view.sessionId).messages[0]
+    view.configure(false)
+    await expect(view.runtime.editAndRerun(view.sender, view.sessionId, original.id, 'Text only', selection)).rejects.toThrow('不支持图片')
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toEqual(original)
+    await view.runtime.editAndRerun(view.sender, view.sessionId, original.id, 'Text only', selection, [])
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toMatchObject({ id: original.id, content: 'Text only', attachments: [] })
+    expect(JSON.stringify(view.contexts.at(-1))).not.toContain('"type":"image"')
+    expect(view.prompts.at(-1)).toBe('Text only')
+  })
+
+  it('edits an attachment-only message and validates new references before changing canonical history', async () => {
+    const view = setup(false)
+    await view.send('Original text', [note])
+    const original = view.database.harness.getSession(view.sessionId).messages[0]
+    await expect(view.runtime.editAndRerun(view.sender, view.sessionId, original.id, '', selection, [])).rejects.toThrow('消息不能为空')
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toEqual(original)
+    view.resolveAttachments.mockImplementationOnce(() => { throw new Error('附件不可读取') })
+    await expect(view.runtime.editAndRerun(view.sender, view.sessionId, original.id, 'Changed', selection, [{ path: 'missing.txt', name: 'missing.txt' }])).rejects.toThrow('附件不可读取')
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toEqual(original)
+    await view.runtime.editAndRerun(view.sender, view.sessionId, original.id, '', selection, [{ path: original.attachments![0].path, name: 'notes.md' }])
+    expect(view.database.harness.getSession(view.sessionId).messages[0]).toMatchObject({ content: '', attachments: original.attachments })
+    expect(JSON.stringify(view.prompts.at(-1))).toContain(note.content)
+  })
   it('executes the project command before a global name and preserves the expansion in later model history', async () => {
     const view = setup(false), directory = join(view.root, 'project')
     view.database.promptCommands.save({ scope: 'global', name: 'review', source: 'GLOBAL_COMMAND $ARGUMENTS' })
@@ -580,5 +643,27 @@ describe('Harness multimodal message ownership', () => {
     expect(resolve).toHaveBeenCalledOnce()
     expect(view.prompts[0].content.at(-1)).toEqual({ type: 'image', data: image.content, mimeType: 'image/png' })
     expect(view.database.harness.getSession(view.sessionId).messages[0]).toMatchObject({ content: '', attachments: [metadataImage()] })
+  })
+
+  it('queues native PDF/video bytes once and sends the frozen originals after their sources disappear', async () => {
+    const view = setup(false)
+    view.database.models.save({ id: selection.providerId, name: 'Fixture', endpoint: 'http://127.0.0.1:1/v1', authMode: 'none', enabled: true, models: [{ id: selection.modelId, enabled: true, reasoning: false, contextWindow: 100000, multimodal: false, pdfInput: true, videoInput: true }] })
+    const media: HarnessMessageAttachment[] = [
+      { path: 'queued.pdf', name: 'queued.pdf', mediaType: 'application/pdf', content: Buffer.from('%PDF-1.7\n%%EOF').toString('base64') },
+      { path: 'queued.mp4', name: 'queued.mp4', mediaType: 'video/mp4', content: Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex').toString('base64') },
+    ]
+    const originals = structuredClone(media), resolve = view.resolveAttachments.mockReturnValue(media)
+    const running = (view.runtime as any).runCoordinator.begin(view.sessionId, 'existing-run')
+    const receipt = view.runtime.submitMessage(view.sender, view.sessionId, 'queued-media', '', media.map(({ path, name }) => ({ path, name })), selection, false, { delivery: 'guide', expectedRunId: 'existing-run' })
+    expect(receipt).toMatchObject({ delivery: 'queue', queue: { items: [{ text: '', fallbackReason: 'attachments' }] } })
+    media.forEach(file => { file.content = 'Changed' }); resolve.mockImplementation(() => { throw new Error('Source deleted') })
+    expect(running.signal.aborted).toBe(false)
+    await (view.runtime as any).runCoordinator.finish(view.sender, view.sessionId, 'existing-run')
+    ;(view.runtime as any).messageQueue.onRunSettled(view.sessionId, 'completed')
+    await vi.waitFor(() => expect(view.prompt).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(view.database.harness.getSession(view.sessionId).activeRun).toBeUndefined())
+    expect(resolve).toHaveBeenCalledOnce()
+    expect(view.prompts[0].miraMedia).toEqual(originals.map(file => expect.objectContaining({ name: file.name, mediaType: file.mediaType, content: file.content })))
+    expect(view.database.harness.getSession(view.sessionId).messages[0].attachments).toEqual(originals.map(file => expect.objectContaining({ name: file.name, mediaType: file.mediaType, content: '', path: expect.stringMatching(/^mira-attachment:/) })))
   })
 })

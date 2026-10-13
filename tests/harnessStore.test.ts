@@ -9,7 +9,7 @@ import { HarnessStore } from '../electron/storage/harnessStore'
 import { PlatformDatabase } from '../electron/storage/database'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { McpConfigStore } from '../electron/storage/mcpConfigStore'
-import { shouldGenerateAutoTitle } from '../src/config/harness'
+import { shouldGenerateAutoTitle, type HarnessMessage } from '../src/config/harness'
 
 describe('persistent Mira input history', () => {
   it('preserves project configuration across startup migrations while moving only recognized legacy trash', () => {
@@ -225,6 +225,27 @@ describe('HarnessStore', () => {
       db.removeHarnessDraftOwners([side.id]); db.savePreference(key, draft)
       expect(db.getSnapshot().preferences[key]).toMatchObject({ drafts: {}, fileDrafts: {}, submissions: {} })
     } finally { db?.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('replays side first-input creation durably without changing history or reviving a deleted child', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-side-input-restart-'))
+    let db = new PlatformDatabase(root)
+    try {
+      const parent = db.harness.createSession(); db.harness.acceptPreparedSession(parent.id)
+      db.harness.addMessage(parent.id, 'user', '主问题')
+      const input = { submissionId: 'first-input', text: '解释这个概念', selection: { providerId: 'provider', modelId: 'model', thinkingLevel: 'low' as const }, permissionMode: 'default' as const }
+      const child = db.harness.createSideConversation(parent.id, input)
+      db.harness.addMessage(parent.id, 'assistant', '后来新增的上下文')
+      db.close(); db = new PlatformDatabase(root)
+      expect(db.harness.createSideConversation(parent.id, input)).toEqual(child)
+      expect(db.harness.sideConversationIds(parent.id)).toEqual([child.id])
+      expect(() => db.harness.createSideConversation(parent.id, { ...input, text: '另一个问题' })).toThrow('内容已变化')
+      const other = db.harness.createSession(); db.harness.acceptPreparedSession(other.id)
+      expect(db.harness.createSideConversation(other.id, input).id).not.toBe(child.id)
+      db.harness.deleteSession(child.id)
+      expect(() => db.harness.createSideConversation(parent.id, input)).toThrow('已不存在')
+      expect(db.harness.sideConversationIds(parent.id)).toEqual([])
+    } finally { db.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
   it('hides prepared owners from task queries, counts and order until idempotent admission', async () => {
@@ -617,6 +638,36 @@ describe('HarnessStore', () => {
 
     database.close()
     rmSync(root, { recursive: true, force: true })
+  })
+
+  it.each(['structured', 'file'] as const)('migrates an unassigned %s snapshot without losing legacy plan questions or historical dates', source => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
+      const legacy = { ...session, workingDirectory: undefined, unread: undefined,
+        messages: [{ id: 'legacy-user', role: 'user', content: '保留历史问题', createdAt: 123 }],
+        activePlan: { id: 'legacy-plan', status: 'ready', request: '旧请求', understanding: '旧理解', steps: [], risks: [], questions: [{ question: '需要保留的问题', context: '旧背景' }], createdAt: 123, updatedAt: 124 },
+      }
+      database.prepare('UPDATE harness_sessions SET working_directory = NULL WHERE id = ?').run(session.id)
+      if (source === 'structured') database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify(legacy), session.id)
+      else {
+        database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
+        writeFileSync(row.path, JSON.stringify(legacy), 'utf8')
+      }
+      const restored = store.getSession(session.id)
+      expect(restored.workingDirectory).toBe(join(root, '.mira', 'workspace'))
+      expect(restored.updatedAt).toBe(session.updatedAt)
+      expect(restored.messages).toEqual(legacy.messages)
+      expect(restored.activePlan).toMatchObject({ id: 'legacy-plan', status: 'awaiting_confirmation', createdAt: 123, updatedAt: 124 })
+      expect(restored.activePlan).not.toHaveProperty('questions')
+      expect(restored.pendingInteraction).toMatchObject({ kind: 'question', status: 'waiting', questions: [{ id: 'legacy-1', question: '需要保留的问题', context: '旧背景' }] })
+      expect(database.prepare('SELECT working_directory FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ working_directory: restored.workingDirectory })
+      const persisted = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
+      expect(JSON.parse(persisted.payload)).toEqual(restored)
+      expect(JSON.parse(readFileSync(row.path, 'utf8'))).toEqual(restored)
+      expect(store.getSession(session.id)).toEqual(restored)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
   it('defaults delegation on and marks stale child tasks interrupted at startup recovery', () => {
@@ -1054,6 +1105,199 @@ describe('HarnessStore', () => {
     database.close(); rmSync(root, { recursive: true, force: true })
   })
 
+  it('persists live assistant deltas without rewriting historical structured rows', async () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '流式问题', createdAt: 1 }]
+      session.toolCalls = [{ id: 'read', tool: 'read', status: 'ok', createdAt: 1 }]
+      session.activePlan = { id: 'plan', status: 'executing', request: '请求', understanding: '方案', steps: [{ label: '实现' }], risks: [], createdAt: 1, updatedAt: 1 }
+      session.interactions = [{ id: 'review', kind: 'plan-review', planId: 'plan', status: 'approved', createdAt: 1 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [{ id: 'thinking', label: '思考', status: 'running', startedAt: 2 }], subtasks: [{ id: 'child', parentToolCallId: 'delegate', role: 'explorer', task: '核查', status: 'running', createdAt: 2, activities: [] }] }
+      store.updateSession(session)
+      const untouched = ['harness_tool_calls', 'harness_plans', 'harness_interactions', 'harness_runs', 'harness_run_activities', 'harness_subtasks']
+      const before = untouched.map(table => database.prepare(`SELECT * FROM ${table} WHERE session_id = ?`).all(session.id))
+      for (const table of untouched) for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
+        database.exec(`CREATE TRIGGER forbid_${table}_${operation} BEFORE ${operation} ON ${table} BEGIN SELECT RAISE(ABORT, 'historical rows rewritten'); END`)
+      }
+      database.exec(`CREATE TRIGGER forbid_message_delete BEFORE DELETE ON harness_messages BEGIN SELECT RAISE(ABORT, 'historical messages deleted'); END;
+        CREATE TRIGGER forbid_history_update BEFORE UPDATE ON harness_messages WHEN OLD.message_id <> 'live' BEGIN SELECT RAISE(ABORT, 'historical message updated'); END;`)
+      const parts: NonNullable<HarnessMessage['parts']> = [{ id: 'text', type: 'text', text: '第一段', state: 'streaming', startedAt: 2 }]
+      store.appendAssistantDelta(session.id, '第一段', { runId: 'run', messageId: 'live', parts })
+      const liveRow = database.prepare('SELECT rowid, payload FROM harness_messages WHERE session_id = ? AND message_id = ?').get(session.id, 'live') as { rowid: number; payload: string }
+      parts[0] = { id: 'text', type: 'text', text: '第一段，第二段', state: 'streaming', startedAt: 2 }
+      const saved = store.appendAssistantDelta(session.id, '，第二段', { runId: 'run', messageId: 'live', parts })
+      const changed = database.prepare('SELECT rowid, content, payload FROM harness_messages WHERE session_id = ? AND message_id = ?').get(session.id, 'live') as { rowid: number; content: string; payload: string }
+      expect(changed.rowid).toBe(liveRow.rowid)
+      expect(changed.content).toBe('第一段，第二段')
+      expect(JSON.parse(changed.payload)).toEqual(saved.messages.at(-1))
+      expect(untouched.map(table => database.prepare(`SELECT * FROM ${table} WHERE session_id = ?`).all(session.id))).toEqual(before)
+      const state = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
+      const metadata = database.prepare('SELECT path, updated_at FROM harness_sessions WHERE id = ?').get(session.id) as { path: string; updated_at: number }
+      expect(JSON.parse(state.payload)).toEqual(saved)
+      expect(JSON.parse(readFileSync(metadata.path, 'utf8'))).toEqual(saved)
+      expect(metadata.updated_at).toBe(saved.updatedAt)
+      expect((await store.searchConversations('第二段'))[0]).toMatchObject({ id: session.id, messageId: 'live' })
+      expect(existsSync(`${metadata.path}.${process.pid}.tmp`)).toBe(false)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it.each(['unordered', 'mismatched-run', 'mismatched-message', 'missing-run'] as const)('keeps full structured persistence for %s assistant writes', mode => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '问题', createdAt: 1 }]
+      if (mode !== 'missing-run') session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      store.updateSession(session)
+      database.exec(`CREATE TEMP TABLE rewritten_messages (message_id TEXT);
+        CREATE TEMP TRIGGER count_full_message_rewrite BEFORE DELETE ON harness_messages BEGIN INSERT INTO rewritten_messages VALUES (OLD.message_id); END;`)
+      const ordered = mode === 'unordered' ? undefined : { runId: mode === 'mismatched-run' ? 'other-run' : 'run', messageId: mode === 'mismatched-message' ? 'other-message' : 'live', parts: [] }
+      const saved = store.appendAssistantDelta(session.id, '保留旧入口行为', ordered)
+      expect(database.prepare('SELECT message_id FROM rewritten_messages').all()).toEqual([{ message_id: 'prompt' }])
+      const stored = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
+      expect(JSON.parse(stored.payload)).toEqual(saved)
+      expect(saved.messages.at(-1)?.content).toBe('保留旧入口行为')
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('rolls back a new assistant segment whose ID already belongs to historical content', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'old-assistant', role: 'assistant', content: '历史回复不可覆盖', createdAt: 1, runId: 'old-run' }, { id: 'new-prompt', role: 'user', content: '新问题', createdAt: 2 }]
+      session.activeRun = { id: 'run', messageId: 'old-assistant', startedAt: 3, activities: [], subtasks: [] }
+      store.updateSession(session)
+      const beforeState = database.prepare('SELECT * FROM harness_session_state WHERE session_id = ?').get(session.id)
+      const beforeMessages = database.prepare('SELECT rowid, * FROM harness_messages WHERE session_id = ? ORDER BY rowid').all(session.id)
+      const metadata = database.prepare('SELECT * FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
+      const backup = readFileSync(metadata.path, 'utf8')
+      expect(() => store.appendAssistantDelta(session.id, '迟到的回复', { runId: 'run', messageId: 'old-assistant', parts: [] })).toThrow()
+      expect(database.prepare('SELECT * FROM harness_session_state WHERE session_id = ?').get(session.id)).toEqual(beforeState)
+      expect(database.prepare('SELECT rowid, * FROM harness_messages WHERE session_id = ? ORDER BY rowid').all(session.id)).toEqual(beforeMessages)
+      expect(database.prepare('SELECT * FROM harness_sessions WHERE id = ?').get(session.id)).toEqual(metadata)
+      expect(readFileSync(metadata.path, 'utf8')).toBe(backup)
+      expect(existsSync(`${metadata.path}.${process.pid}.tmp`)).toBe(false)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('normalizes legacy ready plans and questions through full persistence before continuing a reply', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '旧方案问题', createdAt: 1 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      store.updateSession(session)
+      const plan = { id: 'legacy-plan', status: 'ready', request: '请求', understanding: '理解', steps: [], risks: [], createdAt: 1, updatedAt: 1, questions: [{ question: '是否继续？' }] }
+      database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify({ ...session, activePlan: plan }), session.id)
+      database.prepare('INSERT INTO harness_plans(session_id, plan_id, payload, updated_at) VALUES (?, ?, ?, ?)').run(session.id, plan.id, JSON.stringify(plan), 1)
+      database.exec(`CREATE TEMP TABLE rewritten_messages (message_id TEXT);
+        CREATE TEMP TRIGGER count_legacy_plan_rewrite BEFORE DELETE ON harness_messages BEGIN INSERT INTO rewritten_messages VALUES (OLD.message_id); END;`)
+      const saved = store.appendAssistantDelta(session.id, '继续制定方案', { runId: 'run', messageId: 'live', parts: [] })
+      expect(database.prepare('SELECT message_id FROM rewritten_messages').all()).toEqual([{ message_id: 'prompt' }])
+      expect(saved.activePlan).toMatchObject({ id: plan.id, status: 'awaiting_confirmation' })
+      expect(saved.activePlan).not.toHaveProperty('questions')
+      expect(saved.pendingInteraction).toMatchObject({ kind: 'question', status: 'waiting', questions: [{ id: 'legacy-1', question: '是否继续？' }] })
+      const storedPlan = database.prepare('SELECT payload FROM harness_plans WHERE session_id = ?').get(session.id) as { payload: string }
+      expect(JSON.parse(storedPlan.payload)).toEqual(saved.activePlan)
+      const state = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
+      expect(JSON.parse(state.payload)).toEqual(saved)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('repairs an absent structured plan row instead of silently taking the assistant-only path', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '问题', createdAt: 1 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      session.activePlan = { id: 'plan', status: 'executing', request: '请求', understanding: '理解', steps: [], risks: [], createdAt: 1, updatedAt: 1 }
+      store.updateSession(session)
+      database.prepare('DELETE FROM harness_plans WHERE session_id = ?').run(session.id)
+      const saved = store.appendAssistantDelta(session.id, '继续回复', { runId: 'run', messageId: 'live', parts: [] })
+      const storedPlan = database.prepare('SELECT payload FROM harness_plans WHERE session_id = ?').get(session.id) as { payload: string }
+      expect(JSON.parse(storedPlan.payload)).toEqual(saved.activePlan)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('rebuilds structured history if the current assistant row is missing', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '问题', createdAt: 1 }, { id: 'live', role: 'assistant', content: '第一段', runId: 'run', createdAt: 2 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      store.updateSession(session)
+      database.prepare('DELETE FROM harness_messages WHERE session_id = ? AND message_id = ?').run(session.id, 'live')
+      const saved = store.appendAssistantDelta(session.id, '第二段', { runId: 'run', messageId: 'live', parts: [] })
+      const rows = database.prepare('SELECT payload FROM harness_messages WHERE session_id = ? ORDER BY created_at, rowid').all(session.id) as Array<{ payload: string }>
+      expect(rows.map(row => JSON.parse(row.payload))).toEqual(saved.messages)
+      expect(saved.messages.at(-1)?.content).toBe('第一段第二段')
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('falls back to full persistence if image freezing changes a historical snapshot during a live save', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      session.messages = [{ id: 'prompt', role: 'user', content: '旧图', createdAt: 1 }, { id: 'live', role: 'assistant', content: '第一段', runId: 'run', createdAt: 2 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      store.updateSession(session)
+      const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII='
+      session.messages[0].attachments = [{ path: 'old.png', name: 'old.png', mediaType: 'image/png', content: image }]
+      // Supply the pre-freeze snapshot directly to exercise saveSession's guard,
+      // independently of getSession's earlier legacy-image migration.
+      const snapshot = vi.spyOn(store, 'getSession').mockReturnValueOnce(session)
+      let saved: ReturnType<HarnessStore['appendAssistantDelta']>
+      try { saved = store.appendAssistantDelta(session.id, '第二段', { runId: 'run', messageId: 'live', parts: [] }) }
+      finally { snapshot.mockRestore() }
+      const user = database.prepare('SELECT payload FROM harness_messages WHERE session_id = ? AND message_id = ?').get(session.id, 'prompt') as { payload: string }
+      const reference = saved!.messages[0].attachments![0]
+      expect(reference).toMatchObject({ path: expect.stringMatching(/^mira-attachment:/), content: '', mediaType: 'image/png' })
+      expect(JSON.parse(user.payload)).toEqual(saved!.messages[0])
+      expect(store.hydrateMessageAttachments(session.id, saved!.messages[0]).attachments![0].content).toBe(image)
+      expect(database.prepare('SELECT COUNT(*) AS count FROM harness_attachments WHERE session_id = ?').get(session.id)).toEqual({ count: 1 })
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('restores live text and frozen legacy images across reopening, then keeps fork and side streaming independent', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-stream-restart-'))
+    let platform = new PlatformDatabase(root)
+    try {
+      const store = platform.harness, session = store.createSession()
+      session.messages = [{ id: 'image-prompt', role: 'user', content: '旧图问题', createdAt: 1 }]
+      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
+      store.updateSession(session)
+      const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII='
+      const raw = (platform as unknown as { database: Database.Database }).database
+      const legacy = { ...session, messages: [{ ...session.messages[0], attachments: [{ path: 'legacy.png', name: 'legacy.png', mediaType: 'image/png', content: image }] }] }
+      raw.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify(legacy), session.id)
+      store.appendAssistantDelta(session.id, '', { runId: 'run', messageId: 'live', parts: [{ id: 'thinking', type: 'reasoning', text: '先分析', state: 'complete', startedAt: 2 }] })
+      const saved = store.appendAssistantDelta(session.id, '可重启的回复', { runId: 'run', messageId: 'live', parts: [{ id: 'thinking', type: 'reasoning', text: '先分析', state: 'complete', startedAt: 2 }, { id: 'text', type: 'text', text: '可重启的回复', state: 'streaming', startedAt: 2 }] })
+      const userRow = raw.prepare('SELECT payload FROM harness_messages WHERE session_id = ? AND message_id = ?').get(session.id, 'image-prompt') as { payload: string }
+      expect(JSON.parse(userRow.payload)).toEqual(saved.messages[0])
+      platform.close(); platform = new PlatformDatabase(root)
+      const restored = platform.harness.getSession(session.id)
+      expect(restored).toEqual(saved)
+      expect(platform.harness.hydrateMessageAttachments(session.id, restored.messages[0]).attachments![0].content).toBe(image)
+      expect((await platform.harness.searchConversations('可重启的回复'))[0]).toMatchObject({ id: session.id, messageId: 'live' })
+      const parts = restored.messages.at(-1)!.parts!.map(part => part.type === 'tool' ? part : { ...part, state: 'complete' as const })
+      platform.harness.finalizeAssistantMessage(session.id, { runId: 'run', messageId: 'live', parts, run: { startedAt: 2, completedAt: 3, durationMs: 1, status: 'completed', activities: [] } })
+      platform.harness.setActiveRun(session.id, undefined)
+      const parentBefore = platform.harness.getSession(session.id)
+      const fork = platform.harness.forkConversation(session.id, 'live', '9857af13-1318-4c18-a1b8-0c77172f3141')
+      platform.harness.addMessage(fork.id, 'user', '分支问题')
+      platform.harness.setActiveRun(fork.id, { id: 'fork-run', messageId: 'fork-live', startedAt: 4, activities: [], subtasks: [] })
+      platform.harness.appendAssistantDelta(fork.id, '分支独立流', { runId: 'fork-run', messageId: 'fork-live', parts: [] })
+      const side = platform.harness.createSideConversation(session.id)
+      platform.harness.addMessage(side.id, 'user', '旁路问题')
+      platform.harness.setActiveRun(side.id, { id: 'side-run', messageId: 'side-live', startedAt: 4, activities: [], subtasks: [] })
+      platform.harness.appendAssistantDelta(side.id, '旁路独立流', { runId: 'side-run', messageId: 'side-live', parts: [] })
+      expect(platform.harness.getSession(session.id)).toEqual(parentBefore)
+      expect((await platform.harness.searchConversations('分支独立流')).map(row => row.id)).toEqual([fork.id])
+      expect(await platform.harness.searchConversations('旁路独立流')).toEqual([])
+      expect(platform.harness.hydrateMessageAttachments(fork.id, platform.harness.getSession(fork.id).messages[0]).attachments![0].content).toBe(image)
+    } finally { platform.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('persists assistant deltas atomically and finalizes the same message', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()
@@ -1123,10 +1367,39 @@ describe('HarnessStore', () => {
     expect(edited.messages).toEqual([expect.objectContaining({ id: firstId, role: 'user', content: '新问题' })])
     expect(edited.messages[0].attachments).toEqual([{ path: 'notes.txt', content: '保留附件内容', size: 18 }])
     expect(edited.context).toBeUndefined()
-    expect(() => store.editUserMessageAndTruncate(session.id, firstId, '   ')).toThrow('消息不能为空')
+    expect(() => store.editUserMessageAndTruncate(session.id, firstId, '   ', undefined, [])).toThrow('消息不能为空')
+    expect(store.editUserMessageAndTruncate(session.id, firstId, '', undefined).messages[0].attachments).toHaveLength(1)
+    expect(store.editUserMessageAndTruncate(session.id, firstId, '纯文字', undefined, []).messages[0].attachments).toEqual([])
 
     database.close()
     rmSync(root, { recursive: true, force: true })
+  })
+
+  it('resolves edited attachments from historical snapshots and rejects foreign or duplicate identities before truncation', () => {
+    const { root, database, store } = createStore()
+    const session = store.createSession()
+    const original = store.addMessage(session.id, 'user', '原要求', [{ path: 'notes.txt', name: 'notes.txt', content: '原始快照' }])
+    store.appendAssistantText(session.id, '后续回答')
+    const message = original.messages[0]
+    expect(store.resolveEditedMessageAttachments(session.id, message.id, [{ path: 'notes.txt', name: '伪造名称' }])).toEqual(message.attachments)
+    expect(() => store.resolveEditedMessageAttachments(session.id, message.id, [{ path: 'notes.txt', name: 'one' }, { path: 'notes.txt', name: 'two' }])).toThrow('附件列表')
+    expect(() => store.resolveEditedMessageAttachments(session.id, message.id, [{ path: 'mira-attachment:foreign', name: 'foreign' }])).toThrow()
+    expect(store.getSession(session.id).messages).toHaveLength(2)
+    database.close(); rmSync(root, { recursive: true, force: true })
+  })
+
+  it('enforces cumulative edited attachment bytes across retained and newly staged snapshots without truncation', () => {
+    const { root, database, store } = createStore()
+    try {
+      const session = store.createSession()
+      const old = store.addMessage(session.id, 'user', '原要求', [{ path: 'old.txt', name: 'old.txt', content: 'x'.repeat(768 * 1024 + 1) }])
+      store.appendAssistantText(session.id, '保留后续回答')
+      const files = ['one.txt', 'two.txt'].map(name => ({ name, mediaType: 'text/plain', data: Buffer.from('y'.repeat(128 * 1024)).toString('base64') }))
+      const references = store.importMessageAttachments(session.id, files)
+      expect(() => store.resolveEditedMessageAttachments(session.id, old.messages[0].id, [{ path: 'old.txt', name: 'old.txt' }, ...references])).toThrow('总大小')
+      expect(store.getSession(session.id).messages).toHaveLength(2)
+      expect(store.getSession(session.id).messages[0].attachments?.[0].content).toHaveLength(768 * 1024 + 1)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
   it('lists and snapshots only safe text files inside the selected project', () => {

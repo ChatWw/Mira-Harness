@@ -1,10 +1,11 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { constants, type BigIntStats, type ReadStream } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MIRA_OFFICE_PREVIEW_LIMIT, miraMediaFormat, type MiraMediaKind } from '../../src/config/miraMedia'
 import { corsHeadersFor } from '../adapters/localMicroAppServer'
 import { resolveHarnessWorkspacePath } from './harnessWorkspaceFiles'
+import { miraPresentationWorkspaceIdentity } from './miraPresentationReferences'
 
 type MediaOwner = { grantId: string; webContentsId: number }
 type MediaEntry = MediaOwner & { root: string; rootStat: BigIntStats; path: string; target: string; stat: BigIntStats; kind: MiraMediaKind; mediaType: string; authorize(): void; streams: Set<ReadStream> }
@@ -32,11 +33,31 @@ export class MiraWorkspaceMedia {
     if (!stat.isFile()) throw new Error('目标不是文件')
     if (stat.size <= 0n || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('媒体文件为空或大小不可读取')
     if (['word', 'sheet', 'presentation'].includes(format.kind) && stat.size > BigInt(MIRA_OFFICE_PREVIEW_LIMIT)) throw new Error('Office 文件超过 25 MiB 预览上限，请使用桌面文档应用打开。')
+    let presentation: { sourceFingerprint: string; workspaceIdentity: string } | undefined
+    if (format.kind === 'presentation') {
+      const handle = await open(resolved.target, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+      try {
+        if (!sameFile(stat, await handle.stat({ bigint: true }))) throw new Error('文件在读取期间发生变化，请重试')
+        const hash = createHash('sha256'), buffer = Buffer.alloc(64 * 1024)
+        let total = 0
+        while (total <= Number(stat.size)) {
+          const { bytesRead } = await handle.read(buffer, 0, Math.min(buffer.length, Number(stat.size) - total + 1), total)
+          if (!bytesRead) break
+          total += bytesRead; hash.update(buffer.subarray(0, bytesRead))
+        }
+        const currentRoot = await realpath(workspace), currentRootStat = await lstat(currentRoot, { bigint: true })
+        const current = await resolveHarnessWorkspacePath(currentRoot, path)
+        if (total !== Number(stat.size) || !sameFile(stat, await handle.stat({ bigint: true })) || currentRoot !== root
+          || currentRootStat.dev !== rootStat.dev || currentRootStat.ino !== rootStat.ino || current.target !== resolved.target
+          || !sameFile(stat, await lstat(current.target, { bigint: true }))) throw new Error('文件在读取期间发生变化，请重试')
+        presentation = { sourceFingerprint: 'sha256:' + hash.digest('hex'), workspaceIdentity: miraPresentationWorkspaceIdentity(root, rootStat) }
+      } finally { await handle.close() }
+    }
     authorize()
     if (this.entries.size >= 128) throw new Error('打开的媒体过多，请关闭部分媒体标签后重试')
     const id = randomBytes(32).toString('hex')
     this.entries.set(id, { ...owner, root, rootStat, path: resolved.path, target: resolved.target, stat, ...format, authorize, streams: new Set() })
-    return { id, path: resolved.path, ...format, byteLength: Number(stat.size) }
+    return { id, path: resolved.path, ...format, byteLength: Number(stat.size), ...presentation }
   }
   release(id: string, owner: MediaOwner) {
     const entry = this.entries.get(id)

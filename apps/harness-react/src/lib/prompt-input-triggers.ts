@@ -41,12 +41,14 @@ export function insertMiraPromptTrigger(text: string, range: MiraPromptRange, tr
   return replaceMiraPromptRange(text, range, separator + trigger)
 }
 
-export function nextMiraSuggestionIndex(current: number, direction: 1 | -1, items: ReadonlyArray<{ disabled?: boolean }>) {
+export function nextMiraSuggestionIndex(current: number, direction: 1 | -1, items: ReadonlyArray<{ disabled?: boolean }>, loop = true) {
   for (let step = 1; step <= items.length; step++) {
-    const next = (current + direction * step + items.length) % items.length
+    const candidate = current + direction * step
+    if (!loop && (candidate < 0 || candidate >= items.length)) break
+    const next = (candidate + items.length) % items.length
     if (!items[next].disabled) return next
   }
-  return -1
+  return current >= 0 && current < items.length && !items[current].disabled ? current : -1
 }
 
 function miraSuggestionScore(item: { label: string; description?: string; keywords?: string }, query: string) {
@@ -56,6 +58,7 @@ function miraSuggestionScore(item: { label: string; description?: string; keywor
     const value = text.toLocaleLowerCase()
     if (value.startsWith(term)) return 0
     if (value.includes(term)) return 100 + value.indexOf(term)
+    if (/\p{Script=Han}/u.test(term)) return Infinity
     let from = 0, distance = 200
     for (const character of term) {
       const at = value.indexOf(character, from)

@@ -37,6 +37,14 @@ afterEach(() => {
 })
 
 describe('ModelConfigStore', () => {
+  it('persists PDF/video independently of image support and never infers them for a legacy model', () => {
+    const { database, store, directory } = createStore()
+    const saved = store.save({ providerKey: 'custom', name: 'Media', endpoint: 'http://127.0.0.1:12345/v1', authMode: 'none', models: [{ ...model('native-media'), multimodal: false, pdfInput: true, videoInput: true }, model('legacy-model')], enabled: true })
+    expect(saved.models[0]).toMatchObject({ multimodal: false, pdfInput: true, videoInput: true })
+    expect(new ModelConfigStore(database, new MiraPaths(directory)).list()[0].models).toEqual(saved.models)
+    expect(saved.models[1].pdfInput).toBeUndefined(); expect(saved.models[1].videoInput).toBeUndefined()
+    database.close()
+  })
   it('initializes models.json and stores multiple models per provider', () => {
     const { database, store, directory } = createStore()
     expect(store.list()).toEqual([])

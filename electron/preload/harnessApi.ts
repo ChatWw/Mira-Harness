@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron'
+import type { HarnessFileReference } from '../../src/config/harness'
 
 export const harnessApi = {
   listHarnessSkills: () => ipcRenderer.invoke('harness:list-skills'),
@@ -66,9 +67,12 @@ export const harnessApi = {
   continueHarnessPlan: (sessionId: string, planId: string, message: string, references?: unknown[], selection?: unknown) => ipcRenderer.invoke('harness:continue-plan', sessionId, planId, message, references, selection),
   cancelHarnessPlan: (sessionId: string, planId: string) => ipcRenderer.invoke('harness:cancel-plan', sessionId, planId),
   rerunHarness: (sessionId: string, selection?: unknown) => ipcRenderer.invoke('harness:rerun', sessionId, selection),
-  editAndRerunHarnessMessage: (sessionId: string, messageId: string, content: string, selection?: unknown) => ipcRenderer.invoke('harness:edit-and-rerun', sessionId, messageId, content, selection),
+  editAndRerunHarnessMessage: (sessionId: string, messageId: string, content: string, selection?: unknown, references?: HarnessFileReference[]) => ipcRenderer.invoke('harness:edit-and-rerun', sessionId, messageId, content, selection, references),
   abortHarnessRun: (sessionId: string) => ipcRenderer.invoke('harness:abort-run', sessionId),
   stopHarnessSubtasks: (sessionId: string, ids?: string[]) => ipcRenderer.invoke('harness:stop-subtasks', sessionId, ids),
+  backgroundHarnessCommand: (sessionId: string, runId: string, toolId: string) => ipcRenderer.invoke('harness:background-command', sessionId, runId, toolId),
+  stopHarnessCommand: (sessionId: string, runId: string, toolId: string) => ipcRenderer.invoke('harness:stop-command', sessionId, runId, toolId),
+  readHarnessCommandOutput: (sessionId: string, runId: string, toolId: string) => ipcRenderer.invoke('harness:command-output', sessionId, runId, toolId),
   getHarnessPermissionConfig: () => ipcRenderer.invoke('harness:get-permission-config'),
   saveHarnessPermissionConfig: (config: unknown) => ipcRenderer.invoke('harness:save-permission-config', config),
   getHarnessGitConfig: () => ipcRenderer.invoke('harness:get-git-config'),

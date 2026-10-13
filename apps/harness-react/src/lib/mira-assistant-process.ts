@@ -1,6 +1,7 @@
 // Adapted from ZCode conversationTurnRenderUnits (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Mira keeps its canonical message/part identities.
 import type { HarnessMessage, ToolCallRecord } from '../../../../src/config/harness'
+import { miraCommandExecutionStatus } from './mira-command-presentation'
 
 export const MIRA_REVEAL_PROCESS = 'mira:reveal-assistant-process'
 
@@ -17,5 +18,5 @@ export function miraAssistantProcess(message: HarnessMessage, tools: ReadonlyMap
     return tool && (!message.runId || !tool.runId || message.runId === tool.runId) ? [tool] : []
   })
   const waiting = records.some(tool => tool.status === 'waiting-confirm')
-  return { work, reply, waiting, needsAttention: waiting || records.some(tool => tool.status === 'failed') }
+  return { work, reply, waiting, needsAttention: waiting || records.some(tool => miraCommandExecutionStatus(tool) === 'failed') }
 }

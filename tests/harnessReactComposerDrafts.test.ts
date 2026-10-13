@@ -3,6 +3,11 @@ import { appendComposerReferences, createMiraComposerDraftWriter, mergeComposerD
 import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 describe('React Harness composer draft preferences', () => {
+  it('round-trips durable side-input identity and rejects malformed discriminators rather than downgrading them into a main send', () => {
+    const side = { id: 'side-input', text: '/btw 检查结构', references: [], planning: false, selection: { providerId: 'p', modelId: 'm' }, options: { permissionMode: 'full' }, sideInput: true }
+    const saved = readComposerDrafts({ submissions: { owner: side, invalid: { ...side, sideInput: 'yes' }, bare: { ...side, text: '/btw' }, attached: { ...side, references: [{ path: 'readme.md', name: 'readme.md' }] }, planning: { ...side, planning: true } } })
+    expect(readComposerDrafts(JSON.parse(JSON.stringify(serializeComposerDrafts(saved)))).submissions).toEqual({ owner: side })
+  })
   it('merges disjoint task edits and explicit clears without restoring stale owners or global configuration', () => {
     const before = readComposerDrafts({ drafts: { a: 'original A', b: 'original B' }, permissions: { a: 'default', b: 'default' } })
     const current = readComposerDrafts({ drafts: { b: 'edited B' }, permissions: { b: 'full' }, config: { planning: true } })
@@ -177,6 +182,13 @@ describe('React Harness composer draft preferences', () => {
     expect(restored.submissions?.owner?.text).toBe('')
     expect(restored.submissions?.empty).toBeUndefined()
     expect(JSON.stringify(restored)).not.toContain('PRIVATE IMAGE BYTES')
+  })
+  it.each(['application/pdf', 'video/mp4'])('keeps %s metadata across draft/recovery/submission persistence without binary bytes', mediaType => {
+    const file = { path: 'mira-attachment:media', name: 'media', mediaType, size: 1024 * 1024, content: 'PRIVATE MEDIA BYTES' }
+    const restored = serializeComposerDrafts(readComposerDrafts({ fileDrafts: { owner: [file] }, submissions: { owner: { id: 'media', text: '', references: [file], selection: { providerId: 'p', modelId: 'm' }, planning: false } } }))
+    expect(restored.fileDrafts.owner[0]).toMatchObject({ mediaType, size: file.size })
+    expect(restored.submissions?.owner?.references[0]).toMatchObject({ mediaType, size: file.size })
+    expect(JSON.stringify(restored)).not.toContain(file.content)
   })
   it('limits accumulated file picker selections without changing the existing draft', () => {
     const existing = Array.from({ length: 8 }, (_, index) => ({ path: `first/${index}.md`, name: `${index}.md` }))

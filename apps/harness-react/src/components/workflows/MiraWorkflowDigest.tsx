@@ -1,12 +1,13 @@
 /* Conversation digest adapted from ZCode workflow timeline summary.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ArrowUpRight, GitBranch } from 'lucide-react'
 import type { ActorRecord, RunRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'
 import type { MiraFlowRunIdentity } from '../../../../../src/config/miraFlowWorkbench'
 import { workflowError, workflowStatus, type MiraWorkflowHost } from './workflow-model'
 import { useMiraWorkflowSnapshot } from './useMiraWorkflowSnapshot'
 import { MiraWorkflowTimeline } from './MiraWorkflowTimeline'
+import type { MiraWorkflowRunsState } from './useMiraWorkflowRuns'
 
 type OpenRun = (identity: MiraFlowRunIdentity, actor?: ActorRecord) => Promise<void>
 function WorkflowRunCard({ host, identity, summary, active, onOpen }: { host: MiraWorkflowHost; identity: MiraFlowRunIdentity; summary: RunRecord; active: boolean; onOpen: OpenRun }) {
@@ -21,26 +22,7 @@ function WorkflowRunCard({ host, identity, summary, active, onOpen }: { host: Mi
   </section>
 }
 
-export function MiraWorkflowDigest({ host, sessionId, active, onOpen, onPresence }: { host: MiraWorkflowHost; sessionId?: string; active: boolean; onOpen: OpenRun; onPresence: (sessionId: string | undefined, count: number) => void }) {
-  const [runs, setRuns] = useState<RunRecord[]>([]), [error, setError] = useState('')
-  const presence = useRef(onPresence)
-  presence.current = onPresence
-  useEffect(() => {
-    setRuns([]); setError(''); presence.current(sessionId, 0)
-    if (!active || !sessionId) return
-    let alive = true, loading = false, dirty = false
-    async function load() {
-      if (loading) { dirty = true; return }
-      loading = true
-      try {
-        const next = await host.requestWorkflow<RunRecord[]>({ action: 'runs.list', sessionId })
-        if (alive) { setRuns(next); setError(''); presence.current(sessionId, next.length) }
-      } catch (cause) { if (alive) setError(workflowError(cause)) }
-      finally { loading = false; if (alive && dirty) { dirty = false; void load() } }
-    }
-    void load()
-    const remove = host.onWorkflowEvent(event => { if (event.sessionId === sessionId && event.type === 'workflow-event') void load() })
-    return () => { alive = false; remove() }
-  }, [host, sessionId, active])
-  return <>{sessionId && runs.map(run => <WorkflowRunCard key={`${sessionId}:${run.runId}`} host={host} identity={{ sessionId, runId: run.runId }} summary={run} active={active} onOpen={onOpen} />)}{error && <p className="mira-automation-error" role="alert">{error}</p>}</>
+export function MiraWorkflowDigest({ host, workflows, active, onOpen }: { host: MiraWorkflowHost; workflows: MiraWorkflowRunsState; active: boolean; onOpen: OpenRun }) {
+  const { sessionId, runs, error, refresh } = workflows
+  return <>{sessionId && runs.map(run => <WorkflowRunCard key={`${sessionId}:${run.runId}`} host={host} identity={{ sessionId, runId: run.runId }} summary={run} active={active} onOpen={onOpen} />)}{error && <p className="mira-automation-error" role="alert">{error}<button type="button" onClick={refresh}>重试</button></p>}</>
 }

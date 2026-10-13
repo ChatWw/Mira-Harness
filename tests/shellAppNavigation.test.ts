@@ -6,9 +6,9 @@ import Layout from '../src/layouts/index.vue'
 import { useAppNavigationStore } from '../src/stores/appNavigation'
 import { createVueNodeRenderer, withVueClientRender } from './helpers/vueNodeRenderer'
 
-const environment = vi.hoisted(() => ({ route: { path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} }, push: vi.fn(), search: vi.fn() }))
+const environment = vi.hoisted(() => ({ route: { path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} }, push: vi.fn(), search: vi.fn(), toggleTheme: vi.fn(), close: undefined as undefined | (() => void), removeClose: vi.fn(), windowCommand: vi.fn(async () => undefined) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: environment.route }, push: environment.push }), useRoute: () => environment.route }))
-vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({}) }))
+vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ toggleThemeMode: environment.toggleTheme }) }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: () => ({ config: { componentSize: 'default' } }) }))
 vi.mock('@/stores/harness', () => ({ useHarnessStore: () => ({ applyEvent: vi.fn() }) }))
 vi.mock('@/stores/commandPalette', () => ({ useCommandPaletteStore: () => ({ open: environment.search }) }))
@@ -48,15 +48,52 @@ function connect() {
 
 beforeEach(() => {
   setActivePinia(createPinia()); environment.route = reactive({ path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} })
-  environment.push.mockClear(); environment.search.mockClear(); modals = []
+  environment.push.mockClear(); environment.search.mockClear(); environment.toggleTheme.mockClear(); modals = []
   documentEvents = new EventTarget()
-  vi.stubGlobal('document', Object.assign(documentEvents, { querySelectorAll: (selectors: string) => modals.filter(node => selectors.split(',').map(value => value.trim()).includes(node.selector)) }))
+  vi.stubGlobal('Element', class {})
+  vi.stubGlobal('document', Object.assign(documentEvents, { activeElement: null, querySelectorAll: (selectors: string) => modals.filter(node => selectors.split(',').map(value => value.trim()).includes(node.selector)) }))
   vi.stubGlobal('navigator', { platform: 'MacIntel' })
-  vi.stubGlobal('window', { platform: { windowChrome: 'macos-overlay', onWindowNavigate: () => () => undefined } })
+  environment.close = undefined; environment.removeClose.mockClear(); environment.windowCommand.mockClear()
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { platform: { windowChrome: 'macos-overlay', onWindowNavigate: () => () => undefined, onWindowCloseContext: (listener: () => void) => { environment.close = listener; return environment.removeClose }, windowCommand: environment.windowCommand } }))
 })
 afterEach(() => { for (const app of mounts.splice(0)) app.unmount(); vi.unstubAllGlobals() })
 
 describe('Shell navigation shortcuts', () => {
+  it.each(['MacIntel', 'Win32'])('protects settings/about and theme from the other platform modifier on %s', platform => {
+    vi.stubGlobal('navigator', { platform })
+    mount(ActualApp)
+    const primary = platform === 'MacIntel' ? 'metaKey' : 'ctrlKey', other = primary === 'metaKey' ? 'ctrlKey' : 'metaKey'
+    for (const shortcut of [{ key: ',' }, { key: 'i' }, { key: 'l', shiftKey: true }]) {
+      expect(key({ ...shortcut, metaKey: false, ctrlKey: false, [other]: true }).defaultPrevented).toBe(false)
+      expect(key({ ...shortcut, metaKey: true, ctrlKey: true }).defaultPrevented).toBe(false)
+    }
+    expect(environment.push).not.toHaveBeenCalled(); expect(environment.toggleTheme).not.toHaveBeenCalled()
+    expect(key({ key: ',', metaKey: false, ctrlKey: false, [primary]: true }).defaultPrevented).toBe(true)
+    expect(environment.push).toHaveBeenCalledExactlyOnceWith({ path: '/settings/general', query: { from: '/workspace/harness-react' } })
+    expect(key({ key: 'l', shiftKey: true, metaKey: false, ctrlKey: false, [primary]: true }).defaultPrevented).toBe(true)
+    expect(environment.toggleTheme).toHaveBeenCalledOnce()
+  })
+
+  it('broadcasts native close to the active application before falling back to window settings', () => {
+    mount(ActualApp)
+    const consume = vi.fn((event: Event) => event.preventDefault())
+    window.addEventListener('mira:close-active-context', consume)
+    environment.close!(); expect(consume).toHaveBeenCalledOnce(); expect(environment.windowCommand).not.toHaveBeenCalled()
+    window.removeEventListener('mira:close-active-context', consume)
+    environment.close!(); expect(environment.windowCommand).toHaveBeenCalledExactlyOnceWith('close')
+    mounts.pop()!.unmount(); expect(environment.removeClose).toHaveBeenCalledOnce()
+  })
+  it('uses the shared theme owner from Shell focus, while protecting overlays and consumed/IME/repeat keys', () => {
+    mount(ActualApp)
+    expect(key({ key: 'L', shiftKey: true }).defaultPrevented).toBe(true)
+    expect(environment.toggleTheme).toHaveBeenCalledOnce(); expect(environment.push).not.toHaveBeenCalled()
+    for (const options of [{ repeat: true }, { isComposing: true }, { keyCode: 229 }, { altKey: true }]) expect(key({ key: 'l', shiftKey: true, ...options }).defaultPrevented).toBe(false)
+    modals = [{ selector: '[role="dialog"]', getClientRects: () => [{}] }]
+    expect(key({ key: 'l', shiftKey: true }).defaultPrevented).toBe(false)
+    expect(environment.toggleTheme).toHaveBeenCalledOnce()
+    mounts.at(-1)!.unmount(); mounts.pop()
+    expect(key({ key: 'l', shiftKey: true }).defaultPrevented).toBe(false)
+  })
   it.each([
     [{}, 'back'], [{ key: ']', metaKey: false, ctrlKey: true }, 'forward'], [{ key: 'å', code: 'BracketLeft' }, 'back'], [{ key: 'Dead', code: 'BracketRight' }, 'forward'],
   ])('dispatches the platform bracket shortcut %j once', (overrides, direction) => {

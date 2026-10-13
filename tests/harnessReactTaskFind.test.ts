@@ -1,8 +1,62 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { HarnessMessage } from '../src/config/harness'
-import { changeFindTargets, createTaskFindProjector, markdownFindText, streamingMarkdownFindText, taskFindMatches, taskFindOffsets } from '../apps/harness-react/src/lib/conversation-find'
+import { changeFindTargets, createTaskFindProjector, markdownFindText, scheduleTaskFindTargets, streamingMarkdownFindText, taskFindMatches, taskFindOffsets } from '../apps/harness-react/src/lib/conversation-find'
+import { miraBrowserPrompt } from '../apps/harness-react/src/lib/mira-browser-reference'
+import { createMiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 describe('task find searches displayed task content', () => {
+  it('yields through the desktop scheduler and ignores its late continuation after cancellation', async () => {
+    let resume: () => void = () => undefined, elapsed = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => elapsed++)
+    const scheduler = { yield: vi.fn(() => new Promise<void>(resolve => { resume = resolve })) }
+    vi.stubGlobal('scheduler', scheduler)
+    try {
+      const messages = Array.from({ length: 400 }, (_, index) => ({ rendererId: String(index), original: { id: String(index), role: 'user' as const, content: `answer ${index}`, createdAt: index } }))
+      const project = vi.fn(createTaskFindProjector()), ready = vi.fn()
+      const cancel = scheduleTaskFindTargets(messages, project, ready)
+      expect(scheduler.yield).toHaveBeenCalledOnce()
+      expect(project.mock.calls.flatMap(([batch]) => batch)).toHaveLength(64)
+      cancel(); resume(); await Promise.resolve()
+      expect(project.mock.calls.flatMap(([batch]) => batch)).toHaveLength(64)
+      expect(ready).not.toHaveBeenCalled()
+    } finally { clock.mockRestore(); vi.unstubAllGlobals() }
+  })
+
+  it('yields a large history, publishes complete canonical results only, and cancels the pending work', () => {
+    vi.useFakeTimers()
+    let elapsed = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => elapsed++)
+    try {
+      const messages = Array.from({ length: 400 }, (_, index) => ({ rendererId: String(index), original: { id: String(index), role: 'assistant' as const, content: `**answer** ${index}`, createdAt: index } }))
+      const project = vi.fn(createTaskFindProjector()), ready = vi.fn()
+      const cancel = scheduleTaskFindTargets(messages, project, ready)
+      expect(project.mock.calls.flatMap(([batch]) => batch)).toHaveLength(64)
+      expect(ready).not.toHaveBeenCalled()
+      cancel(); vi.runAllTimers()
+      expect(project.mock.calls.flatMap(([batch]) => batch)).toHaveLength(64)
+      expect(ready).not.toHaveBeenCalled()
+      project.mockClear()
+      scheduleTaskFindTargets(messages, project, ready); vi.runAllTimers()
+      expect(ready).toHaveBeenCalledOnce()
+      expect(ready.mock.calls[0][0]).toEqual(createTaskFindProjector()(messages))
+      expect(taskFindMatches(ready.mock.calls[0][0], 'answer 399')[0].messageId).toBe('399')
+    } finally { clock.mockRestore(); vi.clearAllTimers(); vi.useRealTimers() }
+  })
+
+  it('matches visible skill and agent labels without indexing hidden reference identities or webpage snapshots', () => {
+    const element = { pageUrl: 'https://hidden.example/needle', pageTitle: 'Hidden page', tagName: 'button', role: 'button', accessibleName: 'Hidden element', selector: '#go', xpath: '/html/body/button', text: 'Hidden snapshot', nearbyText: '', htmlExcerpt: '', attributes: '', style: '', rect: { x: 0, y: 0, width: 80, height: 28 } }
+    const result = miraBrowserPrompt({ sessionId: 'task', browserId: 'browser:one', element }, createMiraPromptDocument(''))
+    if ('error' in result) throw new Error(result.error)
+    const original = { id: 'prompt', role: 'user', content: '请 @reviewer 使用 [$Research](mira-skill:research-id)' + result.reference.text } as HarnessMessage
+    const targets = createTaskFindProjector()([{ original, rendererId: original.id }])
+    expect(targets[0].text).toBe('请 审查 使用 Research')
+    expect(taskFindMatches(targets, 'Research')).toHaveLength(1)
+    expect(taskFindMatches(targets, '审查')).toHaveLength(1)
+    expect(taskFindMatches(targets, 'mira-skill')).toHaveLength(0)
+    expect(taskFindMatches(targets, 'Hidden')).toHaveLength(0)
+    expect(taskFindMatches(targets, '网页元素快照')).toHaveLength(0)
+  })
+
   it('matches across Markdown formatting but excludes hidden destinations and syntax', () => {
     const text = markdownFindText('A **cross**token [label](https://hidden.invalid/destination) &amp; `code`')
     expect(taskFindOffsets(text, 'crosstoken')).toHaveLength(1)

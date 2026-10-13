@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlert, FileText, LoaderCircle, X } from 'lucide-react'
+import { CircleAlert, FileText, LoaderCircle, Video, X } from 'lucide-react'
+import { isHarnessImageMediaType } from '../../../../../src/config/harness'
 import type { HarnessFileReference, HarnessMessageAttachment } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
-import { attachmentImageType } from '../../lib/attachment-input'
+import { attachmentBinaryType, attachmentTypeLabel } from '../../lib/attachment-input'
 import { MiraAttachmentPreview } from './MiraAttachmentPreview'
 
 type AttachmentLoad = { attachment?: HarnessMessageAttachment; error?: string }
@@ -57,21 +58,22 @@ export function MiraComposerAttachments({ references, ownerId, controller, disab
   return <><div className="harness-composer__attachments" aria-label="待发送附件">
     {references.map(file => {
       const state = loaded[key(file.path)]
-      const image = file.mediaType || attachmentImageType(file.path)
+      const mediaType = file.mediaType || attachmentBinaryType(file.name || file.path)
+      const image = isHarnessImageMediaType(mediaType)
       const read = pending.some(item => item.path === file.path)
       return <div key={file.path} className={`mira-attachment-card${image ? ' mira-attachment-card--image' : ''}`}>
         <button type="button" className="mira-attachment-card__open" title={state?.error || file.name} aria-label={state?.error ? `重试附件 ${file.name}` : `预览附件 ${file.name}`} disabled={disabled || !read || !state} onClick={() => {
           if (state?.error) retryAttachment(file.path)
           else if (state?.attachment) setPreview({ ownerId, controller, attachment: state.attachment })
         }}>
-          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : <FileText size={16} />}
-          {!image && <span className="mira-attachment-card__text"><span>{file.name}</span><small>文本文件</small></span>}
+          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : mediaType?.startsWith('video/') ? <Video size={16} /> : <FileText size={16} />}
+          {!image && <span className="mira-attachment-card__text"><span>{file.name}</span><small>{attachmentTypeLabel(mediaType)}</small></span>}
         </button>
         <button type="button" className="mira-attachment-card__remove" aria-label={`移除 ${file.name}`} title={`移除 ${file.name}`} disabled={disabled} onClick={() => onRemove(file.path)}><X size={10} /></button>
         {state?.error && <span className="mira-attachment-card__error" role="alert">{state.error}</span>}
       </div>
     })}
-  </div><MiraAttachmentPreview attachment={active && preview?.ownerId === ownerId && preview?.controller === controller && references.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={references.filter(file => file.mediaType || attachmentImageType(file.path)).map(file => ({
+  </div><MiraAttachmentPreview attachment={active && preview?.ownerId === ownerId && preview?.controller === controller && references.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={references.filter(file => isHarnessImageMediaType(file.mediaType || attachmentBinaryType(file.name || file.path))).map(file => ({
     path: file.path, name: file.name, ...loaded[key(file.path)], onRetry: () => retryAttachment(file.path),
   }))} onSave={ownerId && controller.supportsAttachmentSave ? attachment => controller.saveAttachment(ownerId, attachment.path) : undefined} onClose={() => setPreview(undefined)} /></>
 }

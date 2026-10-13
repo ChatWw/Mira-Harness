@@ -8,6 +8,7 @@ import { closestCenter, DndContext, KeyboardCode, KeyboardSensor, PointerSensor,
 import { horizontalListSortingStrategy, sortableKeyboardCoordinates, SortableContext, useSortable } from '@dnd-kit/sortable'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { Activity, FileCode2, GitCompare, Globe2, MessageSquare, Plus, TerminalSquare, X } from 'lucide-react'
 import { miraWorkspaceTabPresentation } from '../../lib/mira-workspace-tab-presentation'
 import { MiraWorkspaceOverview } from './MiraWorkspaceOverview'
@@ -65,11 +66,17 @@ export function WorkspaceTabs({ tabs, active, changes, recentClosedTabs, onOpen,
 
 function WorkspaceResourceTab({ tab, selected, changes, canCloseOthers, onActivate, onClose, onCloseOthers, onCloseAll, onRestoreFocus, onRestartTerminal }: { tab: WorkspaceTab; selected: boolean; changes: number; canCloseOthers: boolean; onActivate: WorkspaceTabsProps['onActivate']; onClose: WorkspaceTabsProps['onClose']; onCloseOthers: WorkspaceTabsProps['onCloseOthers']; onCloseAll: WorkspaceTabsProps['onCloseAll']; onRestoreFocus: (event: Event) => void; onRestartTerminal: WorkspaceTabsProps['onRestartTerminal'] }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id })
+  const releasedDrag = useRef(false)
+  const [hintOpen, setHintOpen] = useState(false)
+  if (isDragging) releasedDrag.current = true
+  useEffect(() => { if (isDragging) setHintOpen(false) }, [isDragging])
   const { Icon } = miraWorkspaceTabPresentation(tab)
   const [failedIcon, setFailedIcon] = useState<string>()
   const favicon = isWorkspaceBrowserTab(tab.id) ? miraBrowserFavicon(tab.faviconUrl) : undefined
   return <ContextMenu.Root><ContextMenu.Trigger asChild><div ref={setNodeRef} data-workspace-tab-id={tab.id} className={`pilot-side-tab${selected ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}`} style={{ transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined, transition }} onAuxClick={event => { if (event.button === 1) { event.preventDefault(); event.stopPropagation(); onClose(tab.id) } }}>
-    <button type="button" {...attributes} {...listeners} className="pilot-side-tab__select" aria-current={selected ? 'page' : undefined} title={tab.path || tab.label} onClick={event => { if (event.button === 1) { event.preventDefault(); return } onActivate(tab.id) }}>{favicon && favicon !== failedIcon ? <img className="mira-browser-tab-icon" src={favicon} width={14} height={14} alt="" referrerPolicy="no-referrer" onError={() => setFailedIcon(favicon)} /> : <Icon size={14} />}<span>{tab.label}</span>{tab.id === 'changes' && changes > 0 && <em>{changes}</em>}</button>
+    <Tooltip.Provider delayDuration={1500} skipDelayDuration={0}><Tooltip.Root open={hintOpen && !isDragging} onOpenChange={open => setHintOpen(!isDragging && open)}><Tooltip.Trigger asChild>
+    <button type="button" {...attributes} {...listeners} className="pilot-side-tab__select" aria-current={selected ? 'page' : undefined} onPointerDown={event => { releasedDrag.current = false; listeners?.onPointerDown?.(event) }} onKeyDown={event => { if (!isDragging && (event.key === 'Enter' || event.key === ' ')) releasedDrag.current = false; listeners?.onKeyDown?.(event) }} onClick={event => { if (event.button === 1 || releasedDrag.current) { releasedDrag.current = false; event.preventDefault(); return } onActivate(tab.id) }}>{favicon && favicon !== failedIcon ? <img className="mira-browser-tab-icon" src={favicon} width={14} height={14} alt="" referrerPolicy="no-referrer" onError={() => setFailedIcon(favicon)} /> : <Icon size={14} />}<span>{tab.label}</span>{tab.id === 'changes' && changes > 0 && <em>{changes}</em>}</button>
+    </Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className="mira-composer-hint" side="bottom" sideOffset={6}>{tab.path || tab.label}</Tooltip.Content></Tooltip.Portal></Tooltip.Root></Tooltip.Provider>
     <button type="button" className="pilot-side-tab__close" title={`关闭${tab.label}`} aria-label={`关闭${tab.label}`} onPointerDown={event => event.stopPropagation()} onClick={() => onClose(tab.id)}><X size={12} /></button>
   </div></ContextMenu.Trigger><ContextMenu.Portal container={document.getElementById('root')}><ContextMenu.Content className="mira-session-menu" onCloseAutoFocus={onRestoreFocus}>
     {isWorkspaceTerminalTab(tab.id) && onRestartTerminal && <ContextMenu.Item className="mira-session-menu__item" onSelect={() => onRestartTerminal(tab.id)}>重启终端</ContextMenu.Item>}

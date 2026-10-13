@@ -76,6 +76,10 @@ const QUEUE_BUSINESS_ERRORS = new Set([
   '插件命令需要的 Skill 已停用或不可用',
   '计划模式暂不能调用需要 Skill 的插件命令，请关闭计划模式后发送',
   '待发送消息已开始或已撤回', '请先处理当前任务的确认',
+  '演示文稿元素引用不属于当前任务，请重新引用',
+  '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用',
+  '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用',
+  '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限',
 ])
 
 function queueError(error: unknown) {
@@ -95,6 +99,23 @@ export class HarnessMessageQueue {
     if (replay) return replay
     if (this.hasCompaction(input.sessionId)) throw new Error('上下文压缩已在运行或排队')
     return this.enqueue(sender, input, [], scope, this.fingerprint(input.sessionId, input), assertAuthorized)
+  }
+
+  /** Host-only results share the task lane; pending compatible results use one model turn. */
+  enqueueCommandNotification(sender: WebContents, input: Submission & { operation: 'command-notification'; backgroundCommands: NonNullable<HarnessQueuedMessage['backgroundCommands']> }, scope: HarnessMessageQueueScope) {
+    const state = this.state(input.sessionId)
+    const entry = state.items.find(entry => entry !== state.active && entry.item.operation === 'command-notification' && entry.item.permissionMode === input.permissionMode && entry.item.selection.providerId === input.selection.providerId && entry.item.selection.modelId === input.selection.modelId && entry.item.selection.thinkingLevel === input.selection.thinkingLevel && entry.scope.projectId === scope.projectId && entry.scope.workingDirectory === scope.workingDirectory && entry.item.id !== state.promotion?.entry.item.id)
+    if (!entry) return this.enqueue(sender, input, [], scope, this.fingerprint(input.sessionId, input))
+    const commands = entry.item.backgroundCommands || []
+    const keys = new Set(commands.map(command => JSON.stringify([command.runId, command.toolId])))
+    for (const command of input.backgroundCommands) {
+      const key = JSON.stringify([command.runId, command.toolId])
+      if (!keys.has(key)) { commands.push(structuredClone(command)); keys.add(key) }
+    }
+    entry.item.backgroundCommands = commands
+    state.revision++
+    this.notify(input.sessionId, state)
+    return { id: entry.item.id, submissionId: entry.item.submissionId, queue: this.get(input.sessionId) }
   }
 
   hasCompaction(sessionId: string) {
@@ -258,6 +279,7 @@ export class HarnessMessageQueue {
     if (state.promotion || state.guidingItemId) throw new Error('待发送消息正在提升，请稍后重试')
     const entry = state.items.find(value => value.item.id === itemId)
     if (!entry) throw new Error('待发送消息已开始或已撤回')
+    if (entry.item.operation === 'command-notification') throw new Error('后台结果回报按顺序处理，不能立即发送')
     return this.promote(sessionId, entry, expectedRunId)
   }
 

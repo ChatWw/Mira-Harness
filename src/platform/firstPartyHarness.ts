@@ -1,10 +1,11 @@
-import { isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessImageMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
+import { HARNESS_ATTACHMENT_MEDIA_TYPES, isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessAttachmentMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 import { isMiraBrowserDimension } from '../config/miraBrowserViewport'
 import { isMiraPluginId } from '../config/miraPlugins'
 import { MIRA_SUBTASK_AGENTS } from '../config/miraAgents'
 import type { MiraAgentModelTarget } from '../config/miraAgentModels'
 import { validateMiraGoalBudget } from '../config/miraGoals'
 import { parseMiraFlowWorkbenchRequest } from '../config/miraFlowWorkbench'
+import type { MiraHistoryEditWorkspace } from '../config/miraFileRewind'
 
 function fields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Harness 请求参数无效')
@@ -106,10 +107,10 @@ function fileReferences(value: unknown): HarnessFileReference[] {
     const reference = fields(item)
     // 系统选择器允许项目外文本文件；不能套用仅供工作区浏览的相对路径限制。
     const mediaType = reference.mediaType
-    if (mediaType !== undefined && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(String(mediaType))) throw new Error('附件媒体类型无效')
+    if (mediaType !== undefined && !HARNESS_ATTACHMENT_MEDIA_TYPES.includes(mediaType as HarnessAttachmentMediaType)) throw new Error('附件媒体类型无效')
     const size = reference.size
     if (size !== undefined && (!Number.isSafeInteger(size) || Number(size) < 0 || Number(size) > 20 * 1024 * 1024)) throw new Error('附件大小无效')
-    return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512), ...(mediaType === undefined ? {} : { mediaType: mediaType as HarnessImageMediaType }), ...(size === undefined ? {} : { size: Number(size) }) }
+    return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512), ...(mediaType === undefined ? {} : { mediaType: mediaType as HarnessAttachmentMediaType }), ...(size === undefined ? {} : { size: Number(size) }) }
   })
 }
 
@@ -119,9 +120,9 @@ function attachmentImports(value: unknown): HarnessAttachmentImportFile[] {
   return value.map(item => {
     const file = fields(item)
     const data = file.data
-    if (typeof data !== 'string' || data.length > Math.ceil(20 * 1024 * 1024 / 3) * 4) throw new Error('单张图片不得超过 20 MiB；文本附件不得超过 256 KiB')
+    if (typeof data !== 'string' || data.length > Math.ceil(20 * 1024 * 1024 / 3) * 4) throw new Error('单个图片、PDF 或视频附件不得超过 20 MiB；文本附件不得超过 256 KiB')
     encodedBytes += data.length
-    if (encodedBytes > Math.ceil(41 * 1024 * 1024 / 3) * 4 + 12 * 4) throw new Error('图片附件总大小不得超过 40 MiB；文本附件总大小不得超过 1 MiB')
+    if (encodedBytes > Math.ceil(41 * 1024 * 1024 / 3) * 4 + 12 * 4) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB；文本附件总大小不得超过 1 MiB')
     return { name: string(file.name, '附件文件名', 512), mediaType: string(file.mediaType, '附件媒体类型', 128), data }
   })
 }
@@ -384,13 +385,29 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'terminal.paste': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), bracketed: boolean(params.bracketed, '括号粘贴状态') } as const
     case 'terminal.resize': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID'), columns: terminalDimension(params.columns, '终端列数'), rows: terminalDimension(params.rows, '终端行数') } as const
     case 'terminal.close': return { method, sessionId: string(params.sessionId, '会话 ID'), terminalId: string(params.terminalId, '终端 ID') } as const
-    case 'session.create-side': return { method, parentId: string(params.parentId, '主任务 ID') } as const
+    case 'session.create-side': {
+      const input = params.input === undefined ? undefined : fields(params.input)
+      return { method, parentId: string(params.parentId, '主任务 ID'), ...(input === undefined ? {} : { input: {
+        submissionId: string(input.submissionId, '提交 ID'), text: messageText(input.text, []), selection: selection(input.selection, 256),
+        ...(input.permissionMode === undefined ? {} : { permissionMode: permissionMode(input.permissionMode) }),
+      } }) } as const
+    }
     case 'session.fork': {
       const requestId = string(params.requestId, '分支请求 ID', 36)
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) throw new Error('分支请求 ID 无效')
       return { method, id: string(params.id, '会话 ID'), messageId: string(params.messageId, '回复 ID'), requestId } as const
     }
     case 'session.get': return { method, id: string(params.id, '会话 ID') } as const
+    case 'session.trace':
+    case 'session.trace.open':
+    case 'session.paths': return { method, id: string(params.id, '会话 ID', 128) } as const
+    case 'files.rewind-preview': return { method, sessionId: string(params.sessionId, '会话 ID'), messageId: string(params.messageId, '消息 ID') } as const
+    case 'files.rewind-apply': {
+      const snapshotToken = string(params.snapshotToken, '快照标识', 64)
+      if (!/^[a-f0-9]{64}$/.test(snapshotToken)) throw new Error('快照标识无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), messageId: string(params.messageId, '消息 ID'), snapshotToken } as const
+    }
+    case 'files.rewind-recover': return { method, sessionId: string(params.sessionId, '会话 ID'), recoveryId: string(params.recoveryId, '恢复 ID') } as const
     case 'session.create': return { method, projectId: params.projectId === undefined ? undefined : string(params.projectId, '项目 ID'), ...(params.prepared === undefined ? {} : { prepared: boolean(params.prepared, '草稿准备状态') }) } as const
     case 'session.rename': return { method, id: string(params.id, '会话 ID'), title: string(params.title, '会话标题', 120) } as const
     case 'session.set-pinned': return { method, id: string(params.id, '会话 ID'), pinned: boolean(params.pinned, '置顶状态') } as const
@@ -443,9 +460,22 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection), ...(params.submissionId === undefined ? {} : { submissionId: string(params.submissionId, '提交 ID') }) } as const
     case 'memory.save': return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection) } as const
     case 'subtask.stop': return { method, sessionId: string(params.sessionId, '会话 ID'), subtaskId: optionalString(params.subtaskId, '子任务 ID') } as const
+    case 'command.background':
+    case 'command.output':
+    case 'command.stop': return { method, sessionId: string(params.sessionId, '会话 ID'), runId: string(params.runId, '运行 ID'), toolId: string(params.toolId, '命令执行 ID', 2048) } as const
     case 'run.abort': return { method, sessionId: string(params.sessionId, '会话 ID'), ...(params.expectedRunId === undefined ? {} : { expectedRunId: string(params.expectedRunId, '运行 ID') }) } as const
     case 'run.rerun': return { method, sessionId: string(params.sessionId, '会话 ID'), selection: selection(params.selection) } as const
-    case 'run.edit-rerun': return { method, sessionId: string(params.sessionId, '会话 ID'), messageId: string(params.messageId, '消息 ID'), content: string(params.content, '消息内容', 100_000), selection: selection(params.selection) } as const
+    case 'run.edit-rerun': {
+      const references = params.references === undefined ? undefined : fileReferences(params.references)
+      let workspace: MiraHistoryEditWorkspace | undefined
+      if (params.workspace !== undefined) {
+        const input = fields(params.workspace)
+        if (input.mode === 'preserve') workspace = { mode: 'preserve' }
+        else if (input.mode === 'rewind' && typeof input.snapshotToken === 'string' && /^[a-f0-9]{64}$/.test(input.snapshotToken)) workspace = { mode: 'rewind', snapshotToken: input.snapshotToken }
+        else throw new Error('历史编辑的文件恢复选择无效')
+      }
+      return { method, sessionId: string(params.sessionId, '会话 ID'), messageId: string(params.messageId, '消息 ID'), content: messageText(params.content, references ?? []), selection: selection(params.selection), ...(references === undefined ? {} : { references }), ...(workspace === undefined ? {} : { workspace }) } as const
+    }
     case 'project.open': return { method, sessionId: string(params.sessionId, '会话 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const
     case 'queue.list':
     case 'queue.resume': return { method, sessionId: string(params.sessionId, '会话 ID') } as const

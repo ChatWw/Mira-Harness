@@ -44,6 +44,7 @@ export async function handleFirstPartyRequest(options: {
   context: PlatformContext
   route: string
   navigate: (path: string) => void | Promise<void>
+  toggleTheme?: () => 'light' | 'dark'
 }, request: FirstPartyRequest): Promise<unknown> {
   const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
@@ -57,10 +58,29 @@ export async function handleFirstPartyRequest(options: {
     try {
       return await api.invokeFirstPartyHarness(grantId, method, params)
     } catch (error) {
+      if (method === 'message.run' || method === 'message.submit' || method === 'run.rerun' || method === 'run.edit-rerun' || method === 'plan.continue' || method.startsWith('queue.')) {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['演示文稿元素引用不属于当前任务，请重新引用', '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用', '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用', '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限']
+        if (known.includes(failure)) throw new FirstPartyBridgeError('PRESENTATION_REFERENCE_FAILED', failure)
+        const dependencyError = /^命令需要的 Skill [^\r\n]+ 已停用或不可用，请在技能设置中启用$/.test(failure) ? '命令依赖的 Skill 已停用或不可用，请在技能设置中启用后重试。'
+          : /^命令需要的 Skill [^\r\n]+ 存在重名，请在技能设置中保留一个启用项$/.test(failure) ? '命令依赖的 Skill 存在重名，请在技能设置中保留一个启用项后重试。'
+            : failure === '计划模式暂不能调用需要 Skill 的自定义命令，请关闭计划模式后发送' ? failure : undefined
+        if (dependencyError) throw new FirstPartyBridgeError('COMMAND_DEPENDENCY_FAILED', dependencyError)
+      }
+      if (method === 'session.create-side') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['请先打开一个可用的主任务', '旁路问题未被接收，请重试', '旁路问题内容已变化，请重新发送', '旁路对话已不存在，请重新发送', '旁路对话不可用，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置']
+        throw new FirstPartyBridgeError('SIDE_CONVERSATION_FAILED', known.includes(failure) ? failure : '旁路对话创建或提交失败，请重试；原输入保留。')
+      }
       if (method === 'workflows.request') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
         const known = ['工作流请求无效', '工作流服务不可用', '工作流已变化，请刷新后重试', '工作流已经运行中', '工作流未运行', '这个工作流不能原样续跑', '工作流定义不存在', '工作流已存在、已移除或已被修改，请刷新后重试', '工作流续跑必须使用原模型和推理档位', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置', '工作流操作已取消']
         throw new FirstPartyBridgeError('WORKFLOW_FAILED', failure.startsWith('工作流编译失败：\n') ? failure.slice(0, 4000) : known.includes(failure) ? failure : '工作流操作失败，请刷新后重试')
+      }
+      if (method === 'command.output') {
+        const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        const known = ['这次命令的完整输出不可用', '完整输出读取失败，请刷新重试；旧命令可能没有保存完整输出']
+        throw new FirstPartyBridgeError('COMMAND_OUTPUT_FAILED', known.includes(failure) ? failure : '完整输出读取失败，请重新打开任务后重试。')
       }
       if (method.startsWith('goal.')) {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
@@ -196,6 +216,12 @@ export async function handleFirstPartyRequest(options: {
     }
   }
   switch (request.method) {
+    case 'appearance.toggle-theme': {
+      if (request.params !== undefined && Object.keys(record(request.params)).length) throw new FirstPartyBridgeError('INVALID_REQUEST', '主题切换不接受自定义参数')
+      if (!options.toggleTheme) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持主题切换')
+      try { return options.toggleTheme() }
+      catch { throw new FirstPartyBridgeError('THEME_SWITCH_FAILED', '主题切换失败，请重试') }
+    }
     case 'context.get':
       return { ...context, appId: manifest.appId, apiVersion: { ...PLATFORM_API_VERSION }, capabilities: [...manifest.capabilities], route }
     case 'navigation.open': {

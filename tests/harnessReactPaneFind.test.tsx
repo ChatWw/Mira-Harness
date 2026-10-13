@@ -2,6 +2,7 @@
 import React, { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import MarkdownIt from 'markdown-it'
 import { MiraTaskFind } from '../apps/harness-react/src/components/conversation/MiraTaskFind'
 import { applyTaskFindHighlights, clearTaskFindHighlights } from '../apps/harness-react/src/lib/conversation-find-dom'
 import { taskFindTargetKey } from '../apps/harness-react/src/lib/conversation-find'
@@ -11,6 +12,7 @@ let root: Root | undefined
 const registry = new Map<string, Set<Range>>()
 beforeEach(() => {
   vi.useFakeTimers(); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.spyOn(navigator, 'platform', 'get').mockReturnValue('')
   vi.stubGlobal('CSS', { highlights: registry }); vi.stubGlobal('Highlight', class extends Set<Range> { priority = 0 })
   vi.spyOn(Range.prototype, 'getBoundingClientRect').mockReturnValue({ top: 100, left: 0, right: 100, height: 20 } as DOMRect)
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{ width: 200, height: 20 }] as unknown as DOMRectList)
@@ -49,6 +51,65 @@ async function fixture() {
 }
 
 describe('pane-owned conversation find', () => {
+  it.each(['MacIntel', 'Win32'])('opens task find only with the platform primary modifier on %s', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
+    const view = await fixture(); await view.focus('main')
+    const primary = platform === 'MacIntel' ? 'metaKey' : 'ctrlKey', other = primary === 'metaKey' ? 'ctrlKey' : 'metaKey'
+    await view.key('f', { [other]: true }); await view.key('f', { metaKey: true, ctrlKey: true })
+    expect(view.pane('main').querySelector('input')).toBeNull()
+    await view.key('f', { [primary]: true })
+    expect(view.pane('main').querySelector('input')).toBe(document.activeElement)
+    expect(view.pane('side').querySelector('input')).toBeNull()
+  })
+
+  it('opens long-history find before parsing the full history and cancels unfinished indexing on close', async () => {
+    const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
+    let elapsed = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => elapsed++)
+    const renderMarkdown = vi.spyOn(MarkdownIt.prototype, 'render')
+    const messages = Array.from({ length: 4000 }, (_, index) => ({ rendererId: String(index), original: { id: String(index), role: 'assistant' as const, content: `**answer** ${index}`, createdAt: index } }))
+    function View() {
+      const viewport = useRef<HTMLDivElement>(null), timeline = useRef<ConversationTimelineActions | null>(null)
+      return <><MiraTaskFind active sessionId="large-task" loading={false} requestId={0} messages={messages} viewportRef={viewport} timelineRef={timeline} /><textarea aria-label="composer" /><div ref={viewport} /></>
+    }
+    await act(async () => root!.render(<View />))
+    expect(renderMarkdown).not.toHaveBeenCalled()
+    await act(async () => { container.querySelector('textarea')!.focus(); document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true })) })
+    expect(container.querySelector('[aria-label="查找对话"]')).not.toBeNull()
+    expect(renderMarkdown.mock.calls.length).toBeLessThan(messages.length)
+    await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="关闭查找"]')!.click() })
+    const parsedOnClose = renderMarkdown.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(renderMarkdown.mock.calls.length).toBe(parsedOnClose)
+    expect(container.querySelector('[aria-label="查找对话"]')).toBeNull()
+  })
+
+  it('drops an unfinished old-task index when the open find bar moves to another task', async () => {
+    const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
+    let elapsed = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => elapsed++)
+    const renderMarkdown = vi.spyOn(MarkdownIt.prototype, 'render')
+    const oldMessages = Array.from({ length: 4000 }, (_, index) => ({ rendererId: String(index), original: { id: String(index), role: 'assistant' as const, content: `**needle** ${index}`, createdAt: index } }))
+    const newMessages = [{ rendererId: 'new-answer', original: { id: 'new-answer', role: 'assistant' as const, content: '**different**', createdAt: 1 } }]
+    function View({ id, messages }: { id: string; messages: typeof oldMessages }) {
+      const viewport = useRef<HTMLDivElement>(null), timeline = useRef<ConversationTimelineActions | null>(null)
+      return <><MiraTaskFind active sessionId={id} loading={false} requestId={1} messages={messages} viewportRef={viewport} timelineRef={timeline} /><div ref={viewport} /></>
+    }
+    await act(async () => root!.render(<View id="old-task" messages={oldMessages} />))
+    const input = container.querySelector<HTMLInputElement>('[aria-label="查找对话"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'needle')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('正在查找')
+    await act(async () => root!.render(<View id="new-task" messages={newMessages} />))
+    const parsedAfterSwitch = renderMarkdown.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(renderMarkdown.mock.calls.length).toBe(parsedAfterSwitch)
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('没有匹配结果')
+    expect(container.querySelector('[aria-label="下一处匹配"]')?.hasAttribute('disabled')).toBe(true)
+  })
+
   it('yields terminal, browser and file shortcuts even before stale conversation ownership updates', async () => {
     const view = await fixture()
     for (const selector of ['.xterm textarea', '[aria-label="browser address"]', '[aria-label="file source"]', '#pilot-workspace button', '#mira-bottom-terminal textarea']) {

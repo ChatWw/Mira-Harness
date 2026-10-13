@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { closeSync, cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -30,6 +30,7 @@ import {
   type HarnessUserAnswer,
   type HarnessRunSummary,
   type HarnessSession,
+  type HarnessSideConversationInput,
   type HarnessSessionOrderScope,
   type HarnessSource,
   type HarnessSessionSummary,
@@ -41,8 +42,12 @@ import {
   type ToolCallRecord,
 } from '../../src/config/harness'
 import { atomicMove } from './miraDataMigration'
+import { buildMiraTaskFileChange, type MiraTaskFileSnapshot } from '../services/miraTaskChanges'
+import type { MiraTaskChangeSummary, MiraTaskChangedFile } from '../../src/config/miraTaskChanges'
+import { miraCheckpointPathStable, miraCheckpointText, type MiraFileCheckpoint, type MiraFileRewindJournal, type MiraFileRewindOperation } from '../services/miraFileRewind'
 import { MiraPaths } from './miraPaths'
-import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentImageType } from '../services/harnessAttachmentContent'
+import { MiraCommandOutputs } from './miraCommandOutputs'
+import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentMediaType } from '../services/harnessAttachmentContent'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
 type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, draft_state: HarnessSession['draftState'] | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
@@ -120,10 +125,12 @@ function previewFor(session: HarnessSession) {
 
 export class HarnessStore {
   private readonly paths: MiraPaths
+  readonly commandOutputs: MiraCommandOutputs
 
   constructor(private readonly database: Database.Database, paths: MiraPaths | string) {
     this.database.function('mira_search_fold', { deterministic: true }, (value: unknown) => typeof value === 'string' ? value.toLowerCase() : '')
     this.paths = typeof paths === 'string' ? new MiraPaths(paths) : paths
+    this.commandOutputs = new MiraCommandOutputs(join(this.paths.logs, 'command-output'))
     mkdirSync(this.paths.workspace, { recursive: true })
     mkdirSync(this.paths.sessions, { recursive: true })
     this.ensureStructuredSchema()
@@ -143,7 +150,13 @@ export class HarnessStore {
       CREATE TABLE IF NOT EXISTS harness_run_activities (session_id TEXT NOT NULL, run_id TEXT NOT NULL, activity_id TEXT NOT NULL, payload TEXT NOT NULL, started_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, activity_id));
       CREATE TABLE IF NOT EXISTS harness_subtasks (session_id TEXT NOT NULL, run_id TEXT NOT NULL, subtask_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, subtask_id));
       CREATE TABLE IF NOT EXISTS harness_attachments (session_id TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, id));
+      CREATE TABLE IF NOT EXISTS harness_task_files (session_id TEXT NOT NULL, path TEXT NOT NULL, first_content TEXT, first_known INTEGER NOT NULL, public_payload TEXT NOT NULL, PRIMARY KEY(session_id, path));
+      CREATE TABLE IF NOT EXISTS harness_file_checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, tool_id TEXT NOT NULL, message_id TEXT NOT NULL, message_chain TEXT NOT NULL, directory TEXT NOT NULL, path TEXT NOT NULL, before_content TEXT, before_known INTEGER NOT NULL, after_content TEXT, after_known INTEGER NOT NULL DEFAULT 0, settled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE(session_id, tool_id));
+      CREATE INDEX IF NOT EXISTS harness_file_checkpoints_owner ON harness_file_checkpoints(session_id, created_at, sequence);
+      CREATE TABLE IF NOT EXISTS harness_file_rewinds (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, message_id TEXT NOT NULL, directory TEXT NOT NULL, payload TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', created_at INTEGER NOT NULL);
     `)
+    const checkpointColumns = this.database.prepare('PRAGMA table_info(harness_file_checkpoints)').all() as Array<{ name: string }>
+    if (!checkpointColumns.some(column => column.name === 'rewind_id')) this.database.exec('ALTER TABLE harness_file_checkpoints ADD COLUMN rewind_id TEXT')
   }
 
   private sessionPath(session: HarnessSession) { return this.paths.session(session.id) }
@@ -182,14 +195,14 @@ export class HarnessStore {
 
   private readAttachmentFile(target: string, path: string, name: string, textBytes = 0, imageBytes = 0) {
     const size = statSync(target).size
-    if (size > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error(`引用文件过大：${name}；单张图片不得超过 20 MiB`)
+    if (size > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error(`引用文件过大：${name}；图片、PDF 或视频不得超过 20 MiB`)
     // 先读取有限签名，再决定文本/图片限额，避免为过大的文本分配整文件内存。
     const header = Buffer.alloc(Math.min(size, 32))
     const descriptor = openSync(target, 'r')
     try { readSync(descriptor, header, 0, header.length, 0) } finally { closeSync(descriptor) }
-    const image = harnessAttachmentImageType(header)
+    const image = harnessAttachmentMediaType(header, name)
     if (!image && size > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${name}；文本附件不得超过 256 KiB`)
-    if (image ? imageBytes + size > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes : textBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error(image ? '图片附件总大小不得超过 40 MiB' : '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
+    if (image ? imageBytes + size > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes : textBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error(image ? '图片、PDF 和视频附件总大小不得超过 40 MiB' : '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
     return harnessAttachmentFromBytes(path, name, readFileSync(target))
   }
 
@@ -219,7 +232,7 @@ export class HarnessStore {
       if (attachment.mediaType) imageBytes += attachment.size!
       else textBytes += Buffer.byteLength(attachment.content, 'utf8')
       if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
-      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片附件总大小不得超过 40 MiB')
+      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
       return attachment
     })
   }
@@ -233,7 +246,7 @@ export class HarnessStore {
     }
   }
 
-  private freezeSessionImages(session: HarnessSession): HarnessSession {
+  private freezeSessionMedia(session: HarnessSession): HarnessSession {
     const messages = session.messages.map(message => {
       if (!message.attachments?.some(file => file.mediaType && file.content)) return message
       const attachments = message.attachments.map(file => {
@@ -241,13 +254,13 @@ export class HarnessStore {
         let frozen: HarnessMessageAttachment
         if (file.path.startsWith(HARNESS_ATTACHMENT_PREFIX)) {
           frozen = this.stagedAttachment(session.id, file.path)
-          if (frozen.content !== file.content || frozen.mediaType !== file.mediaType) throw new Error('附件内容已冻结，不能覆盖已发送的图片')
+          if (frozen.content !== file.content || frozen.mediaType !== file.mediaType) throw new Error('附件内容已冻结，不能覆盖已发送的媒体文件')
         } else {
           const bytes = decodeHarnessAttachmentImport({ name: file.name, mediaType: file.mediaType, data: file.content })
           frozen = harnessAttachmentFromBytes(`${HARNESS_ATTACHMENT_PREFIX}${randomUUID()}`, file.name, bytes, file.mediaType)
           this.database.prepare('INSERT INTO harness_attachments(session_id, id, payload) VALUES (?, ?, ?)').run(session.id, frozen.path.slice(HARNESS_ATTACHMENT_PREFIX.length), JSON.stringify(frozen))
         }
-        // 大图只在不可变附件表存一次；状态增量、会话JSON、消息表和renderer快照仅传元数据。
+        // 媒体只在不可变附件表存一次；状态增量、会话JSON、消息表和renderer快照仅传元数据。
         return { path: frozen.path, name: frozen.name, mediaType: frozen.mediaType, size: frozen.size, content: '' }
       })
       return { ...message, attachments }
@@ -260,7 +273,7 @@ export class HarnessStore {
     return { ...message, attachments: message.attachments.map(file => file.mediaType && !file.content ? this.stagedAttachment(sessionId, file.path) : file) }
   }
 
-  private saveSession(session: HarnessSession, preserveUpdatedAt = false) {
+  private saveSession(session: HarnessSession, preserveUpdatedAt = false, assistantUpdate?: { insert: boolean }, writeSnapshot = true) {
     // An old configuration/run snapshot cannot demote a task after admission.
     const stored = this.database.prepare('SELECT draft_state, parent_session_id FROM harness_sessions WHERE id = ?').get(session.id) as { draft_state: HarnessSession['draftState'] | null; parent_session_id: string | null } | undefined
     if (stored?.draft_state) session = { ...session, draftState: stored.draft_state }
@@ -269,7 +282,8 @@ export class HarnessStore {
     mkdirSync(dirname(path), { recursive: true })
     if (!preserveUpdatedAt) session.updatedAt = now()
     const persist = this.database.transaction(() => {
-      session = this.freezeSessionImages(session)
+      const beforeFreeze = session
+      session = this.freezeSessionMedia(session)
       this.database.prepare(`INSERT INTO harness_sessions(id, project_id, title, model_provider_id, model_id, permission_mode, status, pinned, unread, archived_at, draft_state, path, working_directory, created_at, updated_at, parent_session_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, title = excluded.title, model_provider_id = excluded.model_provider_id,
@@ -277,14 +291,31 @@ export class HarnessStore {
       draft_state = excluded.draft_state, working_directory = excluded.working_directory, updated_at = excluded.updated_at, parent_session_id = excluded.parent_session_id`)
       .run(session.id, session.projectId || null, session.title, session.modelProviderId || null, session.modelId || null, session.permissionMode,
         session.status, Number(session.pinned), Number(session.unread), session.archivedAt || null, session.draftState || null, path, session.workingDirectory || null, session.createdAt, session.updatedAt, session.parentSessionId || null)
-      this.persistStructuredSession(session)
+      // Streaming changes only the current assistant row. Keep the full recovery
+      // snapshot, but do not delete/reinsert immutable history on every flush.
+      const message = session.messages.at(-1)!
+      let savedAssistant = false
+      if (assistantUpdate && session === beforeFreeze) {
+        if (assistantUpdate.insert) {
+          this.database.prepare('INSERT INTO harness_messages(session_id, message_id, role, content, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(session.id, message.id, message.role, message.content, JSON.stringify(message), message.createdAt)
+          savedAssistant = true
+        } else {
+          savedAssistant = this.database.prepare('UPDATE harness_messages SET content = ?, payload = ? WHERE session_id = ? AND message_id = ? AND role = ?').run(message.content, JSON.stringify(message), session.id, message.id, 'assistant').changes === 1
+        }
+      }
+      if (savedAssistant) this.database.prepare('INSERT INTO harness_session_state(session_id, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at').run(session.id, JSON.stringify(session), session.updatedAt)
+      else this.persistStructuredSession(session)
       if (session.projectId && session.draftState !== 'prepared' && !session.parentSessionId) this.database.prepare('UPDATE harness_projects SET updated_at = ?, last_session_at = ? WHERE id = ?').run(session.updatedAt, session.updatedAt, session.projectId)
     })
     persist()
+    if (writeSnapshot) this.writeSessionSnapshot(session, path)
+    return clone(session)
+  }
+
+  private writeSessionSnapshot(session: HarnessSession, path = this.sessionPath(session)) {
     const temporaryPath = `${path}.${process.pid}.tmp`
     writeFileSync(temporaryPath, JSON.stringify(session, null, 2), 'utf8')
     renameSync(temporaryPath, path)
-    return clone(session)
   }
 
   private persistStructuredSession(session: HarnessSession) {
@@ -326,8 +357,8 @@ export class HarnessStore {
     migrate()
   }
 
-  private parseSession(raw: string): HarnessSession {
-    const value = JSON.parse(raw) as Partial<HarnessSession>
+  private parseSession(raw: string | Partial<HarnessSession>): HarnessSession {
+    const value = typeof raw === 'string' ? JSON.parse(raw) as Partial<HarnessSession> : raw
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
     const session = {
       ...value,
@@ -518,7 +549,7 @@ export class HarnessStore {
     })
     const runIds = new Set(messages.flatMap(message => message.runId ? [message.runId] : []))
     const toolIds = new Set(messages.flatMap(message => (message.parts || []).flatMap(part => part.type === 'tool' ? [part.toolCallId] : [])))
-    const toolCalls = source.toolCalls.filter(tool => toolIds.has(tool.id) || Boolean(tool.runId && runIds.has(tool.runId)))
+    const toolCalls = source.toolCalls.filter(tool => toolIds.has(tool.id) || Boolean(tool.runId && runIds.has(tool.runId))).map(tool => ({ ...tool, inherited: true }))
     if (toolCalls.some(tool => tool.status === 'running' || tool.status === 'waiting-confirm')) throw new Error('请等待工具执行结束后创建分支')
     const compactedIndex = source.context?.compactedThroughMessageId ? source.messages.findIndex(message => message.id === source.context!.compactedThroughMessageId) : -1
     const context = compactedIndex >= 0 && compactedIndex <= index ? { summary: source.context?.summary, compactedThroughMessageId: source.context?.compactedThroughMessageId, compactedAt: source.context?.compactedAt } : undefined
@@ -537,8 +568,37 @@ export class HarnessStore {
     return fork
   }
 
+  getSideConversationForInput(parentId: string, input: HarnessSideConversationInput): HarnessSession | undefined {
+    const parent = this.getSession(parentId)
+    if (parent.archivedAt || parent.parentSessionId || parent.draftState === 'prepared') throw new Error('请先打开一个可用的主任务')
+    const id = this.sideInputId(parentId, input.submissionId)
+    const row = this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get(`side-input:${id}`) as { value: string } | undefined
+    if (!row) return undefined
+    const reservation = JSON.parse(row.value) as { parentId: string; fingerprint: string }
+    if (reservation.parentId !== parentId || reservation.fingerprint !== this.sideInputFingerprint(input)) throw new Error('旁路问题内容已变化，请重新发送')
+    if (!this.database.prepare('SELECT 1 FROM harness_sessions WHERE id = ?').get(id)) throw new Error('旁路对话已不存在，请重新发送')
+    const child = this.getSession(id)
+    if (child.parentSessionId !== parentId || child.archivedAt) throw new Error('旁路对话不可用，请重新发送')
+    return child
+  }
+
+  private sideInputId(parentId: string, submissionId: string) {
+    const bytes = createHash('sha256').update(JSON.stringify(['mira-side-input', parentId, submissionId])).digest().subarray(0, 16)
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40; bytes[8] = (bytes[8]! & 0x3f) | 0x80
+    const hex = bytes.toString('hex')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+
+  private sideInputFingerprint(input: HarnessSideConversationInput) {
+    return createHash('sha256').update(JSON.stringify([input.text.trim(), input.selection.providerId, input.selection.modelId, input.selection.thinkingLevel ?? null, input.permissionMode ?? null])).digest('hex')
+  }
+
   /** Fork only settled history; inherited messages are model context, never child bubbles. */
-  createSideConversation(parentId: string): HarnessSession {
+  createSideConversation(parentId: string, input?: HarnessSideConversationInput): HarnessSession {
+    if (input) {
+      const previous = this.getSideConversationForInput(parentId, input)
+      if (previous) return previous
+    }
     const parent = this.getSession(parentId)
     if (parent.archivedAt || parent.parentSessionId || parent.draftState === 'prepared') throw new Error('请先打开一个可用的主任务')
     let boundary = parent.messages.length
@@ -551,7 +611,7 @@ export class HarnessStore {
     }
     const compacted = parent.context?.compactedThroughMessageId ? parent.messages.findIndex(message => message.id === parent.context!.compactedThroughMessageId) + 1 : 0
     const inherited = parent.messages.slice(compacted, boundary).filter(message => !message.id.startsWith('stream-'))
-    const id = createSessionId(), time = now()
+    const id = input ? this.sideInputId(parentId, input.submissionId) : createSessionId(), time = now()
     const messages = inherited.map(message => {
       const hydrated = this.hydrateMessageAttachments(parent.id, message)
       // Runtime history uses message content and attachments; run/part/tool identities stay in the parent.
@@ -560,13 +620,18 @@ export class HarnessStore {
         ...(hydrated.attachments?.length ? { attachments: hydrated.attachments.map(file => ({ ...file, path: file.mediaType ? `inherited-${randomUUID()}` : file.path })) } : {}) }
     })
     if (parent.context?.summary) messages.unshift({ id: randomUUID(), role: 'user', content: parent.context.summary, createdAt: parent.createdAt, internal: true })
-    return this.saveSession({
-      version: 1, id, parentSessionId: parent.id, draftState: 'accepted', title: '旁路对话', titleSource: 'manual', titleRevision: 0,
-      projectId: parent.projectId, workingDirectory: parent.workingDirectory, modelProviderId: parent.modelProviderId, modelId: parent.modelId,
-      modelThinkingLevel: parent.modelThinkingLevel,
-      permissionMode: parent.permissionMode, activeSkillIds: parent.activeSkillIds, activeMcpServerIds: parent.activeMcpServerIds,
-      delegationEnabled: parent.delegationEnabled, messages, toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false,
-    })
+    return this.database.transaction(() => {
+      const child = this.saveSession({
+        version: 1, id, parentSessionId: parent.id, draftState: 'accepted', title: '旁路对话', titleSource: 'manual', titleRevision: 0,
+        projectId: parent.projectId, workingDirectory: parent.workingDirectory, modelProviderId: parent.modelProviderId, modelId: parent.modelId,
+        modelThinkingLevel: parent.modelThinkingLevel,
+        permissionMode: parent.permissionMode, activeSkillIds: parent.activeSkillIds, activeMcpServerIds: parent.activeMcpServerIds,
+        delegationEnabled: parent.delegationEnabled, messages, toolCalls: [], createdAt: time, updatedAt: time, status: 'active', pinned: false, unread: false,
+      })
+      // Reservation survives deletion and failed admission; retries never refork newer parent history.
+      if (input) this.database.prepare('INSERT INTO harness_settings(key, value) VALUES (?, ?)').run(`side-input:${id}`, JSON.stringify({ parentId, fingerprint: this.sideInputFingerprint(input) }))
+      return child
+    })()
   }
 
   /** Lifecycle and optional first-message persistence share one admission transaction. */
@@ -590,10 +655,13 @@ export class HarnessStore {
     const text = `%${query.trim()}%`
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
       WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
-    return rows.map(row => ({ id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
+    return rows.map(row => {
+      const session = this.getSession(row.id)
+      return { id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
-      planStatus: this.planStatus(this.getSession(row.id)) }))
+      planStatus: this.planStatus(session), changeSummary: this.getTaskChangeSummary(row.id, false, session) }
+    })
   }
 
   reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) {
@@ -738,9 +806,9 @@ export class HarnessStore {
     const lifecycle = this.database.prepare('SELECT draft_state FROM harness_sessions WHERE id = ?').get(id) as { draft_state: HarnessSession['draftState'] | null } | undefined
     const structured = this.database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(id) as { payload?: string } | undefined
     if (structured?.payload) {
-      const session = this.parseSession(structured.payload)
-      session.draftState = lifecycle?.draft_state || undefined
       const stored = JSON.parse(structured.payload) as Partial<HarnessSession>
+      const session = this.parseSession(stored)
+      session.draftState = lifecycle?.draft_state || undefined
       if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
       if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
       return session
@@ -748,9 +816,9 @@ export class HarnessStore {
     const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
     if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
     const raw = readFileSync(row.path, 'utf8')
-    const session = this.parseSession(raw)
-    session.draftState = lifecycle?.draft_state || undefined
     const stored = JSON.parse(raw) as Partial<HarnessSession>
+    const session = this.parseSession(stored)
+    session.draftState = lifecycle?.draft_state || undefined
     if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
     if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
     this.persistStructuredSession(session)
@@ -777,6 +845,7 @@ export class HarnessStore {
     const session = this.getSession(id)
     const project = this.getProject(projectId)
     const previousProjectId = session.projectId
+    this.preserveFileChangeDirectory(session)
     session.projectId = project.id
     session.workingDirectory = project.directory
     const saved = this.saveSession(session)
@@ -835,26 +904,32 @@ export class HarnessStore {
     })
   }
 
-  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false, permissionMode?: PermissionMode, command?: HarnessMessage['command']) {
+  addMessage(id: string, role: HarnessMessage['role'], content: string, attachments?: HarnessMessageAttachment[], internal = false, permissionMode?: PermissionMode, command?: HarnessMessage['command'], backgroundCommands?: HarnessMessage['backgroundCommands']) {
     const session = this.getSession(id)
     if (permissionMode !== undefined) session.permissionMode = permissionMode
-    session.messages.push({ id: randomUUID(), role, content, ...(command ? { command } : {}), ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), createdAt: now() })
+    session.messages.push({ id: randomUUID(), role, content, ...(command ? { command } : {}), ...(attachments?.length ? { attachments } : {}), ...(internal ? { internal: true } : {}), ...(internal && backgroundCommands?.length ? { backgroundCommands: structuredClone(backgroundCommands) } : {}), createdAt: now() })
     if (!internal && role === 'user' && session.titleSource === 'auto' && session.title === '新对话') session.title = titleFor(content)
     const saved = this.saveSession(session)
     if (!internal && role === 'user') this.promoteSessionOrder(id)
     return saved
   }
 
-  appendAssistantDelta(id: string, content: string, ordered?: Pick<HarnessMessage, 'runId' | 'parts'> & { messageId?: string }) {
+  appendAssistantDelta(id: string, content: string, ordered?: Pick<HarnessMessage, 'runId' | 'parts' | 'model'> & { messageId?: string }) {
     if (!content && !ordered) return this.getSession(id)
     const session = this.getSession(id)
     const last = session.messages.at(-1)
     const { messageId, ...metadata } = ordered || {}
-    if (last?.role === 'assistant' && (!ordered || last.runId === ordered.runId) && (!messageId || last.id === messageId)) {
+    const continuation = last?.role === 'assistant' && (!ordered || last.runId === ordered.runId) && (!messageId || last.id === messageId)
+    // Legacy plan normalization can also change interactions during getSession;
+    // in that case retain the complete structured migration path.
+    const storedPlan = this.database.prepare('SELECT payload FROM harness_plans WHERE session_id = ?').get(id) as { payload: string } | undefined
+    const incremental = Boolean(messageId && ordered?.runId && session.activeRun?.id === ordered.runId
+      && session.activeRun.messageId === messageId && storedPlan?.payload === (session.activePlan ? JSON.stringify(session.activePlan) : undefined))
+    if (continuation) {
       last.content += content
       if (ordered) Object.assign(last, metadata)
     } else session.messages.push({ id: messageId || randomUUID(), role: 'assistant', content, createdAt: now(), ...metadata })
-    return this.saveSession(session)
+    return this.saveSession(session, false, incremental ? { insert: !continuation } : undefined)
   }
 
   appendGuidanceMessage(id: string, message: HarnessMessage, previous: Pick<HarnessMessage, 'id' | 'content' | 'parts' | 'sources'>, nextAssistantMessageId: string) {
@@ -867,7 +942,7 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[], runId?: string, messageId?: string, parts?: HarnessMessage['parts'] } = {}) {
+  finalizeAssistantMessage(id: string, options: { content?: string, run?: HarnessRunSummary, usage?: HarnessMessage['usage'], interrupted?: boolean, sources?: HarnessSource[], runId?: string, messageId?: string, parts?: HarnessMessage['parts'], model?: HarnessMessage['model'] } = {}) {
     const session = this.getSession(id)
     let last = session.messages.at(-1)
     if (!last || last.role !== 'assistant' || options.runId && last.runId !== options.runId || options.messageId && last.id !== options.messageId) {
@@ -878,6 +953,7 @@ export class HarnessStore {
     if (options.content !== undefined) last.content = options.content
     if (options.runId) last.runId = options.runId
     if (options.parts) last.parts = options.parts
+    if (options.model) last.model = options.model
     if (options.run) last.run = options.run
     if (options.usage) last.usage = options.usage
     if (options.sources?.length) last.sources = options.sources
@@ -906,18 +982,36 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  editUserMessageAndTruncate(id: string, messageId: string, content: string, command?: HarnessMessage['command']) {
+  editUserMessageAndTruncate(id: string, messageId: string, content: string, command?: HarnessMessage['command'], attachments?: HarnessMessageAttachment[], writeSnapshot = true) {
     const value = content.trim()
-    if (!value) throw new Error('消息不能为空')
     const session = this.getSession(id)
     const index = session.messages.findIndex(message => message.id === messageId)
     if (index < 0 || session.messages[index].role !== 'user') throw new Error('只能编辑用户消息')
+    if (!value && !(attachments ?? session.messages[index].attachments)?.length) throw new Error('消息不能为空')
     session.messages[index].content = value
+    if (attachments !== undefined) session.messages[index].attachments = attachments
     if (command) session.messages[index].command = command
     else delete session.messages[index].command
     session.messages = session.messages.slice(0, index + 1)
     session.context = undefined
-    return this.saveSession(session)
+    return this.saveSession(session, false, undefined, writeSnapshot)
+  }
+
+  /** Retained references use their historical bytes; only newly added references are read. */
+  resolveEditedMessageAttachments(id: string, messageId: string, references: HarnessFileReference[]) {
+    const message = this.getSession(id).messages.find(message => message.id === messageId && message.role === 'user')
+    if (!message) throw new Error('只能编辑用户消息')
+    if (references.length > 12 || new Set(references.map(file => file.path)).size !== references.length) throw new Error('编辑附件列表无效')
+    let textBytes = 0, imageBytes = 0
+    return references.map(file => {
+      const retained = message.attachments?.find(attachment => attachment.path === file.path)
+      const attachment = retained?.mediaType && !retained.content ? this.stagedAttachment(id, retained.path) : retained ?? this.resolveMessageAttachments(id, [file])[0]!
+      if (attachment.mediaType) imageBytes += attachment.size!
+      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
+      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
+      return attachment
+    })
   }
 
   setStatus(id: string, status: HarnessSession['status']) {
@@ -1024,9 +1118,24 @@ export class HarnessStore {
     }
   }
 
+  recoverInterruptedCommands() {
+    const rows = this.database.prepare('SELECT id FROM harness_sessions').all() as Array<{ id: string }>
+    for (const row of rows) {
+      const session = this.getSession(row.id)
+      let changed = false
+      for (const tool of session.toolCalls) if (!tool.inherited && tool.commandJob?.status === 'running') {
+        tool.commandJob = { ...tool.commandJob, status: 'interrupted', revision: tool.commandJob.revision + 1, completedAt: now(), error: '应用重启，已失去原命令的控制；不会自动重跑。' }
+        if (tool.status === 'running') { tool.status = 'cancelled'; tool.completedAt = now() }
+        changed = true
+      }
+      if (changed) this.saveSession(session)
+    }
+  }
+
   attachDirectory(sessionId: string, directory: string) {
     const session = this.getSession(sessionId)
     const project = this.createProject(directory)
+    this.preserveFileChangeDirectory(session)
     session.projectId = project.id; session.workingDirectory = project.directory
     return this.saveSession(session)
   }
@@ -1101,11 +1210,11 @@ export class HarnessStore {
       if (!file || typeof file.name !== 'string' || !file.name.trim() || file.name.length > 512 || /[\\/\u0000-\u001f\u007f]/.test(file.name)) throw new Error('附件文件名无效')
       if (typeof file.mediaType !== 'string' || file.mediaType.length > 128) throw new Error('附件媒体类型无效')
       const bytes = decodeHarnessAttachmentImport(file)
-      const image = harnessAttachmentImageType(bytes)
+      const image = harnessAttachmentMediaType(bytes, file.name)
       if (image) imageBytes += bytes.length
       else textBytes += bytes.length
       if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
-      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片附件总大小不得超过 40 MiB')
+      if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
       attachments.push(harnessAttachmentFromBytes('', file.name, bytes, file.mediaType))
     }
     return this.stageAttachments(sessionId, attachments)
@@ -1253,6 +1362,10 @@ export class HarnessStore {
   }
 
   private deleteStructuredSession(id: string) {
+    this.commandOutputs.removeSession(id)
+    this.database.prepare('DELETE FROM harness_file_checkpoints WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_file_rewinds WHERE session_id = ?').run(id)
+    this.database.prepare('DELETE FROM harness_task_files WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_attachments WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(id)
     this.database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(id)
@@ -1264,8 +1377,142 @@ export class HarnessStore {
     this.database.prepare('DELETE FROM harness_subtasks WHERE session_id = ?').run(id)
   }
 
+  private preserveFileChangeDirectory(session: HarnessSession) {
+    for (const tool of session.toolCalls) if (['edit', 'write', 'delete'].includes(tool.tool) && !tool.fileChangeDirectory) tool.fileChangeDirectory = session.workingDirectory
+  }
+
   recordTool(id: string, record: ToolCallRecord) {
-    const session = this.getSession(id); session.toolCalls.push(record); return this.saveSession(session)
+    const session = this.getSession(id)
+    const linked = { ...record, messageId: record.messageId || [...session.messages].reverse().find(message => message.role === 'user')?.id }
+    session.toolCalls.push(['edit', 'write', 'delete'].includes(record.tool) ? { ...linked, fileChangeDirectory: session.workingDirectory } : linked)
+    return this.saveSession(session)
+  }
+
+  /** Persist before touching disk. A crash or incomplete write stays explicitly unavailable. */
+  beginFileCheckpoint(id: string, toolId: string, path: string, before: string | null | undefined) {
+    const session = this.getSession(id), tool = session.toolCalls.find(tool => tool.id === toolId)
+    if (!tool || tool.inherited || !['edit', 'write', 'delete'].includes(tool.tool)) return
+    const messageIndex = session.messages.findIndex(message => message.id === tool.messageId && message.role === 'user')
+    const message = session.messages[messageIndex]
+    const originalDirectory = tool.fileChangeDirectory || session.workingDirectory
+    if (!message || !originalDirectory) return
+    const directory = realpathSync(originalDirectory)
+    const value = miraCheckpointPathStable(directory, path) ? miraCheckpointText(before) : undefined
+    const target = resolve(directory, path)
+    const location = relative(directory, existsSync(target) && value !== undefined ? realpathSync(target) : target).split(sep).join('/')
+    const chain = JSON.stringify(session.messages.slice(0, messageIndex + 1).filter(message => message.role === 'user').map(message => message.id))
+    this.database.prepare('INSERT INTO harness_file_checkpoints(session_id, tool_id, message_id, message_chain, directory, path, before_content, before_known, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, toolId, message.id, chain, directory, location, value ?? null, Number(value !== undefined), tool.createdAt)
+  }
+
+  finishFileCheckpoint(id: string, toolId: string, after: string | null | undefined) {
+    const value = miraCheckpointText(after)
+    this.database.prepare('UPDATE harness_file_checkpoints SET after_content = ?, after_known = ?, settled = 1 WHERE session_id = ? AND tool_id = ? AND settled = 0').run(value ?? null, Number(value !== undefined), id, toolId)
+  }
+
+  fileRewindHistory(id: string, messageId: string) {
+    const message = this.getSession(id).messages.find(message => message.id === messageId && message.role === 'user')
+    if (!message) throw new Error('只能预览用户消息对应的文件恢复')
+    const ancestry = 'session_id = ? AND EXISTS (SELECT 1 FROM json_each(message_chain) WHERE value = ?)'
+    const scope = `${ancestry} AND rewind_id IS NULL`
+    const size = this.database.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(COALESCE(length(CAST(before_content AS BLOB)), 0) + COALESCE(length(CAST(after_content AS BLOB)), 0)), 0) AS bytes FROM harness_file_checkpoints WHERE ${scope}`).get(id, messageId) as { count: number; bytes: number }
+    // Fetch metadata first so a large journal cannot materialize unbounded private file bytes.
+    if (size.count > 128 || size.bytes > 16 * 1024 * 1024) return { records: [] as MiraFileCheckpoint[], limited: true }
+    const records = this.database.prepare(`SELECT sequence, tool_id AS toolId, message_id AS messageId, directory, path, before_content AS before, before_known AS beforeKnown, after_content AS after, after_known AS afterKnown, settled FROM harness_file_checkpoints WHERE ${scope} ORDER BY sequence`).all(id, messageId) as MiraFileCheckpoint[]
+    const rewound = this.database.prepare(`SELECT tool_id AS toolId FROM harness_file_checkpoints WHERE ${ancestry} AND rewind_id IS NOT NULL ORDER BY sequence`).all(id, messageId) as Array<{ toolId: string }>
+    return { records, limited: false, ...(rewound.length ? { rewoundToolIds: rewound.map(row => row.toolId) } : {}) }
+  }
+
+  pendingFileRewinds() {
+    return this.database.prepare("SELECT id, session_id AS sessionId, message_id AS messageId, directory FROM harness_file_rewinds WHERE status = 'pending'").all() as Array<Omit<MiraFileRewindJournal, 'operations' | 'cursor'>>
+  }
+
+  getPendingFileRewind(sessionId: string, id: string): MiraFileRewindJournal {
+    const row = this.database.prepare("SELECT message_id AS messageId, directory, payload, cursor FROM harness_file_rewinds WHERE id = ? AND session_id = ? AND status = 'pending'").get(id, sessionId) as { messageId: string; directory: string; payload: string; cursor: number } | undefined
+    if (!row) throw new Error('未完成的文件恢复已变化，请刷新预览')
+    return { id, sessionId, messageId: row.messageId, directory: row.directory, operations: JSON.parse(row.payload), cursor: row.cursor }
+  }
+
+  beginFileRewind(sessionId: string, messageId: string, directory: string, operations: MiraFileRewindOperation[]): MiraFileRewindJournal {
+    const id = randomUUID()
+    this.database.prepare('INSERT INTO harness_file_rewinds(id, session_id, message_id, directory, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, sessionId, messageId, directory, JSON.stringify(operations), now())
+    return { id, sessionId, messageId, directory, operations, cursor: 0 }
+  }
+
+  advanceFileRewind(journal: MiraFileRewindJournal, cursor: number) {
+    const result = this.database.prepare("UPDATE harness_file_rewinds SET cursor = ? WHERE id = ? AND session_id = ? AND status = 'pending' AND cursor = ?").run(cursor, journal.id, journal.sessionId, cursor - 1)
+    if (result.changes !== 1) throw new Error('文件恢复记录已变化')
+  }
+
+  rollbackFileRewind(id: string) { this.database.prepare("UPDATE harness_file_rewinds SET status = 'rolled_back', payload = '[]' WHERE id = ? AND status = 'pending'").run(id) }
+
+  commitFileRewind(journal: MiraFileRewindJournal, secrets: string[] = [], edit?: { content: string; command?: HarnessMessage['command']; attachments?: HarnessMessageAttachment[] }) {
+    let updated: HarnessSession | undefined
+    this.database.transaction(() => {
+      this.getPendingFileRewind(journal.sessionId, journal.id)
+      const retired = this.database.prepare('UPDATE harness_file_checkpoints SET rewind_id = ? WHERE session_id = ? AND sequence = ? AND rewind_id IS NULL')
+      for (const operation of journal.operations) {
+        for (const sequence of operation.sequences) if (retired.run(journal.id, journal.sessionId, sequence).changes !== 1) throw new Error('文件快照已变化')
+        const path = resolve(journal.directory, operation.path)
+        const previous = this.database.prepare('SELECT first_content, first_known, public_payload FROM harness_task_files WHERE session_id = ? AND path = ?').get(journal.sessionId, path) as { first_content: string | null; first_known: number; public_payload: string } | undefined
+        if (previous) {
+          const old = JSON.parse(previous.public_payload) as MiraTaskChangedFile
+          const file = buildMiraTaskFileChange(old.key, old.path, old.tool, old.writes, previous.first_known ? previous.first_content : undefined, operation.restored, secrets)
+          this.database.prepare('UPDATE harness_task_files SET public_payload = ? WHERE session_id = ? AND path = ?').run(JSON.stringify(file), journal.sessionId, path)
+        }
+      }
+      if (edit) updated = this.editUserMessageAndTruncate(journal.sessionId, journal.messageId, edit.content, edit.command, edit.attachments, false)
+      this.database.prepare("UPDATE harness_file_rewinds SET status = 'committed', payload = '[]' WHERE id = ?").run(journal.id)
+    })()
+    // SQLite is authoritative. A failed backup must never undo an already committed edit.
+    if (updated) try { this.writeSessionSnapshot(updated) } catch { console.warn('[Mira Harness] 文件恢复后的会话备份未写入；已提交状态仍保存在 SQLite。') }
+    return updated
+  }
+
+  recordTaskFileChange(id: string, toolId: string, snapshot: MiraTaskFileSnapshot, secrets: string[] = []) {
+    this.finishFileCheckpoint(id, toolId, snapshot.after)
+    const session = this.getSession(id), tool = session.toolCalls.find(tool => tool.id === toolId)
+    if (!tool || !['edit', 'write', 'delete'].includes(tool.tool) || !session.workingDirectory) return
+    const directory = tool.fileChangeDirectory || session.workingDirectory
+    const path = resolve(directory, snapshot.path)
+    const previous = this.database.prepare('SELECT first_content, first_known, public_payload FROM harness_task_files WHERE session_id = ? AND path = ?').get(id, path) as { first_content: string | null; first_known: number; public_payload: string } | undefined
+    const legacyWrites = !previous ? session.toolCalls.filter(record => record.id !== toolId && !record.inherited && record.status === 'ok' && ['edit', 'write', 'delete'].includes(record.tool) && record.target && resolve(record.fileChangeDirectory || session.workingDirectory!, record.target) === path).length : 0
+    const legacy = legacyWrites > 0
+    const known = previous ? Boolean(previous.first_known) : snapshot.before !== undefined && !legacy
+    const before = known ? previous ? previous.first_content : snapshot.before : undefined
+    const writes = previous ? (JSON.parse(previous.public_payload) as MiraTaskChangedFile).writes + 1 : legacyWrites + 1
+    const file = buildMiraTaskFileChange(createHash('sha256').update(path).digest('hex'), relative(directory, path).split(sep).join('/'), tool.tool as MiraTaskChangedFile['tool'], writes, before, snapshot.after, secrets)
+    this.database.prepare('INSERT INTO harness_task_files(session_id, path, first_content, first_known, public_payload) VALUES (?, ?, ?, ?, ?) ON CONFLICT(session_id, path) DO UPDATE SET public_payload = excluded.public_payload').run(id, path, before ?? null, Number(known), JSON.stringify(file))
+  }
+
+  getTaskChangeSummary(id: string, includeDiff = false, session = this.getSession(id)): MiraTaskChangeSummary | undefined {
+    const rows = this.database.prepare('SELECT path, public_payload FROM harness_task_files WHERE session_id = ?').all(id) as Array<{ path: string; public_payload: string }>
+    let remaining = 64 * 1024
+    const files = rows.map(row => {
+      const file = JSON.parse(row.public_payload) as MiraTaskChangedFile
+      const location = session.workingDirectory ? relative(session.workingDirectory, row.path) : undefined
+      if (location && (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location))) file.path = `其他项目/${location.split(sep).join('/')}`
+      if (includeDiff) {
+        if (!file.diff) return file
+        const bytes = Buffer.byteLength(file.diff)
+        if (bytes <= remaining) { remaining -= bytes; return file }
+        return { ...file, diff: undefined, diffTruncated: true }
+      }
+      const { diff: _diff, diffTruncated: _truncated, ...metadata } = file
+      return metadata
+    })
+    const recorded = new Set(rows.map(row => row.path))
+    const legacyFiles = new Map<string, MiraTaskChangedFile>()
+    for (const tool of session.toolCalls) {
+      if (tool.inherited || tool.status !== 'ok' || !['edit', 'write', 'delete'].includes(tool.tool) || !tool.target || !session.workingDirectory) continue
+      const path = resolve(tool.fileChangeDirectory || session.workingDirectory, tool.target)
+      if (recorded.has(path)) continue
+      const legacy = legacyFiles.get(path)
+      if (legacy) { legacy.writes++; legacy.tool = tool.tool as MiraTaskChangedFile['tool'] }
+      else legacyFiles.set(path, { key: createHash('sha256').update(path).digest('hex'), path: relative(session.workingDirectory, path).split(sep).join('/'), tool: tool.tool as MiraTaskChangedFile['tool'], writes: 1, unavailable: true })
+    }
+    files.push(...legacyFiles.values())
+    if (!files.length) return undefined
+    return { files: files.sort((a, b) => a.path.localeCompare(b.path)), added: files.reduce((sum, file) => sum + (file.added || 0), 0), removed: files.reduce((sum, file) => sum + (file.removed || 0), 0), incomplete: files.some(file => file.unavailable), estimated: files.some(file => file.estimated) }
   }
 
   updateTool(id: string, toolId: string, patch: Partial<ToolCallRecord>) {

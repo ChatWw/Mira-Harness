@@ -3,7 +3,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MiraPresentationReader from '../apps/harness-react/src/components/workspace/MiraPresentationReader'
-import type { MiraPresentationDocument, MiraPresentationRenderOptions } from '../apps/harness-react/src/lib/presentation/mira-presentation-types'
+import type { MiraPresentationDocument, MiraPresentationElement, MiraPresentationRenderOptions } from '../apps/harness-react/src/lib/presentation/mira-presentation-types'
 
 const engine = vi.hoisted(() => ({ open: vi.fn() }))
 vi.mock('../apps/harness-react/src/lib/presentation/mira-presentation-engine', () => ({ miraPresentationEngine: { open: engine.open } }))
@@ -142,5 +142,109 @@ describe('presentation reader interactions and owned lifecycle', () => {
     await render(new ArrayBuffer(8)); await render(new ArrayBuffer(9))
     await act(async () => late.reject(new Error('old zip'))); expect(onError).not.toHaveBeenCalled()
     await render(new ArrayBuffer(10)); expect(onError).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('无法解析')); expect(current.doc.dispose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('presentation element selection and references', () => {
+  const shape: MiraPresentationElement = { slideIndex: 0, slidePart: 'ppt/slides/slide1.xml', nodeId: 'title', nodeName: '标题', nodeType: 'shape', text: '幻灯片标题', bounds: { x: 20, y: 20, width: 400, height: 100 }, zIndex: 1 }
+  const table: MiraPresentationElement = { ...shape, nodeId: 'table', nodeName: '表格', nodeType: 'table', text: undefined, bounds: { x: 100, y: 200, width: 300, height: 100 }, zIndex: 2 }
+  const cell: MiraPresentationElement = { ...table, nodeType: 'table-cell', rowIndex: 0, cellIndex: 0, text: '第一格', bounds: { x: 100, y: 200, width: 150, height: 100 } }
+  function setup() { const view = presentation('selection'); vi.mocked(view.doc.getPageElements).mockReturnValue([shape, table, cell]); engine.open.mockResolvedValue(view.doc); return view }
+  async function show(buffer: ArrayBuffer, onAddElement?: (element: MiraPresentationElement, comment: string, selectedText?: string) => Promise<void>, navigation?: React.ComponentProps<typeof MiraPresentationReader>['navigation'], fingerprint = 'source-one') {
+    await act(async () => root.render(<MiraPresentationReader buffer={buffer} path="selection.pptx" onError={onError} onOpenLink={onOpenLink} onAddElement={onAddElement} navigation={navigation} sourceFingerprint={fingerprint} />))
+    await act(async () => undefined)
+  }
+  const element = (label: string) => container.querySelector<HTMLButtonElement>(`.mira-presentation__selection-layer button[aria-label="${label}"]`)!
+  const action = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.mira-presentation__actions button')].find(button => button.textContent === label)!
+  async function edit() { await act(async () => action('AI 编辑').click()) }
+  async function comment(value: string) {
+    const input = document.querySelector<HTMLTextAreaElement>('[aria-label="元素修改说明"]')!
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) })
+  }
+  it('hides selection without the authorized add callback and preserves rendering and keyboard targets while selecting', async () => {
+    const view = setup(), buffer = new ArrayBuffer(8), add = vi.fn().mockResolvedValue(undefined)
+    await show(buffer); expect(control('选择幻灯片元素')).toBeNull(); expect(view.doc.getPageElements).not.toHaveBeenCalled()
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click())
+    expect(view.doc.getPageElements).toHaveBeenCalledWith(0)
+    const target = element('幻灯片标题'); target.focus()
+    await act(async () => target.click()); expect(target.isConnected).toBe(true); expect(document.activeElement).toBe(target)
+    expect(target.getAttribute('aria-pressed')).toBe('true'); expect(element('第一格').style.zIndex).toBe('1000002')
+    expect(document.querySelector('[role="toolbar"][aria-label="幻灯片元素 AI 编辑"]')).not.toBeNull()
+    expect(container.querySelector('.mira-presentation__actions')).toBeNull() // portal escapes the clipped slide
+    expect(view.renders).toHaveLength(1); expect(add).not.toHaveBeenCalled()
+  })
+  it('keeps native text interaction inside the chosen element and blocks ordinary links only during selection mode', async () => {
+    const view = setup(), buffer = new ArrayBuffer(8), add = vi.fn().mockResolvedValue(undefined)
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click())
+    const mount = view.renders[0].mount
+    vi.spyOn(mount, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 960, height: 540 } as DOMRect)
+    const inside = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 30, clientY: 30 })
+    await act(async () => mount.dispatchEvent(inside)); expect(inside.defaultPrevented).toBe(false)
+    const cellPoint = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 120, clientY: 220 })
+    await act(async () => mount.dispatchEvent(cellPoint)); expect(cellPoint.defaultPrevented).toBe(true); expect(element('第一格').getAttribute('aria-pressed')).toBe('true')
+    await act(async () => { mount.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); view.renders[0].options!.onNavigate!({ pageIndex: 2 }) })
+    expect(onOpenLink).not.toHaveBeenCalled(); expect(pageIndex()).toBe('0')
+    await act(async () => control('退出元素选择').click())
+    await act(async () => mount.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })))
+    expect(onOpenLink).toHaveBeenLastCalledWith('https://example.com/slide'); expect(view.renders).toHaveLength(1)
+  })
+  it('adds one element with trimmed comment without sending and retains the complete element text', async () => {
+    setup(); const buffer = new ArrayBuffer(8), pending = deferred<void>(), add = vi.fn().mockReturnValue(pending.promise)
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click()); await edit(); await comment('  改成短标题  ')
+    expect(add).not.toHaveBeenCalled()
+    await act(async () => { action('添加到对话').click(); action('正在添加…')?.click() })
+    expect(add).toHaveBeenCalledExactlyOnceWith(shape, '改成短标题', undefined)
+    await act(async () => pending.resolve()); expect(action('AI 编辑')).toBeTruthy(); expect(document.querySelector('textarea[aria-label="元素修改说明"]')).toBeNull()
+  })
+  it('captures only selected text from the chosen element while retaining complete source text for validation', async () => {
+    const view = setup(), buffer = new ArrayBuffer(8), add = vi.fn().mockResolvedValue(undefined)
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click())
+    const mount = view.renders[0].mount, text = document.createTextNode(shape.text!), neighbor = document.createTextNode('邻居内容')
+    mount.append(text, neighbor)
+    vi.spyOn(mount, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 960, height: 540 } as DOMRect)
+    const nativeRange = document.createRange.bind(document)
+    vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = nativeRange()
+      Object.defineProperty(range, 'getClientRects', { value: () => range.startContainer === text ? [{ left: 40, right: 100, top: 40, bottom: 80 }] : [{ left: 600, right: 900, top: 40, bottom: 80 }] })
+      return range
+    })
+    const range = nativeRange(); range.setStart(text, 3); range.setEnd(neighbor, 2)
+    document.getSelection()!.addRange(range)
+    await edit(); await comment('改为英文'); await act(async () => action('添加到对话').click())
+    expect(add).toHaveBeenCalledExactlyOnceWith(shape, '改为英文', '标题')
+    expect(add.mock.calls[0][0].text).toBe('幻灯片标题')
+  })
+  it('preserves comment after failure, retries, and treats IME Escape as input before canceling only the comment', async () => {
+    setup(); const buffer = new ArrayBuffer(8), add = vi.fn().mockRejectedValueOnce(new Error('owner failed')).mockResolvedValue(undefined)
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click()); await edit(); await comment('保留修改说明')
+    await act(async () => action('添加到对话').click())
+    expect(document.querySelector('[role="alert"]')!.textContent).toContain('评论已保留'); expect(document.querySelector<HTMLTextAreaElement>('[aria-label="元素修改说明"]')!.value).toBe('保留修改说明')
+    const textarea = document.querySelector<HTMLTextAreaElement>('[aria-label="元素修改说明"]')!
+    await act(async () => textarea.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })))
+    await key(textarea, 'Escape'); expect(document.querySelector('[aria-label="元素修改说明"]')).not.toBeNull()
+    await act(async () => textarea.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })))
+    await key(textarea, 'Escape'); expect(action('AI 编辑')).toBeTruthy(); expect(control('退出元素选择')).toBeTruthy()
+    await edit(); await comment('重试修改'); await act(async () => action('添加到对话').click())
+    expect(add).toHaveBeenLastCalledWith(shape, '重试修改', undefined)
+    await key(container.querySelector('[role="region"]')!, 'Escape'); expect(control('选择幻灯片元素')).toBeTruthy()
+  })
+  it('ignores a late add failure after changing page and a late success after replacing the source', async () => {
+    setup(); const buffer = new ArrayBuffer(8), first = deferred<void>(), second = deferred<void>(), add = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    await show(buffer, add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click()); await edit(); await comment('旧页')
+    await act(async () => action('添加到对话').click()); await act(async () => control('下一张幻灯片').click()); await act(async () => first.reject(new Error('late')))
+    expect(document.querySelector('.mira-presentation__actions')).toBeNull(); expect(document.querySelector('[role="alert"]')).toBeNull()
+    await act(async () => control('上一张幻灯片').click()); await act(async () => element('幻灯片标题').click()); await edit(); await comment('旧文件'); await act(async () => action('添加到对话').click())
+    const next = presentation('next'); vi.mocked(next.doc.getPageElements).mockReturnValue([shape]); engine.open.mockResolvedValueOnce(next.doc)
+    await show(new ArrayBuffer(9), add); await act(async () => control('选择幻灯片元素').click()); await act(async () => element('幻灯片标题').click()); await edit(); await comment('新文件说明')
+    await act(async () => second.resolve()); expect(document.querySelector<HTMLTextAreaElement>('[aria-label="元素修改说明"]')!.value).toBe('新文件说明')
+  })
+  it('applies each navigation once, positions the original page and refuses mismatched sources or removed pages', async () => {
+    setup(); const buffer = new ArrayBuffer(8), add = vi.fn().mockResolvedValue(undefined), target = { ...shape, slideIndex: 2 }
+    const request = { requestId: 'one', reference: { sourceFingerprint: 'source-one', element: target } }
+    await show(buffer, add, request); expect(pageIndex()).toBe('2'); expect(container.querySelector('.mira-presentation__selection-layer')).toBeNull()
+    await act(async () => control('上一张幻灯片').click()); await show(buffer, add, { ...request }); expect(pageIndex()).toBe('1')
+    await show(buffer, add, { requestId: 'two', reference: { sourceFingerprint: 'old-source', element: target } }); expect(pageIndex()).toBe('1'); expect(container.textContent).toContain('文件已变更')
+    await show(buffer, add, { requestId: 'three', reference: { sourceFingerprint: 'source-one', element: { ...target, slideIndex: 99 } } }); expect(container.textContent).toContain('幻灯片不存在'); expect(pageIndex()).toBe('1')
+    await show(buffer, add, { requestId: 'four', reference: { sourceFingerprint: 'source-one', element: shape } }); expect(pageIndex()).toBe('0'); expect(container.textContent).not.toContain('幻灯片不存在')
   })
 })

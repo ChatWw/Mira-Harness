@@ -18,6 +18,7 @@ export type SubtaskToolRegistry = {
   prepareTool: (providerId: string, name: string, args: unknown) => string
   settleTool: (providerId: string, name: string, args: unknown, result: unknown, isError: boolean, stopped: boolean) => void
   cancelPending: (reason: string) => void
+  stopCommands?: () => Promise<void>
   preflight?: (providerId: string, name: string, args: unknown, automation: boolean, mode: import('../../src/config/harness').PermissionMode | undefined, signal: AbortSignal, schemaTool?: AgentTool) => Promise<BeforeToolCallResult | undefined>
 }
 
@@ -79,7 +80,7 @@ export type SubtaskRuntimeOptions = {
   onToolEnd?: (taskId: string, name: string, args: unknown, isError: boolean) => void
 }
 
-type Entry = { task: HarnessSubtask, controller: AbortController, agent?: Agent, opts: SubtaskRuntimeOptions, release?: () => void, cancelTools?: () => void }
+type Entry = { task: HarnessSubtask, controller: AbortController, agent?: Agent, opts: SubtaskRuntimeOptions, release?: () => void, cancelTools?: () => void, cleaning?: boolean }
 
 /** Owns child Agent lifecycles for exactly one parent turn. */
 export class SubtaskRuntime {
@@ -91,7 +92,7 @@ export class SubtaskRuntime {
   constructor(private readonly acquireRunLock: (role: HarnessSubtaskRole, signal: AbortSignal) => Promise<() => void>) {}
 
   list() { return [...this.entries.values()].map(entry => entry.task) }
-  active() { return this.list().filter(task => task.status === 'queued' || task.status === 'running' || task.status === 'stopping') }
+  active() { return this.list().filter(task => this.entries.get(task.id)?.cleaning || task.status === 'queued' || task.status === 'running' || task.status === 'stopping') }
 
   create(opts: SubtaskRuntimeOptions) {
     if (this.closed) throw new Error('父任务已结束，不能创建子任务')
@@ -131,7 +132,7 @@ export class SubtaskRuntime {
 
   async wait(ids?: string[]) {
     const wanted = ids?.length ? new Set(ids) : undefined
-    while (this.list().some(task => (!wanted || wanted.has(task.id)) && ['queued', 'running', 'stopping'].includes(task.status))) {
+    while (this.active().some(task => !wanted || wanted.has(task.id))) {
       await new Promise(resolve => setTimeout(resolve, 25))
     }
     return this.list().filter(task => !wanted || wanted.has(task.id))
@@ -328,8 +329,10 @@ export class SubtaskRuntime {
       task.status = timedOut ? 'timed_out' : controller.signal.aborted ? 'stopped' : 'failed'
       if (task.status === 'failed') task.error = { code: 'SUBTASK_ERROR', message: publicHarnessText(error instanceof Error ? error.message : String(error), opts.secrets).text }
     } finally {
+      entry.cleaning = true
       unsubscribe?.()
       if (timer) clearTimeout(timer)
+      await registry?.stopCommands?.()
       entry.release?.()
       task.completedAt = Date.now()
       if (currentTool) { currentTool.activity.status = task.status === 'stopped' ? 'stopped' : 'failed'; currentTool.activity.completedAt = task.completedAt }
@@ -337,6 +340,7 @@ export class SubtaskRuntime {
       registry?.cancelPending(task.status === 'completed' ? '子任务已结束' : '子任务已停止或中断')
       changed()
       opts.onFinished(task)
+      entry.cleaning = false
     }
   }
 }

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MiraPaths } from '../electron/storage/miraPaths'
 import { MiraPromptCommandStore } from '../electron/storage/miraPromptCommandStore'
+import { SkillStore } from '../electron/storage/skillStore'
 import { MIRA_RESERVED_PROMPT_COMMANDS, parseMiraPromptCommandInvocation } from '../src/config/miraPromptCommands'
 
 const directories: string[] = []
@@ -16,6 +17,41 @@ function fixture() {
 }
 
 describe('Mira user and project prompt command files', () => {
+  it('resolves declared enabled skills by name and freezes their identities for the command', () => {
+    const view = fixture(), skills = new SkillStore(view.paths)
+    const directory = join(view.paths.skills, 'research'); mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), '---\nname: Research\ndescription: Research documents\n---\nMIRA_COMMAND_RESEARCH_INSTRUCTIONS')
+    const skill = skills.list()[0]; skills.setEnabled(skill.id, true)
+    const item = view.store.save({ scope: 'project', name: 'review', source: '---\nskills: [research, Research]\n---\nReview $ARGUMENTS' }, view.project)
+    expect(item.unavailableReason).toBeUndefined()
+    expect(JSON.stringify(item)).not.toContain(skill.path)
+    const accepted = view.store.resolve('/review notes', view.project)!
+    expect(accepted.requiredSkillIds).toEqual([skill.id])
+    expect(accepted.prompt).toContain('Review notes')
+    expect(accepted.prompt).not.toContain('load_plugin_skill')
+    expect(() => view.store.assert(accepted, '/review notes', view.project)).not.toThrow()
+    expect(() => view.store.assert({ ...accepted, requiredSkillIds: [] }, '/review notes', view.project)).toThrow('变化')
+    expect(() => view.store.resolve('/review', view.project, { allowSkills: false })).toThrow('计划模式')
+    skills.setEnabled(skill.id, false)
+    expect(view.store.list(view.project)[0].unavailableReason).toContain('research')
+    expect(() => view.store.assert(accepted, '/review notes', view.project)).toThrow('Skill')
+    expect(() => view.store.resolve('/review', view.project)).toThrow('Skill')
+  })
+
+  it('does not choose an ambiguous skill or silently use a lower-priority command', () => {
+    const view = fixture(), skills = new SkillStore(view.paths)
+    for (const name of ['one', 'two']) {
+      const directory = join(view.paths.skills, name); mkdirSync(directory, { recursive: true })
+      writeFileSync(join(directory, 'SKILL.md'), '# Research\n\nResearch instructions')
+    }
+    for (const skill of skills.list()) skills.setEnabled(skill.id, true)
+    view.store.save({ scope: 'global', name: 'review', source: 'Ordinary fallback.' })
+    const item = view.store.save({ scope: 'project', name: 'review', source: '---\nskills: [Research]\n---\nProject review.' }, view.project)
+    expect(item.unavailableReason).toContain('重名')
+    expect(() => view.store.resolve('/review', view.project)).toThrow('重名')
+    expect(view.store.resolve('/review')?.scope).toBe('global')
+  })
+
   it('lists without creating directories, prefers project over global and keeps shadowed commands editable', () => {
     const view = fixture()
     expect(view.store.list(view.project)).toEqual([])
