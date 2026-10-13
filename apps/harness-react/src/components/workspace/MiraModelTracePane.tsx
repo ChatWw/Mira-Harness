@@ -8,7 +8,7 @@ import type { MiraModelTrace } from '../../../../../src/config/miraModelTrace'
 import { miraCallSource, miraTraceCalls, miraTraceMessageRoles, miraTraceRole, miraTraceSummary, miraTraceTextMatches, type MiraTraceRole } from '../../lib/mira-model-trace'
 import type { PilotController } from '../../state/pilot-state'
 
-const initialRoles: Record<MiraTraceRole, boolean> = { system: true, user: true, reasoning: true, assistant: true, 'tool-call': true, 'tool-result': true, options: false, usage: false, error: true }
+const initialRoles: Record<MiraTraceRole, boolean> = { system: false, user: true, reasoning: true, assistant: true, 'tool-call': true, 'tool-result': true, options: false, usage: false, error: true }
 const statuses = { running: '响应未记录', completed: '完成', failed: '失败', aborted: '已停止' }
 function Highlight({ text, offsets = [], activeStart }: { text: string; offsets?: Array<{ start: number; end: number }>; activeStart?: number }) {
   let cursor = 0
@@ -29,7 +29,7 @@ export function MiraModelTracePane({ controller, sessionId, title, active }: { c
   const body = useRef<HTMLDivElement>(null)
   const deferredQuery = useDeferredValue(query.trim())
   const needle = searchOpen ? deferredQuery : ''
-  const calls = useMemo(() => miraTraceCalls(data?.records || [], fullRequests), [data, fullRequests])
+  const calls = useMemo(() => miraTraceCalls(data?.records || [], fullRequests).map(call => ({ ...call, sections: call.sections.filter(section => section.role !== 'system') })), [data, fullRequests])
   const summary = useMemo(() => miraTraceSummary(data?.records || []), [data])
   const searchSections = useMemo(() => new Map(calls.flatMap((call, callIndex) => call.sections.map(section => [section.id, { callIndex, title: miraTraceTextMatches(section.title, needle), text: miraTraceTextMatches(section.text, needle) }] as const))), [calls, needle])
   const matches = useMemo(() => Array.from(searchSections).flatMap(([sectionId, fields]) => (['title', 'text'] as const).flatMap(field => fields[field].map(offset => ({ sectionId, callIndex: fields.callIndex, field, ...offset })))), [searchSections])
@@ -74,7 +74,7 @@ export function MiraModelTracePane({ controller, sessionId, title, active }: { c
     return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame) }
   }, [selectedMatch, mountedRows, active, virtualizer])
   useEffect(() => { virtualizer.measure() }, [fullRequests, virtualizer])
-  const allExpanded = miraTraceMessageRoles.every(role => roles[role])
+  const allExpanded = miraTraceMessageRoles.filter(role => role !== 'system').every(role => roles[role])
   async function copySection(sectionId: string, text: string) {
     const version = ++copyVersion.current
     try {
@@ -94,7 +94,7 @@ export function MiraModelTracePane({ controller, sessionId, title, active }: { c
         <DropdownMenu.Root open={active && categoriesOpen} onOpenChange={open => setCategoriesOpen(active && open)}><DropdownMenu.Trigger asChild><button type="button" aria-label="按内容类型展开或折叠" title="按内容类型展开或折叠" disabled={!active}><Settings2 size={15} /></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="mira-session-menu mira-model-trace__menu" align="end" sideOffset={5}>
           <DropdownMenu.CheckboxItem className="mira-session-menu__item" checked={fullRequests} onSelect={event => event.preventDefault()} onCheckedChange={checked => { setFullRequests(checked); setMatch(0) }}>显示完整请求上下文<DropdownMenu.ItemIndicator><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.CheckboxItem>
           <DropdownMenu.Separator className="mira-session-menu__separator" />
-          {(Object.keys(miraTraceRole) as MiraTraceRole[]).map(role => <DropdownMenu.CheckboxItem key={role} className="mira-session-menu__item" checked={roles[role]} onSelect={event => event.preventDefault()} onCheckedChange={checked => { setRoles(value => ({ ...value, [role]: checked })); setOverrides(previous => Object.fromEntries(Object.entries(previous).filter(([id]) => !calls.some(call => call.sections.some(section => section.id === id && section.role === role))))) }}>{miraTraceRole[role]}<span aria-hidden="true" className="mira-model-trace__category-switch" data-checked={roles[role]} /></DropdownMenu.CheckboxItem>)}
+          {(Object.keys(miraTraceRole) as MiraTraceRole[]).filter(role => role !== 'system').map(role => <DropdownMenu.CheckboxItem key={role} className="mira-session-menu__item" checked={roles[role]} onSelect={event => event.preventDefault()} onCheckedChange={checked => { setRoles(value => ({ ...value, [role]: checked })); setOverrides(previous => Object.fromEntries(Object.entries(previous).filter(([id]) => !calls.some(call => call.sections.some(section => section.id === id && section.role === role))))) }}>{miraTraceRole[role]}<span aria-hidden="true" className="mira-model-trace__category-switch" data-checked={roles[role]} /></DropdownMenu.CheckboxItem>)}
         </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
         <button type="button" aria-label={allExpanded ? '全部折叠' : '全部展开'} title={allExpanded ? '全部折叠' : '全部展开'} disabled={!active} onClick={() => { setRoles(Object.fromEntries(Object.keys(roles).map(role => [role, !allExpanded])) as typeof roles); setOverrides({}) }}>{allExpanded ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}</button></>}
         <button type="button" aria-label="打开模型轨迹目录" title="打开本地记录目录" disabled={!active} onClick={() => { void controller.openModelTraceDirectoryFor(sessionId).catch(cause => { if (mounted.current) setError(cause instanceof Error ? cause.message : '目录打开失败，请重试') }) }}><FolderOpen size={15} /></button>

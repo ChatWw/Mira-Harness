@@ -576,9 +576,9 @@ export class HarnessStore {
     if (!row) return undefined
     const reservation = JSON.parse(row.value) as { parentId: string; fingerprint: string }
     if (reservation.parentId !== parentId || reservation.fingerprint !== this.sideInputFingerprint(input)) throw new Error('旁路问题内容已变化，请重新发送')
-    if (!this.database.prepare('SELECT 1 FROM harness_sessions WHERE id = ?').get(id)) throw new Error('旁路对话已不存在，请重新发送')
+    if (!this.database.prepare('SELECT 1 FROM harness_sessions WHERE id = ?').get(id)) throw new Error('侧边栏对话已不存在，请重新发送')
     const child = this.getSession(id)
-    if (child.parentSessionId !== parentId || child.archivedAt) throw new Error('旁路对话不可用，请重新发送')
+    if (child.parentSessionId !== parentId || child.archivedAt) throw new Error('侧边栏对话不可用，请重新发送')
     return child
   }
 
@@ -622,7 +622,7 @@ export class HarnessStore {
     if (parent.context?.summary) messages.unshift({ id: randomUUID(), role: 'user', content: parent.context.summary, createdAt: parent.createdAt, internal: true })
     return this.database.transaction(() => {
       const child = this.saveSession({
-        version: 1, id, parentSessionId: parent.id, draftState: 'accepted', title: '旁路对话', titleSource: 'manual', titleRevision: 0,
+        version: 1, id, parentSessionId: parent.id, draftState: 'accepted', title: '侧边栏对话', titleSource: 'manual', titleRevision: 0,
         projectId: parent.projectId, workingDirectory: parent.workingDirectory, modelProviderId: parent.modelProviderId, modelId: parent.modelId,
         modelThinkingLevel: parent.modelThinkingLevel,
         permissionMode: parent.permissionMode, activeSkillIds: parent.activeSkillIds, activeMcpServerIds: parent.activeMcpServerIds,

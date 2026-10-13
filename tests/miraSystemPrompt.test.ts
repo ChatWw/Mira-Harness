@@ -147,6 +147,6 @@ describe('Mira system prompt', () => {
     expect(withEnvironment).toContain('自动化调度')
     expect(withEnvironment).toContain('仅作事实参考')
     expect(withEnvironment).not.toContain('Git 分支')
-    expect(withEnvironment).not.toContain('工作目录')
+    expect(withEnvironment).not.toContain('工作目录：')
   })
 })

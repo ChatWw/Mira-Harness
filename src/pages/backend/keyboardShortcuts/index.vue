@@ -36,9 +36,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { miraShortcutLabel } from '@/platform/workbenchShortcuts'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
-const shortcutModifier = computed(() => /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? '⌘' : 'Ctrl')
+const shortcutModifier = computed(() => miraShortcutLabel('').replace(/\+$/, ''))
 const globalShortcuts = computed(() => [
   { label: '打开全局搜索', hint: '打开当前应用的搜索；应用未提供搜索时，使用 Mira 搜索。', keys: [shortcutModifier.value, 'K'] },
   { label: '打开设置', hint: '打开设置中心的常规页面。', keys: [shortcutModifier.value, ','] },
@@ -54,8 +55,8 @@ const harnessShortcuts = computed(() => [
   { label: '打开项目', hint: '选择本地文件夹并开始项目任务；取消选择保留当前任务和草稿。', keys: [shortcutModifier.value, 'O'] },
   { label: '搜索任务与命令', hint: '搜索会话、正文、项目文件和工作台命令。', keys: [shortcutModifier.value, 'K'] },
   { label: '打开命令搜索', hint: '与工作台搜索共用一个入口。', keys: [shortcutModifier.value, 'Shift', 'P'] },
-  { label: '切换会话侧栏', hint: '输入框中也可使用；Ctrl+B 在焦点任务有可转后台的命令时优先转后台。文件编辑器和终端保留自身按键行为。', keys: [shortcutModifier.value, 'B'] },
-  { label: '前台命令转后台', hint: '使用 Control 键，作用于当前焦点任务最近启动的前台命令，保留草稿；自动化命令不可转后台。', keys: ['Ctrl', 'B'] },
+  { label: '切换会话侧栏', hint: `输入框中也可使用；${miraShortcutLabel('B')} 在焦点任务有可转后台的命令时优先转后台。文件编辑器和终端保留自身按键行为。`, keys: [shortcutModifier.value, 'B'] },
+  { label: '前台命令转后台', hint: '作用于当前焦点任务最近启动的前台命令，保留草稿；自动化命令不可转后台。', keys: [shortcutModifier.value, 'B'] },
   { label: '查找当前任务', hint: '查找当前焦点任务的正文、思考、工具和文件变更。', keys: [shortcutModifier.value, 'F'] },
   { label: '切换底部终端', hint: '打开或收起当前任务的终端。', keys: [shortcutModifier.value, 'J'] },
   { label: '切换工作区', hint: '打开或收起右侧资源面板，保留原标签。', keys: [shortcutModifier.value, shortcutModifier.value === '⌘' ? '⌥' : 'Alt', 'B'] },
@@ -63,9 +64,9 @@ const harnessShortcuts = computed(() => [
   { label: '前进', hint: '恢复后退前的工作台位置。', keys: [shortcutModifier.value, ']'] },
   { label: '上一个任务', hint: '按当前工作目录及侧栏排序选择上一项，保留草稿；到达首项后不循环。', keys: [shortcutModifier.value, 'Shift', '['] },
   { label: '下一个任务', hint: '按当前工作目录及侧栏排序选择下一项，保留草稿；菜单、文件编辑器和终端保留自身按键。', keys: [shortcutModifier.value, 'Shift', ']'] },
-  { label: '打开模型选择', hint: '使用 Control 键；文件编辑器和终端保留自身快捷键。', keys: ['Ctrl', 'M'] },
-  { label: '切换权限模式', hint: '依次切换逐次确认、自动审核和完全访问，作用于下一次提交。', keys: ['Ctrl', 'Shift', 'M'] },
-  { label: '切换推理强度', hint: '焦点在输入框且当前模型支持推理时生效。', keys: ['Ctrl', 'T'] },
+  { label: '打开模型选择', hint: '文件编辑器和终端保留自身快捷键。', keys: [shortcutModifier.value, 'M'] },
+  { label: '切换权限模式', hint: '依次切换逐次确认、自动审核和完全访问，作用于下一次提交。', keys: [shortcutModifier.value, 'Shift', 'M'] },
+  { label: '切换推理强度', hint: '焦点在输入框且当前模型支持推理时生效。', keys: [shortcutModifier.value, 'T'] },
   { label: '输入换行', hint: '候选列表打开时也保留换行，不选择候选或发送消息。', keys: ['Shift', 'Enter'] },
 ])
 </script>

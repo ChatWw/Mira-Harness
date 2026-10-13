@@ -21,12 +21,12 @@ export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
     if (media?.kind === 'sheet') return { Icon: FileSpreadsheet, type: 'Excel', hint: tab.path, aliases: 'file spreadsheet xlsx xlsm xls 工作簿 表格' }
     return media ? { Icon: media.kind === 'video' ? Video : AudioLines, type: media.kind === 'video' ? '视频' : '音频', hint: tab.path, aliases: 'file media audio video' } : { Icon: FileCode2, type: '文件', hint: tab.path, aliases: 'file code' }
   }
-  if (tab.childSessionId) return { Icon: MessageSquare, type: '旁路对话', hint: '', aliases: `side chat ${tab.childSessionId}` }
+  if (tab.childSessionId) return { Icon: MessageSquare, type: '侧边栏对话', hint: '', aliases: `side chat ${tab.childSessionId}` }
   if (tab.taskSessionId) return { Icon: MessageSquare, type: '任务', hint: '', aliases: `task conversation ${tab.taskSessionId}` }
   if (tab.subtaskId) return { Icon: Users, type: '智能体', hint: '', aliases: `agent ${tab.subtaskId} ${tab.runId || ''}` }
   if (tab.workflowSessionId) return { Icon: GitBranch, type: '工作流', hint: '', aliases: `workflow ${tab.workflowSessionId} ${tab.runId || ''}` }
   if (tab.id === 'changes') return { Icon: GitCompare, type: '变更', hint: '', aliases: 'git diff changes' }
-  return { Icon: Activity, type: '任务活动', hint: '', aliases: `activity ${tab.runId || ''}` }
+  return { Icon: Activity, type: '调用轨迹', hint: '', aliases: `activity ${tab.runId || ''}` }
 }
 
 export function miraSearchWorkspaceTabs(tabs: WorkspaceTab[], query: string) {

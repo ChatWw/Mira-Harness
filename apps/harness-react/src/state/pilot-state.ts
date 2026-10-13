@@ -224,7 +224,7 @@ export function getPilotTaskState(state: PilotState) {
   if (state.running) return '正在执行'
   if (state.session?.status === 'failed' || latestRun?.status === 'failed') return '执行失败'
   if (latestRun?.status === 'stopped') return '已停止，可继续发送'
-  if (failedActivity || failedTool) return '部分操作未完成'
+  if (latestRun?.status !== 'completed' && (failedActivity || failedTool)) return '部分操作未完成'
   if (goal?.status === 'active') return '目标等待执行'
   if (state.session?.status === 'completed') return '最近任务已完成'
   return state.session ? '等待下一步' : '尚未开始'
@@ -443,7 +443,7 @@ export class PilotController {
         if (attempt >= 3) throw new Error('任务快照尚未同步，请重新打开任务')
         session = await this.host.getSession(id)
       }
-      if (this.sideSession && (this.sideSession.parentId !== undefined && session.parentSessionId !== this.sideSession.parentId || session.archivedAt || session.draftState === 'prepared')) throw new Error(this.sideSession.parentId ? '旁路对话已不可用，请新建对话' : '任务已不可用，请重新选择')
+      if (this.sideSession && (this.sideSession.parentId !== undefined && session.parentSessionId !== this.sideSession.parentId || session.archivedAt || session.draftState === 'prepared')) throw new Error(this.sideSession.parentId ? '侧边栏对话已不可用，请新建对话' : '任务已不可用，请重新选择')
       if (generation !== this.generation || this.disposed) return false
       if (isCurrent && !isCurrent()) { this.update({ sessionLoading: false }); return false }
       const lastUsedSelection = this.availableSelection({ providerId: session.modelProviderId, modelId: session.modelId, thinkingLevel: session.modelThinkingLevel })
@@ -567,7 +567,7 @@ export class PilotController {
     try { goalCommand = !references.length && !options?.hasStructuredContext ? parseMiraGoalCommand(text) : undefined }
     catch (error) { this.fail(error); return false }
     if (goalCommand && (planning || session.parentSessionId || goalCommand.action !== 'set')) {
-      this.fail(new Error(planning ? '目标模式不能在计划模式中启动，请先关闭计划模式' : session.parentSessionId ? '旁路对话不支持目标模式' : '请使用目标详情中的管理操作'))
+      this.fail(new Error(planning ? '目标模式不能在计划模式中启动，请先关闭计划模式' : session.parentSessionId ? '侧边栏对话不支持目标模式' : '请使用目标详情中的管理操作'))
       return false
     }
     if (planning && session.goal?.status === 'active') { this.fail(new Error('请先暂停当前目标，再开启计划模式')); return false }

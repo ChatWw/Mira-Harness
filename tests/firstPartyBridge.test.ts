@@ -174,13 +174,13 @@ describe('first-party capability bridge', () => {
   it.each([false, true])('preserves side input retry guidance without leaking host details (wrapped=%s)', async wrapped => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     const params = { parentId: 'parent', input: { submissionId: 'retry', text: '原问题', selection: { providerId: 'provider', modelId: 'model' } } }
-    for (const message of ['旁路问题内容已变化，请重新发送', '旁路对话已不存在，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型']) {
+    for (const message of ['旁路问题内容已变化，请重新发送', '侧边栏对话已不存在，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型']) {
       vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(wrapped ? `Error invoking remote method 'platform:first-party-harness': Error: ${message}` : message))
       await expect(entry.request('harness.session.create-side', params)).rejects.toMatchObject({ code: 'SIDE_CONVERSATION_FAILED', message })
     }
     vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/provider key=secret'))
     const error = await entry.request('harness.session.create-side', params).catch(error => error)
-    expect(error).toMatchObject({ code: 'SIDE_CONVERSATION_FAILED', message: '旁路对话创建或提交失败，请重试；原输入保留。' })
+    expect(error).toMatchObject({ code: 'SIDE_CONVERSATION_FAILED', message: '侧边栏对话创建或提交失败，请重试；原输入保留。' })
     expect(error.stack).not.toContain('secret')
   })
 

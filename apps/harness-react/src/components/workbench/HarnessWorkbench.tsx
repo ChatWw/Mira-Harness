@@ -1,9 +1,10 @@
+import { SessionDeleteDialog } from '../session/SessionDeleteDialog'
 import { createContext, createElement, memo, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from 'react'
 import { Group as MiraPanelGroup, Panel as MiraPanel, Separator as MiraPanelSeparator } from 'react-resizable-panels'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { ArrowDown, ArrowLeft, ArrowRight, Blocks, BookOpen, CalendarClock, ChevronDown, CircleAlert, FileText, FolderOpen, GitCompare, Globe2, LoaderCircle, Menu, Moon, MoreHorizontal, PanelRightOpen, Plus, RotateCw, Search, Settings, ShieldCheck, Sun, TerminalSquare, X } from 'lucide-react'
-import { type HarnessMessage, type HarnessSession, type HarnessSideConversationInput, type ToolCallRecord } from '../../../../../src/config/harness'
+import { ArrowDown, ArrowLeft, ArrowRight, Blocks, BookOpen, CalendarClock, ChevronDown, CircleAlert, FileText, FolderOpen, Globe2, LoaderCircle, Menu, Moon, MoreHorizontal, PanelRightOpen, Plus, RotateCw, Search, Settings, ShieldCheck, Sun, TerminalSquare, X } from 'lucide-react'
+import { type HarnessMessage, type HarnessSession, type HarnessSessionSummary, type HarnessSideConversationInput, type ToolCallRecord } from '../../../../../src/config/harness'
 import { miraAppNavigationShortcut, type MiraAppNavigationSnapshot, type MiraAppNavigationTarget } from '../../../../../src/platform/appNavigation'
 import { isMiraPrimaryModifier, miraPrimaryKeyShortcuts } from '../../../../../src/platform/workbenchShortcuts'
 import { getPilotTaskState, getPilotTaskTone, PilotController } from '../../state/pilot-state'
@@ -15,6 +16,8 @@ import { SIDEBAR_PREFERENCE_KEY, SidebarPreferenceStore } from '../session/sideb
 import { moveSidebarTask, sidebarRootItems } from '../session/session-groups'
 import { miraAdjacentTasks } from '../../lib/mira-task-navigation'
 import { useMiraTaskNavigationShortcut } from '../../hooks/useMiraTaskNavigationShortcut'
+import { useMiraSidebarMotion } from '../../hooks/useMiraSidebarMotion'
+import { installDocumentMotion } from '../../../../../src/utils/documentMotion'
 import { useMiraWorkbenchShortcuts } from '../../hooks/useMiraWorkbenchShortcuts'
 import type { ComposerTaskDraft } from '../../lib/composer-drafts'
 import { HarnessWorkspaceContext } from './HarnessWorkspaceContext'
@@ -36,6 +39,7 @@ import { ConversationTurnRail } from '../conversation/ConversationTurnRail'
 import { MiraPendingGuides } from '../conversation/MiraPendingGuides'
 import { MiraConversationViewport } from '../conversation/MiraConversationViewport'
 import { MiraConversationTimeline } from '../conversation/MiraConversationTimeline'
+import { MiraWorkingIndicator } from '../conversation/MiraWorkingIndicator'
 import { MiraTaskFind } from '../conversation/MiraTaskFind'
 import { MiraSelectionActions } from '../conversation/MiraSelectionActions'
 import { MiraTaskChangesPanel as ChangesPanel } from '../workspace/MiraTaskChangesPanel'
@@ -142,6 +146,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [sessionsOpen, setSessionsOpen] = useState(true)
   const [sidebarFileTarget, setSidebarFileTarget] = useState<{ projectId?: string; sessionId?: string; directory: string; expandedPaths: string[]; selectedPath?: string }>()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const workspaceManuallyOpened = useRef(false)
   const [workspaceMounted, setWorkspaceMounted] = useState(false)
   const workspaceToggleRef = useRef<HTMLButtonElement>(null)
   const workspaceDismissFocus = useRef(false)
@@ -155,6 +160,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [presentationNavigation, setPresentationNavigation] = useState<MiraPresentationNavigation>()
   const [browserViews, setBrowserViews] = useState<Array<{ sessionId: string; tabId: WorkspaceTabId }>>([])
   const geometry = useMiraPaneGeometry({ host: controller, conversation: mainView === 'conversation', workspaceOpen, sessionsOpen, closeWorkspace: () => setWorkspaceOpen(false), closeSessions: () => setSessionsOpen(false) })
+  useMiraSidebarMotion(sessionsOpen, geometry.shellRef, geometry.bodyRef)
+  useEffect(() => installDocumentMotion(), [])
   const { sessionsWidth } = geometry
   const [workspaceSessions, setWorkspaceSessionsState] = useState<Record<string, WorkspaceSessionState>>({})
   const [workspacePreferencesLoaded, setWorkspacePreferencesLoaded] = useState(false)
@@ -176,6 +183,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const pendingSideConversation = useRef(new Map<string, Promise<HarnessSession>>())
   useEffect(() => setFocusedPane('main'), [state.session?.id])
   useEffect(() => { if (!workspaceOpen) setFocusedPane(current => current === 'bottom-terminal' ? current : 'main') }, [workspaceOpen])
+  useEffect(() => { if (!workspaceOpen) workspaceManuallyOpened.current = false }, [workspaceOpen])
   useEffect(() => {
     if (!workspaceOpen && workspaceDismissFocus.current) {
       workspaceDismissFocus.current = false
@@ -189,6 +197,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const changesFindRef = useRef<HTMLDivElement | null>(null)
   const [activeTurnId, setActiveTurnId] = useState('')
   const [conversationAtBottom, setConversationAtBottom] = useState(true)
+  const [deletingTask, setDeletingTask] = useState<HarnessSessionSummary>()
   const [taskRename, setTaskRename] = useState<{ sessionId: string; title: string }>()
   const renamingTask = taskRename?.sessionId === state.session?.id && Boolean(taskRename)
   useEffect(() => { setTaskRename(undefined) }, [state.session?.id])
@@ -658,7 +667,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
       if (reference && selected?.childSessionId) {
         try {
           child = await controller.require('getSession')(selected.childSessionId)
-          if (child.parentSessionId !== parentId) throw new Error('旁路对话不属于当前主任务')
+          if (child.parentSessionId !== parentId) throw new Error('侧边栏对话不属于当前主任务')
           if (child.archivedAt) { child = undefined; unavailableTab = selected.id }
         } catch (error) {
           if (error instanceof Error && error.message.includes('未找到会话')) { child = undefined; unavailableTab = selected.id }
@@ -723,6 +732,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     try { await controller.flushBeforeNavigation(reportFailure) } catch (error) { if (!reportFailure) throw error; return false }
     if (revision !== viewRevision.current || controller.getSnapshot().session?.id !== ownerId || workspacePreferences.latest[ownerId || 'draft'] !== before) return false
     updateWorkspace(update)
+    if (!next.tabs.some(tab => !tab.taskSessionId) && !workspaceManuallyOpened.current) dismissWorkspace()
     if (!workspaceSessionId) return true
     // 批量关闭也必须卸载终端来回收 PTY；相邻标签回退到终端时则启动其视图。
     setTerminalViews(previous => previous.filter(item => item.sessionId !== workspaceSessionId || next.tabs.some(tab => tab.id === item.tabId)))
@@ -833,6 +843,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   }
 
   function openWorkspace() {
+    workspaceManuallyOpened.current = !workspaceOpen
     if (!workspaceOpen && isWorkspaceTerminalTab(workspaceTab) && workspaceSessionId) startTerminalView(workspaceSessionId, workspaceTab)
     setWorkspaceMounted(true)
     setWorkspaceOpen(value => !value)
@@ -1173,13 +1184,15 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 onKeyDown={geometry.resizeSessionsWithKeyboard}
                 onPointerDown={geometry.resizeSessions}
               />}
+          {deletingTask && <SessionDeleteDialog session={deletingTask} controller={controller} onClose={() => setDeletingTask(undefined)} />}
           <MiraPanelGroup id="mira-workbench-body" elementRef={geometry.bodyRef} className="mira-workbench-body" onLayoutChanged={geometry.workspaceLayoutChanged}>
           <MiraPanel id="mira-conversation" elementRef={geometry.conversationRef} minSize="35%" className="mira-conversation-panel">
           {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background">{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} onTryPlugin={async id => { if (!await newConversation(undefined, undefined, id)) throw new Error(controller.getSnapshot().error || '任务打开失败，原稿已保留，请重试') }} /></main>}
           {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}>{mainViewError}<AutomationsView ref={bindAutomations} host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} navigationBusy={navigationState.busy} onNavigationChange={target => { if (mainViewRef.current === 'automations') navigation.record(target) }} onDraftNavigation={() => { if (mainViewRef.current === 'automations') navigation.detach('automations') }} onDeleteTask={id => navigation.removeAutomation(id)} onOpenSession={async id => { await openTask(id) }} onOpenWorkflowRun={openWorkflowRun} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col" hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
           <MiraTaskGrid layout={taskLayout} active={mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} canPlace={taskPaneEntry.canDrag} onPlace={(id, anchor, side) => openTaskPane(id, false, undefined, { anchor, side })} onResize={layout => updateWorkspace(current => ({ ...current, taskLayout: layout }))}>
-          <main key={MIRA_PRIMARY_TASK_PANE} data-mira-task-leaf={MIRA_PRIMARY_TASK_PANE} tabIndex={-1} className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress} hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
+          <main key={MIRA_PRIMARY_TASK_PANE} data-mira-task-leaf={MIRA_PRIMARY_TASK_PANE} tabIndex={-1} className="mira-thread-panel mira-thread-terminal-frame flex min-h-0 min-w-0 flex-1 flex-col bg-background" data-draft={!hasTaskProgress} hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
+            <MiraBottomTerminal controller={controller} sessionId={workspaceSessionId || ''} directory={fileDirectory} retainedSessionIds={retainedTerminalSessions} open={bottomTerminalOpen && mainView === 'conversation' && Boolean(workspaceSessionId) && !state.sessionLoading} active={mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onClose={closeBottomTerminal} onFocus={() => setFocusedPane('bottom-terminal')} onOpenAddress={openBottomTerminalAddress}>
             <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>
               <div className="harness-thread-header__leading flex min-w-0 flex-1 items-center gap-1.5">
                 <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`${sessionsOpen ? '收起' : '展开'}会话侧栏 (${commandKey}B)`}><button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-keyshortcuts={miraPrimaryKeyShortcuts('B')} aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={openSessions}>
@@ -1188,7 +1201,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 {hasTaskProgress && <div className="flex min-w-0 items-center gap-1">
                   <HarnessWorkspaceContext controller={controller} project={project} sessionId={workspaceSessionId} directory={fileDirectory} onAction={menuAction} />
                   {renamingTask && taskRename ? <MiraTaskTitleEditor key={taskRename.sessionId} {...taskRename} controller={controller} onClose={() => setTaskRename(current => current === taskRename ? undefined : current)} /> : <h1 className="truncate text-ui-lg font-semibold tracking-[-0.01em] text-foreground" title={state.session?.title}>{state.session?.title || '新任务'}</h1>}
-                  {currentSummary && !renamingTask && <DropdownMenu.Root><Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title="当前任务菜单"><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="当前任务菜单"><MoreHorizontal size={16} /></button></DropdownMenu.Trigger></SidebarActionHint></Tooltip.Provider><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu" align="start" sideOffset={6}>{sidebarPreferences.error && <><DropdownMenu.Label className="mira-session-menu__label">{sidebarPreferences.error}</DropdownMenu.Label><DropdownMenu.Item className="mira-session-menu__item" onSelect={() => menuAction(() => sidebarPreferenceStore.retry())}><RotateCw size={14} />重试分组偏好</DropdownMenu.Item><DropdownMenu.Separator className="mira-session-menu__separator" /></>}<SessionMenuItems taskPaneEntry={taskPaneEntry} kind="dropdown" session={currentSummary} projects={state.projects} controller={controller} groups={sidebarPreferences.preferences.groups} groupsReady={sidebarPreferences.ready} currentGroupId={currentTaskGroupId} onMoveGroup={groupId => { if (controller.getSnapshot().session?.id !== currentSummary.id) return; if (sidebarPreferenceStore.moveSessionToGroup(currentSummary.id, groupId, currentTaskGroupId ?? null)) menuAction(() => sidebarPreferenceStore.save()) }} onRename={() => { const session = controller.getSnapshot().session; if (session?.id === currentSummary.id) setTaskRename({ sessionId: session.id, title: session.title }) }} onOpenExecution={latestRunId ? async () => { openRunProgress(latestRunId) } : undefined} onOpenModelTrace={() => openModelTrace(currentSummary.id)} run={menuAction} /></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>}
+                  {currentSummary && !renamingTask && <DropdownMenu.Root><Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title="当前任务菜单"><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="当前任务菜单"><MoreHorizontal size={16} /></button></DropdownMenu.Trigger></SidebarActionHint></Tooltip.Provider><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu" align="start" sideOffset={6}>{sidebarPreferences.error && <><DropdownMenu.Label className="mira-session-menu__label">{sidebarPreferences.error}</DropdownMenu.Label><DropdownMenu.Item className="mira-session-menu__item" onSelect={() => menuAction(() => sidebarPreferenceStore.retry())}><RotateCw size={14} />重试分组偏好</DropdownMenu.Item><DropdownMenu.Separator className="mira-session-menu__separator" /></>}<SessionMenuItems onDelete={() => setDeletingTask(currentSummary)} taskPaneEntry={taskPaneEntry} kind="dropdown" session={currentSummary} projects={state.projects} controller={controller} groups={sidebarPreferences.preferences.groups} groupsReady={sidebarPreferences.ready} currentGroupId={currentTaskGroupId} onMoveGroup={groupId => { if (controller.getSnapshot().session?.id !== currentSummary.id) return; if (sidebarPreferenceStore.moveSessionToGroup(currentSummary.id, groupId, currentTaskGroupId ?? null)) menuAction(() => sidebarPreferenceStore.save()) }} onRename={() => { const session = controller.getSnapshot().session; if (session?.id === currentSummary.id) setTaskRename({ sessionId: session.id, title: session.title }) }} onOpenExecution={latestRunId ? async () => { openRunProgress(latestRunId) } : undefined} onOpenModelTrace={() => openModelTrace(currentSummary.id)} run={menuAction} /></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>}
                 </div>}
               </div>
               <div className="harness-thread-header__actions flex shrink-0 items-center gap-1">
@@ -1200,7 +1213,6 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 </button></SidebarActionHint></Tooltip.Provider>}
               </div>
             </header>
-            <MiraBottomTerminal controller={controller} sessionId={workspaceSessionId || ''} directory={fileDirectory} retainedSessionIds={retainedTerminalSessions} open={bottomTerminalOpen && mainView === 'conversation' && Boolean(workspaceSessionId) && !state.sessionLoading} active={mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onClose={closeBottomTerminal} onFocus={() => setFocusedPane('bottom-terminal')} onOpenAddress={openBottomTerminalAddress}>
             <div className="mira-conversation-layout @container/conversation relative flex min-h-0 flex-1 flex-col" onPointerDownCapture={() => setFocusedPane('main')} onFocusCapture={() => setFocusedPane('main')}>
               <MiraTaskFind active={mainView === 'conversation' && !commandCenterOpen} keyboardActive={focusedPane === 'main'} sessionId={workspaceSessionId} loading={Boolean(state.sessionLoading)} requestId={findRequest} messages={rendererMessages} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} changes={changes} viewportRef={messageViewportRef} timelineRef={conversationTimelineActions} changesRef={changesFindRef} onOpenChanges={async changeId => { try { await openWorkspaceTab('changes'); if (changeId) updateWorkspace(current => ({ ...current, selectedChangeId: changeId })) } catch (error) { controller.reportError(error) } }} />
               <MiraSelectionActions rootRef={messageViewportRef} sessionId={workspaceSessionId} enabled={mainView === 'conversation' && !commandCenterOpen && !state.sessionLoading} onAdd={reference => composerRef.current?.addConversationSelection(reference) ?? false} onSideConversation={controller.supportsSideConversations ? openSideConversation : undefined} />
@@ -1222,11 +1234,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                         <MiraConversationTimeline goal={state.session?.goal} providers={state.providers} messages={rendererMessages} memoryKey={conversationMemoryKey} liveMessageId={state.session?.activeRun ? streamMessage?.id : undefined} viewportRef={messageViewportRef} scrollActionsRef={conversationScrollActions} actionsRef={conversationTimelineActions} components={{ UserMessage, AssistantMessage }} onActiveTurnChange={setActiveTurnId} />
                         <MiraWorkflowDigest host={controller} workflows={workflowRuns} active={mainView === 'conversation' && !state.sessionLoading} onOpen={openWorkflowRun} />
                         <MiraPendingGuides key={workspaceSessionId} items={state.queue?.items ?? []} promotingItemId={state.queue?.promotingItemId} disabled={Boolean(state.sessionLoading)} onWithdraw={async itemId => { await composerRef.current?.withdrawPendingGuide(itemId) }} />
-                        {changes.length > 0 && (
-                          <button type="button" className="pilot-thread-link" onClick={() => openWorkspaceTab('changes')}>
-                            <GitCompare size={14} />{changedFileCount ? `查看 ${changedFileCount} 个文件变更` : '查看文件操作记录'} <ArrowRight size={13} />
-                          </button>
-                        )}
+                        <MiraWorkingIndicator running={isExecuting && !state.sessionLoading} />
                       </div>
                     </div>
                     <div className="flex w-full justify-center">
@@ -1274,7 +1282,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                 {workspaceTabs.filter(tab => !isWorkspaceTerminalTab(tab.id) && !isWorkspaceBrowserTab(tab.id)).map(tab => (
                   <div key={`${workspaceSessionId || 'empty'}:${tab.id}:${tab.runId || ''}`} className={`pilot-panel-view${workspaceTab === tab.id ? ' is-active' : ''}`} aria-hidden={workspaceTab !== tab.id}>
                     {tab.childSessionId && workspaceSessionId && <MiraSideConversation parentController={controller} parentId={workspaceSessionId} childSessionId={tab.childSessionId} focusRequest={taskPaneFocus?.id === tab.childSessionId ? taskPaneFocus.revision : 0} onFocusRequestHandled={revision => setTaskPaneFocus(previous => previous && previous.id === tab.childSessionId && previous.revision === revision ? undefined : previous)} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} keyboardActive={focusedPane === tab.childSessionId} requests={sideQuotes[tab.childSessionId] ?? []} onConsume={id => setSideQuotes(previous => ({ ...previous, [tab.childSessionId!]: (previous[tab.childSessionId!] ?? []).filter(request => request.id !== id) }))} onFocus={() => setFocusedPane(tab.childSessionId!)} onOpenFile={openActivityFile} />}
-                    {tab.id === 'overview' && workspaceSessionId && <OverviewPanel session={state.session} sessionId={workspaceSessionId} runId={tab.runId} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} onOpenSubtask={openSubtask} onOpenFile={openActivityFile} onOpenCommand={openCommand} />}
+                    {tab.id === 'overview' && workspaceSessionId && <OverviewPanel onOpenModelTrace={() => openModelTrace(workspaceSessionId)} session={state.session} sessionId={workspaceSessionId} runId={tab.runId} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} onOpenSubtask={openSubtask} onOpenFile={openActivityFile} onOpenCommand={openCommand} />}
                     {tab.runId && tab.subtaskId && workspaceSessionId && <MiraSubtaskPanel session={state.session} sessionId={workspaceSessionId} runId={tab.runId} subtaskId={tab.subtaskId} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} onStopSubtask={id => stopSubtask(tab.runId!, id)} onOpenFile={openActivityFile} onOpenCommand={openCommand} />}
                     {tab.runId && tab.workflowSessionId && <MiraWorkflowRunPane host={controller} identity={{ sessionId: tab.workflowSessionId, runId: tab.runId }} providers={state.providers} actorLanding={workflowActorLanding?.sessionId === tab.workflowSessionId && workflowActorLanding.runId === tab.runId ? workflowActorLanding : undefined} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading} />}
                     {tab.path && workspaceSessionId && <FilePreviewPanel controller={controller} sessionId={workspaceSessionId} path={tab.path} directory={fileDirectory} active={workspaceOpen && workspaceTab === tab.id && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onAddFile={addFileToConversation} presentationNavigation={presentationNavigation?.reference.sessionId === workspaceSessionId && presentationNavigation.reference.sourcePath === tab.path ? presentationNavigation : undefined} onAddPresentation={reference => { const current = controller.getSnapshot(); if (!workspacePreferences.mounted || !workspaceOpen || workspaceTab !== tab.id || mainViewRef.current !== 'conversation' || current.sessionLoading || current.session?.id !== reference.sessionId || reference.sourcePath !== tab.path || commandCenterOpen) return false; return composerRef.current?.addPresentationElement(reference) ?? false }} workspaceWatch={workspaceWatch} selectedEditor={editorAccess.selectedEditor} onOpenEditor={(path, editorId) => editorAccess.open(workspaceSessionId, path, editorId)} onOpenLink={url => openResourceAddress(workspaceSessionId, tab.id, url)} />}

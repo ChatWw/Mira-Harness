@@ -591,9 +591,33 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
   PPTX元素模型/索引仅为后续基础，不声明已交元素AI编辑或PDF导出。
   目标首层入口参考上游新任务加号菜单，Mira只插入原生命令，不自动替换既有目标。
 
+- 2026-10-13：桌面界面动画参考上游 `components/ui/tooltip.tsx`、`dropdown-menu.tsx`、
+  `context-menu.tsx`、`popover.tsx`、`hover-card.tsx`、`dialog.tsx`、`button.tsx`，以及
+  `app-shell/useAnimatedResizablePanel.ts`、`WorkspaceShellLayout.tsx`、
+  `lib/documentHiddenMotionPause.ts`（参考提交 `aac4755666d09fdcd70272fcf063c077a639015f`）。
+  Mira 在 `motion.css` 中统一 Radix 浮层的短淡入淡出、方向位移与轻微缩放；
+  保留 Popper 定位和弹窗居中，Vue 桌面外壳使用对应短过渡。
+  侧栏采用一次布局提交后的 Web Animations 位移，工作区沿用有界 flex-grow 过渡，
+  补齐结束与中断清理；隐藏文档与减少动态效果关闭动画，并结算有限 Web Animations。
+  保留 Mira 原有 Logo、组件、偏好和焦点逻辑，不移植上游应用外壳或持久化协议。
+
 - 本目录 `LICENSE` 与 `NOTICE.md` 是上游根文件的逐字副本，不编辑版权人、条款或正文。
 - 改编源码保留原版权与 Apache-2.0 标识，并链接到此目录。
 - 实现文件及自定义变量使用 Mira 命名；上游名称仅保留在必要来源与法律声明中。
 - Tailwind 的 `--color-*`、`--text-ui-*` 是公开工具类兼容接口，不作为 Mira 内部主题状态名称。
 - Mira 原创代码继续使用根 MIT LICENSE；第三方代码不被改签为 MIT。
 - 增加上游复制范围或引入其第三方资产时，同步补充本表及相关独立许可证。
+
+2026-10-13：底部终端外观参考 `app-shell/AnimatedTerminalPanel.tsx`、`app-shell/WorkspaceShellLayout.tsx` 与 `Terminal.tsx` 的独立面板边框、4px 拖动间隙和单层内容内边距。Mira 调整自身 HarnessWorkbench 嵌套与 workspace/layout CSS，保留任务所属 PTY、既有面板折叠/高度保活逻辑，未移植上游窗口形状、RPC 或终端动画机制；原 Apache LICENSE/NOTICE 与版权保持。
+
+2026-10-13：流式思考摘要参考 `packages/ui/src/components/ai-elements/reasoning.tsx` 的最新非空行、溢出遮罩和末尾滚动。Mira 沿自身公开 reasoning parts、原生 details 与详情状态记忆实现，保留正文展开/完成状态；新增自有 MiraWorkingIndicator 接入主/侧对话末尾，使用既有任务状态与动画降级机制，不复制 ZCode 的摘要队列动画或国际化/RPC 协议。源文件补 Apache 来源版权，原 LICENSE/NOTICE 保持。
+
+2026-10-13：终端开关动画参考 `app-shell/useAnimatedResizablePanel.ts` 的下一帧尺寸命令、200ms flex-grow 过渡、transitionend/240ms 兜底清理，结合 `AnimatedTerminalPanel.tsx` 的透明度过渡。Mira 在既有 MiraBottomTerminal 内实现，保留自身 px 高度记忆、任务 PTY 与自动折叠规则，仅动画期间排除中间尺寸回调；减少动态效果直接跳过。react-resizable-panels 4.8 的 elementRef 指向外层尺寸容器，动画样式施加于该层；原 Apache 来源版权与 LICENSE/NOTICE 保持。
+
+2026-10-13：PPT 交付卡参考 ZCode lib/assistantFileReferences.ts、lib/assistantPreviewCards.ts 和 AssistantPreviewCards.tsx 的引用候选、存在验证及内部打开语义。Mira 使用自身解析、任务相对目录 listFilesFor 与现有 PPT 阅读器；仅 PPTX，成功同轮 bash 输出可作路径证据，最终文件需实际存在，不复制上游 file stat/RPC 或自动打开队列。解析文件保留 Apache 来源版权，原 LICENSE/NOTICE 不变。
+
+2026-10-13：执行过程标题与分割线、中文时长格式参考 `packages/ui/src/v4/ConversationTurnGroup.tsx` 的 AssistantHistoryStatus 和 `conversationWorkDuration.ts`；思考固定 Brain 图标参考 `components/ai-elements/reasoning.tsx`，思考/工具运行标题改编 `styles.css` 的 animated-gradient-text 与 gradient-flow（4 秒、300% 背景、34/50/66% 色停点）。Mira 保留自身 run 状态、详情折叠/焦点/查找、底部工作提示及减少动态效果机制，不移植上游国际化或 RPC；Apache 来源版权与 LICENSE/NOTICE 保持。
+
+2026-10-13：上下文容量预览参考 `packages/ui/src/chat-input-toolbar/contextUsage.tsx`、`components/ai-elements/context.tsx` 和 `lib/tokenNumberFormat.ts`：320px 宽、12px 内容内边距/圆角、8px 蓝色分段进度、中文 compact 总量与百分比、按来源字符量排序、仅展示至少 78% 的缓存收益。Mira 运行完成后记录自身 agent 消息/系统提示词/技能/系统与 MCP 工具定义字符量和真实 usage 缓存命中率；沿用自身 Popover/focus 与压缩入口，不复制上游额度/RPC 协议或假造缺失来源明细；Apache LICENSE/NOTICE 保持。
+
+2026-10-13：执行过程节奏改编 `ToolCallBlocks.tsx` 的工具首次流式出现记录（最多 800 项、1000ms 清理）、`styles.css` 的 900ms cubic-bezier(0.16,1,0.3,1) 淡入，以及 `ToolCallBlocks/QueuedSummaryContent.tsx` 的 300ms 滚动/500ms 停留、两项待播队列、同 key 原位刷新和超时漂移跳过。MiraStreamMotion 使用 React 状态与原生 CSS 实现同等摘要队列，接入思考最新行与查阅/命令组目标；保留完整正文和调用记录，不引入 motion/react。正文沿上游 message.tsx 的 animated=false/isAnimating=false，未加入上游明确禁用的逐字延时或整段重复淡入；Apache LICENSE/NOTICE 保持。

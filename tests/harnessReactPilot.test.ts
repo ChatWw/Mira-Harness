@@ -1727,11 +1727,11 @@ describe('React Harness pilot controller', () => {
     expect(host.readFile).not.toHaveBeenCalled()
   })
 
-  it('does not present a completed session with failed activity as fully successful', () => {
+  it('uses the completed run outcome despite intermediate tool failures', () => {
     const completed = session('a')
     completed.status = 'completed'
     completed.toolCalls = [{ id: 'write', tool: 'write', status: 'failed', createdAt: 2 }]
-    expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [{ id: 'answer', role: 'assistant', content: '', createdAt: 1, run: { status: 'completed', startedAt: 1, completedAt: 3, durationMs: 2, activities: [] } }], session: completed, running: false })).toBe('部分操作未完成')
+    expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [{ id: 'answer', role: 'assistant', content: '', createdAt: 1, run: { status: 'completed', startedAt: 1, completedAt: 3, durationMs: 2, activities: [] } }], session: completed, running: false })).toBe('最近任务已完成')
     expect(getPilotTaskState({ sessions: [], projects: [], providers: [], messages: [{ id: 'answer', role: 'assistant', content: '', createdAt: 1, run: { status: 'failed', startedAt: 1, completedAt: 3, durationMs: 2, activities: [] } }], session: completed, running: false })).toBe('执行失败')
   })
 
@@ -1749,12 +1749,12 @@ describe('React Harness pilot controller', () => {
     expect(getPilotTaskTone(getPilotTaskState(state))).toBe('completed')
   })
 
-  it('uses canonical run identity for a failed tool despite a backwards wall clock', () => {
+  it('does not turn a completed run into an error for a failed tool despite a backwards wall clock', () => {
     const completed = { ...session('a'), status: 'completed' as const, toolCalls: [{ id: 'current-tool', runId: 'current-run', tool: 'read', status: 'failed' as const, createdAt: 50 }] }
     const messages: HarnessMessage[] = [{ id: 'answer', runId: 'current-run', role: 'assistant', content: '完成', createdAt: 100, run: { status: 'completed', startedAt: 100, completedAt: 200, durationMs: 100, activities: [] } }]
     const state = { sessions: [], projects: [], providers: [], messages, session: completed, running: false }
-    expect(getPilotTaskState(state)).toBe('部分操作未完成')
-    expect(getPilotTaskTone(getPilotTaskState(state))).toBe('partial')
+    expect(getPilotTaskState(state)).toBe('最近任务已完成')
+    expect(getPilotTaskTone(getPilotTaskState(state))).toBe('completed')
   })
 
   it('renders the controlled stream for both the optimistic and authoritative assistant node', () => {

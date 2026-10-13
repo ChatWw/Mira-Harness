@@ -17,6 +17,32 @@ function setup() {
 }
 
 describe('real archived selection writes', () => {
+  it.each(['main', 'side'] as const)('accepts current %s draft fields while protecting unconfirmed submissions', async location => {
+    const { database, runtime } = setup()
+    const parent = database.harness.createSession(), side = database.harness.createSideConversation(parent.id)
+    const key = location === 'main' ? preference : `${preference}.side.${side.id}`
+    const draft = { drafts: { [side.id]: '未发送文本' }, fileDrafts: {}, documents: { [side.id]: { version: 1, parts: [{ type: 'text', text: '未发送文本' }] } }, permissions: { [side.id]: 'default' }, config: {}, submissions: {} }
+    database.savePreference(key, draft)
+    expect(database.hasUnconfirmedHarnessSubmission(side.id)).toBe(false)
+    expect(() => runtime.assertSessionMutable(parent.id)).not.toThrow()
+    database.savePreference(key, { ...draft, submissions: { [side.id]: { id: 'pending' } } })
+    expect(() => runtime.assertSessionMutable(parent.id)).toThrow('待发送')
+    database.savePreference(key, draft)
+    runtime.assertSessionMutable(parent.id); database.harness.archiveSessions([parent.id])
+    expect(await runtime.deleteArchivedSessions([parent.id], () => undefined)).toEqual({ deletedIds: [parent.id], skippedIds: [], failedIds: [] })
+    expect(database.getSnapshot().preferences[key]).toMatchObject({ drafts: {}, documents: {}, permissions: {} })
+    database.savePreference(key, draft)
+    expect(database.getSnapshot().preferences[key]).toMatchObject({ drafts: {}, documents: {}, permissions: {} })
+  })
+
+  it('keeps malformed and unknown submission snapshots blocked', () => {
+    const { database } = setup()
+    for (const value of [{ documents: {}, permissions: {}, submissions: [] }, { documents: {}, permissions: {}, submissions: null }, { unknown: {}, submissions: {} }]) {
+      database.savePreference(preference, value)
+      expect(() => database.hasUnconfirmedHarnessSubmission('session')).toThrow('无法确认待发送草稿状态')
+    }
+  })
+
   it('cascades an archived parent deletion to its side history, frozen attachments and owner drafts', async () => {
     const { database, runtime } = setup()
     const parent = database.harness.createSession(), other = database.harness.createSession()

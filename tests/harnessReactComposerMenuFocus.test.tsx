@@ -138,30 +138,40 @@ describe('Composer candidate panel ownership', () => {
 
 describe('Composer context usage disclosure', () => {
   it('opens from focus, reports measured capacity, returns Escape focus, and never compacts implicitly', async () => {
-    const compact = vi.fn(async () => {})
-    await act(async () => root.render(<MiraContextUsage usage={{ usedTokens: 1300, contextWindow: 1000, source: 'reported', updatedAt: 1 }} disabled={false} compactDisabled={false} compactQueued={false} compactPending={false} onCompact={compact} />))
+    await act(async () => root.render(<MiraContextUsage usage={{ usedTokens: 1300, contextWindow: 1000, source: 'reported', updatedAt: 1 }} disabled={false} />))
     const trigger = container.querySelector<HTMLButtonElement>('button')!
     await act(async () => trigger.focus()); await settle()
-    expect(document.querySelector('[aria-label="上下文详情"]')?.textContent).toContain('模型实测 · 已使用 1,300 tokens')
+    expect(document.querySelector('[aria-label="上下文详情"]')?.textContent).toContain('上下文容量1300/1000 (100%)')
     expect(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('100')
     expect(document.activeElement).toBe(trigger)
     await key(trigger, 'ArrowDown'); await settle()
-    expect(document.activeElement?.textContent).toBe('压缩上下文')
+    expect(document.activeElement).toBe(document.querySelector('[aria-label="上下文详情"]'))
+    expect(document.activeElement?.querySelector('button')).toBeNull()
+    expect(document.activeElement?.textContent).not.toContain('压缩')
     await key(document.activeElement as HTMLElement, 'Escape'); await settle()
     expect(document.querySelector('[aria-label="上下文详情"]')).toBeNull(); expect(document.activeElement).toBe(trigger)
-    expect(compact).not.toHaveBeenCalled()
   })
 
-  it('does not fabricate unused capacity or allow repeated compaction while queued, and closes on task replacement', async () => {
-    const compact = vi.fn(async () => {})
-    const view = (owner: string) => <MiraContextUsage key={owner} contextWindow={100000} disabled={false} compactDisabled={false} compactQueued compactPending={false} onCompact={compact} />
+  it('shows source proportions and a measured cache hit rate without per-source token counts', async () => {
+    await act(async () => root.render(<MiraContextUsage usage={{ usedTokens: 102000, contextWindow: 1000000, source: 'reported', updatedAt: 1, breakdown: [{ source: 'system_prompt', chars: 10 }, { source: 'messages', chars: 90 }], cacheHitRate: 0.98 }} disabled={false} />))
+    await act(async () => container.querySelector<HTMLButtonElement>('button')!.focus()); await settle()
+    const panel = document.querySelector('[aria-label="上下文详情"]')!
+    expect(panel.textContent).toContain('10.2万/100万 (10.2%)')
+    expect(panel.querySelector('[aria-label="上下文来源占比"]')?.textContent).toBe('消息90%系统提示词10%')
+    expect(panel.textContent).toContain('平均缓存命中率98%')
+    expect(panel.querySelectorAll('.mira-context-usage__progress span')).toHaveLength(2)
+    expect(panel.textContent).not.toContain('模型实测')
+  })
+
+  it('does not fabricate unused capacity or show compression controls, and closes on task replacement', async () => {
+    const view = (owner: string) => <MiraContextUsage key={owner} contextWindow={100000} disabled={false} />
     await act(async () => root.render(view('a')))
     await act(async () => container.querySelector<HTMLButtonElement>('button')!.click()); await settle()
     const panel = document.querySelector('[aria-label="上下文详情"]')!
-    expect(panel.textContent).toContain('发送任务后显示上下文用量'); expect(panel.textContent).toContain('100K tokens')
-    expect(panel.querySelector('button')?.disabled).toBe(true); expect(panel.querySelector('[role="progressbar"]')).toBeNull()
+    expect(panel.textContent).toContain('发送任务后显示上下文用量'); expect(panel.textContent).toContain('10万 tokens')
+    expect(panel.querySelector('button')).toBeNull(); expect(panel.querySelector('[role="progressbar"]')).toBeNull()
     await act(async () => root.render(view('b'))); await settle()
-    expect(document.querySelector('[aria-label="上下文详情"]')).toBeNull(); expect(compact).not.toHaveBeenCalled()
+    expect(document.querySelector('[aria-label="上下文详情"]')).toBeNull()
   })
 })
 

@@ -1,5 +1,6 @@
 // Adapted from ZCode ToolCallBlocks/renderers/explore.tsx (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Uses Mira's ordered public message parts.
+import { MiraQueuedSummary } from './MiraStreamMotion'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronRight, Search } from 'lucide-react'
 import type { MiraAssistantWorkItem } from '../../lib/tool-exploration'
@@ -26,7 +27,7 @@ export function MiraToolExploration({ item, onOpenFile, onOpenCommand }: { item:
   return <Collapsible.Root className="mira-tool-record mira-tool-exploration" open={expanded} onOpenChange={setExpanded} data-tool-group-id={item.firstId} data-tool-group-live={live}>
     <Collapsible.Trigger asChild><div role="button" tabIndex={0} className="mira-tool-summary" aria-label={`${expanded ? '收起' : '展开'}查阅过程`} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.currentTarget.click() } }}>
       <Search size={16} aria-hidden="true" /><strong>查阅</strong>
-      {showLatest ? <span className="mira-tool-current"><span>{latestLabel}</span>{latest.tool === 'read' && latest.target ? <MiraToolFileChip path={latestPath ?? latest.target} onOpen={latestPath && onOpenFile ? () => onOpenFile(latestPath) : undefined} /> : <span title={latestTarget}>{latestTarget}</span>}</span> : <span title={summary}>{summary}</span>}
+      {showLatest ? <span className="mira-tool-current"><MiraQueuedSummary contentKey={latest.id} version={latestTarget} enabled={Boolean(showLatest)}><span>{latestLabel}</span>{latest.tool === 'read' && latest.target ? <MiraToolFileChip path={latestPath ?? latest.target} onOpen={latestPath && onOpenFile ? () => onOpenFile(latestPath) : undefined} /> : <span title={latestTarget}>{latestTarget}</span>}</MiraQueuedSummary></span> : <span title={summary}>{summary}</span>}
       {failed > 0 && <small className="mira-tool-error">{failed} 项失败</small>}
       {cancelled > 0 && <small>{cancelled} 项已取消</small>}
       {live && <small>进行中</small>}<ChevronRight size={16} className="mira-tool-chevron" aria-hidden="true" />

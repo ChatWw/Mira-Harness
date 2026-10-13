@@ -109,11 +109,15 @@ describe('real subtask DTO side panels', () => {
     const old = child('old-child', 'completed'), source = session(child('new-child'))
     source.messages = [{ id: 'old-message', role: 'assistant', content: '', runId: 'old-run', createdAt: 1, run: { status: 'completed', startedAt: 1, completedAt: 5, durationMs: 4, activities: [{ id: 'old-activity', label: '旧运行活动', status: 'completed', startedAt: 1 }], subtasks: [old] } }]
     source.toolCalls = [{ id: 'old-tool', runId: 'old-run', tool: 'read', target: '旧运行工具', status: 'ok', createdAt: 2 }, { id: 'new-tool', runId: 'run-a', tool: 'read', target: '新运行工具', status: 'ok', createdAt: 3 }]
-    const open = vi.fn()
-    await render(<OverviewPanel session={source} sessionId="session-a" runId="old-run" active onOpenSubtask={open} onOpenFile={vi.fn()} />)
+    const open = vi.fn(), raw = vi.fn()
+    await render(<OverviewPanel onOpenModelTrace={raw} session={source} sessionId="session-a" runId="old-run" active onOpenSubtask={open} onOpenFile={vi.fn()} />)
+    expect(document.querySelector<HTMLDetailsElement>('.mira-subtask-section')).toHaveProperty('open', false)
+    expect(text()).toContain('调用轨迹')
     expect(text()).toContain('旧运行活动'); expect(text()).toContain('旧运行工具'); expect(text()).not.toContain('新运行工具'); expect(text()).not.toContain('new-child')
     await act(async () => document.querySelector<HTMLButtonElement>('[data-subtask-id="old-child"]')!.click())
     expect(open).toHaveBeenCalledExactlyOnceWith('old-run', 'old-child')
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('查看原始请求与响应'))!.click())
+    expect(raw).toHaveBeenCalledOnce()
   })
 
   it('leaves a legacy overview unbound instead of adopting the current active run', async () => {

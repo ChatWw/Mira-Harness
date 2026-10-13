@@ -1,3 +1,4 @@
+import { isMiraPrimaryModifier } from '../../../../src/platform/workbenchShortcuts'
 import { useEffect, useRef } from 'react'
 import type { PilotController } from '../state/pilot-state'
 import { miraSessionCommand } from '../lib/mira-command-presentation'
@@ -7,13 +8,13 @@ export function dispatchMiraCommandShortcut(event: KeyboardEvent) {
   return [...handlers].some(handle => handle(event))
 }
 
-/** Current task commands take precedence over the sidebar's Control+B binding. */
+/** Current task commands take precedence over the sidebar's primary-modifier+B binding. */
 export function useMiraCommandShortcut(controller: PilotController, active: boolean) {
   const pending = useRef(false)
   useEffect(() => {
     if (!active) return
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || !event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'b') return false
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || !isMiraPrimaryModifier(event) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'b') return false
       if (document.querySelector('[role="dialog"]:not(.mira-conversation-find), [role="menu"][data-state="open"], dialog[open]')) return false
       const target = event.target instanceof Element ? event.target : document.activeElement
       // The selected output pane owns its precise record and operation feedback.

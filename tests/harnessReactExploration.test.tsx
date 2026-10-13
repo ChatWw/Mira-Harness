@@ -178,7 +178,7 @@ describe('Mira plan and delegated tool summaries', () => {
     const onOpenProgress = vi.fn()
     const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
     await act(async () => root!.render(<RunProgressCard run={run} tools={[read]} summaryOnly running={false} onOpenProgress={onOpenProgress} />))
-    const open = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('查看本轮执行过程'))!
+    const open = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('查看调用轨迹'))!
     await act(async () => open.click())
     expect(onOpenProgress).toHaveBeenCalledOnce()
     expect(container.querySelector('details')?.open).toBe(false)

@@ -60,7 +60,7 @@ export function RunProgressCard({ run, running, waiting = false, tools = [], sum
         <summary className="cursor-pointer list-none select-none text-ui-xs hover:text-foreground">查看过程</summary>
         <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={[]} usage={usage} onStopSubtask={onStopSubtask} onOpenSubtask={onOpenSubtask} />
       </details>}
-      {onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看本轮执行过程<ArrowUpRight size={12} aria-hidden="true" /></button>}
+      {onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看调用轨迹<ArrowUpRight size={12} aria-hidden="true" /></button>}
     </div>
   }
   const state = run.status === 'failed' ? 'failed' : run.status === 'stopped' ? 'stopped' : totalOps > completedCount ? 'partial' : 'completed'
@@ -73,7 +73,7 @@ export function RunProgressCard({ run, running, waiting = false, tools = [], sum
     </summary>
     {run.error && <p className="mt-1.5 text-red-400" role="alert">{run.error}</p>}
     {hasBody && <RunBody planSteps={planSteps} toolActivities={toolActivities} subtasks={subtasks} tools={visibleTools} usage={usage} onStopSubtask={onStopSubtask} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} onOpenSubtask={onOpenSubtask} />}
-  </details>{onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看本轮执行过程<ArrowUpRight size={12} aria-hidden="true" /></button>}</div>
+  </details>{onOpenProgress && <button type="button" className="mira-run-open" onClick={onOpenProgress}>查看调用轨迹<ArrowUpRight size={12} aria-hidden="true" /></button>}</div>
 }
 
 function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubtask, onOpenFile, onOpenCommand, onOpenSubtask }: {

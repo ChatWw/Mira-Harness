@@ -1,7 +1,7 @@
 // Adapted from ZCode ConversationTurnGroup (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Uses Mira's ordered public message parts.
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { ArrowUpRight, ChevronRight, CircleAlert, LoaderCircle } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, CircleAlert } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
 import { MIRA_REVEAL_PROCESS, miraAssistantProcess } from '../../lib/mira-assistant-process'
 import { taskFindTargetKey } from '../../lib/conversation-find'
@@ -39,28 +39,33 @@ export function MiraAssistantProcess(props: ComponentProps<typeof AssistantMessa
     const timer = window.setInterval(() => tick(value => value + 1), 1000)
     return () => window.clearInterval(timer)
   }, [streaming, startedAt, rendererId])
-  const seconds = message.run ? Math.max(0, Math.round((streaming ? Date.now() - message.run.startedAt : message.run.durationMs) / 1000)) : undefined
+  // ZCode conversationWorkDuration: round to seconds, show at most two nonzero units.
+  const seconds = message.run ? Math.max(1, Math.round((streaming ? Date.now() - message.run.startedAt : message.run.durationMs) / 1000)) : undefined
+  const duration = seconds === undefined ? undefined : [
+    [Math.floor(seconds / 86400), '天'], [Math.floor(seconds % 86400 / 3600), '小时'],
+    [Math.floor(seconds % 3600 / 60), '分钟'], [seconds % 60, '秒'],
+  ].filter(([value]) => Number(value) > 0).slice(0, 2).map(([value, unit]) => `${value} ${unit}`).join(' ')
   const approval = Boolean(permission || waiting || (streaming && props.waitingForApproval))
   const label = approval ? '等待确认'
-    : streaming ? '正在处理'
+    : streaming ? `工作中${duration ? ` ${duration}` : ''}`
       : needsAttention || message.run?.status === 'failed' ? '执行遇到错误'
-        : message.interrupted || message.run?.status === 'stopped' ? '工作已停止' : '工作过程'
-  const elapsed = seconds !== undefined && <small className="mira-run-elapsed" aria-hidden={streaming || undefined}>· {seconds}s</small>
+        : message.interrupted || message.run?.status === 'stopped' ? '工作已停止' : `已工作${duration ? ` ${duration}` : ''}`
+  const elapsed = (approval || needsAttention || message.interrupted || message.run?.status === 'failed' || message.run?.status === 'stopped') && duration !== undefined && <small className="mira-run-elapsed" aria-hidden={streaming || undefined}>· {duration}</small>
   return <div ref={container} className="mira-assistant-process-layout">
     {work.length > 0 && <Collapsible.Root className="mira-assistant-process" open={open} onOpenChange={setOpen} data-mira-process-open={open} onFocusCapture={() => { focused.current = true }} onBlurCapture={event => { const element = event.currentTarget; queueMicrotask(() => { focused.current = element.contains(document.activeElement) }) }}>
       <div className="mira-assistant-process-heading"><Collapsible.Trigger asChild><button ref={trigger} type="button" className="mira-assistant-process-trigger" disabled={mustShow} aria-label={`${open ? '收起' : '展开'}工作过程`}>
-        {approval || (!streaming && (needsAttention || message.run?.status === 'failed')) ? <CircleAlert size={14} aria-hidden="true" /> : streaming ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : null}
+        {approval || (!streaming && (needsAttention || message.run?.status === 'failed')) ? <CircleAlert size={14} aria-hidden="true" /> : null}
         <span role={streaming ? 'status' : undefined}>{label}</span>{elapsed}
         {!mustShow && <ChevronRight size={14} className="mira-process-chevron" aria-hidden="true" />}
-      </button></Collapsible.Trigger>{props.onOpenProgress && <button type="button" className="mira-message-action" aria-label="查看本轮执行详情" title="查看本轮执行详情" onClick={props.onOpenProgress}><ArrowUpRight size={14} aria-hidden="true" /></button>}</div>
+      </button></Collapsible.Trigger>{props.onOpenProgress && <button type="button" className="mira-message-action" aria-label="查看调用轨迹" title="查看调用轨迹" onClick={props.onOpenProgress}><ArrowUpRight size={14} aria-hidden="true" /></button>}</div>
       {open && <Collapsible.Content className="mira-assistant-process-content"><AssistantMessageParts {...props} message={{ ...message, parts: work }} /></Collapsible.Content>}
     </Collapsible.Root>}
-    {reply.length > 0 && <AssistantMessageParts {...props} message={{ ...message, parts: reply }} />}
-    {!work.length && (streaming || (!reply.length && (message.interrupted || message.run?.status === 'failed' || message.run?.status === 'stopped'))) && <div className="mira-turn-status" role="status">
-      {streaming && (approval ? <CircleAlert size={14} aria-hidden="true" /> : <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />)}
+    {!work.length && (streaming || message.run || message.interrupted) && <div className="mira-turn-status" role="status">
+      {approval && <CircleAlert size={14} aria-hidden="true" />}
       <span>{label}</span>{elapsed}
-      {props.onOpenProgress && <button type="button" className="mira-message-action" aria-label="查看本轮执行详情" onClick={props.onOpenProgress}><ArrowUpRight size={14} aria-hidden="true" /></button>}
+      {props.onOpenProgress && <button type="button" className="mira-message-action" aria-label="查看调用轨迹" onClick={props.onOpenProgress}><ArrowUpRight size={14} aria-hidden="true" /></button>}
     </div>}
+    {reply.length > 0 && <AssistantMessageParts {...props} message={{ ...message, parts: reply }} />}
     {message.run?.error && <p className="mira-tool-error" role="alert">{message.run.error}</p>}
   </div>
 }

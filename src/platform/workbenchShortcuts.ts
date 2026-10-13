@@ -10,6 +10,10 @@ export function miraPrimaryKeyShortcuts(...keys: string[]) {
   return keys.flatMap(key => modifiers.map(modifier => `${modifier}+${key}`)).join(' ')
 }
 
+export function miraShortcutLabel(key: string, platform = typeof navigator === 'undefined' ? '' : navigator.platform) {
+  return /Mac/i.test(platform) ? `⌘${key.replace(/Shift\+/g, '⇧').replace(/Alt\+/g, '⌥')}` : `Ctrl+${key}`
+}
+
 export function miraWorkbenchShortcut(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'repeat' | 'isComposing' | 'keyCode' | 'defaultPrevented'>): 'theme' | 'project' | undefined {
   if (event.defaultPrevented || !isMiraPrimaryModifier(event) || event.altKey || event.repeat || event.isComposing || event.keyCode === 229) return
   const key = event.key.toLowerCase()

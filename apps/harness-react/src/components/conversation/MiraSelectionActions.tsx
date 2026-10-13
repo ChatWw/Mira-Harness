@@ -81,6 +81,6 @@ export function MiraSelectionActions({ rootRef, sessionId, enabled, onAdd, onSid
     setSnapshot(undefined)
   }
   return createPortal(<div ref={menuRef} className="mira-selection-actions" data-mira-selection-menu role="toolbar" aria-label="选中文本操作" style={{ left: 12, top: 12 }} onMouseDown={event => event.preventDefault()} onPointerDown={event => event.preventDefault()}>
-    {current.reference.text.length > MIRA_SELECTION_MAX_LENGTH ? <span role="status">单个引用最多 8000 字，请缩小选区</span> : <><button type="button" onClick={() => add()}><Quote size={14} aria-hidden="true" />添加到当前任务</button>{onSideConversation && <button type="button" onClick={() => add(true)}><MessageSquare size={14} aria-hidden="true" />在旁路对话中提问</button>}</>}
+    {current.reference.text.length > MIRA_SELECTION_MAX_LENGTH ? <span role="status">单个引用最多 8000 字，请缩小选区</span> : <><button type="button" onClick={() => add()}><Quote size={14} aria-hidden="true" />添加到当前任务</button>{onSideConversation && <button type="button" onClick={() => add(true)}><MessageSquare size={14} aria-hidden="true" />在侧边栏对话中提问</button>}</>}
   </div>, rootRef.current!.ownerDocument.body)
 }

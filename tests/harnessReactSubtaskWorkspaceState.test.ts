@@ -29,8 +29,8 @@ describe('run and subtask workspace owners', () => {
   it('updates the explicitly requested overview run without creating duplicate tabs', () => {
     const first = openWorkspaceTab(createWorkspaceSession(), createWorkspaceRunTab('run-a'))
     const second = openWorkspaceTab(first, createWorkspaceRunTab('run-b'))
-    expect(first.tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-a', openedAt: NOW }])
-    expect(second.tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-b', openedAt: NOW }])
+    expect(first.tabs).toEqual([{ id: 'overview', label: '调用轨迹', runId: 'run-a', openedAt: NOW }])
+    expect(second.tabs).toEqual([{ id: 'overview', label: '调用轨迹', runId: 'run-b', openedAt: NOW }])
     expect(second.activeTab).toBe('overview')
   })
 

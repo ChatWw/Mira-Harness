@@ -47,6 +47,7 @@ vi.mock('react', async original => ({
 }))
 vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', SessionMenuItems: 'session-menu', useHarnessSessionShortcuts: vi.fn() }))
 vi.mock('../apps/harness-react/src/hooks/useModalFocusTrap', () => ({ useModalFocusTrap: vi.fn() }))
+vi.mock('../src/utils/documentMotion', () => ({ installDocumentMotion: vi.fn() }))
 
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (value: Error) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
 const task = (id: string, projectId?: string): HarnessSession => ({ version: 1, id, title: id, ...(projectId ? { projectId } : {}), workingDirectory: '/project', permissionMode: 'default', messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active', pinned: false })
@@ -113,6 +114,40 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('first-screen navigation owns each awaited transition', () => {
+  it.each(['tab', 'all', 'shortcut'] as const)('collapses an automatically opened workspace after its last resource closes via %s', async method => {
+    const api = fixture(), view = mount(api.controller); await view.drain()
+    const toggle = () => view.props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function')
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    await (view.sidebar().onOpenModelTrace as (id: string) => Promise<void>)('a'); await view.drain()
+    await tabs().onOpen('browser'); await view.drain()
+    await tabs().onClose(tabs().active); await view.drain()
+    expect(view.props(props => props.id === 'pilot-workspace')['aria-hidden']).toBe(false)
+    expect(tabs().tabs).toHaveLength(1)
+    if (method === 'all') await tabs().onCloseAll()
+    else if (method === 'shortcut') await api.close()
+    else await tabs().onClose(tabs().active)
+    await view.drain()
+    expect(tabs().tabs).toEqual([])
+    expect(toggle()['aria-expanded']).toBe(false)
+    view.unmount()
+  })
+
+  it('keeps an explicitly opened empty workspace, then resets that intent when dismissed', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const toggle = () => view.props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function')
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    ;(toggle().onClick as () => void)(); await view.drain()
+    await (view.sidebar().onOpenModelTrace as (id: string) => Promise<void>)('a'); await view.drain()
+    await tabs().onCloseAll(); await view.drain()
+    expect(tabs().tabs).toEqual([])
+    expect(view.props(props => props.id === 'pilot-workspace')['aria-hidden']).toBe(false)
+    tabs().onDismiss(); await view.drain()
+    await (view.sidebar().onOpenModelTrace as (id: string) => Promise<void>)('a'); await view.drain()
+    await tabs().onClose(tabs().active); await view.drain()
+    expect(toggle()['aria-expanded']).toBe(false)
+    view.unmount()
+  })
+
   it('uses the ZCode draft and task header action order without an editor on an unsent task', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
     const actions = () => React.Children.toArray(view.props(p => String(p.className).startsWith('harness-thread-header__actions')).children as React.ReactNode).filter(React.isValidElement)
@@ -1904,11 +1939,11 @@ describe('Workbench run and child panels keep their captured owners', () => {
     const api = runFixture(); await api.view.drain()
     api.summary().onOpenProgress!(); await api.view.drain()
     api.nextRun(); await api.view.drain()
-    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-a', openedAt: expect.any(Number) }])
+    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '调用轨迹', runId: 'run-a', openedAt: expect.any(Number) }])
     const openedAt = api.tabs().tabs[0].openedAt
     expect(api.overview()).toMatchObject({ runId: 'run-a', session: { activeRun: { id: 'run-next' } } })
     api.summary().onOpenProgress!(); await api.view.drain()
-    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '任务活动', runId: 'run-next', openedAt }])
+    expect(api.tabs().tabs).toEqual([{ id: 'overview', label: '调用轨迹', runId: 'run-next', openedAt }])
     expect(api.overview().runId).toBe('run-next')
   })
 

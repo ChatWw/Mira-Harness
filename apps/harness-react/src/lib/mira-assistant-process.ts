@@ -18,5 +18,5 @@ export function miraAssistantProcess(message: HarnessMessage, tools: ReadonlyMap
     return tool && (!message.runId || !tool.runId || message.runId === tool.runId) ? [tool] : []
   })
   const waiting = records.some(tool => tool.status === 'waiting-confirm')
-  return { work, reply, waiting, needsAttention: waiting || records.some(tool => miraCommandExecutionStatus(tool) === 'failed') }
+  return { work, reply, waiting, needsAttention: waiting || message.run?.status !== 'completed' && records.some(tool => miraCommandExecutionStatus(tool) === 'failed') }
 }

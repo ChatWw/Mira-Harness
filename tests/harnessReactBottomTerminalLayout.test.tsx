@@ -23,7 +23,10 @@ it('releases the real panel layout when hidden and keeps the same terminal on re
   }
   await act(async () => root.render(<Fixture />))
   const panel = () => container.querySelector<HTMLElement>('#mira-bottom-terminal-panel')!
-  const click = async (selector: string) => { await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click()) }
+  const click = async (selector: string) => {
+    await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click())
+    await act(async () => new Promise<void>(resolve => window.requestAnimationFrame(() => resolve())))
+  }
   await click('button')
   expect(Number(panel().style.flexGrow)).toBeGreaterThan(0)
   const terminal = container.querySelector('[aria-label="terminal"]')
@@ -39,4 +42,22 @@ it('releases the real panel layout when hidden and keeps the same terminal on re
   expect(Number(panel().style.flexGrow)).toBe(0)
   expect(container.querySelector('#mira-bottom-terminal')?.getAttribute('aria-hidden')).toBe('true')
   expect(container.querySelector('[role="separator"]')).toBeNull()
+})
+
+it('cancels pending expansion when rapidly toggled and preserves the draft', async () => {
+  const frames = new Map<number, FrameRequestCallback>(); let nextFrame = 0
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frames.set(++nextFrame, callback); return nextFrame })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => { frames.delete(id) })
+  function Fixture() {
+    const [open, setOpen] = useState(false)
+    return <><button onClick={() => setOpen(value => !value)}>toggle</button><MiraBottomTerminal controller={{} as PilotController} sessionId="a" retainedSessionIds={['a']} open={open} active onClose={() => setOpen(false)} onFocus={() => {}} onOpenAddress={() => {}}><textarea aria-label="draft" defaultValue="keep draft" /></MiraBottomTerminal></>
+  }
+  const flush = async () => { await act(async () => { const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(performance.now())) }) }
+  await act(async () => root.render(<Fixture />)); await flush()
+  const toggle = () => act(async () => container.querySelector<HTMLButtonElement>('button')!.click())
+  await toggle(); await toggle(); await flush()
+  expect(Number(container.querySelector<HTMLElement>('#mira-bottom-terminal-panel')!.style.flexGrow)).toBe(0)
+  await toggle(); await flush()
+  expect(Number(container.querySelector<HTMLElement>('#mira-bottom-terminal-panel')!.style.flexGrow)).toBeGreaterThan(0)
+  expect(container.querySelector<HTMLTextAreaElement>('[aria-label="draft"]')?.value).toBe('keep draft')
 })

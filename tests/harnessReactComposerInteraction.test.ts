@@ -625,11 +625,12 @@ describe('group draft lifecycle in the shipped Composer', () => {
     expect(() => view.props(props => props.children === '上下文压缩已加入待发送，将按顺序执行')).toThrow('control not found')
   })
 
-  it('compacts from the usage panel without consuming or rewriting an existing draft', async () => {
+  it('keeps the usage panel informational without a manual compression action', async () => {
     const view = fixture(); await view.drain(); await view.type('保留我的完整草稿')
-    await (view.props((_, element) => element.type === MiraContextUsage).onCompact as () => Promise<void>)(); await view.drain()
-    expect(view.api.compactConversation).toHaveBeenCalledExactlyOnceWith('current')
-    expect(view.text()).toBe('保留我的完整草稿'); expect(view.api.send).not.toHaveBeenCalled()
+    const usage = view.props((_, element) => element.type === MiraContextUsage)
+    expect(usage).not.toHaveProperty('onCompact')
+    expect(view.api.compactConversation).not.toHaveBeenCalled()
+    expect(view.text()).toBe('保留我的完整草稿')
   })
 
   it('compacts without sending and only consumes its token after success', async () => {
@@ -791,7 +792,7 @@ describe('group draft lifecycle in the shipped Composer', () => {
     view.onOpenSideConversation.mockRejectedValueOnce(new Error('创建失败'))
     await view.type('/side 保留正文', 5); await view.key('Enter')
     expect(view.text()).toBe(' 保留正文'); expect(view.api.send).not.toHaveBeenCalled()
-    expect(view.props((_, element) => element.type === 'span' && element.props.children === '打开旁路对话失败：创建失败')).toBeDefined()
+    expect(view.props((_, element) => element.type === 'span' && element.props.children === '打开侧边栏对话失败：创建失败')).toBeDefined()
   })
 
   it('routes @ and + to real plugins and freezes explicit chips with their draft owner', async () => {
@@ -1130,7 +1131,8 @@ describe('group draft lifecycle in the shipped Composer', () => {
     view.api.listMcp.mockReturnValueOnce(late.promise)
     await view.type('/mcp'); await view.select('command-mcp')
     view.api.listMcp.mockResolvedValueOnce([{ id: 'project:b:docs', name: 'B docs', enabled: true, source: { kind: 'project', projectId: 'project-b', projectName: 'B' } }])
-    await pickProject('project-b')
+    await view.key('Escape'); await pickProject('project-b')
+    await view.type('/mcp'); await view.select('command-mcp')
     late.resolve([{ id: 'project:a:docs', name: 'A docs', enabled: true, source: { kind: 'project', projectId: 'project', projectName: 'Project' } }]); await view.drain()
     expect(view.api.listMcp).toHaveBeenLastCalledWith(undefined, 'project-b')
     expect(view.items().some(item => item.id === 'mcp-project:b:docs')).toBe(true)
@@ -1448,6 +1450,35 @@ describe('group draft lifecycle in the shipped Composer', () => {
     await view.api.registerBeforeNavigation.mock.calls[0][0]()
     expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ config: expect.objectContaining({ projectId: 'project' }) }), true)
     await view.key('Enter'); expect(view.api.prepare).toHaveBeenCalledWith('project', expect.any(Function))
+  })
+
+  it.each(['anonymous', 'prepared'] as const)('hides the project strip while suggestions are open in a %s draft and restores it on Escape', async kind => {
+    const view = fixture(); view.state.session = kind === 'anonymous' ? undefined : { ...view.state.session!, draftState: 'prepared' }; view.render(); await view.drain()
+    const strip = () => view.props(p => p.className === 'harness-composer__project-strip')
+    expect(strip().style).toEqual({ visibility: undefined })
+    await view.plus()
+    expect(strip()).toMatchObject({ style: { visibility: 'hidden' }, inert: true, 'aria-hidden': true })
+    await view.key('Escape')
+    expect(strip().style).toEqual({ visibility: undefined })
+    await view.type('/')
+    expect(strip()).toMatchObject({ style: { visibility: 'hidden' }, inert: true, 'aria-hidden': true })
+    await view.key('Escape')
+    expect(strip().style).toEqual({ visibility: undefined }); expect(view.text()).toBe('/')
+  })
+
+  it('keeps project context visible after preparing an unsent draft and hides it for an established task', async () => {
+    const view = fixture(); Object.assign(view.api, { supportsGitActions: true }); view.state.projects[0] = { ...view.state.projects[0], isGitRepository: true }; view.state.session = undefined; view.render(); await view.drain()
+    await view.handle.current!.startDraft(undefined, 'project'); await view.drain()
+    expect(view.props(p => p['aria-label'] === '选择项目')).toBeDefined()
+    await view.handle.current!.prepareSession(); view.render(); await view.drain()
+    expect(view.state.session?.draftState).toBe('prepared')
+    expect(view.props(p => p['aria-label'] === '当前项目').children).toEqual(expect.arrayContaining([expect.objectContaining({ props: { children: 'Project' } })]))
+    expect(() => view.props(p => p['aria-label'] === '选择项目')).toThrow('Composer control not found')
+    view.state.session = { ...view.state.session!, projectId: undefined }; view.render(); await view.drain()
+    expect(view.props(p => p['aria-label'] === '当前项目').children).toEqual(expect.arrayContaining([expect.objectContaining({ props: { children: '个人工作区' } })]))
+    view.state.session = { ...view.state.session!, projectId: 'project', draftState: undefined }; view.render(); await view.drain()
+    expect(() => view.props(p => p['aria-label'] === '当前项目')).toThrow('Composer control not found')
+    expect(() => view.props(p => p.className === 'harness-composer__project-strip')).toThrow('Composer control not found')
   })
 
   it('moves a prepared draft to another project while keeping its text and frozen attachment owner', async () => {
@@ -2797,7 +2828,7 @@ describe('shipped Mira Composer contextual interactions', () => {
   it('uses the host send preference, cycles real reasoning and stops only the focused idle menu state', async () => {
     const view = fixture({ preference: 'mod-enter' }); await view.drain(); await view.type('请处理资料')
     await view.key('Enter'); expect(view.api.send).not.toHaveBeenCalled()
-    await view.dispatch('t', { ctrlKey: true, target: view.editorElement })
+    await view.dispatch('t', { metaKey: true, target: view.editorElement })
     expect(view.api.select).toHaveBeenCalledWith({ providerId: 'provider', modelId: 'model', thinkingLevel: 'high' })
     await view.key('Enter', { ctrlKey: true }); expect(view.api.send).toHaveBeenCalledOnce()
     view.state.running = true; view.render(); await view.drain()
@@ -2917,6 +2948,24 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.state.selection?.thinkingLevel).toBe('medium')
   })
 
+  it('inherits the latest selected permission for new tasks while preserving each historical task choice', async () => {
+    const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
+    const selected = () => view.props((props, element) => element.type === DropdownMenu.RadioGroup && ['default', 'auto-approve', 'full'].includes(props.value))
+    selected().onValueChange('full'); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain()
+    expect(selected().value).toBe('full')
+    view.state.session = { id: 'history', title: '历史任务', createdAt: 1, updatedAt: 1, status: 'active', permissionMode: 'default' }; view.render(); await view.drain()
+    selected().onValueChange('auto-approve'); await view.drain()
+    view.state.session = { ...view.state.session, id: 'current', permissionMode: 'default' }; view.render(); await view.drain()
+    expect(selected().value).toBe('full')
+    view.state.session = { ...view.state.session, id: 'history' }; view.render(); await view.drain()
+    expect(selected().value).toBe('auto-approve')
+    view.state.session = undefined; view.render(); await view.drain()
+    expect(selected().value).toBe('auto-approve')
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ config: expect.objectContaining({ permission: 'auto-approve' }), permissions: { current: 'full', history: 'auto-approve' } }), true)
+  })
+
   it('keeps permission changes in the owning draft while a run continues', async () => {
     const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
     view.state.running = true; view.state.session!.activeRun = { id: 'running', startedAt: 1, activities: [] }; view.render()
@@ -2995,6 +3044,22 @@ describe('shipped Mira Composer contextual interactions', () => {
     expect(view.api.select).toHaveBeenCalledWith({ providerId: 'provider', modelId: 'mira-next', thinkingLevel: 'medium' })
     await view.type('使用选定模型'); await view.formSubmit()
     expect(view.api.send).toHaveBeenCalledWith('使用选定模型', false, [], expect.any(String), { providerId: 'provider', modelId: 'mira-next', thinkingLevel: 'medium' })
+  })
+
+  it.each(['MacIntel', 'Win32'])('matches toolbar shortcut hints and handlers to %s', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
+    const view = fixture(); await view.drain()
+    const primary = platform === 'MacIntel' ? { metaKey: true } : { ctrlKey: true }
+    const other = platform === 'MacIntel' ? { ctrlKey: true } : { metaKey: true }
+    const hints = ['M', 'Shift+M', 'T'].map(key => platform === 'MacIntel' ? `⌘${key.replace('Shift+', '⇧')}` : `Ctrl+${key}`)
+    for (const shortcut of hints) expect(view.props(props => props.shortcut === shortcut)).toBeDefined()
+    await view.dispatch('m', { ...other, target: view.editorElement }); expect(view.openPopups()).toBe(0)
+    await view.dispatch('m', { ...primary, target: view.editorElement }); expect(view.openPopups()).toBe(1)
+    await view.dispatch('m', { ...primary, target: view.editorElement }); expect(view.openPopups()).toBe(0)
+    await view.dispatch('m', { ...primary, shiftKey: true, target: view.editorElement })
+    expect(view.api.setSessionPermission).toHaveBeenCalledWith('current', 'auto-approve')
+    await view.dispatch('t', { ...primary, target: view.editorElement })
+    expect(view.api.select).toHaveBeenCalled()
   })
 
   it('uses Ctrl+T only in the Composer but preserves global model and permission shortcuts', async () => {

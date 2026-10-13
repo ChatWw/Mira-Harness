@@ -61,7 +61,7 @@ describe('sidebar project and group rename ownership', () => {
 
 async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<string, unknown> = { view: 'group', sort: 'manual' }, taskPaneEntry?: { open(id: string): Promise<unknown>; canOpen(id: string): boolean }) {
   const state = { sessions: ['a', 'b'].map(id => ({ id, title: `任务 ${id.toUpperCase()}`, createdAt: 1, updatedAt: 1, status: 'active' })), projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {}, error: undefined } as PilotState
-  const controller = { getSnapshot: () => state, renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), navigate: vi.fn<PilotController['navigate']>(async () => undefined), open: vi.fn(), reportError: vi.fn(), removeProject: vi.fn(async () => undefined), supportsProjectRemoval: true }
+  const controller = { getSnapshot: () => state, deleteSession: vi.fn(async (_id: string) => undefined), renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), navigate: vi.fn<PilotController['navigate']>(async () => undefined), open: vi.fn(), reportError: vi.fn(), removeProject: vi.fn(async () => undefined), supportsProjectRemoval: true }
   Object.assign(state, statePatch)
   const store = new SidebarPreferenceStore(async () => preferences, async () => undefined)
   await store.load()
@@ -82,23 +82,55 @@ async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<s
 }
 
 describe('sidebar task rename through real React and Radix DOM', () => {
-  it('opens unified model settings from the context task menu without selecting that task', async () => {
+  it('opens the project-style delete dialog from the menu and cancels without deleting', async () => {
     const view = await mount()
-    await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
-    const settings = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '模型设置')
-    expect(settings).toBeDefined()
-    await act(async () => settings!.click())
-    expect(view.controller.navigate).toHaveBeenCalledExactlyOnceWith('/settings/model-config', true)
-    expect(view.controller.open).not.toHaveBeenCalled()
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(e => e.textContent === '删除会话')!.click())
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.className).toContain('mira-confirm'); expect(dialog.textContent).toContain('删除会话「任务 A」？')
+    expect(dialog.textContent).toContain('无法恢复'); expect(view.controller.deleteSession).not.toHaveBeenCalled()
+    await act(async () => [...dialog.querySelectorAll('button')].find(e => e.textContent === '取消')!.click())
+    expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(view.controller.deleteSession).not.toHaveBeenCalled()
   })
 
-  it('keeps a settings navigation failure visible on its owning row for retry', async () => {
-    const view = await mount(); view.controller.navigate.mockRejectedValueOnce(new Error('侧任务草稿未保存'))
+  it('keeps delete failures in the dialog and blocks duplicate confirmation while pending', async () => {
+    const view = await mount(); view.controller.deleteSession.mockRejectedValueOnce(new Error('请先处理待发送消息'))
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(e => e.textContent === '删除会话')!.click())
+    const confirm = () => document.querySelector<HTMLButtonElement>('[aria-label="确认删除会话"]')!
+    await act(async () => confirm().click())
+    expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe('请先处理待发送消息')
+    const pending = deferred<void>(); view.controller.deleteSession.mockReturnValueOnce(pending.promise)
+    await act(async () => { confirm().click(); confirm().click() })
+    expect(view.controller.deleteSession).toHaveBeenCalledTimes(2); expect(confirm().disabled).toBe(true)
+    await act(async () => pending.resolve())
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.controller.deleteSession).toHaveBeenLastCalledWith('a')
+  })
+
+  it.each(['group', 'project', 'timeline'] as const)('shows status instead of time until a task is read in %s view', async mode => {
+    const now = Date.now()
+    const view = await mount({ sessions: [{ id: 'a', title: '任务 A', createdAt: now, updatedAt: now, status: 'active' }], runningSessionIds: ['a'] }, { view: mode === 'group' ? 'group' : 'project', projectView: mode === 'timeline' ? 'timeline' : 'collections', sort: 'manual' })
+    const badge = () => view.row().querySelector('.mira-session-status')?.getAttribute('aria-label')
+    const time = () => view.row().querySelector('time')
+    expect(badge()).toBe('执行中'); expect(time()).toBeNull()
+    view.state.runningSessionIds = []; view.state.unreadSessionIds = ['a']; await view.render()
+    expect(badge()).toBe('未读'); expect(time()).toBeNull()
+    view.state.unreadSessionIds = []; await view.render()
+    expect(badge()).toBeUndefined(); expect(time()?.textContent).toBe('刚刚')
+    view.state.sessions = view.state.sessions.map(session => ({ ...session, planStatus: 'executing' })); await view.render()
+    expect(view.row().querySelector('.pilot-spin')).not.toBeNull(); expect(time()).toBeNull()
+    view.state.sessions = view.state.sessions.map(session => ({ ...session, planStatus: 'completed' })); await view.render()
+    expect(time()?.textContent).toBe('刚刚')
+  })
+
+  it('omits model settings from the conversation context menu', async () => {
+    const view = await mount()
     await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
-    const settings = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '模型设置')
-    expect(settings).toBeDefined()
-    await act(async () => settings!.click())
-    expect(view.row('b').querySelector('[role="alert"]')?.textContent).toBe('侧任务草稿未保存')
+    const items = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(element => element.textContent)
+    expect(items).toContain('重命名')
+    expect(items).not.toContain('模型设置')
+    expect(view.controller.navigate).not.toHaveBeenCalled()
     expect(view.controller.open).not.toHaveBeenCalled()
   })
 
@@ -305,7 +337,7 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(document.querySelector('[role="tooltip"]')).toBeNull()
     const menu = () => view.container.querySelector<HTMLElement>('[role="menu"]')!
     expect(menu().textContent).toContain('历史任务仍可查看')
-    expect([...menu().querySelectorAll('[data-disabled]')].map(element => element.textContent)).toEqual(['新建任务', '在文件管理器中打开', '在终端中打开'])
+    expect([...menu().querySelectorAll('[data-disabled]')].map(element => element.textContent)).toEqual(['新建任务', '打开方式'])
     expect([...menu().querySelectorAll('[role="menuitem"]:not([data-disabled])')].map(element => element.textContent)).toContain('移除项目')
     await act(async () => menu().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
     await act(async () => collection().querySelector<HTMLButtonElement>('.mira-collection-title')!.click())

@@ -1,0 +1,13 @@
+/* Harness uses control backgrounds, input borders and current-item states for focus.
+ * Cover browser defaults and component rules, including portals outside #root. */
+:focus, :focus-visible { outline: none !important; }
+.mira-thread-panel:focus-visible > .harness-thread-header,
+.mira-side-conversation:focus-visible > .mira-side-conversation__header,
+.mira-side-conversation:focus-visible > .mira-side-conversation__actions,
+.mira-market-search:focus-within,
+.mira-task-interaction .pilot-question label:focus-within,
+.mira-automation-switch input:focus-visible + span { outline: none !important; }
+
+.mira-market-search:focus-within { border-color: var(--color-input-border-focused); }
+:is(input, select, textarea):focus { border-color: var(--color-input-border-focused); }
+:is(.mira-header-tool, .mira-editor-button button, .mira-conversation-find__control):focus-visible { background-color: var(--color-hover); }

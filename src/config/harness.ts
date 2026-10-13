@@ -181,6 +181,9 @@ export interface ModelListResult {
 }
 
 export interface HarnessContextUsage {
+  /** Character-based source proportions; not per-source token counts. */
+  breakdown?: Array<{ source: 'messages' | 'system_prompt' | 'skills' | 'system_tool_schemas' | 'mcp_tool_schemas'; chars: number }>
+  cacheHitRate?: number
   usedTokens: number
   contextWindow: number
   source: 'reported' | 'estimated'

@@ -197,17 +197,19 @@
 .harness-composer__usage:hover, .harness-composer__usage[data-state="open"] { color: var(--color-foreground); background: var(--color-surface-hover); }
 .harness-composer__usage:focus-visible, .mira-context-usage button:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 2px; }
 .harness-composer__usage:disabled { opacity: 0.5; cursor: default; }
-.mira-context-usage { z-index: 80; width: 296px; max-width: var(--radix-popover-content-available-width); padding: 14px; border: 1px solid var(--color-popover-border); border-radius: 10px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); outline: 0; font-size: var(--text-ui-sm); }
-.mira-context-usage__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 500; }
-.mira-context-usage__heading > :last-child { color: var(--color-foreground-subtle); font-variant-numeric: tabular-nums; font-weight: 400; }
-.mira-context-usage__progress { height: 6px; margin-top: 12px; overflow: hidden; border-radius: 3px; background: var(--color-surface); }
-.mira-context-usage__progress span { display: block; height: 100%; background: var(--color-foreground-subtle); }
+.mira-context-usage { z-index: 80; width: 320px; max-width: var(--radix-popover-content-available-width); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 12px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); outline: 0; font-size: var(--text-ui-sm); }
+.mira-context-usage__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--text-ui-base); font-weight: 500; }
+.mira-context-usage__heading > :last-child { color: var(--color-foreground-subtle); font-family: var(--font-mono); font-size: var(--text-ui-sm); font-variant-numeric: tabular-nums; font-weight: 400; }
+.mira-context-usage__progress { height: 8px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: var(--color-surface); }
+.mira-context-usage__progress span { display: block; height: 100%; background: var(--color-usage-chart-1); }
+.mira-context-usage__progress > div { display: flex; height: 100%; min-width: 8px; }
+.mira-context-usage__breakdown { display: grid; gap: 6px; margin-top: 12px; }
+.mira-context-usage__breakdown > div { display: flex; align-items: center; gap: 8px; }
+.mira-context-usage__breakdown i { width: 8px; height: 8px; flex: none; border-radius: 2px; border: 1px solid var(--color-border); }
+.mira-context-usage__breakdown span, .mira-context-usage__cache > span { color: var(--color-foreground-subtle); }
+.mira-context-usage__breakdown strong, .mira-context-usage__cache strong { margin-left: auto; font-family: var(--font-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
+.mira-context-usage__cache { display: flex; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .mira-context-usage p { margin: 8px 0 14px; color: var(--color-foreground-subtle); }
-.mira-context-usage__footer { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 12px; border-top: 1px solid var(--color-border); }
-.mira-context-usage__footer > span { color: var(--color-foreground-subtle); line-height: 1.5; }
-.mira-context-usage button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 5px; color: var(--color-foreground); background: transparent; font-size: inherit; cursor: pointer; }
-.mira-context-usage button:hover:not(:disabled) { background: var(--color-surface-hover); }
-.mira-context-usage button:disabled { opacity: 0.5; cursor: default; }
 .harness-composer__attachments { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; }
 .harness-composer__attachment { display: inline-flex; max-width: 260px; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; color: var(--color-foreground); background: var(--color-surface); font-size: var(--text-ui-sm); }
 .harness-composer__attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -260,8 +262,9 @@
 .mira-composer-suggestions__footer button, .mira-composer-suggestions__footer span { display: inline-flex; flex: none; align-items: center; gap: 4px; }
 .mira-composer-suggestions__footer button { border: 0; padding: 0; color: inherit; background: transparent; font: inherit; }
 .mira-composer-suggestions__footer button:hover { color: var(--color-foreground); }
-.mira-composer-suggestions__footer kbd, .mira-composer-hint kbd { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 3px; border-radius: 4px; color: var(--color-foreground); background: var(--color-hover); font: inherit; font-family: var(--font-mono); }
-.mira-composer-hint { z-index: 100; display: flex; align-items: center; gap: 8px; max-width: 440px; padding: 6px 8px; border: 1px solid var(--color-popover-border); border-radius: 6px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); font-size: var(--text-ui-sm); overflow-wrap: anywhere; }
+.mira-composer-suggestions__footer kbd { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 3px; border-radius: 4px; color: var(--color-foreground); background: var(--color-hover); font: inherit; font-family: var(--font-mono); }
+.mira-composer-hint { z-index: 100; display: flex; align-items: center; gap: 8px; max-width: 440px; padding: 6px 8px; border: 1px solid var(--color-popover-border); border-radius: 6px; color: var(--color-foreground); background: var(--color-menu); box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent); font-family: inherit; font-size: var(--text-ui-sm); font-weight: 400; line-height: 20px; overflow-wrap: anywhere; }
+.mira-composer-hint kbd { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px; color: inherit; background: var(--color-hover); font: inherit; white-space: nowrap; }
 .mira-composer-plan-separator { width: 1px; height: 12px; flex: none; background: var(--color-border); }
 .mira-composer-plan-marker { color: var(--color-foreground-subtle); }
 .mira-composer-plan-marker__remove { display: none; }

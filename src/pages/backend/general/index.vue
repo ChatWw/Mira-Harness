@@ -74,7 +74,7 @@
           </div>
           <el-select class="send-shortcut-picker" :model-value="sendShortcut" aria-label="发送快捷键" @update:model-value="setSendShortcut">
             <el-option label="按 Enter 键" value="enter" />
-            <el-option label="按 Cmd / Ctrl + Enter 键" value="mod-enter" />
+            <el-option :label="`按 ${miraShortcutLabel('Enter')} 键`" value="mod-enter" />
           </el-select>
         </div>
         <div class="settings-row">
@@ -112,6 +112,7 @@
 </template>
 
 <script setup lang="ts">
+import { miraShortcutLabel } from '@/platform/workbenchShortcuts'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type PermissionMode, type SendShortcut } from '@/config/harness'

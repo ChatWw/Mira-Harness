@@ -29,11 +29,14 @@ describe('runtime text streaming activity persistence', () => {
     vi.spyOn(runtime as any, 'publishContextUsage').mockImplementation((_sender, value) => value)
     let notify!: (event: any) => void
     vi.spyOn(Agent.prototype, 'subscribe').mockImplementation(listener => { notify = listener; return () => {} })
-    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async () => {
+    vi.spyOn(Agent.prototype, 'prompt').mockImplementation(async function (this: Agent) {
+      this.state.messages.push({ role: 'assistant', content: [{ type: 'text', text: '文本'.repeat(200) }], api: 'openai-completions', provider: 'test', model: 'model', stopReason: 'stop', timestamp: 2, usage: { input: 2, output: 1, cacheRead: 98, cacheWrite: 0, totalTokens: 101, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } })
       for (let i = 0; i < 200; i++) notify({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '文本' } })
     })
     const sender = { isDestroyed: () => false, send: vi.fn() }
     await (runtime as any).runAgent(sender, 's', session, { providerId: 'p', modelId: 'model' }, { id: 'p', name: 'test', endpoint: 'http://localhost:1', models: [{ id: 'model', reasoning: false }] }, 'unused', { planning: true })
+    expect(database.harness.finalizeAssistantMessage.mock.calls[0][1].run.contextUsage.breakdown).toEqual(expect.arrayContaining([expect.objectContaining({ source: 'system_prompt', chars: expect.any(Number) }), expect.objectContaining({ source: 'messages', chars: expect.any(Number) })]))
+    expect(database.harness.finalizeAssistantMessage.mock.calls[0][1].run.contextUsage.cacheHitRate).toBe(0.98)
     expect(database.harness.setActiveRun).toHaveBeenCalledTimes(3) // initial, answering, clear
     expect(database.harness.appendAssistantDelta).toHaveBeenCalledWith('s', '文本'.repeat(200), expect.objectContaining({ runId: expect.any(String), parts: [expect.objectContaining({ type: 'text', text: '文本'.repeat(200), state: 'complete' })] }))
     expect(database.harness.finalizeAssistantMessage).toHaveBeenCalledWith('s', expect.objectContaining({ content: '文本'.repeat(200), run: expect.objectContaining({ status: 'completed' }) }))

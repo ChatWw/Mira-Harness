@@ -12,6 +12,9 @@ import { resolveNavigation } from './config/navigation'
 import { useCommandPaletteStore } from './stores/commandPalette'
 import { initializePlatform } from './platform'
 import './styles/index.scss'
+import { installDocumentMotion } from './utils/documentMotion'
+
+installDocumentMotion()
 
 const tooltipDefaults = ElTooltip.props as Record<string, { default?: unknown }>
 tooltipDefaults.showAfter.default = 550

@@ -488,7 +488,7 @@ export class PlatformDatabase {
     for (const row of rows) {
       const value: unknown = JSON.parse(row.value)
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('无法确认待发送草稿状态')
-      if (Object.keys(value).some(key => !['drafts', 'fileDrafts', 'recoveries', 'submissions', 'config', 'draft'].includes(key))) throw new Error('无法确认待发送草稿状态')
+      if (Object.keys(value).some(key => !['drafts', 'fileDrafts', 'documents', 'permissions', 'recoveries', 'submissions', 'config', 'draft'].includes(key))) throw new Error('无法确认待发送草稿状态')
       const submissions = (value as Record<string, unknown>).submissions
       if (submissions === undefined) continue
       if (!submissions || typeof submissions !== 'object' || Array.isArray(submissions)) throw new Error('无法确认待发送草稿状态')
@@ -512,7 +512,7 @@ export class PlatformDatabase {
   private withoutDeletedHarnessDrafts(value: unknown) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !this.deletedHarnessDraftOwners.size) return value
     const next = { ...value } as Record<string, unknown>
-    for (const key of ['drafts', 'fileDrafts', 'recoveries', 'submissions']) {
+    for (const key of ['drafts', 'fileDrafts', 'documents', 'permissions', 'recoveries', 'submissions']) {
       const entries = next[key]
       if (entries && typeof entries === 'object' && !Array.isArray(entries)) next[key] = Object.fromEntries(Object.entries(entries).filter(([id]) => !this.deletedHarnessDraftOwners.has(id)))
     }

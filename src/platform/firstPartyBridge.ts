@@ -69,8 +69,8 @@ export async function handleFirstPartyRequest(options: {
       }
       if (method === 'session.create-side') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
-        const known = ['请先打开一个可用的主任务', '旁路问题未被接收，请重试', '旁路问题内容已变化，请重新发送', '旁路对话已不存在，请重新发送', '旁路对话不可用，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置']
-        throw new FirstPartyBridgeError('SIDE_CONVERSATION_FAILED', known.includes(failure) ? failure : '旁路对话创建或提交失败，请重试；原输入保留。')
+        const known = ['请先打开一个可用的主任务', '旁路问题未被接收，请重试', '旁路问题内容已变化，请重新发送', '侧边栏对话已不存在，请重新发送', '侧边栏对话不可用，请重新发送', '所选权限档位已停用，请重新选择', '请先选择一个可用模型', '所选模型不属于当前供应商', '当前 Agent 模型不可用，请检查 Provider 配置']
+        throw new FirstPartyBridgeError('SIDE_CONVERSATION_FAILED', known.includes(failure) ? failure : '侧边栏对话创建或提交失败，请重试；原输入保留。')
       }
       if (method === 'workflows.request') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')

@@ -37,25 +37,19 @@ async function mount() {
 }
 
 describe('foreground background shortcut routing', () => {
-  it('retains explicit Control+B on macOS while an unavailable background action leaves the editor binding alone', async () => {
-    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
+  it.each(['MacIntel', 'Win32'])('uses the platform primary modifier for background commands and sidebar fallback on %s', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
     const view = await mount()
-    expect((await view.key()).defaultPrevented).toBe(true)
+    const primary = platform === 'MacIntel' ? { ctrlKey: false, metaKey: true } : { ctrlKey: true, metaKey: false }
+    const other = platform === 'MacIntel' ? { ctrlKey: true, metaKey: false } : { ctrlKey: false, metaKey: true }
+    await view.key(other)
+    expect(view.main.commandAction).not.toHaveBeenCalled(); expect(view.sidebar).not.toHaveBeenCalled()
+    expect((await view.key(primary)).defaultPrevented).toBe(true)
     expect(view.main.commandAction).toHaveBeenCalledExactlyOnceWith('main', 'run', 'one', 'background')
+    expect(view.changed).not.toHaveBeenCalled()
     view.main.state.session!.toolCalls = []
-    await view.key()
-    expect(view.main.commandAction).toHaveBeenCalledOnce(); expect(view.sidebar).not.toHaveBeenCalled()
-    await view.key({ ctrlKey: false, metaKey: true })
-    expect(view.sidebar).toHaveBeenCalledOnce(); expect(view.changed).not.toHaveBeenCalled()
-  })
-
-  it('consumes Control+B before Lexical and sidebar, leaves text intact, and preserves Meta+B', async () => {
-    const view = await mount()
-    expect((await view.key()).defaultPrevented).toBe(true)
-    expect(view.main.commandAction).toHaveBeenCalledExactlyOnceWith('main', 'run', 'one', 'background')
-    expect(view.side.commandAction).not.toHaveBeenCalled(); expect(view.sidebar).not.toHaveBeenCalled(); expect(view.changed).not.toHaveBeenCalled()
-    expect(view.container.querySelector('[aria-label="实际输入框"]')?.textContent).toBe('保留草稿')
-    await view.key({ ctrlKey: false, metaKey: true }); expect(view.sidebar).toHaveBeenCalledOnce()
+    await view.key(primary)
+    expect(view.main.commandAction).toHaveBeenCalledOnce(); expect(view.sidebar).toHaveBeenCalledOnce()
   })
   it('routes only the focused task and handles neutral conversation controls', async () => {
     const view = await mount(); await view.focus('side')

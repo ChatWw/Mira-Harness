@@ -174,6 +174,7 @@
 .mira-assistant-part { min-width: 0; }
 .mira-assistant-process-layout { display: grid; min-width: 0; gap: 20px; }
 .mira-assistant-process { min-width: 0; }
+.mira-assistant-process-heading, .mira-turn-status { width: 100%; padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent); }
 .mira-assistant-process-heading { display: flex; align-items: center; gap: 8px; }
 .mira-turn-status { display: flex; min-height: 28px; align-items: center; gap: 7px; color: var(--color-foreground-subtle); font-size: 13px; }
 .mira-run-elapsed { font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -188,9 +189,26 @@
 .mira-assistant-process-content { min-width: 0; padding-block: 12px 4px; }
 @media (prefers-reduced-motion: reduce) { .mira-assistant-process-trigger > .mira-process-chevron { transition: none; } }
 .mira-reasoning { min-width: 0; color: var(--color-foreground-subtle); font-size: 13px; }
+.mira-deliverable-files { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.mira-deliverable-file { display: flex; min-width: 0; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-card); }
+.mira-deliverable-file > svg { flex: none; color: var(--color-brand); }
+.mira-deliverable-file > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; font-size: 13px; }
+.mira-deliverable-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mira-deliverable-file span { color: var(--color-foreground-subtle); }
+.mira-deliverable-file > button { flex: none; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background); color: var(--color-foreground); font-size: 13px; }
+.mira-deliverable-file > button:hover { background: var(--color-hover); }
 .mira-reasoning > summary { display: flex; min-height: 28px; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
 .mira-reasoning > summary::-webkit-details-marker { display: none; }
 .mira-reasoning > summary > svg { flex: none; }
+.mira-reasoning > summary > span:not(.mira-reasoning__preview), .mira-reasoning > summary > small { flex: none; }
+.mira-reasoning__preview { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; }
+.mira-reasoning__preview > span { display: inline-block; }
+.mira-reasoning__preview[data-overflow='true'] { mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent); }
+.mira-working-indicator { display: flex; align-items: center; gap: 8px; padding-block: 4px; color: var(--color-foreground-subtle); font-size: 13px; }
+.mira-working-indicator > svg { flex: none; }
+.mira-working-indicator > span { background: linear-gradient(100deg, var(--color-foreground-subtle) 35%, var(--color-foreground) 50%, var(--color-foreground-subtle) 65%); background-size: 250% 100%; background-clip: text; -webkit-text-fill-color: transparent; animation: mira-working-shimmer 2.4s linear infinite; }
+@keyframes mira-working-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .mira-working-indicator > span { background: none; -webkit-text-fill-color: currentColor; } }
 .mira-reasoning > summary > svg:last-child { transition: transform 150ms ease-out; }
 .mira-reasoning[open] > summary > svg:last-child { transform: rotate(180deg); }
 .mira-reasoning > summary:hover { color: var(--color-foreground); }
@@ -222,8 +240,19 @@
 .mira-tool-summary > .mira-tool-chevron { flex: none; opacity: 0; transition: transform 200ms ease-out, opacity 200ms ease-out; }
 .mira-tool-summary:hover > .mira-tool-chevron, .mira-tool-summary:focus-within > .mira-tool-chevron { opacity: 1; }
 .mira-tool-record[data-state='open'] > .mira-tool-summary > .mira-tool-chevron { opacity: 1; transform: rotate(90deg); }
-.mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong { background-image: linear-gradient(100deg, var(--color-foreground-subtle) 30%, var(--color-foreground) 50%, var(--color-foreground-subtle) 70%); background-size: 220% 100%; background-clip: text; -webkit-text-fill-color: transparent; animation: mira-tool-working 2s linear infinite; }
-@keyframes mira-tool-working { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+/* Adapted from ZCode styles.css animated-gradient-text / gradient-flow (Apache-2.0).
+   Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode. */
+.mira-process-sweep, .mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--mira-process-sweep-strong, var(--color-foreground)) 0%, var(--mira-process-sweep-strong, var(--color-foreground)) 34%, color-mix(in srgb, var(--color-foreground) var(--mira-process-sweep-opacity, 22%), transparent) 50%, var(--mira-process-sweep-strong, var(--color-foreground)) 66%, var(--mira-process-sweep-strong, var(--color-foreground)) 100%);
+  background-size: 300% 100%; background-clip: text; -webkit-background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+  animation: mira-tool-working 4s linear infinite; will-change: background-position;
+  transform: translateZ(0); backface-visibility: hidden;
+}
+.mira-tool-summary > strong { --mira-process-sweep-strong: var(--color-foreground-subtle); }
+.dark { --mira-process-sweep-opacity: 20%; }
+@keyframes mira-tool-working { 0% { background-position: 100% 0; } 50%, 100% { background-position: 0% 0; } }
 .mira-tool-record-action { display: inline-flex; flex: none; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--color-foreground-subtle); opacity: 0; cursor: pointer; }
 .mira-tool-summary:hover .mira-tool-record-action, .mira-tool-summary:focus-within .mira-tool-record-action { opacity: 1; }
 .mira-tool-record-action:hover { color: var(--color-foreground); background: var(--color-hover); }
@@ -301,7 +330,7 @@
 .mira-tool-diff [data-diff-kind='removed'] [data-diff-number] { color: var(--color-diff-removed); background: color-mix(in srgb, var(--color-diff-removed) 18%, var(--color-card)); }
 .dark .mira-tool-diff [data-diff-token] { color: var(--shiki-dark, inherit) !important; font-style: var(--shiki-dark-font-style, inherit) !important; font-weight: var(--shiki-dark-font-weight, inherit) !important; text-decoration: var(--shiki-dark-text-decoration, inherit) !important; }
 .mira-tool-record[data-tool-status='failed'] > .mira-tool-summary > svg:first-child, .mira-tool-error { color: var(--color-destructive); }
-@media (prefers-reduced-motion: reduce) { .mira-reasoning > summary > svg:last-child, .mira-tool-summary > .mira-tool-chevron { transition: none; } .mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong { animation: none; background: none; -webkit-text-fill-color: currentColor; } }
+@media (prefers-reduced-motion: reduce) { .mira-reasoning > summary > svg:last-child, .mira-tool-summary > .mira-tool-chevron { transition: none; } .mira-process-sweep, .mira-tool-record[data-tool-status='running'] > .mira-tool-summary > strong, .mira-tool-exploration[data-tool-group-live='true'] > .mira-tool-summary > strong { animation: none; background: none; color: var(--color-foreground-subtle); -webkit-text-fill-color: currentColor; } }
 .mira-context-menu { width: 290px; max-width: min(290px, calc(100vw - 24px)); }
 .mira-context-path { margin: 0; padding: 4px 8px 10px; overflow-wrap: anywhere; color: var(--color-foreground); font-size: 12px; }
 .mira-context-info { padding: 8px; }
@@ -535,3 +564,15 @@
 .mira-rewind-preview-section li { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
 .mira-rewind-preview-section li > span { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: var(--text-ui-sm); }
 .mira-rewind-preview-section small { max-width: 60%; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); text-align: right; overflow-wrap: anywhere; }
+
+/* ZCode tool entrance and QueuedSummaryContent timing; native CSS replaces motion/react. */
+[data-mira-stream-entrance='true'] { animation: mira-stream-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes mira-stream-in { from { opacity: 0; } to { opacity: 1; } }
+.mira-summary-roll { position: relative; display: inline-flex; min-width: 0; max-width: 100%; align-items: center; overflow: hidden; vertical-align: middle; }
+.mira-summary-roll > span { display: inline-flex; min-width: 0; align-items: center; gap: 8px; }
+.mira-summary-roll__current { animation: mira-summary-in 300ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+.mira-summary-roll__previous { position: absolute; inset: 0; pointer-events: none; animation: mira-summary-out 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes mira-summary-in { from { opacity: 0; transform: translateY(.8em); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mira-summary-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-.8em); } }
+
+.mira-reasoning__preview .mira-summary-roll { max-width: none; min-width: max-content; }

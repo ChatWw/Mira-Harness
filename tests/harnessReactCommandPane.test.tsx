@@ -109,10 +109,12 @@ describe('canonical command output resource', () => {
     expect(container.textContent).toContain('actual live output')
     expect(container.querySelector('[aria-label="停止这条命令"]')).toBeNull()
   })
-  it('converts foreground via Ctrl+B and never offers live controls for inherited execution', async () => {
+  it.each(['MacIntel', 'Win32'])('converts foreground with the displayed shortcut on %s and hides inherited controls', async platform => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue(platform)
     const tool = command({ commandJob: { mode: 'foreground', status: 'running', revision: 1, startedAt: Date.now() } }), onAction = vi.fn(async () => undefined)
     await render(<MiraCommandPane session={session([tool])} sessionId="task-A" runId="run-one" toolId={tool.id} active onAction={onAction} />)
-    await act(async () => container.querySelector('.mira-command-pane')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true })))
+    expect(container.querySelector('[title^="转到后台"]')?.getAttribute('title')).toBe(platform === 'MacIntel' ? '转到后台（⌘B）' : '转到后台（Ctrl+B）')
+    await act(async () => container.querySelector('.mira-command-pane')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: platform !== 'MacIntel', metaKey: platform === 'MacIntel', bubbles: true })))
     expect(onAction).toHaveBeenCalledExactlyOnceWith('task-A', 'run-one', tool.id, 'background')
     await render(<MiraCommandPane session={session([{ ...tool, inherited: true }])} sessionId="task-A" runId="run-one" toolId={tool.id} active onAction={onAction} />)
     expect(container.querySelector('.mira-command-actions')).toBeNull()

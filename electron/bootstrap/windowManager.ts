@@ -5,7 +5,7 @@ import { shouldBlockReloadShortcut } from '../windowShortcuts'
 import { isTrustedShellNavigation } from '../security/shellNavigation'
 import { shouldAuthorizeLegacyNovelApiRequest } from '../security/legacyNovelApiAuth'
 import { HOSTED_BROWSER_PARTITION, isAllowedHostedBrowserUrl } from '../security/hostedBrowser'
-import { applyMiraZoom, miraZoomLevel } from './miraDesktopZoom'
+import { alignMiraTrafficLights, applyMiraZoom, miraTrafficLightPosition, miraZoomLevel } from './miraDesktopZoom'
 
 export interface WindowManagerOptions {
   getCloseWindowBehavior: () => 'background' | 'quit'
@@ -116,7 +116,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     backgroundColor: '#f7f7f8',
     frame: !isWindows,
     titleBarStyle: isMac ? 'hiddenInset' : (isWindows ? 'hidden' : 'default'),
-    ...(isMac ? { trafficLightPosition: { x: 24, y: 12 } } : {}),
+    ...(isMac ? { trafficLightPosition: miraTrafficLightPosition(1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.())) } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true, zoomFactor: 1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.()) },
   })
   window.on('close', event => {
@@ -164,6 +164,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     // Chromium can replay the creation/origin zoom on reload; use the latest preference.
     const factor = 1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.())
     window.webContents.setZoomFactor(factor)
+    alignMiraTrafficLights(window, factor)
     window.webContents.send('window:zoom-changed', factor)
   })
   window.once('ready-to-show', () => window.show())

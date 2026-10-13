@@ -1,5 +1,6 @@
 // Adapted from ZCode ToolCallBlocks/renderers/execute-group.tsx (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Uses only Mira's ordered public command snapshots.
+import { MiraQueuedSummary } from './MiraStreamMotion'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronRight, TerminalSquare } from 'lucide-react'
 import type { MiraAssistantWorkItem } from '../../lib/tool-exploration'
@@ -19,7 +20,7 @@ export function MiraToolCommandGroup({ item, onOpenCommand }: { item: Extract<Mi
   return <Collapsible.Root className="mira-tool-record mira-tool-exploration" open={expanded} onOpenChange={setExpanded} data-tool-group-id={item.firstId} data-tool-group-kind="commands" data-tool-group-live={live}>
     <Collapsible.Trigger asChild><div role="button" tabIndex={0} className="mira-tool-summary" aria-label={`${expanded ? '收起' : '展开'}执行过程`} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.currentTarget.click() } }}>
       <TerminalSquare size={16} aria-hidden="true" /><strong>执行</strong>
-      {live && !expanded ? <span className="mira-tool-current"><span>正在执行</span><span title={command}>{command}</span></span> : <span>{tools.length} 条命令</span>}
+      {live && !expanded ? <span className="mira-tool-current"><MiraQueuedSummary contentKey={current!.id} version={command} enabled={live && !expanded}><span>正在执行</span><span title={command}>{command}</span></MiraQueuedSummary></span> : <span>{tools.length} 条命令</span>}
       {failed > 0 && <small className="mira-tool-error">{failed} 项失败</small>}{cancelled > 0 && <small>{cancelled} 项已取消</small>}
       {live && <small>进行中</small>}<ChevronRight size={16} className="mira-tool-chevron" aria-hidden="true" />
     </div></Collapsible.Trigger>

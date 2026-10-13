@@ -53,16 +53,17 @@ describe('task summary through real React DOM and Radix', () => {
     expect(view.button('展开任务摘要').textContent).toContain('1 条后台命令异常')
     expect(document.querySelector('[aria-label="任务摘要"]')?.getAttribute('data-task-tone')).toBe('partial')
   })
-  it('keeps command-only summaries visible and opens a captured execution without rerunning it', async () => {
+  it('keeps ordinary commands out of the summary and exposes one call-trace entry', async () => {
     const onOpenCommand = vi.fn()
-    const view = await mount({ changes: 0, activities: [], commands: [{ id: 'bash-one', runId: 'run-one', tool: 'bash', status: 'running', createdAt: 1, target: 'npm run build' }], onOpenCommand })
-    expect(view.button('展开任务摘要').textContent).toContain('1 条命令进行中')
+    const view = await mount({ changes: 0, activities: [{ id: 'activity', label: '正在执行命令', status: 'running', startedAt: 1 }], commands: [{ id: 'bash-one', runId: 'run-one', tool: 'bash', status: 'running', createdAt: 1, target: 'npm run build' }], onOpenCommand })
+    expect(view.button('展开任务摘要').textContent).toContain('Mira 正在工作')
     await view.click('展开任务摘要')
-    await view.click('在右侧查看命令 npm run build')
-    expect(onOpenCommand).toHaveBeenCalledExactlyOnceWith('run-one', 'bash-one')
-    expect(view.props.onOpenProgress).not.toHaveBeenCalled()
-    view.props.commands = [{ ...view.props.commands![0], status: 'failed' }]; await view.render()
-    expect(document.querySelector('[aria-label="命令摘要"]')?.textContent).toContain('失败')
+    expect(document.querySelector('[aria-label="命令摘要"]')).toBeNull()
+    const trace = document.querySelector<HTMLButtonElement>('.mira-summary-resource')!
+    expect(trace.textContent).toBe('查看调用轨迹')
+    await act(async () => trace.click())
+    expect(view.props.onOpenProgress).toHaveBeenCalledOnce()
+    expect(onOpenCommand).not.toHaveBeenCalled()
   })
   it('uses a short readable current-plan title and renders the approval content as Markdown', async () => {
     const plan = { id: 'pending', status: 'awaiting_confirmation' as const, request: '制定方案', understanding: '# **待确认方案**\n\n第一段说明。\n\n- 可审阅内容', steps: [{ label: '核对范围', detail: '保留 **边界**。' }], risks: ['无需自动执行'], createdAt: 1, updatedAt: 1 }
@@ -257,6 +258,25 @@ describe('task summary through real React DOM and Radix', () => {
     expect(document.activeElement).toBe(view.button('展开任务摘要'))
   })
 
+  it('keeps the panel anchor until the automatic-mode menu exit animation ends', async () => {
+    const view = await mount(); await view.click('展开任务摘要'); await view.openMenu()
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')!
+    menu.style.animationName = 'test-menu-exit'
+    const computed = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo)
+      if (element === menu) Object.defineProperty(style, 'animationName', { configurable: true, get: () => element.getAttribute('data-state') === 'closed' ? 'test-menu-exit' : 'none' })
+      return style
+    })
+    await act(async () => menu.querySelector<HTMLElement>('[role="menuitemradio"]')!.click())
+    expect(view.mode()).toBe('panel')
+    const end = new Event('animationend', { bubbles: true })
+    Object.defineProperty(end, 'animationName', { value: 'test-menu-exit' })
+    await act(async () => menu.dispatchEvent(end)); await view.settle()
+    expect(view.mode()).toBe('auto')
+    vi.restoreAllMocks()
+  })
+
   it('keeps a new focus destination selected before automatic-mode menu cleanup', async () => {
     const view = await mount(); await view.click('展开任务摘要'); await view.openMenu()
     await act(async () => (document.querySelector('[role="menuitemradio"]') as HTMLElement).click())
@@ -345,7 +365,7 @@ describe('task summary through real React DOM and Radix', () => {
     expect(open).toHaveBeenCalledExactlyOnceWith('child')
     expect(view.props.onStopSubtask).not.toHaveBeenCalled()
     const progress = document.querySelector<HTMLButtonElement>('.mira-summary-resource')!
-    expect(progress.textContent).toContain('查看本轮执行过程')
+    expect(progress.textContent).toContain('查看调用轨迹')
     await act(async () => progress.click())
     expect(view.props.onOpenProgress).toHaveBeenCalledOnce()
   })

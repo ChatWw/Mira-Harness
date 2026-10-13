@@ -48,7 +48,7 @@ describe('Mira model trajectory resource', () => {
     const next = { ...first, id: 'next', startedAt: 12, request: { messages: [...first.request.messages, { role: 'assistant', content: 'first output' }, { role: 'tool', content: 'new tool result' }] }, response: { content: [{ type: 'text', text: 'next output' }] } }
     const controller = { readModelTraceFor: vi.fn().mockResolvedValue(data([first, next])) } as unknown as PilotController
     await act(async () => root.render(<MiraModelTracePane controller={controller} sessionId="task-a" active />))
-    expect(container.querySelectorAll('details[data-role="system"]')).toHaveLength(1)
+    expect(container.querySelectorAll('details[data-role="system"]')).toHaveLength(0)
     expect(container.querySelectorAll('details[data-role="user"]')).toHaveLength(1)
     expect(container.querySelector('[data-trace-call="next"] details[data-role="tool-result"]')).not.toBeNull()
     expect(container.querySelector('[data-trace-call="next"]')?.textContent).toContain('next output')
@@ -108,10 +108,10 @@ describe('Mira model trajectory resource', () => {
     expect(container.querySelector('[role="alert"]')).toBeNull()
     expect(read.mock.calls.every(args => args[0] === 'task-a')).toBe(true)
   })
-  it('expands the six message categories by default and toggles everything in one click', async () => {
+  it('expands the visible message categories by default and toggles everything in one click', async () => {
     const controller = { readModelTraceFor: vi.fn().mockResolvedValue(data()) } as unknown as PilotController
     await act(async () => root.render(<MiraModelTracePane controller={controller} sessionId="task-a" active />))
-    for (const role of ['system', 'user', 'reasoning', 'assistant', 'tool-call', 'tool-result']) expect(container.querySelector(`details[data-role="${role}"]`)?.hasAttribute('open')).toBe(true)
+    for (const role of ['user', 'reasoning', 'assistant', 'tool-call', 'tool-result']) expect(container.querySelector(`details[data-role="${role}"]`)?.hasAttribute('open')).toBe(true)
     expect(button('按内容类型展开或折叠')).not.toBeNull()
     await act(async () => button('全部折叠').click())
     expect(container.querySelector('details[open]')).toBeNull()
@@ -119,6 +119,27 @@ describe('Mira model trajectory resource', () => {
     await act(async () => button('全部展开').click())
     expect(container.querySelector('details:not([open])')).toBeNull()
   })
+  it('never exposes system or developer prompts through search, expand-all or full request mode', async () => {
+    const record = { ...call, request: { messages: [{ role: 'system', content: 'HIDDEN_SYSTEM' }, { role: 'developer', content: 'HIDDEN_DEVELOPER' }, { role: 'user', content: '用户问题' }] } }
+    const controller = { readModelTraceFor: vi.fn().mockResolvedValue(data([record])) } as unknown as PilotController
+    await act(async () => root.render(<MiraModelTracePane controller={controller} sessionId="task-a" active />))
+    expect(container.textContent).not.toContain('HIDDEN_SYSTEM')
+    expect(container.querySelector('[data-role="system"]')).toBeNull()
+    await find('HIDDEN')
+    expect(container.querySelector('.mira-model-trace__search [role="status"]')?.textContent).toBe('0/0')
+    await act(async () => button('关闭轨迹查找').click())
+    await act(async () => button('按内容类型展开或折叠').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+    const menu = document.querySelector('[role="menu"]')!
+    expect(menu.textContent).not.toContain('系统指令')
+    await act(async () => [...menu.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find(item => item.textContent?.includes('显示完整请求上下文'))!.click())
+    await act(async () => button('全部折叠').click())
+    await act(async () => button('全部展开').click())
+    expect(container.textContent).toContain('用户问题')
+    expect(container.textContent).not.toContain('HIDDEN')
+    expect(container.querySelector('[data-role="system"]')).toBeNull()
+    expect(record.request.messages[0].content).toBe('HIDDEN_SYSTEM')
+  })
+
   it('summarizes only actual finite provider totals and keeps the target title', async () => {
     const records = [call, { ...call, id: 'total', response: { usage: { totalTokens: 40 } } }, { ...call, id: 'nan', modelId: 'other', response: { usage: { totalTokens: NaN } } }, { ...call, id: 'infinite', response: { usage: { totalTokens: Infinity } } }]
     expect(miraTraceSummary(records)).toEqual({ tokens: 40, models: ['model', 'other'] })
@@ -223,11 +244,12 @@ describe('Mira model trajectory resource', () => {
     expect(container.querySelector('.mira-model-trace__search [role="status"]')?.textContent).toBe('1/2')
     expect(Array.from(container.querySelectorAll('pre mark'), mark => mark.textContent)).toEqual(['Needle\n\tValue', 'NEEDLE  VALUE'])
     await act(async () => button('关闭轨迹查找').click())
-    await find('系统指令')
-    expect(container.querySelector('summary mark')?.textContent).toBe('系统指令')
+    await find('模型回复')
+    expect(container.querySelector('summary mark')?.textContent).toBe('模型回复')
     expect(container.querySelector('summary mark')?.dataset.traceMatchActive).toBe('true')
-    expect(container.querySelector('details[data-role="system"]')?.hasAttribute('open')).toBe(true)
+    expect(container.querySelector('details[data-role="assistant"]')?.hasAttribute('open')).toBe(true)
     await act(async () => button('关闭轨迹查找').click())
-    expect(container.querySelector('details[data-role="system"]')?.hasAttribute('open')).toBe(false)
+    expect(container.querySelector('details[data-role="assistant"]')?.hasAttribute('open')).toBe(false)
+
   })
 })

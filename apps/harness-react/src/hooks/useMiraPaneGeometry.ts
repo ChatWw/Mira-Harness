@@ -67,27 +67,37 @@ export function useMiraPaneGeometry(options: Options) {
       preferences.current = { ...preferences.current, workspaceRatio: ratio, legacyWorkspace: undefined }
       save()
     }
+    const applyTarget = () => { if (workspaceOpen) panel.resize(`${ratio * 100}%`); else panel.collapse() }
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (motion.matches || document.hidden || windowResizing.current) {
+      animating.current = true
+      applyTarget()
+      animating.current = false
+      return
+    }
     // Keep expensive tab contents at their final width during the 200ms reveal.
     const contentWidth = workspaceOpen ? bodyWidth * ratio : element.getBoundingClientRect().width
     if (content && contentWidth > 0) content.style.width = `${contentWidth}px`
     animating.current = true
     element.classList.add('mira-pane-toggling')
-    const applyTarget = () => { if (workspaceOpen) panel.resize(`${ratio * 100}%`); else panel.collapse() }
     let pending = true
     const frame = window.requestAnimationFrame(() => { pending = false; applyTarget() })
-    const timer = window.setTimeout(() => {
-      animating.current = false
-      element.classList.remove('mira-pane-toggling')
-      if (content) content.style.removeProperty('width')
-    }, MIRA_PANE_TRANSITION_MS)
+    const timer = window.setTimeout(() => cleanup(true), MIRA_PANE_TRANSITION_MS)
     const cleanup = (settlePending = false) => {
       window.cancelAnimationFrame(frame); window.clearTimeout(timer)
-      animating.current = false; element.classList.remove('mira-pane-toggling')
+      element.classList.remove('mira-pane-toggling')
       if (content) content.style.removeProperty('width')
       if (settlePending && pending) { pending = false; applyTarget() }
+      animating.current = false
     }
+    const ended = (event: TransitionEvent) => { if (event.target === element && event.propertyName === 'flex-grow') cleanup() }
+    const settle = () => cleanup(true)
+    const visibility = () => { if (document.hidden) settle() }
+    element.addEventListener('transitionend', ended)
+    motion.addEventListener('change', settle)
+    document.addEventListener('visibilitychange', visibility)
     cancelWorkspaceAnimation.current = cleanup
-    return () => cleanup()
+    return () => { cleanup(); element.removeEventListener('transitionend', ended); motion.removeEventListener('change', settle); document.removeEventListener('visibilitychange', visibility) }
   }, [workspaceOpen, restored])
 
   useEffect(() => {

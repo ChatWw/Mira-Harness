@@ -25,7 +25,7 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (isWorkspaceTerminalTab(id)) return '终端'
   if (isWorkspaceBrowserTab(id)) return '浏览器'
   if (id.startsWith('file:')) return id.slice(5).split('/').pop() || '文件'
-  if (id.startsWith('side-chat:')) return '旁路对话'
+  if (id.startsWith('side-chat:')) return '侧边栏对话'
   if (id.startsWith('task:')) return '任务'
   if (id.startsWith('trace:')) return '模型轨迹'
   if (id.startsWith('subtask:')) return '智能体'
@@ -33,7 +33,7 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (id.startsWith('plan:')) return '方案'
   if (id.startsWith('command:')) return '命令输出'
   if (id.startsWith('command-output:')) return '完整输出.log'
-  return { overview: '任务活动', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '旁路对话' }[id as WorkspaceResourceId]
+  return { overview: '调用轨迹', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '侧边栏对话' }[id as WorkspaceResourceId]
 }
 
 export function isWorkspaceTerminalTab(id: string): boolean { return id === 'terminal' || id.startsWith('terminal:') }
@@ -63,7 +63,7 @@ export function createWorkspaceFileTab(path: string): WorkspaceTab {
 }
 
 export function createWorkspaceRunTab(runId?: string): WorkspaceTab {
-  return { id: 'overview', label: '任务活动', runId }
+  return { id: 'overview', label: '调用轨迹', runId }
 }
 
 export function createWorkspacePlanTab(planToolId: string, title: string): WorkspaceTab {
@@ -87,7 +87,7 @@ export function createWorkspaceSubtaskTab(runId: string, subtaskId: string, labe
 }
 
 export function createWorkspaceSideConversationTab(childSessionId: string): WorkspaceTab {
-  return { id: `side-chat:${childSessionId}`, label: '旁路对话', childSessionId }
+  return { id: `side-chat:${childSessionId}`, label: '侧边栏对话', childSessionId }
 }
 
 export function createWorkspaceTaskTab(sessionId: string, title: string): WorkspaceTab {

@@ -65,7 +65,10 @@ describe('Mira ordered assistant message parts', () => {
     expect(html).toContain(`data-reasoning-state="${state}"`)
     expect(html).toContain('aria-label="展开思考过程"')
     expect(html).not.toMatch(/<details[^>]*\bopen=/)
-    expect(html).not.toContain('public thought')
+    if (state === 'streaming') {
+      expect(html).toContain('mira-reasoning__preview')
+      expect(html).toContain('public thought &lt;safe&gt;')
+    } else expect(html).not.toContain('public thought')
     expect(html).toContain('内容已截断')
     if (state === 'interrupted') expect(html).toContain('思考已中断')
   })

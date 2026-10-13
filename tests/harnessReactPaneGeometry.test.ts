@@ -14,14 +14,16 @@ vi.mock('react', async original => ({
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
 function element(width: () => number) {
   const styles = new Map<string, string>(), classes = new Set<string>()
+  const events = new EventTarget()
   const node = {
+    addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events),
     getBoundingClientRect: () => ({ width: width() }),
     style: { setProperty: (key: string, value: string) => styles.set(key, value), removeProperty: (key: string) => styles.delete(key), get width() { return styles.get('width') ?? '' }, set width(value: string) { styles.set('width', value) } },
     classList: { add: (value: string) => classes.add(value), remove: (value: string) => classes.delete(value), contains: (value: string) => classes.has(value) },
   }
   return { node: node as unknown as HTMLDivElement, styles, classes }
 }
-let events: EventTarget, frames: Map<number, FrameRequestCallback>, nextFrame: number
+let events: EventTarget, frames: Map<number, FrameRequestCallback>, nextFrame: number, motion: EventTarget & { matches: boolean }, doc: EventTarget & { hidden: boolean }
 function flushFrames() { const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(0)) }
 function pointer(type: string, clientX: number, pointerId = 1) { const event = Object.assign(new Event(type), { clientX, pointerId }); events.dispatchEvent(event) }
 async function flush() { for (let count = 0; count < 8; count++) await Promise.resolve() }
@@ -50,11 +52,37 @@ function drag(value = 100) { return { button: 0, pointerId: 1, clientX: value, c
 beforeEach(() => {
   hooks.cursor = 0; hooks.slots = []; hooks.effects = []; vi.useFakeTimers()
   events = new EventTarget(); frames = new Map(); nextFrame = 0
-  vi.stubGlobal('window', { setTimeout, clearTimeout, requestAnimationFrame: (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame }, cancelAnimationFrame: (id: number) => frames.delete(id), addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events) })
+  motion = Object.assign(new EventTarget(), { matches: false }); doc = Object.assign(new EventTarget(), { hidden: false })
+  vi.stubGlobal('document', doc)
+  vi.stubGlobal('window', { matchMedia: () => motion, setTimeout, clearTimeout, requestAnimationFrame: (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame }, cancelAnimationFrame: (id: number) => frames.delete(id), addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events) })
 })
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('Mira desktop panel geometry', () => {
+  it.each(['reduced', 'hidden'])('settles opening immediately for %s motion without saving constrained geometry', async policy => {
+    const view = mount(); await flush(); view.render(); flushFrames(); vi.advanceTimersByTime(240)
+    if (policy === 'reduced') motion.matches = true; else doc.hidden = true
+    view.options.workspaceOpen = true; view.render()
+    expect(view.panel.resize).toHaveBeenLastCalledWith('45%')
+    expect(view.inspector.classes.has('mira-pane-toggling')).toBe(false)
+    expect(view.content.styles.has('width')).toBe(false)
+    expect(frames.size).toBe(0)
+    expect(view.host.setPreference).not.toHaveBeenCalled()
+  })
+
+  it.each(['reduced', 'hidden'])('finishes a queued toggle when %s motion changes mid-animation', async policy => {
+    const view = mount(); await flush(); view.render(); flushFrames(); vi.advanceTimersByTime(240)
+    view.options.workspaceOpen = true; view.render()
+    view.panel.resize.mockImplementationOnce(() => view.geometry().workspaceLayoutChanged({ 'mira-inspector': 32 }))
+    if (policy === 'reduced') { motion.matches = true; motion.dispatchEvent(new Event('change')) }
+    else { doc.hidden = true; doc.dispatchEvent(new Event('visibilitychange')) }
+    expect(view.panel.resize).toHaveBeenLastCalledWith('45%')
+    expect(view.inspector.classes.has('mira-pane-toggling')).toBe(false)
+    expect(view.content.styles.has('width')).toBe(false)
+    expect(frames.size).toBe(0)
+    await flush()
+    expect(view.host.setPreference).not.toHaveBeenCalled()
+  })
   it('restores ratios and migrates legacy pixel width against the available body', () => {
     expect(miraPanePreferences({ sessions: 999, workspaceRatio: .9 })).toEqual({ sessions: 420, workspaceRatio: .65, legacyWorkspace: undefined })
     const legacy = miraPanePreferences({ sessions: 280, workspace: 420 })

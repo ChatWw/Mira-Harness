@@ -1,0 +1,54 @@
+/* Motion references ZCode's Radix UI primitives, button and hidden-document policy.
+ * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
+ * Keep Popper positioning and dialog centering separate from animated scale/translate. */
+#root { --mira-motion-feedback: 120ms; --mira-motion-enter: 150ms; --mira-motion-exit: 100ms; --mira-motion-ease: cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* All actual Popper surfaces, including nested menus; triggers are outside this selector. */
+[data-radix-popper-content-wrapper] > [data-state] {
+  --mira-motion-x: 0px;
+  --mira-motion-y: 0px;
+  transform-origin: var(--radix-tooltip-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, var(--radix-context-menu-content-transform-origin, var(--radix-popover-content-transform-origin, var(--radix-hover-card-content-transform-origin, center)))));
+  animation-duration: var(--mira-motion-enter, 150ms);
+  animation-timing-function: var(--mira-motion-ease, ease-out);
+  animation-fill-mode: both;
+}
+[data-radix-popper-content-wrapper] > [data-side='top'] { --mira-motion-y: 4px; }
+[data-radix-popper-content-wrapper] > [data-side='bottom'] { --mira-motion-y: -4px; }
+[data-radix-popper-content-wrapper] > [data-side='left'] { --mira-motion-x: 4px; }
+[data-radix-popper-content-wrapper] > [data-side='right'] { --mira-motion-x: -4px; }
+[data-radix-popper-content-wrapper] > :is([data-state='open'], [data-state='instant-open'], [data-state='delayed-open']) { animation-name: mira-surface-enter; }
+[data-radix-popper-content-wrapper] > [data-state='closed'] { animation-name: mira-surface-exit; animation-duration: var(--mira-motion-exit, 100ms); animation-timing-function: ease-in; pointer-events: none; }
+[data-radix-popper-content-wrapper]:has(> [data-state='closed']) { pointer-events: none; }
+
+:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state] {
+  --mira-motion-x: 0px;
+  --mira-motion-y: -4px;
+  animation-duration: 180ms;
+  animation-timing-function: var(--mira-motion-ease, ease-out);
+  animation-fill-mode: both;
+}
+:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='open'] { animation-name: mira-surface-enter; }
+:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='closed'] { animation-name: mira-surface-exit; animation-duration: 100ms; animation-timing-function: ease-in; pointer-events: none; }
+:is(.mira-confirm-overlay, .mira-command-center-overlay, .mira-composer-confirm-overlay, .mira-automation-dialog-overlay, .mira-attachment-preview__overlay)[data-state] { animation-duration: 180ms; animation-fill-mode: both; }
+:is(.mira-confirm-overlay, .mira-command-center-overlay, .mira-composer-confirm-overlay, .mira-automation-dialog-overlay, .mira-attachment-preview__overlay)[data-state='open'] { animation-name: mira-backdrop-enter; }
+:is(.mira-confirm-overlay, .mira-command-center-overlay, .mira-composer-confirm-overlay, .mira-automation-dialog-overlay, .mira-attachment-preview__overlay)[data-state='closed'] { animation-name: mira-backdrop-exit; animation-duration: 100ms; pointer-events: none; }
+
+@keyframes mira-surface-enter {
+  from { opacity: 0; scale: .95; translate: var(--mira-motion-x) var(--mira-motion-y); }
+  to { opacity: 1; scale: 1; translate: 0 0; }
+}
+@keyframes mira-surface-exit {
+  from { opacity: 1; scale: 1; translate: 0 0; }
+  to { opacity: 0; scale: .95; translate: 0 0; }
+}
+@keyframes mira-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mira-backdrop-exit { from { opacity: 1; } to { opacity: 0; } }
+
+:where(#root) :where(button, [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio']) { transition: color var(--mira-motion-feedback, 120ms) ease-out, background-color var(--mira-motion-feedback, 120ms) ease-out, border-color var(--mira-motion-feedback, 120ms) ease-out, opacity var(--mira-motion-feedback, 120ms) ease-out; }
+.mira-sidebar-section__actions, .mira-sidebar-section__title svg, .mira-collection-chevron, .mira-session-row__pin { transition: opacity 120ms ease-out, transform 150ms ease-out; }
+
+/* Portals can live outside .pilot-workbench. Disable loops and spatial motion there too. */
+@media (prefers-reduced-motion: reduce) {
+  html *, html *::before, html *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+html[data-document-hidden] *, html[data-document-hidden] *::before, html[data-document-hidden] *::after { animation: none !important; transition: none !important; }

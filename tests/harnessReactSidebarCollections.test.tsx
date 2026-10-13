@@ -144,21 +144,25 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expanded = false; renaming = true; view.render(); expect(view.allProps(p => p.role === 'img')).toHaveLength(0)
   })
 
-  it('retains the collection action anchor while its portalled menu is open', () => {
+  it('retains the collection action anchor until its portalled menu finishes exiting', () => {
     const view = mount(() => SidebarCollectionSection({ id: 'p', name: '项目', count: 0, expanded: false, sortable: false, renaming: false, onToggle: vi.fn(), onBeginRename: vi.fn(), onCancelRename: vi.fn(), onRename: vi.fn(), onNewTask: vi.fn(), children: null }))
     const head = () => view.props(p => 'data-collection-header' in p)
     const menu = () => view.props(p => typeof p.onOpenChange === 'function' && p.open !== undefined)
     expect(head()['data-menu-open']).toBeUndefined()
     ;(menu().onOpenChange as (open: boolean) => void)(true); view.render()
     expect(head()['data-menu-open']).toBe(true); expect(menu().open).toBe(true)
+    const content = view.props(p => p.align === 'end' && p.className === 'mira-session-menu')
+    ;(content.ref as (element: HTMLDivElement | null) => void)({} as HTMLDivElement); view.render()
     ;(menu().onOpenChange as (open: boolean) => void)(false); view.render()
+    expect(head()['data-menu-open']).toBe(true)
+    ;(content.ref as (element: HTMLDivElement | null) => void)(null); view.render()
     expect(head()['data-menu-open']).toBeUndefined()
   })
 
   it.each(['context', 'dropdown'] as const)('routes the %s execution action through the shared action runner and disables it while busy', async kind => {
     const opening = vi.fn(async () => undefined), run = vi.fn((action: () => Promise<unknown>) => { void action() })
-    const props = { kind, session: { id: 's1' } as HarnessSessionSummary, projects: [], controller: { getSnapshot: () => ({ unreadSessionIds: [] }) } as never, onRename: vi.fn(), onOpenExecution: opening, run }
-    const action = (busy = false) => find(SessionMenuItems({ ...props, busy }), item => typeof item.onSelect === 'function' && JSON.stringify(item.children).includes('查看执行详情'))!
+    const props = { kind, session: { id: 's1' } as HarnessSessionSummary, projects: [], controller: { getSnapshot: () => ({ unreadSessionIds: [] }) } as never, onRename: vi.fn(), onOpenExecution: opening, onOpenModelTrace: vi.fn(), run }
+    const action = (busy = false) => find(SessionMenuItems({ ...props, busy }), item => typeof item.onSelect === 'function' && JSON.stringify(item.children).includes('查看调用轨迹'))!
     expect(action(true).disabled).toBe(true)
     ;(action().onSelect as () => void)()
     expect(run).toHaveBeenCalledExactlyOnceWith(opening); expect(opening).toHaveBeenCalledOnce()
@@ -664,12 +668,26 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     ;(view.props(p => typeof p.onSubmit === 'function').onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() }); await view.drain()
     expect(view.props(p => p.role === 'alert').children).toBe('保存失败'); expect(onCancelRename).not.toHaveBeenCalled()
   })
+  it.each([['MacIntel', 'Finder'], ['Win32', '文件资源管理器'], ['Linux x86_64', '文件管理器']])('labels project opening for %s and includes icons', (platform, label) => {
+    vi.stubGlobal('navigator', { platform })
+    try {
+      const open = vi.fn()
+      const menu = SidebarCollectionMenu({ kind: 'dropdown', name: 'Mira', onNewTask: vi.fn(), onBeginRename: vi.fn(), onOpenDirectory: open })
+      const item = find(menu, p => typeof p.onSelect === 'function' && Array.isArray(p.children) && p.children.includes(label))!
+      expect(item).toBeDefined(); expect(item.children[0]).toBeTruthy()
+      ;(item.onSelect as () => void)()
+      const terminal = find(menu, p => typeof p.onSelect === 'function' && Array.isArray(p.children) && p.children.includes('终端'))!
+      expect(terminal.children[0]).toBeTruthy(); (terminal.onSelect as () => void)()
+      expect(open.mock.calls).toEqual([['file-manager'], ['terminal']])
+    } finally { vi.unstubAllGlobals() }
+  })
+
   it('preserves history semantics in the actual project/group menus', () => {
     const remove = vi.fn(), ungroup = vi.fn(), open = vi.fn()
     const menu = SidebarCollectionMenu({ kind: 'dropdown', name: 'Mira', onNewTask: vi.fn(), onBeginRename: vi.fn(), onRemove: remove, onUngroup: ungroup, onOpenDirectory: open })
     ;(find(menu, p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('移除项目'))!.onSelect as () => void)()
     ;(find(menu, p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('解散'))!.onSelect as () => void)()
-    ;(find(menu, p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('在文件管理器中打开'))!.onSelect as () => void)()
+    ;(find(menu, p => typeof p.onSelect === 'function' && Array.isArray(p.children) && p.children.some((child: unknown) => typeof child === 'string' && ['Finder', '文件资源管理器', '文件管理器'].includes(child)))!.onSelect as () => void)()
     expect(remove).toHaveBeenCalledOnce(); expect(ungroup).toHaveBeenCalledOnce(); expect(open).toHaveBeenCalledExactlyOnceWith('file-manager')
   })
 })

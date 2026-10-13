@@ -16,8 +16,10 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
 }) {
   const [terminals, setTerminals] = useState<MiraTerminalState>({ tabs: [], selected: {} })
   const panelRef = useRef<PanelImperativeHandle>(null)
+  const panelElementRef = useRef<HTMLDivElement | null>(null)
   const height = useRef(240)
   const expanded = useRef(false)
+  const transitioning = useRef(false)
   const exitedOwner = useRef<string | undefined>(undefined)
   const currentTabs = terminals.tabs.filter(tab => tab.sessionId === sessionId)
   const selected = currentTabs.find(tab => tab.id === terminals.selected[sessionId]) ?? currentTabs[0]
@@ -42,8 +44,28 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
     })
   }, [retainedSessionIds, sessionId])
   useEffect(() => {
-    if (open && panelRef.current) { expanded.current = true; panelRef.current.resize(`${height.current}px`) }
-    else { expanded.current = false; panelRef.current?.collapse() }
+    const panel = panelRef.current, element = panelElementRef.current
+    if (!panel || !element) return
+    const resize = () => {
+      if (open) { expanded.current = true; panel.resize(`${height.current}px`) }
+      else { expanded.current = false; panel.collapse() }
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { resize(); return }
+    // ZCode enables flex-grow motion only around explicit open/close commands.
+    // Leave normal panel dragging and window resizing free of transitions.
+    element.classList.add('mira-terminal-panel-motion')
+    transitioning.current = true
+    let timer: number | undefined
+    const finish = () => {
+      transitioning.current = false
+      element.classList.remove('mira-terminal-panel-motion')
+      element.removeEventListener('transitionend', onEnd)
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+    const onEnd = (event: TransitionEvent) => { if (event.target === element && event.propertyName === 'flex-grow') finish() }
+    element.addEventListener('transitionend', onEnd)
+    const frame = window.requestAnimationFrame(() => { resize(); timer = window.setTimeout(finish, 240) })
+    return () => { window.cancelAnimationFrame(frame); finish() }
   }, [open])
   useEffect(() => {
     if (exitedOwner.current === sessionId) { exitedOwner.current = undefined; onClose() }
@@ -68,7 +90,8 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
   return <Group orientation="vertical" className="mira-terminal-layout">
     <Panel id="mira-primary-thread" minSize="50%" className="mira-primary-thread">{children}</Panel>
     {open && <Separator className="mira-terminal-resize" aria-label="调整底部终端高度" />}
-    <Panel id="mira-bottom-terminal-panel" panelRef={panelRef} defaultSize="0px" minSize="140px" maxSize="50%" collapsedSize="0px" collapsible onResize={size => {
+    <Panel id="mira-bottom-terminal-panel" panelRef={panelRef} elementRef={panelElementRef} data-open={open} defaultSize="0px" minSize="140px" maxSize="50%" collapsedSize="0px" collapsible onResize={size => {
+      if (transitioning.current) return
       if (open && size.inPixels >= 140) height.current = size.inPixels
       if (open && size.inPixels > 0) expanded.current = true
       if (open && size.asPercentage === 0 && expanded.current) { expanded.current = false; onClose() }

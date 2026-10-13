@@ -179,35 +179,44 @@ describe('canonical Mira message lifecycle', () => {
     await render(processRow(liveMessage(parts ? [...parts] : undefined), true), { ...context(), running: true })
     const status = container.querySelector('[role="status"]')!
     expect(status).not.toBeNull()
-    expect(status.textContent).toContain('正在处理')
-    expect(status.textContent).toContain('5s')
-    expect(status.querySelector('.animate-spin, .pilot-spin')).not.toBeNull()
+    expect(status.textContent).toContain('工作中')
+    expect(status.textContent).toContain('5 秒')
+    expect(status.querySelector('.animate-spin, .pilot-spin')).toBeNull()
     expect(container.querySelector('.mira-assistant-process')).toBeNull()
     expect(container.querySelector('.mira-run-open')).toBeNull()
     expect(container.querySelectorAll('[data-assistant-message-id]')).toHaveLength(1)
     await advance(2_000)
-    expect(status.textContent).toContain('7s')
+    expect(status.textContent).toContain('7 秒')
   })
 
-  it('keeps elapsed work visible across reasoning, tool and final-text gaps, and places text-only loading after the reply', async () => {
+  it('keeps elapsed work visible across reasoning, tool and final-text gaps, and places the work heading before a text-only reply', async () => {
     vi.useFakeTimers(); vi.setSystemTime(15_000)
     const value = { ...processContext(), running: true }
     const reasoning: HarnessMessage['parts'] = [{ id: 'thinking', type: 'reasoning', text: '分析中', state: 'complete', startedAt: 10_000, completedAt: 11_000 }]
     await render(processRow(liveMessage(reasoning), true), value)
-    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('正在处理')
-    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('5s')
+    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('工作中')
+    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('5 秒')
     await advance(1_000)
     await render(processRow(liveMessage([...reasoning, { id: 'read-part', type: 'tool', toolCallId: 'read' }]), true), value)
-    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('6s')
+    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('6 秒')
     expect(container.querySelector('[data-tool-call-id="read"]')).not.toBeNull()
     const reply: HarnessMessage['parts'] = [{ id: 'reply', type: 'text', text: '正文已到达', state: 'streaming', startedAt: 16_000 }]
     await render(processRow({ ...liveMessage(reply), content: '正文已到达' }, true), value)
     const status = container.querySelector('[role="status"]')!
     const replyNode = container.querySelector('[data-message-part-id="reply"]')!
-    expect(status.textContent).toContain('正在处理')
-    expect(status.textContent).toContain('6s')
-    expect(replyNode.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(status.textContent).toContain('工作中')
+    expect(status.textContent).toContain('6 秒')
+    expect(status.compareDocumentPosition(replyNode) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     expect(container.querySelector('.mira-assistant-process')).toBeNull()
+  })
+
+  it('keeps the completed work heading before a pure reply and formats long work like ZCode', async () => {
+    const message = liveMessage([{ id: 'reply', type: 'text', text: '完成回复', state: 'complete', startedAt: 10_000 }])
+    await render(processRow({ ...message, run: { ...message.run!, durationMs: 63000, status: 'completed' } }), context())
+    const heading = container.querySelector('.mira-turn-status')!
+    expect(heading.textContent).toBe('已工作 1 分钟 3 秒')
+    expect(heading.compareDocumentPosition(container.querySelector('[data-message-part-id="reply"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(container.querySelector('.animate-spin')).toBeNull()
   })
 
   it('shows a single non-spinning approval status before output and resumes the current run when approval resolves', async () => {
@@ -216,12 +225,12 @@ describe('canonical Mira message lifecycle', () => {
     await render(processRow(message, true), value)
     const statuses = [...container.querySelectorAll('[role="status"]')].filter(node => node.textContent?.includes('等待确认'))
     expect(statuses).toHaveLength(1)
-    expect(container.textContent).not.toContain('正在处理')
+    expect(container.textContent).not.toContain('工作中')
     expect(container.querySelector('.animate-spin, .pilot-spin')).toBeNull()
     await advance(2_000)
     await render(processRow(message, true), { ...value, waiting: false })
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('正在处理')
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('7s')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('工作中')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('7 秒')
   })
 
   it('does not spin the ordered work heading while its actual tool awaits approval', async () => {
@@ -240,11 +249,11 @@ describe('canonical Mira message lifecycle', () => {
     vi.useFakeTimers(); vi.setSystemTime(15_000)
     const value = processContext(), message = liveMessage([{ id: 'read-part', type: 'tool', toolCallId: 'read' }])
     await render(processRow(message, true), { ...value, running: true })
-    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('5s')
+    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('5 秒')
     await advance(2_000)
     const settled = { ...message, run: { ...message.run!, completedAt: 16_000, durationMs: 6_000, status: state, ...(state === 'failed' ? { error: '模型失败' } : {}) }, interrupted: state === 'stopped' }
     await render(processRow(settled), value)
-    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('6s')
+    expect(container.querySelector('.mira-assistant-process-heading')?.textContent).toContain('6 秒')
     expect(container.querySelector('.animate-spin, .pilot-spin')).toBeNull()
     const text = container.textContent
     const timers = vi.getTimerCount()
@@ -270,13 +279,13 @@ describe('canonical Mira message lifecycle', () => {
     const value = { ...context(), running: true }
     await render(processRow(liveMessage([]), true), value)
     await advance(2_000)
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('7s')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('7 秒')
     const next = { ...liveMessage([]), id: 'next-message', runId: 'next-run', createdAt: 17_000, run: { startedAt: 17_000, completedAt: 17_000, durationMs: 0, activities: [] } }
     await render(processRow(next, true), value)
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('0s')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('1 秒')
     await advance(1_000)
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('1s')
-    expect(container.querySelector('[role="status"]')?.textContent).not.toContain('8s')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('1 秒')
+    expect(container.querySelector('[role="status"]')?.textContent).not.toContain('8 秒')
   })
 
   it('does not create a fictitious run or turn from an empty timeline and does not invent duration for a message without run metadata', async () => {
@@ -288,7 +297,7 @@ describe('canonical Mira message lifecycle', () => {
     const original: HarnessMessage = { id: 'legacy-no-run', role: 'assistant', content: '', createdAt: 10_000 }
     await render(processRow(original, true), { ...context(), running: true })
     expect(original.run).toBeUndefined()
-    expect(container.textContent).not.toContain('5s')
+    expect(container.textContent).not.toContain('5 秒')
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -302,7 +311,7 @@ describe('canonical Mira message lifecycle', () => {
     await advance(3_000)
     expect(container.textContent).toBe('')
     await render(processRow(message, true), value)
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('8s')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('8 秒')
     expect(vi.getTimerCount()).toBe(1)
   })
 
@@ -382,17 +391,21 @@ describe('canonical Mira message lifecycle', () => {
     expect(container.querySelector('[data-mira-find-target=\'["stable-work","progress"]\']')?.textContent).toBe('先检查')
   })
 
-  it('keeps approval and failed tool work visible, and does not borrow attention from a different run', async () => {
+  it('keeps approval visible but folds a completed reply despite an intermediate tool failure', async () => {
     const value = processContext(), tool = value.toolsById.get('read')!
     const request = { requestId: 'approve', sessionId: 'canonical', runId: 'run', toolCallId: 'read', title: '允许读取', detail: 'README.md' }
     await render(processRow(processMessage()), { ...value, toolsById: new Map([['read', { ...tool, status: 'waiting-confirm' }]]), inlinePermission: { messageId: 'assistant-work', partId: 'read-part' }, permissionResponse: { request, responding: false, placement: 'inline', onRespond: vi.fn(async () => undefined) } })
     expect(container.querySelector('[aria-label="权限确认"]')).not.toBeNull()
     expect((container.querySelector('[aria-label="收起工作过程"]') as HTMLButtonElement).disabled).toBe(true)
     await render(processRow(processMessage()), { ...value, toolsById: new Map([['read', { ...tool, status: 'failed', error: '文件不可读' }]]) })
-    expect(container.querySelector('[data-tool-status="failed"]')).not.toBeNull()
-    expect(container.textContent).toContain('执行遇到错误')
-    await render(processRow(processMessage()), { ...value, toolsById: new Map([['read', { ...tool, runId: 'unrelated', status: 'failed' }]]) })
     expect(container.querySelector('[data-mira-process-open="false"]')).not.toBeNull()
+    expect(container.textContent).toContain('已工作')
+    expect(container.textContent).not.toContain('执行遇到错误')
+    await React.act(async () => (container.querySelector('[aria-label="展开工作过程"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[data-tool-status="failed"]')).not.toBeNull()
+    await render(null, value)
+    await render(processRow(processMessage()), { ...value, toolsById: new Map([['read', { ...tool, runId: 'unrelated', status: 'failed' }]]) })
+    expect(container.textContent).not.toContain('执行遇到错误')
   })
 
   it('renders text-only replies without a process control and keeps a run error outside any fold', async () => {

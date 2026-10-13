@@ -2693,6 +2693,23 @@ export class HarnessRuntime {
       const run: HarnessRunSummary = { status: 'completed', startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
+      // Source proportions use the actual agent request context, like ZCode's character breakdown.
+      const skillChars = [...agent.state.systemPrompt.matchAll(/<skill name="[^"]*">[\s\S]*?<\/skill>/g)].reduce((total, match) => total + match[0].length, 0)
+      const toolChars = (mcp: boolean) => agent!.state.tools.reduce((total, tool) => {
+        if ((registeredTools!.descriptors.get(tool.name)?.risk === 'mcp') !== mcp) return total
+        return total + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length
+      }, 0)
+      usage.breakdown = [
+        { source: 'messages', chars: JSON.stringify(agent.state.messages).length },
+        { source: 'system_prompt', chars: agent.state.systemPrompt.length - skillChars },
+        { source: 'skills', chars: skillChars },
+        { source: 'system_tool_schemas', chars: toolChars(false) },
+        { source: 'mcp_tool_schemas', chars: toolChars(true) },
+      ].filter(item => item.chars > 0) as NonNullable<HarnessContextUsage['breakdown']>
+      if (parentUsage) {
+        const inputTokens = parentUsage.input + parentUsage.cacheRead + parentUsage.cacheWrite
+        if (inputTokens > 0) usage.cacheHitRate = parentUsage.cacheRead / inputTokens
+      }
       run.contextUsage = usage
       const citations = finalizeAssistantCitations(output, sources, parts)
       output = citations.content

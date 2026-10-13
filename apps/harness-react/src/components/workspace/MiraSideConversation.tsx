@@ -15,6 +15,7 @@ import { AssistantMessage, UserMessage, MiraConversationContext } from '../conve
 import { MiraConversationDetailMemory, MiraConversationDetails } from '../conversation/MiraConversationDetails'
 import { MiraConversationViewport } from '../conversation/MiraConversationViewport'
 import { MiraConversationTimeline } from '../conversation/MiraConversationTimeline'
+import { MiraWorkingIndicator } from '../conversation/MiraWorkingIndicator'
 import { MiraSelectionActions } from '../conversation/MiraSelectionActions'
 import { MiraTaskFind } from '../conversation/MiraTaskFind'
 import { MiraPendingGuides } from '../conversation/MiraPendingGuides'
@@ -255,14 +256,14 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
     if (planReturnTarget.current) backgroundFocus.current = { destination: 'detail', source: planReturnTarget.current }
     setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(id)
   }
-  return <div ref={paneRef} tabIndex={-1} className="mira-side-conversation @container/conversation" data-side-session-id={childSessionId} data-task-pane={existingTask || undefined} role="region" aria-label={existingTask ? '侧面任务' : '旁路对话'} onPointerDownCapture={onFocus} onFocusCapture={onFocus}>
+  return <div ref={paneRef} tabIndex={-1} className="mira-side-conversation @container/conversation" data-side-session-id={childSessionId} data-task-pane={existingTask || undefined} role="region" aria-label={existingTask ? '侧面任务' : '侧边栏对话'} onPointerDownCapture={onFocus} onFocusCapture={onFocus}>
     {existingTask && !inspecting ? <>
       <span className="sr-only" data-task-title={taskTitle}>{taskTitle || '正在加载任务…'}</span>
       <div className="mira-side-conversation__actions">
         {crossWorkspace && <span className="mira-side-conversation__workspace" title={taskDirectory} aria-label={`任务工作区：${taskDirectory}`}><span>{taskDirectory.split(/[\\/]/).filter(Boolean).pop() || taskDirectory}</span></span>}
         {onClose && <button type="button" className="mira-side-conversation__close" aria-label="关闭侧面任务窗格" title="关闭窗格，任务继续运行" disabled={!active || closing} aria-busy={closing || undefined} onClick={() => void closePane()}><X size={16} aria-hidden="true" /></button>}
       </div>
-    </> : <header className="mira-side-conversation__header">{inspecting ? <button ref={detailBackRef} type="button" className="mira-message-action" aria-label={existingTask ? '返回侧面任务' : '返回旁路对话'} onClick={returnToConversation}><ArrowLeft size={15} /></button> : <MessageSquare size={15} aria-hidden="true" />}<span title={previewPath || taskTitle}>{previewPath ? previewPath.split(/[\\/]/).pop() : changesOpen ? '文件变更' : detail?.commandToolId ? '命令输出' : detail ? '执行详情' : planDetailId ? '方案详情' : '旁路对话'}</span>{!existingTask && <small role="status">{taskState}</small>}</header>}
+    </> : <header className="mira-side-conversation__header">{inspecting ? <button ref={detailBackRef} type="button" className="mira-message-action" aria-label={existingTask ? '返回侧面任务' : '返回侧边栏对话'} onClick={returnToConversation}><ArrowLeft size={15} /></button> : <MessageSquare size={15} aria-hidden="true" />}<span title={previewPath || taskTitle}>{previewPath ? previewPath.split(/[\\/]/).pop() : changesOpen ? '文件变更' : detail?.commandToolId ? '命令输出' : detail ? '调用轨迹' : planDetailId ? '方案详情' : '侧边栏对话'}</span>{!existingTask && <small role="status">{taskState}</small>}</header>}
     {taskUnavailable ? <div className="mira-side-conversation__empty"><p role="status">任务已归档或不可用。恢复任务后可继续，草稿会保留。</p></div> : !state.initialized || state.sessionLoading ? <div className="mira-session-loading" role="status"><LoaderCircle size={16} className="animate-spin" />正在加载对话…</div> : !state.session ? <div className="mira-side-conversation__empty"><p role="alert">{state.error || '对话已不可用，请关闭标签后新建。'}</p><button type="button" onClick={() => void controller.open(childSessionId)}>重试加载</button></div> : <MiraConversationContext.Provider value={context}><MiraConversationDetails memory={details} scope={memoryKey ?? childSessionId} directory={state.session.workingDirectory}>
       <div className="mira-side-conversation__thread" hidden={inspecting} inert={inspecting}>
         <MiraTaskFind active={active && !inspecting} keyboardActive={keyboardActive && !inspecting} sessionId={childSessionId} loading={Boolean(state.sessionLoading)} requestId={0} messages={messages} liveMessageId={stream?.id} viewportRef={viewportRef} timelineRef={timelineRef} />
@@ -277,6 +278,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
             <div className={`mira-message-column mx-auto flex w-full flex-col gap-5 px-5 ${existingTask ? 'pt-16 pb-5' : 'py-5'}`}><MiraConversationTimeline goal={existingTask ? state.session.goal : undefined} providers={state.providers} messages={messages} memoryKey={memoryKey} liveMessageId={stream?.id} viewportRef={viewportRef} scrollActionsRef={scrollRef} actionsRef={timelineRef} components={{ UserMessage, AssistantMessage }} onActiveTurnChange={setActiveTurn} />
               <MiraPendingGuides items={state.queue?.items ?? []} promotingItemId={state.queue?.promotingItemId} disabled={!active || Boolean(state.sessionLoading)} onWithdraw={async id => { await composerRef.current?.withdrawPendingGuide(id) }} />
               {state.memoryConfirmation && <section className="pilot-action"><p>{state.memoryConfirmation.content}</p><button type="button" onClick={() => void controller.respondMemory(state.memoryConfirmation!.requestId, false)}>不保存</button><button type="button" onClick={() => void controller.respondMemory(state.memoryConfirmation!.requestId, true)}>保存</button></section>}
+              <MiraWorkingIndicator running={taskTone === 'running' && !state.sessionLoading} />
             </div>
           </MiraConversationViewport>
           <MiraSelectionActions rootRef={viewportRef} sessionId={childSessionId} enabled={active && !inspecting} onAdd={reference => composerRef.current?.addConversationSelection(reference) ?? false} />

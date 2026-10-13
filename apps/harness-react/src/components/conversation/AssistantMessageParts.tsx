@@ -1,6 +1,9 @@
-import { memo } from 'react'
-import { Brain, ChevronDown, LoaderCircle, ShieldCheck } from 'lucide-react'
+// Streaming reasoning preview adapted from ZCode ai-elements/reasoning (Apache-2.0).
+// Copyright 2026 Z.AI Co., Ltd. Uses Mira's public reasoning parts and detail memory.
+import { memo, useLayoutEffect, useRef } from 'react'
+import { Brain, ChevronDown, ShieldCheck } from 'lucide-react'
 import type { HarnessMessage, HarnessMessagePart, HarnessPermissionRequest, HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'
+import { MiraQueuedSummary, MiraStreamEntrance } from './MiraStreamMotion'
 import { MessageMarkdown } from './markdown'
 import { MiraSubtaskRecord, ToolRecord } from './run-progress'
 import { useMiraConversationDetail } from './MiraConversationDetails'
@@ -59,10 +62,26 @@ const AssistantReasoning = memo(function AssistantReasoning({ part, memoryKey }:
   const [expanded, setExpanded] = useMiraConversationDetail(memoryKey)
   const duration = part.completedAt !== undefined ? Math.max(0, Math.ceil((part.completedAt - part.startedAt) / 1000)) : undefined
   const label = part.state === 'streaming' ? '正在思考' : part.state === 'interrupted' ? '思考已中断' : '思考过程'
+  const preview = part.state === 'streaming' && !expanded ? part.text.split(/\r\n?|\n/).reverse().find(line => line.trim())?.trim() : undefined
+  const previewRef = useRef<HTMLSpanElement | null>(null)
+  useLayoutEffect(() => {
+    const viewport = previewRef.current
+    if (!viewport) return
+    const follow = () => {
+      viewport.scrollLeft = viewport.scrollWidth
+      viewport.dataset.overflow = String(viewport.scrollWidth > viewport.clientWidth + 1)
+    }
+    follow()
+    const observer = new ResizeObserver(follow)
+    observer.observe(viewport)
+    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild)
+    return () => observer.disconnect()
+  }, [preview])
   return <details className="mira-reasoning" open={expanded} data-reasoning-state={part.state} onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary aria-label={expanded ? '收起思考过程' : '展开思考过程'}>
-      {part.state === 'streaming' ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <Brain size={14} aria-hidden="true" />}
-      <span>{label}{duration !== undefined ? ` · ${duration}s` : ''}</span>
+      <Brain size={14} aria-hidden="true" />
+      <span className={part.state === 'streaming' ? 'mira-process-sweep' : undefined}>{label}{duration !== undefined ? ` · 持续了 ${duration} 秒` : ''}</span>
+      {preview && <span ref={previewRef} className="mira-reasoning__preview" aria-hidden="true"><MiraQueuedSummary contentKey={`line:${part.text.trimEnd().split(/\r\n?|\n/).length - 1}`} version={preview} enabled><span>{preview}</span></MiraQueuedSummary></span>}
       {part.truncated && <small>内容已截断</small>}
       <ChevronDown size={13} aria-hidden="true" />
     </summary>
@@ -85,16 +104,16 @@ export function AssistantMessageParts({ message, toolsById, streaming = false, p
   onStopSubtask?: (subtaskId: string) => Promise<void>
 }) {
   return <div className="mira-assistant-parts">{miraAssistantWorkItems(message, toolsById, streaming, permissionPartId).map(item => {
-    if (item.kind === 'exploration') return <MiraToolExploration key={`exploration:${item.firstId}`} item={item} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} />
-    if (item.kind === 'commands') return <MiraToolCommandGroup key={`commands:${item.firstId}`} item={item} onOpenCommand={onOpenCommand} />
+    if (item.kind === 'exploration') return <MiraStreamEntrance key={`exploration:${item.firstId}`} identity={`${rendererId}:${item.firstId}`} active={streaming}><MiraToolExploration item={item} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /></MiraStreamEntrance>
+    if (item.kind === 'commands') return <MiraStreamEntrance key={`commands:${item.firstId}`} identity={`${rendererId}:${item.firstId}`} active={streaming}><MiraToolCommandGroup item={item} onOpenCommand={onOpenCommand} /></MiraStreamEntrance>
     const { part, tool } = item
     if (hasPlan && tool?.tool === 'set_plan' && tool.status === 'ok') return null
     const child = tool?.tool === 'delegate_task' ? subtaskForTool?.(tool.id) : undefined
-    return <div key={part.id} className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
+    return <MiraStreamEntrance key={part.id} identity={`${rendererId}:${part.id}`} active={streaming && part.type !== 'text'}><div className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
       {part.type === 'text' ? <div data-mira-selectable="assistant" data-mira-selection-region={part.id}><MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /></div> : part.type === 'reasoning' ? <AssistantReasoning part={part} memoryKey={JSON.stringify(['reasoning', message.runId ?? message.id, part.id])} /> : <>
         {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
         {permission && permissionPartId === part.id && <PermissionResponseCard {...permission} />}
       </>}
-    </div>
+    </div></MiraStreamEntrance>
   })}</div>
 }

@@ -28,6 +28,8 @@
 @import "../components/workflows/actor-conversation.css";
 @import "../components/git/git-controls.css";
 @import "../components/conversation/conversation-find.css";
+@import "./motion.css";
+@import "./focus.css";
 
 /* Tailwind 组件与现有区域样式共享 Mira 的语义主题。 */
 @theme inline {

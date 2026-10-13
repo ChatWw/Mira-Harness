@@ -16,6 +16,8 @@ import type { MiraPresentationReference } from '../../../../../src/config/miraPr
 import { GitFork } from 'lucide-react'
 import { MiraUserMessageBody } from './MiraUserMessageBody'
 import { MiraFileRewindPreviewButton } from './MiraFileRewindPreview'
+import { MiraDeliverableFiles } from './MiraDeliverableFiles'
+import { miraDeliverablePaths } from '../../lib/mira-deliverable-files'
 import { miraUserPrompt } from '../../lib/mira-user-prompt'
 import type { MiraHistoryEditBlocked } from '../../../../../src/config/miraFileRewind'
 
@@ -51,9 +53,16 @@ export function AssistantMessage({ original, rendererId, streaming }: TimelineRe
   const onOpenSubtask = runId && ownedRun ? (subtaskId: string) => openSubtask(runId, subtaskId) : undefined
   const onStopSubtask = runId && ownedRun ? (subtaskId: string) => stopSubtask(runId, subtaskId) : undefined
   const changes: HarnessFileChange[] = original?.fileChanges || []
-  return <div className="message-row group/assistant-row w-full min-w-0" data-message-id={rendererId} data-assistant-message-id={id} data-renderer-message-id={rendererId}>
+  const deliverableContent = [content, ...tools.filter(tool => runId && tool.runId === runId && !tool.inherited && tool.status === 'ok' && tool.tool === 'bash').map(tool => tool.output?.text || '')].join('\n')
+  return <div className="message-row group/assistant-row w-full min-w-0" data-message-id={rendererId} data-assistant-message-id={id} data-renderer-message-id={rendererId} onClickCapture={event => {
+    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
+    if (!active || !link) return
+    const path = miraDeliverablePaths(`[文件](${link.getAttribute('href')})`, [], session?.workingDirectory || '')[0]
+    if (path) { event.preventDefault(); event.stopPropagation(); openFile(path) }
+  }}>
     {!orderedParts && original?.run && <RunProgressCard run={original.run} tools={ownedRun?.tools ?? toolsForRun(tools, original.run)} running={streaming} waiting={streaming && waiting} onStopSubtask={onStopSubtask} onOpenFile={openFile} onOpenCommand={onOpenCommand} onOpenProgress={onOpenProgress} onOpenSubtask={onOpenSubtask} />}
     {orderedParts && message ? <MiraAssistantProcess message={message.parts === undefined && content ? { ...message, parts: [{ id: `${id}:text`, type: 'text', text: content, state: streaming ? 'streaming' : 'complete', startedAt: message.createdAt }] } : message} rendererId={rendererId} toolsById={toolsById} streaming={streaming} waitingForApproval={streaming && waiting} permission={inlinePermission?.messageId === id ? permissionResponse : undefined} permissionPartId={inlinePermission?.messageId === id ? inlinePermission.partId : undefined} onOpenFile={openFile} onOpenCommand={onOpenCommand} onOpenProgress={onOpenProgress} subtaskForTool={runId ? toolId => findMiraDelegateSubtask(session, runId, toolId) : undefined} onOpenSubtask={onOpenSubtask} onStopSubtask={onStopSubtask} hasPlan={Boolean((message.run?.activities ?? ownedRun?.activities)?.some(activity => activity.kind === 'plan'))} /> : content && <div data-mira-selectable="assistant" data-mira-selection-region="body" data-mira-find-target={taskFindTargetKey(rendererId)}><MessageMarkdown content={content} sources={original?.sources} streaming={streaming} /></div>}
+    {!streaming && <MiraDeliverableFiles content={deliverableContent} changes={changes} directory={session?.workingDirectory || ''} sessionId={session?.id} controller={controller} active={active} onOpen={openFile} />}
     {changes.length > 0 && <FileChangesCard changes={changes} onOpen={openChangesTab} />}
     {original?.interrupted && <p className="mira-reply-interrupted" role="status">回复已停止，已生成的内容保留。可以继续发送消息。</p>}
     {!streaming && content && <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover/assistant-row:opacity-100 group-focus-within:opacity-100">
