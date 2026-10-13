@@ -144,6 +144,7 @@ export class PlatformDatabase {
     try {
       if (sidebarRow) {
         const sidebar: unknown = JSON.parse(sidebarRow.value)
+        // hiddenProjectIds 是已下线的旧键：仍容忍历史偏好文件，新的写入不再包含它。
         if (!isObject(sidebar) || Object.keys(sidebar).some(key => !['expandedProjectIds', 'collapsedProjectIds', 'view', 'projectView', 'sort', 'groups', 'hiddenProjectIds', 'ungroupedSessionOrder', 'groupedRootOrder'].includes(key))) return
         const retain = (ids: unknown) => {
           if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) throw new Error('未知分组格式')

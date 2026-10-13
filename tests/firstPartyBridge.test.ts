@@ -310,6 +310,7 @@ describe('first-party capability bridge', () => {
     await expectCall('session.set-mcp-servers', { id: 's', serverIds: ['mcp-1'] })
     await expectCall('session.set-delegation', { id: 's', enabled: true })
     await expectCall('projects.reorder', { ids: ['p'] })
+    await expectCall('projects.remove', { id: 'p' })
     await expectCall('git.branches', { projectId: 'p' })
     await expectCall('git.context', { projectId: 'p' })
     await expectCall('git.create-branch', { projectId: 'p', branch: 'feat/x', snapshotToken: 'a'.repeat(64) })

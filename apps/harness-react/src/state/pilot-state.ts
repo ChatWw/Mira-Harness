@@ -107,6 +107,7 @@ export interface PilotHost {
   onNavigationRestore?(listener: (snapshot: MiraAppNavigationSnapshot | undefined) => void): () => void
   publishNavigationState?(state: MiraAppNavigationState): void
   renameProject?(id: string, name: string): Promise<void>
+  removeProject?(id: string): Promise<void>
   openProject?(id: string, target?: 'file-manager' | 'terminal'): Promise<string>
   selectProject?(): Promise<HarnessProject | null>
   getTheme?(): 'light' | 'dark'
@@ -306,6 +307,7 @@ export class PilotController {
   get supportsSideConversations() { return Boolean(this.host.createSideConversation) }
   get supportsThemeSwitch() { return Boolean(this.host.toggleTheme) }
   get supportsProjectSelection() { return Boolean(this.host.selectProject) }
+  get supportsProjectRemoval() { return Boolean(this.host.removeProject) }
   getTheme = () => this.host.getTheme?.() ?? 'light'
   subscribeTheme = (listener: () => void) => this.host.onThemeChange?.(listener) ?? (() => undefined)
   toggleTheme = () => this.require('toggleTheme')()
@@ -850,6 +852,16 @@ export class PilotController {
     this.update({ projects })
     await this.refreshList()
     if (this.state.session?.projectId === id) await this.refreshSession(this.state.session.id, this.generation, false)
+  }
+  /** 宿主移除项目时会一并删除它的任务，这里同步清掉本地会话状态。 */
+  async removeProject(id: string) {
+    await this.require('removeProject')(id)
+    if (this.disposed) return
+    this.removeDeletedSessions(this.state.sessions.filter(session => session.projectId === id).map(session => session.id))
+    const projects = await this.host.listProjects()
+    if (this.disposed) return
+    this.update({ projects })
+    await this.refreshList()
   }
   async openProject(id: string, target: 'file-manager' | 'terminal' = 'file-manager') { const error = await this.require('openProject')(id, target); if (error) throw new Error(error) }
   async selectProject() {

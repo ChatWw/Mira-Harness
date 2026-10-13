@@ -438,6 +438,38 @@ describe('project metadata refresh', () => {
     expect(host.getSession).not.toHaveBeenCalled()
     controller.dispose()
   })
+
+  it('removes a project with its tasks and returns the active task to the draft', async () => {
+    const { controller, host, snapshots } = fixture()
+    host.removeProject = vi.fn(async () => undefined)
+    vi.mocked(host.listSessions).mockResolvedValue([
+      { id: 'a', title: 'a', createdAt: 1, updatedAt: 1, status: 'active' },
+      { id: 'b', title: 'b', projectId: 'project', createdAt: 1, updatedAt: 1, status: 'active' },
+    ])
+    snapshots.set('b', { ...session('b'), projectId: 'project' })
+    await controller.start()
+    expect(controller.supportsProjectRemoval).toBe(true)
+    await controller.open('b')
+    expect(controller.getSnapshot().session?.projectId).toBe('project')
+    // 宿主删除后重新读取列表，任务 'b' 随之消失。
+    vi.mocked(host.listProjects).mockClear().mockResolvedValueOnce([])
+    vi.mocked(host.listSessions).mockClear().mockResolvedValue([{ id: 'a', title: 'a', createdAt: 1, updatedAt: 1, status: 'active' }])
+    await controller.removeProject('project')
+    expect(host.removeProject).toHaveBeenCalledExactlyOnceWith('project')
+    expect(host.listProjects).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot()).toMatchObject({ projects: [], sessions: [{ id: 'a' }], session: undefined, messages: [], running: false })
+    controller.dispose()
+  })
+
+  it('keeps project and task state intact when the host refuses to remove a running project', async () => {
+    const { controller, host } = fixture()
+    host.removeProject = vi.fn(async () => { throw new Error('请先停止项目任务并处理待发送消息') })
+    await controller.start(); await controller.open('a')
+    const before = controller.getSnapshot()
+    await expect(controller.removeProject('project')).rejects.toThrow('请先停止项目任务并处理待发送消息')
+    expect(controller.getSnapshot()).toBe(before)
+    controller.dispose()
+  })
 })
 
 describe('React Harness pilot controller', () => {

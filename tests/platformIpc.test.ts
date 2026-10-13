@@ -108,6 +108,30 @@ describe('platform IPC registration', () => {
       await expect(read).rejects.toThrow('授权无效')
     } finally { database.close(); await rm(root, { recursive: true, force: true }) }
   })
+  it('removes a project with its tasks and automations through the harness bridge and refuses while it is running', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mira-project-remove-ipc-')), database = new PlatformDatabase(root)
+    try {
+      const project = database.harness.createProject(root, '移除我'), session = database.harness.createSession(project.id)
+      const automation = database.automations.saveTask({ name: '每早汇总', projectId: project.id, trigger: { type: 'cron', expression: '0 9 * * *' }, target: { type: 'new-session' }, prompt: '汇总昨天的改动', model: { providerId: 'local', modelId: 'model' }, permissionMode: 'default' })
+      await mkdir(join(root, 'keep'), { recursive: true })
+      const other = database.harness.createProject(join(root, 'keep'), '保留我')
+      let running = true
+      const reschedule = vi.fn(), closeInvalid = vi.fn()
+      const view = register({ database, harnessRuntime: { isProjectRunning: (id: string) => running && id === project.id } as never, automationScheduler: { reschedule } as never, workspaceWatch: { closeInvalid } as never })
+      const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+      expect(() => view.invoke('platform:first-party-harness', grant, 'projects.remove', { id: project.id })).toThrow('请先停止项目任务并处理待发送消息')
+      expect(database.harness.listProjects().map(item => item.id)).toContain(project.id)
+      expect(database.automations.listTasks().map(task => task.id)).toContain(automation.id)
+      running = false
+      expect(view.invoke('platform:first-party-harness', grant, 'projects.remove', { id: project.id })).toBeUndefined()
+      expect(database.harness.listProjects().map(item => item.id)).toEqual([other.id])
+      expect(() => database.harness.getSession(session.id)).toThrow()
+      expect(database.automations.listTasks()).toEqual([])
+      expect(() => view.invoke('platform:first-party-harness', grant, 'projects.remove', { id: 'missing' })).toThrow('未找到项目')
+      expect(closeInvalid).toHaveBeenCalledOnce(); expect(reschedule).toHaveBeenCalledOnce()
+    } finally { database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
   it('persists actual built-in model overrides through owner-checked IPC and refuses fake identities', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mira-agent-model-ipc-')), database = new PlatformDatabase(root)
     try {

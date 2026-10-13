@@ -30,7 +30,7 @@ function find(node: React.ReactNode, match: (props: Record<string, unknown>) => 
   return find([node.props.children as React.ReactNode, ...items], match)
 }
 const action = (tree: React.ReactNode, label: string) => find(tree, props => typeof props.onSelect === 'function' && JSON.stringify(props.children).includes(label))!
-const makeStore = (write = vi.fn(async (_value: unknown) => undefined)) => ({ write, store: new SidebarPreferenceStore(async () => ({ groups: groups(), view: 'group', hiddenProjectIds: ['hidden'], collapsedProjectIds: ['project'], projectView: 'timeline' }), write) })
+const makeStore = (write = vi.fn(async (_value: unknown) => undefined)) => ({ write, store: new SidebarPreferenceStore(async () => ({ groups: groups(), view: 'group', collapsedProjectIds: ['project'], projectView: 'timeline' }), write) })
 function sidebar(store: SidebarPreferenceStore) {
   const session = { id: 'task', title: '保持选中的任务', projectId: 'project', createdAt: 1, updatedAt: 1, status: 'active', pinned: false }
   const state = { session, sessions: [session], projects: [{ id: 'project', name: '项目', directory: '/project', directoryExists: true, createdAt: 1, updatedAt: 1 }], runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
@@ -150,7 +150,7 @@ describe('shared Header and sidebar task group actions', () => {
     ;(view.row().onMoveGroup as (groupId?: string) => void)(); await store.save(); await view.drain()
     expect(view.row().currentGroupId).toBeUndefined(); expect(view.row().active).toBe(true)
     expect(view.state.session).toMatchObject({ id: 'task', projectId: 'project' })
-    expect(store.getSnapshot().preferences).toMatchObject({ ungroupedSessionOrder: ['task'], projectView: 'timeline', collapsedProjectIds: ['project'], hiddenProjectIds: ['hidden'] })
+    expect(store.getSnapshot().preferences).toMatchObject({ ungroupedSessionOrder: ['task'], projectView: 'timeline', collapsedProjectIds: ['project'] })
     expect(view.controller.moveSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
   })
 
@@ -159,7 +159,7 @@ describe('shared Header and sidebar task group actions', () => {
     const view = sidebar(store), staleMove = view.row().onMoveGroup as (groupId?: string) => void
     store.removeGroup('research'); await store.save(); await view.drain(); write.mockClear()
     store.removeGroup('research'); staleMove('research'); await store.save()
-    expect(store.getSnapshot().preferences).toMatchObject({ groups: [{ id: 'writing', sessionIds: [] }], ungroupedSessionOrder: ['task', 'first'], collapsedProjectIds: ['project'], hiddenProjectIds: ['hidden'] })
+    expect(store.getSnapshot().preferences).toMatchObject({ groups: [{ id: 'writing', sessionIds: [] }], ungroupedSessionOrder: ['task', 'first'], collapsedProjectIds: ['project'] })
     expect(view.state.session).toMatchObject({ id: 'task', projectId: 'project' }); expect(view.row().active).toBe(true)
     expect(view.state.projects).toHaveLength(1); expect(view.state.sessions).toHaveLength(1)
     expect(write).not.toHaveBeenCalled(); expect(view.controller.deleteSession).not.toHaveBeenCalled(); expect(view.controller.moveSession).not.toHaveBeenCalled()

@@ -143,7 +143,7 @@ describe('real archived selection writes', () => {
     const sidebar = {
       view: 'group', groups: [{ id: deleted.id, name: '保留同 ID 的组', sessionIds: [active.id] }],
       groupedRootOrder: [{ type: 'session', id: deleted.id }, { type: 'group', id: deleted.id }, { type: 'session', id: restored.id }],
-      hiddenProjectIds: ['hidden-project'], ungroupedSessionOrder: [deleted.id, restored.id],
+      collapsedProjectIds: ['unrelated-project'], ungroupedSessionOrder: [deleted.id, restored.id],
     }
     database.savePreference(key, sidebar)
     expect(await runtime.deleteArchivedSessions([deleted.id, restored.id], () => undefined)).toEqual({ deletedIds: [deleted.id], skippedIds: [restored.id], failedIds: [] })

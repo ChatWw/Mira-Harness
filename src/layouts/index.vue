@@ -2,9 +2,6 @@
   <div class="mira-shell" :class="`mira-shell--${windowChrome}`" :style="{ '--mira-desktop-zoom': desktopZoomFactor }">
     <header class="mira-shell__bar">
       <div class="mira-shell__identity">
-        <img :src="miraLogo" alt="" class="mira-shell__logo" />
-        <span class="mira-shell__brand">Mira</span>
-        <span class="mira-shell__separator" aria-hidden="true" />
         <el-popover v-model:visible="appMenuVisible" trigger="click" placement="bottom-start" :width="220" :show-arrow="false" popper-class="mira-app-switcher-popper">
           <template #reference>
             <button type="button" class="mira-shell__app-switch" aria-label="选择应用" :aria-expanded="appMenuVisible">
@@ -53,7 +50,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import miraLogo from '@/asset/mira-logo.png'
 import { applications, findRuntimeMicroApp } from '@/config/runtime'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -131,9 +127,6 @@ function openSettings() {
 .mira-shell__actions { display: flex; min-width: 0; align-items: center; -webkit-app-region: no-drag; }
 .mira-shell__identity { gap: 10px; }
 .mira-shell__actions { flex: 0 0 auto; gap: 4px; }
-.mira-shell__logo { width: 23px; height: 23px; object-fit: contain; }
-.mira-shell__brand { font-size: 13px; font-weight: 650; }
-.mira-shell__separator { width: 1px; height: 16px; margin: 0 2px; background: var(--cp-border); }
 .mira-shell__app-switch { display: flex; min-width: 0; max-width: 220px; height: 32px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 12px; }
 .mira-shell__app-switch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-shell__app-switch .app-icon { flex: 0 0 auto; font-size: 13px; }

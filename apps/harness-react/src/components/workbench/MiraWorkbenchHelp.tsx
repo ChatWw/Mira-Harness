@@ -19,7 +19,7 @@ export function MiraWorkbenchHelp({ onNavigate }: { onNavigate: (path: string) =
     finally { pending.current = false; setBusy(false) }
   }
   return <DropdownMenu.Root open={open} onOpenChange={value => { setOpen(value); if (value) setError('') }}>
-    <Tooltip.Provider delayDuration={350}><SidebarActionHint title="帮助"><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="帮助"><CircleHelp size={16} aria-hidden="true" /></button></DropdownMenu.Trigger></SidebarActionHint></Tooltip.Provider>
+    <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title="帮助"><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="帮助"><CircleHelp size={16} aria-hidden="true" /></button></DropdownMenu.Trigger></SidebarActionHint></Tooltip.Provider>
     <DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu" align="end" sideOffset={6}>
       <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate('/settings/keyboard-shortcuts') }}><Keyboard size={14} />键盘快捷键</DropdownMenu.Item>
       <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate('/settings/general') }}><Settings size={14} />设置</DropdownMenu.Item>

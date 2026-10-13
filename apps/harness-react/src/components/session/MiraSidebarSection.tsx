@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { useSortable } from '@dnd-kit/sortable'
 import { ChevronRight, GripVertical } from 'lucide-react'
+import { SidebarActionHint } from './SidebarCollectionSection'
 
 export function MiraSidebarSection({ id, title, open, disabled, sortable, onOpenChange, action, children }: {
   id: 'projects' | 'personal'
@@ -24,7 +25,7 @@ export function MiraSidebarSection({ id, title, open, disabled, sortable, onOpen
     <Collapsible.Root open={open} onOpenChange={onOpenChange} disabled={disabled}>
       <div className="mira-sidebar-section__head">
         <Collapsible.Trigger asChild><button type="button" className="mira-sidebar-section__title" aria-label={title}><span>{title}</span><ChevronRight size={14} aria-hidden="true" className={open ? 'is-open' : undefined} /></button></Collapsible.Trigger>
-        <div className="mira-sidebar-section__actions">{sortable && <button ref={setActivatorNodeRef} type="button" className="mira-session-icon mira-sidebar-section__grip" aria-label={`拖拽排序 ${title}分区`} data-sidebar-section-drag-handle={id} {...attributes} {...listeners}><GripVertical size={14} aria-hidden="true" /></button>}{action}</div>
+        <div className="mira-sidebar-section__actions">{sortable && <SidebarActionHint title="拖拽排序"><button ref={setActivatorNodeRef} type="button" className="mira-session-icon mira-sidebar-section__grip" aria-label={`拖拽排序 ${title}分区`} data-sidebar-section-drag-handle={id} {...attributes} {...listeners}><GripVertical size={14} aria-hidden="true" /></button></SidebarActionHint>}{action}</div>
       </div>
       <Collapsible.Content>{children}</Collapsible.Content>
     </Collapsible.Root>

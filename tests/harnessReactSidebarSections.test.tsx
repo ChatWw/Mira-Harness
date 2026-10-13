@@ -170,9 +170,9 @@ describe('sidebar purpose sections through real React DOM', () => {
     expect(view.open).not.toHaveBeenCalled()
   })
 
-  it.each([false, true])('reveals a reselected seventh project without changing order or creating a task (hidden: %s)', async hidden => {
+  it('reveals a reselected seventh project without changing order or creating a task', async () => {
     const projectIds = ['p', 'q', 'r', 's', 't', 'u', 'v']
-    const view = await mount({ hiddenProjectIds: hidden ? ['v'] : [] }, projectIds, 'v')
+    const view = await mount({}, projectIds, 'v')
     expect(view.section('projects').querySelectorAll('[data-collection-id]')).toHaveLength(6)
     expect(view.collection('v')).toBeNull()
     await view.click(view.button('项目', view.section('projects')))
@@ -181,7 +181,7 @@ describe('sidebar purpose sections through real React DOM', () => {
     expect(view.collection('v')).not.toBeNull()
     expect(view.collection('v').querySelector('.mira-collection-title')?.getAttribute('aria-expanded')).toBe('true')
     expect([...view.section('projects').querySelectorAll('[data-collection-id]')].map(element => element.getAttribute('data-collection-id'))).toEqual(projectIds.map(id => `sidebar-project:${id}`))
-    expect(view.store.getSnapshot().preferences).toMatchObject({ projectSectionOpen: true, hiddenProjectIds: [], expandedProjectIds: ['p', 'q', 'v'] })
+    expect(view.store.getSnapshot().preferences).toMatchObject({ projectSectionOpen: true, expandedProjectIds: ['p', 'q', 'v'] })
     expect(view.controller.create).not.toHaveBeenCalled()
     expect(view.newTask).not.toHaveBeenCalled()
     expect(view.open).not.toHaveBeenCalled()

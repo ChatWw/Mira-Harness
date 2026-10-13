@@ -22,12 +22,11 @@ export interface SidebarPreferences {
   projectView: 'collections' | 'timeline'
   sort: 'updated' | 'created' | 'manual'
   groups: SidebarTaskGroup[]
-  hiddenProjectIds: string[]
   ungroupedSessionOrder: string[]
   groupedRootOrder: SidebarRootItem[]
 }
 
-const defaults = (): SidebarPreferences => ({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groups: [], hiddenProjectIds: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
+const defaults = (): SidebarPreferences => ({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
 const strings = (raw: unknown) => Array.isArray(raw) ? [...new Set(raw.filter((id): id is string => typeof id === 'string' && Boolean(id)))] : []
 const readSectionOrder = (raw: unknown): SidebarSectionId[] => Array.isArray(raw) && raw.length === 2 && raw.includes('projects') && raw.includes('personal') ? [...raw] : ['projects', 'personal']
 
@@ -60,7 +59,6 @@ function readPreferences(raw: unknown): SidebarPreferences {
     projectView: value.projectView === 'timeline' ? 'timeline' : 'collections',
     sort: value.sort === 'created' || value.sort === 'manual' ? value.sort : 'updated',
     groups,
-    hiddenProjectIds: strings(value.hiddenProjectIds),
     ungroupedSessionOrder: strings(value.ungroupedSessionOrder),
     groupedRootOrder,
   }

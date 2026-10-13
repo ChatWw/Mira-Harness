@@ -438,6 +438,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'session.set-delegation': return { method, id: string(params.id, '会话 ID'), enabled: boolean(params.enabled, '委派开关') } as const
     case 'projects.reorder': return { method, ids: idList(params.ids, '项目 ID 列表') } as const
     case 'projects.rename': return { method, id: string(params.id, '项目 ID'), name: string(params.name, '项目名称', 120) } as const
+    case 'projects.remove': return { method, id: string(params.id, '项目 ID') } as const
     case 'projects.open': return { method, projectId: string(params.projectId, '项目 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const
     case 'git.context':
     case 'git.branches': return { method, projectId: string(params.projectId, '项目 ID') } as const

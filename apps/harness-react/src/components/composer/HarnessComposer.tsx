@@ -1469,8 +1469,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     <div className="harness-composer__surface" hidden={interactionBlocked} inert={interactionBlocked} aria-hidden={interactionBlocked || undefined}>
       {(!sessionId || selectedProject?.isGitRepository && controller.supportsGitActions) && <div className="harness-composer__project-strip">
         {!sessionId && <>
-        <DropdownMenu.Root modal={false} open={active && projectOpen} onOpenChange={open => { setProjectOpen(open && active); if (!open) setProjectQuery('') }}>
-          <DropdownMenu.Trigger type="button" className="harness-composer__project-trigger" aria-label="选择项目" disabled={configBlocked} title={selectedProject?.directory || '不绑定项目，使用个人工作区'}><FolderOpen size={16} /><span>{selectedProject?.name || '选择项目'}</span><ChevronDown size={12} /></DropdownMenu.Trigger>
+        <div className={`harness-composer__project-selector${selectedProject ? ' has-project' : ''}`}><DropdownMenu.Root modal={false} open={active && projectOpen} onOpenChange={open => { setProjectOpen(open && active); if (!open) setProjectQuery('') }}>
+          <DropdownMenu.Trigger type="button" className="harness-composer__project-trigger" aria-label="选择项目" disabled={configBlocked} title={selectedProject?.directory || '不绑定项目，使用个人工作区'}><FolderOpen size={16} className="harness-composer__project-folder" /><span>{selectedProject?.name || '选择项目'}</span><ChevronDown size={12} /></DropdownMenu.Trigger>
           <DropdownMenu.Portal container={portalContainer}><DropdownMenu.Content align="start" side="top" sideOffset={4} className="harness-composer__menu harness-composer__project-menu" {...projectMenuFocus.contentProps}>
             <div className="harness-composer__search"><Search size={16} /><input value={projectQuery} onChange={event => setProjectQuery(event.target.value)} onKeyDown={event => event.stopPropagation()} placeholder="搜索项目" aria-label="搜索项目" /></div>
             <DropdownMenu.RadioGroup value={draftProjectId || ''} onValueChange={value => selectProject(value || undefined)}>
@@ -1478,11 +1478,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               <DropdownMenu.Separator className="harness-composer__menu-separator" />
               <DropdownMenu.RadioItem value="" className="harness-composer__menu-item"><span>在项目外工作</span><DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>
             </DropdownMenu.RadioGroup>
-            <DropdownMenu.Separator className="harness-composer__menu-separator" />
-            <DropdownMenu.Item className="harness-composer__menu-item" onSelect={() => { projectMenuFocus.cancelReturnFocus(); void controller.navigate('/workspace/projects') }}><FolderOpen size={16} /><span>管理项目</span></DropdownMenu.Item>
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
-        {selectedProject && <button type="button" className="harness-composer__project-detach" aria-label="脱离当前项目" title="脱离当前项目" disabled={configBlocked} onClick={() => selectProject(undefined)}><X size={13} /></button>}
+        {selectedProject && <button type="button" className="harness-composer__project-detach" aria-label="脱离当前项目" title="脱离当前项目" disabled={configBlocked} onClick={() => selectProject(undefined)}><X size={16} /></button>}</div>
         </>}
         <MiraBranchPicker key={selectedProject?.id} controller={controller} project={selectedProject} active={active} blocked={busy || Boolean(state.sessionLoading) || Boolean(selectedProject && state.sessions.some(session => session.projectId === selectedProject.id && state.runningSessionIds.includes(session.id))) || Boolean(state.queue?.items.length)} placement="composer" onReturnFocus={() => editorRef.current?.focus()} />
       </div>}

@@ -58,7 +58,7 @@ describe('Harness sidebar persisted preferences', () => {
     store.change({ sort: 'created', view: 'project' })
     reading.resolve({ sort: 'manual', view: 'group', expandedProjectIds: ['project', 'project', null] })
     await load; await store.save()
-    expect(store.getSnapshot().preferences).toEqual({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], sort: 'created', view: 'project', projectView: 'collections', expandedProjectIds: ['project'], collapsedProjectIds: [], groups: [], hiddenProjectIds: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
+    expect(store.getSnapshot().preferences).toEqual({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], sort: 'created', view: 'project', projectView: 'collections', expandedProjectIds: ['project'], collapsedProjectIds: [], groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
     expect(write).toHaveBeenLastCalledWith(store.getSnapshot().preferences)
   })
   it('never writes defaults after failed hydration and retries without losing local edits', async () => {
@@ -82,7 +82,7 @@ describe('Harness sidebar persisted preferences', () => {
     const flush = store.save()
     first.resolve(); await flush
     expect(write).toHaveBeenCalledTimes(2)
-    expect(write).toHaveBeenLastCalledWith({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'created', groups: [], hiddenProjectIds: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
+    expect(write).toHaveBeenLastCalledWith({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'created', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
     const restored = new SidebarPreferenceStore(async () => write.mock.calls.at(-1)?.[0], async () => undefined)
     await restored.load()
     expect(restored.getSnapshot().preferences.sort).toBe('created')
@@ -103,22 +103,22 @@ describe('Harness sidebar persisted preferences', () => {
     expect(view.controller.setPreference).not.toHaveBeenCalled()
     reading.resolve({ expandedProjectIds: ['saved-a', 'saved-b'], view: 'project', sort: 'created' })
     await view.drain()
-    expect(view.controller.setPreference).toHaveBeenLastCalledWith('session-drawer', { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['saved-a', 'saved-b', 'active'], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'created', groups: [], hiddenProjectIds: [], ungroupedSessionOrder: [], groupedRootOrder: [] }, true)
+    expect(view.controller.setPreference).toHaveBeenLastCalledWith('session-drawer', { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['saved-a', 'saved-b', 'active'], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'created', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] }, true)
   })
   it('does not touch automatic expansion after a failed read and merges the saved projects after retry', async () => {
     const read = vi.fn().mockRejectedValueOnce(new Error('读取失败')).mockResolvedValueOnce({ expandedProjectIds: ['saved'], view: 'project', sort: 'updated' })
     const view = mountSidebar(read); await view.drain()
     expect(view.controller.setPreference).not.toHaveBeenCalled()
     ;(view.props(p => p.children === '重试')!.onClick as () => void)(); await view.drain()
-    expect(view.controller.setPreference).toHaveBeenLastCalledWith('session-drawer', { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['saved', 'active'], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groups: [], hiddenProjectIds: [], ungroupedSessionOrder: [], groupedRootOrder: [] }, true)
+    expect(view.controller.setPreference).toHaveBeenLastCalledWith('session-drawer', { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['saved', 'active'], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] }, true)
   })
   it('migrates old preferences and sanitizes duplicate group membership and persisted lists', async () => {
     const store = new SidebarPreferenceStore(async () => ({
       groups: [{ id: 'a', name: '  研究  ', color: 'blue', sessionIds: ['one', 'one', null], collapsed: true }, { id: 'a', name: 'duplicate', sessionIds: ['two'] }, { id: 'b', name: '写作', color: 'invalid', sessionIds: ['one', 'two'] }, null],
-      hiddenProjectIds: ['p', 'p', null], ungroupedSessionOrder: ['third', 'third'],
+      expandedProjectIds: ['p', 'p', null], ungroupedSessionOrder: ['third', 'third'],
     }), async () => undefined)
     await store.load()
-    expect(store.getSnapshot().preferences).toEqual({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', hiddenProjectIds: ['p'], ungroupedSessionOrder: ['third'], groupedRootOrder: [], groups: [{ id: 'a', name: '研究', color: 'blue', collapsed: true, sessionIds: ['one'] }, { id: 'b', name: '写作', color: 'gray', collapsed: false, sessionIds: ['two'] }] })
+    expect(store.getSnapshot().preferences).toEqual({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['p'], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', ungroupedSessionOrder: ['third'], groupedRootOrder: [], groups: [{ id: 'a', name: '研究', color: 'blue', collapsed: true, sessionIds: ['one'] }, { id: 'b', name: '写作', color: 'gray', collapsed: false, sessionIds: ['two'] }] })
   })
   it('restores the timeline choice and independent project/group collapse state', async () => {
     const write = vi.fn(async () => undefined)
@@ -176,18 +176,18 @@ const rootDrop: SidebarGroupingOrder = {
 describe('Harness drag persistence through the real preference store', () => {
   it('writes a completed drop once and restores the exact interleaved root order on reload', async () => {
     const write = vi.fn(async () => undefined)
-    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, expandedProjectIds: ['project'], hiddenProjectIds: ['hidden'], projectView: 'timeline' }), write)
+    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, expandedProjectIds: ['project'], collapsedProjectIds: ['hidden'], projectView: 'timeline' }), write)
     await store.load(); await store.applyGroupDrop(rootDrop)
     expect(write).toHaveBeenCalledOnce()
     const restored = new SidebarPreferenceStore(async () => write.mock.calls[0]![0], async () => undefined)
     await restored.load()
-    expect(restored.getSnapshot().preferences).toMatchObject({ ...rootDrop, expandedProjectIds: ['project'], hiddenProjectIds: ['hidden'], projectView: 'timeline' })
+    expect(restored.getSnapshot().preferences).toMatchObject({ ...rootDrop, expandedProjectIds: ['project'], collapsedProjectIds: ['hidden'], projectView: 'timeline' })
   })
   it('rolls back only this failed drop, keeps the real error visible and saves the restored state only on retry', async () => {
     const write = vi.fn().mockRejectedValueOnce(new Error('偏好写入失败')).mockResolvedValue(undefined)
-    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, hiddenProjectIds: ['hidden'] }), write)
+    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, collapsedProjectIds: ['hidden'] }), write)
     await store.load(); await expect(store.applyGroupDrop(rootDrop)).rejects.toThrow('偏好写入失败')
-    expect(store.getSnapshot()).toMatchObject({ error: '偏好写入失败', preferences: { ...originalGrouping, hiddenProjectIds: ['hidden'] } })
+    expect(store.getSnapshot()).toMatchObject({ error: '偏好写入失败', preferences: { ...originalGrouping, collapsedProjectIds: ['hidden'] } })
     expect(write).toHaveBeenCalledOnce()
     await store.retry()
     expect(write).toHaveBeenCalledTimes(2)
@@ -201,7 +201,7 @@ describe('Harness drag persistence through the real preference store', () => {
     await store.load()
     const dropping = store.applyGroupDrop(rootDrop), failure = expect(dropping).rejects.toThrow('写入失败')
     if (change === 'group-name') store.updateGroup('g2', { name: '保留后续名称' })
-    else store.change({ hiddenProjectIds: ['new-hidden'] })
+    else store.change({ collapsedProjectIds: ['new-hidden'] })
     const latest = store.getSnapshot().preferences
     pending.reject(new Error('写入失败')); await failure
     expect(store.getSnapshot().preferences).toBe(latest)
@@ -257,7 +257,7 @@ describe('Harness sidebar section-order persistence', () => {
 
   it('writes one completed section drop and restores its order without changing child preferences', async () => {
     const write = vi.fn(async () => undefined)
-    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, projectSectionOpen: false, personalSectionOpen: false, expandedProjectIds: ['p'], collapsedProjectIds: ['q'], hiddenProjectIds: ['hidden'] }), write)
+    const store = new SidebarPreferenceStore(async () => ({ ...originalGrouping, projectSectionOpen: false, personalSectionOpen: false, expandedProjectIds: ['p'], collapsedProjectIds: ['q'] }), write)
     await store.load()
     const previous = store.getSnapshot().preferences
     await store.applySectionDrop(['personal', 'projects'])

@@ -170,3 +170,30 @@ button:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2
 .preview article { max-width: 66ch; overflow: auto; padding: 28px 34px; font-size: 14px; line-height: 1.8; }.preview article h2 { margin: 0 0 22px; font-size: 22px; }.preview article h3 { margin: 26px 0 6px; font-size: 14px; }.preview article p { color: var(--text-muted); }
 .spin { animation: spin 1.2s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* ZCode-style tooltip motion; distinct exit keyframes let Radix finish before unmounting. */
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint) {
+  --mira-tooltip-enter-x: 0px;
+  --mira-tooltip-enter-y: 0px;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation-duration: 150ms;
+  animation-fill-mode: both;
+}
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-side='top'] { --mira-tooltip-enter-y: 8px; }
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-side='bottom'] { --mira-tooltip-enter-y: -8px; }
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-side='left'] { --mira-tooltip-enter-x: 8px; }
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-side='right'] { --mira-tooltip-enter-x: -8px; }
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint):is([data-state='delayed-open'], [data-state='instant-open']) { animation-name: mira-tooltip-enter; animation-timing-function: ease-out; }
+:is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-state='closed'] { animation-name: mira-tooltip-exit; animation-timing-function: ease-in; pointer-events: none; }
+[data-radix-popper-content-wrapper]:has(> :is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-state='closed']) { pointer-events: none; }
+@keyframes mira-tooltip-enter {
+  from { opacity: 0; transform: translate(var(--mira-tooltip-enter-x), var(--mira-tooltip-enter-y)) scale(.95); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@keyframes mira-tooltip-exit {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.mira-sidebar-tooltip, .mira-composer-hint, .mira-context-tooltip, .mira-conversation-find__hint)[data-state] { animation: none; }
+}

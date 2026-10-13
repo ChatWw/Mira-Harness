@@ -26,7 +26,7 @@ export function useMiraPaneGeometry(options: Options) {
   const windowResizing = useRef(false)
   const cancelWorkspaceAnimation = useRef<((settlePending?: boolean) => void) | undefined>(undefined)
   const cancelDrag = useRef<(() => void) | undefined>(undefined)
-  const [sessionsWidth, setSessionsWidth] = useState(264)
+  const [sessionsWidth, setSessionsWidth] = useState(280)
   const [restored, setRestored] = useState(0)
 
   function save() {
@@ -146,7 +146,7 @@ export function useMiraPaneGeometry(options: Options) {
   function resizeSessionsWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    commitSidebar(event.key === 'Home' ? 220 : event.key === 'End' ? 420 : preferences.current.sessions + (event.key === 'ArrowLeft' ? -16 : 16))
+    commitSidebar(event.key === 'Home' ? 280 : event.key === 'End' ? 420 : preferences.current.sessions + (event.key === 'ArrowLeft' ? -16 : 16))
   }
 
   function workspaceLayoutChanged(layout: Layout) {

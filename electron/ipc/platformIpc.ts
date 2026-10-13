@@ -17,6 +17,7 @@ import type { NovelProjectDocument } from '../../src/config/novel'
 import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 import { parseFirstPartyHarnessCall, type HarnessAttachmentSaveResult } from '../../src/platform/firstPartyHarness'
 import type { HarnessRuntime } from '../services/harnessRuntime'
+import { removeHarnessProject } from './harnessProjectIpc'
 import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile, readHarnessWorkspaceImage, searchHarnessWorkspaceFiles } from '../services/harnessWorkspaceFiles'
 import type { HarnessTerminalSessions } from '../services/harnessTerminalSessions'
 import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
@@ -378,6 +379,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'sessions.search': return database.harness.searchConversations(call.query).then(result => { assertMarketAuthorized(); return result })
       case 'projects.list': return database.harness.listProjects()
       case 'projects.rename': return database.harness.renameProject(call.id, call.name)
+      case 'projects.remove': return removeHarnessProject({ database, harnessRuntime, automationScheduler, workspaceWatch }, call.id)
       case 'projects.select': {
         const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
         const options: OpenDialogOptions = { properties: ['openDirectory'], title: '添加项目' }

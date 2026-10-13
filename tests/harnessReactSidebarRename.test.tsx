@@ -61,7 +61,7 @@ describe('sidebar project and group rename ownership', () => {
 
 async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<string, unknown> = { view: 'group', sort: 'manual' }, taskPaneEntry?: { open(id: string): Promise<unknown>; canOpen(id: string): boolean }) {
   const state = { sessions: ['a', 'b'].map(id => ({ id, title: `任务 ${id.toUpperCase()}`, createdAt: 1, updatedAt: 1, status: 'active' })), projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {}, error: undefined } as PilotState
-  const controller = { getSnapshot: () => state, renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), navigate: vi.fn<PilotController['navigate']>(async () => undefined), open: vi.fn(), reportError: vi.fn() }
+  const controller = { getSnapshot: () => state, renameSession: vi.fn<PilotController['renameSession']>(async () => false), setSessionPinned: vi.fn<PilotController['setSessionPinned']>(async () => undefined), navigate: vi.fn<PilotController['navigate']>(async () => undefined), open: vi.fn(), reportError: vi.fn(), removeProject: vi.fn(async () => undefined), supportsProjectRemoval: true }
   Object.assign(state, statePatch)
   const store = new SidebarPreferenceStore(async () => preferences, async () => undefined)
   await store.load()
@@ -82,10 +82,9 @@ async function mount(statePatch: Partial<PilotState> = {}, preferences: Record<s
 }
 
 describe('sidebar task rename through real React and Radix DOM', () => {
-  it.each(['context', 'dropdown'] as const)('opens unified model settings from the %s task menu without selecting that task', async kind => {
+  it('opens unified model settings from the context task menu without selecting that task', async () => {
     const view = await mount()
-    if (kind === 'context') await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
-    else await act(async () => view.row('b').querySelector<HTMLButtonElement>('.mira-session-row__more')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    await act(async () => view.row('b').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     const settings = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '模型设置')
     expect(settings).toBeDefined()
     await act(async () => settings!.click())
@@ -119,46 +118,16 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(items).toContain('置顶'); expect(items).toContain('复制'); expect(items).toContain('删除会话')
   })
 
-  it('shows host net counts for the owning task without navigating or deriving them from current conversation messages', async () => {
+  it.each([
+    { added: 2, removed: 1, incomplete: false, estimated: false },
+    { added: 0, removed: 0, incomplete: true, estimated: false },
+    { added: 600, removed: 0, incomplete: false, estimated: true },
+  ])('keeps file change counts out of sidebar rows: %j', async counts => {
     const view = await mount()
-    view.state.sessions[0].changeSummary = { files: [{ key: 'net-a', path: 'note.md', tool: 'edit', writes: 4, added: 2, removed: 1 }], added: 2, removed: 1, incomplete: false, estimated: false }
-    await view.render()
-    const counts = view.row().querySelector('.mira-session-row__changes')!
-    expect(counts.textContent).toBe('+2-1')
-    expect(counts.getAttribute('aria-label')).toBe('任务净变化：新增 2 行，删除 1 行')
-    expect(view.row('b').querySelector('.mira-session-row__changes')).toBeNull()
+    view.state.sessions[0].changeSummary = { files: [], ...counts }; await view.render()
+    expect(view.row().querySelector('.mira-session-row__changes')).toBeNull()
     expect(view.row().querySelector('time')).not.toBeNull()
     expect(view.controller.open).not.toHaveBeenCalled()
-  })
-
-  it.each(['needs_input', 'awaiting_confirmation', 'permission'] as const)('suppresses net counts while the task is waiting for %s and restores them after resolution', async state => {
-    const view = await mount()
-    view.state.sessions[0].changeSummary = { files: [], added: 8, removed: 3, incomplete: false, estimated: false }
-    if (state === 'permission') view.state.pendingPermissions.a = { requestId: 'permission-a', sessionId: 'a', title: '允许编辑', detail: '等待授权' }
-    else view.state.sessions[0].planStatus = state
-    await view.render()
-    expect(view.row().querySelector('.mira-session-row__changes')).toBeNull()
-    expect(view.row().querySelector('.mira-session-interaction')).not.toBeNull()
-    delete view.state.pendingPermissions.a; delete view.state.sessions[0].planStatus
-    await view.render()
-    expect(view.row().querySelector('.mira-session-row__changes')?.textContent).toBe('+8-3')
-    expect(view.controller.open).not.toHaveBeenCalled()
-  })
-
-  it('hides verified zero counts while distinguishing incomplete and estimated totals', async () => {
-    const view = await mount()
-    view.state.sessions[0].changeSummary = { files: [], added: 0, removed: 0, incomplete: false, estimated: false }
-    await view.render()
-    expect(view.row().querySelector('.mira-session-row__changes')).toBeNull()
-    view.state.sessions[0].changeSummary.incomplete = true; await view.render()
-    let counts = view.row().querySelector('.mira-session-row__changes')!
-    expect(counts.textContent).toBe('部分')
-    expect(counts.getAttribute('aria-label')).toContain('已知：新增 0 行，删除 0 行；部分文件缺少完整快照')
-    view.state.sessions[0].changeSummary = { files: [], added: 600, removed: 0, incomplete: false, estimated: true }; await view.render()
-    counts = view.row().querySelector('.mira-session-row__changes')!
-    expect(counts.textContent).toBe('+600约')
-    expect(counts.getAttribute('title')).toBe('估算：新增 600 行，删除 0 行')
-    expect(counts.querySelector('.mira-task-change-removed')).toBeNull()
   })
 
   it.each(['needs_input', 'awaiting_confirmation', 'permission'] as const)('shows a visible %s capsule without time or navigation', async state => {
@@ -172,10 +141,9 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(view.row().querySelectorAll('.mira-session-row__action')).toHaveLength(0)
     expect(view.controller.open).not.toHaveBeenCalled()
   })
-  it.each(['context', 'dropdown'] as const)('offers same-group move to top through the real %s menu', async kind => {
+  it('offers same-group move to top through the real context menu', async () => {
     const view = await mount({}, { view: 'group', sort: 'manual', groups: [{ id: 'g', name: '研究', color: 'blue', collapsed: false, sessionIds: ['b', 'a'] }] })
-    if (kind === 'context') await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
-    else await act(async () => view.row().querySelector<HTMLButtonElement>('.mira-session-row__more')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })))
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     const move = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === '移动到顶部')!
     expect(move).toBeDefined()
     await act(async () => move.click())
@@ -183,11 +151,11 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(view.store.getSnapshot().preferences.ungroupedSessionOrder).toEqual([])
     expect(view.controller.open).not.toHaveBeenCalled()
   })
-  it('shows the actual task directory to keyboard users and suspends it while a menu is open', async () => {
+  it('keeps the actual task directory out of sidebar tooltips', async () => {
     const view = await mount({ sessions: [{ id: 'a', title: '目录任务', workingDirectory: '/tmp/mira/真实目录', createdAt: 1, updatedAt: 1, status: 'active' }] })
     const open = view.row().querySelector<HTMLButtonElement>('.mira-session-row__open')!
     await act(async () => open.focus())
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('/tmp/mira/真实目录')
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
     expect(open.hasAttribute('title')).toBe(false); expect(view.controller.open).not.toHaveBeenCalled()
     await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     expect(document.querySelector('[role="tooltip"]')).toBeNull()
@@ -301,12 +269,12 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(view.state.session).toBeUndefined()
   })
 
-  it('suspends project hints while the context menu is open and restores keyboard focus after closing', async () => {
+  it('keeps project titles free of hints and restores keyboard focus after closing', async () => {
     const view = await mount({ projects: [{ id: 'p', name: 'Mira', directory: '/tmp/mira', directoryExists: true, createdAt: 1, updatedAt: 1 }] }, { view: 'project' })
     const header = view.container.querySelector<HTMLElement>('[data-collection-header]')!
     const title = header.querySelector<HTMLButtonElement>('.mira-collection-title')!
     await act(async () => title.focus())
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('/tmp/mira')
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
     await act(async () => header.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     expect(header.getAttribute('data-menu-open')).toBe('true')
     expect(document.querySelector('[role="tooltip"]')).toBeNull()
@@ -315,7 +283,7 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(header.hasAttribute('data-menu-open')).toBe(false)
     await act(async () => title.focus())
     expect(document.activeElement).toBe(title)
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('/tmp/mira')
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
     expect(view.state.session).toBeUndefined()
   })
 
@@ -338,7 +306,7 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     const menu = () => view.container.querySelector<HTMLElement>('[role="menu"]')!
     expect(menu().textContent).toContain('历史任务仍可查看')
     expect([...menu().querySelectorAll('[data-disabled]')].map(element => element.textContent)).toEqual(['新建任务', '在文件管理器中打开', '在终端中打开'])
-    expect([...menu().querySelectorAll('[role="menuitem"]:not([data-disabled])')].map(element => element.textContent)).toContain('从侧栏隐藏')
+    expect([...menu().querySelectorAll('[role="menuitem"]:not([data-disabled])')].map(element => element.textContent)).toContain('移除项目')
     await act(async () => menu().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
     await act(async () => collection().querySelector<HTMLButtonElement>('.mira-collection-title')!.click())
     expect(view.row()).toBeNull(); expect(marker()).not.toBeNull(); expect(view.state.session).toBeUndefined()
@@ -348,22 +316,46 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(menu().querySelector('[data-disabled]')).toBeNull()
   })
 
-  it('shows the task action tooltip to keyboard users without opening its menu or task', async () => {
-    const view = await mount(), more = view.row().querySelector<HTMLButtonElement>('.mira-session-row__more')!
+  it('removes a project only after the confirmation dialog and keeps host failures inside it', async () => {
+    const view = await mount({
+      sessions: [{ id: 'a', title: '项目任务', projectId: 'p', createdAt: 1, updatedAt: 1, status: 'active' }],
+      projects: [{ id: 'p', name: 'Mira', directory: '/tmp/mira', directoryExists: true, createdAt: 1, updatedAt: 1, sessionCount: 1 }],
+    }, { view: 'project', sort: 'manual', expandedProjectIds: ['p'] })
+    const more = view.container.querySelector<HTMLButtonElement>('[aria-label="Mira 的菜单"]')!
     await act(async () => more.focus())
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('任务操作')
+    await act(async () => more.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    const remove = [...view.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(element => element.textContent === '移除项目')!
+    expect(remove).toBeDefined()
+    await act(async () => remove.click())
+    expect(view.controller.removeProject).not.toHaveBeenCalled()
+    const dialog = () => view.container.querySelector<HTMLElement>('.mira-confirm')!
+    expect(dialog().textContent).toContain('移除项目「Mira」？')
+    expect(dialog().textContent).toContain('磁盘文件不受影响')
+    const confirm = () => dialog().querySelector<HTMLButtonElement>('[aria-label="确认移除项目"]')!
+    view.controller.removeProject.mockRejectedValueOnce(new Error('请先停止项目任务并处理待发送消息'))
+    await act(async () => confirm().click())
+    expect(view.controller.removeProject).toHaveBeenCalledExactlyOnceWith('p')
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toBe('请先停止项目任务并处理待发送消息')
+    await act(async () => confirm().click())
+    expect(view.controller.removeProject).toHaveBeenCalledTimes(2)
+    expect(dialog()).toBeNull()
+  })
+
+  it('shows the archive tooltip above its button without opening a menu or task', async () => {
+    const view = await mount({}, { view: 'project' }), more = view.row().querySelector<HTMLButtonElement>('[aria-label="归档 任务 A"]')!
+    await act(async () => more.focus())
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('归档任务')
     expect(more.getAttribute('title')).toBeNull()
     expect(document.querySelector('[role="menu"]')).toBeNull()
     expect(view.state.session).toBeUndefined()
   })
 
-  it('retains the task menu anchor independently of Tooltip data-state and closes it with Escape', async () => {
-    const view = await mount(), more = view.row().querySelector<HTMLButtonElement>('.mira-session-row__more')!
-    await act(async () => more.focus())
-    await act(async () => more.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+  it('opens the task context menu without an ellipsis button and closes it with Escape', async () => {
+    const view = await mount()
+    expect(view.row().querySelector('.mira-session-row__more')).toBeNull()
+    await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     expect(view.row().getAttribute('data-menu-open')).toBe('true')
     const menu = view.container.querySelector<HTMLElement>('[role="menu"]')!
-    expect(menu).not.toBeNull()
     await act(async () => menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
     expect(view.row().hasAttribute('data-menu-open')).toBe(false)
     expect(view.state.session).toBeUndefined()

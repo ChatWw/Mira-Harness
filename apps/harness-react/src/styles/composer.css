@@ -74,7 +74,10 @@
 .harness-composer__project-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .harness-composer__project-trigger svg { flex: none; color: var(--color-foreground-subtle); }
 .harness-composer__project-trigger:hover, .harness-composer__project-trigger[data-state='open'] { background: var(--color-surface-hover); }
-.harness-composer__project-detach { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; }
+.harness-composer__project-selector { position: relative; display: inline-flex; min-width: 0; }
+.harness-composer__project-detach { position: absolute; top: 6px; left: 12px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 0; border-radius: 4px; color: var(--color-foreground-subtle); background: transparent; opacity: 0; pointer-events: none; }
+.harness-composer__project-selector.has-project:hover .harness-composer__project-folder, .harness-composer__project-selector.has-project:focus-within .harness-composer__project-folder { visibility: hidden; }
+.harness-composer__project-selector:hover .harness-composer__project-detach, .harness-composer__project-selector:focus-within .harness-composer__project-detach { opacity: 1; pointer-events: auto; }
 .harness-composer__project-detach:hover { background: var(--color-hover); }
 .harness-composer { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--color-input-border); border-radius: 16px; background: var(--color-input); transition: border-color 120ms ease-out; }
 .harness-composer:hover { border-color: var(--color-input-border-hover); }

@@ -17,7 +17,7 @@ describe('real React, Radix and dnd-kit sidebar interactions', () => {
     try {
       await build({
         stdin: { contents: fixture(), resolveDir: process.cwd(), loader: 'tsx' },
-        outfile: resolve(directory, 'fixture.js'), bundle: true, platform: 'browser', jsx: 'automatic',
+        outfile: resolve(directory, 'fixture.js'), bundle: true, loader: { '.png': 'dataurl' }, platform: 'browser', jsx: 'automatic',
         define: { 'process.env.NODE_ENV': '"development"' },
       })
       await run(resolve('node_modules/.bin/tailwindcss'), ['-i', resolve('apps/harness-react/src/styles/app.css'), '-o', resolve(directory, 'fixture.css'), '--minify'])
@@ -47,7 +47,7 @@ describe('real React, Radix and dnd-kit sidebar interactions', () => {
       expect(result.edgeDropped).toMatchObject({ mounted: true, sourceParent: 'root', writes: 1, overlay: false })
       expect(result.edgeDropped.rootOrder).toEqual(result.edgePreview.rootOrder)
       expect(result.hover.visible).toBe(true)
-      expect(result.hover.labels).toEqual(['显示 源任务 的文件树', '移动 源任务 到顶部', '关闭 源任务'])
+      expect(result.hover.labels).toEqual(['移动 源任务 到顶部', '关闭 源任务'])
       expect(result.hover.timeVisible).toBe(false)
       expect(result.hoverLeft).toMatchObject({ visible: false, timeVisible: true })
       expect(result.files).toMatchObject({ files: ['source'], opens: [], archives: [], busy: false, overlay: false })
@@ -228,12 +228,18 @@ async function keyboardButton(label) {
   if (!await point(rowButton(label))) throw Error('Missing keyboard action ' + label + ': ' + JSON.stringify(await actionSnapshot()))
   await inspect('document.querySelector(' + JSON.stringify(rowButton(label)) + ').focus()'); await key('Enter', 13); await frames()
 }
+async function openContextMenu() {
+  const at = await point('[data-sidebar-session-id="source"] .mira-session-row__open')
+  for (const type of ['mousePressed','mouseReleased']) await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type,...at,button:'right',buttons:type==='mousePressed'?2:0,clickCount:1})
+  await wait('!!document.querySelector("[role=menu]")')
+}
 async function rowActions() {
   await configure({view:'group'}); await hoverSource()
   const hover = await actionSnapshot()
   await mouse('mouseMoved', {x:600,y:100}); await frames()
   const hoverLeft = await actionSnapshot()
-  await hoverSource(); await pressButton('显示 源任务 的文件树')
+  await hoverSource(); await openContextMenu()
+  await inspect('[...document.querySelectorAll("[role=menuitem]")].find(node => node.textContent === "显示文件树").click()'); await frames()
   await wait('!window.sidebarFixture.actions().busy')
   const files = await actionSnapshot()
   await pressButton('关闭 源任务'); await wait('!window.sidebarFixture.actions().busy')
@@ -263,7 +269,7 @@ async function rowActions() {
   await key('Escape', 27); await frames()
   const pinnedEscaped = await actionSnapshot()
   await pressButton('归档 源任务')
-  await pressButton('源任务 的操作'); await wait('!!document.querySelector("[role=menu]")')
+  await openContextMenu()
   const menu = await actionSnapshot()
   await inspect('[...document.querySelectorAll("[role=menuitem]")].find(node => node.textContent === "显示文件树").click()'); await frames(); await wait('!window.sidebarFixture.actions().busy')
   const menuFiles = await actionSnapshot()

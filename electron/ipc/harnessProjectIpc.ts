@@ -14,6 +14,15 @@ export interface HarnessProjectIpcDependencies {
   workspaceWatch?: HarnessWorkspaceWatch
 }
 
+/** 移除项目注册：项目、任务与自动化一并删除，磁盘目录不动。旧 IPC 与第一方桥共用这一份行为。 */
+export function removeHarnessProject({ database, harnessRuntime, automationScheduler, workspaceWatch }: Pick<HarnessProjectIpcDependencies, 'database' | 'harnessRuntime' | 'automationScheduler' | 'workspaceWatch'>, id: string) {
+  if (harnessRuntime.isProjectRunning(id)) throw new Error('请先停止项目任务并处理待发送消息')
+  database.automations.listTasks().filter(task => task.projectId === id).forEach(task => database.automations.deleteTask(task.id))
+  database.harness.deleteProject(id)
+  workspaceWatch?.closeInvalid()
+  automationScheduler.reschedule()
+}
+
 export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, automationScheduler, miraPaths, workspaceWatch }: HarnessProjectIpcDependencies) {
   ipcMain.handle('harness:list-skills', () => database.skills.list())
   ipcMain.handle('harness:get-skill-settings', () => database.skills.settings())
@@ -37,13 +46,7 @@ export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, au
     return database.harness.createProject(target, input.name, input.icon)
   })
   ipcMain.handle('harness:rename-project', (_event, id: string, name: string, icon?: string) => database.harness.renameProject(id, name, icon))
-  ipcMain.handle('harness:delete-project', (_event, id: string) => {
-    if (harnessRuntime.isProjectRunning(id)) throw new Error('请先停止项目任务并处理待发送消息')
-    database.automations.listTasks().filter(task => task.projectId === id).forEach(task => database.automations.deleteTask(task.id))
-    database.harness.deleteProject(id)
-    workspaceWatch?.closeInvalid()
-    automationScheduler.reschedule()
-  })
+  ipcMain.handle('harness:delete-project', (_event, id: string) => removeHarnessProject({ database, harnessRuntime, automationScheduler, workspaceWatch }, id))
   ipcMain.handle('harness:get-global-instructions', () => database.instructions.readGlobal())
   ipcMain.handle('harness:save-global-instructions', (_event, content: string) => database.instructions.saveGlobal(content))
   ipcMain.handle('harness:get-global-instructions-path', () => miraPaths.globalAgents())

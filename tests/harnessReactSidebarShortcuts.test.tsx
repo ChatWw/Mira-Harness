@@ -64,20 +64,17 @@ describe('workbench-owned shortcuts through real React keyboard events', () => {
     expect(view.composerChanged).not.toHaveBeenCalled(); expect(composer.textContent).toBe('保留的任务内容')
   })
 
-  it('shows the search alias on focus while keeping only K in the sidebar button', async () => {
+  it('omits the sidebar search when the desktop already supplies global search', async () => {
     const state: PilotState = { sessions: [], projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
     const controller = { getSnapshot: () => state } as PilotController
     const preferences = new SidebarPreferenceStore(async () => ({}), async () => undefined); await preferences.load()
     const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
     await act(async () => root!.render(<SessionSidebar state={state} controller={controller} width={264} onClose={() => undefined} onSearch={() => undefined} preferenceStore={preferences} />))
-    const search = container.querySelector<HTMLElement>('[aria-label="搜索会话"]')!
-    expect(search.getAttribute('aria-keyshortcuts')).toBe('Meta+K Control+K Meta+Shift+P Control+Shift+P')
-    expect(search.querySelector('kbd')!.textContent).toMatch(/K$/); expect(search.textContent).not.toContain('Shift')
-    await act(async () => search.focus())
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('Shift P')
+    expect(container.querySelector('[aria-label="搜索会话"]')).toBeNull()
+    expect(container.querySelector('[role="tooltip"]')).toBeNull()
   })
 
-  it('shows navigation hints on focus without changing the new-task, automation and market actions', async () => {
+  it('keeps navigation free of tooltips while retaining new-task, automation and market actions', async () => {
     const state: PilotState = { sessions: [], projects: [], messages: [], providers: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
     const controller = { getSnapshot: () => state } as PilotController
     const preferences = new SidebarPreferenceStore(async () => ({}), async () => undefined); await preferences.load()
@@ -85,9 +82,10 @@ describe('workbench-owned shortcuts through real React keyboard events', () => {
     const newTask = vi.fn(), automate = vi.fn(), market = vi.fn()
     await act(async () => root!.render(<SessionSidebar state={state} controller={controller} width={264} onClose={() => undefined} onNewConversation={newTask} onOpenAutomations={automate} onOpenExtensions={market} preferenceStore={preferences} />))
     const buttons = [container.querySelector<HTMLElement>('[aria-label="新建任务"]')!, ...['自动化', '插件市场'].map(label => [...container.querySelectorAll<HTMLButtonElement>('.mira-session-actions button')].find(button => button.textContent === label)!)]
-    for (const [index, button] of buttons.entries()) {
+    for (const button of buttons) {
       await act(async () => button.focus())
-      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(['N', '自动化', '插件市场'][index])
+      expect(document.querySelector('[role="tooltip"]')).toBeNull()
+      expect(button.hasAttribute('title')).toBe(false)
       await act(async () => button.click())
     }
     expect(buttons[0].getAttribute('aria-keyshortcuts')).toBe('Meta+N Control+N')

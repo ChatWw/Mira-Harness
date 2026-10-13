@@ -147,6 +147,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   listProjects = () => this.call<HarnessProject[]>('projects.list')
   searchConversations = (query: string) => this.call<HarnessConversationSearchResult[]>('sessions.search', { query })
   renameProject = (id: string, name: string) => this.call<void>('projects.rename', { id, name })
+  removeProject = (id: string) => this.call<void>('projects.remove', { id })
   openProject = (projectId: string, target: 'file-manager' | 'terminal' = 'file-manager') => this.call<string>('projects.open', { projectId, target })
   selectProject = () => this.call<HarnessProject | null>('projects.select')
   getTheme = () => this.theme

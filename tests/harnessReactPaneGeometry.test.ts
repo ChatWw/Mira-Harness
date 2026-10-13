@@ -57,10 +57,10 @@ afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimer
 describe('Mira desktop panel geometry', () => {
   it('restores ratios and migrates legacy pixel width against the available body', () => {
     expect(miraPanePreferences({ sessions: 999, workspaceRatio: .9 })).toEqual({ sessions: 420, workspaceRatio: .65, legacyWorkspace: undefined })
-    const legacy = miraPanePreferences({ sessions: 264, workspace: 420 })
+    const legacy = miraPanePreferences({ sessions: 280, workspace: 420 })
     expect(miraWorkspaceRatio(legacy.workspaceRatio, 1200, legacy.legacyWorkspace)).toBe(.35)
     expect(miraWorkspaceRatio(.1, 800)).toBe(.3)
-    expect(miraPanePreferences({ sessions: NaN, workspaceRatio: Infinity })).toMatchObject({ sessions: 264, workspaceRatio: .45 })
+    expect(miraPanePreferences({ sessions: NaN, workspaceRatio: Infinity })).toMatchObject({ sessions: 280, workspaceRatio: .45 })
   })
 
   it('opens at 45%, restores the last completed resize, and never saves animation intermediate sizes', async () => {
@@ -73,7 +73,7 @@ describe('Mira desktop panel geometry', () => {
     vi.advanceTimersByTime(240)
     expect(view.content.styles.has('width')).toBe(false)
     view.geometry().workspaceLayoutChanged({ 'mira-inspector': 55, 'mira-conversation': 45 }); await flush()
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 264, workspaceRatio: .55 }, true)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 280, workspaceRatio: .55 }, true)
     view.options.workspaceOpen = false; view.render(); flushFrames(); vi.advanceTimersByTime(240)
     view.bodyWidth(1600); view.options.workspaceOpen = true; view.render(); flushFrames()
     expect(parseFloat(String(view.panel.resize.mock.lastCall![0]))).toBeCloseTo(55)
@@ -88,7 +88,7 @@ describe('Mira desktop panel geometry', () => {
     expect(frames.size).toBe(0)
     expect(view.inspector.classes.has('mira-pane-toggling')).toBe(false)
     view.geometry().workspaceLayoutChanged({ 'mira-inspector': 58 }); await flush()
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 264, workspaceRatio: .58 }, true)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 280, workspaceRatio: .58 }, true)
     vi.advanceTimersByTime(1000); flushFrames()
     expect(view.panel.resize).not.toHaveBeenCalled()
   })
@@ -97,15 +97,15 @@ describe('Mira desktop panel geometry', () => {
     const view = mount(); await flush(); view.render(); flushFrames(); vi.advanceTimersByTime(240)
     view.geometry().resizeSessions(drag())
     pointer('pointermove', 150); pointer('pointermove', 180)
-    expect(view.shell.styles.get('--mira-sidebar-width')).toBe('344px')
-    expect(view.geometry().sessionsWidth).toBe(264)
+    expect(view.shell.styles.get('--mira-sidebar-width')).toBe('360px')
+    expect(view.geometry().sessionsWidth).toBe(280)
     expect(view.host.setPreference).not.toHaveBeenCalled()
     pointer('pointerup', 180); await flush(); view.render()
-    expect(view.geometry().sessionsWidth).toBe(344)
-    expect(view.host.setPreference).toHaveBeenCalledExactlyOnceWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 344, workspaceRatio: .45 }, true)
-    view.geometry().resizeSessionsWithKeyboard(key('ArrowRight')); await flush(); view.render()
     expect(view.geometry().sessionsWidth).toBe(360)
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 360, workspaceRatio: .45 }, true)
+    expect(view.host.setPreference).toHaveBeenCalledExactlyOnceWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 360, workspaceRatio: .45 }, true)
+    view.geometry().resizeSessionsWithKeyboard(key('ArrowRight')); await flush(); view.render()
+    expect(view.geometry().sessionsWidth).toBe(376)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 376, workspaceRatio: .45 }, true)
   })
 
   it('serializes preference writes so an earlier slow save cannot overwrite a newer keyboard size', async () => {
@@ -115,7 +115,7 @@ describe('Mira desktop panel geometry', () => {
     view.geometry().resizeSessionsWithKeyboard(key('ArrowRight')); await flush()
     expect(view.host.setPreference).toHaveBeenCalledTimes(1)
     firstSave.resolve(); await flush()
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 296, workspaceRatio: .45 }, true)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 312, workspaceRatio: .45 }, true)
   })
 
   it('blocks navigation on a failed pending save and retries the same pane preferences on the next flush', async () => {
@@ -127,7 +127,7 @@ describe('Mira desktop panel geometry', () => {
     expect(view.host.reportError).toHaveBeenCalledWith(error)
     await expect(view.flushBeforeNavigation()).resolves.toBeUndefined()
     expect(view.host.setPreference).toHaveBeenCalledTimes(2)
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 280, workspaceRatio: .45 }, true)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 296, workspaceRatio: .45 }, true)
   })
 
   it('continues queued newer writes after an earlier failure without poisoning navigation', async () => {
@@ -138,14 +138,14 @@ describe('Mira desktop panel geometry', () => {
     firstSave.reject(new Error('第一次写入失败')); await flush()
     await expect(view.flushBeforeNavigation()).resolves.toBeUndefined()
     expect(view.host.setPreference).toHaveBeenCalledTimes(2)
-    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 296, workspaceRatio: .45 }, true)
+    expect(view.host.setPreference).toHaveBeenLastCalledWith(MIRA_PANE_PREFERENCE_KEY, { sessions: 312, workspaceRatio: .45 }, true)
   })
 
   it('ignores late hydration after the user resizes and removes pending drag/frame listeners on unmount', async () => {
     const hydration = deferred<unknown>(), view = mount(hydration.promise)
     view.geometry().resizeSessionsWithKeyboard(key('ArrowRight')); await flush(); view.render()
     hydration.resolve({ sessions: 400, workspaceRatio: .6 }); await flush(); view.render()
-    expect(view.geometry().sessionsWidth).toBe(280)
+    expect(view.geometry().sessionsWidth).toBe(296)
     view.geometry().resizeSessions(drag()); pointer('pointermove', 120)
     view.unmount(); const previous = view.shell.styles.get('--mira-sidebar-width')
     pointer('pointermove', 300); pointer('pointerup', 300); vi.advanceTimersByTime(1000); flushFrames(); await flush()
