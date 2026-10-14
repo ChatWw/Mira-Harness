@@ -25,6 +25,24 @@ describe('Windows title-bar chrome', () => {
     expect(layoutSource).toMatch(/\.mira-shell__actions\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/)
   })
 
+  it('disables the standalone drag overlay inside the shell so the top bar stays clickable', () => {
+    const layoutSource = readFileSync(new URL('../src/layouts/index.vue', import.meta.url), 'utf8')
+    const titlebarSource = readFileSync(new URL('../src/layouts/components/WindowsTitlebar.vue', import.meta.url), 'utf8')
+
+    expect(layoutSource).toMatch(/<WindowsTitlebar[^>]*:drag-region="false"/)
+    expect(titlebarSource).toMatch(/<div\s+v-if="dragRegion"\s+class="windows-titlebar__drag-region"/)
+  })
+
+  it('keeps only the window controls in the Windows title bar', () => {
+    const titlebarSource = readFileSync(new URL('../src/layouts/components/WindowsTitlebar.vue', import.meta.url), 'utf8')
+    const layoutSource = readFileSync(new URL('../src/layouts/index.vue', import.meta.url), 'utf8')
+
+    expect(titlebarSource).not.toContain('windows-titlebar__menu')
+    expect(titlebarSource).not.toContain('windowsMenuGroups')
+    expect(titlebarSource).toContain('windows-titlebar__window-controls')
+    expect(layoutSource).toMatch(/mira-shell--windows-overlay[^{]*\{\s*padding-left:\s*16px/)
+  })
+
   it('keeps the native overlay transparent in light and dark themes', () => {
     expect(resolveWindowChrome('light')).toEqual({ color: '#00000000', symbolColor: '#18181b', height: 36 })
     expect(resolveWindowChrome('dark')).toEqual({ color: '#00000000', symbolColor: '#fafafa', height: 36 })

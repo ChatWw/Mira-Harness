@@ -43,7 +43,7 @@
       </div>
     </header>
 
-    <WindowsTitlebar v-if="windowChrome === 'windows-overlay'" :show-search="false" :menu-left="16" />
+    <WindowsTitlebar v-if="windowChrome === 'windows-overlay'" :drag-region="false" />
     <div class="mira-shell__stage">
       <div class="mira-shell__canvas"><AppMain /></div>
     </div>
@@ -124,7 +124,7 @@ function openSettings() {
 
 .mira-shell--standard .mira-shell__bar { padding-left: 16px; }
 .mira-shell--macos-overlay .mira-shell__bar { padding-left: max(92px, calc(92px / var(--mira-desktop-zoom, 1))); }
-.mira-shell--windows-overlay .mira-shell__bar { padding-left: 302px; padding-right: 148px; }
+.mira-shell--windows-overlay .mira-shell__bar { padding-left: 16px; padding-right: 148px; }
 
 .mira-shell__identity,
 .mira-shell__actions { display: flex; min-width: 0; align-items: center; -webkit-app-region: no-drag; }

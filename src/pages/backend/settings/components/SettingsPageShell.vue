@@ -6,7 +6,7 @@
       'is-windows-overlay': isWindowsOverlay,
     }"
   >
-    <WindowsTitlebar v-if="isWindowsOverlay" :show-search="false" />
+    <WindowsTitlebar v-if="isWindowsOverlay" />
     <SettingsSiderMenu />
 
     <section class="settings-main">
