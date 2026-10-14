@@ -112,6 +112,7 @@ export interface PilotHost {
   selectProject?(): Promise<HarnessProject | null>
   getTheme?(): 'light' | 'dark'
   onThemeChange?(listener: () => void): () => void
+  openResourceManager?(): Promise<void>
   toggleTheme?(): Promise<'light' | 'dark'>
   listAutomationTasks?(): Promise<AutomationTask[]>
   getAutomationOverview?(): Promise<AutomationOverview>
@@ -126,7 +127,7 @@ export interface PilotHost {
   getHarnessPermissionConfig?(): Promise<PermissionConfig>
   restoreSession?(id: string): Promise<void>
   deleteSession?(id: string): Promise<void>
-  moveSession?(id: string, projectId: string): Promise<void>
+  moveSession?(id: string, projectId?: string): Promise<void>
   reorderSessions?(scope: HarnessSessionOrderScope, ids: string[]): Promise<void>
   reorderProjects?(ids: string[]): Promise<void>
   setSessionPermission?(id: string, mode: PermissionMode): Promise<void>
@@ -310,6 +311,7 @@ export class PilotController {
   get supportsProjectRemoval() { return Boolean(this.host.removeProject) }
   getTheme = () => this.host.getTheme?.() ?? 'light'
   subscribeTheme = (listener: () => void) => this.host.onThemeChange?.(listener) ?? (() => undefined)
+  openResourceManager = () => this.require('openResourceManager')()
   toggleTheme = () => this.require('toggleTheme')()
   get supportsConversationFork() { return !this.sideSession && Boolean(this.host.forkConversation) }
   get supportsContextCompaction() { return Boolean(this.host.compactConversation) }
@@ -945,7 +947,7 @@ export class PilotController {
     this.update({ sessions: this.state.sessions.filter(item => !deleted.has(item.id)), pendingPermissions, runningSessionIds: this.state.runningSessionIds.filter(id => !deleted.has(id)), unreadSessionIds: this.state.unreadSessionIds.filter(id => !deleted.has(id)) })
     return wasActive
   }
-  async moveSession(id: string, projectId: string) {
+  async moveSession(id: string, projectId?: string) {
     const generation = this.generation
     try {
       await this.require('moveSession')(id, projectId)
@@ -953,8 +955,24 @@ export class PilotController {
       if (generation === this.generation && id === this.activeSessionId) await this.refreshSession(id, generation, false)
     } catch (error) { if (generation === this.generation && !this.disposed) this.fail(error) }
   }
-  reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) { return this.run(async () => { await this.require('reorderSessions')(scope, ids); await this.refreshList() }) }
-  reorderProjects(ids: string[]) { return this.run(async () => { await this.require('reorderProjects')(ids); await this.refreshList() }) }
+  async reorderSessions(scope: HarnessSessionOrderScope, ids: string[]) {
+    const previous = this.state.sessions
+    const positions = new Map(ids.map((id, index) => [id, index]))
+    const ordered = [...previous].sort((left, right) => (positions.get(left.id) ?? ids.length) - (positions.get(right.id) ?? ids.length))
+    this.update({ sessions: ordered })
+    try { await this.require('reorderSessions')(scope, ids); await this.refreshList(); return true }
+    catch (error) { if (this.state.sessions === ordered) this.update({ sessions: previous }); this.fail(error); return false }
+  }
+  reorderProjects(ids: string[]) {
+    const previous = this.state.projects
+    const positions = new Map(ids.map((id, index) => [id, index]))
+    const ordered = [...previous].sort((left, right) => (positions.get(left.id) ?? ids.length) - (positions.get(right.id) ?? ids.length))
+    this.update({ projects: ordered })
+    return this.run(async () => {
+      try { await this.require('reorderProjects')(ids); this.update({ projects: await this.host.listProjects() }) }
+      catch (error) { if (this.state.projects === ordered) this.update({ projects: previous }); throw error }
+    })
+  }
   setSessionPermission(id: string, mode: PermissionMode) { return this.run(async () => { await this.require('setSessionPermission')(id, mode); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   setSessionSkills(id: string, skillIds: string[]) { return this.run(async () => { await this.require('setSessionSkills')(id, skillIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   setSessionMcpServers(id: string, serverIds: string[]) { return this.run(async () => { await this.require('setSessionMcpServers')(id, serverIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }

@@ -85,7 +85,7 @@ function fixture(options: { history?: string[] | Promise<string[]>; search?: (id
     supportsAttachments: options.attachments ?? false,
     prepare: vi.fn(async () => { state.session = { ...session, id: 'created', draftState: 'prepared' }; return true }),
     open: vi.fn(async (id: string, isCurrent = () => true) => { if (!isCurrent()) return false; state.session = { ...session, id, draftState: 'prepared' }; return true }),
-    moveSession: vi.fn(async (_id: string, projectId: string) => { state.session = { ...state.session!, projectId } }),
+    moveSession: vi.fn(async (_id: string, projectId?: string) => { state.session = { ...state.session!, projectId } }),
     reportError: vi.fn((error: unknown) => { state.error = error instanceof Error ? error.message : String(error) }),
     newConversation: vi.fn(() => { state.session = undefined; state.sessionLoading = false }),
     stageAttachment: vi.fn(async (_id: string, path: string) => ({ path: 'mira-attachment:staged', name: path.split('/').pop()!, size: 20 })),
@@ -824,10 +824,24 @@ describe('group draft lifecycle in the shipped Composer', () => {
     expect((view.inputProps().document as MiraPromptDocument).parts.filter(part => part.type === 'reference').map(part => part.type === 'reference' && part.reference.value)).toEqual(['review-kit@local'])
     await view.key('Enter'); expect(view.api.send.mock.calls[0]?.[5]).toMatchObject({ pluginIds: ['review-kit@local'] })
   })
+  it('shows Chinese built-in agent names through +, @ and / while preserving role identifiers', async () => {
+    const view = fixture(); await view.drain()
+    const labels = ['探索', '审查', '测试', '实现']
+    await view.plus()
+    expect(view.items().filter(item => item.action.type === 'agent').map(item => item.label)).toEqual(labels)
+    for (const trigger of ['@', '/']) {
+      await view.type(trigger)
+      expect(view.items().filter(item => item.action.type === 'agent').map(item => item.label)).toEqual(labels)
+      await view.type(`${trigger}审查`)
+      expect(view.items().filter(item => item.action.type === 'agent').map(item => item.id)).toEqual(['agent-reviewer'])
+    }
+    await view.select('agent-reviewer')
+    expect(view.text()).toBe('@reviewer ')
+  })
   it('offers the actual child roles as atomic hints without running or changing delegation', async () => {
     const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
     await view.type('前文 /rev 后文', 7)
-    expect(view.items().some(item => item.id === 'agent-reviewer')).toBe(true)
+    expect(view.items().find(item => item.id === 'agent-reviewer')?.label).toBe('审查')
     await view.select('agent-reviewer')
     expect(view.text()).toBe('前文 @reviewer  后文')
     expect((view.inputProps().document as MiraPromptDocument).parts).toContainEqual({ type: 'reference', reference: expect.objectContaining({ kind: 'agent', value: 'reviewer', label: '审查', text: '@reviewer' }) })
@@ -938,6 +952,31 @@ describe('group draft lifecycle in the shipped Composer', () => {
     expect(view.items().find(item => item.action.value === 'review-kit:ready')).toMatchObject({ disabled: true, description: '同名插件冲突，请先停用其中一个' })
   })
 
+  it('shows Chinese built-in command names and finds each command by Chinese or English', async () => {
+    const view = fixture({ goals: true, sideConversation: true }); await view.drain()
+    await view.type('/')
+    const commands = view.items().filter(item => item.id.startsWith('command-'))
+    expect(commands.map(item => [item.action.value, item.label])).toEqual([
+      ['goal', '持续目标'], ['workflow', '工作流'], ['files', '添加文件'], ['skills', '引用技能'],
+      ['mcp', 'MCP 服务'], ['model', '切换模型'], ['compact', '压缩上下文'], ['thinking', '推理强度'],
+      ['plan', '计划模式'], ['side', '侧边对话'], ['btw', '侧边对话（别名）'],
+      ['delegation', '子任务委派'], ['memory', '保存记忆'], ['perm', '权限模式'],
+    ])
+    for (const command of commands) {
+      for (const query of [command.label, command.action.value]) {
+        await view.type(`/${query}`)
+        expect(view.items()[view.panelProps().selectedIndex as number]?.id).toBe(command.id)
+      }
+    }
+    await view.type('/持续目标'); await view.select('command-goal')
+    expect(view.text()).toBe('/goal ')
+    await view.type('前文 /workflow 后文', 9); await view.select('command-workflow')
+    expect(view.text()).toBe('前文 /workflow  后文')
+    await view.type('/计划模式'); await view.select('command-plan')
+    expect(view.text()).toBe('')
+    expect(view.inputProps().planning).toBe(true)
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
   it('keeps candidate aria ownership stable across queries and scopes option identity to its Composer', async () => {
     const view = fixture(); await view.drain(); await view.type('/')
     const listId = view.panelProps().listId
@@ -1452,6 +1491,30 @@ describe('group draft lifecycle in the shipped Composer', () => {
     await view.key('Enter'); expect(view.api.prepare).toHaveBeenCalledWith('project', expect.any(Function))
   })
 
+  it.each([false, true])('shows the personal workspace after its new-task entry and keeps the draft (prepared: %s)', async prepared => {
+    const view = fixture({ attachments: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.type('保留个人任务输入'); await view.handle.current!.startDraft('first', 'project'); await view.drain()
+    if (prepared) { await view.plus(); await view.select('attach-files'); await view.drain() }
+    const owner = view.onDraftChange.mock.lastCall![0]!
+    expect(await view.handle.current!.startDraft(undefined, null, () => true)).toBe(true); await view.drain()
+    expect(JSON.stringify(view.props(p => p['aria-label'] === '选择项目').children)).toContain('个人工作区')
+    expect(view.props(p => typeof p.onValueChange === 'function' && p.value === '')).toBeDefined()
+    expect(view.text()).toBe('保留个人任务输入')
+    expect(view.onDraftChange.mock.lastCall![0]).toEqual({ ...owner, groupId: undefined, visible: true })
+    if (prepared) {
+      expect(view.api.moveSession).toHaveBeenCalledExactlyOnceWith('created', undefined)
+      expect(view.state.session?.projectId).toBeUndefined()
+      expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+      expect(view.api.prepare).toHaveBeenCalledOnce()
+    } else {
+      expect(view.api.moveSession).not.toHaveBeenCalled()
+      await view.handle.current!.prepareSession(); await view.drain()
+      expect(view.api.prepare).toHaveBeenCalledWith(undefined, expect.any(Function))
+    }
+    await view.handle.current!.startDraft(undefined, 'project'); await view.drain()
+    expect(JSON.stringify(view.props(p => p['aria-label'] === '选择项目').children)).toContain('Project')
+  })
+
   it.each(['anonymous', 'prepared'] as const)('hides the project strip while suggestions are open in a %s draft and restores it on Escape', async kind => {
     const view = fixture(); view.state.session = kind === 'anonymous' ? undefined : { ...view.state.session!, draftState: 'prepared' }; view.render(); await view.drain()
     const strip = () => view.props(p => p.className === 'harness-composer__project-strip')
@@ -1466,19 +1529,63 @@ describe('group draft lifecycle in the shipped Composer', () => {
     expect(strip().style).toEqual({ visibility: undefined }); expect(view.text()).toBe('/')
   })
 
-  it('keeps project context visible after preparing an unsent draft and hides it for an established task', async () => {
+  it('keeps project selection available after preparing an unsent draft and hides it for an established task', async () => {
     const view = fixture(); Object.assign(view.api, { supportsGitActions: true }); view.state.projects[0] = { ...view.state.projects[0], isGitRepository: true }; view.state.session = undefined; view.render(); await view.drain()
     await view.handle.current!.startDraft(undefined, 'project'); await view.drain()
     expect(view.props(p => p['aria-label'] === '选择项目')).toBeDefined()
     await view.handle.current!.prepareSession(); view.render(); await view.drain()
     expect(view.state.session?.draftState).toBe('prepared')
-    expect(view.props(p => p['aria-label'] === '当前项目').children).toEqual(expect.arrayContaining([expect.objectContaining({ props: { children: 'Project' } })]))
-    expect(() => view.props(p => p['aria-label'] === '选择项目')).toThrow('Composer control not found')
+    expect(view.props(p => p['aria-label'] === '选择项目').disabled).toBe(false)
     view.state.session = { ...view.state.session!, projectId: undefined }; view.render(); await view.drain()
-    expect(view.props(p => p['aria-label'] === '当前项目').children).toEqual(expect.arrayContaining([expect.objectContaining({ props: { children: '个人工作区' } })]))
+    expect(view.props(p => p['aria-label'] === '选择项目').disabled).toBe(false)
     view.state.session = { ...view.state.session!, projectId: 'project', draftState: undefined }; view.render(); await view.drain()
     expect(() => view.props(p => p['aria-label'] === '当前项目')).toThrow('Composer control not found')
     expect(() => view.props(p => p.className === 'harness-composer__project-strip')).toThrow('Composer control not found')
+  })
+
+  it('switches a prepared attachment draft between projects and outside projects without replacing its owner', async () => {
+    const view = fixture({ attachments: true }); view.state.session = undefined; view.render(); await view.drain()
+    await view.handle.current!.startDraft(undefined, 'project'); await view.type('保留输入与附件')
+    await view.plus(); await view.select('attach-files'); await view.drain()
+    const owner = view.onDraftChange.mock.lastCall![0]
+    for (const target of ['other', '', 'project']) {
+      await (view.props(p => p.onValueChange && p.value === (view.state.session?.projectId || '')).onValueChange as (id: string) => Promise<void>)(target)
+      await view.drain()
+      expect(view.state.session?.projectId).toBe(target || undefined)
+      expect(view.props(p => p['aria-label'] === '选择项目').disabled).toBe(false)
+      expect(view.text()).toBe('保留输入与附件')
+      expect(view.attachmentPaths()).toEqual(['mira-attachment:fixture'])
+      expect(view.onDraftChange.mock.lastCall![0]).toEqual(owner)
+    }
+    expect(view.api.moveSession.mock.calls).toEqual([['created', 'other'], ['created', undefined], ['created', 'project']])
+    expect(view.api.prepare).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the selector and original draft usable after a project switch fails', async () => {
+    const view = fixture(); view.state.session = undefined; view.render(); await view.drain()
+    await view.handle.current!.startDraft(undefined, 'project'); await view.type('项目切换失败也保留')
+    await view.handle.current!.prepareSession(); view.render(); await view.drain()
+    view.api.moveSession.mockImplementationOnce(async () => { view.state.error = '目标项目不可用' })
+    await (view.props(p => p.onValueChange && p.value === 'project').onValueChange as (id: string) => Promise<void>)('other'); await view.drain()
+    expect(view.state.session?.projectId).toBe('project')
+    expect(view.text()).toBe('项目切换失败也保留')
+    expect(view.props(p => p['aria-label'] === '选择项目').disabled).toBe(false)
+  })
+
+  it('does not apply a late draft project switch to a newly selected conversation or issue duplicate moves', async () => {
+    const view = fixture(); view.state.session = undefined; view.render(); await view.drain()
+    await view.handle.current!.startDraft(undefined, 'project'); await view.type('原项目草稿')
+    await view.handle.current!.prepareSession(); view.render(); await view.drain()
+    const move = deferred<void>()
+    view.api.moveSession.mockImplementationOnce(async () => { await move.promise })
+    const change = view.props(p => p.onValueChange && p.value === 'project').onValueChange as (id: string) => Promise<void>
+    const pending = change('other'); await view.drain()
+    await change('third'); expect(view.api.moveSession).toHaveBeenCalledOnce()
+    view.state.session = { ...view.state.sessions[0], projectId: 'new-project' }; view.render(); await view.drain()
+    move.resolve(); await pending; await view.drain()
+    expect(view.state.session.projectId).toBe('new-project')
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenLastCalledWith('harness-react-composer-drafts', expect.objectContaining({ config: expect.objectContaining({ projectId: 'project' }), drafts: expect.objectContaining({ created: '原项目草稿' }) }), true)
   })
 
   it('moves a prepared draft to another project while keeping its text and frozen attachment owner', async () => {

@@ -271,6 +271,8 @@ describe('history edit real DOM admission and draft recovery', () => {
     expect(view.input().getAttribute('aria-expanded')).toBe('true')
     const option = document.querySelector<HTMLButtonElement>('[data-suggestion-id="agent-reviewer"]')!
     expect(option.disabled).toBe(false)
+    expect(option.textContent).toContain('审查')
+    expect(option.textContent).not.toContain('reviewer')
     await view.click(option)
     expect(view.input().querySelector('[data-mira-prompt-reference="agent"]')?.textContent).toBe('审查')
     await view.click(view.submit())

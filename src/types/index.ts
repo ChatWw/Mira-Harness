@@ -165,6 +165,7 @@ export interface PlatformApi {
   importSnapshot(snapshot: string): Promise<PlatformSnapshot>
   restoreDefaults(): Promise<PlatformSnapshot>
   setTitleBarChrome(chrome: { color: string; symbolColor: string; height?: number }): Promise<void>
+  openResourceManager(): Promise<void>
   windowCommand(action: string): Promise<void>
   getDesktopZoomFactor?(): number
   onDesktopZoomChanged?(listener: (factor: number) => void): () => void
@@ -239,7 +240,7 @@ export interface PlatformApi {
   saveHarnessProjectMemory(id: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
   setHarnessSessionUnread(id: string, unread: boolean): Promise<import('@/config/harness').HarnessSession>
-  moveHarnessSession(id: string, projectId: string): Promise<import('@/config/harness').HarnessSession>
+  moveHarnessSession(id: string, projectId?: string): Promise<import('@/config/harness').HarnessSession>
   renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
   archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   restoreHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>

@@ -841,16 +841,19 @@ export class HarnessStore {
     return this.saveSession(session)
   }
 
-  moveSession(id: string, projectId: string) {
+  moveSession(id: string, projectId?: string) {
     const session = this.getSession(id)
-    const project = this.getProject(projectId)
+    if (!projectId && session.draftState !== 'prepared') throw new Error('只能将未发送的任务草稿切换到个人工作区')
+    const project = projectId ? this.getProject(projectId) : undefined
+    if (project && !project.directoryExists) throw new Error('所选项目目录不可用，请重新选择')
     const previousProjectId = session.projectId
     this.preserveFileChangeDirectory(session)
-    session.projectId = project.id
-    session.workingDirectory = project.directory
+    session.projectId = project?.id
+    session.workingDirectory = project?.directory || this.paths.workspace
+    if (session.draftState === 'prepared' && previousProjectId !== project?.id) session.activeMcpServerIds = session.activeMcpServerIds?.filter(id => !id.startsWith('project:'))
     const saved = this.saveSession(session)
     if (!saved.pinned) this.promoteSessionOrder(id)
-    if (previousProjectId && previousProjectId !== project.id) {
+    if (previousProjectId && previousProjectId !== project?.id) {
       this.database.prepare(`UPDATE harness_projects SET last_session_at = (
         SELECT MAX(updated_at) FROM harness_sessions WHERE project_id = harness_projects.id AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL
       ) WHERE id = ?`).run(previousProjectId)

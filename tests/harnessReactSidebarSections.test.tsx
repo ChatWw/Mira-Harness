@@ -17,11 +17,11 @@ async function mount(saved: Record<string, unknown> = {}, projectIds = ['p', 'q'
   const write = vi.fn(async (_value: unknown) => undefined)
   const store = new SidebarPreferenceStore(async () => ({ expandedProjectIds: ['p', 'q'], ...saved }), write)
   await store.load()
-  const newTask = vi.fn(), open = vi.fn(), selectProject = vi.fn(async () => project(selectedProjectId))
+  const newTask = vi.fn(), newPersonalTask = vi.fn(), open = vi.fn(), selectProject = vi.fn(async () => project(selectedProjectId))
   const controller = { getSnapshot: () => state, reportError: vi.fn(), open, selectProject, newConversation: vi.fn(), create: vi.fn() } as unknown as PilotController
   const container = document.createElement('div'); container.id = 'root'; document.body.append(container)
   root = createRoot(container)
-  const render = async () => { await act(async () => root!.render(<React.StrictMode><SessionSidebar state={state} controller={controller} width={264} onClose={() => undefined} preferenceStore={store} onNewConversation={newTask} onOpenSession={open} /></React.StrictMode>)) }
+  const render = async () => { await act(async () => root!.render(<React.StrictMode><SessionSidebar state={state} controller={controller} width={264} onClose={() => undefined} preferenceStore={store} onNewConversation={newTask} onNewPersonalConversation={newPersonalTask} onOpenSession={open} /></React.StrictMode>)) }
   await render()
   const section = (id: string) => { const element = document.querySelector<HTMLElement>(`[data-sidebar-section="${id}"]`); if (!element) throw new Error(`Missing section ${id}`); return element }
   const button = (label: string, scope: ParentNode = document) => { const element = scope.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`); if (!element) throw new Error(`Missing button ${label}`); return element }
@@ -29,7 +29,7 @@ async function mount(saved: Record<string, unknown> = {}, projectIds = ['p', 'q'
   const rows = (scope: ParentNode) => [...scope.querySelectorAll('[data-sidebar-session-id]')].map(row => row.getAttribute('data-sidebar-session-id'))
   const collection = (id: string) => section('projects').querySelector<HTMLElement>(`[data-collection-id="sidebar-project:${id}"]`)!
   const toggleProject = async (id: string) => { await click(collection(id).querySelector<HTMLButtonElement>('.mira-collection-title')!) }
-  return { section, button, click, rows, collection, toggleProject, store, write, newTask, open, controller, selectProject, emptyPersonal: async () => { state = { ...state, sessions: state.sessions.filter(session => session.projectId) }; await render() } }
+  return { section, button, click, rows, collection, toggleProject, store, write, newTask, newPersonalTask, open, controller, selectProject, emptyPersonal: async () => { state = { ...state, sessions: state.sessions.filter(session => session.projectId) }; await render() } }
 }
 
 describe('sidebar purpose sections through real React DOM', () => {
@@ -59,6 +59,16 @@ describe('sidebar purpose sections through real React DOM', () => {
     const restored = new SidebarPreferenceStore(async () => view.write.mock.calls.at(-1)?.[0], async () => undefined)
     await restored.load()
     expect(restored.getSnapshot().preferences).toMatchObject({ view: 'group', projectView: 'timeline', groups: [{ collapsed: true }] })
+  })
+
+  it('uses a hash to add groups and only shows sorting options for projects', async () => {
+    const view = await mount({ view: 'group' })
+    expect(document.querySelector('[aria-label="任务排序"]')).toBeNull()
+    expect(view.button('新建分组').querySelector('svg.lucide-hash')).not.toBeNull()
+    expect(view.button('新建分组').querySelector('svg.lucide-plus')).toBeNull()
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="tab"][data-state="inactive"]')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true })))
+    await view.store.save()
+    expect(view.button('任务视图选项')).toBeDefined()
   })
 
   it('restores the saved section order without changing expansion, project order or navigation', async () => {
@@ -129,12 +139,13 @@ describe('sidebar purpose sections through real React DOM', () => {
     expect(restored.getSnapshot().preferences).toMatchObject({ projectSectionOpen: true, personalSectionOpen: false })
   })
 
-  it('keeps the personal new-task entry available when empty or folded and uses the existing draft callback', async () => {
+  it('keeps the personal new-task entry available when empty or folded and requests its own workspace', async () => {
     const view = await mount({ personalSectionOpen: false })
     await view.emptyPersonal()
     expect(view.button('个人工作区', view.section('personal')).getAttribute('aria-expanded')).toBe('false')
     await view.click(view.button('在个人工作区新建任务', view.section('personal')))
-    expect(view.newTask).toHaveBeenCalledOnce()
+    expect(view.newPersonalTask).toHaveBeenCalledOnce()
+    expect(view.newTask).not.toHaveBeenCalled()
     expect(view.controller.create).not.toHaveBeenCalled()
     expect(view.open).not.toHaveBeenCalled()
   })

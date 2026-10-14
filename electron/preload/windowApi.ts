@@ -1,6 +1,7 @@
 import { ipcRenderer, webFrame, webUtils } from 'electron'
 
 export const windowApi = {
+  openResourceManager: () => ipcRenderer.invoke('window:resource-open'),
   windowChrome: process.platform === 'darwin' ? 'macos-overlay' : (process.platform === 'win32' ? 'windows-overlay' : 'standard'),
   setTitleBarChrome: (chrome: { color: string; symbolColor: string; height?: number }) => ipcRenderer.invoke('window:set-titlebar-chrome', chrome),
   windowCommand: (action: string) => ipcRenderer.invoke('window:command', action),

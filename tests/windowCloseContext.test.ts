@@ -118,3 +118,17 @@ it.each([-3, 0, 2, 5])('centers native macOS traffic lights on the scaled header
   loaded()
   expect(window.setWindowButtonPosition).toHaveBeenCalledWith(miraTrafficLightPosition(factor))
 })
+
+
+it.each([['CmdOrCtrl+,', '/settings/general'], ['CmdOrCtrl+I', '/settings/about']])('registers global %s on startup and targets the window independently of renderer focus', (accelerator, path) => {
+  setupApplicationMenu()
+  const item = electron.menu.flatMap(menu => menu.submenu || []).find(item => item.accelerator === accelerator)
+  expect(item).toBeDefined()
+  const owner = { webContents: { send: vi.fn() } }, focused = { webContents: { send: vi.fn() } }
+  electron.focused = focused
+  item.click(item, owner)
+  expect(owner.webContents.send).toHaveBeenCalledExactlyOnceWith('window:navigate', path)
+  expect(focused.webContents.send).not.toHaveBeenCalled()
+  item.click(item, undefined)
+  expect(focused.webContents.send).toHaveBeenCalledExactlyOnceWith('window:navigate', path)
+})

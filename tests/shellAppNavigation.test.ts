@@ -30,7 +30,7 @@ const components = {
   RouterView: { render: () => null }, AppIcon: { render: () => null },
   ElConfigProvider: defineComponent({ props: ['size'], setup: (_props, { slots }) => () => slots.default?.() }),
   ElPopover: defineComponent({ props: ['visible'], setup: (props, { slots }) => () => h('div', [slots.reference?.(), props.visible ? slots.default?.() : null]) }),
-  ElTooltip: defineComponent({ props: ['content'], setup: (props, { slots }) => () => h('span', { 'data-tooltip': props.content }, slots.default?.()) }),
+  ElTooltip: defineComponent({ props: ['content'], setup: (props, { slots }) => () => h('span', { 'data-tooltip': props.content }, [slots.default?.(), slots.content?.()]) }),
 }
 const navigationState = (overrides = {}) => ({ type: 'mira:app-navigation-state', revision: 2, canGoBack: true, canGoForward: true, busy: false, snapshot: { entries: [{ kind: 'conversation', sessionId: 'a' }, { kind: 'extensions' }], cursor: 1, detached: false }, ...overrides })
 function mount(component: typeof ActualApp) {
@@ -162,7 +162,7 @@ describe('Shell navigation controls', () => {
     expect(arrows()).toHaveLength(0)
     const { store, send, owner } = connect(); await nextTick()
     expect(arrows().map(node => node.props.disabled)).toEqual([false, false])
-    expect(renderer.all().some(node => node.props['data-tooltip'] === '后退 (⌘[)')).toBe(true)
+    expect(renderer.all().filter(node => node.type === 'kbd').map(node => node.text)).toContain('⌘'); expect(renderer.all().filter(node => node.type === 'kbd').map(node => node.text)).toContain('[')
     ;(arrows()[0].props.onClick as () => void)(); await nextTick()
     expect(send).toHaveBeenCalledOnce(); expect(store.state?.busy).toBe(true); expect(arrows().map(node => node.props.disabled)).toEqual([true, true])
     owner.receive(navigationState({ revision: 3, canGoBack: false, canGoForward: true })); await nextTick()
@@ -175,8 +175,9 @@ describe('Shell navigation controls', () => {
 
   it('labels Windows shortcuts correctly while preserving the global search and settings actions', async () => {
     window.platform!.windowChrome = 'windows-overlay'
+    vi.stubGlobal('navigator', { platform: 'Win32' })
     const renderer = mount(ActualLayout); connect()
-    await nextTick(); expect(renderer.all().some(node => node.props['data-tooltip'] === '后退 (Ctrl+[)')).toBe(true)
+    await nextTick(); expect(renderer.all().filter(node => node.type === 'kbd').map(node => node.text)).toContain('Ctrl'); expect(renderer.all().filter(node => node.type === 'kbd').map(node => node.text)).toContain('[')
     const buttons = renderer.all().filter(node => node.type === 'button')
     ;(buttons.find(node => node.props['aria-label'] === '全局搜索')!.props.onClick as () => void)(); expect(environment.search).toHaveBeenCalledOnce()
     ;(buttons.find(node => node.props['aria-label'] === '设置')!.props.onClick as () => void)()

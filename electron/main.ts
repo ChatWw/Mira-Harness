@@ -58,7 +58,7 @@ app.whenReady().then(async () => {
   setupApplicationMenu()
   createMainWindow({ getCloseWindowBehavior, isQuitting: () => isQuitting, getDesktopZoomLevel: () => services?.database.getSnapshot().preferences.desktopZoomLevel, saveDesktopZoomLevel: level => services?.database.savePreference('desktopZoomLevel', level), legacyNovelApi: { baseUrl: services.localMicroAppServer.getApiBaseUrl('novel'), token: services.legacyNovelApiToken } })
   setupWindowsTray()
-  app.on('activate', showMainWindow)
+  app.on('activate', () => { if (!isQuitting) showMainWindow() })
 })
 
 app.on('window-all-closed', () => {
@@ -69,6 +69,7 @@ app.on('before-quit', event => {
   event.preventDefault()
   if (shutdown) return
   isQuitting = true
+  BrowserWindow.getAllWindows().forEach(window => { if (!window.isDestroyed()) window.hide() })
   destroyTray()
   services?.automationScheduler.stop()
   terminalSessions.closeAll()
@@ -82,7 +83,13 @@ app.on('before-quit', event => {
       await Promise.allSettled([services?.mcpManager.closeAll(), services?.mcpAuthorization.closeAll(), services?.localMicroAppServer.stop()])
     } finally {
       shutdownComplete = true
-      app.quit()
+      // macOS native quit may close every window without terminating after async preparation.
+      // Finish on the actual closed event, after page unload and service persistence complete.
+      const windows = BrowserWindow.getAllWindows()
+      const exitAfterLastWindowClosed = () => { if (BrowserWindow.getAllWindows().length === 0) app.exit(0) }
+      for (const window of windows) window.once('closed', exitAfterLastWindowClosed)
+      if (windows.length === 0) app.exit(0)
+      else app.quit()
     }
   })()
   void shutdown.catch(() => { console.error('[Mira] 桌面服务关闭失败') })

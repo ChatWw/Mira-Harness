@@ -49,6 +49,7 @@ const workspaceFileFailures = [
 
 function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
   const api = {
+    openResourceManager: vi.fn(async () => undefined),
     generateFirstPartyText: vi.fn(async () => 'generated'),
     listNovelProjects: vi.fn(async () => []),
     saveNovelProject: vi.fn(async project => project),
@@ -303,6 +304,7 @@ describe('first-party capability bridge', () => {
     await expectCall('session.archive', { id: 's' })
     await expectCall('session.delete', { id: 's' })
     await expectCall('session.move', { id: 's', projectId: 'p' })
+    await expectCall('session.move', { id: 's' })
     await expectCall('session.reorder', { scope: { type: 'project', projectId: 'p' }, ids: ['a', 'b'] })
     await expectCall('session.reorder', { scope: { type: 'pinned' }, ids: ['a'] })
     await expectCall('session.set-permission', { id: 's', mode: 'auto-approve' })
@@ -620,4 +622,14 @@ describe('first-party capability bridge', () => {
     }
     expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
   })
+})
+
+it('allows only the Harness capability to open the resource window, without navigation', async () => {
+  const allowed = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+  await allowed.request('resources.open')
+  expect(allowed.api.openResourceManager).toHaveBeenCalledOnce(); expect(allowed.navigate).not.toHaveBeenCalled()
+  await expect(allowed.request('resources.open', {})).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  const denied = bridge()
+  await expect(denied.request('resources.open')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  expect(denied.api.openResourceManager).not.toHaveBeenCalled()
 })

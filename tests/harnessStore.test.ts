@@ -454,6 +454,29 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('switches prepared drafts outside projects with their identity and attachments retained', () => {
+    const { root, database, store } = createStore()
+    try {
+      const directory = join(root, 'draft-project'); mkdirSync(directory)
+      const project = store.createProject(directory)
+      const draft = store.createSession(project.id, 'default', true)
+      const attachment = store.importMessageAttachments(draft.id, [{ name: 'draft.txt', mediaType: 'text/plain', data: Buffer.from('保留草稿附件').toString('base64') }])[0]
+      draft.activeMcpServerIds = ['global-tools', 'project:old-tools']
+      store.updateSession(draft)
+      const detached = store.moveSession(draft.id)
+      expect(detached).toMatchObject({ id: draft.id, draftState: 'prepared', activeMcpServerIds: ['global-tools'] })
+      expect(detached.projectId).toBeUndefined()
+      expect(detached.workingDirectory).toBe(store.createSession().workingDirectory)
+      expect(store.getSession(draft.id)).toMatchObject({ workingDirectory: detached.workingDirectory, draftState: 'prepared' })
+      expect(store.resolveMessageAttachments(draft.id, [attachment])[0]).toMatchObject({ name: 'draft.txt', content: '保留草稿附件' })
+      expect(store.moveSession(draft.id, project.id)).toMatchObject({ id: draft.id, projectId: project.id, workingDirectory: directory })
+      expect(store.resolveMessageAttachments(draft.id, [attachment])[0]).toMatchObject({ name: 'draft.txt', content: '保留草稿附件' })
+      const established = store.createSession(project.id)
+      expect(() => store.moveSession(established.id)).toThrow('未发送')
+      expect(store.getSession(established.id).projectId).toBe(project.id)
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('persists independent project and in-column session ordering', () => {
     const { root, database, store } = createStore()
     const directoryA = join(root, 'ordered-project-a')

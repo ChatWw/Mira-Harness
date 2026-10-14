@@ -10,7 +10,7 @@ import type { PilotController } from '../../state/pilot-state'
 import { createTerminalResizeScheduler } from '../../lib/terminal-resize'
 import { miraTerminalWebLinks } from '../../lib/mira-terminal-links'
 
-export function TerminalPanel({ controller, sessionId, active, onOpenAddress, onExit, focusOnActivate = false }: { controller: PilotController; sessionId: string; active: boolean; onOpenAddress?: (url: string) => void; onExit?: () => void; focusOnActivate?: boolean }) {
+export function TerminalPanel({ controller, sessionId, directory, active, onOpenAddress, onExit, focusOnActivate = false }: { controller: PilotController; sessionId: string; directory?: string; active: boolean; onOpenAddress?: (url: string) => void; onExit?: () => void; focusOnActivate?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const scheduleResizeRef = useRef<(() => void) | undefined>(undefined)
@@ -130,7 +130,7 @@ export function TerminalPanel({ controller, sessionId, active, onOpenAddress, on
       terminalIdRef.current = ''; pendingEventsRef.current = []
       links.dispose(); term.dispose(); terminalRef.current = null; scheduleResizeRef.current = undefined
     }
-  }, [controller, sessionId])
+  }, [controller, sessionId, directory])
   useEffect(() => {
     if (active) scheduleResizeRef.current?.()
     else setMenuOpen(false)

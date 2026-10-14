@@ -1,3 +1,4 @@
+import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { fileManagerLabel } from '../../lib/file-manager-label'
 import { SessionDeleteDialog } from './SessionDeleteDialog'
 /*
@@ -7,6 +8,7 @@ import { SessionDeleteDialog } from './SessionDeleteDialog'
  * Upstream license: third-party-licenses/zcode/.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -14,13 +16,14 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import * as SidebarTabs from '@radix-ui/react-tabs'
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, rectIntersection, useDndContext, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Activity, Archive, ArrowDownWideNarrow, ArrowUpToLine, Blocks, CalendarClock, Check, ChevronRight, CircleAlert, Clock3, Copy, Folder, FolderOpen, GripVertical, Hash, ListFilter, ListTree, LoaderCircle, Maximize2, MessageCirclePlus, Minimize2, MoreHorizontal, Pencil, Pin, PinOff, Plus, Search, TerminalSquare, Trash2, X } from 'lucide-react'
+import { Activity, Archive, ArrowDownWideNarrow, ArrowUpToLine, Blocks, CalendarClock, Check, ChevronRight, CircleAlert, Clock3, Copy, Folder, FolderOpen, Hash, ListFilter, ListTree, LoaderCircle, Maximize2, MessageCirclePlus, Minimize2, MoreHorizontal, Pencil, Pin, PinOff, Plus, Search, TerminalSquare, Trash2, X } from 'lucide-react'
 import type { HarnessProject, HarnessSessionOrderScope, HarnessSessionSummary } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
 import { dispatchMiraCommandShortcut } from '../../hooks/useMiraCommandShortcut'
-import { isMiraPrimaryModifier, miraPrimaryKeyShortcuts } from '../../../../../src/platform/workbenchShortcuts'
+import { isMiraPrimaryModifier, miraPrimaryKeyShortcuts, miraShortcutLabel } from '../../../../../src/platform/workbenchShortcuts'
 import { groupSessions, moveSidebarTask, relativeSessionTime, sessionBadge, sessionMarkdown, sidebarRootItems, splitSessionQueues, type SidebarDropTarget } from './session-groups'
 import { SIDEBAR_PREFERENCE_KEY, SidebarPreferenceStore, type SidebarGroupingOrder, type SidebarTaskGroup } from './sidebar-preferences'
+import { collectionSortingStrategy, restrictSidebarCollectionDrag } from './sidebar-drag'
 import { ArchivedSessions } from './ArchivedSessions'
 import { SidebarActionHint, SidebarCollectionSection, type SidebarCollectionProps } from './SidebarCollectionSection'
 import { MiraSidebarSection } from './MiraSidebarSection'
@@ -28,7 +31,7 @@ import { MiraSidebarStickyHeader } from './MiraSidebarStickyHeader'
 import { MiraSidebarVirtualList } from './MiraSidebarVirtualList'
 import { MiraSidebarTaskTitle } from './MiraSidebarTaskTitle'
 import miraLogo from '../../../../../src/asset/mira-logo.png'
-import { beginMiraTaskDrag, endMiraTaskDrag } from '../workspace/MiraTaskGrid'
+import { beginMiraTaskDrag, endMiraTaskDrag, miraTaskPointerDrag } from '../workspace/MiraTaskGrid'
 
 const PROJECT_LIMIT = 6
 const SESSION_LIMIT = 12
@@ -45,6 +48,7 @@ export interface SessionDrawerProps {
   newTaskOpen?: boolean
   onToggleNewTask?: () => void
   onNewConversation?: () => void
+  onNewPersonalConversation?: () => void
   searchRequest?: number
   onClose: () => void
   onOpenExtensions?: () => void
@@ -98,12 +102,14 @@ export function useHarnessSessionShortcuts(onNewConversation: () => void, onSear
   }, [])
 }
 
-export function SessionSidebar({ state, controller, width, activeSessionId = state.session?.id, modal, onNewConversation, searchRequest, onClose, onOpenExtensions, extensionsActive, onOpenSession, onSearch, onOpenAutomations, automationsActive, onNewProjectConversation, draft, onNewGroupConversation, onOpenDraft, onCloseDraft, onOpenProjectFiles, onOpenSessionFiles, onOpenExecution, onOpenModelTrace, taskPaneEntry, preferenceStore: sharedPreferenceStore }: SessionDrawerProps) {
+export function SessionSidebar({ state, controller, width, activeSessionId = state.session?.id, modal, onNewConversation, onNewPersonalConversation, searchRequest, onClose, onOpenExtensions, extensionsActive, onOpenSession, onSearch, onOpenAutomations, automationsActive, onNewProjectConversation, draft, onNewGroupConversation, onOpenDraft, onCloseDraft, onOpenProjectFiles, onOpenSessionFiles, onOpenExecution, onOpenModelTrace, taskPaneEntry, preferenceStore: sharedPreferenceStore }: SessionDrawerProps) {
   const preferenceStore = useMemo(() => sharedPreferenceStore ?? new SidebarPreferenceStore(() => controller.getPreference(SIDEBAR_PREFERENCE_KEY), value => controller.setPreference(SIDEBAR_PREFERENCE_KEY, value, true)), [controller, sharedPreferenceStore])
   const preferenceState = useSyncExternalStore(preferenceStore.subscribe, preferenceStore.getSnapshot)
   const [dragPreview, setDragPreview] = useState<SidebarGroupingOrder>()
   const [draggingId, setDraggingId] = useState('')
   const [draggedGroupId, setDraggedGroupId] = useState('')
+  const [draggedProjectId, setDraggedProjectId] = useState('')
+  const [dragOverlayWidth, setDragOverlayWidth] = useState<number>()
   const [draggedSectionId, setDraggedSectionId] = useState('')
   const dragOrigin = useRef<{ id: string; groupId?: string } | undefined>(undefined)
   const dragActiveId = useRef('')
@@ -111,7 +117,7 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
   const dragDirection = useRef<'before' | 'after'>('after')
   const dragY = useRef(0)
   const previewPosition = useRef<{ x: number; y: number } | undefined>(undefined)
-  const { projectSectionOpen, personalSectionOpen, sectionOrder, expandedProjectIds, view, projectView, sort } = preferenceState.preferences
+  const { projectSectionOpen, personalSectionOpen, sectionOrder, expandedProjectIds, view, projectView, sort: projectSort, groupSort } = preferenceState.preferences
   const { groups, ungroupedSessionOrder, groupedRootOrder } = dragPreview ?? preferenceState.preferences
   const [archived, setArchived] = useState(false)
   const [archivedActions, setArchivedActions] = useState<HTMLDivElement | null>(null)
@@ -135,8 +141,8 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
   const projectSelection = useRef(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const activeProjectId = state.sessions.find(session => session.id === activeSessionId)?.projectId ?? (activeSessionId === state.session?.id ? state.session?.projectId : undefined)
+  const sort = view === 'group' && !archived ? dragPreview ? 'manual' : groupSort : projectSort
   const timeline = view === 'project' && projectView === 'timeline'
-  const commandKey = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl '
   const newTask = () => { if (onNewConversation) onNewConversation(); else controller.newConversation() }
   const openSession = (id: string) => { if (onOpenSession) onOpenSession(id); else void controller.open(id); if (modal) onClose() }
 
@@ -178,13 +184,14 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
   const queues = useMemo(() => splitSessionQueues(model, state.runningSessionIds, Object.keys(state.pendingPermissions)), [model, state.runningSessionIds, state.pendingPermissions])
   const query = search.trim().toLocaleLowerCase()
   const matches = (session: HarnessSessionSummary) => !query || `${session.title} ${session.projectName || ''}`.toLocaleLowerCase().includes(query)
-  const ordered = (sessions: HarnessSessionSummary[], manualOrder?: string[]) => {
-    if (sort === 'manual') {
+  const manualScope = (session: HarnessSessionSummary) => session.pinned ? 'pinned' : session.projectId && state.projects.some(project => project.id === session.projectId) ? `project:${session.projectId}` : 'recent'
+  const ordered = (sessions: HarnessSessionSummary[], manualOrder?: string[], order = sort) => {
+    if (order === 'manual' || view === 'project' && !timeline && !archived && sessions.length > 0 && preferenceState.preferences.manualSessionScopes?.includes(manualScope(sessions[0]))) {
       if (!manualOrder) return sessions
       const positions = new Map(manualOrder.map((id, index) => [id, index]))
       return [...sessions].sort((left, right) => (positions.get(left.id) ?? manualOrder.length) - (positions.get(right.id) ?? manualOrder.length))
     }
-    return [...sessions].sort((left, right) => sort === 'created' ? right.createdAt - left.createdAt : right.updatedAt - left.updatedAt)
+    return [...sessions].sort((left, right) => order === 'created' ? right.createdAt - left.createdAt : right.updatedAt - left.updatedAt)
   }
   const groupBySession = new Map(groups.flatMap(group => group.sessionIds.map(id => [id, group.id] as const)))
   const groupedIds = new Set(groupBySession.keys())
@@ -230,7 +237,7 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
   const rootItems = sidebarRootItems(customGroups.map(item => item.group), ungrouped.map(session => session.id), sort === 'manual' ? groupedRootOrder : [])
   const rootSessionById = new Map(ungrouped.map(session => [session.id, session]))
   const collectionById = new Map(customGroups.map(entry => [entry.group.id, entry]))
-  const sortable = sort === 'manual' && !timeline && !query && !archived && preferenceState.ready
+  const sortable = !timeline && !query && !archived && preferenceState.ready
   const sectionSortable = view === 'project' && !timeline && !query && !archived && preferenceState.ready
   const groupOf = (id: string): GroupId | undefined => {
     const session = sessionById.get(id)
@@ -239,17 +246,20 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     if (view === 'group') { const groupId = groupBySession.get(id); return groupId ? `custom:${groupId}` : 'ungrouped' }
     return session.projectId && projectIds.has(session.projectId) ? `project:${session.projectId}` : 'recent'
   }
-  const idsOf = (group: GroupId) => group === 'pinned' ? model.pinned.map(item => item.id) : group === 'recent' ? model.recent.map(item => item.id) : group === 'ungrouped' ? ungrouped.map(item => item.id) : group.startsWith('custom:') ? groups.find(entry => `custom:${entry.id}` === group)?.sessionIds || [] : model.projects.find(entry => `project:${entry.project.id}` === group)?.sessions.map(item => item.id) || []
-  const resetDrag = () => { dragOrigin.current = undefined; dragActiveId.current = ''; lastDrop.current = undefined; previewPosition.current = undefined; dragY.current = 0; dragDirection.current = 'after'; setDragPreview(undefined); setDraggingId(''); setDraggedGroupId(''); setDraggedSectionId('') }
+  const idsOf = (group: GroupId) => group === 'pinned' ? ordered(model.pinned).map(item => item.id) : group === 'recent' ? ordered(model.recent).map(item => item.id) : group === 'ungrouped' ? ungrouped.map(item => item.id) : group.startsWith('custom:') ? groups.find(entry => `custom:${entry.id}` === group)?.sessionIds || [] : ordered(model.projects.find(entry => `project:${entry.project.id}` === group)?.sessions || []).map(item => item.id)
+  const resetDrag = () => { if (typeof window !== 'undefined') endMiraTaskDrag(); dragOrigin.current = undefined; dragActiveId.current = ''; lastDrop.current = undefined; previewPosition.current = undefined; dragY.current = 0; dragDirection.current = 'after'; setDragPreview(undefined); setDraggingId(''); setDraggedGroupId(''); setDraggedProjectId(''); setDraggedSectionId('') }
   const handleDragStart = ({ active }: DragStartEvent) => {
     resetDrag()
     const id = String(active.id)
     if (id.startsWith('sidebar-section:')) { if (sectionSortable) { dragActiveId.current = id; setDraggedSectionId(id) }; return }
     if (!sortable) return
     dragActiveId.current = id
+    setDragOverlayWidth(active.rect?.current.initial?.width)
+    if (id.startsWith('sidebar-project:')) setDraggedProjectId(id.slice('sidebar-project:'.length))
     if (view === 'group' && id.startsWith('sidebar-group:')) setDraggedGroupId(id.slice('sidebar-group:'.length))
     const session = controller.getSnapshot().sessions.find(item => item.id === id && item.id !== draft?.preparedSessionId)
-    if (view === 'group' && session && !session.pinned) { const groupId = preferenceStore.getSnapshot().preferences.groups.find(group => group.sessionIds.includes(id))?.id; dragOrigin.current = { id, groupId }; setDraggingId(id) }
+    if (session) setDraggingId(id)
+    if (view === 'group' && session && !session.pinned) { const groupId = preferenceStore.getSnapshot().preferences.groups.find(group => group.sessionIds.includes(id))?.id; dragOrigin.current = { id, groupId } }
   }
   const taskDropTarget = (event: DragOverEvent | DragMoveEvent | DragEndEvent): SidebarDropTarget | undefined => {
     if (!event.over) return
@@ -269,8 +279,14 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
   }
   const rootIds = (preferences = preferenceStore.getSnapshot().preferences) => {
     const assigned = new Set(preferences.groups.flatMap(group => group.sessionIds))
-    return ordered(controller.getSnapshot().sessions.filter(session => !session.pinned && !assigned.has(session.id) && session.id !== draft?.preparedSessionId), preferences.ungroupedSessionOrder).map(session => session.id)
+    return ordered(controller.getSnapshot().sessions.filter(session => !session.pinned && !assigned.has(session.id) && session.id !== draft?.preparedSessionId), preferences.ungroupedSessionOrder, preferences.view === 'group' ? preferences.groupSort : preferences.sort).map(session => session.id)
   }
+  // The first manual move starts from the visible recent order, including untouched groups.
+  const groupingOrder = (preferences = preferenceStore.getSnapshot().preferences): SidebarGroupingOrder => ({
+    groups: preferences.groupSort === 'manual' ? preferences.groups : preferences.groups.map(group => ({ ...group, sessionIds: [...group.sessionIds].sort((left, right) => (sessionById.get(right)?.updatedAt ?? 0) - (sessionById.get(left)?.updatedAt ?? 0)) })),
+    ungroupedSessionOrder: rootIds(preferences),
+    groupedRootOrder: preferences.groupSort === 'manual' ? preferences.groupedRootOrder : [],
+  })
   const previewDrop = (event: DragOverEvent | DragMoveEvent) => {
     if (!dragOrigin.current || !sortable) return
     if (event.over?.id === event.active.id) return
@@ -281,15 +297,27 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     if (previewPosition.current?.x === event.delta.x && previewPosition.current.y === event.delta.y) return
     previewPosition.current = { x: event.delta.x, y: event.delta.y }
     lastDrop.current = target
-    setDragPreview(target ? moveSidebarTask(preferenceStore.getSnapshot().preferences, rootIds(), dragOrigin.current.id, target) : undefined)
+    setDragPreview(target ? moveSidebarTask(groupingOrder(), rootIds(), dragOrigin.current.id, target) : undefined)
+  }
+  const pointerTaskDrag = (event: DragMoveEvent | DragEndEvent, drop = false) => {
+    const pointer = event.activatorEvent as PointerEvent | undefined
+    const id = String(event.active.id)
+    if (typeof pointer?.clientX !== 'number' || !(taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(id)) return false
+    return miraTaskPointerDrag(id, pointer.clientX + event.delta.x, pointer.clientY + event.delta.y, drop)
   }
   const handleDragMove = (event: DragMoveEvent) => {
+    pointerTaskDrag(event)
     if (event.delta.y !== dragY.current) { dragDirection.current = event.delta.y > dragY.current ? 'after' : 'before'; dragY.current = event.delta.y }
     previewDrop(event)
   }
   const collisionDetection: CollisionDetection = args => {
     const id = String(args.active.id)
-    if (id.startsWith('sidebar-section:')) return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(container => String(container.id).startsWith('sidebar-section:')) })
+    if (id.startsWith('sidebar-section:')) {
+      const sections = { ...args, droppableContainers: args.droppableContainers.filter(container => String(container.id).startsWith('sidebar-section:')) }
+      const hits = args.pointerCoordinates ? pointerWithin(sections) : []
+      const targets = hits.filter(hit => String(hit.id) !== id)
+      return targets.length ? targets : hits.length ? hits : closestCenter(sections)
+    }
     // A cross-group preview replaces an empty target with the active placeholder.
     // Keep that target while the pointer is inside it, instead of bouncing to an edge.
     if (dragOrigin.current && lastDrop.current && args.pointerCoordinates) {
@@ -300,7 +328,9 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     const containers = args.droppableContainers.filter(container => {
       const targetId = String(container.id)
       const session = sessionById.get(targetId)
-      if (targetId === id) return false
+      // Sortable task lists keep their original slots while siblings translate.
+      // The active slot must remain a target so returning there cancels the swap.
+      if (targetId === id && (id.startsWith('sidebar-') || view === 'group' && groupOf(id) !== 'pinned')) return false
       if (id.startsWith('sidebar-project:')) return targetId.startsWith('sidebar-project:')
       if (id.startsWith('sidebar-group:')) return targetId.startsWith('sidebar-group:') || Boolean(session && !session.pinned && !groupedIds.has(targetId))
       if (view === 'group' && groupOf(id) !== 'pinned') return !targetId.startsWith('sidebar-group:') && (targetId.startsWith('sidebar-head:') || targetId.startsWith('sidebar-tail:') || targetId.startsWith('sidebar-drop:') || targetId === 'sidebar-root:end' || Boolean(session && !session.pinned))
@@ -309,7 +339,9 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     const hits = args.pointerCoordinates ? pointerWithin({ ...args, droppableContainers: containers }) : rectIntersection({ ...args, droppableContainers: containers })
     return hits.length ? hits : closestCenter({ ...args, droppableContainers: containers })
   }
-  function handleDragEnd({ active, over }: DragEndEvent) {
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (pointerTaskDrag(event, true)) { resetDrag(); return }
     if (dragActiveId.current !== String(active.id)) { resetDrag(); return }
     const origin = dragOrigin.current, target = lastDrop.current ?? taskDropTarget({ active, over } as DragEndEvent)
     resetDrag()
@@ -323,24 +355,24 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     if (!sortable || !over || active.id === over.id && !origin) return
     const activeId = String(active.id), overId = String(over.id)
     const preferences = preferenceStore.getSnapshot().preferences
-    if (!preferenceStore.getSnapshot().ready || preferences.sort !== 'manual' || preferences.view !== view || preferences.view === 'project' && preferences.projectView === 'timeline') return
+    if (!preferenceStore.getSnapshot().ready || preferences.view !== view || preferences.view === 'project' && preferences.projectView === 'timeline') return
     if (view === 'group' && !activeId.startsWith('sidebar-group:') && groupOf(activeId) !== 'pinned') {
       const session = controller.getSnapshot().sessions.find(item => item.id === activeId && !item.pinned && item.id !== draft?.preparedSessionId)
       const sourceGroupId = preferences.groups.find(group => group.sessionIds.includes(activeId))?.id
       if (!session || !target || !origin || origin.id !== activeId || origin.groupId !== sourceGroupId) return
       if (target.type === 'session' && !controller.getSnapshot().sessions.some(item => item.id === target.id && !item.pinned)) return
       if (target.type === 'group' && preferences.groups.find(group => group.id === target.id)?.collapsed) return
-      const patch = moveSidebarTask(preferences, rootIds(preferences), activeId, target)
+      const patch = moveSidebarTask(groupingOrder(preferences), rootIds(preferences), activeId, target)
       if (patch) void preferenceStore.applyGroupDrop(patch).catch(() => undefined)
       return
     }
     if (view === 'group' && activeId.startsWith('sidebar-group:')) {
-      const roots = sidebarRootItems(preferences.groups, rootIds(preferences), preferences.groupedRootOrder)
+      const roots = sidebarRootItems(preferences.groups, rootIds(preferences), preferences.groupSort === 'manual' ? preferences.groupedRootOrder : [])
       const activeIndex = roots.findIndex(item => item.type === 'group' && `sidebar-group:${item.id}` === activeId)
       const overIndex = roots.findIndex(item => item.type === 'group' ? `sidebar-group:${item.id}` === overId : item.id === overId)
       if (activeIndex < 0 || overIndex < 0) return
       const next = arrayMove(roots, activeIndex, overIndex)
-      const byId = new Map(preferences.groups.map(group => [group.id, group]))
+      const byId = new Map(groupingOrder(preferences).groups.map(group => [group.id, group]))
       void preferenceStore.applyGroupDrop({ groups: next.filter(item => item.type === 'group').map(item => byId.get(item.id)!), groupedRootOrder: next, ungroupedSessionOrder: next.filter(item => item.type === 'session').map(item => item.id) }).catch(() => undefined)
       return
     }
@@ -355,15 +387,19 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     if (group.startsWith('custom:')) { preferenceStore.updateGroup(group.slice('custom:'.length), { sessionIds: arrayMove(ids, ids.indexOf(activeId), ids.indexOf(overId)) }); return }
     if (group === 'ungrouped') { preferenceStore.change({ ungroupedSessionOrder: arrayMove(ids, ids.indexOf(activeId), ids.indexOf(overId)) }); return }
     const scope: HarnessSessionOrderScope = group === 'pinned' ? { type: 'pinned' } : group === 'recent' ? { type: 'recent' } : { type: 'project', projectId: group.slice('project:'.length) }
-    void controller.reorderSessions(scope, arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))))
+    const scopes = [...new Set([...(preferences.manualSessionScopes ?? []), group])]
+    if (view === 'project') preferenceStore.change({ manualSessionScopes: scopes })
+    void controller.reorderSessions(scope, arrayMove(ids, ids.indexOf(activeId), ids.indexOf(overId))).then(saved => {
+      if (saved === false && preferenceStore.getSnapshot().preferences.manualSessionScopes === scopes) preferenceStore.change({ manualSessionScopes: preferences.manualSessionScopes })
+    })
   }
   const moveTaskToTop = async (id: string) => {
     const { ready, preferences } = preferenceStore.getSnapshot()
-    if (!ready || preferences.view !== 'group' || preferences.sort !== 'manual' || !controller.getSnapshot().sessions.some(session => session.id === id && !session.pinned)) return
+    if (!ready || preferences.view !== 'group' || !controller.getSnapshot().sessions.some(session => session.id === id && !session.pinned)) return
     const roots = rootIds(preferences)
     const group = preferences.groups.find(group => group.sessionIds.includes(id))
-    const near = sidebarRootItems(preferences.groups, roots, preferences.groupedRootOrder).find(item => item.type !== 'session' || item.id !== id)
-    const patch = moveSidebarTask(preferences, roots, id, group ? { type: 'group', id: group.id, position: 'start' } : { type: 'root', near, position: 'before' })
+    const near = sidebarRootItems(preferences.groups, roots, preferences.groupSort === 'manual' ? preferences.groupedRootOrder : []).find(item => item.type !== 'session' || item.id !== id)
+    const patch = moveSidebarTask(groupingOrder(preferences), roots, id, group ? { type: 'group', id: group.id, position: 'start' } : { type: 'root', near, position: 'before' })
     if (patch) await preferenceStore.applyGroupDrop(patch)
   }
   const rowProps = (session: HarnessSessionSummary) => ({ session, state, controller, groups, groupsReady: preferenceState.ready, taskPaneEntry, currentGroupId: groups.find(group => group.sessionIds.includes(session.id))?.id, onMoveGroup: (groupId?: string) => { if (!controller.getSnapshot().sessions.some(item => item.id === session.id)) return; preferenceStore.moveSessionToGroup(session.id, groupId, groups.find(group => group.sessionIds.includes(session.id))?.id ?? null) }, groupedActions: view === 'group' && !session.pinned, onMoveTop: view === 'group' && !session.pinned && sortable ? () => moveTaskToTop(session.id) : undefined, onOpenFiles: onOpenSessionFiles && (session.workingDirectory?.trim() || state.projects.some(project => project.id === session.projectId && project.directoryExists)) ? () => onOpenSessionFiles(session.id) : undefined, onOpenExecution: onOpenExecution ? () => onOpenExecution(session.id) : undefined, onOpenModelTrace: onOpenModelTrace ? () => onOpenModelTrace(session.id) : undefined, archiveConfirming: archiveConfirmingId === session.id, onArchiveConfirmation: (confirming: boolean) => setArchiveConfirmingId(previous => confirming ? session.id : previous === session.id ? '' : previous), sortable, active: !extensionsActive && !automationsActive && !draft?.selected && session.id === activeSessionId, renaming: renamingId === session.id, renameRevision, onBeginRename: () => { renameEpoch.current++; setRenamingId(session.id) }, onRename: (title: string) => controller.renameSession(session.id, title), onCancelRename: () => { if (renameEpoch.current === renameRevision) { renameEpoch.current++; setRenamingId(previous => previous === session.id ? '' : previous) } }, onOpen: () => openSession(session.id) })
@@ -402,11 +438,21 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     finally { setRemoveProjectBusy(false) }
   }
 
+  const overlayGroup = groups.find(group => group.id === draggedGroupId)
+  const overlayProject = state.projects.find(project => project.id === draggedProjectId)
+  const overlaySession = state.sessions.find(session => session.id === draggingId)
+
+  const overlayContainer = document.getElementById('root')
+  const dragOverlay = <DragOverlay dropAnimation={null}>{(overlayGroup || overlayProject || overlaySession) && <div className={`mira-session-drag-overlay${overlayGroup ? ' mira-session-drag-overlay--group' : overlayProject ? ' mira-session-drag-overlay--project' : ' mira-session-drag-overlay--task'}`} data-sidebar-drag-overlay={overlayGroup ? 'group' : overlayProject ? 'project' : 'task'} data-group-color={overlayGroup?.color} style={{ width: dragOverlayWidth }}>
+      {overlayGroup ? <span className="mira-collection-color"><Hash size={12} /></span> : overlayProject ? <Folder size={14} /> : overlaySession?.pinned || view === 'project' ? <Pin size={14} /> : null}<span>{overlayGroup?.name || overlayProject?.name || overlaySession?.title || '新任务'}</span>{overlayGroup && <span className="mira-session-drag-overlay__count">{overlayGroup.sessionIds.filter(id => sessionById.has(id) && !sessionById.get(id)?.pinned).length}</span>}
+      {overlaySession && (view === 'project' ? <Archive size={14} /> : <X size={14} />)}
+    </div>}</DragOverlay>
+
   return <Tooltip.Provider delayDuration={350}><SidebarTabs.Root value={view} onValueChange={value => { if (value === 'group' || value === 'project') { setArchived(false); preferenceStore.change({ view: value }) } }} asChild><aside id="pilot-sessions" className="pilot-nav" style={{ width }} role={modal ? 'dialog' : undefined} aria-modal={modal || undefined} aria-label="会话">
     {modal && <button type="button" className="pilot-drawer__close" aria-label="关闭会话" onClick={onClose}><X size={15} /></button>}
     <nav className="mira-session-actions" aria-label="任务导航">
-      <button type="button" onClick={newTask} aria-label="新建任务" aria-keyshortcuts={miraPrimaryKeyShortcuts('N')}><MessageCirclePlus size={16} /><span>新建任务</span><kbd>{commandKey}N</kbd></button>
-      {!onSearch && <SidebarActionHint title="搜索会话"><button type="button" onClick={() => { setSearchOpen(value => !value); if (searchOpen) setSearch('') }} aria-label="搜索会话" aria-expanded={searchOpen}><Search size={16} /><span>搜索</span><kbd>{commandKey}K</kbd></button></SidebarActionHint>}
+      <button type="button" onClick={newTask} aria-label="新建任务" aria-keyshortcuts={miraPrimaryKeyShortcuts('N')}><MessageCirclePlus size={16} /><span>新建任务</span><ShortcutKeys shortcut={miraShortcutLabel('N')} /></button>
+      {!onSearch && <SidebarActionHint title="搜索会话"><button type="button" onClick={() => { setSearchOpen(value => !value); if (searchOpen) setSearch('') }} aria-label="搜索会话" aria-expanded={searchOpen}><Search size={16} /><span>搜索</span><ShortcutKeys shortcut={miraShortcutLabel('K')} /></button></SidebarActionHint>}
       <button type="button" aria-current={automationsActive ? 'page' : undefined} onClick={onOpenAutomations || (() => void controller.navigate('/workspace/automations'))}><CalendarClock size={16} /><span>自动化</span></button>
       <button type="button" aria-current={extensionsActive ? 'page' : undefined} onClick={onOpenExtensions || (() => void controller.navigate('/settings/personalization'))}><Blocks size={16} /><span>{onOpenExtensions ? '插件市场' : '技能管理'}</span></button>
     </nav>
@@ -414,23 +460,23 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
     <div className="mira-session-toolbar">
       <SidebarTabs.List className="mira-session-view" aria-label="任务视图"><SidebarTabs.Trigger value="group" onClick={() => setArchived(false)}><Hash size={12} aria-hidden="true" />分组</SidebarTabs.Trigger><SidebarTabs.Trigger value="project" onClick={() => setArchived(false)}><Folder size={12} aria-hidden="true" />项目</SidebarTabs.Trigger></SidebarTabs.List>
       {canToggleCollections && <SidebarActionHint title={toggleCollectionsLabel}><button type="button" className="mira-session-icon" aria-label={toggleCollectionsLabel} disabled={!preferenceState.ready} onClick={() => { if (view === 'group') preferenceStore.setGroupsExpanded(!allCollectionsExpanded); else preferenceStore.setProjectsExpanded(toggleableProjects, !allCollectionsExpanded, !allCollectionsExpanded) }}>{allCollectionsExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></SidebarActionHint>}
-      {!archived && view === 'group' && <SidebarActionHint title="新建分组"><button type="button" className="mira-session-icon" aria-label="新建分组" disabled={!preferenceState.ready} onClick={() => setRenamingCollection(`sidebar-group:${preferenceStore.createGroup()}`)}><Plus size={15} /></button></SidebarActionHint>}
+      {!archived && view === 'group' && <SidebarActionHint title="新建分组"><button type="button" className="mira-session-icon" aria-label="新建分组" disabled={!preferenceState.ready} onClick={() => setRenamingCollection(`sidebar-group:${preferenceStore.createGroup()}`)}><Hash size={15} /></button></SidebarActionHint>}
       {!archived && timeline && <SidebarActionHint title="添加项目"><button type="button" className="mira-session-icon" aria-label="添加项目" disabled={!preferenceState.ready || addingProject} onClick={() => { void addProject() }}>{addingProject ? <LoaderCircle size={15} className="pilot-spin" /> : <Plus size={15} />}</button></SidebarActionHint>}
-      <DropdownMenu.Root><SidebarActionHint title={view === 'project' && !archived ? '任务视图选项' : '任务排序'}><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={view === 'project' && !archived ? '任务视图选项' : '任务排序'}>{view === 'project' && !archived ? <ListFilter size={15} /> : <ArrowDownWideNarrow size={15} />}</button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content align="end" sideOffset={6} className="mira-session-menu">
+      {(view === 'project' || archived) && <DropdownMenu.Root><SidebarActionHint title={view === 'project' && !archived ? '任务视图选项' : '任务排序'}><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={view === 'project' && !archived ? '任务视图选项' : '任务排序'}>{view === 'project' && !archived ? <ListFilter size={15} /> : <ArrowDownWideNarrow size={15} />}</button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content align="end" sideOffset={6} className="mira-session-menu">
         {!archived && view === 'project' && <><DropdownMenu.Label className="mira-session-menu__label">显示方式</DropdownMenu.Label><DropdownMenu.RadioGroup value={projectView} onValueChange={value => { if (value === 'collections' || value === 'timeline') { preferenceStore.change({ projectView: value }); setTimelineLimit(TIMELINE_PAGE_SIZE) } }}><DropdownMenu.RadioItem value="collections" className="mira-session-menu__item"><Folder size={14} />按项目<DropdownMenu.ItemIndicator className="mira-session-menu__arrow"><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem><DropdownMenu.RadioItem value="timeline" className="mira-session-menu__item"><Clock3 size={14} />时间线<DropdownMenu.ItemIndicator className="mira-session-menu__arrow"><Check size={13} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem></DropdownMenu.RadioGroup><DropdownMenu.Separator className="mira-session-menu__separator" /></>}
-        <DropdownMenu.Label className="mira-session-menu__label">任务排序</DropdownMenu.Label><DropdownMenu.RadioGroup value={timeline ? timelineSort : sort} onValueChange={value => { preferenceStore.change({ sort: value as typeof sort }); setTimelineLimit(TIMELINE_PAGE_SIZE) }}>{[{ id: 'updated', label: '最近更新' }, { id: 'created', label: '创建时间' }, ...(!archived && !timeline ? [{ id: 'manual', label: '手动排序' }] : [])].map(option => <DropdownMenu.RadioItem key={option.id} value={option.id} className="mira-session-menu__item"><span className="mira-session-menu__indicator"><DropdownMenu.ItemIndicator><Check size={13} /></DropdownMenu.ItemIndicator></span>{option.label}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup>
-      </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+        <DropdownMenu.Label className="mira-session-menu__label">任务排序</DropdownMenu.Label><DropdownMenu.RadioGroup value={sort === 'created' ? 'created' : 'updated'} >{[{ id: 'updated', label: '最近更新' }, { id: 'created', label: '创建时间' }].map(option => <DropdownMenu.RadioItem key={option.id} value={option.id} onSelect={() => { preferenceStore.change({ sort: option.id as 'updated' | 'created', manualSessionScopes: [] }); setTimelineLimit(TIMELINE_PAGE_SIZE) }} className="mira-session-menu__item"><span className="mira-session-menu__indicator"><DropdownMenu.ItemIndicator><Check size={13} /></DropdownMenu.ItemIndicator></span>{option.label}</DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup>
+      </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>}
       {archived && <div ref={setArchivedActions} className="mira-session-archived-actions" />}
       <SidebarActionHint title={archived ? '返回任务列表' : '查看已归档任务'}><button type="button" className="mira-session-icon" aria-label={archived ? '返回任务列表' : '查看已归档任务'} aria-pressed={archived} onClick={() => setArchived(value => !value)}>{archived ? <X size={15} /> : <Archive size={15} />}</button></SidebarActionHint>
     </div>
     {preferenceState.error && <div className="mira-session-feedback" role="alert"><CircleAlert size={13} /><span>{preferenceState.error}</span><button type="button" onClick={() => void preferenceStore.retry().catch(() => undefined)}>重试</button></div>}
     {projectSelectionError && view === 'project' && !archived && <p className="mira-session-feedback" role="alert">{projectSelectionError}</p>}
-    <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={previewDrop} onDragCancel={resetDrag} onDragEnd={handleDragEnd}><SidebarDropMeasurements preview={dragPreview} /><SidebarTabs.Content value={view} className="mira-session-scroll" tabIndex={-1}><MiraSidebarStickyHeader scrollElement={sidebarScrollElement} groups={stickyGroups} active={view === 'group' && !archived} dragging={Boolean(draggingId || draggedGroupId || draggedSectionId)} onToggle={id => { const group = preferenceStore.getSnapshot().preferences.groups.find(group => group.id === id); if (group) preferenceStore.updateGroup(id, { collapsed: !group.collapsed }) }} onNewTask={createGroupTask} onColor={(id, color) => preferenceStore.updateGroup(id, { color })} onUngroup={id => preferenceStore.removeGroup(id)} onError={error => controller.reportError(error)} /><div ref={setSidebarScrollElement} className="mira-session-list">
-      {pinned.length > 0 && <GroupSection title="置顶" icon={<Pin size={12} />}>{renderRows(pinned, pinned.length)}</GroupSection>}
+    <DndContext sensors={sensors} modifiers={[restrictSidebarCollectionDrag]} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={previewDrop} onDragCancel={resetDrag} onDragEnd={handleDragEnd}><SidebarDragCursor /><SidebarDropMeasurements preview={dragPreview} /><SidebarTabs.Content value={view} className="mira-session-scroll" tabIndex={-1}><MiraSidebarStickyHeader scrollElement={sidebarScrollElement} groups={stickyGroups} active={view === 'group' && !archived} dragging={Boolean(draggingId || draggedGroupId || draggedProjectId || draggedSectionId)} onToggle={id => { const group = preferenceStore.getSnapshot().preferences.groups.find(group => group.id === id); if (group) preferenceStore.updateGroup(id, { collapsed: !group.collapsed }) }} onNewTask={createGroupTask} onColor={(id, color) => preferenceStore.updateGroup(id, { color })} onUngroup={id => preferenceStore.removeGroup(id)} onError={error => controller.reportError(error)} /><div ref={setSidebarScrollElement} className="mira-session-list">
+      {pinned.length > 0 && <GroupSection title="置顶" icon={<Pin size={12} />}>{renderRows(pinned, pinned.length, sortable && (view !== 'group' || sort === 'manual'))}</GroupSection>}
       {archived ? <ArchivedSessions controller={controller} sort={sort === 'created' ? 'created' : 'updated'} refreshKey={state.sessions.map(item => item.id).join(',')} activeId={extensionsActive || automationsActive ? undefined : activeSessionId ?? undefined} active={!extensionsActive && !automationsActive} actionsContainer={archivedActions} onOpen={openSession} /> : <>
       {timeline && <><div aria-label="任务时间线">{timelineGroups.map(group => <GroupSection key={group.label} title={group.label}>{renderRows(group.sessions, group.sessions.length, false, true)}</GroupSection>)}</div>{!query && timelineSessions.length > timelineLimit && <button type="button" className="mira-session-more" onClick={() => setTimelineLimit(limit => limit + TIMELINE_PAGE_SIZE)}>显示更多任务</button>}{!timelineSessions.length && !query && <p className="mira-session-hint">暂无任务</p>}</>}
       {!timeline && <>
-      {view === 'group' ? <div data-sidebar-root role="group" aria-label="分组任务">{!draftGroupId && draftRow}<SortableContext items={rootItems.map(item => item.type === 'group' ? `sidebar-group:${item.id}` : item.id)} strategy={verticalListSortingStrategy}><MiraSidebarVirtualList items={rootItems} getItemKey={item => item.type === 'group' ? `sidebar-group:${item.id}` : item.id} scrollElement={sidebarScrollElement} listId="root" retainedKeys={[...retainedSessionKeys, ...groups.filter(group => group.sessionIds.some(id => retainedSessionKeys.includes(id))).map(group => `sidebar-group:${group.id}`), ...(draggedGroupId ? [`sidebar-group:${draggedGroupId}`] : []), renamingCollection].filter(Boolean)} estimateSize={item => item.type === 'session' ? 35 : 40 + (collectionById.get(item.id)?.group.collapsed ? 0 : Math.min(collectionById.get(item.id)?.sessions.length ?? 0, 24) * 35)} renderItem={item => {
+      {view === 'group' ? <div data-sidebar-root role="group" aria-label="分组任务">{!draftGroupId && draftRow}<SortableContext items={rootItems.map(item => item.type === 'group' ? `sidebar-group:${item.id}` : item.id)} strategy={draggedGroupId ? collectionSortingStrategy : verticalListSortingStrategy}><MiraSidebarVirtualList items={rootItems} getItemKey={item => item.type === 'group' ? `sidebar-group:${item.id}` : item.id} scrollElement={sidebarScrollElement} listId="root" retainedKeys={[...retainedSessionKeys, ...groups.filter(group => group.sessionIds.some(id => retainedSessionKeys.includes(id))).map(group => `sidebar-group:${group.id}`), ...(draggedGroupId ? [`sidebar-group:${draggedGroupId}`] : []), renamingCollection].filter(Boolean)} estimateSize={item => item.type === 'session' ? 35 : 40 + (collectionById.get(item.id)?.group.collapsed ? 0 : Math.min(collectionById.get(item.id)?.sessions.length ?? 0, 24) * 35)} renderItem={item => {
         if (item.type === 'session') {
           const entry = rootSessionById.get(item.id)
           return entry ? <SessionRow key={item.id} {...rowProps(entry)} /> : null
@@ -439,23 +485,23 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
         const { group, sessions } = entry
         const hasDraft = showDraft && draftGroupId === group.id
         return <SidebarTaskCollection key={group.id} id={`sidebar-group:${group.id}`} name={group.name} color={group.color} count={sessions.length + (hasDraft ? 1 : 0)} {...collectionStatus(sessions)} expanded={Boolean(query) || !group.collapsed && group.id !== draggedGroupId} sortable={sortable} renaming={renamingCollection === `sidebar-group:${group.id}`} onToggle={() => preferenceStore.updateGroup(group.id, { collapsed: !group.collapsed })} onBeginRename={() => setRenamingCollection(`sidebar-group:${group.id}`)} onCancelRename={() => setRenamingCollection('')} onRename={name => preferenceStore.updateGroup(group.id, { name })} onColor={color => preferenceStore.updateGroup(group.id, { color })} onNewTask={() => createGroupTask(group.id)} onUngroup={() => preferenceStore.removeGroup(group.id)}>{hasDraft && draftRow}{renderRows(sessions, sessions.length, sortable, false, `group:${group.id}`)}{!sessions.length && !hasDraft && <SidebarEmptyDropZone groupId={group.id} name={group.name} disabled={!sortable} onNewTask={() => void createGroupTask(group.id).catch(error => controller.reportError(error))} />}</SidebarTaskCollection>
-      }} /></SortableContext><SidebarRootDropZone disabled={!sortable} dragging={Boolean(draggingId)} /></div> : <SortableContext items={sectionOrder.map(id => `sidebar-section:${id}`)} strategy={verticalListSortingStrategy}>{sectionOrder.map(sectionId => sectionId === 'projects' ? <MiraSidebarSection key="projects" sortable={sectionSortable} id="projects" title="项目" open={Boolean(query) || projectSectionOpen} disabled={!preferenceState.ready} onOpenChange={open => { if (!query) preferenceStore.change({ projectSectionOpen: open }) }} action={<SidebarActionHint title="添加项目"><button type="button" className="mira-session-icon" aria-label="添加项目" disabled={!preferenceState.ready || addingProject} onClick={() => { void addProject() }}>{addingProject ? <LoaderCircle size={15} className="pilot-spin" /> : <Plus size={15} />}</button></SidebarActionHint>}><SortableContext items={projects.map(({ project }) => `sidebar-project:${project.id}`)} strategy={verticalListSortingStrategy}>
+      }} /></SortableContext><SidebarRootDropZone disabled={!sortable} dragging={Boolean(draggingId)} /></div> : <SortableContext items={sectionOrder.map(id => `sidebar-section:${id}`)} strategy={verticalListSortingStrategy}>{sectionOrder.map(sectionId => sectionId === 'projects' ? <MiraSidebarSection key="projects" sortable={sectionSortable} id="projects" title="项目" open={Boolean(query) || projectSectionOpen} disabled={!preferenceState.ready} onOpenChange={open => { if (!query) preferenceStore.change({ projectSectionOpen: open }) }} action={<SidebarActionHint title="添加项目"><button type="button" className="mira-session-icon" aria-label="添加项目" disabled={!preferenceState.ready || addingProject} onClick={() => { void addProject() }}>{addingProject ? <LoaderCircle size={15} className="pilot-spin" /> : <Plus size={15} />}</button></SidebarActionHint>}><SortableContext items={projects.map(({ project }) => `sidebar-project:${project.id}`)} strategy={collectionSortingStrategy}>
         {projects.map(({ project, sessions }) => {
-          const expanded = Boolean(query) || expandedProjectIds.includes(project.id)
+          const expanded = Boolean(query) || expandedProjectIds.includes(project.id) && project.id !== draggedProjectId
           const limit = projectTaskLimits[project.id] ?? PROJECT_SESSION_LIMIT
           return <SidebarCollectionSection key={project.id} id={`sidebar-project:${project.id}`} name={project.name} directory={project.directory} count={sessions.length} {...collectionStatus(sessions)} expanded={expanded} sortable={sortable} unavailableReason={!project.directoryExists ? '项目目录不可用，请恢复原路径后重新打开项目；历史任务仍可查看。' : undefined} renaming={renamingCollection === `sidebar-project:${project.id}`} onToggle={() => { if (preferenceState.ready) preferenceStore.setProjectsExpanded([project.id], !expandedProjectIds.includes(project.id)) }} onBeginRename={() => setRenamingCollection(`sidebar-project:${project.id}`)} onCancelRename={() => setRenamingCollection('')} onRename={name => controller.renameProject(project.id, name)} onNewTask={() => onNewProjectConversation ? onNewProjectConversation(project.id) : controller.create(project.id).then(() => undefined)} onOpenFiles={onOpenProjectFiles ? () => onOpenProjectFiles(project.id) : undefined} onOpenDirectory={target => controller.openProject(project.id, target)} onRemove={controller.supportsProjectRemoval ? () => { setRemoveProjectError(''); setRemovingProject(project) } : undefined}>{renderRows(sessions, query ? sessions.length : limit)}{!sessions.length && <p className="mira-session-hint">暂无任务</p>}{sessions.length > limit && !query && <button type="button" className="mira-session-more" aria-label={`显示 ${project.name} 的更多任务`} onClick={() => setProjectTaskLimits(previous => ({ ...previous, [project.id]: (previous[project.id] ?? PROJECT_SESSION_LIMIT) + PROJECT_SESSION_LIMIT }))}>显示更多</button>}</SidebarCollectionSection>
         })}
         </SortableContext>
         {allProjects.length > PROJECT_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllProjects(value => !value)}>{showAllProjects ? '收起项目' : '显示更多项目'}</button>}
         {!allProjects.length && !query && <p className="mira-session-hint">添加项目以开始工作。</p>}</MiraSidebarSection>
-        : <MiraSidebarSection key="personal" sortable={sectionSortable} id="personal" title="个人工作区" open={Boolean(query) || personalSectionOpen} disabled={!preferenceState.ready} onOpenChange={open => { if (!query) preferenceStore.change({ personalSectionOpen: open }) }} action={<SidebarActionHint title="新建个人任务"><button type="button" className="mira-session-icon" aria-label="在个人工作区新建任务" onClick={newTask}><MessageCirclePlus size={14} /></button></SidebarActionHint>}>{renderRows(ordered(model.recent.filter(matches)), showAllRecent || query ? model.recent.length : SESSION_LIMIT)}{!model.recent.length && !query && <p className="mira-session-hint">暂无个人任务</p>}{model.recent.length > SESSION_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllRecent(value => !value)}>{showAllRecent ? '收起' : '显示更多'}</button>}</MiraSidebarSection>
+        : <MiraSidebarSection key="personal" sortable={sectionSortable} id="personal" title="个人工作区" open={Boolean(query) || personalSectionOpen} disabled={!preferenceState.ready} onOpenChange={open => { if (!query) preferenceStore.change({ personalSectionOpen: open }) }} action={<SidebarActionHint title="新建个人任务"><button type="button" className="mira-session-icon" aria-label="在个人工作区新建任务" onClick={onNewPersonalConversation || newTask}><MessageCirclePlus size={14} /></button></SidebarActionHint>}>{renderRows(ordered(model.recent.filter(matches)), showAllRecent || query ? model.recent.length : SESSION_LIMIT)}{!model.recent.length && !query && <p className="mira-session-hint">暂无个人任务</p>}{model.recent.length > SESSION_LIMIT && !query && <button type="button" className="mira-session-more" onClick={() => setShowAllRecent(value => !value)}>{showAllRecent ? '收起' : '显示更多'}</button>}</MiraSidebarSection>
       )}</SortableContext>}
       {query && !pinned.length && !attention.length && !running.length && !recent.length && !(view === 'group' && showDraft) && <p className="mira-session-hint">没有匹配的任务</p>}
       {!query && !sessions.length && !(view === 'group' && showDraft) && <p className="mira-session-hint">新建任务后，对话会显示在这里。</p>}
       </>}
       {timeline && query && !pinned.length && !timelineSessions.length && <p className="mira-session-hint">没有匹配的任务</p>}
       </>}
-    </div></SidebarTabs.Content><DragOverlay dropAnimation={null}>{draggingId && <div className="mira-session-drag-overlay"><MessageCirclePlus size={13} /><span>{state.sessions.find(session => session.id === draggingId)?.title || '新任务'}</span></div>}</DragOverlay></DndContext>
+    </div></SidebarTabs.Content>{/* The live preview is already at the drop position; avoid animating a second copy. */}{overlayContainer ? createPortal(dragOverlay, overlayContainer) : dragOverlay}</DndContext>
     <SidebarFooter />
     {removingProject && <Dialog.Root open onOpenChange={open => { if (!open && !removeProjectBusy) { setRemovingProject(undefined); setRemoveProjectError('') } }}><Dialog.Portal container={document.getElementById('root')}><Dialog.Overlay className="mira-confirm-overlay" /><Dialog.Content className="mira-confirm" onEscapeKeyDown={event => { if (removeProjectBusy) event.preventDefault() }} onPointerDownOutside={event => { if (removeProjectBusy) event.preventDefault() }}><Dialog.Title>{`移除项目「${removingProject.name}」？`}</Dialog.Title><Dialog.Description>该项目的全部任务、对话与相关自动化会一并从 Mira 删除，磁盘文件不受影响；项目内仍有运行中的任务时请先停止。</Dialog.Description>{removeProjectError && <p className="mira-confirm-error" role="alert">{removeProjectError}</p>}<div className="mira-confirm-actions"><button type="button" disabled={removeProjectBusy} onClick={() => { setRemovingProject(undefined); setRemoveProjectError('') }}>取消</button><button type="button" className="mira-confirm-danger" aria-label="确认移除项目" disabled={removeProjectBusy} onClick={() => void confirmRemoveProject()}>{removeProjectBusy ? <><LoaderCircle size={14} className="pilot-spin" />正在移除…</> : '移除项目'}</button></div><SidebarActionHint title="关闭移除确认"><Dialog.Close asChild><button type="button" className="mira-confirm-close mira-session-icon" aria-label="关闭移除确认" disabled={removeProjectBusy}><X size={16} /></button></Dialog.Close></SidebarActionHint></Dialog.Content></Dialog.Portal></Dialog.Root>}
   </aside></SidebarTabs.Root></Tooltip.Provider>
@@ -515,6 +561,16 @@ function SidebarEmptyDropZone({ groupId, name, disabled, onNewTask }: { groupId:
 function SidebarRootDropZone({ disabled, dragging }: { disabled: boolean; dragging: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'sidebar-root:end', disabled })
   return <div ref={setNodeRef} data-sidebar-drop-id="sidebar-root:end" className={`mira-sidebar-root-drop${dragging ? ' is-dragging' : ''}${isOver ? ' is-over' : ''}`}>{dragging && <span>移出分组</span>}</div>
+}
+
+function SidebarDragCursor() {
+  const { active } = useDndContext()
+  useEffect(() => {
+    if (!active) return
+    document.documentElement.classList.add('mira-sidebar-dragging')
+    return () => document.documentElement.classList.remove('mira-sidebar-dragging')
+  }, [Boolean(active)])
+  return null
 }
 
 function SidebarDraftRow({ draft, active, onOpen, onClose }: { draft: NonNullable<SessionDrawerProps['draft']>; active: boolean; onOpen: () => void; onClose: () => void }) {
@@ -582,7 +638,7 @@ function SessionRow({ session, state, controller, groups, groupsReady, currentGr
   const archiveLabel = `${groupedActions ? '关闭' : archiveConfirming ? '确认归档' : '归档'} ${session.title || '新任务'}`
   return <ContextMenu.Root onOpenChange={open => { setContextMenuOpen(open); if (open) onArchiveConfirmation(false) }}>
     <ContextMenu.Trigger asChild disabled={renaming}>
-      <div ref={setRowRef} data-sidebar-session-id={session.id} data-menu-open={menuVisible || undefined} data-pending-interaction={waiting || undefined} data-archive-confirming={archiveConfirming || undefined} aria-busy={busy || savingTitle || undefined} className={`mira-session-row${showProject ? ' mira-session-row--timeline' : ''}${active ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}`} style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
+      <div ref={setRowRef} {...(sortable && !renaming && !busy ? attributes : {})} {...(sortable && !renaming && !busy ? listeners : {})} onKeyDown={event => { if (event.target === event.currentTarget) listeners?.onKeyDown?.(event) }} aria-label={sortable ? `拖拽排序 ${session.title || '新任务'}` : undefined} data-sidebar-draggable={sortable && !renaming && !busy || undefined} data-sidebar-session-id={session.id} data-menu-open={menuVisible || undefined} data-pending-interaction={waiting || undefined} data-archive-confirming={archiveConfirming || undefined} aria-busy={busy || savingTitle || undefined} className={`mira-session-row${showProject ? ' mira-session-row--timeline' : ''}${active ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}`} style={{ transform: isDragging ? undefined : transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
         {renaming ? <form className="mira-session-rename" onSubmit={event => { event.preventDefault(); void rename() }}><input autoFocus value={title} maxLength={42} aria-label="会话标题" disabled={savingTitle} aria-invalid={Boolean(error)} onChange={event => setTitle(event.target.value)} onCompositionStart={() => { composingTitle.current = true }} onCompositionEnd={() => { composingTitle.current = false }} onKeyDown={event => {
           if (event.key !== 'Enter' && event.key !== 'Escape') return
           const ime = composingTitle.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
@@ -592,9 +648,8 @@ function SessionRow({ session, state, controller, groups, groupsReady, currentGr
           if (event.key === 'Enter') void rename()
           else if (!renameRequest.current) onCancelRename()
         }} /><SidebarActionHint title="保存标题"><button type="submit" aria-label="保存标题" disabled={savingTitle || !title.trim()}>{savingTitle ? <LoaderCircle size={14} className="pilot-spin" /> : <Check size={14} />}</button></SidebarActionHint></form> : <>
-          {sortable && <SidebarActionHint suspended={menuVisible || isDragging} title="拖拽排序"><button type="button" className="mira-session-row__grip" aria-label={`拖拽排序 ${session.title}`} {...attributes} {...listeners}><GripVertical size={12} /></button></SidebarActionHint>}
           {!groupedActions && <SidebarActionHint suspended={menuVisible} title={session.pinned ? '取消置顶' : '置顶'}><button type="button" className="mira-session-row__pin" aria-label={`${session.pinned ? '取消置顶' : '置顶'} ${session.title || '新任务'}`} aria-pressed={Boolean(session.pinned)} disabled={busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={event => { event.stopPropagation(); run(() => controller.setSessionPinned(session.id, !session.pinned)) }}>{session.pinned ? <PinOff size={14} /> : <Pin size={14} />}</button></SidebarActionHint>}
-          <button type="button" className="mira-session-row__open" draggable={Boolean(!busy && (taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id))} onDragStart={event => { if (busy || !(taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id)) { event.preventDefault(); return }; beginMiraTaskDrag(session.id, event.dataTransfer); event.dataTransfer.setData('text/plain', session.title || '新任务') }} onDragEnd={endMiraTaskDrag} onClick={onOpen} aria-current={active ? 'page' : undefined} aria-label={session.title || '新任务'}><MiraSidebarTaskTitle title={session.title || '新任务'} suspended={menuVisible || busy || isDragging} />{showProject && <span className="mira-session-row__project">{session.projectName || state.projects.find(project => project.id === session.projectId)?.name || '个人工作区'}</span>}</button>
+          <button type="button" className="mira-session-row__open" draggable={Boolean(!sortable && !busy && (taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id))} onDragStart={event => { if (busy || !(taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id)) { event.preventDefault(); return }; beginMiraTaskDrag(session.id, event.dataTransfer); event.dataTransfer.setData('text/plain', session.title || '新任务') }} onDragEnd={endMiraTaskDrag} onClick={onOpen} aria-current={active ? 'page' : undefined} aria-label={session.title || '新任务'}><MiraSidebarTaskTitle title={session.title || '新任务'} suspended={menuVisible || busy || isDragging} />{showProject && <span className="mira-session-row__project">{session.projectName || state.projects.find(project => project.id === session.projectId)?.name || '个人工作区'}</span>}</button>
           {waiting ? <span className={`mira-session-status mira-session-interaction mira-session-interaction--${session.planStatus === 'needs_input' ? 'input' : 'confirmation'}`} title={interactionDescription} aria-label={interactionDescription}>{interactionLabel}</span> : badge && <SidebarActionHint suspended={menuVisible} title={badge.label}><span tabIndex={0} className={`mira-session-status mira-session-status--${badge.kind}`} aria-label={badge.label}>{badge.kind === 'unread' ? <span /> : badge.kind === 'running' || badge.kind === 'plan' && session.planStatus === 'executing' ? <LoaderCircle size={12} className="pilot-spin" /> : <CircleAlert size={12} />}</span></SidebarActionHint>}
           {!badge && session.status === 'failed' && <SidebarActionHint suspended={menuVisible} title="执行失败"><span tabIndex={0} aria-label="执行失败"><CircleAlert size={12} className="mira-session-status--failed" /></span></SidebarActionHint>}
           {!waiting && !badge && <time className="mira-session-row__time" dateTime={new Date(session.updatedAt).toISOString()} title={new Date(session.updatedAt).toLocaleString()}>{relativeSessionTime(session.updatedAt)}</time>}

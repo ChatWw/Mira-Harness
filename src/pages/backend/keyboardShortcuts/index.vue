@@ -59,7 +59,7 @@ const harnessShortcuts = computed(() => [
   { label: '前台命令转后台', hint: '作用于当前焦点任务最近启动的前台命令，保留草稿；自动化命令不可转后台。', keys: [shortcutModifier.value, 'B'] },
   { label: '查找当前任务', hint: '查找当前焦点任务的正文、思考、工具和文件变更。', keys: [shortcutModifier.value, 'F'] },
   { label: '切换底部终端', hint: '打开或收起当前任务的终端。', keys: [shortcutModifier.value, 'J'] },
-  { label: '切换工作区', hint: '打开或收起右侧资源面板，保留原标签。', keys: [shortcutModifier.value, shortcutModifier.value === '⌘' ? '⌥' : 'Alt', 'B'] },
+  { label: '切换面板', hint: '打开或收起右侧资源面板，保留原标签。', keys: [shortcutModifier.value, shortcutModifier.value === '⌘' ? '⌥' : 'Alt', 'B'] },
   { label: '后退', hint: '返回上一个工作台位置。', keys: [shortcutModifier.value, '['] },
   { label: '前进', hint: '恢复后退前的工作台位置。', keys: [shortcutModifier.value, ']'] },
   { label: '上一个任务', hint: '按当前工作目录及侧栏排序选择上一项，保留草稿；到达首项后不循环。', keys: [shortcutModifier.value, 'Shift', '['] },

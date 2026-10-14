@@ -1,3 +1,4 @@
+import { ShortcutKeys } from '../shared/ShortcutKeys'
 /*
  * Copyright 2026 Z.AI Co., Ltd
  * SPDX-License-Identifier: Apache-2.0
@@ -183,7 +184,7 @@ export function HarnessCommandCenter({ open, focusRequest, onOpenChange, onDismi
             {section.items.map(result => {
               const index = results.indexOf(result)
               return <button type="button" key={result.id} id={`mira-command-option-${index}`} className="mira-command-center-result" role="option" aria-selected={index === selectedIndex} tabIndex={-1} disabled={Boolean(busyId)} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setSelectedId(result.id)} onClick={() => { void select(result) }} title={result.description ?? result.label}>
-                <span className="mira-command-center-result-icon">{busyId === result.id ? <LoaderCircle size={16} className="mira-command-center-spin" /> : result.icon}</span><span className="mira-command-center-result-text"><span><HighlightedText text={result.label} query={query} /></span>{result.description && <small><HighlightedText text={result.description} query={query} /></small>}</span>{result.shortcut ? <kbd>{result.shortcut}</kbd> : <ArrowRight size={13} className="mira-command-center-result-arrow" aria-hidden="true" />}
+                <span className="mira-command-center-result-icon">{busyId === result.id ? <LoaderCircle size={16} className="mira-command-center-spin" /> : result.icon}</span><span className="mira-command-center-result-text"><span><HighlightedText text={result.label} query={query} /></span>{result.description && <small><HighlightedText text={result.description} query={query} /></small>}</span>{result.shortcut ? <ShortcutKeys shortcut={result.shortcut} /> : <ArrowRight size={13} className="mira-command-center-result-arrow" aria-hidden="true" />}
               </button>
             })}
             {section.status?.truncated && <p className="mira-command-center-status"><ListFilter size={13} aria-hidden="true" />结果较多，请缩小搜索范围</p>}

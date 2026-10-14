@@ -6,7 +6,7 @@ import { Plus, X } from 'lucide-react'
 import type { PilotController } from '../../state/pilot-state'
 import { TerminalPanel } from './TerminalPanel'
 
-type MiraTerminalTab = { id: string; sessionId: string; index: number; label: string }
+type MiraTerminalTab = { id: string; sessionId: string; directory?: string; index: number; label: string }
 type MiraTerminalState = { tabs: MiraTerminalTab[]; selected: Record<string, string> }
 
 export function MiraBottomTerminal({ controller, sessionId, directory, retainedSessionIds, open, active, onClose, onFocus, onOpenAddress, children }: {
@@ -29,12 +29,18 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
   function appendTerminal(current: MiraTerminalState): MiraTerminalState {
     const index = Math.max(0, ...current.tabs.filter(tab => tab.sessionId === sessionId).map(tab => tab.index)) + 1
     const name = directory?.split(/[\\/]/).filter(Boolean).pop() || '终端'
-    const tab = { id: crypto.randomUUID(), sessionId, index, label: `${name} ${index}` }
+    const tab = { id: crypto.randomUUID(), sessionId, directory, index, label: `${name} ${index}` }
     return { tabs: [...current.tabs, tab], selected: { ...current.selected, [sessionId]: tab.id } }
   }
   useEffect(() => {
     if (open && sessionId) setTerminals(current => current.tabs.some(tab => tab.sessionId === sessionId) ? current : appendTerminal(current))
   }, [open, sessionId])
+  useEffect(() => {
+    const name = directory?.split(/[\\/]/).filter(Boolean).pop() || '终端'
+    setTerminals(current => current.tabs.some(tab => tab.sessionId === sessionId && tab.directory !== directory)
+      ? { ...current, tabs: current.tabs.map(tab => tab.sessionId === sessionId ? { ...tab, directory, label: `${name} ${tab.index}` } : tab) }
+      : current)
+  }, [sessionId, directory])
   useEffect(() => {
     const retained = new Set(retainedSessionIds)
     if (sessionId) retained.add(sessionId)
@@ -87,7 +93,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
   function selectTerminal(id: string) {
     setTerminals(current => ({ ...current, selected: { ...current.selected, [sessionId]: id } }))
   }
-  return <Group orientation="vertical" className="mira-terminal-layout">
+  return <Group orientation="vertical" className="mira-terminal-layout" disabled={!open}>
     <Panel id="mira-primary-thread" minSize="50%" className="mira-primary-thread">{children}</Panel>
     {open && <Separator className="mira-terminal-resize" aria-label="调整底部终端高度" />}
     <Panel id="mira-bottom-terminal-panel" panelRef={panelRef} elementRef={panelElementRef} data-open={open} defaultSize="0px" minSize="140px" maxSize="50%" collapsedSize="0px" collapsible onResize={size => {
@@ -117,7 +123,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
         <div className="mira-bottom-terminal__body">{terminals.tabs.map(tab => {
           const visible = open && tab.sessionId === sessionId && tab.id === selected?.id
           return <div key={tab.id} id={`mira-terminal-view-${tab.id}`} role="tabpanel" aria-labelledby={`mira-terminal-tab-${tab.id}`} data-bottom-terminal-id={tab.id} hidden={!visible} inert={!visible} className="mira-bottom-terminal__view">
-            <TerminalPanel controller={controller} sessionId={tab.sessionId} active={visible && active} focusOnActivate={visible} onExit={() => removeTerminal(tab, true)} onOpenAddress={url => {
+            <TerminalPanel controller={controller} sessionId={tab.sessionId} directory={tab.directory} active={visible && active} focusOnActivate={visible} onExit={() => removeTerminal(tab, true)} onOpenAddress={url => {
               const owner = latest.current
               if (owner.open && owner.active && owner.sessionId === tab.sessionId && owner.selectedId === tab.id) owner.onOpenAddress(tab.sessionId, url)
             }} />

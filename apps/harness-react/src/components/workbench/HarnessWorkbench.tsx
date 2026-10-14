@@ -150,7 +150,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [workspaceMounted, setWorkspaceMounted] = useState(false)
   const workspaceToggleRef = useRef<HTMLButtonElement>(null)
   const workspaceDismissFocus = useRef(false)
-  const [terminalViews, setTerminalViews] = useState<Array<{ sessionId: string; tabId: WorkspaceTabId; epoch: number }>>([])
+  const [terminalViews, setTerminalViews] = useState<Array<{ sessionId: string; tabId: WorkspaceTabId; epoch: number; directory?: string }>>([])
   const [bottomTerminalOpen, setBottomTerminalOpen] = useState(false)
   const bottomTerminalToggleRef = useRef<HTMLButtonElement>(null)
   const bottomTerminalOpenRef = useRef(bottomTerminalOpen)
@@ -207,7 +207,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [permissionError, setPermissionError] = useState<{ requestId: string; message: string }>()
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
-  const newConversation = (projectId?: string, groupId?: string, pluginId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId, undefined, pluginId)).catch(error => { controller.reportError(error); return false })
+  const newConversation = (projectId?: string | null, groupId?: string, pluginId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId, undefined, pluginId)).catch(error => { controller.reportError(error); return false })
   const openDraft = (id: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, undefined, false, undefined, id)).catch(error => { controller.reportError(error); return false })
   const commandCenterFocusRequest = useRef<string | undefined>(undefined)
   const openCommandCenter = () => { commandCenterFocusRequest.current = undefined; setCommandCenterFocusRequestNumber(value => value + 1); setCommandCenterOpen(true) }
@@ -358,6 +358,12 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   }), [workspace.tabs, state.sessions])
   const selectedChangeId = workspace.selectedChangeId
   const fileDirectory = project?.directory || state.session?.workingDirectory
+  useEffect(() => {
+    if (!workspaceSessionId || state.sessionLoading) return
+    setTerminalViews(previous => previous.some(item => item.sessionId === workspaceSessionId && item.directory !== fileDirectory)
+      ? previous.map(item => item.sessionId === workspaceSessionId ? { ...item, directory: fileDirectory } : item)
+      : previous)
+  }, [workspaceSessionId, fileDirectory, state.sessionLoading])
   const conversationMemoryKey = conversationScrollKey(workspaceSessionId, fileDirectory)
   const sidebarFileProject = state.projects.find(item => item.id === sidebarFileTarget?.projectId && item.directory === sidebarFileTarget.directory)
   const sidebarFileSession = state.sessions.find(item => item.id === sidebarFileTarget?.sessionId && item.workingDirectory === sidebarFileTarget.directory)
@@ -790,7 +796,8 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   }
 
   function startTerminalView(sessionId: string, tabId: WorkspaceTabId) {
-    setTerminalViews(previous => previous.some(item => item.sessionId === sessionId && item.tabId === tabId) ? previous : [...previous, { sessionId, tabId, epoch: 0 }])
+    const directory = controller.getSnapshot().session?.id === sessionId ? controller.getSnapshot().session?.workingDirectory : undefined
+    setTerminalViews(previous => previous.some(item => item.sessionId === sessionId && item.tabId === tabId) ? previous : [...previous, { sessionId, tabId, epoch: 0, directory }])
   }
 
   function startBrowserView(sessionId: string, tabId: WorkspaceTabId) {
@@ -903,7 +910,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     return () => window.cancelAnimationFrame(frame)
   }, [searchTarget, mainView, state.sessionLoading, state.session?.id, timelineMessages])
 
-  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string, resetDraft = false, groupId?: string, draftId?: string, pluginId?: string) {
+  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string | null, resetDraft = false, groupId?: string, draftId?: string, pluginId?: string) {
     const revision = ++viewRevision.current
     const current = () => isCurrent() && revision === viewRevision.current
     try {
@@ -929,7 +936,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
         } else if (resetDraft) {
           if (composerRef.current?.startDraft) {
             if (!await composerRef.current.startDraft(groupId, projectId, current, pluginId)) return false
-          } else { setDraftProjectId(projectId); setPlanning(false); controller.newConversation() }
+          } else { setDraftProjectId(projectId ?? undefined); setPlanning(false); controller.newConversation() }
         } else if (composerRef.current?.openDraft) {
           if (!await composerRef.current.openDraft(undefined, current)) return false
         } else controller.newConversation()
@@ -1170,7 +1177,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                   editors={!sidebarFilesOpen || sidebarFilesCanUseTask ? editorAccess.editors : []}
                   onOpenEditor={workspaceSessionId && (!sidebarFilesOpen || sidebarFilesCanUseTask) ? (path, editorId) => editorAccess.open(workspaceSessionId, path, editorId) : undefined}
                 />
-              </aside> : <SessionSidebar state={state} activeSessionId={focusedTaskId ?? null} controller={controller} preferenceStore={sidebarPreferenceStore} width={sessionsWidth} onSearch={openCommandCenter} onNewConversation={() => { void newConversation() }} onNewProjectConversation={projectId => { void newConversation(projectId) }} draft={taskDraft && taskDraft.visible !== false ? { draftId: taskDraft.id, groupId: taskDraft.groupId, preparedSessionId: taskDraft.sessionId, selected: mainView === 'conversation' && focusedPane === 'main' && (taskDraft.sessionId ? state.session?.id === taskDraft.sessionId : !state.session), workspaceLabel: state.projects.find(project => project.id === draftProjectId)?.name } : undefined} onNewGroupConversation={groupId => newConversation(undefined, groupId)} onOpenDraft={id => { void openDraft(id) }} onCloseDraft={id => { void composerRef.current?.closeDraft(id).catch(error => controller.reportError(error)) }} onOpenProjectFiles={projectId => menuAction(() => openProjectFiles(projectId))} onOpenSessionFiles={id => openSessionFiles(id)} taskPaneEntry={taskPaneEntry} onOpenExecution={id => openTask(id, undefined, undefined, true)} onOpenModelTrace={openModelTrace} onOpenAutomations={() => menuAction(() => showView('automations'))} automationsActive={mainView === 'automations'} onOpenExtensions={() => menuAction(() => showView('extensions'))} extensionsActive={mainView === 'extensions'} onOpenSession={id => menuAction(() => openTask(id))} onClose={() => setSessionsOpen(false)} />}
+              </aside> : <SessionSidebar state={state} activeSessionId={focusedTaskId ?? null} controller={controller} preferenceStore={sidebarPreferenceStore} width={sessionsWidth} onSearch={openCommandCenter} onNewConversation={() => { void newConversation() }} onNewPersonalConversation={() => { void newConversation(null) }} onNewProjectConversation={projectId => { void newConversation(projectId) }} draft={taskDraft && taskDraft.visible !== false ? { draftId: taskDraft.id, groupId: taskDraft.groupId, preparedSessionId: taskDraft.sessionId, selected: mainView === 'conversation' && focusedPane === 'main' && (taskDraft.sessionId ? state.session?.id === taskDraft.sessionId : !state.session), workspaceLabel: state.projects.find(project => project.id === draftProjectId)?.name } : undefined} onNewGroupConversation={groupId => newConversation(undefined, groupId)} onOpenDraft={id => { void openDraft(id) }} onCloseDraft={id => { void composerRef.current?.closeDraft(id).catch(error => controller.reportError(error)) }} onOpenProjectFiles={projectId => menuAction(() => openProjectFiles(projectId))} onOpenSessionFiles={id => openSessionFiles(id)} taskPaneEntry={taskPaneEntry} onOpenExecution={id => openTask(id, undefined, undefined, true)} onOpenModelTrace={openModelTrace} onOpenAutomations={() => menuAction(() => showView('automations'))} automationsActive={mainView === 'automations'} onOpenExtensions={() => menuAction(() => showView('extensions'))} extensionsActive={mainView === 'extensions'} onOpenSession={id => menuAction(() => openTask(id))} onClose={() => setSessionsOpen(false)} />}
             </div>
               {sessionsOpen && <div
                 className="pilot-sessions-resize"
@@ -1195,7 +1202,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
             <MiraBottomTerminal controller={controller} sessionId={workspaceSessionId || ''} directory={fileDirectory} retainedSessionIds={retainedTerminalSessions} open={bottomTerminalOpen && mainView === 'conversation' && Boolean(workspaceSessionId) && !state.sessionLoading} active={mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onClose={closeBottomTerminal} onFocus={() => setFocusedPane('bottom-terminal')} onOpenAddress={openBottomTerminalAddress}>
             <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>
               <div className="harness-thread-header__leading flex min-w-0 flex-1 items-center gap-1.5">
-                <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`${sessionsOpen ? '收起' : '展开'}会话侧栏 (${commandKey}B)`}><button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-keyshortcuts={miraPrimaryKeyShortcuts('B')} aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={openSessions}>
+                <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`${sessionsOpen ? '收起' : '展开'}会话侧栏`} shortcut={`${commandKey}B`}><button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="会话" aria-keyshortcuts={miraPrimaryKeyShortcuts('B')} aria-controls={sessionsOpen ? 'pilot-sessions' : undefined} aria-expanded={sessionsOpen} onClick={openSessions}>
                   <Menu size={17} />
                 </button></SidebarActionHint></Tooltip.Provider>
                 {hasTaskProgress && <div className="flex min-w-0 items-center gap-1">
@@ -1206,9 +1213,9 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
               </div>
               <div className="harness-thread-header__actions flex shrink-0 items-center gap-1">
                 {hasTaskProgress && <WorkspaceEditorButton editors={editorAccess.editors} selectedEditor={editorAccess.selectedEditor} disabled={!workspaceSessionId || !fileDirectory || Boolean(state.sessionLoading)} loading={editorAccess.loading} error={editorAccess.error} onRetry={editorAccess.retry} onOpen={async (editorId, remember) => { if (workspaceSessionId) await editorAccess.open(workspaceSessionId, '', editorId, remember).catch(cause => controller.reportError(cause)) }} />}
-                <MiraWorkbenchHelp onNavigate={path => controller.navigate(path, true)} />
-                <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`${bottomTerminalOpen ? '收起' : '展开'}终端 (${terminalShortcut})`}><button ref={bottomTerminalToggleRef} type="button" className="mira-header-tool" aria-label="打开终端" aria-keyshortcuts={miraPrimaryKeyShortcuts('J')} aria-controls="mira-bottom-terminal" aria-expanded={bottomTerminalOpen} data-active={bottomTerminalOpen} disabled={preparingWorkspace || state.sessionLoading} onClick={toggleBottomTerminal}><TerminalSquare size={16} /></button></SidebarActionHint></Tooltip.Provider>
-                {!workspaceOpen && <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`展开工作区 (${workspaceShortcut})`}><button ref={workspaceToggleRef} type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="工作区" aria-keyshortcuts={miraPrimaryKeyShortcuts('Alt+B')} aria-controls="pilot-workspace" aria-expanded={false} onClick={openWorkspace}>
+                <MiraWorkbenchHelp onOpenResources={() => controller.openResourceManager()} onNavigate={path => controller.navigate(path, true)} />
+                <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title={`${bottomTerminalOpen ? '收起' : '展开'}终端`} shortcut={terminalShortcut}><button ref={bottomTerminalToggleRef} type="button" className="mira-header-tool" aria-label="打开终端" aria-keyshortcuts={miraPrimaryKeyShortcuts('J')} aria-controls="mira-bottom-terminal" aria-expanded={bottomTerminalOpen} data-active={bottomTerminalOpen} disabled={preparingWorkspace || state.sessionLoading} onClick={toggleBottomTerminal}><TerminalSquare size={16} /></button></SidebarActionHint></Tooltip.Provider>
+                {!workspaceOpen && <Tooltip.Provider delayDuration={350}><SidebarActionHint side="bottom" title="切换面板" shortcut={workspaceShortcut}><button ref={workspaceToggleRef} type="button" className="flex size-8 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground" aria-label="切换面板" aria-keyshortcuts={miraPrimaryKeyShortcuts('Alt+B')} aria-controls="pilot-workspace" aria-expanded={false} onClick={openWorkspace}>
                   <PanelRightOpen size={17} />
                 </button></SidebarActionHint></Tooltip.Provider>}
               </div>
@@ -1292,7 +1299,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
                     {tab.id === 'changes' && <ChangesPanel rootRef={changesFindRef} summary={state.session?.changeSummary} changes={changes} selectedChangeId={selectedChangeId} onSelect={id => { updateWorkspace(current => ({ ...current, selectedChangeId: id })); setWorkspaceTabLabel('changes', changes.find(change => change.key === id)?.path.split(/[\\/]/).pop() || '变更') }} />}
                   </div>
                 ))}
-                {terminalViews.filter(item => workspaceSessions[item.sessionId]?.tabs.some(tab => tab.id === item.tabId)).map(item => <div key={JSON.stringify([item.sessionId, item.tabId])} data-terminal-tab-id={item.tabId} className={`pilot-panel-view${workspaceOpen && workspaceSessionId === item.sessionId && workspaceTab === item.tabId ? ' is-active' : ''}`} aria-hidden={!workspaceOpen || workspaceSessionId !== item.sessionId || workspaceTab !== item.tabId}><TerminalPanel key={item.epoch} controller={controller} sessionId={item.sessionId} active={workspaceOpen && workspaceSessionId === item.sessionId && workspaceTab === item.tabId && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onOpenAddress={url => openResourceAddress(item.sessionId, item.tabId, url)} /></div>)}
+                {terminalViews.filter(item => workspaceSessions[item.sessionId]?.tabs.some(tab => tab.id === item.tabId)).map(item => <div key={JSON.stringify([item.sessionId, item.tabId])} data-terminal-tab-id={item.tabId} className={`pilot-panel-view${workspaceOpen && workspaceSessionId === item.sessionId && workspaceTab === item.tabId ? ' is-active' : ''}`} aria-hidden={!workspaceOpen || workspaceSessionId !== item.sessionId || workspaceTab !== item.tabId}><TerminalPanel key={item.epoch} controller={controller} sessionId={item.sessionId} directory={item.directory} active={workspaceOpen && workspaceSessionId === item.sessionId && workspaceTab === item.tabId && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} onOpenAddress={url => openResourceAddress(item.sessionId, item.tabId, url)} /></div>)}
                 {browserViews.filter(item => workspaceSessions[item.sessionId]?.tabs.some(tab => tab.id === item.tabId)).map(item => { const tab = workspaceSessions[item.sessionId].tabs.find(tab => tab.id === item.tabId)!; const selected = workspaceOpen && workspaceSessionId === item.sessionId && workspaceTab === item.tabId; return <div key={JSON.stringify([item.sessionId, item.tabId])} data-browser-tab-id={item.tabId} className={`pilot-panel-view${selected ? ' is-active' : ''}`} aria-hidden={!selected}><MiraBrowserPanel controller={controller} sessionId={item.sessionId} browserId={item.tabId} active={selected && mainView === 'conversation' && !state.sessionLoading && !commandCenterOpen} initialUrl={tab.url || (item.tabId === 'browser' ? workspaceSessions[item.sessionId].browserUrl : '')} onSelectElement={reference => { if (!selected || mainView !== 'conversation' || state.sessionLoading || commandCenterOpen || state.session?.id !== reference.sessionId || reference.browserId !== item.tabId) return false; return composerRef.current?.addBrowserElement(reference) ?? false }} request={browserRequest} onRequestHandled={request => setBrowserRequest(current => current === request ? undefined : current)} onUrlChange={url => updateBrowserResource(item.sessionId, item.tabId, { url })} onPageFavicon={faviconUrl => updateBrowserResource(item.sessionId, item.tabId, { faviconUrl })} onPageTitle={title => updateBrowserResource(item.sessionId, item.tabId, { label: title.trim().slice(0, 200) || workspaceTabLabel('browser') })} /></div> })}
               </div>
             </aside>

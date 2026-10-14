@@ -116,7 +116,7 @@ afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimer
 describe('first-screen navigation owns each awaited transition', () => {
   it.each(['tab', 'all', 'shortcut'] as const)('collapses an automatically opened workspace after its last resource closes via %s', async method => {
     const api = fixture(), view = mount(api.controller); await view.drain()
-    const toggle = () => view.props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function')
+    const toggle = () => view.props(props => props['aria-label'] === '切换面板' && typeof props.onClick === 'function')
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     await (view.sidebar().onOpenModelTrace as (id: string) => Promise<void>)('a'); await view.drain()
     await tabs().onOpen('browser'); await view.drain()
@@ -134,7 +134,7 @@ describe('first-screen navigation owns each awaited transition', () => {
 
   it('keeps an explicitly opened empty workspace, then resets that intent when dismissed', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
-    const toggle = () => view.props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function')
+    const toggle = () => view.props(props => props['aria-label'] === '切换面板' && typeof props.onClick === 'function')
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     ;(toggle().onClick as () => void)(); await view.drain()
     await (view.sidebar().onOpenModelTrace as (id: string) => Promise<void>)('a'); await view.drain()
@@ -162,17 +162,17 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(actions().some(element => element.type === WorkspaceEditorButton)).toBe(false)
     view.unmount()
   })
-  it('uses the ZCode panel close control and restores the header entry without removing resources', async () => {
+  it('collapses the panel and restores its toggle entry without removing resources', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
-    ;(view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
+    ;(view.props(p => p['aria-label'] === '切换面板' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     await tabs().onOpen('browser'); await view.drain()
     const resourceId = tabs().active
-    expect(() => view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function')).toThrow('Missing workbench element')
+    expect(() => view.props(p => p['aria-label'] === '切换面板' && typeof p.onClick === 'function')).toThrow('Missing workbench element')
     tabs().onDismiss(); await view.drain()
     expect(view.props(p => p.id === 'pilot-workspace')['aria-hidden']).toBe(true)
     expect(tabs().active).toBe(resourceId); expect(tabs().tabs).toHaveLength(1)
-    ;(view.props(p => p['aria-label'] === '工作区' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
+    ;(view.props(p => p['aria-label'] === '切换面板' && typeof p.onClick === 'function').onClick as () => void)(); await view.drain()
     expect(view.props(p => p.id === 'pilot-workspace')['aria-hidden']).toBe(false)
     expect(tabs().active).toBe(resourceId)
     view.unmount()
@@ -232,7 +232,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const { controller, close } = fixture(), view = mount(controller); await view.drain()
     const flush = vi.spyOn(controller, 'flushBeforeNavigation')
     expect(await close()).toBe(false); expect(flush).toHaveBeenCalledWith(false)
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     await tabs().onOpen('terminal'); await view.drain(); const first = tabs().active
     await tabs().onOpen('browser'); await view.drain(); const second = tabs().active
@@ -251,7 +251,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const { controller, close } = fixture(), view = mount(controller); await view.drain()
     const held = deferred<void>(); vi.spyOn(controller, 'flushBeforeNavigation').mockReturnValueOnce(held.promise)
     const closing = close()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     await tabs().onOpen('browser'); await view.drain(); held.resolve(); expect(await closing).toBe(true)
     expect(tabs().tabs).toHaveLength(1); view.unmount()
@@ -505,6 +505,27 @@ describe('first-screen navigation owns each awaited transition', () => {
     view.unmount()
   })
 
+  it('allows dragging project and personal tasks from different directories into the current split', async () => {
+    const { controller, host } = fixture()
+    const records = [task('a', 'project-a'), task('b', 'project-b'), task('personal')].map((session, index) => ({ ...session, workingDirectory: ['/project-a', '/project-b', '/personal'][index] }))
+    host.getSession.mockImplementation(async id => records.find(session => session.id === id)!)
+    Object.assign(controller.getSnapshot(), { session: records[0], sessions: records })
+    const view = mount(controller); await view.drain()
+    const grid = () => view.props((_, element) => element.type === MiraTaskGrid) as unknown as React.ComponentProps<typeof MiraTaskGrid>
+    expect(grid().canPlace('b')).toBe(true)
+    await grid().onPlace('b', '$primary', 'right'); await view.drain()
+    expect(controller.getSnapshot().session?.id).toBe('a')
+    expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'b'])
+    expect(grid().canPlace('personal')).toBe(true)
+    await grid().onPlace('personal', 'b', 'down'); await view.drain()
+    expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'b', 'personal'])
+    expect(grid().canPlace('b')).toBe(false)
+    await controller.flushBeforeNavigation()
+    const saved = host.setPreference.mock.calls.filter(([key]) => key === 'harness-react-workspace').at(-1)![1] as Record<string, { taskLayout: unknown }>
+    expect(saved.a.taskLayout).toEqual(grid().layout)
+    view.unmount()
+  })
+
   it('places four tasks around their requested anchors, keeps resource closure independent and restores a task group from a later selection', async () => {
     const { controller, host } = fixture()
     const records = ['a', 'b', 'c', 'd', 'outside'].map(id => task(id, 'project-a'))
@@ -518,7 +539,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'c', 'b', 'd'])
     expect(grid().canPlace('outside')).toBe(false)
     expect(controller.getSnapshot().session?.id).toBe('a')
-    ;(view.props(p => p['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(p => p['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const resources = view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     expect(resources.tabs).toHaveLength(0); await resources.onCloseAll(); await view.drain()
     expect(miraTaskPaneIds(grid().layout)).toHaveLength(4)
@@ -580,7 +601,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     flush.mockResolvedValue(undefined)
     expect(await side().onClose!()).toBe(true); await view.drain()
     expect(miraTaskPaneIds((view.props((_, element) => element.type === MiraTaskGrid) as unknown as React.ComponentProps<typeof MiraTaskGrid>).layout)).toEqual(['$primary'])
-    ;(view.props(p => p['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(p => p['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     expect(tabs().tabs).toHaveLength(0)
     expect(tabs().recentClosedTabs[0].taskSessionId).toBe('b')
     expect(controller.getSnapshot().session?.id).toBe('a')
@@ -699,7 +720,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(host.setPreference).not.toHaveBeenCalledWith('active-session', 'b')
     await (view.sidebar().onOpenSession as (id: string) => Promise<void>)('a'); await view.drain()
     expect(view.sidebar().activeSessionId).toBe('a'); expect(miraTaskPaneIds(grid().layout)).toHaveLength(2)
-    expect(view.props(p => p['aria-label'] === '工作区')['aria-expanded']).toBe(false)
+    expect(view.props(p => p['aria-label'] === '切换面板')['aria-expanded']).toBe(false)
     view.unmount()
   })
 
@@ -738,14 +759,14 @@ describe('first-screen navigation owns each awaited transition', () => {
     const composer = () => view.props((_, element) => element.type === HarnessComposer)
     ;(toggle().onClick as () => void)(); await view.drain()
     expect(bottom().open).toBe(true); expect(toggle()['aria-expanded']).toBe(true)
-    expect(view.props(props => props['aria-label'] === '工作区')['aria-expanded']).toBe(false)
+    expect(view.props(props => props['aria-label'] === '切换面板')['aria-expanded']).toBe(false)
     bottom().onFocus(); await view.drain()
     expect(mainFind().keyboardActive).toBe(false); expect(composer().keyboardActive).toBe(false)
     const staleLink = bottom().onOpenAddress
     ;(toggle().onClick as () => void)(); await view.drain()
     expect(bottom().open).toBe(false); expect(mainFind().keyboardActive).toBe(true)
     staleLink('a', 'https://mira.test/hidden'); await view.drain()
-    expect(view.props(props => props['aria-label'] === '工作区')['aria-expanded']).toBe(false)
+    expect(view.props(props => props['aria-label'] === '切换面板')['aria-expanded']).toBe(false)
     await view.command('terminal'); await view.drain()
     expect(bottom().open).toBe(true)
     bottom().onOpenAddress('a', 'https://mira.test/bottom'); await view.drain()
@@ -844,7 +865,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     controller.getSnapshot().messages = [{ id: 'user', role: 'user', content: '查找任务正文', createdAt: 1 }]
     Object.assign(host, { createSideConversation: vi.fn(async () => ({ ...task('side'), parentSessionId: 'a' })) })
     const view = mount(controller); await view.drain()
-    const workspace = () => view.props(props => props['aria-label'] === '工作区')
+    const workspace = () => view.props(props => props['aria-label'] === '切换面板')
     ;(workspace().onClick as () => void)(); await view.drain()
     await (view.props((_, element) => element.type === WorkspaceTabs).onOpen as (id: string) => Promise<void>)('side-chat'); await view.drain()
     const side = () => view.props((_, element) => element.type === MiraSideConversation)
@@ -862,7 +883,7 @@ describe('first-screen navigation owns each awaited transition', () => {
   it('yields main find and composer shortcuts to resources, including tab switches, and restores main on close', async () => {
     const { controller } = fixture()
     const view = mount(controller); await view.drain()
-    const toggle = () => view.props(props => props['aria-label'] === '工作区')
+    const toggle = () => view.props(props => props['aria-label'] === '切换面板')
     ;(toggle().onClick as () => void)(); await view.drain()
     const resource = () => view.props(props => props.id === 'pilot-workspace')
     const mainFind = () => view.props((_, element) => element.type === MiraTaskFind)
@@ -881,7 +902,7 @@ describe('first-screen navigation owns each awaited transition', () => {
   })
   it('opens independent browser resources for terminal links and rejects stale owners, tabs and closed views', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     const terminal = () => view.props((_, element) => element.type === TerminalPanel) as unknown as React.ComponentProps<typeof TerminalPanel>
     const browser = () => view.props((props, element) => element.type === MiraBrowserPanel && props.active === true) as unknown as React.ComponentProps<typeof MiraBrowserPanel>
@@ -906,7 +927,7 @@ describe('first-screen navigation owns each awaited transition', () => {
   })
   it('keeps browser metadata with its task and reopens a closed resource with a new identity', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     const browser = (id: string) => view.props((props, element) => element.type === MiraBrowserPanel && props.browserId === id) as unknown as React.ComponentProps<typeof MiraBrowserPanel>
     await tabs().onOpen('browser'); await view.drain(); const firstId = tabs().active
@@ -931,7 +952,7 @@ describe('first-screen navigation owns each awaited transition', () => {
   })
   it('owns each terminal in the resource strip, restarts only its view, and closes/reopens its exact identity', async () => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     await tabs().onOpen('terminal'); await view.drain()
     await tabs().onOpen('terminal'); await view.drain()
@@ -959,7 +980,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const createSideConversation = vi.fn(() => creation.promise)
     Object.assign(host, { createSideConversation })
     const view = mount(controller); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs)
     const opening = (tabs().onOpen as (id: string) => Promise<void>)('side-chat')
     await view.drain(); view.newTask(); await view.drain()
@@ -1230,7 +1251,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const flush = deferred<void>(); controller.registerBeforeNavigation(() => flush.promise)
     const opening = view.commandCenter().onOpenFile('b', 'README.md'); await view.drain(); view.newTask(); flush.resolve(); await opening; await view.drain()
     expect(host.getSession).not.toHaveBeenCalled(); expect(controller.getSnapshot().session).toBeUndefined()
-    expect(view.props(p => p['aria-label'] === '工作区')['aria-expanded']).toBe(false)
+    expect(view.props(p => p['aria-label'] === '切换面板')['aria-expanded']).toBe(false)
   })
   it('does not create a task merely to open files when no project is selected', async () => {
     const { controller, host } = fixture(); controller.newConversation(); const view = mount(controller); await view.drain()
@@ -1247,7 +1268,7 @@ describe('first-screen navigation owns each awaited transition', () => {
     const opening = view.command(id); await view.drain(); expect(prepare).toHaveBeenCalledWith(expect.any(Function))
     view.newTask(); created.resolve(task('created')); await opening; await view.drain()
     expect(controller.getSnapshot().session).toBeUndefined(); expect(host.getSession).not.toHaveBeenCalled()
-    expect(view.props(p => p['aria-label'] === '工作区')['aria-expanded']).toBe(false)
+    expect(view.props(p => p['aria-label'] === '切换面板')['aria-expanded']).toBe(false)
   })
   it('does not hide search failures behind a successful result callback', async () => {
     const { controller, host } = fixture(), view = mount(controller); await view.drain()
@@ -1618,6 +1639,18 @@ describe('Workbench admits the captured group draft without changing navigation'
     expect(startDraft).toHaveBeenLastCalledWith(undefined, undefined, expect.any(Function), undefined)
     expect(view.composerProps()).toMatchObject({ draftProjectId: 'project-a', planning: true })
     expect(view.sidebar().draft).toMatchObject({ draftId: 'anonymous', groupId: undefined })
+  })
+
+  it('routes personal new-task entry to an explicit outside-project selection after saving', async () => {
+    const view = groupFixture(); await view.drain()
+    const startDraft = vi.fn<HarnessComposerHandle['startDraft']>(async () => true)
+    view.composer.startDraft = startDraft
+    const saved = deferred<void>(); view.controller.registerBeforeNavigation(() => saved.promise)
+    ;(view.sidebar().onNewPersonalConversation as () => void)(); await view.drain()
+    expect(startDraft).not.toHaveBeenCalled()
+    saved.resolve(); await view.drain()
+    expect(startDraft).toHaveBeenCalledExactlyOnceWith(undefined, null, expect.any(Function), undefined)
+    view.unmount()
   })
 
   it('puts first admission at its captured group head while preserving a newer draft and page', async () => {
@@ -2025,7 +2058,7 @@ describe('Workbench run and child panels keep their captured owners', () => {
   it('does not prepare or create a session when a draft opens overview from the workspace launcher', async () => {
     const api = fixture(); api.controller.newConversation()
     const view = mount(api.controller); await view.drain()
-    ;(view.props(props => props['aria-label'] === '工作区').onClick as () => void)(); await view.drain()
+    ;(view.props(props => props['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     tabs().onOpen('overview'); await view.drain()
     expect(tabs().tabs).toEqual([])

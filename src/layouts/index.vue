@@ -21,20 +21,24 @@
           </nav>
         </el-popover>
         <div v-if="showAppNavigation" class="mira-shell__navigation" role="group" aria-label="应用导航">
-          <el-tooltip :content="`后退 (${navigationShortcut}[)`" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+          <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
             <button type="button" class="mira-shell__navigation-button" aria-label="后退" :disabled="!appNavigation.state?.canGoBack || appNavigation.state?.busy" @click="appNavigation.go('back')"><AppIcon name="lucide:arrow-left" /></button>
+            <template #content><div class="mira-shell-tooltip__surface"><span>后退</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel('['))" :key="index">{{ key }}</kbd></span></div></template>
           </el-tooltip>
-          <el-tooltip :content="`前进 (${navigationShortcut}])`" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+          <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
             <button type="button" class="mira-shell__navigation-button" aria-label="前进" :disabled="!appNavigation.state?.canGoForward || appNavigation.state?.busy" @click="appNavigation.go('forward')"><AppIcon name="lucide:arrow-right" /></button>
+            <template #content><div class="mira-shell-tooltip__surface"><span>前进</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel(']'))" :key="index">{{ key }}</kbd></span></div></template>
           </el-tooltip>
         </div>
       </div>
       <div class="mira-shell__actions">
-        <el-tooltip :content="globalSearchLabel" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+        <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
           <button type="button" class="mira-shell__icon-button" aria-label="全局搜索" @click="commandPaletteStore.open()"><AppIcon name="Search" /></button>
+          <template #content><div class="mira-shell-tooltip__surface"><span>全局搜索</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel('K'))" :key="index">{{ key }}</kbd></span></div></template>
         </el-tooltip>
-        <el-tooltip content="设置" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+        <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
           <button type="button" class="mira-shell__icon-button" aria-label="设置" @click="openSettings"><AppIcon name="Setting" /></button>
+          <template #content><div class="mira-shell-tooltip__surface"><span>设置</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel(','))" :key="index">{{ key }}</kbd></span></div></template>
         </el-tooltip>
       </div>
     </header>
@@ -49,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { miraShortcutKeys, miraShortcutLabel } from '@/platform/workbenchShortcuts'
 import { useRoute, useRouter } from 'vue-router'
 import { applications, findRuntimeMicroApp } from '@/config/runtime'
 import { getAppCodeFromPath, getApplicationEntryPath, navigateToPath } from '@/config/navigation'
@@ -70,8 +75,6 @@ onMounted(() => {
   desktopZoomFactor.value = window.platform?.getDesktopZoomFactor?.() ?? 1
 })
 onUnmounted(() => removeZoomListener?.())
-const globalSearchLabel = `全局搜索 (${windowChrome === 'macos-overlay' ? '⌘K' : 'Ctrl+K'})`
-const navigationShortcut = windowChrome === 'macos-overlay' ? '⌘' : 'Ctrl+'
 const showAppNavigation = computed(() => route.path === '/workspace/harness-react' && Boolean(appNavigation.state))
 const appMenuVisible = ref(false)
 const currentAppCode = computed(() => route.path === '/novel' ? 'novel' : getAppCodeFromPath(route.path))

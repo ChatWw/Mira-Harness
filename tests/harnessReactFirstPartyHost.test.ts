@@ -224,6 +224,14 @@ describe('React Harness prepare-leave handshake', () => {
     expect(host.dismissCommandCenterFocus('shell-search-1')).toBe(false)
     expect(port.postMessage).toHaveBeenCalledTimes(1)
   })
+  it('detaches a prepared draft through the existing authorized session move', async () => {
+    const { host, port, receive } = fixture()
+    const moving = host.moveSession('prepared')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.session.move', params: { id: 'prepared', projectId: undefined } })
+    receive({ type: 'mira:response', id: '1', ok: true })
+    await expect(moving).resolves.toBeUndefined()
+    host.close()
+  })
   it('prepares an attachment owner through the existing creation grant without changing ordinary creation', async () => {
     const { host, port, receive } = fixture()
     const preparing = host.prepareSession('project')

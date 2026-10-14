@@ -8,10 +8,16 @@ import { miraTaskDropSide, miraTaskLayoutGeometry, resizeMiraTaskSplit, type Mir
 export const MIRA_TASK_DRAG_MIME = 'application/x-mira-task'
 let draggingTask: string | undefined
 export function beginMiraTaskDrag(id: string, transfer: DataTransfer) { draggingTask = id; transfer.effectAllowed = 'copy'; transfer.setData(MIRA_TASK_DRAG_MIME, id) }
-export function endMiraTaskDrag() { draggingTask = undefined }
+const POINTER_TASK_DRAG = 'mira-task-pointer-drag'
+type PointerTaskDrag = { id: string; x: number; y: number; drop: boolean; accepted: boolean }
+export function miraTaskPointerDrag(id: string, x: number, y: number, drop: boolean) {
+  const detail: PointerTaskDrag = { id, x, y, drop, accepted: false }
+  window.dispatchEvent(new CustomEvent(POINTER_TASK_DRAG, { detail }))
+  return detail.accepted
+}
+export function endMiraTaskDrag() { draggingTask = undefined; window.dispatchEvent(new CustomEvent(POINTER_TASK_DRAG)) }
 const rectStyle = (rect: MiraTaskRect): CSSProperties => ({ left: `${rect.left * 100}%`, top: `${rect.top * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` })
 const dividerStyle = (divider: ReturnType<typeof miraTaskLayoutGeometry>['dividers'][number]): CSSProperties => divider.axis === 'horizontal' ? { ...rectStyle(divider.rect), left: `${(divider.rect.left + divider.rect.width * divider.ratio) * 100}%`, width: '6px' } : { ...rectStyle(divider.rect), top: `${(divider.rect.top + divider.rect.height * divider.ratio) * 100}%`, height: '6px' }
-const sideNames: Record<MiraTaskSplitSide, string> = { left: '左侧', right: '右侧', up: '上方', down: '下方' }
 
 export function MiraTaskGrid({ layout, active, children, canPlace, onPlace, onResize }: {
   layout: MiraTaskLayout; active: boolean; children: ReactNode
@@ -28,6 +34,25 @@ export function MiraTaskGrid({ layout, active, children, canPlace, onPlace, onRe
   useEffect(() => { live.current = true; return () => { live.current = false; cancelResize.current?.() } }, [])
   useEffect(() => { if (!active) { setPreview(undefined); cancelResize.current?.() } }, [active])
   useEffect(() => () => cancelResize.current?.(), [layout])
+  useEffect(() => {
+    const drag = (event: Event) => {
+      const detail = (event as CustomEvent<PointerTaskDrag>).detail
+      if (!detail || !active || pending.current || !canPlace(detail.id)) { setPreview(undefined); return }
+      const pane = [...ref.current?.querySelectorAll<HTMLElement>('[data-task-leaf]') ?? []].find(element => {
+        const rect = element.getBoundingClientRect()
+        return detail.x >= rect.left && detail.x <= rect.right && detail.y >= rect.top && detail.y <= rect.bottom
+      })
+      const side = pane && miraTaskDropSide(pane.getBoundingClientRect(), detail.x, detail.y)
+      if (!pane || !side) { setPreview(undefined); return }
+      const anchor = pane.dataset.taskLeaf!
+      detail.accepted = true
+      if (!detail.drop) { setPreview(previous => previous?.anchor === anchor && previous.side === side ? previous : { anchor, side }); return }
+      setPreview(undefined); pending.current = true; setError('')
+      void onPlace(detail.id, anchor, side).catch(cause => { if (live.current) setError(cause instanceof Error ? cause.message : '任务未放入窗格，请重试。') }).finally(() => { pending.current = false })
+    }
+    window.addEventListener(POINTER_TASK_DRAG, drag)
+    return () => window.removeEventListener(POINTER_TASK_DRAG, drag)
+  }, [active, canPlace, onPlace])
   function paint(layout: MiraTaskLayout) {
     if (!ref.current) return
     const geometry = miraTaskLayoutGeometry(layout), elements = [...ref.current.children] as HTMLElement[]
@@ -72,7 +97,7 @@ export function MiraTaskGrid({ layout, active, children, canPlace, onPlace, onRe
         const target = dropTarget(event, id); setPreview(undefined); endMiraTaskDrag(); if (!target) return
         event.preventDefault(); event.stopPropagation(); pending.current = true; setError('')
         void onPlace(target.id, id, target.side).catch(cause => { if (live.current) setError(cause instanceof Error ? cause.message : '任务未放入窗格，请重试。') }).finally(() => { pending.current = false })
-      }}>{surface}{preview?.anchor === id && <div className={`mira-task-grid__drop mira-task-grid__drop--${preview.side}`} role="status">在{sideNames[preview.side]}打开任务</div>}</div>
+      }}>{surface}{preview?.anchor === id && <div className={`mira-task-grid__drop mira-task-grid__drop--${preview.side}`} aria-hidden="true" />}</div>
     })}
     {geometry.dividers.map(divider => <div key={divider.id} data-task-divider={divider.id} className={`mira-task-grid__divider mira-task-grid__divider--${divider.axis}`} role="separator" tabIndex={active ? 0 : -1} aria-label={divider.axis === 'horizontal' ? '调整任务窗格宽度' : '调整任务窗格高度'} aria-orientation={divider.axis === 'horizontal' ? 'vertical' : 'horizontal'} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(divider.ratio * 100)} style={dividerStyle(divider)} onPointerDown={event => startResize(event, divider)} onKeyDown={event => {
       if (!active || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey) return

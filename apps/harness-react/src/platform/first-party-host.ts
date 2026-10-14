@@ -152,6 +152,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   selectProject = () => this.call<HarnessProject | null>('projects.select')
   getTheme = () => this.theme
   onThemeChange = (listener: () => void) => { this.themeListeners.add(listener); return () => { this.themeListeners.delete(listener) } }
+  openResourceManager = () => this.request<void>('resources.open')
   toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
   dismissCommandCenterFocus = (focusRequestId: string) => {
@@ -252,7 +253,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   setSessionUnread = (id: string, unread: boolean) => this.call<void>('session.set-unread', { id, unread })
   archiveSession = (id: string) => this.call<void>('session.archive', { id })
   deleteSession = (id: string) => this.call<void>('session.delete', { id })
-  moveSession = (id: string, projectId: string) => this.call<void>('session.move', { id, projectId })
+  moveSession = (id: string, projectId?: string) => this.call<void>('session.move', { id, projectId })
   reorderSessions = (scope: HarnessSessionOrderScope, ids: string[]) => this.call<void>('session.reorder', { scope, ids })
   reorderProjects = (ids: string[]) => this.call<void>('projects.reorder', { ids })
   setSessionPermission = (id: string, mode: PermissionMode) => this.call<void>('session.set-permission', { id, mode })

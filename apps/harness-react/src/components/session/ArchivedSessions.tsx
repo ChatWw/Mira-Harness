@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArchiveRestore, CircleAlert, Folder, LoaderCircle, MoreHorizontal, Trash2, X } from 'lucide-react'
+import { ArchiveX, CircleAlert, Folder, LoaderCircle, MoreHorizontal, Trash2, X } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { HarnessArchivedSnapshot, HarnessHistoryPage, HarnessHistoryRow } from '../../../../../src/config/harness'
@@ -21,6 +21,7 @@ export function ArchivedSessions({ controller, sort, refreshKey, activeId, onOpe
   const [failedPage, setFailedPage] = useState(1)
   const [busyId, setBusyId] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deletingRow, setDeletingRow] = useState<HarnessHistoryRow>()
   const [confirmation, setConfirmation] = useState<HarnessArchivedSnapshot>()
   const [resultMessage, setResultMessage] = useState('')
   const [actionError, setActionError] = useState('')
@@ -52,7 +53,7 @@ export function ArchivedSessions({ controller, sort, refreshKey, activeId, onOpe
   }, [controller, sort, refreshKey, active])
   useEffect(() => {
     setBusyId(''); mutationInFlight.current = false
-    setConfirmation(undefined); setMenuOpen(false); setActionError(''); setResultMessage(''); setRefreshFailed(false)
+    setConfirmation(undefined); setDeletingRow(undefined); setMenuOpen(false); setActionError(''); setResultMessage(''); setRefreshFailed(false)
     return () => { operation.current++ }
   }, [controller, active])
 
@@ -64,7 +65,7 @@ export function ArchivedSessions({ controller, sort, refreshKey, activeId, onOpe
     try {
       if (remove) await controller.deleteSession(row.id)
       else await controller.restoreSession(row.id)
-      if (isCurrent(request)) await loadRef.current()
+      if (isCurrent(request)) { if (remove) setDeletingRow(undefined); await loadRef.current() }
     } catch (cause) { if (isCurrent(request)) setError(cause instanceof Error ? cause.message : '归档操作失败') }
     finally { if (isCurrent(request)) { mutationInFlight.current = false; setBusyId('') } }
   }
@@ -125,18 +126,18 @@ export function ArchivedSessions({ controller, sort, refreshKey, activeId, onOpe
 
   return <section aria-label="已归档任务" className="mira-session-archived">
     {actionsContainer === undefined ? actions : actionsContainer ? createPortal(actions, actionsContainer) : null}
-    <div className="mira-session-group__head"><span>已归档{page ? ` · ${page.total}` : ''}</span></div>
     {resultMessage && <p role="status" className="mira-session-bulk-result">{resultMessage}</p>}
     {actionError && <div role="alert" className="mira-session-feedback"><CircleAlert size={13} /><span>{actionError}</span>{refreshFailed && <button type="button" disabled={Boolean(busyId)} onClick={() => void retryRefresh()}>重试刷新</button>}</div>}
     {error && <div className="mira-session-feedback" role="alert"><CircleAlert size={13} /><span>{error}</span><button type="button" onClick={() => void load(failedPage)}>重试</button></div>}
     {page?.rows.map(row => <div key={row.id} className={`mira-session-row mira-session-row--archived${activeId === row.id ? ' is-active' : ''}`}>
-      <button type="button" className="mira-session-row__open" aria-current={activeId === row.id ? 'page' : undefined} title={row.title} onClick={() => onOpen(row.id)}><span className="mira-session-archived-title"><span>{row.title || '新任务'}</span><time title={new Date(sort === 'created' ? row.createdAt : row.updatedAt).toLocaleString()} dateTime={new Date(sort === 'created' ? row.createdAt : row.updatedAt).toISOString()}>{relativeSessionTime(sort === 'created' ? row.createdAt : row.updatedAt)}</time></span><span className="mira-session-archived-source"><Folder size={11} /><span>{row.projectName || '个人工作区'}</span></span></button>
-      <SidebarActionHint title="恢复任务"><button type="button" className="mira-session-icon" aria-label={`恢复 ${row.title}`} disabled={Boolean(busyId) || Boolean(confirmation)} onClick={() => void mutate(row, false)}>{busyId === row.id ? <LoaderCircle size={14} className="pilot-spin" /> : <ArchiveRestore size={14} />}</button></SidebarActionHint>
-      <DropdownMenu.Root><SidebarActionHint title="归档任务操作"><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={`${row.title} 的归档操作`} disabled={Boolean(busyId)}><MoreHorizontal size={15} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu" align="start" sideOffset={4}>
-        <DropdownMenu.Item className="mira-session-menu__item" onSelect={() => void mutate(row, false)}><ArchiveRestore size={14} />恢复任务</DropdownMenu.Item>
-        <DropdownMenu.Sub><DropdownMenu.SubTrigger className="mira-session-menu__item mira-session-menu__item--danger"><Trash2 size={14} />永久删除</DropdownMenu.SubTrigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.SubContent className="mira-session-menu"><DropdownMenu.Label className="mira-session-menu__label">删除后无法恢复</DropdownMenu.Label><DropdownMenu.Item className="mira-session-menu__item mira-session-menu__item--danger" onSelect={() => void mutate(row, true)}>确认删除「{row.title || '新任务'}」</DropdownMenu.Item></DropdownMenu.SubContent></DropdownMenu.Portal></DropdownMenu.Sub>
-      </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+      <button type="button" className="mira-session-archived-title" aria-current={activeId === row.id ? 'page' : undefined} title={row.title} onClick={() => onOpen(row.id)}><span>{row.title || '新任务'}</span><time title={new Date(sort === 'created' ? row.createdAt : row.updatedAt).toLocaleString()} dateTime={new Date(sort === 'created' ? row.createdAt : row.updatedAt).toISOString()}>{relativeSessionTime(sort === 'created' ? row.createdAt : row.updatedAt)}</time></button>
+      <div className="mira-session-archived-meta">
+        <button type="button" className="mira-session-archived-source" onClick={() => onOpen(row.id)}><Folder size={12} /><span>{row.projectName || '个人工作区'}</span></button>
+        <SidebarActionHint title="恢复任务"><button type="button" className="mira-session-icon" aria-label={`恢复 ${row.title}`} disabled={Boolean(busyId) || Boolean(confirmation) || Boolean(deletingRow)} onClick={() => void mutate(row, false)}>{busyId === row.id ? <LoaderCircle size={14} className="pilot-spin" /> : <ArchiveX size={14} />}</button></SidebarActionHint>
+        <SidebarActionHint title="永久删除"><button type="button" className="mira-session-icon mira-session-archived-delete" aria-label={`永久删除 ${row.title}`} disabled={Boolean(busyId) || Boolean(confirmation) || Boolean(deletingRow)} onClick={() => { setError(''); setDeletingRow(row) }}><Trash2 size={14} /></button></SidebarActionHint>
+      </div>
     </div>)}
+    <Dialog.Root open={active && Boolean(deletingRow)} onOpenChange={open => { if (!open && !busyId) setDeletingRow(undefined) }}><Dialog.Portal container={document.getElementById('root')}><Dialog.Overlay className="mira-confirm-overlay" /><Dialog.Content className="mira-confirm" onEscapeKeyDown={event => { if (busyId) event.preventDefault() }} onPointerDownOutside={event => { if (busyId) event.preventDefault() }}><Dialog.Title>删除归档会话「{deletingRow?.title || '新任务'}」？</Dialog.Title><Dialog.Description>该会话及相关记录将被永久删除，无法恢复；磁盘文件不受影响。</Dialog.Description>{error && <p className="mira-confirm-error" role="alert">{error}</p>}<div className="mira-confirm-actions"><button type="button" disabled={Boolean(busyId)} onClick={() => setDeletingRow(undefined)}>取消</button><button type="button" className="mira-confirm-danger" aria-label="确认删除归档会话" disabled={Boolean(busyId)} onClick={() => { if (deletingRow) void mutate(deletingRow, true) }}>删除会话</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
     {loading && <p className="mira-session-hint" role="status"><LoaderCircle size={14} className="pilot-spin" /> 正在读取归档任务</p>}
     {!loading && !error && page?.total === 0 && <p className="mira-session-hint">没有已归档任务</p>}
     {page && page.rows.length < page.total && !error && <button type="button" className="mira-session-more" disabled={loading || Boolean(busyId)} onClick={() => void load(page.page + 1)}>加载更多</button>}

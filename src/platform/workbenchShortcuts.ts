@@ -20,3 +20,8 @@ export function miraWorkbenchShortcut(event: Pick<KeyboardEvent, 'key' | 'metaKe
   if (event.shiftKey && key === 'l') return 'theme'
   if (!event.shiftKey && key === 'o') return 'project'
 }
+
+/** Split display labels into individual keycaps on both desktop platforms. */
+export function miraShortcutKeys(label: string): string[] {
+  return label.replace(/⌘/g, '⌘+').replace(/⇧/g, 'Shift+').replace(/⌥/g, '⌥+').replace(/⌃/g, 'Ctrl+').split('+').filter(Boolean)
+}

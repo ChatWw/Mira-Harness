@@ -67,7 +67,7 @@ function miraSuggestionScore(item: { label: string; description?: string; keywor
     }
     return distance
   }
-  return Math.min(score(item.label.replace(/^[/@$#]+/, '')), score(item.description || '') + 250, score(item.keywords || '') + 450)
+  return Math.min(score(item.label.replace(/^[/@$#]+/, '')), score(item.description || '') + 250, score(item.keywords || '') + (item.keywords?.toLocaleLowerCase().split(/\s+/).includes(term) ? 0 : 450))
 }
 
 export function bestMiraSuggestionIndex(items: ReadonlyArray<{ label: string; description?: string; keywords?: string; disabled?: boolean }>, query: string) {

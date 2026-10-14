@@ -128,7 +128,12 @@ export class LocalMicroAppServer {
     const server = this.server
     this.server = undefined
     this._port = undefined
-    return new Promise<void>(resolveStop => server?.close(() => resolveStop()) || resolveStop())
+    if (!server) return Promise.resolve()
+    return new Promise<void>(resolveStop => {
+      server.close(() => resolveStop())
+      // Shutdown must not wait for a still-open renderer/API response.
+      server.closeAllConnections()
+    })
   }
 
   issueApiToken(appId: string, capabilities: readonly string[]) {

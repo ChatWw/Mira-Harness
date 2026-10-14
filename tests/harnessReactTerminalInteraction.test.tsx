@@ -124,6 +124,20 @@ describe('terminal activation and clipboard ownership', () => {
     await render(false, 'b', ['b']); await render(true, 'b', ['b'])
     expect(controller.openTerminalFor).toHaveBeenCalledTimes(4)
   })
+  it('reopens terminals in the new workspace after a prepared project changes while preserving the input', async () => {
+    let index = 0
+    const controller = { openTerminalFor: vi.fn(async () => ({ terminalId: `pty-${++index}` })), closeTerminalFor: vi.fn(async () => undefined), onTerminalEvent: () => () => undefined, resizeTerminalFor: vi.fn(async () => undefined) } as unknown as PilotController
+    const render = async (directory: string) => { await act(async () => root!.render(<MiraBottomTerminal controller={controller} sessionId="prepared" directory={directory} retainedSessionIds={['prepared']} open active onClose={() => {}} onFocus={() => {}} onOpenAddress={() => {}}><textarea aria-label="draft" defaultValue="保留输入" /></MiraBottomTerminal>)) }
+    await render('/fixture/project-a')
+    expect(controller.openTerminalFor).toHaveBeenCalledOnce()
+    await render('/fixture/project-b')
+    expect(controller.closeTerminalFor).toHaveBeenCalledExactlyOnceWith('prepared', 'pty-1')
+    expect(controller.openTerminalFor).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[role="tab"]')?.textContent).toBe('project-b 1')
+    expect(container.querySelector<HTMLTextAreaElement>('[aria-label="draft"]')?.value).toBe('保留输入')
+    await render('/fixture/project-b')
+    expect(controller.openTerminalFor).toHaveBeenCalledTimes(2)
+  })
   it('opens detected links through the current callback and ignores hidden or disposed terminals', async () => {
     const controller = { openTerminalFor: vi.fn(async () => ({ terminalId: 'pty' })), closeTerminalFor: vi.fn(async () => undefined), onTerminalEvent: () => () => undefined, resizeTerminalFor: vi.fn(async () => undefined) } as unknown as PilotController
     const first = vi.fn(), latest = vi.fn()

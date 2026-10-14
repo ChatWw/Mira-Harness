@@ -216,6 +216,13 @@ export async function handleFirstPartyRequest(options: {
     }
   }
   switch (request.method) {
+    case 'resources.open': {
+      requireCapability(manifest, 'harness:workbench')
+      if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能打开资源管理器')
+      if (request.params !== undefined) throw new FirstPartyBridgeError('INVALID_REQUEST', '资源管理器不接受自定义参数')
+      await api.openResourceManager()
+      return null
+    }
     case 'appearance.toggle-theme': {
       if (request.params !== undefined && Object.keys(record(request.params)).length) throw new FirstPartyBridgeError('INVALID_REQUEST', '主题切换不接受自定义参数')
       if (!options.toggleTheme) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持主题切换')

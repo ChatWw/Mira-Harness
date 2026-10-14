@@ -12,9 +12,12 @@ import { sidebarRootItems } from '../components/session/session-groups'
 export function miraAdjacentTasks(sessions: Array<HarnessSessionSummary & Partial<Pick<HarnessSession, 'archivedAt' | 'draftState'>>>, scope: { workingDirectory?: string; projectId?: string }, activeId: string | undefined, preferences: SidebarPreferences) {
   if (!scope.workingDirectory && !scope.projectId) return { previous: undefined, next: undefined }
   const tasks = [...new Map(sessions.filter(task => !task.archivedAt && task.draftState !== 'prepared' && (scope.workingDirectory ? task.workingDirectory === scope.workingDirectory : task.projectId === scope.projectId)).map(task => [task.id, task])).values()]
+  const sort = preferences.view === 'group' ? preferences.groupSort : preferences.sort
   const sorted = (items: HarnessSessionSummary[], order?: string[]) => {
     const positions = new Map([...new Set(order)].map((id, index) => [id, index]))
-    return [...items].sort((left, right) => preferences.sort === 'manual' ? (positions.get(left.id) ?? positions.size) - (positions.get(right.id) ?? positions.size) : preferences.sort === 'created' ? right.createdAt - left.createdAt : right.updatedAt - left.updatedAt)
+    const first = items[0]
+    const manual = preferences.view === 'project' && preferences.projectView !== 'timeline' && first && preferences.manualSessionScopes?.includes(first.pinned ? 'pinned' : first.projectId ? `project:${first.projectId}` : 'recent')
+    return [...items].sort((left, right) => sort === 'manual' || manual ? (positions.get(left.id) ?? positions.size) - (positions.get(right.id) ?? positions.size) : sort === 'created' ? right.createdAt - left.createdAt : right.updatedAt - left.updatedAt)
   }
   const pinned = sorted(tasks.filter(task => task.pinned)).map(task => task.id)
   const remaining = tasks.filter(task => !task.pinned)
@@ -23,7 +26,7 @@ export function miraAdjacentTasks(sessions: Array<HarnessSessionSummary & Partia
     const groups = new Map(preferences.groups.map(group => [group.id, group]))
     const members = new Set(preferences.groups.flatMap(group => group.sessionIds))
     const roots = sorted(remaining.filter(task => !members.has(task.id)), preferences.ungroupedSessionOrder)
-    ids = sidebarRootItems(preferences.groups, roots.map(task => task.id), preferences.sort === 'manual' ? preferences.groupedRootOrder : []).flatMap(item => {
+    ids = sidebarRootItems(preferences.groups, roots.map(task => task.id), sort === 'manual' ? preferences.groupedRootOrder : []).flatMap(item => {
       if (item.type === 'session') return [item.id]
       const group = groups.get(item.id)!
       return sorted(remaining.filter(task => group.sessionIds.includes(task.id)), group.sessionIds).map(task => task.id)

@@ -1,3 +1,4 @@
+import { ShortcutKeys } from '../shared/ShortcutKeys'
 // Find-bar presentation adapted from ZCode (Copyright 2026 Z.AI Co., Ltd), Apache-2.0.
 // State, navigation and focus restoration are owned by Mira's workbench.
 import { useEffect, useId, useRef, type ReactNode } from 'react'
@@ -50,7 +51,7 @@ export function MiraConversationFindBar({ open, keyboardActive = true, allowChan
 
   if (!open) return null
   const navigate = (direction: -1 | 1) => { if (hasMatches) onNavigate(direction) }
-  const control = (label: string, shortcut: string | undefined, onClick: () => void, icon: ReactNode, disabled = false) => <Tooltip.Root><Tooltip.Trigger asChild><span className="mira-conversation-find__control-wrap"><button type="button" className="mira-conversation-find__control" aria-label={label} disabled={disabled} onClick={onClick}>{icon}</button></span></Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className="mira-conversation-find__hint" side="bottom" sideOffset={6}>{label}{shortcut && <kbd>{shortcut}</kbd>}</Tooltip.Content></Tooltip.Portal></Tooltip.Root>
+  const control = (label: string, shortcut: string | undefined, onClick: () => void, icon: ReactNode, disabled = false) => <Tooltip.Root><Tooltip.Trigger asChild><span className="mira-conversation-find__control-wrap"><button type="button" className="mira-conversation-find__control" aria-label={label} disabled={disabled} onClick={onClick}>{icon}</button></span></Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className="mira-conversation-find__hint" side="bottom" sideOffset={6}>{label}{shortcut && <ShortcutKeys shortcut={shortcut} />}</Tooltip.Content></Tooltip.Portal></Tooltip.Root>
 
   return <Tooltip.Provider delayDuration={350}><div role="dialog" aria-modal="false" aria-label="任务内查找" aria-describedby={descriptionId} className="mira-conversation-find" data-find-scope={scope}>
     <p id={descriptionId} className="mira-conversation-find__sr-only">输入关键词查找{scope === 'conversation' ? '当前对话' : '当前任务的文件变更'}。Enter 或下方向键跳到下一处，Shift+Enter 或上方向键跳到上一处，Esc 关闭。</p>

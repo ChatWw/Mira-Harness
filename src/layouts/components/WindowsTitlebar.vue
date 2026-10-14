@@ -63,6 +63,7 @@ const windowsMenuGroups: WindowMenuGroup[] = [
   { label: '应用', items: [{ label: '关于 Mira', action: 'about' }, { label: '退出 Mira', action: 'quit', divided: true }] },
   { label: '编辑', items: [{ label: '撤销', action: 'undo' }, { label: '重做', action: 'redo' }, { label: '剪切', action: 'cut', divided: true }, { label: '复制', action: 'copy' }, { label: '粘贴', action: 'paste' }, { label: '全选', action: 'selectAll' }] },
   { label: '视图', items: [...(import.meta.env.DEV ? [{ label: '重新加载', action: 'reload' }, { label: '开发者工具', action: 'toggleDevTools' }] : []), { label: '切换全屏', action: 'toggleFullscreen', divided: import.meta.env.DEV }, { label: '放大界面', action: 'zoomIn', divided: true }, { label: '缩小界面', action: 'zoomOut' }, { label: '恢复默认大小', action: 'resetZoom' }] },
+  { label: '帮助', items: [{ label: '资源管理器', action: 'resources' }] },
   { label: '窗口', items: [{ label: '最小化', action: 'minimize' }, { label: '最大化/还原', action: 'maximize' }, { label: '关闭窗口', action: 'close' }] },
 ]
 

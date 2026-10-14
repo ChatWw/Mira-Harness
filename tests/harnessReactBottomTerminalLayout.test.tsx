@@ -61,3 +61,45 @@ it('cancels pending expansion when rapidly toggled and preserves the draft', asy
   expect(Number(container.querySelector<HTMLElement>('#mira-bottom-terminal-panel')!.style.flexGrow)).toBeGreaterThan(0)
   expect(container.querySelector<HTMLTextAreaElement>('[aria-label="draft"]')?.value).toBe('keep draft')
 })
+
+it.each([false, true])('blocks bottom-edge dragging while closed (previously opened: %s)', async previouslyOpened => {
+  function Fixture() {
+    const [open, setOpen] = useState(false)
+    return <><button onClick={() => setOpen(true)}>open</button><MiraBottomTerminal controller={{} as PilotController} sessionId="a" retainedSessionIds={['a']} open={open} active onClose={() => setOpen(false)} onFocus={() => {}} onOpenAddress={() => {}}><textarea aria-label="draft" defaultValue="keep draft" /></MiraBottomTerminal></>
+  }
+  const panel = () => container.querySelector<HTMLElement>('#mira-bottom-terminal-panel')!
+  // The library creates an implicit hit region even without a Separator.
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const bottom = panel(), primary = container.querySelector<HTMLElement>('#mira-primary-thread')
+    const separatorHeight = container.querySelector('[role="separator"]') ? 4 : 0
+    const available = 800 - separatorHeight
+    const bottomHeight = bottom && primary ? available * Number(bottom.style.flexGrow) / (Number(bottom.style.flexGrow) + Number(primary.style.flexGrow)) : 0
+    const primaryHeight = available - bottomHeight
+    if (this === bottom) return new DOMRect(0, primaryHeight + separatorHeight, 1200, bottomHeight)
+    if (this === primary) return new DOMRect(0, 0, 1200, primaryHeight)
+    if (this.getAttribute('role') === 'separator') return new DOMRect(0, primaryHeight, 1200, separatorHeight)
+    return new DOMRect(0, 0, 1200, 800)
+  })
+  const click = async (selector: string) => {
+    await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click())
+    await act(async () => new Promise<void>(resolve => window.requestAnimationFrame(() => resolve())))
+  }
+  const drag = async (target: HTMLElement, from: number, to: number) => {
+    await act(async () => target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', clientX: 600, clientY: from, buttons: 1 })))
+    await act(async () => document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', clientX: 600, clientY: to, buttons: 1 })))
+    await act(async () => document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse', clientX: 600, clientY: to })))
+  }
+  await act(async () => root.render(<Fixture />))
+  if (previouslyOpened) { await click('button'); await click('[aria-label="收起底部终端"]') }
+  await drag(container.querySelector<HTMLElement>('[aria-label="draft"]')!, 799, 500)
+  expect(Number(panel().style.flexGrow)).toBe(0)
+  expect(container.querySelector('[role="separator"]')).toBeNull()
+  expect(container.querySelector<HTMLTextAreaElement>('[aria-label="draft"]')?.value).toBe('keep draft')
+
+  await click('button')
+  const sizeBeforeDrag = Number(panel().style.flexGrow)
+  expect(sizeBeforeDrag).toBeGreaterThan(0)
+  const separator = container.querySelector<HTMLElement>('[role="separator"]')!
+  await drag(separator, separator.getBoundingClientRect().top + 2, separator.getBoundingClientRect().top - 100)
+  expect(Number(panel().style.flexGrow)).toBeGreaterThan(sizeBeforeDrag)
+})

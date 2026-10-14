@@ -621,3 +621,9 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 2026-10-13：上下文容量预览参考 `packages/ui/src/chat-input-toolbar/contextUsage.tsx`、`components/ai-elements/context.tsx` 和 `lib/tokenNumberFormat.ts`：320px 宽、12px 内容内边距/圆角、8px 蓝色分段进度、中文 compact 总量与百分比、按来源字符量排序、仅展示至少 78% 的缓存收益。Mira 运行完成后记录自身 agent 消息/系统提示词/技能/系统与 MCP 工具定义字符量和真实 usage 缓存命中率；沿用自身 Popover/focus 与压缩入口，不复制上游额度/RPC 协议或假造缺失来源明细；Apache LICENSE/NOTICE 保持。
 
 2026-10-13：执行过程节奏改编 `ToolCallBlocks.tsx` 的工具首次流式出现记录（最多 800 项、1000ms 清理）、`styles.css` 的 900ms cubic-bezier(0.16,1,0.3,1) 淡入，以及 `ToolCallBlocks/QueuedSummaryContent.tsx` 的 300ms 滚动/500ms 停留、两项待播队列、同 key 原位刷新和超时漂移跳过。MiraStreamMotion 使用 React 状态与原生 CSS 实现同等摘要队列，接入思考最新行与查阅/命令组目标；保留完整正文和调用记录，不引入 motion/react。正文沿上游 message.tsx 的 animated=false/isAnimating=false，未加入上游明确禁用的逐字延时或整段重复淡入；Apache LICENSE/NOTICE 保持。
+
+2026-10-14 侧栏拖拽呈现：参考 ZCode `workspace-grouped-tasks/group-drag-overlay.tsx`、`WorkspaceSidebar.tsx`、`SortableWorkspaceSidebar.tsx` 及 `lib/workspaceSidebarDrag.ts` / `restrictVerticalDragWithinContainer.ts`。Mira 沿现有 dnd-kit、分组偏好和项目顺序接口，复刻同宽 32px 分组／项目浮层、原项隐藏、活动项目临时收起与固定标题高度让位；分组／任务采用 150ms 回落，保留自身任务分屏拖拽与导航。新增 sidebar-drag.ts 保留 Apache 版权与 SPDX，原 LICENSE／NOTICE 保持。
+
+- Sidebar task rows use whole-row dnd-kit activation like ZCode grouped tasks. Mira forwards pointer drops to its own task-grid placement API, retains chronological sort choices separately from dragged scope order, and commits the live preview without a second drop overlay animation.
+
+2026-10-14：对话分屏拖入遮罩参考 `packages/ui/src/v4/WorkbenchPane.tsx` 的 `DROP_PREVIEW_STYLE`，采用 14% 品牌色透明底、34% 内描边、6px 圆角与 4px 边距，移除中央文字；浮动任务行参考 `workspace-grouped-tasks/task-row.tsx` 保留行内图标与标题，Mira 通过 Portal 移出侧栏裁剪层，沿用自身分屏布局、跨项目任务控制器与已有分屏成员去重规则。原 Apache LICENSE/NOTICE 保持。

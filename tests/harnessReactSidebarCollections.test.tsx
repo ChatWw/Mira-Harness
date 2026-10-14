@@ -41,7 +41,7 @@ function mount(renderComponent: () => React.ReactNode) {
   return { render, drain, props: (match: (props: Record<string, unknown>) => boolean) => find(tree, match)!, allProps: (match: (props: Record<string, unknown>) => boolean) => findAll(tree, match) }
 }
 function sidebar(view: 'group' | 'project' = 'group', overrides: Partial<SessionDrawerProps> = {}, savedPreferences: Partial<SidebarPreferences> = {}) {
-  const preferences: SidebarPreferences = { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['p'], collapsedProjectIds: [], view, projectView: 'collections', sort: 'manual', ungroupedSessionOrder: [], groupedRootOrder: [], groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: ['s2', 's1'] }, { id: 'g2', name: '写作', color: 'green', collapsed: false, sessionIds: [] }], ...savedPreferences }
+  const preferences: Partial<SidebarPreferences> = { projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: ['p'], collapsedProjectIds: [], view, projectView: 'collections', sort: 'manual', ungroupedSessionOrder: [], groupedRootOrder: [], groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: ['s2', 's1'] }, { id: 'g2', name: '写作', color: 'green', collapsed: false, sessionIds: [] }], ...savedPreferences }
   const state = { sessions: [{ id: 's1', title: '个人任务', createdAt: 1, updatedAt: 2, status: 'active' }, { id: 's2', title: '项目任务', projectId: 'p', createdAt: 2, updatedAt: 3, status: 'active' }] as HarnessSessionSummary[], projects: [{ id: 'p', name: 'Mira', directory: '/tmp/mira', directoryExists: true, createdAt: 1, updatedAt: 1, sessionCount: 1 }], runningSessionIds: [] as string[], pendingPermissions: {} as Record<string, unknown>, unreadSessionIds: [], session: undefined as { id: string; projectId?: string } | undefined }
   const controller = {
     getPreference: vi.fn(async () => preferences), setPreference: vi.fn(async () => undefined), registerBeforeNavigation: vi.fn(() => () => undefined), getSnapshot: () => state,
@@ -63,6 +63,34 @@ function rootOrder(view: ReturnType<typeof sidebar>) {
 }
 
 describe('Mira sidebar collections through actual component callbacks', () => {
+  it.each(['updated', 'created'] as const)('allows project folder and task drops under %s sorting without a manual menu', async sort => {
+    const view = sidebar('project', {}, { sort })
+    view.state.projects.push({ ...view.state.projects[0], id: 'q' })
+    view.state.sessions = [...view.state.sessions, { ...view.state.sessions[1], id: 'p2', createdAt: 3, updatedAt: 4 }]
+    await view.drain()
+    expect(view.props(p => p.id === 'sidebar-project:p').sortable).toBe(true)
+    expect(view.allProps(p => p.value === 'manual')).toEqual([])
+    dragTask(view, 'sidebar-project:p', 'sidebar-project:q').end(); await view.drain()
+    expect(view.controller.reorderProjects).toHaveBeenCalledWith(['q', 'p'])
+    dragTask(view, 'p2', 's2').end(); await view.drain()
+    expect(view.controller.reorderSessions).toHaveBeenCalledWith({ type: 'project', projectId: 'p' }, ['s2', 'p2'])
+    expect(view.saved().sort).toBe(sort)
+    expect(view.saved().manualSessionScopes).toEqual(['project:p'])
+    const restored = new SidebarPreferenceStore(async () => view.saved(), async () => undefined); await restored.load()
+    expect(restored.getSnapshot().preferences.manualSessionScopes).toEqual(['project:p'])
+    const rule = view.props(p => p.value === sort && typeof p.onSelect === 'function')
+    ;(rule.onSelect as () => void)(); await view.drain()
+    expect(view.saved().manualSessionScopes).toEqual([])
+  })
+
+  it('restores the time rule when a project task reorder cannot be saved', async () => {
+    const view = sidebar('project', {}, { sort: 'created' })
+    view.state.sessions = [...view.state.sessions, { ...view.state.sessions[1], id: 'p2' }]
+    view.controller.reorderSessions.mockResolvedValue(false as never); await view.drain()
+    dragTask(view, 's2', 'p2').end(); await view.drain()
+    expect(view.saved().sort).toBe('created')
+    expect(view.saved().manualSessionScopes).toBeUndefined()
+  })
   it('moves a grouped task to its own group start and preserves membership, root order and project scope', async () => {
     const view = sidebar(); await view.drain()
     const row = () => view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's1')
@@ -351,6 +379,29 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(view.saved().groups.find(group => group.id === 'g1')!.sessionIds).toEqual(['s1'])
     expect(view.controller.reorderProjects).not.toHaveBeenCalled(); expect(view.onOpenSession).not.toHaveBeenCalled()
   })
+  it('shows a compact colored group overlay and restores collapse on cancel', async () => {
+    const view = sidebar(); await view.drain()
+    const drag = dragTask(view, 'sidebar-group:g1', 'sidebar-group:g2'); await view.drain()
+    const overlay = view.props(p => p['data-sidebar-drag-overlay'] === 'group')
+    expect(overlay['data-group-color']).toBe('blue')
+    expect(JSON.stringify(overlay.children)).toContain('研究')
+    expect(view.props(p => p.className === 'mira-session-drag-overlay__count').children).toBe(2)
+    drag.cancel(); await view.drain()
+    expect(view.props(p => p['data-sidebar-drag-overlay'] === 'group')).toBeUndefined()
+    expect(view.props(p => p.id === 'sidebar-group:g1').expanded).toBe(true)
+  })
+  it('temporarily collapses only the dragged project and restores it without saving on cancel', async () => {
+    const view = sidebar('project'); await view.drain()
+    const drag = dragTask(view, 'sidebar-project:p', 'sidebar-project:q'); await view.drain()
+    expect(view.props(p => p.id === 'sidebar-project:p').expanded).toBe(false)
+    const overlay = view.props(p => p['data-sidebar-drag-overlay'] === 'project')
+    expect(JSON.stringify(overlay.children)).toContain('Mira')
+    expect(view.controller.setPreference).not.toHaveBeenCalled()
+    drag.cancel(); await view.drain()
+    expect(view.props(p => p.id === 'sidebar-project:p').expanded).toBe(true)
+    expect(view.props(p => p['data-sidebar-drag-overlay'] === 'project')).toBeUndefined()
+    expect(view.controller.reorderProjects).not.toHaveBeenCalled()
+  })
   it('temporarily collapses a dragged group and restores its persisted collapse state on cancel', async () => {
     const view = sidebar(); await view.drain()
     const drag = dragTask(view, 'sidebar-group:g1', 'sidebar-group:g2'); await view.drain()
@@ -360,19 +411,49 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(view.props(p => p.id === 'sidebar-group:g1').expanded).toBe(true)
     expect(view.controller.setPreference).not.toHaveBeenCalled()
   })
-  it('respects time sorting without overwriting manual root interleaving and restores manual ordering when selected again', async () => {
-    const view = sidebar('group', {}, { groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: [] }], groupedRootOrder: [{ type: 'session', id: 's1' }, { type: 'group', id: 'g1' }, { type: 'session', id: 's2' }] }); await view.drain()
-    expect(rootOrder(view)).toEqual(['s1', 'sidebar-group:g1', 's2'])
-    const sort = () => view.props(p => typeof p.onValueChange === 'function' && ['manual', 'updated'].includes(String(p.value))).onValueChange as (value: string) => void
-    sort()('updated'); await view.drain()
-    expect(rootOrder(view)).toEqual(['sidebar-group:g1', 's2', 's1'])
-    expect(view.saved().groupedRootOrder).toEqual([{ type: 'session', id: 's1' }, { type: 'group', id: 'g1' }, { type: 'session', id: 's2' }])
-    sort()('manual'); await view.drain()
-    expect(rootOrder(view)).toEqual(['s1', 'sidebar-group:g1', 's2'])
+  it.each(['updated', 'created'] as const)('defaults grouped tasks to latest update independently of project %s sorting and enables dragging', async sort => {
+    const view = sidebar('group', {}, { sort, groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: ['s1', 's2'] }] }); await view.drain()
+    expect(view.allProps(p => p.session).map(p => (p.session as HarnessSessionSummary).id)).toEqual(['s2', 's1'])
+    expect(view.props(p => p.id === 'sidebar-group:g1').sortable).toBe(true)
+    expect(view.props(p => p['aria-label'] === '任务排序')).toBeUndefined()
+    dragTask(view, 's1', 's2', -10).end(); await view.drain()
+    expect(view.allProps(p => p.session).map(p => (p.session as HarnessSessionSummary).id)).toEqual(['s1', 's2'])
+    expect(view.saved()).toMatchObject({ sort, groupSort: 'manual', groups: [{ sessionIds: ['s1', 's2'] }] })
+    expect(view.controller.setPreference).toHaveBeenCalledOnce()
+    const restored = new SidebarPreferenceStore(async () => view.saved(), async () => undefined)
+    await restored.load()
+    expect(restored.getSnapshot().preferences.groupSort).toBe('manual')
+  })
+  it('cancels dragging from recent order without persisting manual sorting', async () => {
+    const view = sidebar('group', {}, { sort: 'updated' }); await view.drain()
+    dragTask(view, 's1', 'sidebar-drop:g2').cancel(); await view.drain()
+    expect(view.controller.setPreference).not.toHaveBeenCalled()
+    expect(view.allProps(p => p.session).map(p => (p.session as HarnessSessionSummary).id)).toEqual(['s2', 's1'])
+  })
+  it('preserves visible recent order of untouched tasks when first dragged to manual order', async () => {
+    const view = sidebar('group', {}, { sort: 'updated', groups: [{ id: 'g1', name: '研究', color: 'blue', collapsed: false, sessionIds: ['s1', 's2', 's3'] }, { id: 'g2', name: '写作', color: 'green', collapsed: false, sessionIds: [] }] })
+    view.state.sessions = [...view.state.sessions, { id: 's3', title: '最新任务', createdAt: 3, updatedAt: 4, status: 'active' }]; await view.drain()
+    dragTask(view, 's1', 'sidebar-drop:g2').end(); await view.drain()
+    expect(view.saved().groups.map(group => group.sessionIds)).toEqual([['s3', 's2'], ['s1']])
+    expect(view.allProps(p => p.session).map(p => (p.session as HarnessSessionSummary).id)).toEqual(['s3', 's2', 's1'])
   })
   it('does not save when the task remains at the same effective position in legacy preferences', async () => {
     const view = sidebar(); await view.drain()
     dragTask(view, 's1', 's2', 10).end(); await view.drain()
+    expect(view.controller.setPreference).not.toHaveBeenCalled()
+  })
+  it.each(['project', 'recent', 'pinned'] as const)('recognizes the original %s task slot after previewing a swap', async scope => {
+    const view = sidebar('project', {}, { sort: 'updated' })
+    view.state.sessions = ['first', 'second'].map((id, index) => ({ ...view.state.sessions[0], id, projectId: scope === 'project' ? 'p' : undefined, pinned: scope === 'pinned', updatedAt: 2 - index }))
+    await view.drain()
+    const first = { top: 100, bottom: 133, left: 0, right: 200, width: 200, height: 33 }
+    const second = { ...first, top: 135, bottom: 168 }
+    const args = { active: { id: 'first' }, droppableContainers: ['first', 'second'].map(id => ({ id })), droppableRects: new Map([['first', first], ['second', second]]), collisionRect: first, pointerCoordinates: { x: 80, y: 115 } }
+    const collision = view.props(p => typeof p.collisionDetection === 'function').collisionDetection as (args: unknown) => Array<{ id: string }>
+    expect(collision({ ...args, pointerCoordinates: { x: 80, y: 150 } })[0]?.id).toBe('second')
+    expect(collision(args)[0]?.id).toBe('first')
+    dragTask(view, 'first', 'first').end(); await view.drain()
+    expect(view.controller.reorderSessions).not.toHaveBeenCalled()
     expect(view.controller.setPreference).not.toHaveBeenCalled()
   })
   it('uses the real collision algorithms to separate task, group and pinned drop targets', async () => {
@@ -624,7 +705,7 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     ;(view.props(p => p.children === '显示更多任务').onClick as () => void)(); await view.drain()
     expect(timelineRows()).toHaveLength(24)
     expect(view.props(p => p.children === '显示更多任务')).toBeUndefined()
-    ;(view.props(p => p.value === 'updated' && typeof p.onValueChange === 'function').onValueChange as (value: string) => void)('created'); await view.drain()
+    ;(view.props(p => p.value === 'created' && typeof p.onSelect === 'function').onSelect as () => void)(); await view.drain()
     expect(timelineRows()).toHaveLength(20)
     expect((timelineRows()[0]!.session as HarnessSessionSummary).id).toBe('t22')
     expect(view.props(p => p.value === 'manual')).toBeUndefined()

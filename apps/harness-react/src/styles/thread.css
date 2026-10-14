@@ -532,11 +532,12 @@
 .mira-task-grid__divider--vertical { transform: translateY(-3px); cursor: row-resize; }
 .mira-task-grid__divider:focus-visible { outline: none; }
 .mira-task-grid__divider:hover::after, .mira-task-grid__divider:focus-visible::after { background: var(--focus); }
-.mira-task-grid__drop { position: absolute; z-index: 30; display: grid; place-items: center; color: var(--color-foreground); background: color-mix(in srgb, var(--focus) 12%, var(--color-background) 88%); border: 1px solid var(--focus); pointer-events: none; }
-.mira-task-grid__drop--left { inset: 2px 50% 2px 2px; }
-.mira-task-grid__drop--right { inset: 2px 2px 2px 50%; }
-.mira-task-grid__drop--up { inset: 2px 2px 50% 2px; }
-.mira-task-grid__drop--down { inset: 50% 2px 2px 2px; }
+/* ZCode WorkbenchPane DROP_PREVIEW_STYLE: let the conversation remain visible. */
+.mira-task-grid__drop { position: absolute; z-index: 50; border-radius: 6px; background: color-mix(in oklab, var(--color-brand) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-brand) 34%, transparent); pointer-events: none; transition: background-color 150ms ease-out, box-shadow 150ms ease-out; }
+.mira-task-grid__drop--left { top: 4px; bottom: 4px; left: 4px; width: 50%; }
+.mira-task-grid__drop--right { top: 4px; right: 4px; bottom: 4px; width: 50%; }
+.mira-task-grid__drop--up { top: 4px; left: 4px; right: 4px; height: 50%; }
+.mira-task-grid__drop--down { bottom: 4px; left: 4px; right: 4px; height: 50%; }
 .mira-task-grid__error { position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 35; display: flex; gap: 12px; justify-content: space-between; padding: 8px 12px; background: var(--color-popover); color: var(--color-foreground); border: 1px solid var(--color-border); border-radius: 6px; }
 .mira-task-grid__error button { flex-shrink: 0; }
 .mira-task-grid__error button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -3,8 +3,9 @@ import { bestMiraSuggestionIndex, filterMiraSuggestions, findMiraPromptToken, fo
 
 describe('Mira composer caret triggers and replacements', () => {
   it('selects the strongest match across groups while skipping disabled rows and retaining host-only file matches', () => {
-    const items = [{ label: 'Weak', description: 'reviewer helper' }, { label: 'reviewer', keywords: '审查 agent' }, { label: '/reviewer', disabled: true }]
+    const items = [{ label: 'Weak', description: 'reviewer helper' }, { label: '审查', keywords: 'reviewer agent' }, { label: '/reviewer', disabled: true }]
     expect(bestMiraSuggestionIndex(items, 'reviewer')).toBe(1)
+    expect(bestMiraSuggestionIndex(items, '审查')).toBe(1)
     expect(bestMiraSuggestionIndex([{ label: 'parent.ts' }], 'matched-in-parent-directory')).toBe(0)
     expect(bestMiraSuggestionIndex([{ label: 'Only', disabled: true }], '')).toBe(-1)
     expect(bestMiraSuggestionIndex(items, '')).toBe(0)

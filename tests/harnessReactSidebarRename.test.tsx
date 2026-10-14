@@ -248,7 +248,9 @@ describe('sidebar task rename through real React and Radix DOM', () => {
   it('retains grouped drag and menu actions without inserting a project-style pin action', async () => {
     const view = await mount()
     expect(view.row().querySelector('.mira-session-row__pin')).toBeNull()
-    expect(view.row().querySelector('.mira-session-row__grip')).not.toBeNull()
+    expect(view.row().querySelector('.mira-session-row__grip')).toBeNull()
+    expect(view.row().getAttribute('data-sidebar-draggable')).toBe('true')
+    expect(view.row().getAttribute('tabindex')).toBe('0')
     await act(async () => view.row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })))
     expect([...view.container.querySelectorAll('[role="menuitem"]')].some(item => item.textContent === '置顶')).toBe(true)
   })

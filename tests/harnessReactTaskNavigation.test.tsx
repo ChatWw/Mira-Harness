@@ -25,10 +25,23 @@ describe('workspace-scoped adjacent tasks', () => {
     const tasks = [task('a', { createdAt: 3 }), task('b', { createdAt: 2 }), task('pinned', { pinned: true }), task('c', { createdAt: 4 })]
     const prefs = preferences(); prefs.sort = 'created'
     expect(miraAdjacentTasks(tasks, { projectId: 'project' }, 'c', prefs)).toEqual({ previous: 'pinned', next: 'a' })
-    prefs.view = 'group'; prefs.sort = 'manual'; prefs.groups = [{ id: 'group', name: 'Group', color: 'blue', collapsed: true, sessionIds: ['b', 'a', 'missing', 'b'] }]
+    prefs.view = 'group'; prefs.sort = 'created'; prefs.groupSort = 'manual'; prefs.groups = [{ id: 'group', name: 'Group', color: 'blue', collapsed: true, sessionIds: ['b', 'a', 'missing', 'b'] }]
     prefs.groupedRootOrder = [{ type: 'session', id: 'c' }, { type: 'group', id: 'group' }]
     expect(miraAdjacentTasks(tasks, { workingDirectory: '/one' }, 'b', prefs)).toEqual({ previous: 'c', next: 'a' })
     expect(miraAdjacentTasks(tasks, { workingDirectory: '/one' }, undefined, prefs)).toEqual({ previous: 'a', next: 'pinned' })
+  })
+  it('follows a dragged project scope without changing untouched time sorting', () => {
+    const prefs = preferences(); prefs.manualSessionScopes = ['project:project']
+    const tasks = [task('a', { updatedAt: 1 }), task('b', { updatedAt: 3 })]
+    expect(miraAdjacentTasks(tasks, { projectId: 'project' }, 'a', prefs)).toEqual({ previous: undefined, next: 'b' })
+    prefs.manualSessionScopes = []
+    expect(miraAdjacentTasks(tasks, { projectId: 'project' }, 'a', prefs)).toEqual({ previous: 'b', next: undefined })
+  })
+  it('uses latest updates in the group view independently of the project sort', () => {
+    const prefs = preferences(); prefs.view = 'group'; prefs.sort = 'created'
+    prefs.groups = [{ id: 'g', name: '研究', color: 'blue', collapsed: false, sessionIds: ['a', 'b'] }]
+    const tasks = [task('a', { createdAt: 3, updatedAt: 1 }), task('b', { createdAt: 1, updatedAt: 3 })]
+    expect(miraAdjacentTasks(tasks, { projectId: 'project' }, 'b', prefs)).toEqual({ previous: undefined, next: 'a' })
   })
   it('reads fresh metadata and ignores duplicate and missing task identities', () => {
     const tasks = [task('a', { updatedAt: 2 }), task('b')]

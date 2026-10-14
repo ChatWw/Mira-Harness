@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, nativeImage, shell, Tray, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron'
+import { isResourceManagerWindow, openResourceManager } from './resourceManager'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { shouldBlockReloadShortcut } from '../windowShortcuts'
@@ -24,6 +25,7 @@ export function navigateToAbout(window?: BrowserWindow | null) {
 }
 
 export function showMainWindow() {
+  if (windowManagerOptions?.isQuitting()) return
   const window = BrowserWindow.getAllWindows()[0]
   if (window) {
     if (!window.isVisible()) window.show()
@@ -74,7 +76,11 @@ export function setupApplicationMenu() {
     {
       label: 'Mira',
       submenu: [
-        { label: '关于 Mira', click: (_item, window) => navigateToAbout(window as BrowserWindow | undefined) },
+        { label: '关于 Mira', accelerator: 'CmdOrCtrl+I', click: (_item, window) => navigateToAbout(window as BrowserWindow | undefined) },
+        { label: '设置', accelerator: 'CmdOrCtrl+,', click: (_item, window) => {
+          const target = (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow()
+          target?.webContents.send('window:navigate', '/settings/general')
+        } },
         { type: 'separator' },
         { label: '隐藏 Mira', role: 'hide' },
         { label: '隐藏其他', role: 'hideOthers' },
@@ -93,12 +99,14 @@ export function setupApplicationMenu() {
       { label: '全选', role: 'selectAll' },
     ] },
     { label: '视图', submenu: viewMenu },
+    { label: '帮助', submenu: [{ id: 'mira-resource-manager', label: '资源管理器', click: () => openResourceManager() }] },
     { label: '窗口', submenu: [
       { label: '最小化', role: 'minimize' },
       { label: '缩放', role: 'zoom' },
       { label: '关闭标签或窗口', accelerator: 'CmdOrCtrl+W', click: (_item, window) => {
         const target = (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow()
-        target?.webContents.send('window:close-context')
+        if (target && isResourceManagerWindow(target)) target.close()
+        else target?.webContents.send('window:close-context')
       } },
     ] },
   ]
@@ -177,6 +185,7 @@ export function handleWindowCommand(event: IpcMainEvent, action: string) {
   const window = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getAllWindows()[0]
   if (!window) return
   switch (action) {
+    case 'resources': openResourceManager(); break
     case 'about': navigateToAbout(window); break
     case 'quit': app.quit(); break
     case 'undo': window.webContents.undo(); break

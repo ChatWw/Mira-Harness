@@ -3,12 +3,29 @@ import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceTabs } from '../apps/harness-react/src/components/workspace/WorkspaceTabs'
-import { MiraTaskGrid, MIRA_TASK_DRAG_MIME } from '../apps/harness-react/src/components/workspace/MiraTaskGrid'
+import { MiraTaskGrid, MIRA_TASK_DRAG_MIME, miraTaskPointerDrag, endMiraTaskDrag } from '../apps/harness-react/src/components/workspace/MiraTaskGrid'
 import { miraInitialTaskLayout, splitMiraTaskLayout } from '../apps/harness-react/src/state/mira-task-layout'
 import { closeWorkspaceTab, createWorkspaceSession, openWorkspaceTab, type WorkspaceTabId } from '../apps/harness-react/src/state/workspace-state'
 
 let root: Root | undefined
 describe('Mira task grid keeps editors alive while changing splits', () => {
+  it('accepts whole-row sidebar pointer drags, cancels previews and preserves editors', async () => {
+    const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+    const placed = vi.fn(async () => undefined)
+    await act(async () => root!.render(<MiraTaskGrid layout={miraInitialTaskLayout()} active canPlace={id => id === 'task'} onPlace={placed} onResize={() => undefined}><textarea data-mira-task-leaf="$primary" defaultValue="保留草稿" /></MiraTaskGrid>))
+    const editor = container.querySelector('textarea')!, pane = container.querySelector<HTMLElement>('[data-task-leaf]')!
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue({ left: 400, right: 1000, top: 0, bottom: 600, width: 600, height: 600 } as DOMRect)
+    await act(async () => { expect(miraTaskPointerDrag('task', 999, 300, false)).toBe(true) })
+    expect(container.querySelector('.mira-task-grid__drop--right')?.getAttribute('aria-hidden')).toBe('true')
+    expect(container.querySelector('.mira-task-grid__drop')?.textContent).toBe('')
+    await act(async () => endMiraTaskDrag())
+    expect(container.querySelector('.mira-task-grid__drop')).toBeNull(); expect(placed).not.toHaveBeenCalled()
+    await act(async () => { expect(miraTaskPointerDrag('task', 300, 300, true)).toBe(false); expect(miraTaskPointerDrag('missing', 999, 300, true)).toBe(false) })
+    await act(async () => { expect(miraTaskPointerDrag('task', 999, 300, true)).toBe(true) })
+    expect(placed).toHaveBeenCalledExactlyOnceWith('task', '$primary', 'right')
+    expect(container.querySelector('textarea')).toBe(editor); expect(editor.value).toBe('保留草稿')
+  })
+
   it('previews pointer geometry without React rerenders or persistence, cancels with Escape and commits once on release', async () => {
     const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
     let renders = 0
@@ -52,11 +69,11 @@ describe('Mira task grid keeps editors alive while changing splits', () => {
       Object.defineProperties(event, { clientX: { value: x }, clientY: { value: y }, dataTransfer: { value: { types: [MIRA_TASK_DRAG_MIME], getData: () => id, dropEffect: '' } } })
       await act(async () => pane.dispatchEvent(event)); return event
     }
-    await drag('dragover', 'c', 300, 300); expect(container.querySelector('[role="status"]')).toBeNull()
+    await drag('dragover', 'c', 300, 300); expect(container.querySelector('.mira-task-grid__drop')).toBeNull()
     await drag('drop', 'b', 599, 300); expect(placed).not.toHaveBeenCalled()
-    await drag('dragover', 'c', 300, 599); expect(container.querySelector('[role="status"]')?.textContent).toBe('在下方打开任务')
+    await drag('dragover', 'c', 300, 599); expect(container.querySelector('.mira-task-grid__drop--down')?.getAttribute('aria-hidden')).toBe('true')
     await drag('drop', 'c', 300, 599); expect(placed).toHaveBeenCalledExactlyOnceWith('c', '$primary', 'down')
-    expect(container.querySelector('[role="status"]')).toBeNull(); expect(editor.value).toBe('尚未发送的侧草稿')
+    expect(container.querySelector('.mira-task-grid__drop')).toBeNull(); expect(editor.value).toBe('尚未发送的侧草稿')
   })
 })
 beforeEach(() => {

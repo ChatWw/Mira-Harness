@@ -429,7 +429,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       return { method, query: { archiveView, sort, page: Number(page), pageSize: Number(pageSize), q: query.q === undefined ? undefined : workspaceSearchQuery(query.q) } } as const
     }
     case 'session.delete': return { method, id: string(params.id, '会话 ID') } as const
-    case 'session.move': return { method, id: string(params.id, '会话 ID'), projectId: string(params.projectId, '项目 ID') } as const
+    case 'session.move': return { method, id: string(params.id, '会话 ID'), projectId: optionalString(params.projectId, '项目 ID') } as const
     case 'session.reorder': return { method, scope: orderScope(params.scope), ids: idList(params.ids, '会话 ID 列表') } as const
     case 'session.set-permission': return { method, id: string(params.id, '会话 ID'), mode: permissionMode(params.mode) } as const
     case 'session.set-skills': return { method, id: string(params.id, '会话 ID'), skillIds: idList(params.skillIds, 'Skill 列表') } as const

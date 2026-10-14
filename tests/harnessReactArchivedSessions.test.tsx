@@ -126,7 +126,9 @@ describe('actual archived-list component callbacks', () => {
   it('only deletes after selecting the explicit destructive confirmation', async () => {
     const view = mount(); await view.drain()
     expect(view.controller.deleteSession).not.toHaveBeenCalled()
-    ;(view.props(p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('确认删除'))!.onSelect as () => void)(); await view.drain()
+    ;(view.props(p => p['aria-label'] === '永久删除 archived')!.onClick as () => void)(); await view.drain()
+    expect(view.controller.deleteSession).not.toHaveBeenCalled()
+    ;(view.props(p => p['aria-label'] === '确认删除归档会话')!.onClick as () => void)(); await view.drain()
     expect(view.controller.deleteSession).toHaveBeenCalledExactlyOnceWith('archived')
   })
   it.each(['restore', 'delete'] as const)('refreshes the current sort and releases controls when %s completes after a sort change', async action => {
@@ -137,7 +139,8 @@ describe('actual archived-list component callbacks', () => {
       ;(view.props(p => p['aria-label'] === '恢复 archived')!.onClick as () => void)()
     } else {
       view.controller.deleteSession.mockReturnValueOnce(operation.promise)
-      ;(view.props(p => typeof p.onSelect === 'function' && JSON.stringify(p.children).includes('确认删除') && JSON.stringify(p.children).includes('archived'))!.onSelect as () => void)()
+      ;(view.props(p => p['aria-label'] === '永久删除 archived')!.onClick as () => void)(); await view.drain()
+      ;(view.props(p => p['aria-label'] === '确认删除归档会话')!.onClick as () => void)()
     }
     await view.drain(); view.setSort('created'); await view.drain()
     expect(view.controller.queryHistory).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'created-desc' }))

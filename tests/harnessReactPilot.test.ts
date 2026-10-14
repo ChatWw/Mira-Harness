@@ -43,6 +43,37 @@ function fixture() {
 
 const goal = (revision = 1, id = 'goal'): HarnessGoal => ({ id, objective: '完成目标', revision, status: 'active', tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, iteration: 1, createdAt: 1, updatedAt: revision })
 
+describe('sidebar reorder persistence', () => {
+  it('updates project order immediately and reloads the project list after persistence', async () => {
+    const { controller, host } = fixture()
+    const project = (await host.listProjects())[0]
+    const projects = [project, { ...project, id: 'other' }]
+    vi.mocked(host.listProjects).mockClear()
+    vi.mocked(host.listProjects).mockResolvedValue(projects)
+    let finish!: () => void
+    host.reorderProjects = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    await controller.start()
+    const request = controller.reorderProjects(['other', 'project'])
+    expect(controller.getSnapshot().projects.map(item => item.id)).toEqual(['other', 'project'])
+    vi.mocked(host.listProjects).mockResolvedValue([...projects].reverse()); finish(); await request
+    expect(controller.getSnapshot().projects.map(item => item.id)).toEqual(['other', 'project'])
+    expect(host.listProjects).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+  it('keeps the new session order while saving and restores it on failure', async () => {
+    const { controller, host } = fixture()
+    let reject!: (error: Error) => void
+    host.reorderSessions = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail }))
+    await controller.start()
+    const request = controller.reorderSessions({ type: 'recent' }, ['b', 'a'])
+    expect(controller.getSnapshot().sessions.map(item => item.id)).toEqual(['b', 'a'])
+    reject(new Error('排序保存失败')); await request
+    expect(controller.getSnapshot().sessions.map(item => item.id)).toEqual(['a', 'b'])
+    expect(controller.getSnapshot().error).toContain('排序保存失败')
+    controller.dispose()
+  })
+})
+
 describe('model error diagnostics ownership', () => {
   it('merges the admitted model on run-start after the running status without waiting for a snapshot', async () => {
     const { controller, host, emit } = fixture()

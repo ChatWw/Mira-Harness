@@ -45,7 +45,7 @@ export function registerHarnessSessionIpcHandlers({ database, harnessRuntime, mc
   ipcMain.handle('harness:reorder-projects', (_event, ids: string[]) => database.harness.reorderProjects(ids))
   ipcMain.handle('harness:reorder-sessions', (_event, scope, ids: string[]) => database.harness.reorderSessions(scope, ids))
   ipcMain.handle('harness:set-unread', (_event, id: string, unread: boolean) => database.harness.setUnread(id, unread))
-  ipcMain.handle('harness:move-session', (_event, id: string, projectId: string) => {
+  ipcMain.handle('harness:move-session', (_event, id: string, projectId?: string) => {
     harnessRuntime.assertSessionMutable(id)
     const session = database.harness.moveSession(id, projectId)
     workspaceWatch?.closeForSession(id)

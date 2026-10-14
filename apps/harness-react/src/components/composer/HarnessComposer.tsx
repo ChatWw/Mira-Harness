@@ -1,3 +1,4 @@
+import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { isMiraPrimaryModifier, miraShortcutLabel } from '../../../../../src/platform/workbenchShortcuts'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -54,7 +55,7 @@ export interface HarnessComposerHandle {
   prepareSession(isCurrent?: () => boolean): Promise<string | undefined>
   addFileReference(sessionId: string, path: string): void
   withdrawPendingGuide(itemId: string): Promise<void>
-  startDraft(groupId?: string, projectId?: string, isCurrent?: () => boolean, pluginId?: string): Promise<boolean>
+  startDraft(groupId?: string, projectId?: string | null, isCurrent?: () => boolean, pluginId?: string): Promise<boolean>
   openDraft(id?: string, isCurrent?: () => boolean): Promise<boolean>
   closeDraft(id: string): Promise<void>
 }
@@ -219,7 +220,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const activeSkillIds = state.session?.activeSkillIds ?? (sessionId ? [] : draftSkillIds)
   const activeMcpIds = state.session?.activeMcpServerIds ?? (sessionId ? [] : draftMcpIds)
   const permission = permissions[draftKey] ?? state.session?.permissionMode ?? draftPermission
-  const selectedProject = state.projects.find(project => project.id === (state.session?.projectId ?? draftProjectId))
+  const selectedProject = state.projects.find(project => project.id === (state.session ? state.session.projectId : draftProjectId))
   const availableModels = choices(state)
   const selectedModel = availableModels.find(model => model.providerId === state.selection?.providerId && model.modelId === state.selection?.modelId)
   const reasoningLevel = state.selection?.thinkingLevel ?? 'medium'
@@ -277,20 +278,20 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setKnownUserAgents(previous => previous.owner === userAgentOwner && JSON.stringify(previous.names) === JSON.stringify(names) ? previous : { owner: userAgentOwner, names })
   }, [catalogs.userAgents.items, catalogs.userAgents.status, userAgentOwner])
   const slashCommands = [
-    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'goal', label: '/goal', description: '设置持续目标，逐轮核验完成情况', keywords: 'goal target 目标', icon: <Target size={16} /> }] : []),
-    ...(!state.session?.parentSessionId && fileDirectory && !planning ? [{ id: 'workflow', label: '/workflow', description: '用工作流编排任务，审阅流程图后运行', keywords: 'workflow 工作流 编排', icon: <Blocks size={16} /> }] : []),
-    { id: 'files', label: '/files', description: '添加文件附件', icon: <Paperclip size={16} /> },
-    { id: 'skills', label: '/skills', description: '引用技能到本次消息', icon: <Wrench size={16} /> },
-    { id: 'mcp', label: '/mcp', description: '查看 MCP 状态与此会话的服务选择', icon: <Blocks size={16} /> },
-    { id: 'model', label: '/model', description: '切换模型', icon: <Brain size={16} /> },
-    ...(controller.supportsContextCompaction && sessionId && state.session?.draftState !== 'prepared' && !state.session?.archivedAt ? [{ id: 'compact', label: '/compact', description: compactQueued || compactRunning ? '上下文压缩已在运行或排队' : state.running || confirmationPending || state.queue?.items.length ? '加入待发送，按顺序压缩上下文' : '压缩较早上下文，保留最近对话和完整历史', keywords: 'compact compress 压缩 上下文', icon: <Minimize2 size={16} /> }] : []),
-    ...(selectedModel?.reasoning ? [{ id: 'thinking', label: '/thinking', description: '调整推理强度', icon: <Brain size={16} /> }] : []),
-    { id: 'plan', label: '/plan', description: planning ? '关闭计划模式' : '开启计划模式', icon: <Lightbulb size={16} /> },
-    ...(sideConversationAvailable && sideCatalogReady ? ['side', 'btw'].filter(name => !sideCommandOverridden(name)).map(id => ({ id, label: `/${id}`, description: '在右侧新建独立侧边栏对话', keywords: '旁路 辅助对话 side btw chat', icon: <MessageSquare size={16} /> })) : []),
-    { id: 'delegation', label: '/delegation', description: (state.session?.delegationEnabled ?? draftDelegation) ? '关闭子任务委派' : '开启子任务委派', icon: <Blocks size={16} /> },
-    ...(sessionId ? [{ id: 'memory', label: '/memory', description: '保存项目记忆', icon: <FileText size={16} /> }] : []),
-    { id: 'perm', label: '/perm', description: '切换权限模式', icon: <Hand size={16} /> },
-  ].map(command => ({ ...command, disabled: command.id === 'compact' ? compactBlocked : command.id === 'perm' ? permissionBlocked : configBlocked && ['delegation', 'memory'].includes(command.id), id: `command-${command.id}`, action: { type: 'command' as const, value: command.id } }))
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'goal', label: '持续目标', description: '设置持续目标，逐轮核验完成情况', keywords: 'goal target 目标', icon: <Target size={16} /> }] : []),
+    ...(!state.session?.parentSessionId && fileDirectory && !planning ? [{ id: 'workflow', label: '工作流', description: '用工作流编排任务，审阅流程图后运行', keywords: 'workflow 工作流 编排', icon: <Blocks size={16} /> }] : []),
+    { id: 'files', label: '添加文件', description: '添加文件附件', icon: <Paperclip size={16} /> },
+    { id: 'skills', label: '引用技能', description: '引用技能到本次消息', icon: <Wrench size={16} /> },
+    { id: 'mcp', label: 'MCP 服务', description: '查看 MCP 状态与此会话的服务选择', icon: <Blocks size={16} /> },
+    { id: 'model', label: '切换模型', description: '切换模型', icon: <Brain size={16} /> },
+    ...(controller.supportsContextCompaction && sessionId && state.session?.draftState !== 'prepared' && !state.session?.archivedAt ? [{ id: 'compact', label: '压缩上下文', description: compactQueued || compactRunning ? '上下文压缩已在运行或排队' : state.running || confirmationPending || state.queue?.items.length ? '加入待发送，按顺序压缩上下文' : '压缩较早上下文，保留最近对话和完整历史', keywords: 'compact compress 压缩 上下文', icon: <Minimize2 size={16} /> }] : []),
+    ...(selectedModel?.reasoning ? [{ id: 'thinking', label: '推理强度', description: '调整推理强度', icon: <Brain size={16} /> }] : []),
+    { id: 'plan', label: '计划模式', description: planning ? '关闭计划模式' : '开启计划模式', icon: <Lightbulb size={16} /> },
+    ...(sideConversationAvailable && sideCatalogReady ? ['side', 'btw'].filter(name => !sideCommandOverridden(name)).map(id => ({ id, label: id === 'side' ? '侧边对话' : '侧边对话（别名）', description: '在右侧新建独立侧边栏对话', keywords: '旁路 辅助对话 chat', icon: <MessageSquare size={16} /> })) : []),
+    { id: 'delegation', label: '子任务委派', description: (state.session?.delegationEnabled ?? draftDelegation) ? '关闭子任务委派' : '开启子任务委派', icon: <Blocks size={16} /> },
+    ...(sessionId ? [{ id: 'memory', label: '保存记忆', description: '保存项目记忆', icon: <FileText size={16} /> }] : []),
+    { id: 'perm', label: '权限模式', description: '切换权限模式', icon: <Hand size={16} /> },
+  ].map(command => ({ ...command, keywords: `${command.id} ${command.keywords || ''}`, disabled: command.id === 'compact' ? compactBlocked : command.id === 'perm' ? permissionBlocked : configBlocked && ['delegation', 'memory'].includes(command.id), id: `command-${command.id}`, action: { type: 'command' as const, value: command.id } }))
   const suggestionSections: ComposerSuggestionSection[] = []
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片、PDF、视频或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
@@ -336,7 +337,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       suggestionSections.push({ id: 'user-agent-actions', title: '管理', items: filterMiraSuggestions([{ id: 'manage-agents', label: '管理智能体', description: '创建、编辑或启停全局与项目智能体', icon: <Settings2 size={16} />, action: { type: 'command' as const, value: 'manage-agents' } }], suggestionQuery) })
     }
     suggestionSections.push({ id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions([
-    ...Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => ({ id: `agent-${role}`, label: role, keywords: `${agent.label} agent subagent`, description: `内置 · ${agent.label} · ${agent.description}`, disabled: Boolean(agentUnavailable), icon: <Bot size={16} />, action: { type: 'agent' as const, value: role } })),
+    ...Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => ({ id: `agent-${role}`, label: agent.label, keywords: `${role} agent subagent`, description: `内置 · ${agent.description}`, disabled: Boolean(agentUnavailable), icon: <Bot size={16} />, action: { type: 'agent' as const, value: role } })),
     ...catalogs.plugins.items.flatMap(plugin => (plugin.agents || []).map(agent => ({ id: `plugin-agent-${plugin.id}-${agent.name}`, label: agent.name, keywords: `${plugin.name} ${plugin.id} ${agent.description} agent subagent`, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请先停用其中一个' : agent.unavailableReason || `插件 ${plugin.name} · ${agent.description}`), disabled: Boolean(agentUnavailable || plugin.error || plugin.conflicts.length || agent.unavailableReason), icon: <Bot size={16} />, action: { type: 'agent' as const, value: agent.name } }))),
   ], suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的子智能体；可在插件市场添加' })
   }
@@ -397,16 +398,18 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (isCurrent && !isCurrent()) return false
       if (previous && latestDraftSnapshot.current.draft?.id !== previous.id) return false
       if (unconfirmed) { setTaskDraft({ ...(submission?.draft ?? previous), visible: true }); requestDraftFocus(isCurrent); return true }
-      if (previous?.sessionId && projectId && controller.getSnapshot().session?.projectId !== projectId) {
-        await controller.moveSession(previous.sessionId, projectId)
+      // null explicitly selects the personal workspace; undefined preserves the draft's project.
+      const requestedProjectId = projectId === null ? undefined : projectId
+      if (previous?.sessionId && projectId !== undefined && controller.getSnapshot().session?.projectId !== requestedProjectId) {
+        await controller.moveSession(previous.sessionId, requestedProjectId)
         if (isCurrent && !isCurrent()) return false
         const current = controller.getSnapshot()
-        if (current.error || current.session?.id !== previous.sessionId || current.session.projectId !== projectId) return false
+        if (current.error || current.session?.id !== previous.sessionId || current.session.projectId !== requestedProjectId) return false
       }
       const next: ComposerTaskDraft = { ...(previous ?? { id: crypto.randomUUID() }), groupId, visible: true }
       if (!next.sessionId) controller.newConversation()
       setTaskDraft(next)
-      selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId ?? latestDraftSnapshot.current.config.projectId)
+      selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId === undefined ? latestDraftSnapshot.current.config.projectId : requestedProjectId)
       if (plugin && document && !pluginIds.has(plugin.id)) {
         const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), { type: 'reference', reference: miraPluginReference(plugin.id, plugin.name) }, { type: 'text', text: ' ' }] }
         const end = serializeMiraPromptDocument(nextDocument).length
@@ -787,6 +790,24 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
     latestDraftSnapshot.current = { ...latestDraftSnapshot.current, config: { ...latestDraftSnapshot.current.config, projectId } }
     onDraftProjectChange?.(projectId)
+  }
+  async function changeProject(projectId?: string) {
+    if (busyRef.current) return
+    const owner = controller.getSnapshot().session
+    if (!owner) { selectProject(projectId); return }
+    if (configBlocked || owner.id !== sessionId || owner.draftState !== 'prepared' || owner.projectId === projectId) return
+    busyRef.current = true; setBusy(true); setComposerError('')
+    try {
+      await persistDrafts()
+      if (controller.getSnapshot().session?.id !== owner.id || !activeRef.current) return
+      await controller.moveSession(owner.id, projectId)
+      const current = controller.getSnapshot()
+      if (current.session?.id !== owner.id || !activeRef.current) return
+      if (current.session.projectId !== projectId) throw new Error(current.error || '项目切换未完成，请重试')
+      selectProject(projectId)
+    } catch (error) {
+      if (controller.getSnapshot().session?.id === owner.id && activeRef.current) setComposerError(`切换项目失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { busyRef.current = false; setBusy(false) }
   }
   function selectPlanning(value: boolean) {
     if (nextConfigBlocked) return
@@ -1469,21 +1490,18 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     {interactionSlot && <div className="mira-interaction-dock">{interactionSlot}</div>}
     <div className="harness-composer__surface" hidden={interactionBlocked} inert={interactionBlocked} aria-hidden={interactionBlocked || undefined}>
       {(!sessionId || state.session?.draftState === 'prepared') && <div className="harness-composer__project-strip" style={{ visibility: suggestionsOpen ? 'hidden' : undefined }} inert={suggestionsOpen} aria-hidden={suggestionsOpen || undefined}>
-        {sessionId && state.session?.draftState === 'prepared' && <span className="harness-composer__project-trigger" aria-label="当前项目"><Folder size={16} /><span>{state.projects.find(project => project.id === state.session?.projectId)?.name || '个人工作区'}</span></span>}
-        {!sessionId && <>
         <div className={`harness-composer__project-selector${selectedProject ? ' has-project' : ''}`}><DropdownMenu.Root modal={false} open={active && projectOpen} onOpenChange={open => { setProjectOpen(open && active); if (!open) setProjectQuery('') }}>
-          <DropdownMenu.Trigger type="button" className="harness-composer__project-trigger" aria-label="选择项目" disabled={configBlocked} title={selectedProject ? undefined : '不绑定项目，使用个人工作区'}><Folder size={16} className="harness-composer__project-folder" /><span>{selectedProject?.name || '选择项目'}</span><ChevronDown size={12} /></DropdownMenu.Trigger>
+          <DropdownMenu.Trigger type="button" className="harness-composer__project-trigger" aria-label="选择项目" disabled={configBlocked} title={selectedProject ? undefined : '不绑定项目，使用个人工作区'}><Folder size={16} className="harness-composer__project-folder" /><span>{selectedProject?.name || '个人工作区'}</span><ChevronDown size={12} /></DropdownMenu.Trigger>
           <DropdownMenu.Portal container={portalContainer}><DropdownMenu.Content align="start" side="top" sideOffset={4} className="harness-composer__menu harness-composer__project-menu" {...projectMenuFocus.contentProps}>
             <div className="harness-composer__search"><Search size={16} /><input value={projectQuery} onChange={event => setProjectQuery(event.target.value)} onKeyDown={event => event.stopPropagation()} placeholder="搜索项目" aria-label="搜索项目" /></div>
-            <DropdownMenu.RadioGroup value={draftProjectId || ''} onValueChange={value => selectProject(value || undefined)}>
+            <DropdownMenu.RadioGroup value={(state.session ? state.session.projectId : draftProjectId) || ''} onValueChange={value => changeProject(value || undefined)}>
               {state.projects.filter(project => `${project.name} ${project.directory}`.toLowerCase().includes(projectQuery.toLowerCase())).map(project => <DropdownMenu.RadioItem key={project.id} value={project.id} disabled={!project.directoryExists} className="harness-composer__menu-item"><Folder size={16} /><span><strong>{project.name}</strong></span><DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>)}
               <DropdownMenu.Separator className="harness-composer__menu-separator" />
               <DropdownMenu.RadioItem value="" className="harness-composer__menu-item"><span>在项目外工作</span><DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>
             </DropdownMenu.RadioGroup>
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
-        {selectedProject && <button type="button" className="harness-composer__project-detach" aria-label="脱离当前项目" title="脱离当前项目" disabled={configBlocked} onClick={() => selectProject(undefined)}><X size={16} /></button>}</div>
-        </>}
+        {selectedProject && <button type="button" className="harness-composer__project-detach" aria-label="脱离当前项目" title="脱离当前项目" disabled={configBlocked} onClick={() => void changeProject(undefined)}><X size={16} /></button>}</div>
         <MiraBranchPicker key={selectedProject?.id} controller={controller} project={selectedProject} active={active} blocked={busy || Boolean(state.sessionLoading) || Boolean(selectedProject && state.sessions.some(session => session.projectId === selectedProject.id && state.runningSessionIds.includes(session.id))) || Boolean(state.queue?.items.length)} placement="composer" onReturnFocus={() => editorRef.current?.focus()} />
       </div>}
       <form className={`harness-composer${dragOver ? ' mira-composer--drag-over' : ''}`} onDragEnter={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); if (!contextBlocked && controller.supportsAttachments) { dragDepth.current++; setDragOver(true) } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = contextBlocked || !controller.supportsAttachments ? 'none' : 'copy' } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false) } }} onDrop={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); dragDepth.current = 0; setDragOver(false); if (!contextBlocked && controller.supportsAttachments) void selectFiles(draft, Array.from(event.dataTransfer.files)) }} onSubmit={event => { const reverse = pointerReverseRef.current; pointerReverseRef.current = false; void submit(event, reverse ? reverseOptions : undefined) }}>
@@ -1535,7 +1553,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>}
             {referenceLoading && <LoaderCircle size={14} className="animate-spin" aria-label="正在读取引用对话" />}
-            {state.running && !builtinSideInput && (!queueSupported || !hasInput) ? <ComposerControlHint title="停止任务" shortcut="Esc"><button type="button" className="harness-composer__send" aria-label="停止任务" disabled={!active} onClick={() => void controller.stop()}><Square size={14} fill="currentColor" /></button></ComposerControlHint> : <Tooltip.Root open={reverseSendHint || sendHintOpen} onOpenChange={setSendHintOpen}><Tooltip.Trigger asChild><button type="submit" className="harness-composer__send" aria-label={sendTitle} disabled={sendingBlocked || referenceLoading || attachmentBlocked || Boolean(failedUpload) || !hasInput} onClick={event => { pointerReverseRef.current = submissionOptionsSupported && state.running && (appleKeyboard ? event.metaKey : event.ctrlKey) }}>{busy || submitting.includes(draftKey) ? <LoaderCircle size={16} className="animate-spin" /> : <ArrowUp size={16} />}</button></Tooltip.Trigger><Tooltip.Portal container={portalContainer}><Tooltip.Content className="mira-composer-hint" side="top" sideOffset={6}>{sendTitle}<kbd>{reverseSendHint ? miraShortcutLabel('Enter') : sendKeyLabel}</kbd></Tooltip.Content></Tooltip.Portal></Tooltip.Root>}
+            {state.running && !builtinSideInput && (!queueSupported || !hasInput) ? <ComposerControlHint title="停止任务" shortcut="Esc"><button type="button" className="harness-composer__send" aria-label="停止任务" disabled={!active} onClick={() => void controller.stop()}><Square size={14} fill="currentColor" /></button></ComposerControlHint> : <Tooltip.Root open={reverseSendHint || sendHintOpen} onOpenChange={setSendHintOpen}><Tooltip.Trigger asChild><button type="submit" className="harness-composer__send" aria-label={sendTitle} disabled={sendingBlocked || referenceLoading || attachmentBlocked || Boolean(failedUpload) || !hasInput} onClick={event => { pointerReverseRef.current = submissionOptionsSupported && state.running && (appleKeyboard ? event.metaKey : event.ctrlKey) }}>{busy || submitting.includes(draftKey) ? <LoaderCircle size={16} className="animate-spin" /> : <ArrowUp size={16} />}</button></Tooltip.Trigger><Tooltip.Portal container={portalContainer}><Tooltip.Content className="mira-composer-hint" side="top" sideOffset={6}>{sendTitle}<ShortcutKeys shortcut={reverseSendHint ? miraShortcutLabel('Enter') : sendKeyLabel} /></Tooltip.Content></Tooltip.Portal></Tooltip.Root>}
           </div>
         </div>
       </form>

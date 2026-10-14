@@ -581,9 +581,11 @@ describe('platform IPC registration', () => {
     const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
     invoke('platform:first-party-harness', grantId, 'session.move', { id: 's', projectId: 'other' })
     expect(moveSession).toHaveBeenCalledWith('s', 'other')
+    invoke('platform:first-party-harness', grantId, 'session.move', { id: 's' })
+    expect(moveSession).toHaveBeenLastCalledWith('s', undefined)
     invoke('platform:first-party-harness', grantId, 'session.delete', { id: 's' })
     expect(deleteSession).toHaveBeenCalledWith('s')
-    expect(workspaceWatch.closeForSession.mock.calls).toEqual([['s'], ['s']])
+    expect(workspaceWatch.closeForSession.mock.calls).toEqual([['s'], ['s'], ['s']])
     invoke('platform:import-snapshot', '{}')
     invoke('platform:restore-defaults')
     expect(workspaceWatch.closeInvalid).toHaveBeenCalledTimes(2)

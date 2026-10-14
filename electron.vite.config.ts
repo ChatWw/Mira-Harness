@@ -7,8 +7,8 @@ const vuePlugin = vue({ template: { compilerOptions: { isCustomElement: tag => t
 const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 
 export default defineConfig({
-  main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: resolve(__dirname, 'electron/main.ts') } } },
-  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: resolve(__dirname, 'electron/preload.ts') } } },
+  main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { main: resolve(__dirname, 'electron/main.ts'), 'resourceStorage.worker': resolve(__dirname, 'electron/bootstrap/resourceStorage.worker.ts') } } } },
+  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { preload: resolve(__dirname, 'electron/preload.ts'), resourceManager: resolve(__dirname, 'electron/preload/resourceManager.ts') } } } },
   renderer: {
     root: __dirname,
     server: { proxy: { '/harness-react-dev': { target: 'http://127.0.0.1:9001', changeOrigin: true } } },
@@ -16,6 +16,6 @@ export default defineConfig({
     plugins: [vuePlugin],
     resolve: { alias: { '@': resolve(__dirname, 'src'), '@styles': resolve(__dirname, 'src/styles') } },
     css: { preprocessorOptions: { scss: { additionalData: '@use "@/styles/variables.scss" as *; @use "@/styles/mixins.scss" as *;', api: 'modern-compiler' } } },
-    build: { rollupOptions: { input: resolve(__dirname, 'index.html') } },
+    build: { rollupOptions: { input: { index: resolve(__dirname, 'index.html'), resourceManager: resolve(__dirname, 'resource-manager.html') } } },
   },
 })

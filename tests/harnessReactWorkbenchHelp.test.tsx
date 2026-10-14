@@ -12,10 +12,10 @@ beforeEach(() => {
   container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
 })
 afterEach(async () => { await React.act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
-async function mount(save = async () => undefined, navigate = vi.fn(async (_path: string) => undefined)) {
+async function mount(save = async () => undefined, navigate = vi.fn(async (_path: string) => undefined), openResources = vi.fn(async () => undefined)) {
   const controller = new PilotController({ navigate } as unknown as PilotHost)
   controller.registerBeforeNavigation(save)
-  await React.act(async () => root.render(<><div contentEditable suppressContentEditableWarning role="textbox">尚未发送的草稿</div><MiraWorkbenchHelp onNavigate={path => controller.navigate(path, true)} /></>))
+  await React.act(async () => root.render(<><div contentEditable suppressContentEditableWarning role="textbox">尚未发送的草稿</div><MiraWorkbenchHelp onOpenResources={openResources} onNavigate={path => controller.navigate(path, true)} /></>))
   const trigger = container.querySelector<HTMLButtonElement>('[aria-label="帮助"]')!
   await React.act(async () => trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })))
   const select = async (label: string) => {
@@ -26,6 +26,13 @@ async function mount(save = async () => undefined, navigate = vi.fn(async (_path
 }
 
 describe('workbench help navigation', () => {
+  it('opens the resource window without navigating or saving the current draft', async () => {
+    const save = vi.fn(async () => undefined), open = vi.fn(async () => undefined)
+    const view = await mount(save, undefined, open)
+    await view.select('资源管理器')
+    expect(open).toHaveBeenCalledOnce(); expect(save).not.toHaveBeenCalled(); expect(view.navigate).not.toHaveBeenCalled()
+    expect(container.querySelector('[role="textbox"]')?.textContent).toBe('尚未发送的草稿')
+  })
   it.each([
     ['键盘快捷键', '/settings/keyboard-shortcuts'],
     ['设置', '/settings/general'],

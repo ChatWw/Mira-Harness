@@ -21,12 +21,14 @@ export interface SidebarPreferences {
   view: 'group' | 'project'
   projectView: 'collections' | 'timeline'
   sort: 'updated' | 'created' | 'manual'
+  manualSessionScopes?: string[]
+  groupSort: 'updated' | 'manual'
   groups: SidebarTaskGroup[]
   ungroupedSessionOrder: string[]
   groupedRootOrder: SidebarRootItem[]
 }
 
-const defaults = (): SidebarPreferences => ({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
+const defaults = (): SidebarPreferences => ({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], expandedProjectIds: [], collapsedProjectIds: [], view: 'project', projectView: 'collections', sort: 'updated', groupSort: 'updated', groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
 const strings = (raw: unknown) => Array.isArray(raw) ? [...new Set(raw.filter((id): id is string => typeof id === 'string' && Boolean(id)))] : []
 const readSectionOrder = (raw: unknown): SidebarSectionId[] => Array.isArray(raw) && raw.length === 2 && raw.includes('projects') && raw.includes('personal') ? [...raw] : ['projects', 'personal']
 
@@ -58,6 +60,8 @@ function readPreferences(raw: unknown): SidebarPreferences {
     view: value.view === 'group' ? 'group' : 'project',
     projectView: value.projectView === 'timeline' ? 'timeline' : 'collections',
     sort: value.sort === 'created' || value.sort === 'manual' ? value.sort : 'updated',
+    ...(Array.isArray(value.manualSessionScopes) ? { manualSessionScopes: strings(value.manualSessionScopes) } : {}),
+    groupSort: value.groupSort === 'manual' || value.groupSort === undefined && value.sort === 'manual' ? 'manual' : 'updated',
     groups,
     ungroupedSessionOrder: strings(value.ungroupedSessionOrder),
     groupedRootOrder,
@@ -156,13 +160,13 @@ export class SidebarPreferenceStore {
   async applyGroupDrop(patch: SidebarGroupingOrder) {
     if (!this.snapshot.ready) return
     const previous = this.snapshot.preferences
-    this.change(patch)
+    this.change({ ...patch, groupSort: 'manual' })
     const revision = this.revision
     try { await this.save() }
     catch (error) {
       if (this.revision === revision) {
         this.revision++
-        this.publish({ preferences: { ...this.snapshot.preferences, groups: previous.groups, ungroupedSessionOrder: previous.ungroupedSessionOrder, groupedRootOrder: previous.groupedRootOrder } })
+        this.publish({ preferences: { ...this.snapshot.preferences, groupSort: previous.groupSort, groups: previous.groups, ungroupedSessionOrder: previous.ungroupedSessionOrder, groupedRootOrder: previous.groupedRootOrder } })
       }
       throw error
     }

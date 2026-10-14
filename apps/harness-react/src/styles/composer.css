@@ -271,3 +271,7 @@
 .mira-composer-plan-marker:hover .mira-composer-plan-marker__bulb, .mira-composer-plan-marker:focus-visible .mira-composer-plan-marker__bulb { display: none; }
 .mira-composer-plan-marker:hover .mira-composer-plan-marker__remove, .mira-composer-plan-marker:focus-visible .mira-composer-plan-marker__remove { display: block; }
 @media (prefers-reduced-motion: reduce) { .harness-composer, .harness-composer__send { transition: none; } }
+.mira-shortcut-keys { display: inline-flex; flex: none; align-items: center; gap: 4px; white-space: nowrap; }
+.mira-shortcut-keys kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px; background: var(--color-hover); color: inherit; font: inherit; }
+.mira-session-actions .mira-shortcut-keys { margin-left: auto; font-size: 10px; color: var(--color-foreground-subtlest); }
+.mira-session-actions .mira-shortcut-keys kbd { margin-left: 0; }
