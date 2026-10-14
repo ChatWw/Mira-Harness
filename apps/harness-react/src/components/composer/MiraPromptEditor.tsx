@@ -14,7 +14,7 @@ import {
   $addUpdateTag, $createLineBreakNode, $createParagraphNode, $createRangeSelection, $createTextNode,
   $getRoot, $getSelection, $isElementNode, $isLineBreakNode, $isRangeSelection, $isTextNode, $setSelection,
   CLEAR_HISTORY_COMMAND, COMMAND_PRIORITY_HIGH, COPY_COMMAND, CUT_COMMAND, DELETE_CHARACTER_COMMAND, HISTORY_PUSH_TAG,
-  KEY_DOWN_COMMAND, PASTE_COMMAND, SKIP_DOM_SELECTION_TAG, type LexicalNode, type PointType,
+  KEY_BACKSPACE_COMMAND, KEY_DOWN_COMMAND, PASTE_COMMAND, SKIP_DOM_SELECTION_TAG, type LexicalNode, type PointType,
 } from 'lexical'
 import { createMiraPromptDocument, serializeMiraPromptDocument, validateMiraPromptDocument, type MiraPromptDocument, type MiraPromptPart, type MiraPromptSelectionRange } from '../../lib/prompt-editor-document'
 import { $createMiraPromptReferenceNode, $isMiraPromptReferenceNode, MiraPromptReferenceNode } from './MiraPromptReferenceNode'
@@ -228,6 +228,19 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
       const atomic = $getSelection(); if ($isRangeSelection(atomic)) atomic.removeText()
       return true
     }, COMMAND_PRIORITY_HIGH)
+    const unregisterBackspace = editor.registerCommand(KEY_BACKSPACE_COMMAND, event => {
+      const selection = $getSelection()
+      if (!$isRangeSelection(selection) || !selection.isCollapsed() || selection.anchor.type !== 'text') return false
+      const spacer = selection.anchor.getNode()
+      if (!$isTextNode(spacer) || selection.anchor.offset !== 1 || spacer.getTextContent() !== ' ') return false
+      const command = spacer.getPreviousSibling()
+      if (!$isMiraPromptReferenceNode(command) || command.getReference().kind !== 'command' || !command.getReference().value.startsWith('builtin:')) return false
+      // 对齐 ZCode 的补位空格边界，一次退格同时移除命令标签与插入时自动补的空格。
+      event?.preventDefault()
+      $addUpdateTag(HISTORY_PUSH_TAG)
+      command.remove(); spacer.remove()
+      return true
+    }, COMMAND_PRIORITY_HIGH)
     const copy = (event: ClipboardEvent | KeyboardEvent | null, cut: boolean) => {
       const layout = $layout(), selection = $selectionRange(layout)
       if (!selection || selection.start === selection.end || !event || !('clipboardData' in event) || !event.clipboardData) return false
@@ -256,7 +269,7 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
       const active = $getSelection(); if ($isRangeSelection(active)) active.insertNodes($partNodes(createMiraPromptDocument(text).parts))
       return true
     }, COMMAND_PRIORITY_HIGH)
-    return () => { unregisterUpdate(); unregisterKeys(); unregisterDelete(); unregisterCopy(); unregisterCut(); unregisterPaste() }
+    return () => { unregisterUpdate(); unregisterKeys(); unregisterDelete(); unregisterBackspace(); unregisterCopy(); unregisterCut(); unregisterPaste() }
   }, [editor])
   return null
 })

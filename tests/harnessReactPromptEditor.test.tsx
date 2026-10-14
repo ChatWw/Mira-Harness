@@ -54,6 +54,18 @@ async function fixture(initialText = '', initialDocument?: MiraPromptDocument) {
 }
 
 describe('Mira Lexical prompt editor', () => {
+  it('copies a Chinese command chip as its canonical command and deletes the chip with its spacer in one Backspace', async () => {
+    const command: MiraPromptPart = { type: 'reference', reference: { id: 'goal-chip', kind: 'command', label: '持续目标', value: 'builtin:goal', text: '/goal' } }
+    const view = await fixture('/goal ', { version: 1, parts: [command, { type: 'text', text: ' ' }] })
+    expect(view.input().querySelector('[data-mira-prompt-reference="command"]')?.textContent).toBe('持续目标')
+    await view.select(0, 5)
+    expect((await view.clipboard('copy')).setData).toHaveBeenCalledWith('text/plain', '/goal')
+    await view.select(6); await view.key('Backspace')
+    expect(view.text).toBe('')
+    await view.key('z', { ctrlKey: true })
+    expect(view.text).toBe('/goal ')
+    expect(view.input().querySelector('[data-mira-prompt-reference="command"]')?.textContent).toBe('持续目标')
+  })
   it('offers unmodified arrows to history only after candidate handlers, without disturbing IME or modified selection', async () => {
     const view = await fixture(); await view.select(0)
     view.history.mockReturnValue(true)

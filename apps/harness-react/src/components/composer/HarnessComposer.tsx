@@ -192,6 +192,12 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const promptDocument = useMemo(() => restoreMiraAgentReferences(documents[draftKey] ?? restoreMiraContextPromptDocument(draft), knownUserAgents.owner === userAgentOwner ? knownUserAgents.names : []), [documents, draftKey, draft, knownUserAgents, userAgentOwner])
   const editorDocument = useMemo(() => miraContextPromptBody(promptDocument), [promptDocument])
   const editorText = serializeMiraPromptDocument(editorDocument)
+  const hasStructuredPromptContext = promptDocument.parts.some((part, index) => {
+    if (part.type !== 'reference') return false
+    const { kind, value, text } = part.reference
+    // 对齐 ZCode：开头的内置命令标签序列化为命令，不计入上下文；其他引用仍阻止目标命令误消费。
+    return kind !== 'command' || !['/goal', '/workflow'].includes(text) || value !== `builtin:${text.slice(1)}` || promptDocument.parts.slice(0, index).some(part => part.type !== 'text' || Boolean(part.text.trim()))
+  })
   const browserReferences = useMemo(() => miraBrowserReferences(promptDocument), [promptDocument])
   const presentationReferences = useMemo(() => miraPresentationReferences(promptDocument), [promptDocument])
   if (editorIdentity.current.owner !== draftKey) {
@@ -201,9 +207,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const editorKey = editorIdentity.current.key
   const references = fileDrafts[draftKey] ?? []
   const nativeGoalCommand = useMemo(() => {
-    if (references.length || promptDocument.parts.some(part => part.type === 'reference')) return undefined
+    if (references.length || hasStructuredPromptContext) return undefined
     try { return parseMiraGoalCommand(draft) } catch { return undefined }
-  }, [draft, references, promptDocument])
+  }, [draft, references, hasStructuredPromptContext])
   const localGoalControl = nativeGoalCommand && nativeGoalCommand.action !== 'set'
   const nativePlanCommand = /^\/plan(?:\s+([\s\S]*))?$/i.exec(editorText.trim())
   const localPlanControl = nativePlanCommand && !nativePlanCommand[1]?.trim() && !references.length && !promptDocument.parts.some(part => part.type === 'reference')
@@ -291,7 +297,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     { id: 'delegation', label: '子任务委派', description: (state.session?.delegationEnabled ?? draftDelegation) ? '关闭子任务委派' : '开启子任务委派', icon: <Blocks size={16} /> },
     ...(sessionId ? [{ id: 'memory', label: '保存记忆', description: '保存项目记忆', icon: <FileText size={16} /> }] : []),
     { id: 'perm', label: '权限模式', description: '切换权限模式', icon: <Hand size={16} /> },
-  ].map(command => ({ ...command, keywords: `${command.id} ${command.keywords || ''}`, disabled: command.id === 'compact' ? compactBlocked : command.id === 'perm' ? permissionBlocked : configBlocked && ['delegation', 'memory'].includes(command.id), id: `command-${command.id}`, action: { type: 'command' as const, value: command.id } }))
+  ].map(command => ({ ...command, keywords: `${command.id} ${'keywords' in command ? command.keywords : ''}`, disabled: command.id === 'compact' ? compactBlocked : command.id === 'perm' ? permissionBlocked : configBlocked && ['delegation', 'memory'].includes(command.id), id: `command-${command.id}`, action: { type: 'command' as const, value: command.id } }))
   const suggestionSections: ComposerSuggestionSection[] = []
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片、PDF、视频或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
@@ -1105,7 +1111,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
     if (item.action.type === 'command' && (item.action.value === 'goal' || item.action.value === 'workflow')) {
       if (editorText.slice(0, range.start).trim()) return
-      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'text', text: `/${item.action.value} ` }])) closeSuggestions()
+      // ZCode SlashCommandPlugin 同时保留原子标签和实际 /command 文本，不能只插入普通文字。
+      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'command', label: item.action.value === 'goal' ? '持续目标' : '工作流', value: `builtin:${item.action.value}`, text: `/${item.action.value}` } }, { type: 'text', text: ' ' }])) closeSuggestions()
       return
     }
     if (!applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [])) return
@@ -1215,7 +1222,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!text) { setDraft(''); closeSuggestions(); return }
     }
     let goalCommand: ReturnType<typeof parseMiraGoalCommand>
-    try { goalCommand = !planCommand && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? parseMiraGoalCommand(text) : undefined }
+    try { goalCommand = !planCommand && !references.length && !hasStructuredPromptContext ? parseMiraGoalCommand(text) : undefined }
     catch (error) { setComposerError(error instanceof Error ? error.message : '目标命令无效'); return }
     if (goalCommand) {
       if (!controller.supportsGoals || state.session?.parentSessionId) { setComposerError('当前对话不支持目标模式'); return }
@@ -1261,7 +1268,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (!retryingIntent && intent && current.running && !current.session?.activeRun?.id) { setComposerError('当前任务身份尚未同步，请稍后重试'); return }
     const skillIds = [...new Set(promptDocument.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'skill' ? [part.reference.value] : []))]
     const pluginIds = [...new Set(promptDocument.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'plugin' ? [part.reference.value] : []))]
-    const options: HarnessMessageSubmissionOptions | undefined = submissionOptionsSupported ? { permissionMode: permission, ...(promptDocument.parts.some(part => part.type === 'reference') ? { hasStructuredContext: true } : {}), ...(skillIds.length || text.includes('(mira-skill:') ? { skillIds } : {}), ...(pluginIds.length || text.includes('(plugin://') ? { pluginIds } : {}), ...(intent ? { ...intent, expectedRunId: current.session?.activeRun?.id ?? null } : {}) } : undefined
+    const options: HarnessMessageSubmissionOptions | undefined = submissionOptionsSupported ? { permissionMode: permission, ...(hasStructuredPromptContext ? { hasStructuredContext: true } : {}), ...(skillIds.length || text.includes('(mira-skill:') ? { skillIds } : {}), ...(pluginIds.length || text.includes('(plugin://') ? { pluginIds } : {}), ...(intent ? { ...intent, expectedRunId: current.session?.activeRun?.id ?? null } : {}) } : undefined
     busyRef.current = true; setBusy(true); setComposerError(''); setDismissedHostError(undefined)
     let preparing = true
     try {

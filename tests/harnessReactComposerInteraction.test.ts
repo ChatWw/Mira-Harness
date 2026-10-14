@@ -312,7 +312,15 @@ describe('native Plan input and Workflow quick entry in the shipped Composer', (
     expect(view.items().find(item => item.id === 'add-workflow')).toMatchObject({ label: '工作流', action: { type: 'command', value: 'workflow' } })
     await view.select('add-workflow')
     expect(view.text()).toBe('/workflow ')
+    expect((view.inputProps().document as MiraPromptDocument).parts[0]).toMatchObject({ type: 'reference', reference: { kind: 'command', label: '工作流', value: 'builtin:workflow', text: '/workflow' } })
     expect(view.api.prepare).not.toHaveBeenCalled(); expect(view.api.send).not.toHaveBeenCalled()
+  })
+  it('submits a selected Workflow chip with canonical text without marking the command as context', async () => {
+    const view = fixture({ queue: true, submissionOptions: true }); await view.drain()
+    await view.type('/工作流'); await view.select('command-workflow'); await view.append('整理项目')
+    await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[0]).toBe('/workflow 整理项目')
+    expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBeUndefined()
   })
   it('keeps Workflow quick entry out of nonempty and unsupported drafts', async () => {
     const view = fixture({ queue: true }); await view.drain(); await view.type(' '); await view.plus()
@@ -335,10 +343,45 @@ describe('native Goal input in the shipped Composer', () => {
     expect(sections.find(section => section.id === 'add')?.items.find(item => item.id === 'add-goal')).toMatchObject({ label: '目标', action: { type: 'command', value: 'goal' } })
     await view.select('add-goal')
     expect(view.text()).toBe('/goal ')
+    expect((view.inputProps().document as MiraPromptDocument).parts[0]).toMatchObject({ type: 'reference', reference: { kind: 'command', label: '持续目标', value: 'builtin:goal', text: '/goal' } })
     expect(view.api.prepare).not.toHaveBeenCalled(); expect(view.api.send).not.toHaveBeenCalled()
     await view.append('交付完整结果'); await view.plus()
     expect(view.items().some(item => item.id === 'add-goal')).toBe(false)
     expect(view.text()).toBe('/goal 交付完整结果')
+  })
+  it('submits a selected Goal command chip as a native command and keeps it after rejection', async () => {
+    const view = fixture({ queue: true, goals: true, submissionOptions: true }); await view.drain()
+    await view.type('/持续目标'); await view.select('command-goal'); await view.append('交付完整结果')
+    expect(view.props(props => props.type === 'submit')['aria-label']).toBe('设置目标')
+    view.api.send.mockResolvedValueOnce(false)
+    await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[0]).toBe('/goal 交付完整结果')
+    expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBeUndefined()
+    expect((view.inputProps().document as MiraPromptDocument).parts[0]).toMatchObject({ type: 'reference', reference: { label: '持续目标', value: 'builtin:goal' } })
+  })
+  it('keeps a selected Goal with Agent context as an ordinary prompt', async () => {
+    const view = fixture({ queue: true, goals: true, submissionOptions: true }); await view.drain()
+    await view.type('/goal'); await view.select('command-goal'); await view.append('@rev'); await view.select('agent-reviewer'); await view.append('检查')
+    await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[0]).toBe('/goal @reviewer 检查')
+    expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBe(true)
+  })
+  it.each([
+    { value: 'builtin:goal', prefix: '', structured: undefined },
+    { value: 'goal', prefix: '', structured: true },
+    { value: 'builtin:goal', prefix: '解释 ', structured: true },
+  ])('restores a saved command chip and respects its context boundary ($value, $prefix)', async ({ value, prefix, structured }) => {
+    const text = `${prefix}/goal 完成任务`
+    const document: MiraPromptDocument = { version: 1, parts: [
+      ...(prefix ? [{ type: 'text' as const, text: prefix }] : []),
+      { type: 'reference', reference: { id: 'saved-goal', kind: 'command', label: '持续目标', value, text: '/goal' } },
+      { type: 'text', text: ' 完成任务' },
+    ] }
+    const view = fixture({ queue: true, goals: true, submissionOptions: true, draftPreference: Promise.resolve({ drafts: { current: text }, documents: { current: document } }) }); await view.drain()
+    expect((view.inputProps().document as MiraPromptDocument).parts).toEqual(document.parts)
+    await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[0]).toBe(text)
+    expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBe(structured)
   })
   it('keeps the quick Goal entry out of existing tasks and unsupported hosts', async () => {
     const view = fixture({ goals: true }); await view.drain(); await view.plus()
@@ -963,19 +1006,20 @@ describe('group draft lifecycle in the shipped Composer', () => {
       ['delegation', '子任务委派'], ['memory', '保存记忆'], ['perm', '权限模式'],
     ])
     for (const command of commands) {
-      for (const query of [command.label, command.action.value]) {
+      for (const query of [command.label.split(' ')[0], command.action.value]) {
         await view.type(`/${query}`)
         expect(view.items()[view.panelProps().selectedIndex as number]?.id).toBe(command.id)
       }
     }
     await view.type('/持续目标'); await view.select('command-goal')
     expect(view.text()).toBe('/goal ')
-    await view.type('前文 /workflow 后文', 9); await view.select('command-workflow')
-    expect(view.text()).toBe('前文 /workflow  后文')
+    await view.type('/workflow 后文', 6); await view.select('command-workflow')
+    expect(view.text()).toBe('/workflow  后文')
     await view.type('/计划模式'); await view.select('command-plan')
     expect(view.text()).toBe('')
-    expect(view.inputProps().planning).toBe(true)
     expect(view.api.send).not.toHaveBeenCalled()
+    await view.append('测试计划'); await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[1]).toBe(true)
   })
   it('keeps candidate aria ownership stable across queries and scopes option identity to its Composer', async () => {
     const view = fixture(); await view.drain(); await view.type('/')
