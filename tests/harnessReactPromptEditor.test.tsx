@@ -54,6 +54,24 @@ async function fixture(initialText = '', initialDocument?: MiraPromptDocument) {
 }
 
 describe('Mira Lexical prompt editor', () => {
+  it('exposes its own undo stack to the native context menu and handles native history commands', async () => {
+    const view = await fixture('原始草稿')
+    expect(view.input().dataset.miraCanUndo).toBe('false')
+    await view.select(4); await view.replace(4, 4, [{ type: 'text', text: '修改' }])
+    expect(view.input().dataset.miraCanUndo).toBe('true')
+    const history = async (action: string) => {
+      await act(async () => { view.input().dispatchEvent(new window.CustomEvent('mira-prompt-history', { detail: action })) })
+      await view.settle()
+    }
+    await history('undo')
+    expect(view.text).toBe('原始草稿')
+    expect(view.input().dataset.miraCanRedo).toBe('true')
+    await history('redo')
+    expect(view.text).toBe('原始草稿修改')
+    await view.update('另一个任务', undefined, 'b')
+    expect(view.input().dataset.miraCanUndo).toBe('false')
+    expect(view.input().dataset.miraCanRedo).toBe('false')
+  })
   it('copies a Chinese command chip as its canonical command and deletes the chip with its spacer in one Backspace', async () => {
     const command: MiraPromptPart = { type: 'reference', reference: { id: 'goal-chip', kind: 'command', label: '持续目标', value: 'builtin:goal', text: '/goal' } }
     const view = await fixture('/goal ', { version: 1, parts: [command, { type: 'text', text: ' ' }] })

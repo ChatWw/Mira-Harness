@@ -16,10 +16,10 @@ import { SIDEBAR_GROUP_COLORS, type SidebarGroupColor } from './sidebar-preferen
 
 const colorLabels: Record<SidebarGroupColor, string> = { gray: '灰色', red: '红色', orange: '橙色', yellow: '黄色', green: '绿色', blue: '蓝色', purple: '紫色' }
 
-export function SidebarActionHint({ title, shortcut, children, suspended = false, side = 'top' }: { title: string; shortcut?: string; children: React.ReactElement; suspended?: boolean; side?: 'top' | 'bottom' }) {
+export function SidebarActionHint({ title, shortcut, children, suspended = false, side = 'top', hoverOnly = false }: { title: string; shortcut?: string; children: React.ReactElement; suspended?: boolean; side?: 'top' | 'bottom'; hoverOnly?: boolean }) {
   const [open, setOpen] = useState(false)
   useEffect(() => { if (suspended) setOpen(false) }, [suspended])
-  return <Tooltip.Root open={open && !suspended} onOpenChange={setOpen}><Tooltip.Trigger asChild>{children}</Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className={shortcut ? "mira-composer-hint" : "mira-sidebar-tooltip"} side={side} sideOffset={6}>{title}{shortcut && <ShortcutKeys shortcut={shortcut} />}</Tooltip.Content></Tooltip.Portal></Tooltip.Root>
+  return <Tooltip.Root open={open && !suspended} onOpenChange={setOpen}><Tooltip.Trigger asChild onFocus={event => { if (hoverOnly) event.preventDefault() }}>{children}</Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className={shortcut ? "mira-composer-hint" : "mira-sidebar-tooltip"} side={side} sideOffset={6}>{title}{shortcut && <ShortcutKeys shortcut={shortcut} />}</Tooltip.Content></Tooltip.Portal></Tooltip.Root>
 }
 
 export interface SidebarCollectionProps {

@@ -13,7 +13,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import {
   $addUpdateTag, $createLineBreakNode, $createParagraphNode, $createRangeSelection, $createTextNode,
   $getRoot, $getSelection, $isElementNode, $isLineBreakNode, $isRangeSelection, $isTextNode, $setSelection,
-  CLEAR_HISTORY_COMMAND, COMMAND_PRIORITY_HIGH, COPY_COMMAND, CUT_COMMAND, DELETE_CHARACTER_COMMAND, HISTORY_PUSH_TAG,
+  CAN_UNDO_COMMAND, CAN_REDO_COMMAND, UNDO_COMMAND, REDO_COMMAND, CLEAR_HISTORY_COMMAND, COMMAND_PRIORITY_HIGH, COPY_COMMAND, CUT_COMMAND, DELETE_CHARACTER_COMMAND, HISTORY_PUSH_TAG,
   KEY_BACKSPACE_COMMAND, KEY_DOWN_COMMAND, PASTE_COMMAND, SKIP_DOM_SELECTION_TAG, type LexicalNode, type PointType,
 } from 'lexical'
 import { createMiraPromptDocument, serializeMiraPromptDocument, validateMiraPromptDocument, type MiraPromptDocument, type MiraPromptPart, type MiraPromptSelectionRange } from '../../lib/prompt-editor-document'
@@ -190,6 +190,20 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
     editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
   }, [editor, props.text, props.document])
 
+  useLayoutEffect(() => {
+    const root = editor.getRootElement()
+    if (!root) return
+    root.dataset.miraCanUndo = 'false'; root.dataset.miraCanRedo = 'false'
+    const undo = editor.registerCommand(CAN_UNDO_COMMAND, value => { root.dataset.miraCanUndo = String(value); return false }, COMMAND_PRIORITY_HIGH)
+    const redo = editor.registerCommand(CAN_REDO_COMMAND, value => { root.dataset.miraCanRedo = String(value); return false }, COMMAND_PRIORITY_HIGH)
+    const history = (event: Event) => {
+      if (!editor.isEditable() || !ownsFocus()) return
+      const action = (event as CustomEvent).detail
+      if (action === 'undo' || action === 'redo') editor.dispatchCommand(action === 'undo' ? UNDO_COMMAND : REDO_COMMAND, undefined)
+    }
+    root.addEventListener('mira-prompt-history', history)
+    return () => { undo(); redo(); root.removeEventListener('mira-prompt-history', history); delete root.dataset.miraCanUndo; delete root.dataset.miraCanRedo }
+  }, [editor])
   useLayoutEffect(() => {
     const unregisterUpdate = editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
       editorState.read(() => {

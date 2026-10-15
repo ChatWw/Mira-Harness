@@ -1,4 +1,5 @@
 import { showMiraAboutDialog } from './miraAbout'
+import { setupMiraTextContextMenu } from './miraTextContextMenu'
 import { app, BrowserWindow, Menu, nativeImage, shell, Tray, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron'
 import { isResourceManagerWindow, openResourceManager } from './resourceManager'
 import { join } from 'node:path'
@@ -129,6 +130,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     ...(isMac ? { trafficLightPosition: miraTrafficLightPosition(1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.())) } : {}),
     webPreferences: { preload: join(__dirname, '../preload/preload.mjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true, zoomFactor: 1.1 ** miraZoomLevel(options.getDesktopZoomLevel?.()) },
   })
+  setupMiraTextContextMenu(window)
   window.on('close', event => {
     if (options.isQuitting() || options.getCloseWindowBehavior() === 'quit') return
     event.preventDefault()
