@@ -301,7 +301,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const suggestionSections: ComposerSuggestionSection[] = []
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片、PDF、视频或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
-    ...(controller.supportsGoals && !sessionId && editorText === '' && !references.length ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', icon: <Target size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
+    { id: 'add-plan', label: '计划模式', description: planning ? '关闭计划模式' : '先制定计划，确认后再执行', selected: planning, disabled: nextConfigBlocked, icon: <Lightbulb size={16} />, action: { type: 'command', value: 'plan' } },
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', disabled: editorText !== '' || references.length > 0 || promptDocument.parts.some(part => part.type === 'reference'), icon: <Target size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
     ...(!state.session?.parentSessionId && fileDirectory && !planning && editorText === '' && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? [{ id: 'add-workflow', label: '工作流', description: '编排任务，审阅后运行', icon: <Blocks size={16} />, action: { type: 'command' as const, value: 'workflow' } }] : []),
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
