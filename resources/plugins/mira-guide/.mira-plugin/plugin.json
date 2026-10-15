@@ -1,0 +1,16 @@
+{
+  "name": "mira-guide",
+  "version": "0.1.0",
+  "description": "了解 Mira 的任务、项目、插件、技能和本地设置。",
+  "license": "MIT",
+  "skills": "skills",
+  "listing": {
+    "displayName": "Mira 使用指南",
+    "category": "效率工具",
+    "icon": "mira-guide",
+    "author": "Mira",
+    "examplePrompts": [
+      "介绍一下 Mira 的插件和技能怎么使用。"
+    ]
+  }
+}

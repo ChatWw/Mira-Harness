@@ -4,6 +4,7 @@ import { existsSync, lstatSync, realpathSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { diffLines } from 'diff'
 import type { HarnessToolText } from '../../src/config/harness'
+import { harnessFileIdentity, harnessPathInside } from './harnessFileAccess'
 
 export const HARNESS_PUBLIC_TEXT_BYTES = 64 * 1024
 
@@ -103,33 +104,33 @@ function displayDiff(previous: string, next: string) {
 }
 
 /**
- * 沙箱 FileSystem：包装 NodeExecutionEnv，把路径访问限制在项目目录内。
- * 框架内置工具（read/edit/write）走 FileSystem 接口，不经过 harnessRuntime 的
- * assertProjectPath，因此必须在 FileSystem 层做同样的词法 + 符号链接检查。
+ * FileSystem path guard, not an OS command sandbox. Runtime may grant one
+ * external target for the current approved tool invocation; default callers stay local.
  */
-export function createSandboxedEnv(root: string): ExecutionEnv {
+export function createSandboxedEnv(root: string, allowExternal?: (path: string, operation: 'access' | 'metadata' | 'mkdir') => boolean): ExecutionEnv {
   const base = new NodeExecutionEnv({ cwd: root })
   const temporaryFiles = new Set<string>()
 
-  const assertInside = (value: string): Result<string, FileError> => {
+  const assertInside = (value: string, operation: 'access' | 'metadata' | 'mkdir' = 'access'): Result<string, FileError> => {
     const target = resolve(root, value)
     // Shell capture may spill into its own temporary log. This grants one exact
     // canonical file, never its directory, siblings, or a replacement symlink.
     if (temporaryFiles.has(target) && existsSync(target) && lstatSync(target).isFile() && realpathSync(target) === target) return ok(target)
+    if (allowExternal?.(target, operation)) return ok(target)
     if (target !== root && !target.startsWith(`${root}${sep}`)) {
       return err(new FileError('permission_denied', '工具只能访问项目目录内的文件', target))
     }
-    if (existsSync(target)) {
-      const real = realpathSync(target)
-      if (real !== root && !real.startsWith(`${root}${sep}`)) {
+    {
+      const real = harnessFileIdentity(target)
+      if (!harnessPathInside(root, real)) {
         return err(new FileError('permission_denied', '路径不能通过符号链接离开项目目录', target))
       }
     }
     return ok(target)
   }
 
-  const guard = <T>(run: () => Promise<Result<T, FileError>>, path: string): Promise<Result<T, FileError>> => {
-    const check = assertInside(path)
+  const guard = <T>(run: () => Promise<Result<T, FileError>>, path: string, operation: 'access' | 'metadata' | 'mkdir' = 'access'): Promise<Result<T, FileError>> => {
+    const check = assertInside(path, operation)
     return check.ok ? run() : Promise.resolve({ ok: false, error: check.error } as Result<T, FileError>)
   }
 
@@ -147,11 +148,11 @@ export function createSandboxedEnv(root: string): ExecutionEnv {
       if (!s.ok) return Promise.resolve({ ok: false, error: s.error } as Result<void, FileError>)
       return guard(() => base.renameFile(source, destination, signal), destination)
     },
-    fileInfo: (path: string) => guard(() => base.fileInfo(path), path),
+    fileInfo: (path: string) => guard(() => base.fileInfo(path), path, 'metadata'),
     listDir: (path: string, signal?: AbortSignal) => guard(() => base.listDir(path, signal), path),
     canonicalPath: (path: string) => guard(() => base.canonicalPath(path), path),
-    exists: (path: string) => guard(() => base.exists(path), path),
-    createDir: (path: string, options?: { recursive?: boolean, abortSignal?: AbortSignal }) => guard(() => base.createDir(path, options), path),
+    exists: (path: string) => guard(() => base.exists(path), path, 'metadata'),
+    createDir: (path: string, options?: { recursive?: boolean, abortSignal?: AbortSignal }) => guard(() => base.createDir(path, options), path, 'mkdir'),
     remove: (path: string, options?: { recursive?: boolean, force?: boolean, abortSignal?: AbortSignal }) => guard(() => base.remove(path, options), path),
     // 以下方法委托 base；临时文件只追加本 env 的精确路径授权。
     // 注意：class 的实例方法在原型上，`...base` 不会复制它们，必须显式委托。

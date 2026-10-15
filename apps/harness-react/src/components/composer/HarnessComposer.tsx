@@ -55,7 +55,7 @@ export interface HarnessComposerHandle {
   prepareSession(isCurrent?: () => boolean): Promise<string | undefined>
   addFileReference(sessionId: string, path: string): void
   withdrawPendingGuide(itemId: string): Promise<void>
-  startDraft(groupId?: string, projectId?: string | null, isCurrent?: () => boolean, pluginId?: string): Promise<boolean>
+  startDraft(groupId?: string, projectId?: string | null, isCurrent?: () => boolean, pluginId?: string, pluginPrompt?: string): Promise<boolean>
   openDraft(id?: string, isCurrent?: () => boolean): Promise<boolean>
   closeDraft(id: string): Promise<void>
 }
@@ -386,7 +386,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const selectedSuggestion = suggestionItems[suggestionIndex]
 
   useImperativeHandle(ref, () => ({
-    async startDraft(groupId, projectId, isCurrent, pluginId) {
+    async startDraft(groupId, projectId, isCurrent, pluginId, pluginPrompt) {
       await preferencesLoad.current
       if (!preferencesReady.current || isCurrent && !isCurrent()) return false
       const plugin = pluginId ? (await controller.listPlugins()).find(item => item.id === pluginId) : undefined
@@ -417,8 +417,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       if (!next.sessionId) controller.newConversation()
       setTaskDraft(next)
       selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId === undefined ? latestDraftSnapshot.current.config.projectId : requestedProjectId)
-      if (plugin && document && !pluginIds.has(plugin.id)) {
-        const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), { type: 'reference', reference: miraPluginReference(plugin.id, plugin.name) }, { type: 'text', text: ' ' }] }
+      if (plugin && document && (!pluginIds.has(plugin.id) || pluginPrompt)) {
+        const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), ...(!pluginIds.has(plugin.id) ? [{ type: 'reference' as const, reference: miraPluginReference(plugin.id, plugin.name) }] : []), { type: 'text', text: pluginPrompt ? ` ${pluginPrompt}` : ' ' }] }
         const end = serializeMiraPromptDocument(nextDocument).length
         setPromptDocument(nextDocument, { start: end, end }, ownerId)
       }

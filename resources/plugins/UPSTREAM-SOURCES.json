@@ -1,0 +1,66 @@
+[
+  {
+    "plugin": "pdf",
+    "repository": "https://github.com/openai/skills",
+    "revision": "49f948faa9258a0c61caceaf225e179651397431",
+    "path": "skills/.curated/pdf",
+    "license": "Apache-2.0",
+    "adaptations": "Mira skill discovery and host instructions"
+  },
+  {
+    "plugin": "skill-creator",
+    "repository": "https://github.com/openai/skills",
+    "revision": "49f948faa9258a0c61caceaf225e179651397431",
+    "path": "skills/.system/skill-creator",
+    "license": "Apache-2.0",
+    "adaptations": "Mira skill discovery and host instructions"
+  },
+  {
+    "plugin": "documents",
+    "repository": "https://github.com/python-openxml/python-docx",
+    "license": "MIT",
+    "licenseBlob": "67ebe716ec4b2d64d6146b5e7cecd77ac7af9b79",
+    "version": "1.2.0",
+    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+  },
+  {
+    "plugin": "presentations",
+    "repository": "https://github.com/scanny/python-pptx",
+    "license": "MIT",
+    "licenseBlob": "67ebe716ec4b2d64d6146b5e7cecd77ac7af9b79",
+    "version": "1.0.2",
+    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+  },
+  {
+    "plugin": "spreadsheets",
+    "repository": "https://github.com/jmcnamara/XlsxWriter",
+    "license": "BSD-2-Clause",
+    "licenseBlob": "e1e6c8a50f5dbc0916f417a5c3605e4a980ae926",
+    "version": "3.2.9",
+    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+  },
+  {
+    "plugin": "computer-use",
+    "repository": "https://github.com/CursorTouch/Windows-MCP",
+    "license": "MIT",
+    "licenseBlob": "a3077dae7e3dcd61e31a775f24678f338bda7a6e",
+    "version": "0.8.8",
+    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+  },
+  {
+    "plugin": "browser-use",
+    "repository": "https://github.com/microsoft/playwright-mcp",
+    "license": "Apache-2.0",
+    "licenseBlob": "cefe596afef12e19a8e5e923f1a04c7da3188760",
+    "version": "0.0.83",
+    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+  },
+  {
+    "plugin": "plugin-creator",
+    "repository": "https://github.com/openai/skills",
+    "revision": "49f948faa9258a0c61caceaf225e179651397431",
+    "path": "skills/.system/plugin-creator",
+    "license": "Apache-2.0",
+    "adaptations": "Mira manifest and local marketplace scaffold"
+  }
+]

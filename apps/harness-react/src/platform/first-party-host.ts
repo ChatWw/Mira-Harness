@@ -19,6 +19,7 @@ import type { MiraFlowWorkbenchRequest } from '../../../../src/config/miraFlowWo
 import type { HarnessSideConversationInput } from '../../../../src/config/harness'
 
 export class FirstPartyHarnessHost implements PilotHost {
+  readonly supportsPluginMarket = true
   readonly supportsQueueSubmissionOptions = true
   private sequence = 0
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
@@ -138,6 +139,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   getSkillMarketDetail = (id: string) => this.call<HarnessSkillMarketDetail>('marketplace.detail', { id })
   installMarketSkill = (id: string) => this.call<HarnessSkillMarketItem>('marketplace.install', { id })
   listInstalledMarketSkills = () => this.call<HarnessSkillMarketItem[]>('marketplace.installed')
+  listPluginMarketplaces = () => this.call<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>('plugin-marketplace.sources')
+  addPluginMarketplace = (source: string) => this.call<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>('plugin-marketplace.add-source', { source })
+  removePluginMarketplace = (id: string) => this.call<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>('plugin-marketplace.remove-source', { id })
   browsePluginMarket = (refresh = false) => this.call<MiraPluginMarketCatalog>('plugin-marketplace.browse', { refresh })
   getPluginMarketDetail = (id: string) => this.call<MiraPluginMarketDetail>('plugin-marketplace.detail', { id })
   installMarketPlugin = (id: string) => this.call<MiraPluginMarketItem>('plugin-marketplace.install', { id })

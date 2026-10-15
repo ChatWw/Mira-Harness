@@ -1,0 +1,19 @@
+{
+  "name": "skill-creator",
+  "version": "0.1.0",
+  "description": "创建、编辑和迭代本地技能。",
+  "author": {
+    "name": "OpenAI / Mira"
+  },
+  "license": "Apache-2.0",
+  "skills": "skills",
+  "listing": {
+    "displayName": "技能创建器",
+    "category": "开发者工具",
+    "icon": "skill-creator",
+    "author": "OpenAI / Mira",
+    "examplePrompts": [
+      "帮我把当前工作流程做成一个可复用技能。"
+    ]
+  }
+}

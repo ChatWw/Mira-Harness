@@ -85,6 +85,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/plugins",
+        "to": "plugins",
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   },

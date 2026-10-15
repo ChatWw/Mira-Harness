@@ -53,7 +53,7 @@ export class HarnessSubtaskCoordinator {
       .map(agent => ({ name: agent.name, description: agent.description, tools: agent.tools, disallowedTools: agent.disallowedTools, mcpServers: agent.mcpServers }))
     const childPrompt = (role: HarnessSubtaskRole, injectAgentsMd = true) => [
       `你是 Mira 的 ${role} 子任务 Agent。只能完成收到的一项任务，不能联系用户、不能委派、不能假称执行过未调用的工具。`,
-      role === 'implementer' ? '可在指定项目内修改文件；只改本任务需要的内容。' : role === 'tester' ? '可执行测试命令；不要以直接编辑文件的方式修改工作区。' : '你没有被授予任意写入权限；不得声称修改了文件。',
+      role === 'implementer' ? '可修改本任务指定的文件；相对路径以工作目录解析，外部资源遵循任务权限审批。只改本任务需要的内容。' : role === 'tester' ? '可执行测试命令；不要以直接编辑文件的方式修改工作区。' : '你没有被授予任意写入权限；不得声称修改了文件。',
       '最终回复是父 Agent 唯一得到的完整报告。简洁说明结论、真实改动/检查、关键文件路径，以及未完成项。不要输出思维过程。',
       buildMiraSystemPrompt({ tone: normalizeAssistantTone(preferences.assistantTone), context: { instructions: injectAgentsMd ? this.database.instructions.resolve(session.workingDirectory) : undefined } }),
     ].join('\n\n')
@@ -128,8 +128,8 @@ export class HarnessSubtaskCoordinator {
               const decision = await options.preflightToolCall(toolCall.name, args)
               if (decision?.block) return decision
               const tool = childRegistry?.tools.find(tool => tool.name === toolCall.name)
-              if (tool && typeof (tool as any).miraMcpServerId === 'string') {
-                if (!childRegistry?.preflight || !childScope) return { block: true, reason: '子智能体 MCP 审批不可用，请重新委派' }
+              if (tool && (typeof (tool as any).miraMcpServerId === 'string' || ['read', 'list_files', 'write', 'edit'].includes(toolCall.name))) {
+                if (!childRegistry?.preflight || !childScope) return { block: true, reason: '子智能体工具审批不可用，请重新委派' }
                 const result = await childRegistry.preflight(toolCall.id, toolCall.name, args, false, session.permissionMode, childScope.signal, tool)
                 assertProfile()
                 return result

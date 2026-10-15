@@ -72,7 +72,8 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   const miraFlowController = new MiraFlowController({ database, runtime: harnessRuntime, paths: miraPaths,
     resourceRoot: app.isPackaged ? join(process.resourcesPath, 'mira-flow-host') : resolve(app.getAppPath(), 'dist/mira-flow-host') })
   const automationScheduler = new AutomationScheduler(database, harnessRuntime)
-  const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init))
+  const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init), undefined, app.isPackaged ? join(process.resourcesPath, 'plugins') : join(app.getAppPath(), 'resources/plugins'))
+  await skillMarketplace.pluginMarkets.seed()
   try { void mcpManager.refresh(mcpConfigStore.list()) }
   catch { console.error('[mcp] MCP 配置读取失败；请在设置中检查配置文件后重试') }
   automationScheduler.start()

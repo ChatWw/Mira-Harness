@@ -2,6 +2,21 @@ import type { MiraHookConfig } from './miraHooks'
 
 /** Plugin identity is independent of a translated label or an individual Skill. */
 export interface MiraPluginSkill { name: string; description: string; path: string }
+export interface MiraPluginListing {
+  displayName?: string
+  category?: string
+  icon?: string
+  author?: string
+  examplePrompts?: string[]
+}
+export interface MiraPluginMarketplaceSource { id: string; name: string; source: string; error?: string; checkout?: string; revision?: string }
+export function miraPluginListing(value: unknown): MiraPluginListing | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const input = value as Record<string, unknown>, listing: MiraPluginListing = {}
+  for (const key of ['displayName', 'category', 'icon', 'author'] as const) if (typeof input[key] === 'string') listing[key] = input[key].slice(0, 2048)
+  if (Array.isArray(input.examplePrompts)) listing.examplePrompts = input.examplePrompts.filter((item): item is string => typeof item === 'string').slice(0, 12).map(item => item.slice(0, 4096))
+  return listing
+}
 export interface MiraPluginCommand { name: string; description: string; argumentHint?: string; path: string; unavailableReason?: string }
 export interface MiraPluginAgent { name: string; description: string; path: string; tools?: string[]; disallowedTools?: string[]; mcpServers?: string[]; unavailableReason?: string }
 export interface MiraPluginMcpServer {
@@ -43,6 +58,8 @@ export interface MiraPluginSnapshot {
   hooks?: MiraPluginHook[]
   hookDiagnostics?: string[]
   unsupported: string[]
+  listing?: MiraPluginListing
+  unavailableReason?: string
 }
 export interface MiraPluginItem extends Omit<MiraPluginSnapshot, 'root' | 'skills' | 'commands' | 'agents'> {
   skills: Array<Pick<MiraPluginSkill, 'name' | 'description'>>
@@ -64,6 +81,8 @@ export interface MiraPluginMarketItem {
   installed: boolean
   enabled: boolean
   unavailableReason?: string
+  version?: string
+  listing?: MiraPluginListing
 }
 export interface MiraPluginMarketDetail extends MiraPluginMarketItem {
   files: Array<{ path: string; size: number }>
@@ -73,6 +92,7 @@ export interface MiraPluginMarketDetail extends MiraPluginMarketItem {
 export interface MiraPluginMarketCatalog {
   sourceName: string
   items: MiraPluginMarketItem[]
+  errors?: string[]
 }
 export const isMiraPluginId = (id: string) => id.length <= 256 && /^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)
 

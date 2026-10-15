@@ -1,0 +1,23 @@
+{
+  "name": "documents",
+  "version": "0.1.0",
+  "description": "创建、编辑、排版和审阅 Word 文档。",
+  "description_i18n": {
+    "en": "Word document production skills for DOCX: create, edit, format, review, and comment.",
+    "zh-CN": "面向 DOCX 的 Word 文档制作技能：创建、编辑、排版、审阅与批注。"
+  },
+  "author": {
+    "name": "python-openxml/python-docx / Mira"
+  },
+  "license": "MIT",
+  "skills": "skills",
+  "listing": {
+    "displayName": "Word 文档",
+    "category": "办公文档",
+    "icon": "documents",
+    "author": "python-openxml / Mira",
+    "examplePrompts": [
+      "把这些内容整理成一份 Word 文档。"
+    ]
+  }
+}

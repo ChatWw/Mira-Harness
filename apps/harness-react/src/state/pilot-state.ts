@@ -91,6 +91,9 @@ export interface PilotHost {
   getSkillMarketDetail?(id: string): Promise<HarnessSkillMarketDetail>
   installMarketSkill?(id: string): Promise<HarnessSkillMarketItem>
   listInstalledMarketSkills?(): Promise<HarnessSkillMarketItem[]>
+  listPluginMarketplaces?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>
+  addPluginMarketplace?(source: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>
+  removePluginMarketplace?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketplaceSource[]>
   browsePluginMarket?(refresh?: boolean): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketCatalog>
   getPluginMarketDetail?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketDetail>
   installMarketPlugin?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginMarketItem>
@@ -709,6 +712,9 @@ export class PilotController {
   installMarketSkill(id: string) { return this.require('installMarketSkill')(id) }
   listInstalledMarketSkills() { return this.require('listInstalledMarketSkills')() }
   get supportsPluginMarket() { return Boolean(this.host.browsePluginMarket && this.host.getPluginMarketDetail && this.host.installMarketPlugin) }
+  listPluginMarketplaces() { return this.require('listPluginMarketplaces')() }
+  addPluginMarketplace(source: string) { return this.require('addPluginMarketplace')(source) }
+  removePluginMarketplace(id: string) { return this.require('removePluginMarketplace')(id) }
   browsePluginMarket(refresh = false) { return this.require('browsePluginMarket')(refresh) }
   getPluginMarketDetail(id: string) { return this.require('getPluginMarketDetail')(id) }
   installMarketPlugin(id: string) { return this.require('installMarketPlugin')(id) }

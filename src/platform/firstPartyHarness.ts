@@ -217,6 +217,9 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     if (sessionId && projectId) throw new Error('输入历史范围无效')
     return { method, sessionId, projectId } as const
   }
+  if (method === 'plugin-marketplace.sources') return { method } as const
+  if (method === 'plugin-marketplace.add-source') return { method, source: string(fields(raw).source, '市场来源', 2048) } as const
+  if (method === 'plugin-marketplace.remove-source') return { method, id: string(fields(raw).id, '市场 ID', 120) } as const
   if (method === 'plugins.list' || method === 'plugins.import') return { method } as const
   if (method === 'agents.list') {
     const params = raw === undefined ? {} : fields(raw)

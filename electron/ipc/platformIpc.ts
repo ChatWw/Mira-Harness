@@ -335,6 +335,15 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         if (!skillMarketplace) throw new Error('插件市场服务不可用')
         return skillMarketplace.browse(call.refresh).then(result => { assertMarketAuthorized(); return result })
       }
+      case 'plugin-marketplace.sources': return skillMarketplace?.pluginMarkets.sources() ?? []
+      case 'plugin-marketplace.add-source': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.pluginMarkets.add(call.source, assertMarketAuthorized)
+      }
+      case 'plugin-marketplace.remove-source': {
+        if (!skillMarketplace) throw new Error('插件市场服务不可用')
+        return skillMarketplace.pluginMarkets.remove(call.id)
+      }
       case 'plugin-marketplace.browse': {
         if (!skillMarketplace) throw new Error('插件市场服务不可用')
         return skillMarketplace.browsePlugins(call.refresh).then(result => { assertMarketAuthorized(); return result })

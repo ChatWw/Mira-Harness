@@ -5,6 +5,7 @@ import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillM
 import type { MiraPaths } from '../storage/miraPaths'
 import { parseSkill, type SkillStore } from '../storage/skillStore'
 import curatedSource from './marketplace/curated-skill-source.json'
+import { MiraPluginMarketplace } from './miraPluginMarketplace'
 import { MiraPluginStore } from '../storage/miraPluginStore'
 import type { MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../src/config/miraPlugins'
 
@@ -55,7 +56,9 @@ export class SkillMarketplaceService {
   private pluginCatalog?: { snapshot: Snapshot; pending: Promise<PluginCatalog> }
   private plugins = new MiraPluginStore(this.paths)
 
-  constructor(private readonly paths: MiraPaths, private readonly skills: SkillStore, private readonly fetcher: typeof fetch = fetch, private readonly source: { commit: string; tree: TreeEntry[] } = curatedSource) {}
+  readonly pluginMarkets: MiraPluginMarketplace
+
+  constructor(private readonly paths: MiraPaths, private readonly skills: SkillStore, private readonly fetcher: typeof fetch = fetch, private readonly source: { commit: string; tree: TreeEntry[] } = curatedSource, builtinRoot?: string) { this.pluginMarkets = new MiraPluginMarketplace(paths, fetcher, builtinRoot) }
 
   private async download(url: string, maxBytes: number): Promise<Buffer> {
     const abort = new AbortController()
@@ -183,6 +186,15 @@ export class SkillMarketplaceService {
   }
 
   async browsePlugins(refresh = false): Promise<MiraPluginMarketCatalog> {
+    const additional = await this.pluginMarkets.browse(refresh)
+    if (this.pluginMarkets.hasBuiltins) return additional
+    if (additional.items.length || this.pluginMarkets.sources().length) {
+      try {
+        const catalog = await this.pluginPackages(refresh), installed = this.plugins.list()
+        additional.items.push(...[...catalog.packages.values()].map(({ item }) => { const plugin = installed.find(plugin => plugin.id === item.id); return { ...item, installed: Boolean(plugin), enabled: Boolean(plugin?.enabled && !plugin.error) } }))
+      } catch (error) { additional.errors.push(error instanceof Error ? error.message : 'Anthropic 市场读取失败') }
+      return additional
+    }
     const catalog = await this.pluginPackages(refresh), installed = this.plugins.list()
     return { sourceName: PLUGIN_SOURCE_NAME, items: [...catalog.packages.values()].map(({ item }) => {
       const plugin = installed.find(plugin => plugin.id === item.id)
@@ -191,6 +203,7 @@ export class SkillMarketplaceService {
   }
 
   async pluginDetail(id: string): Promise<MiraPluginMarketDetail> {
+    if (this.pluginMarkets.owns(id)) return this.pluginMarkets.detail(id)
     const catalog = await this.pluginPackages(), plugin = catalog.packages.get(id)
     if (!plugin) throw new Error('公开插件不存在，请刷新后重试')
     const item = (await this.browsePlugins()).items.find(item => item.id === id)!
@@ -198,6 +211,7 @@ export class SkillMarketplaceService {
   }
 
   async installPlugin(id: string, assertAuthorized: () => void = () => undefined): Promise<MiraPluginMarketItem> {
+    if (this.pluginMarkets.owns(id)) return this.pluginMarkets.install(id, assertAuthorized)
     if (this.installing.has(id)) throw new Error('此插件正在安装，请稍后查看结果')
     this.installing.add(id)
     let stage: string | undefined, published: string | undefined

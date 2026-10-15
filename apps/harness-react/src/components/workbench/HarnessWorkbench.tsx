@@ -205,7 +205,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   const [permissionError, setPermissionError] = useState<{ requestId: string; message: string }>()
   const [memoryResponding, setMemoryResponding] = useState(false)
   const [planning, setPlanning] = useState(false)
-  const newConversation = (projectId?: string | null, groupId?: string, pluginId?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId, undefined, pluginId)).catch(error => { controller.reportError(error); return false })
+  const newConversation = (projectId?: string | null, groupId?: string, pluginId?: string, pluginPrompt?: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, projectId, true, groupId, undefined, pluginId, pluginPrompt)).catch(error => { controller.reportError(error); return false })
   const openDraft = (id: string) => navigation.visit(undefined, (target, current, draft) => executeNavigation(target, current, draft, undefined, false, undefined, id)).catch(error => { controller.reportError(error); return false })
   const commandCenterFocusRequest = useRef<string | undefined>(undefined)
   const openCommandCenter = () => { commandCenterFocusRequest.current = undefined; setCommandCenterFocusRequestNumber(value => value + 1); setCommandCenterOpen(true) }
@@ -1011,7 +1011,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     return () => window.cancelAnimationFrame(frame)
   }, [searchTarget, mainView, state.sessionLoading, state.session?.id, timelineMessages])
 
-  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string | null, resetDraft = false, groupId?: string, draftId?: string, pluginId?: string) {
+  async function executeNavigation(target: MiraAppNavigationTarget | undefined, isCurrent: () => boolean, draft?: 'conversation' | 'automations', projectId?: string | null, resetDraft = false, groupId?: string, draftId?: string, pluginId?: string, pluginPrompt?: string) {
     const revision = ++viewRevision.current
     const current = () => isCurrent() && revision === viewRevision.current
     try {
@@ -1036,7 +1036,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           if (!await composerRef.current?.openDraft?.(draftId, current)) return false
         } else if (resetDraft) {
           if (composerRef.current?.startDraft) {
-            if (!await composerRef.current.startDraft(groupId, projectId, current, pluginId)) return false
+            if (!await composerRef.current.startDraft(groupId, projectId, current, pluginId, pluginPrompt)) return false
           } else { setDraftProjectId(projectId ?? undefined); setPlanning(false); controller.newConversation() }
         } else if (composerRef.current?.openDraft) {
           if (!await composerRef.current.openDraft(undefined, current)) return false
@@ -1296,7 +1296,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
           {deletingTask && <SessionDeleteDialog session={deletingTask} controller={controller} onClose={() => setDeletingTask(undefined)} />}
           <MiraPanelGroup id="mira-workbench-body" elementRef={geometry.bodyRef} className="mira-workbench-body" onLayoutChanged={geometry.workspaceLayoutChanged}>
           <MiraPanel id="mira-conversation" elementRef={geometry.conversationRef} minSize="35%" className="mira-conversation-panel">
-          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background">{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} onTryPlugin={async id => { if (!await newConversation(undefined, undefined, id)) throw new Error(controller.getSnapshot().error || '任务打开失败，原稿已保留，请重试') }} /></main>}
+          {mainView === 'extensions' && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background">{mainViewError}<SkillMarketView host={controller} onManageSkills={() => void controller.navigate('/settings/personalization')} onTryPlugin={async (id, prompt) => { if (!await newConversation(undefined, undefined, id, prompt)) throw new Error(controller.getSnapshot().error || '任务打开失败，原稿已保留，请重试') }} /></main>}
           {automationsMounted && <main className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col bg-background" hidden={mainView !== 'automations'} style={mainView !== 'automations' ? { display: 'none' } : undefined}>{mainViewError}<AutomationsView ref={bindAutomations} host={controller} projects={state.projects} sessions={state.sessions} providers={state.providers} active={mainView === 'automations'} navigationBusy={navigationState.busy} onNavigationChange={target => { if (mainViewRef.current === 'automations') navigation.record(target) }} onDraftNavigation={() => { if (mainViewRef.current === 'automations') navigation.detach('automations') }} onDeleteTask={id => navigation.removeAutomation(id)} onOpenSession={async id => { await openTask(id) }} onOpenWorkflowRun={openWorkflowRun} onManageModels={() => void controller.navigate('/settings/model-config')} /></main>}
           <div className="mira-thread-panel flex min-h-0 min-w-0 flex-1 flex-col" hidden={mainView !== 'conversation'} style={mainView !== 'conversation' ? { display: 'none' } : undefined}>
             <header className="harness-thread-header relative flex h-12 w-full shrink-0 items-center justify-between gap-2 overflow-hidden p-2" data-draft={!hasTaskProgress}>

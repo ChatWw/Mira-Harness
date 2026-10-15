@@ -1,0 +1,23 @@
+{
+  "name": "pdf",
+  "version": "0.1.8",
+  "description": "处理、制作和转换 PDF 文档。",
+  "description_i18n": {
+    "en": "PDF production skills: typeset and render reports, resumes, posters, and covers to PDF.",
+    "zh-CN": "PDF 制作技能：报告、简历、海报、封面的排版与渲染输出。"
+  },
+  "author": {
+    "name": "OpenAI / Mira"
+  },
+  "license": "Apache-2.0",
+  "skills": "skills",
+  "listing": {
+    "displayName": "PDF",
+    "category": "办公文档",
+    "icon": "pdf",
+    "author": "OpenAI / Mira",
+    "examplePrompts": [
+      "把这份资料整理成一份 PDF 报告。"
+    ]
+  }
+}

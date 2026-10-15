@@ -1,0 +1,33 @@
+{
+  "name": "computer-use",
+  "version": "0.1.0",
+  "description": "通过桌面应用界面完成操作。",
+  "license": "MIT",
+  "skills": "skills",
+  "listing": {
+    "displayName": "电脑控制",
+    "category": "效率工具",
+    "icon": "computer-use",
+    "author": "CursorTouch / Mira",
+    "examplePrompts": [
+      "帮我操作一个桌面应用。"
+    ]
+  },
+  "author": {
+    "name": "CursorTouch/Windows-MCP / Mira"
+  },
+  "mcpServers": {
+    "desktop": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.14",
+        "windows-mcp==0.8.8",
+        "serve"
+      ],
+      "env": {
+        "ANONYMIZED_TELEMETRY": "false"
+      }
+    }
+  }
+}

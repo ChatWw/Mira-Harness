@@ -1400,9 +1400,11 @@ export class HarnessStore {
     const originalDirectory = tool.fileChangeDirectory || session.workingDirectory
     if (!message || !originalDirectory) return
     const directory = realpathSync(originalDirectory)
-    const value = miraCheckpointPathStable(directory, path) ? miraCheckpointText(before) : undefined
     const target = resolve(directory, path)
-    const location = relative(directory, existsSync(target) && value !== undefined ? realpathSync(target) : target).split(sep).join('/')
+    const child = relative(directory, target)
+    const external = child === '..' || child.startsWith(`..${sep}`) || isAbsolute(child)
+    const value = external || miraCheckpointPathStable(directory, path) ? miraCheckpointText(before) : undefined
+    const location = external ? target : relative(directory, existsSync(target) && value !== undefined ? realpathSync(target) : target).split(sep).join('/')
     const chain = JSON.stringify(session.messages.slice(0, messageIndex + 1).filter(message => message.role === 'user').map(message => message.id))
     this.database.prepare('INSERT INTO harness_file_checkpoints(session_id, tool_id, message_id, message_chain, directory, path, before_content, before_known, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, toolId, message.id, chain, directory, location, value ?? null, Number(value !== undefined), tool.createdAt)
   }
@@ -1501,7 +1503,7 @@ export class HarnessStore {
     const files = rows.map(row => {
       const file = JSON.parse(row.public_payload) as MiraTaskChangedFile
       const location = session.workingDirectory ? relative(session.workingDirectory, row.path) : undefined
-      if (location && (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location))) file.path = `其他项目/${location.split(sep).join('/')}`
+      if (location && (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location))) file.path = row.path
       if (includeDiff) {
         if (!file.diff) return file
         const bytes = Buffer.byteLength(file.diff)

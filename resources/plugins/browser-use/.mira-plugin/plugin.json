@@ -1,0 +1,31 @@
+{
+  "name": "browser-use",
+  "version": "0.1.0",
+  "description": "通过浏览器完成网页读取、交互和验证。",
+  "license": "Apache-2.0",
+  "skills": "skills",
+  "listing": {
+    "displayName": "浏览器操作",
+    "category": "效率工具",
+    "icon": "browser-use",
+    "author": "microsoft / Mira",
+    "examplePrompts": [
+      "打开网页并帮我完成页面操作。"
+    ]
+  },
+  "author": {
+    "name": "microsoft/playwright-mcp / Mira"
+  },
+  "mcpServers": {
+    "browser": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@playwright/mcp@0.0.83",
+        "--browser",
+        "chrome",
+        "--isolated"
+      ]
+    }
+  }
+}

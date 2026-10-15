@@ -86,7 +86,8 @@ export async function buildMiraFileRewindPlan(session: HarnessSession, messageId
       let originalRoot: string | undefined
       try { originalRoot = realpathSync(first.directory) } catch { /* Original project may have been moved or removed. */ }
       const location = relative(first.directory, resolve(first.directory, first.path))
-      if (!root || originalRoot !== root || first.directory !== root || !location || location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location)) reason = 'workspace_changed'
+      if (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location)) reason = 'external_path'
+      else if (!root || originalRoot !== root || first.directory !== root || !location) reason = 'workspace_changed'
       else if (records.some(record => !record.settled)) reason = 'operation_interrupted'
       else if (records.some(record => !record.beforeKnown || !record.afterKnown)) reason = 'checkpoint_unavailable'
       else {

@@ -48,14 +48,14 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals() })
 
 describe('Skill marketplace workbench view', () => {
-  it('loads actual catalog entries, filters them, and opens the existing skills manager', async () => {
+  it('loads actual catalog entries, filters them, and opens market source settings', async () => {
     const host = fixture(); const view = mount(host); await view.drain()
     expect(host.browseSkillMarket).toHaveBeenCalledWith(false)
     expect(view.matches(props => props.className === 'mira-market-item-main')).toHaveLength(2)
     view.find(props => props['aria-label'] === '搜索插件').onChange({ target: { value: 'Writer' } }); await view.drain()
     expect(view.matches(props => props.className === 'mira-market-item-main')).toHaveLength(1)
-    view.find(props => props['aria-label'] === '管理技能').onClick()
-    expect(view.onManageSkills).toHaveBeenCalledOnce()
+    view.find(props => props['aria-label'] === '市场来源设置').onClick()
+    expect(view.onManageSkills).not.toHaveBeenCalled()
     view.unmount()
   })
 

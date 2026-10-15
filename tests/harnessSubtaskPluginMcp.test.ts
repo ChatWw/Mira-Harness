@@ -102,6 +102,20 @@ await server.connect(new StdioServerTransport());
 }
 
 describe('subtask Agent borrowing selected parent plugin MCP', () => {
+  it('reads an approved external file through the real child Agent without granting write tools to an explorer', async () => {
+    const read = { id: 'external-read', name: 'read', arguments: { path: '' } }
+    const view = setup([{ tools: [read] }, {}], { permission: 'default', parentSteps: [{ tools: [delegate('explorer')] }, waitTasks, {}] })
+    read.arguments.path = join(view.root, 'external.txt')
+    writeFileSync(read.arguments.path, 'EXTERNAL_CHILD_CONTENT')
+    const pending = view.run()
+    await vi.waitFor(() => expect(view.events.some(event => event.type === 'permission-request')).toBe(true))
+    const request = view.events.find(event => event.type === 'permission-request')!.payload as any
+    expect(request.detail).toContain(read.arguments.path)
+    ;(view.runtime as any).resolvePermission(request.requestId, true)
+    await pending
+    expect(JSON.stringify(view.contexts.filter(context => context.child))).toContain('EXTERNAL_CHILD_CONTENT')
+    expect(view.contexts.find(context => context.child)!.tools.map(tool => tool.name)).not.toContain('write')
+  })
   it('executes a real MCP tool in the child with schema, public identity, report and usage intact', async () => {
     const view = setup([{ tools: [call('child')] }, {}]); await view.run()
     const childContexts = view.contexts.filter(context => context.child), task = view.children()[0]

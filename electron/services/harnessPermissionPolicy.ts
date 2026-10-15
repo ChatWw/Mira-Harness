@@ -8,6 +8,7 @@ export type ToolRisk = 'read' | 'write' | 'command' | 'mcp'
 
 export type ToolDescriptor = {
   risk: ToolRisk
+  requiresApproval?: (args: Record<string, unknown>) => boolean
   deferApproval?: boolean
   title: (args: Record<string, unknown>) => string
   detail: (args: Record<string, unknown>) => string
@@ -75,11 +76,12 @@ export class HarnessPermissionPolicy {
   async preflight(sender: WebContents | undefined, sessionId: string, descriptors: Map<string, ToolDescriptor>, name: string, args: unknown, automation = false, permissionMode?: PermissionMode, signal?: AbortSignal, context?: ToolApprovalContext) {
     if (signal?.aborted) return { block: true, reason: '运行已停止' }
     const descriptor = descriptors.get(name)
-    if (!descriptor || descriptor.risk === 'read' && context?.hookPermission !== 'ask') return undefined
     const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+    const externalRead = descriptor?.risk === 'read' && descriptor.requiresApproval?.(values)
+    if (!descriptor || descriptor.risk === 'read' && !externalRead && context?.hookPermission !== 'ask') return undefined
     if (name === 'bash' && this.isDangerousCommand(String(values.command ?? ''))) return { block: true, reason: '危险命令已被永久拦截' }
     const mode = permissionMode || this.database.harness.getPermissionConfig().globalDefaultMode || 'default'
-    if (automation && mode === 'default') return { block: true, reason: '自动化任务的默认权限仅允许只读工具' }
+    if (automation && mode === 'default') return { block: true, reason: externalRead ? '自动化任务访问工作目录外文件需要预先授权，请调整任务权限' : '自动化任务的默认权限仅允许只读工具' }
     // Authoring tools compile first, then review the exact source and compiler projection.
     if (descriptor.deferApproval) return undefined
     const decision = await this.approve(sender, sessionId, mode, () => descriptor.title(values) || `允许 Mira 调用 ${name}？`, () => descriptor.detail(values) || `Hook 要求确认工具 ${name} 的调用。`, signal, context)

@@ -7,7 +7,7 @@ import { lstatSync, readFileSync, readdirSync, realpathSync, renameSync, writeFi
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import MarkdownIt from 'markdown-it'
-import { isMiraPluginId, miraPluginItems, parseMiraPluginInvocation, type MiraPluginAgent, type MiraPluginAgentInput, type MiraPluginCommand, type MiraPluginCommandInput, type MiraPluginHookInput, type MiraPluginSnapshot, type MiraPluginSkill } from '../../src/config/miraPlugins'
+import { miraPluginListing, isMiraPluginId, miraPluginItems, parseMiraPluginInvocation, type MiraPluginAgent, type MiraPluginAgentInput, type MiraPluginCommand, type MiraPluginCommandInput, type MiraPluginHookInput, type MiraPluginSnapshot, type MiraPluginSkill } from '../../src/config/miraPlugins'
 import { prepareMiraPluginCommand, parseMiraPluginCommand } from './miraPluginCommands'
 import { parseMiraPluginAgent } from './miraPluginAgents'
 import { loadMiraPluginMcp, resolveMiraPluginMcp } from './miraPluginMcp'
@@ -155,7 +155,7 @@ export class MiraPluginStore {
     const unsupported = ['lspServers', 'dependencies', 'settings', 'outputStyles', 'channels', 'userConfig'].filter(key => manifest[key] !== undefined)
     if (exists(join(root, '.lsp.json')) && !unsupported.includes('lspServers')) unsupported.push('lspServers')
     const mcpServers = this.mcpDeclarations(root, record.id, manifest.name, manifest).map(server => server.descriptor)
-    return { id: record.id, name: manifest.name, description: typeof manifest.description === 'string' ? manifest.description.slice(0, 1024) : '', version: typeof manifest.version === 'string' ? manifest.version.slice(0, 128) : undefined, root, enabled: record.enabled, skills, commands, agents, ...(mcpServers.length ? { mcpServers } : {}), ...(hookDeclarations.hooks.length ? { hooks: hookDeclarations.hooks } : {}), ...(hookDeclarations.diagnostics.length ? { hookDiagnostics: hookDeclarations.diagnostics } : {}), unsupported }
+    return { ...(miraPluginListing(manifest.listing) ? { listing: miraPluginListing(manifest.listing) } : {}), ...(typeof manifest.miraUnavailableReason === 'string' ? { unavailableReason: manifest.miraUnavailableReason } : {}), id: record.id, name: manifest.name, description: typeof manifest.description === 'string' ? manifest.description.slice(0, 1024) : '', version: typeof manifest.version === 'string' ? manifest.version.slice(0, 128) : undefined, root, enabled: record.enabled, skills, commands, agents, ...(mcpServers.length ? { mcpServers } : {}), ...(hookDeclarations.hooks.length ? { hooks: hookDeclarations.hooks } : {}), ...(hookDeclarations.diagnostics.length ? { hookDiagnostics: hookDeclarations.diagnostics } : {}), unsupported }
   }
   snapshots(): MiraPluginSnapshot[] {
     let records: Registration[]

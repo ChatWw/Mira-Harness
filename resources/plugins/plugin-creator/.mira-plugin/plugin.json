@@ -1,0 +1,19 @@
+{
+  "name": "plugin-creator",
+  "version": "0.1.0",
+  "description": "创建本地插件和用于测试的插件市场。",
+  "author": {
+    "name": "OpenAI / Mira"
+  },
+  "license": "MIT",
+  "skills": "skills",
+  "listing": {
+    "displayName": "插件创建器",
+    "category": "开发者工具",
+    "icon": "plugin-creator",
+    "author": "OpenAI / Mira",
+    "examplePrompts": [
+      "帮我创建一个本地 Mira 插件。"
+    ]
+  }
+}

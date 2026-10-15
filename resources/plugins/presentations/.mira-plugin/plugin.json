@@ -1,0 +1,23 @@
+{
+  "name": "presentations",
+  "version": "0.1.0",
+  "description": "创建、编辑和检查 PowerPoint 演示文稿。",
+  "description_i18n": {
+    "en": "Presentation production skills for PPTX, with a visual acceptance reviewer agent.",
+    "zh-CN": "面向 PPTX 的演示文稿制作技能，并提供视觉验收评审 Agent。"
+  },
+  "author": {
+    "name": "scanny/python-pptx / Mira"
+  },
+  "license": "MIT",
+  "skills": "skills",
+  "listing": {
+    "displayName": "演示文稿",
+    "category": "办公文档",
+    "icon": "presentations",
+    "author": "scanny / Mira",
+    "examplePrompts": [
+      "根据这份提纲制作一份演示文稿。"
+    ]
+  }
+}

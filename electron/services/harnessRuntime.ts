@@ -1,3 +1,4 @@
+import { harnessFileIdentity, harnessPathInside } from './harnessFileAccess'
 import type { MiraGitAction } from '../../src/config/miraGit'
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { boundHarnessText, createSandboxedEnv, publicHarnessText, publicHarnessToolInput, publicHarnessToolOutput, wrapHarnessTool } from './agentTools'
@@ -1106,15 +1107,6 @@ export class HarnessRuntime {
     }
   }
 
-  private assertProjectPath(directory: string | undefined, value: string) {
-    if (!directory) throw new Error('请先选择项目工作目录')
-    const root = realpathSync(directory)
-    const target = resolve(root, value)
-    if (target !== root && !target.startsWith(`${root}${sep}`)) throw new Error('工具只能访问项目目录内的文件')
-    if (existsSync(target) && !realpathSync(target).startsWith(`${root}${sep}`) && realpathSync(target) !== root) throw new Error('路径不能通过符号链接离开项目目录')
-    return target
-  }
-
   /** 环境上下文仅作事实参考注入；分支等信息可能滞后。 */
   private environmentContext(session: HarnessSession, origin: HarnessRunOrigin, automationPermissionMode?: PermissionMode): MiraEnvironmentContext {
     const now = new Date()
@@ -1161,6 +1153,7 @@ export class HarnessRuntime {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const executionRecord = new AsyncLocalStorage<string>()
+    const externalFiles = new Map<string, { path: string; identity: string; write: boolean }>()
     const publicIds = new Map<string, string>()
     const publicStates = new Map<string, Pick<ToolCallRecord, 'status' | 'approvalRequestId'>>()
     const toolHookContexts = new Map<string, string[]>()
@@ -1252,6 +1245,9 @@ export class HarnessRuntime {
         updatePublic(id, { status: 'cancelled', error: publicHarnessText(reason, secrets).text, completedAt: Date.now() })
         return { block: true, reason }
       }
+      externalFiles.delete(id)
+      const filePath = ['read', 'write', 'edit', 'list_files'].includes(name) && session().workingDirectory ? resolve(session().workingDirectory!, String((args as any)?.path || '.')) : undefined
+      const fileIdentity = filePath ? harnessFileIdentity(filePath) : undefined
       const result = await this.permissionPolicy.preflight(sender, sessionId, descriptors, name, args, automation, mode, signal, {
         toolCallId: id, runId: options.runId!, onRequest: requestId => updatePublic(id, { status: 'waiting-confirm', approvalRequestId: requestId }),
         ...(before?.permission === 'allow' || before?.permission === 'ask' ? { hookPermission: before.permission } : {}),
@@ -1267,11 +1263,20 @@ export class HarnessRuntime {
           return result.permission === 'allow' ? { allowed: true } : undefined
         } } : {}),
       })
+      if (!result?.block && filePath && fileIdentity) {
+        const currentPath = resolve(session().workingDirectory!, String((args as any)?.path || '.'))
+        if (currentPath !== filePath || harnessFileIdentity(filePath) !== fileIdentity) {
+          updatePublic(id, { status: 'cancelled', completedAt: Date.now() })
+          return { block: true, reason: '文件路径在授权期间发生变化，请重新请求' }
+        }
+        externalFiles.set(id, { path: filePath, identity: fileIdentity, write: name === 'write' || name === 'edit' })
+      }
       if (result?.block) updatePublic(id, { status: 'cancelled', error: result.reason, completedAt: Date.now() })
       return result
     }
     const settleTool = (providerCallId: string, name: string, args: unknown, result: unknown, isError: boolean, stopped: boolean) => {
       const id = prepareTool(providerCallId, name, args)
+      externalFiles.delete(id)
       const status = publicStates.get(id)?.status
       if (status === 'cancelled' || status === 'ok' || status === 'failed') return status
       const output = publicOutput(result)
@@ -1280,6 +1285,7 @@ export class HarnessRuntime {
       return terminalStatus
     }
     const cancelPending = (reason: string) => {
+      externalFiles.clear()
       flushOutputs()
       for (const [id, state] of publicStates) if (state.status === 'running' || state.status === 'waiting-confirm') updatePublic(id, { status: 'cancelled', error: reason, completedAt: Date.now() })
     }
@@ -1303,7 +1309,15 @@ export class HarnessRuntime {
       this.emit(sender, { sessionId, runId: options.runId, type: 'tool-call', payload: { id, status, diff } })
     }
     const workingDirectory = session().workingDirectory
-    const env = workingDirectory ? createSandboxedEnv(realpathSync(workingDirectory)) : undefined
+    const env = workingDirectory ? createSandboxedEnv(realpathSync(workingDirectory), (path, operation) => {
+      const grant = externalFiles.get(executionRecord.getStore() || '')
+      if (!grant || harnessFileIdentity(grant.path) !== grant.identity) return false
+      if (path === grant.path) return harnessFileIdentity(path) === grant.identity
+      return grant.write && (operation === 'metadata' || operation === 'mkdir') && harnessPathInside(path, grant.path) && harnessPathInside(harnessFileIdentity(path), grant.identity)
+    }) : undefined
+    const externalFile = (args: Record<string, unknown>) => Boolean(workingDirectory && !harnessPathInside(realpathSync(workingDirectory), harnessFileIdentity(resolve(workingDirectory, String(args.path || '.')))))
+    const externalReadDescriptor = { risk: 'read' as const, requiresApproval: externalFile, title: () => '允许 Mira 读取工作目录外的资源？', detail: (args: Record<string, unknown>) => `仅授权本次调用：${resolve(workingDirectory || '.', String(args.path || '.'))}` }
+    const fileWriteDetail = (args: Record<string, unknown>) => externalFile(args) ? `工作目录外文件：${resolve(workingDirectory!, String(args.path))}\n仅授权本次修改；此文件暂不支持自动撤销。` : String(args.path ?? '')
     const snapshot = (id: string, path: string, before: string | null | undefined, after: string | null | undefined) => {
       this.database.harness.recordTaskFileChange(sessionId, id, { path, before, after }, secrets)
       this.emit(sender, { sessionId, runId: options.runId, type: 'task-changes', payload: {} })
@@ -1314,14 +1328,14 @@ export class HarnessRuntime {
       execute: async (_id: string) => { const id = record(name, ''); try { throw new Error('请先选择项目工作目录') } catch (error) { finish(id, 'failed'); throw error } },
     })
     const readTool = register(env
-      ? wrapHarnessTool(createReadTool(), { env }, { record, finish, target: params => params.path ?? '' }, '读取项目内的文本文件（支持图片，可用 offset/limit 分页读取大文件）')
-      : fallbackTool('read', '读取文件', '读取项目内的文本文件', Type.Object({ path: Type.String() })), { risk: 'read', title: () => '', detail: () => '' })
+      ? wrapHarnessTool(createReadTool(), { env }, { record, finish, target: params => params.path ?? '' }, '读取文本或图片；相对路径以工作目录解析，外部路径按当前权限请求访问')
+      : fallbackTool('read', '读取文件', '读取项目内的文本文件', Type.Object({ path: Type.String() })), externalReadDescriptor)
     const editTool = register(env
-      ? wrapHarnessTool(createEditTool(), { env }, { record, finish, ...fileSnapshots, target: params => params.path ?? '' }, '精确编辑项目内文件：用 oldText 片段替换为 newText（oldText 必须是文件中的唯一片段），改动会返回 diff')
-      : fallbackTool('edit', '编辑文件', '精确编辑项目内文本文件', Type.Object({ path: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })) })), { risk: 'write', title: () => '允许 Mira 编辑这个文件？', detail: args => String(args.path ?? '') })
+      ? wrapHarnessTool(createEditTool(), { env }, { record, finish, ...fileSnapshots, target: params => params.path ?? '' }, '精确编辑文件（外部路径需要授权）：用 oldText 片段替换为 newText（oldText 必须是文件中的唯一片段），改动会返回 diff')
+      : fallbackTool('edit', '编辑文件', '精确编辑项目内文本文件', Type.Object({ path: Type.String(), edits: Type.Array(Type.Object({ oldText: Type.String(), newText: Type.String() })) })), { risk: 'write', title: () => '允许 Mira 编辑这个文件？', detail: fileWriteDetail })
     const writeTool = register(env
-      ? wrapHarnessTool(createWriteTool(), { env }, { record, finish, ...fileSnapshots, target: params => params.path ?? '' }, '写入项目内文本文件（不存在则创建，存在则覆盖，自动创建父目录）')
-      : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() })), { risk: 'write', title: () => '允许 Mira 写入这个文件？', detail: args => String(args.path ?? '') })
+      ? wrapHarnessTool(createWriteTool(), { env }, { record, finish, ...fileSnapshots, target: params => params.path ?? '' }, '写入文本文件（外部路径需要授权；不存在则创建，存在则覆盖，自动创建父目录）')
+      : fallbackTool('write', '写入文件', '写入项目内文本文件', Type.Object({ path: Type.String(), content: Type.String() })), { risk: 'write', title: () => '允许 Mira 写入这个文件？', detail: fileWriteDetail })
     const nativeBash = createBashTool()
     const managedBash = { ...nativeBash,
       parameters: Type.Object({ command: Type.String(), timeout: Type.Optional(Type.Number({ minimum: 0.001, maximum: 600, description: '前台等待秒数，默认120；超过后转入后台，sleep仍按超时停止' })), run_in_background: Type.Optional(Type.Boolean()) }),
@@ -1395,7 +1409,7 @@ export class HarnessRuntime {
         detail: args => `${childTask ? `子任务：${publicHarnessText(childTask.task, secrets).text}\n` : ''}${serverName} / ${displayName}${argumentSummary(args) ? `\n${argumentSummary(args)}` : ''}`,
       })
     })
-    const listFilesTool = register({ name: 'list_files', label: '列出文件', description: '列出项目目录内文件', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { const dir = this.assertProjectPath(session().workingDirectory, target); const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } }, { risk: 'read', title: () => '', detail: () => '' })
+    const listFilesTool = register({ name: 'list_files', label: '列出文件', description: '列出目录内文件；外部目录按当前权限请求访问', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { if (!env) throw new Error('请先选择工作目录'); const checked = await env.absolutePath(target); if (!checked.ok) throw checked.error; const dir = checked.value; const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } }, externalReadDescriptor)
     const deleteTool = register({ name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => {
       const id = record('delete', params.path)
       let began = false
@@ -1478,7 +1492,9 @@ export class HarnessRuntime {
         execute: async (_id: string, params: { name: string }) => {
           const frozen = session().pluginCatalog || []
           const source = this.database.plugins.readSkill(frozen, params.name)
-          return { content: [{ type: 'text', text: `Skill: ${params.name}\nUse read_plugin_resource with this qualified name for bundled reference files.\n\n${source}` }] }
+          const skill = this.database.plugins.liveSkills(frozen).find(item => item.name === params.name)!
+          const location = resolve(skill.path, '..')
+          return { content: [{ type: 'text', text: `Skill: ${params.name}\nSkill directory: ${location}\nPlugin directory: ${skill.root}\nResolve relative scripts and resources against the Skill directory. Set any SKILL_DIR variable to this directory before executing helpers.\nUse read_plugin_resource with this qualified name for bundled reference files.\n\n${source}` }] }
         },
       }, { risk: 'read', title: () => '', detail: () => '' }), register({
         name: 'read_plugin_resource', label: '读取插件参考文件', description: '读取已启用插件 Skill 目录内的参考文本。path 是相对该 Skill 目录的路径，不能越界或经过符号链接。',
@@ -1545,7 +1561,7 @@ export class HarnessRuntime {
             const commandStopped = tool.name === 'bash' && this.database.harness.getSession(sessionId).toolCalls.find(tool => tool.id === id)?.commandJob?.status === 'cancelled'
             if (!deniedWorkflow) updatePublic(id, { status: signal?.aborted || commandStopped ? 'cancelled' : 'failed', error: publicHarnessText(error instanceof Error ? error.message : String(error), secrets).text, completedAt: Date.now() })
             throw error
-          } finally { recordedTools.delete(id) }
+          } finally { recordedTools.delete(id); externalFiles.delete(id) }
         })
       },
     }))
