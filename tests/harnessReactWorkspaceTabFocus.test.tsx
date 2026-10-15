@@ -9,6 +9,45 @@ import { closeWorkspaceTab, createWorkspaceSession, openWorkspaceTab, type Works
 
 let root: Root | undefined
 describe('Mira task grid keeps editors alive while changing splits', () => {
+  it.each(['right', 'down', 'up'] as const)('excludes a shared header from %s split drop geometry and dimming', async side => {
+    const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+    const placed = vi.fn(async () => undefined)
+    await act(async () => root!.render(<div><header><h1>当前对话</h1><button>工具</button></header><MiraTaskGrid layout={splitMiraTaskLayout(miraInitialTaskLayout(), '$primary', 'b', side)} active focusedPane="b" canPlace={id => id === 'c'} onPlace={placed} onResize={() => undefined}><main data-mira-task-leaf="$primary">正文</main><section data-mira-task-leaf="b">激活对话</section></MiraTaskGrid></div>))
+    const header = container.querySelector('header')!, grid = container.querySelector('.mira-task-grid')!
+    expect(header.closest('[data-task-leaf]')).toBeNull()
+    expect(grid.contains(header)).toBe(false)
+    for (const pane of container.querySelectorAll<HTMLElement>('[data-task-leaf]')) vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 1000, top: 48, bottom: 600, width: 1000, height: 552 } as DOMRect)
+    await act(async () => { expect(miraTaskPointerDrag('c', 500, 24, false)).toBe(false) })
+    expect(container.querySelector('.mira-task-grid__drop')).toBeNull()
+    await act(async () => { expect(miraTaskPointerDrag('c', 500, 49, false)).toBe(true) })
+    expect(container.querySelector('.mira-task-grid__drop--up')).not.toBeNull()
+    expect(container.querySelector('[data-task-leaf="$primary"] .mira-task-grid__inactive')).not.toBeNull()
+    expect(container.querySelector('[data-task-leaf="b"] .mira-task-grid__inactive')).toBeNull()
+    await act(async () => endMiraTaskDrag())
+    expect(placed).not.toHaveBeenCalled()
+  })
+
+  it.each(['right', 'down'] as const)('changes the inactive pane on pointer and keyboard focus for a %s split without remounting drafts', async side => {
+    const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+    function View() {
+      const [focused, setFocused] = useState('$primary')
+      return <MiraTaskGrid layout={splitMiraTaskLayout(miraInitialTaskLayout(), '$primary', 'b', side)} active focusedPane={focused} onFocusPane={setFocused} canPlace={() => false} onPlace={async () => undefined} onResize={() => undefined}><textarea data-mira-task-leaf="$primary" defaultValue="主草稿" /><textarea data-mira-task-leaf="b" defaultValue="侧草稿" /></MiraTaskGrid>
+    }
+    await act(async () => root!.render(<View />))
+    const primary = container.querySelector<HTMLElement>('[data-task-leaf="$primary"]')!, secondary = container.querySelector<HTMLElement>('[data-task-leaf="b"]')!
+    const mainEditor = primary.querySelector('textarea')!, sideEditor = secondary.querySelector('textarea')!
+    sideEditor.value = '未发送侧草稿'
+    expect(primary.querySelector('.mira-task-grid__inactive')).toBeNull()
+    expect(secondary.querySelector('.mira-task-grid__inactive')?.getAttribute('aria-hidden')).toBe('true')
+    await act(async () => sideEditor.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })))
+    expect(secondary.dataset.focused).toBe('true'); expect(secondary.querySelector('.mira-task-grid__inactive')).toBeNull()
+    expect(primary.querySelector('.mira-task-grid__inactive')).not.toBeNull()
+    await act(async () => mainEditor.focus())
+    expect(primary.dataset.focused).toBe('true'); expect(primary.querySelector('.mira-task-grid__inactive')).toBeNull()
+    expect(secondary.querySelector('textarea')).toBe(sideEditor); expect(sideEditor.value).toBe('未发送侧草稿')
+    expect(primary.querySelector('textarea')).toBe(mainEditor)
+  })
+
   it('accepts whole-row sidebar pointer drags, cancels previews and preserves editors', async () => {
     const container = document.createElement('div'); document.body.append(container); root = createRoot(container)
     const placed = vi.fn(async () => undefined)
@@ -38,12 +77,15 @@ describe('Mira task grid keeps editors alive while changing splits', () => {
     const grid = container.querySelector<HTMLElement>('.mira-task-grid')!, separator = container.querySelector<HTMLElement>('[role="separator"]')!, pane = container.querySelector<HTMLElement>('[data-task-leaf="$primary"]')!, editor = pane.querySelector('textarea')!
     vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 1000, height: 600 } as DOMRect)
     const pointer = async (target: EventTarget, type: string, x: number) => { await act(async () => target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: x, clientY: 100 }))) }
+    expect(separator.dataset.dragging).toBe('false')
     await pointer(separator, 'pointerdown', 500)
+    expect(separator.dataset.dragging).toBe('true')
     for (let i = 0; i < 20; i++) await pointer(window, 'pointermove', 600 + i)
     expect(committed).not.toHaveBeenCalled(); expect(renders).toBe(1); expect(pane.style.width).toBe('61.9%'); expect(pane.querySelector('textarea')).toBe(editor)
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    expect(committed).not.toHaveBeenCalled(); expect(pane.style.width).toBe('50%')
+    expect(committed).not.toHaveBeenCalled(); expect(pane.style.width).toBe('50%'); expect(separator.dataset.dragging).toBe('false')
     await pointer(separator, 'pointerdown', 500); await pointer(window, 'pointermove', 700); await pointer(window, 'pointerup', 700)
+    expect(separator.dataset.dragging).toBe('false')
     expect(committed).toHaveBeenCalledOnce(); expect(renders).toBe(2); expect(separator.getAttribute('aria-valuenow')).toBe('70'); expect(pane.querySelector('textarea')).toBe(editor)
   })
 

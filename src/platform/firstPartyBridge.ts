@@ -216,6 +216,13 @@ export async function handleFirstPartyRequest(options: {
     }
   }
   switch (request.method) {
+    case 'about.show': {
+      requireCapability(manifest, 'harness:workbench')
+      if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能打开关于 Mira')
+      if (request.params !== undefined) throw new FirstPartyBridgeError('INVALID_REQUEST', '关于 Mira 不接受自定义参数')
+      await api.windowCommand('about')
+      return null
+    }
     case 'resources.open': {
       requireCapability(manifest, 'harness:workbench')
       if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能打开资源管理器')

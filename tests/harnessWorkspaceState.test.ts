@@ -361,3 +361,26 @@ describe('React Harness workspace state', () => {
     expect(createWorkspaceSession().expandedFilePaths).not.toBe(createWorkspaceSession().expandedFilePaths)
   })
 })
+
+
+it('keeps project file identities through persistence, close and reopen without colliding across roots', () => {
+  const first = createWorkspaceFileTab('same.md', 'project-a'), second = createWorkspaceFileTab('same.md', 'project-b')
+  const session = createWorkspaceFileTab('same.md')
+  const state = [first, second, session].reduce((state, tab) => openWorkspaceTab(state, tab), createWorkspaceSession())
+  const restored = readWorkspaceSessions({ draft: JSON.parse(JSON.stringify(state)) }).draft
+  expect(restored.tabs).toEqual(state.tabs)
+  expect(new Set(restored.tabs.map(tab => tab.id)).size).toBe(3)
+  expect(restoreWorkspaceTab(closeWorkspaceTab(restored, first.id), first.id).tabs.find(tab => tab.id === first.id)).toMatchObject(first)
+  expect(readWorkspaceSessions({ draft: { ...state, tabs: [{ ...first, projectId: 'wrong' }] } }).draft.tabs).toEqual([])
+})
+
+ it('retains HTML workspace identity across persistence and closed-tab restore', () => {
+  const tab = { ...createWorkspaceBrowserTab('http://127.0.0.1:1234/prototype/index.html'), htmlSource: { projectId: 'p', path: 'prototype/index.html' } }
+  const state = openWorkspaceTab(createWorkspaceSession(), tab)
+  const stored = readWorkspaceSessions({ a: state }).a
+  expect(stored.tabs[0].htmlSource).toEqual(tab.htmlSource)
+  const closed = closeWorkspaceTab(stored, tab.id), reopened = restoreWorkspaceTab(closed, tab.id)
+  expect(reopened.tabs[0].htmlSource).toEqual(tab.htmlSource)
+  expect(reopened.tabs[0].id).not.toBe(tab.id)
+  expect(readWorkspaceSessions({ a: { ...state, tabs: [{ ...tab, htmlSource: { projectId: 'p', path: '../secret.html' } }] } }).a.tabs[0].htmlSource).toBeUndefined()
+ })

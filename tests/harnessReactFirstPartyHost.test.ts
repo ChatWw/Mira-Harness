@@ -303,6 +303,19 @@ describe('React Harness prepare-leave handshake', () => {
     await expect(failure).rejects.toThrow('文件或目录不存在')
     host.close()
   })
+  it('forwards HTML, reveal and project editor requests through the authorized port', async () => {
+    const { host, port, receive } = fixture()
+    const url = host.getWorkspaceHtmlUrl({ projectId: 'p' }, '原型/index.html')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.files.browser-url', params: { projectId: 'p', path: '原型/index.html' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: 'http://127.0.0.1:8123/preview' }); await expect(url).resolves.toContain('127.0.0.1')
+    const reveal = host.revealWorkspaceFile({ sessionId: 's' }, 'index.html')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.files.reveal', params: { sessionId: 's', path: 'index.html' } })
+    receive({ type: 'mira:response', id: '2', ok: true }); await reveal
+    const editor = host.openProjectFileInEditor('p', 'index.html', 'mira-vscode')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '3', method: 'harness.files.open-editor', params: { projectId: 'p', path: 'index.html', editorId: 'mira-vscode' } })
+    receive({ type: 'mira:response', id: '3', ok: true }); await editor
+    host.close()
+  })
   it('sends scoped file watches and editor operations through the first-party contract', async () => {
     const { host, port, receive } = fixture()
     const watching = host.watchFiles('session', ['', 'src'])
@@ -481,5 +494,47 @@ describe('React Harness application navigation port', () => {
     expect(restore).not.toHaveBeenCalled()
     expect(late).not.toHaveBeenCalled()
     expect(port.postMessage).not.toHaveBeenCalled()
+  })
+})
+
+
+it('requests the shared About window through the host port without navigation', async () => {
+  const { host, port, receive } = fixture()
+  const opening = host.showAbout()
+  expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'about.show', params: undefined })
+  receive({ type: 'mira:response', id: '1', ok: true, value: null })
+  await opening
+  host.close()
+})
+
+
+it.each([
+  ['readProjectFile', 'files.read'], ['readProjectImage', 'files.read-image'], ['openProjectMedia', 'files.media-open'],
+] as const)('requests %s with the captured project instead of a current task', async (action, method) => {
+  const { host, port, receive } = fixture()
+  const pending = host[action]('project-a', 'file.md')
+  expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: `harness.${method}`, params: { projectId: 'project-a', path: 'file.md' } })
+  receive({ type: 'mira:response', id: '1', ok: true, value: { path: 'file.md' } })
+  await pending; host.close()
+})
+
+describe('Git tools authorized host transport', () => {
+  it('sends repository operations with project identity and reviewed token only', async () => {
+    const { host, port, receive } = fixture(), token = 'a'.repeat(64)
+    const snapshot = host.getGitTools('side-project')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.git.tools', params: { projectId: 'side-project' } })
+    receive({ type: 'mira:response', id: '1', ok: true, value: { token } }); await snapshot
+    const graph = host.getGitGraph('side-project', 50)
+    expect(port.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ method: 'harness.git.graph', params: { projectId: 'side-project', skip: 50 } }))
+    receive({ type: 'mira:response', id: '2', ok: true, value: { commits: [], hasMore: false } }); await graph
+    const action = host.gitAction('side-project', 'commit', token, 'fix: reviewed', false)
+    expect(port.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ method: 'harness.git.action', params: { projectId: 'side-project', action: 'commit', token, message: 'fix: reviewed', includeUnstaged: false } }))
+    receive({ type: 'mira:response', id: '3', ok: true, value: { committed: true, pushed: false } }); await action
+    const selection = { providerId: 'provider', modelId: 'model' }
+    const generating = host.generateGitMessage('side-project', token, true, selection)
+    expect(port.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ method: 'harness.git.generate-message', params: { projectId: 'side-project', token, includeUnstaged: true, selection } }))
+    receive({ type: 'mira:response', id: '4', ok: true, value: 'feat: generated' })
+    await expect(generating).resolves.toBe('feat: generated')
+    host.close()
   })
 })

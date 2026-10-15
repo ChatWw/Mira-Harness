@@ -3,6 +3,7 @@ import { Globe2, RefreshCw, TriangleAlert } from 'lucide-react'
 import type { HarnessBrowserBounds, HarnessBrowserPresentation } from '../../../../../src/platform/firstPartyHarness'
 import { readMiraBrowserPreference, type MiraBrowserPreference } from '../../../../../src/config/miraBrowserViewport'
 import type { PilotController } from '../../state/pilot-state'
+import type { WorkspaceHtmlSource } from '../../state/workspace-state'
 import { normalizeMiraBrowserAddress } from '../../lib/mira-browser-address'
 import { MiraBrowserToolbar } from './MiraBrowserToolbar'
 import { MiraBrowserViewport, MiraBrowserViewportToolbar } from './MiraBrowserViewport'
@@ -11,7 +12,7 @@ import type { MiraBrowserElementReference } from '../../../../../src/platform/mi
 
 export interface MiraBrowserRequest { sessionId: string; browserId?: string; url: string }
 
-export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser', active, initialUrl, request, onRequestHandled, onUrlChange, onPageTitle, onPageFavicon, onSelectElement }: { controller: PilotController; sessionId?: string; browserId?: string; active: boolean; initialUrl: string; request?: MiraBrowserRequest; onRequestHandled: (request: MiraBrowserRequest) => void; onUrlChange: (url: string) => void; onPageTitle?: (title: string) => void; onPageFavicon?: (url: string | null) => void; onSelectElement?: (reference: MiraBrowserElementReference) => boolean }) {
+export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser', active, initialUrl, htmlSource, request, onRequestHandled, onUrlChange, onPageTitle, onPageFavicon, onSelectElement }: { controller: PilotController; sessionId?: string; browserId?: string; active: boolean; initialUrl: string; htmlSource?: WorkspaceHtmlSource; request?: MiraBrowserRequest; onRequestHandled: (request: MiraBrowserRequest) => void; onUrlChange: (url: string) => void; onPageTitle?: (title: string) => void; onPageFavicon?: (url: string | null) => void; onSelectElement?: (reference: MiraBrowserElementReference) => boolean }) {
   const [address, setAddress] = useState(initialUrl)
   const [url, setUrl] = useState(initialUrl)
   const [error, setError] = useState('')
@@ -126,7 +127,7 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     if (requested) {
       onRequestHandled(requested)
       void openAddress(requested.url)
-    } else if (initialUrl && !openedRef.current) void openAddress(initialUrl)
+    } else if (!openedRef.current) { if (htmlSource) void openHtmlSource(); else if (initialUrl) void openAddress(initialUrl) }
   }, [active, controller, initialUrl, sessionId, browserId, request, preferencesReady])
   useEffect(() => {
     if (!sessionId || !url) return
@@ -144,6 +145,15 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     const value = normalizeMiraBrowserAddress(address)
     if (!value) { setError('请输入有效的 HTTP(S) 网页地址'); return }
     await openAddress(value)
+  }
+  async function openHtmlSource() {
+    if (!sessionId || !htmlSource) return
+    const epoch = sessionEpochRef.current, revision = ++navigationRevisionRef.current
+    openedRef.current = true; setLoading(true); setError('')
+    try {
+      const value = await controller.getWorkspaceHtmlUrl('projectId' in htmlSource ? { projectId: htmlSource.projectId } : { sessionId: htmlSource.sessionId }, htmlSource.path)
+      if (isCurrent(epoch, sessionId) && revision === navigationRevisionRef.current) await openAddress(value)
+    } catch (cause) { if (isCurrent(epoch, sessionId) && revision === navigationRevisionRef.current) { setLoading(false); setPageFailed(true); setError(cause instanceof Error ? cause.message : 'HTML 文件打开失败，请重试') } }
   }
   async function openAddress(value: string) {
     if (!sessionId) return
@@ -170,7 +180,7 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
   const control = (action: 'back' | 'forward' | 'reload' | 'devtools') => {
     if (!sessionId || !active || !ready || overlayOpen && action !== 'devtools') return
     picker.cancel()
-    if (action === 'reload' && pageFailed) { void openAddress(failedAddressRef.current); return }
+    if (action === 'reload' && pageFailed) { if (htmlSource) void openHtmlSource(); else void openAddress(failedAddressRef.current); return }
     const epoch = sessionEpochRef.current
     void controller.controlBrowserFor(sessionId, action, browserId).catch(cause => { if (isCurrent(epoch, sessionId)) setError(cause instanceof Error ? cause.message : '浏览器操作失败') })
   }
@@ -187,7 +197,7 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     {error && !pageFailed && <p className="pilot-file-error" role="alert">{error}</p>}
     {picker.error && <p className="pilot-file-error" role="alert">{picker.error}</p>}
     <MiraBrowserViewport preference={preference} desktopZoom={desktopZoom} active={active && !overlayOpen && !pageFailed && preferencesReady} viewportRef={viewportRef} onChange={changePreference} onGeometry={geometry => { geometryRef.current = geometry; const epoch = sessionEpochRef.current, id = sessionId; void syncGeometry(geometry).catch(cause => { if (id && isCurrent(epoch, id)) setError(cause instanceof Error ? cause.message : '浏览器尺寸调整失败') }) }}>
-      {pageFailed ? <div className="pilot-browser__placeholder pilot-browser__placeholder--error"><TriangleAlert size={64} /><h3>{certificateError ? '网页证书验证失败' : '网页加载失败'}</h3><p role="alert">{error}</p>{certificateError && <p>请检查网站证书或本机时间后重试。</p>}<button type="button" onClick={() => void openAddress(failedAddressRef.current)} disabled={!active || !sessionId || loading}><RefreshCw size={16} />重新加载</button></div>
+      {pageFailed ? <div className="pilot-browser__placeholder pilot-browser__placeholder--error"><TriangleAlert size={64} /><h3>{certificateError ? '网页证书验证失败' : '网页加载失败'}</h3><p role="alert">{error}</p>{certificateError && <p>请检查网站证书或本机时间后重试。</p>}<button type="button" onClick={() => { if (htmlSource) void openHtmlSource(); else void openAddress(failedAddressRef.current) }} disabled={!active || !sessionId || loading}><RefreshCw size={16} />重新加载</button></div>
         : !url && !loading && <div className="pilot-browser__placeholder"><Globe2 size={64} /><h3>浏览器</h3><p>{sessionId ? '输入网址并按回车开始浏览' : '请先选择一个任务'}</p></div>}
     </MiraBrowserViewport>
   </div>

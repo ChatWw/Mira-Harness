@@ -40,6 +40,8 @@ vi.mock('react', async importOriginal => ({
   },
 }))
 vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', SessionMenuItems: 'session-menu', useHarnessSessionShortcuts: vi.fn() }))
+vi.mock('../src/utils/documentMotion', () => ({ installDocumentMotion: vi.fn(() => () => undefined) }))
+vi.mock('../apps/harness-react/src/hooks/useMiraSidebarMotion', () => ({ useMiraSidebarMotion: vi.fn() }))
 vi.mock('../apps/harness-react/src/hooks/useModalFocusTrap', () => ({ useModalFocusTrap: vi.fn() }))
 
 const KEY = 'harness-react-workspace'
@@ -91,13 +93,13 @@ function mount(controller: PilotController) {
     return found
   }
   const showFiles = async () => {
-    ;(props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function').onClick as () => void)()
+    ;(props(props => props['aria-label'] === '切换面板' && typeof props.onClick === 'function').onClick as () => void)()
     render()
     ;(props(props => typeof props.onOpen === 'function' && Array.isArray(props.tabs)).onOpen as (id: string) => void)('files')
     await drain()
   }
   const openFile = (path: string) => (props(props => typeof props.onOpenFile === 'function').onOpenFile as (path: string) => void)(path)
-  const showWorkspace = async () => { (props(props => props['aria-label'] === '工作区' && typeof props.onClick === 'function').onClick as () => void)(); render(); await drain() }
+  const showWorkspace = async () => { (props(props => props['aria-label'] === '切换面板' && typeof props.onClick === 'function').onClick as () => void)(); render(); await drain() }
   const unmount = () => { mounted = false; hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
   const replayEffects = () => {
     hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined })
@@ -116,6 +118,34 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('React Harness workspace preference lifecycle', () => {
+  it.each([[false, false], [true, false], [true, true]])('previews another project without creating or switching tasks: draft=%s, manuallyOpened=%s', async (draft, manuallyOpened) => {
+    const entry = fixture()
+    entry.host.createSession = vi.fn()
+    Object.assign(entry.controller.getSnapshot(), {
+      projects: [{ id: 'project-a', name: 'Project A', directory: '/projects/a', directoryExists: true }, { id: 'project-b', name: 'Project B', directory: '/projects/b', directoryExists: true }],
+      ...(draft ? { session: undefined } : {}),
+    })
+    const view = mount(entry.controller); await view.drain()
+    if (manuallyOpened) await view.showWorkspace()
+    const openProject = () => view.props(props => typeof props.onOpenProjectFiles === 'function').onOpenProjectFiles as (id: string) => void
+    openProject()('project-a'); await view.drain()
+    expect(view.props(props => props.projectId === 'project-a' && typeof props.onOpenFile === 'function').onAddFile).toBeUndefined()
+    view.openFile('src/example.py'); await view.drain()
+    const preview = () => view.props(props => props.path === 'src/example.py' && typeof props.active === 'boolean')
+    expect(preview()).toMatchObject({ active: true, projectId: 'project-a', directory: '/projects/a' })
+    expect(preview().onAddFile).toBeUndefined(); expect(preview().onOpenEditor).toBeUndefined()
+    expect(view.props(props => props.id === 'pilot-workspace')['aria-hidden']).toBe(false)
+    // A second project with the same relative filename must have its own tab and root.
+    ;(view.props(props => typeof props.onBack === 'function' && props.projectId === 'project-a').onBack as () => void)(); await view.drain()
+    openProject()('project-b'); await view.drain(); view.openFile('src/example.py'); await view.drain()
+    const tabs = view.props(props => Array.isArray(props.tabs) && typeof props.onActivate === 'function').tabs as Array<{ id: string; projectId?: string }>
+    expect(tabs.filter(tab => tab.projectId)).toHaveLength(2)
+    expect(new Set(tabs.map(tab => tab.id)).size).toBe(2)
+    expect(entry.controller.getSnapshot().session?.id).toBe(draft ? undefined : 'a')
+    expect(entry.host.createSession).not.toHaveBeenCalled()
+    view.unmount(); await view.drain(); entry.controller.dispose()
+  })
+
   it.each([false, true])('opens an existing task beside a main task or anonymous draft without creating a child: draft=%s', async draft => {
     const fixtureView = fixture(), target: HarnessSession = { ...fixtureView.controller.getSnapshot().session!, id: 'b', title: 'Existing B' }
     fixtureView.host.getSession = vi.fn(async () => target)

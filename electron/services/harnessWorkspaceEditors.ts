@@ -134,7 +134,7 @@ export async function getInstalledHarnessEditors(refresh = false): Promise<Harne
   return (await pending.result).map(editor => ({ ...editor }))
 }
 
-export async function openHarnessWorkspaceInEditor(workspacePath: string, path: string, editorId: string): Promise<void> {
+export async function openHarnessWorkspaceInEditor(workspacePath: string, path: string, editorId: string, authorize: () => void = () => {}): Promise<void> {
   if (typeof editorId !== 'string' || !/^mira-[a-z-]+$/.test(editorId)) throw new Error('打开方式无效')
   const editor = (await editorDefinitions()).find(candidate => candidate.id === editorId)
   if (!editor) throw new Error('打开方式无效或当前系统不支持')
@@ -152,6 +152,7 @@ export async function openHarnessWorkspaceInEditor(workspacePath: string, path: 
   } catch (error) { throw workspaceFileError(error) }
   if (!isFile && FILE_ONLY_EDITORS.has(editor.id)) throw new Error(`${editor.name} 只支持打开文件，请从文件菜单选择打开方式`)
   try {
+    authorize()
     if (isFile && (editor.id === 'mira-finder' || editor.id === 'mira-explorer')) { shell.showItemInFolder(target); return }
     await new Promise<void>((resolve, reject) => {
       if (process.platform === 'darwin') {

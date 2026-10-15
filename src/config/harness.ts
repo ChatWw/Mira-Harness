@@ -401,6 +401,8 @@ export interface HarnessWorkspaceFilesChangedPayload {
 }
 
 export interface HarnessFileChange {
+  /** Host-computed net change for this file within the reply. */
+  summary?: import('./miraTaskChanges').MiraTaskChangedFile
   toolCallId: string
   tool: 'edit' | 'write' | 'delete'
   path: string
@@ -561,6 +563,8 @@ export interface ToolCallRecord {
   /** Historical copy in a fork, not this task's own file contribution. */
   inherited?: boolean
   tool: string
+  /** Public net diff within this turn; private file snapshots remain in the host. */
+  fileChangeSummary?: import('./miraTaskChanges').MiraTaskChangedFile
   /** Original project for file operations; remains stable when a task is moved. */
   fileChangeDirectory?: string
   /** Public tool name; execution identity remains in tool. */

@@ -963,8 +963,8 @@ export class HarnessStore {
     else delete last.sources
     if (options.run) {
       const changes = session.toolCalls
-        .filter(tool => tool.status === 'ok' && tool.createdAt >= options.run!.startedAt && tool.createdAt <= options.run!.completedAt && (tool.tool === 'edit' || tool.tool === 'write' || tool.tool === 'delete') && tool.target)
-        .map(tool => ({ toolCallId: tool.id, tool: tool.tool as HarnessFileChange['tool'], path: tool.target!, ...(tool.diff ? { diff: tool.diff } : {}) } satisfies HarnessFileChange))
+        .filter(tool => !tool.inherited && tool.status === 'ok' && (!options.runId || tool.runId === options.runId) && tool.createdAt >= options.run!.startedAt && tool.createdAt <= options.run!.completedAt && (tool.tool === 'edit' || tool.tool === 'write' || tool.tool === 'delete') && tool.target)
+        .map(tool => ({ toolCallId: tool.id, tool: tool.tool as HarnessFileChange['tool'], path: tool.target!, ...(tool.diff ? { diff: tool.diff } : {}), ...(tool.fileChangeSummary ? { summary: tool.fileChangeSummary } : {}) } satisfies HarnessFileChange))
       if (changes.length) last.fileChanges = changes
       else delete last.fileChanges
     }
@@ -1477,6 +1477,12 @@ export class HarnessStore {
     if (!tool || !['edit', 'write', 'delete'].includes(tool.tool) || !session.workingDirectory) return
     const directory = tool.fileChangeDirectory || session.workingDirectory
     const path = resolve(directory, snapshot.path)
+    // Reuse the private checkpoint baseline, but publish only a redacted net diff.
+    // Per-reply totals must never add together intermediate edit operations.
+    const turnTools = session.toolCalls.filter(record => !record.inherited && record.messageId === tool.messageId && record.runId === tool.runId && (record.id === toolId || record.status === 'ok') && ['edit', 'write', 'delete'].includes(record.tool) && record.target && resolve(record.fileChangeDirectory || session.workingDirectory!, record.target) === path)
+    const first = turnTools[0]
+    const checkpoint = first && this.database.prepare('SELECT before_content, before_known FROM harness_file_checkpoints WHERE session_id = ? AND tool_id = ?').get(id, first.id) as { before_content: string | null; before_known: number } | undefined
+    const turnBefore = checkpoint ? checkpoint.before_known ? checkpoint.before_content : undefined : turnTools.length === 1 ? snapshot.before : undefined
     const previous = this.database.prepare('SELECT first_content, first_known, public_payload FROM harness_task_files WHERE session_id = ? AND path = ?').get(id, path) as { first_content: string | null; first_known: number; public_payload: string } | undefined
     const legacyWrites = !previous ? session.toolCalls.filter(record => record.id !== toolId && !record.inherited && record.status === 'ok' && ['edit', 'write', 'delete'].includes(record.tool) && record.target && resolve(record.fileChangeDirectory || session.workingDirectory!, record.target) === path).length : 0
     const legacy = legacyWrites > 0
@@ -1484,6 +1490,8 @@ export class HarnessStore {
     const before = known ? previous ? previous.first_content : snapshot.before : undefined
     const writes = previous ? (JSON.parse(previous.public_payload) as MiraTaskChangedFile).writes + 1 : legacyWrites + 1
     const file = buildMiraTaskFileChange(createHash('sha256').update(path).digest('hex'), relative(directory, path).split(sep).join('/'), tool.tool as MiraTaskChangedFile['tool'], writes, before, snapshot.after, secrets)
+    const turnFile = turnBefore === before ? { ...file, writes: turnTools.length } : buildMiraTaskFileChange(file.key, file.path, file.tool, turnTools.length, turnBefore, snapshot.after, secrets)
+    this.updateTool(id, toolId, { fileChangeSummary: turnFile })
     this.database.prepare('INSERT INTO harness_task_files(session_id, path, first_content, first_known, public_payload) VALUES (?, ?, ?, ?, ?) ON CONFLICT(session_id, path) DO UPDATE SET public_payload = excluded.public_payload').run(id, path, before ?? null, Number(known), JSON.stringify(file))
   }
 

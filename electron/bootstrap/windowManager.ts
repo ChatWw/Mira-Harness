@@ -1,3 +1,4 @@
+import { showMiraAboutDialog } from './miraAbout'
 import { app, BrowserWindow, Menu, nativeImage, shell, Tray, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron'
 import { isResourceManagerWindow, openResourceManager } from './resourceManager'
 import { join } from 'node:path'
@@ -76,7 +77,8 @@ export function setupApplicationMenu() {
     {
       label: 'Mira',
       submenu: [
-        { label: '关于 Mira', accelerator: 'CmdOrCtrl+I', click: (_item, window) => navigateToAbout(window as BrowserWindow | undefined) },
+        { label: '关于 Mira', click: (_item, window) => { void showMiraAboutDialog((window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow()).catch(console.error) } },
+        { label: '关于设置页', visible: false, accelerator: 'CmdOrCtrl+I', click: (_item, window) => navigateToAbout(window as BrowserWindow | undefined) },
         { label: '设置', accelerator: 'CmdOrCtrl+,', click: (_item, window) => {
           const target = (window as BrowserWindow | undefined) ?? BrowserWindow.getFocusedWindow()
           target?.webContents.send('window:navigate', '/settings/general')
@@ -186,7 +188,7 @@ export function handleWindowCommand(event: IpcMainEvent, action: string) {
   if (!window) return
   switch (action) {
     case 'resources': openResourceManager(); break
-    case 'about': navigateToAbout(window); break
+    case 'about': return showMiraAboutDialog(window)
     case 'quit': app.quit(); break
     case 'undo': window.webContents.undo(); break
     case 'redo': window.webContents.redo(); break

@@ -26,6 +26,7 @@
 .mira-file-drawer__row:hover, .mira-file-drawer__row[data-state="open"] { background: var(--color-surface-hover); }
 .mira-file-drawer__row.is-selected { border-color: var(--color-input-border-focused); }
 .mira-file-drawer__row:focus-visible { border-color: var(--color-border-hover); background: var(--color-surface-hover); outline: 1px solid var(--color-input-border-focused); outline-offset: -1px; }
+.mira-file-drawer__type-icon { flex: 0 0 16px; object-fit: contain; }
 .mira-file-drawer__row > svg { flex: 0 0 auto; color: var(--color-foreground-subtle); }
 .mira-file-drawer__chevron { display: grid; width: 12px; height: 16px; flex: 0 0 auto; place-items: center; color: var(--color-foreground-subtle); }
 .mira-file-drawer__chevron svg { transition: transform 120ms ease-out; }

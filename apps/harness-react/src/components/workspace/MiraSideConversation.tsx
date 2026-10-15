@@ -21,7 +21,7 @@ import { MiraTaskFind } from '../conversation/MiraTaskFind'
 import { MiraPendingGuides } from '../conversation/MiraPendingGuides'
 import { ConversationTurnRail } from '../conversation/ConversationTurnRail'
 import { TaskSummary } from '../conversation/TaskSummary'
-import { MiraBranchPicker } from '../git/MiraBranchPicker'
+import { MiraGitReviewPanel } from '../git/MiraGitReviewPanel'
 import { PermissionResponseCard, type PermissionResponseCardProps } from '../conversation/AssistantMessageParts'
 import { HarnessComposer, type HarnessComposerHandle } from '../composer/HarnessComposer'
 import { MiraBackgroundTasksTrigger } from '../composer/MiraBackgroundTasksTrigger'
@@ -36,10 +36,14 @@ import { MiraTaskChangesPanel } from './MiraTaskChangesPanel'
 import { MiraPlanDetail } from './MiraPlanDetail'
 import { miraSessionPlans } from '../../../../../src/config/miraSessionPlans'
 
+export type MiraTaskPaneHandle = { controller: PilotController; composerRef: { current: HarnessComposerHandle | null } }
+
 export type MiraSideQuoteRequest = { id: string; reference: MiraConversationSelection }
 
-export function MiraSideConversation({ parentController, parentId, childSessionId, existingTask = false, primaryDirectory, onClose, focusRequest = 0, navigationTarget, onFocusRequestHandled, active, keyboardActive, requests, onConsume, onFocus, onOpenFile }: {
+export function MiraSideConversation({ parentController, parentId, childSessionId, existingTask = false, onHandleChange, primaryDirectory, onClose, focusRequest = 0, navigationTarget, onFocusRequestHandled, active, keyboardActive, requests, onConsume, onFocus, onOpenFile, onOpenLink }: {
   parentController: PilotController; parentId: string; childSessionId: string; active: boolean; keyboardActive: boolean
+  onOpenLink?: (sessionId: string, url: string) => void
+  onHandleChange?: (id: string, handle?: MiraTaskPaneHandle) => void
   existingTask?: boolean; focusRequest?: number
   primaryDirectory?: string; onClose?: () => Promise<boolean>
   navigationTarget?: { messageId?: string; filePath?: string; execution?: boolean }
@@ -66,6 +70,11 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
   const [ready, setReady] = useState(false)
   const composerReady = useCallback(() => setReady(true), [])
   const composerRef = useRef<HarnessComposerHandle>(null)
+  useEffect(() => {
+    if (!existingTask || !onHandleChange) return
+    onHandleChange(childSessionId, { controller, composerRef })
+    return () => onHandleChange(childSessionId)
+  }, [controller, childSessionId, existingTask, onHandleChange])
   const viewportRef = useRef<HTMLDivElement>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const detailBackRef = useRef<HTMLButtonElement>(null)
@@ -85,10 +94,11 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
   const [detail, setDetail] = useState<{ runId: string; subtaskId?: string; commandToolId?: string; fullCommandOutput?: true }>()
   const [previewPath, setPreviewPath] = useState<string>()
   const [pendingFile, setPendingFile] = useState<string>()
+  const [gitReviewOpen, setGitReviewOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
   const [selectedChangeId, setSelectedChangeId] = useState<string>()
   const [planDetailId, setPlanDetailId] = useState<string>()
-  const inspecting = Boolean(detail || previewPath || changesOpen || planDetailId)
+  const inspecting = Boolean(detail || previewPath || changesOpen || planDetailId || gitReviewOpen)
   useLayoutEffect(() => {
     const request = backgroundFocus.current
     if (!request || (request.destination === 'detail') !== inspecting) return
@@ -101,7 +111,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
     if (backgroundReturnFocus.current && detailBackRef.current === document.activeElement) backgroundFocus.current = { destination: 'thread', source: detailBackRef.current!, target: planReturnTarget.current }
     backgroundReturnFocus.current = false
     planReturnTarget.current = undefined
-    setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined)
+    setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined)
   }
   async function closePane() {
     if (!active || !onClose || closePending.current) return
@@ -119,7 +129,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
     } catch { if (pane?.isConnected) setCloseError(true) }
     finally { closePending.current = false; if (pane?.isConnected) setClosing(false) }
   }
-  const openFile = (path: string) => { if (existingTask) { setDetail(undefined); setChangesOpen(false); setPlanDetailId(undefined); setPreviewPath(path) } else onOpenFile(path) }
+  const openFile = (path: string) => { if (existingTask) { setDetail(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); setPreviewPath(path) } else onOpenFile(path) }
   const details = useMemo(() => new MiraConversationDetailMemory(), [controller])
   useEffect(() => {
     void controller.start()
@@ -132,10 +142,10 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
   }, [controller, parentController])
   useEffect(() => {
     if (!focusRequest || focusRequest === lastFocusRequest.current || !active || !state.initialized || state.sessionLoading || state.session?.id !== childSessionId || taskUnavailable) return
-    if (navigationTarget?.messageId && inspecting) { setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined); return }
-    if (navigationTarget?.filePath) { setDetail(undefined); setChangesOpen(false); setPlanDetailId(undefined); setPreviewPath(navigationTarget.filePath) }
+    if (navigationTarget?.messageId && inspecting) { setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); return }
+    if (navigationTarget?.filePath) { setDetail(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); setPreviewPath(navigationTarget.filePath) }
     else if (navigationTarget?.execution) {
-      setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined)
+      setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined)
       const runId = state.session.activeRun?.id ?? [...state.messages].reverse().find(message => message.role === 'assistant' && message.run)?.runId
       setDetail(runId ? { runId } : undefined)
     }
@@ -209,8 +219,8 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
   }, [existingTask, active, ready, state.sessionLoading, state.session?.id, childSessionId, parentId, requests, onConsume])
   const context = {
     controller, sessionId: childSessionId, session: state.session, active: active && !state.sessionLoading,
-    openChangesTab: () => { setPreviewPath(undefined); setDetail(undefined); setPlanDetailId(undefined); setChangesOpen(true) },
-    openFile, openRunProgress: (runId: string) => { setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined); setDetail({ runId }) },
+    openChangesTab: () => { setPreviewPath(undefined); setDetail(undefined); setPlanDetailId(undefined); setGitReviewOpen(false); setChangesOpen(true) },
+    openFile, openLink: (url: string) => onOpenLink?.(existingTask ? childSessionId : parentId, url), openRunProgress: (runId: string) => { setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); setDetail({ runId }) },
     openCommand: (runId: string, toolId: string) => {
       const current = controller.getSnapshot()
       if (!active || current.sessionLoading || !miraSessionCommand(current.session, childSessionId, runId, toolId)) return
@@ -218,9 +228,9 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
       planReturnTarget.current = source instanceof HTMLElement && paneRef.current?.contains(source) ? source : undefined
       backgroundReturnFocus.current = Boolean(planReturnTarget.current)
       if (planReturnTarget.current) backgroundFocus.current = { destination: 'detail', source: planReturnTarget.current }
-      setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined); setDetail({ runId, commandToolId: toolId })
+      setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); setDetail({ runId, commandToolId: toolId })
     },
-    openSubtask: (runId: string, subtaskId: string) => { setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined); setDetail({ runId, subtaskId }) },
+    openSubtask: (runId: string, subtaskId: string) => { setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(undefined); setDetail({ runId, subtaskId }) },
     stopSubtask: async (runId: string, subtaskId: string) => {
       if (controller.getSnapshot().session?.activeRun?.id !== runId) throw new Error('本轮执行已结束')
       await controller.stopSubtasks(subtaskId)
@@ -254,7 +264,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
     planReturnTarget.current = source && source instanceof HTMLElement && paneRef.current?.contains(source) ? source : undefined
     backgroundReturnFocus.current = Boolean(planReturnTarget.current)
     if (planReturnTarget.current) backgroundFocus.current = { destination: 'detail', source: planReturnTarget.current }
-    setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(id)
+    setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setGitReviewOpen(false); setPlanDetailId(id)
   }
   return <div ref={paneRef} tabIndex={-1} className="mira-side-conversation @container/conversation" data-side-session-id={childSessionId} data-task-pane={existingTask || undefined} role="region" aria-label={existingTask ? '侧面任务' : '侧边栏对话'} onPointerDownCapture={onFocus} onFocusCapture={onFocus}>
     {existingTask && !inspecting ? <>
@@ -263,7 +273,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
         {crossWorkspace && <span className="mira-side-conversation__workspace" title={taskDirectory} aria-label={`任务工作区：${taskDirectory}`}><span>{taskDirectory.split(/[\\/]/).filter(Boolean).pop() || taskDirectory}</span></span>}
         {onClose && <button type="button" className="mira-side-conversation__close" aria-label="关闭侧面任务窗格" title="关闭窗格，任务继续运行" disabled={!active || closing} aria-busy={closing || undefined} onClick={() => void closePane()}><X size={16} aria-hidden="true" /></button>}
       </div>
-    </> : <header className="mira-side-conversation__header">{inspecting ? <button ref={detailBackRef} type="button" className="mira-message-action" aria-label={existingTask ? '返回侧面任务' : '返回侧边栏对话'} onClick={returnToConversation}><ArrowLeft size={15} /></button> : <MessageSquare size={15} aria-hidden="true" />}<span title={previewPath || taskTitle}>{previewPath ? previewPath.split(/[\\/]/).pop() : changesOpen ? '文件变更' : detail?.commandToolId ? '命令输出' : detail ? '调用轨迹' : planDetailId ? '方案详情' : '侧边栏对话'}</span>{!existingTask && <small role="status">{taskState}</small>}</header>}
+    </> : <header className="mira-side-conversation__header">{inspecting ? <button ref={detailBackRef} type="button" className="mira-message-action" aria-label={existingTask ? '返回侧面任务' : '返回侧边栏对话'} onClick={returnToConversation}><ArrowLeft size={15} /></button> : <MessageSquare size={15} aria-hidden="true" />}<span title={previewPath || taskTitle}>{previewPath ? previewPath.split(/[\\/]/).pop() : gitReviewOpen ? 'Git 更改' : changesOpen ? '文件变更' : detail?.commandToolId ? '命令输出' : detail ? '调用轨迹' : planDetailId ? '方案详情' : '侧边栏对话'}</span>{!existingTask && <small role="status">{taskState}</small>}</header>}
     {taskUnavailable ? <div className="mira-side-conversation__empty"><p role="status">任务已归档或不可用。恢复任务后可继续，草稿会保留。</p></div> : !state.initialized || state.sessionLoading ? <div className="mira-session-loading" role="status"><LoaderCircle size={16} className="animate-spin" />正在加载对话…</div> : !state.session ? <div className="mira-side-conversation__empty"><p role="alert">{state.error || '对话已不可用，请关闭标签后新建。'}</p><button type="button" onClick={() => void controller.open(childSessionId)}>重试加载</button></div> : <MiraConversationContext.Provider value={context}><MiraConversationDetails memory={details} scope={memoryKey ?? childSessionId} directory={state.session.workingDirectory}>
       <div className="mira-side-conversation__thread" hidden={inspecting} inert={inspecting}>
         <MiraTaskFind active={active && !inspecting} keyboardActive={keyboardActive && !inspecting} sessionId={childSessionId} loading={Boolean(state.sessionLoading)} requestId={0} messages={messages} liveMessageId={stream?.id} viewportRef={viewportRef} timelineRef={timelineRef} />
@@ -271,7 +281,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
           {!hasContent && <div className="mira-side-conversation__empty"><h2>{existingTask ? '从这里继续任务' : '继续探讨，不打断主任务'}</h2><p>{existingTask ? '消息会发送到当前侧面任务。' : '已继承主任务的历史上下文。引用的片段会加入下方草稿，发送后只在这里继续对话。'}</p></div>}
           <div className="mira-conversation-reading-region">
           {existingTask && (state.session.goal || goalDetailsRequest || hasContent || activities.length > 0 || state.permission || interaction?.status === 'waiting') && <div className="mira-summary-positioner">
-            <TaskSummary commands={(state.session?.toolCalls ?? []).filter(tool => tool.tool === 'bash' && !tool.inherited && (tool.runId === latestRunId && !tool.subtaskId || tool.commandJob?.mode === 'background' && tool.commandJob.status === 'running'))} onOpenCommand={context.openCommand} plans={sessionPlans} onOpenPlan={openPlanDetail} key={JSON.stringify([childSessionId, latestRunId])} mode={summaryMode} onModeChange={setSummaryMode} goal={state.session.parentSessionId ? undefined : state.session.goal} goalController={controller} goalSessionId={childSessionId} goalDetailsRequest={goalDetailsRequest} goalPlanning={planning} taskState={taskState} taskTone={taskTone} running={taskTone === 'running'} activities={activities} plan={state.session.activePlan} subtasks={subtasks} changes={state.session.changeSummary?.files.filter(file => !file.unchanged).length ?? new Set(changes.map(change => change.path)).size} environment={project?.isGitRepository && project.directoryExists && controller.supportsGitActions ? <MiraBranchPicker controller={controller} project={project} active={active && !inspecting} blocked={parentState.sessions.some(session => session.projectId === project.id && parentState.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length)} placement="summary" /> : undefined} onOpenChanges={context.openChangesTab} onOpenProgress={latestRunId ? () => context.openRunProgress(latestRunId) : undefined} onOpenSubtask={latestRunId ? id => context.openSubtask(latestRunId, id) : undefined} onReviewPlan={reviewSummaryPlan} onStopSubtask={id => latestRunId ? context.stopSubtask(latestRunId, id) : Promise.resolve()} onError={error => controller.reportError(error)} />
+            <TaskSummary commands={(state.session?.toolCalls ?? []).filter(tool => tool.tool === 'bash' && !tool.inherited && (tool.runId === latestRunId && !tool.subtaskId || tool.commandJob?.mode === 'background' && tool.commandJob.status === 'running'))} onOpenCommand={context.openCommand} plans={sessionPlans} onOpenPlan={openPlanDetail} key={JSON.stringify([childSessionId, latestRunId])} mode={summaryMode} onModeChange={setSummaryMode} goal={state.session.parentSessionId ? undefined : state.session.goal} goalController={controller} goalSessionId={childSessionId} goalDetailsRequest={goalDetailsRequest} goalPlanning={planning} taskState={taskState} taskTone={taskTone} running={taskTone === 'running'} activities={activities} plan={state.session.activePlan} subtasks={subtasks} changes={state.session.changeSummary?.files.filter(file => !file.unchanged).length ?? new Set(changes.map(change => change.path)).size} git={{ controller, project, active: active && !inspecting, blocked: parentState.sessions.some(session => session.projectId === project?.id && parentState.runningSessionIds.includes(session.id)) || Boolean(state.queue?.items.length), onReview: () => { setDetail(undefined); setPreviewPath(undefined); setChangesOpen(false); setPlanDetailId(undefined); setGitReviewOpen(true) } }} onOpenChanges={context.openChangesTab} onOpenProgress={latestRunId ? () => context.openRunProgress(latestRunId) : undefined} onOpenSubtask={latestRunId ? id => context.openSubtask(latestRunId, id) : undefined} onReviewPlan={reviewSummaryPlan} onStopSubtask={id => latestRunId ? context.stopSubtask(latestRunId, id) : Promise.resolve()} onError={error => controller.reportError(error)} />
           </div>}
           {existingTask && <ConversationTurnRail messages={timeline} activeId={activeTurn} onNavigate={id => timelineRef.current?.jumpToMessage(id)} />}
           <MiraConversationViewport memoryKey={memoryKey} viewportRef={viewportRef} actionsRef={scrollRef} timelineRef={timelineRef} active={active && !inspecting} ready={hasContent && !state.sessionLoading} hasContent={hasContent} onBottomChange={setAtBottom}>
@@ -293,6 +303,7 @@ export function MiraSideConversation({ parentController, parentId, childSessionI
       {detail && <div className="mira-side-conversation__detail">{detail.commandToolId ? detail.fullCommandOutput ? <MiraCommandOutputFile controller={controller} sessionId={childSessionId} runId={detail.runId} toolId={detail.commandToolId} active={active} /> : <MiraCommandPane onAction={(...args) => controller.commandAction(...args)} onOpenFullOutput={(runId, toolId) => setDetail({ runId, commandToolId: toolId, fullCommandOutput: true })} session={state.session} sessionId={childSessionId} runId={detail.runId} toolId={detail.commandToolId} active={active} /> : detail.subtaskId ? <MiraSubtaskPanel session={state.session} sessionId={childSessionId} runId={detail.runId} subtaskId={detail.subtaskId} directory={state.session.workingDirectory} active={active} onStopSubtask={id => context.stopSubtask(detail.runId, id)} onOpenFile={openFile} onOpenCommand={context.openCommand} /> : <OverviewPanel session={state.session} sessionId={childSessionId} runId={detail.runId} active={active} onOpenSubtask={(runId, subtaskId) => setDetail({ runId, subtaskId })} onOpenFile={openFile} onOpenCommand={context.openCommand} />}</div>}
       {planDetailId && <div className="mira-side-conversation__detail"><MiraPlanDetail plan={sessionPlans.find(item => item.id === planDetailId)} /></div>}
       {previewPath && <div className="mira-side-conversation__detail"><FilePreviewPanel controller={controller} sessionId={childSessionId} path={previewPath} directory={state.session.workingDirectory} active={active && ready} onAddFile={path => { setPendingFile(path); setPreviewPath(undefined) }} /></div>}
+      {gitReviewOpen && <div className="mira-side-conversation__detail"><MiraGitReviewPanel controller={controller} project={project} active={active} /></div>}
       {changesOpen && <div className="mira-side-conversation__detail"><MiraTaskChangesPanel changes={changes} summary={state.session.changeSummary} selectedChangeId={selectedChangeId} onSelect={setSelectedChangeId} /></div>}
 </MiraConversationDetails></MiraConversationContext.Provider>}
     {closeError && <div className="mira-side-conversation__close-error" role="alert"><span>无法保存工作台，窗格和草稿已保留。</span><button type="button" disabled={!active || closing} onClick={() => void closePane()}>重试关闭</button></div>}

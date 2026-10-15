@@ -1,8 +1,9 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, shell, webContents, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import type { MiraWorkspaceHtml } from '../services/miraWorkspaceHtml'
 import type { MiraWorkspaceMedia } from '../services/miraWorkspaceMedia'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { PlatformDatabase } from '../storage/database'
@@ -18,7 +19,7 @@ import { FirstPartyGrantStore } from '../security/firstPartyGrant'
 import { parseFirstPartyHarnessCall, type HarnessAttachmentSaveResult } from '../../src/platform/firstPartyHarness'
 import type { HarnessRuntime } from '../services/harnessRuntime'
 import { removeHarnessProject } from './harnessProjectIpc'
-import { listHarnessWorkspaceFiles, readHarnessWorkspaceFile, readHarnessWorkspaceImage, searchHarnessWorkspaceFiles } from '../services/harnessWorkspaceFiles'
+import { listHarnessWorkspaceFiles, resolveHarnessWorkspacePath, readHarnessWorkspaceFile, readHarnessWorkspaceImage, searchHarnessWorkspaceFiles } from '../services/harnessWorkspaceFiles'
 import type { HarnessTerminalSessions } from '../services/harnessTerminalSessions'
 import type { HarnessWorkspaceWatch } from '../services/harnessWorkspaceWatch'
 import { getInstalledHarnessEditors, openHarnessWorkspaceInEditor } from '../services/harnessWorkspaceEditors'
@@ -35,6 +36,7 @@ import { HarnessHookCatalog } from '../services/harnessHookCatalog'
 import { isMiraPluginId } from '../../src/config/miraPlugins'
 
 export interface PlatformIpcDependencies {
+  workspaceHtml?: MiraWorkspaceHtml
   workspaceMedia?: MiraWorkspaceMedia
   flows?: MiraFlowRequestPort
   database: PlatformDatabase
@@ -73,7 +75,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, workspaceHtml, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const userAgents = (call: ReturnType<typeof parseFirstPartyHarnessCall>) => {
     if (!['agents.list', 'agents.read', 'agents.save', 'agents.delete', 'agents.setEnabled'].includes(call.method)) throw new Error('智能体请求无效')
     let directory: string | undefined
@@ -202,6 +204,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         terminalSessions?.closeForWebContents(event.sender.id)
         workspaceWatch?.closeForWebContents(event.sender.id)
         workspaceMedia?.closeForWebContents(event.sender.id)
+        workspaceHtml?.closeForWebContents(event.sender.id)
       }
       const handleNavigation = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
         if (details.isMainFrame && !details.isSameDocument) cleanupOwner()
@@ -222,6 +225,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       archivedSelections.delete(grantId)
       workspaceWatch?.closeForGrant(grantId, event.sender.id)
       workspaceMedia?.closeForGrant(grantId, event.sender.id)
+      workspaceHtml?.closeForGrant(grantId, event.sender.id)
     }
     terminalSessions?.closeForWebContents(event.sender.id)
   })
@@ -565,6 +569,10 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
           return result.canceled ? [] : database.harness.selectMessageAttachments(call.sessionId, result.filePaths)
         })()
       }
+      case 'git.generate-message': return harnessRuntime.generateGitMessage(call.projectId, call.token, call.includeUnstaged, call.selection, assertMarketAuthorized)
+      case 'git.tools': return harnessRuntime.getGitTools(call.projectId, assertMarketAuthorized)
+      case 'git.graph': return harnessRuntime.getGitGraph(call.projectId, call.skip, assertMarketAuthorized)
+      case 'git.action': return harnessRuntime.gitAction(call.projectId, call.action, call.token, call.message, call.includeUnstaged, assertMarketAuthorized)
       case 'git.context': return harnessRuntime.getGitContext(call.projectId, assertMarketAuthorized)
       case 'git.branches': return harnessRuntime.getGitContext(call.projectId, assertMarketAuthorized).then(context => context.branches)
       case 'git.checkout': return harnessRuntime.checkoutGitBranch(call.projectId, call.branch, call.snapshotToken, assertMarketAuthorized)
@@ -608,10 +616,23 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         return (call.method === 'files.git-status' ? readHarnessWorkspaceGit(workspace.directory) : readHarnessWorkspaceIgnored(workspace.directory, call.paths)).then(result => { assertFileWorkspace(call, workspace); return result })
       }
       case 'files.open-editor': {
-        const session = database.harness.getSession(call.sessionId)
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-        if (!directory) throw new Error('该会话没有可用工作目录')
-        return openHarnessWorkspaceInEditor(directory, call.path, call.editorId)
+        const workspace = fileWorkspace(call)
+        return openHarnessWorkspaceInEditor(workspace.directory, call.path, call.editorId, () => assertFileWorkspace(call, workspace))
+      }
+      case 'files.browser-url': {
+        if (!workspaceHtml) throw new Error('HTML 预览服务不可用')
+        const workspace = fileWorkspace(call)
+        return workspaceHtml.open(workspace.directory, call.path, { grantId, webContentsId: event.sender.id }, () => assertFileWorkspace(call, workspace))
+      }
+      case 'files.reveal': {
+        const workspace = fileWorkspace(call)
+        return resolveHarnessWorkspacePath(workspace.directory, call.path).then(async file => {
+          const info = await stat(file.target)
+          assertFileWorkspace(call, workspace)
+          if (info.isDirectory()) { const error = await shell.openPath(file.target); if (error) throw new Error(error) }
+          else if (info.isFile()) shell.showItemInFolder(file.target)
+          else throw new Error('只能打开文件或文件夹')
+        })
       }
       case 'files.media-open': {
         if (!workspaceMedia) throw new Error('媒体预览服务不可用')
@@ -627,10 +648,9 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         return
       case 'files.read':
       case 'files.read-image': {
-        const session = database.harness.getSession(call.sessionId)
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-        if (!directory) throw new Error('该会话没有可用工作目录')
-        return call.method === 'files.read-image' ? readHarnessWorkspaceImage(directory, call.path) : readHarnessWorkspaceFile(directory, call.path)
+        const workspace = fileWorkspace(call)
+        const reading = call.method === 'files.read-image' ? readHarnessWorkspaceImage(workspace.directory, call.path) : readHarnessWorkspaceFile(workspace.directory, call.path)
+        return reading.then(result => { assertFileWorkspace(call, workspace); return result })
       }
       case 'files.watch': {
         if (!workspaceWatch) throw new Error('文件变化监听不可用，请使用手动刷新。')

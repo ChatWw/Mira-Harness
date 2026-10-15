@@ -1,0 +1,18 @@
+{
+  "output": "/var/folders/tg/csdp22n50xn1nwfmfgh6808w0000gn/T/mira-reply-output-Y4Rb95",
+  "checks": {
+    "three typed deliverable cards": true,
+    "inline file icons": true,
+    "three unique changed files": true,
+    "net totals": true,
+    "initially collapsed": true,
+    "expanded rows match summary": true,
+    "review opens final diff": true,
+    "open menu has copy actions": true,
+    "operation history hidden by default": true,
+    "task summary contains three rows": true,
+    "keyboard focus visible": true,
+    "no uncaught renderer errors": true
+  },
+  "errors": []
+}

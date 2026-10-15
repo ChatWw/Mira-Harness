@@ -1,3 +1,4 @@
+import type { MiraGitSnapshot, MiraGitAction, MiraGitGraph, MiraGitActionResult } from '../../../../src/config/miraGit'
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type HarnessWorkspaceFileSearchResult, type HarnessWorkspaceGitSnapshot, type HarnessWorkspaceImagePreview, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
 import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
 import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../../../src/config/miraFileRewind'
@@ -60,7 +61,13 @@ export interface PilotHost {
   watchFiles?(sessionId: string, paths: string[]): Promise<{ watchId: string }>
   unwatchFiles?(sessionId: string, watchId: string): Promise<void>
   listEditors?(refresh?: boolean): Promise<Array<{ id: string; name: string; icon?: string }>>
+  getWorkspaceHtmlUrl?(scope: { projectId: string } | { sessionId: string }, path: string): Promise<string>
+  revealWorkspaceFile?(scope: { projectId: string } | { sessionId: string }, path: string): Promise<void>
+  openProjectFileInEditor?(projectId: string, path: string, editorId: string): Promise<void>
   openFileInEditor?(sessionId: string, path: string, editorId: string): Promise<void>
+  readProjectFile?(projectId: string, path: string): Promise<{ path: string; content: string }>
+  readProjectImage?(projectId: string, path: string): Promise<HarnessWorkspaceImagePreview>
+  openProjectMedia?(projectId: string, path: string): Promise<MiraMediaPreview>
   readFile(id: string, path: string): Promise<{ path: string; content: string }>
   readImage?(id: string, path: string): Promise<HarnessWorkspaceImagePreview>
   openMedia?(id: string, path: string): Promise<MiraMediaPreview>
@@ -112,6 +119,7 @@ export interface PilotHost {
   selectProject?(): Promise<HarnessProject | null>
   getTheme?(): 'light' | 'dark'
   onThemeChange?(listener: () => void): () => void
+  showAbout?(): Promise<void>
   openResourceManager?(): Promise<void>
   toggleTheme?(): Promise<'light' | 'dark'>
   listAutomationTasks?(): Promise<AutomationTask[]>
@@ -151,6 +159,10 @@ export interface PilotHost {
   stageAttachment?(id: string, path: string): Promise<HarnessFileReference>
   selectAttachments?(id: string): Promise<HarnessFileReference[]>
   listGitBranches?(projectId: string): Promise<unknown>
+  generateGitMessage?(projectId: string, token: string, includeUnstaged: boolean, selection: ModelSelection): Promise<string>
+  getGitTools?(projectId: string): Promise<MiraGitSnapshot>
+  getGitGraph?(projectId: string, skip: number): Promise<MiraGitGraph>
+  gitAction?(projectId: string, action: MiraGitAction, token: string, message: string, includeUnstaged: boolean): Promise<MiraGitActionResult>
   getGitContext?(projectId: string): Promise<HarnessGitContext>
   checkoutGitBranch?(projectId: string, branch: string, snapshotToken: string): Promise<HarnessGitContext>
   createGitBranch?(projectId: string, branch: string, snapshotToken: string): Promise<HarnessGitContext>
@@ -311,6 +323,7 @@ export class PilotController {
   get supportsProjectRemoval() { return Boolean(this.host.removeProject) }
   getTheme = () => this.host.getTheme?.() ?? 'light'
   subscribeTheme = (listener: () => void) => this.host.onThemeChange?.(listener) ?? (() => undefined)
+  showAbout = () => this.require('showAbout')()
   openResourceManager = () => this.require('openResourceManager')()
   toggleTheme = () => this.require('toggleTheme')()
   get supportsConversationFork() { return !this.sideSession && Boolean(this.host.forkConversation) }
@@ -1023,6 +1036,14 @@ export class PilotController {
   stageAttachment(id: string, path: string) { return this.require('stageAttachment')(id, path) }
   selectAttachments(id: string) { return this.require('selectAttachments')(id) }
   listGitBranches(projectId: string) { return this.require('listGitBranches')(projectId) }
+  generateGitMessage(projectId: string, token: string, includeUnstaged: boolean) {
+    if (!this.state.selection) throw new Error('请先选择生成提交消息的模型')
+    return this.require('generateGitMessage')(projectId, token, includeUnstaged, this.state.selection)
+  }
+  get supportsGitTools() { return Boolean(this.host.getGitTools && this.host.gitAction && this.host.getGitGraph) }
+  getGitTools(projectId: string) { return this.require('getGitTools')(projectId) }
+  getGitGraph(projectId: string, skip = 0) { return this.require('getGitGraph')(projectId, skip) }
+  gitAction(projectId: string, action: MiraGitAction, token: string, message: string, includeUnstaged: boolean) { return this.require('gitAction')(projectId, action, token, message, includeUnstaged) }
   get supportsGitActions() { return Boolean(this.host.getGitContext && this.host.checkoutGitBranch && this.host.createGitBranch) }
   async getGitContext(projectId: string) {
     const revision = this.advanceGitContext(projectId)
@@ -1147,7 +1168,10 @@ export class PilotController {
     return this.host.watchFiles ? this.host.watchFiles(sessionId, paths) : Promise.reject(new Error('当前宿主不支持文件自动刷新'))
   }
   unwatchFilesFor(sessionId: string, watchId: string) { return this.host.unwatchFiles?.(sessionId, watchId) ?? Promise.resolve() }
+  getWorkspaceHtmlUrl(scope: { projectId: string } | { sessionId: string }, path: string) { return this.require('getWorkspaceHtmlUrl')(scope, path) }
+  revealWorkspaceFile(scope: { projectId: string } | { sessionId: string }, path: string) { return this.require('revealWorkspaceFile')(scope, path) }
   listEditors(refresh = false) { return this.host.listEditors?.(refresh) ?? Promise.resolve([]) }
+  openProjectFileInEditor(projectId: string, path: string, editorId: string) { return this.require('openProjectFileInEditor')(projectId, path, editorId) }
   openFileInEditorFor(sessionId: string, path: string, editorId: string) { return this.host.openFileInEditor ? this.host.openFileInEditor(sessionId, path, editorId) : Promise.reject(new Error('当前宿主不支持外部编辑器')) }
   onWorkspaceFilesChanged = (listener: (event: PilotWorkspaceFileEvent) => void) => { this.workspaceFileListeners.add(listener); return () => { this.workspaceFileListeners.delete(listener) } }
   readFile(path: string) {
@@ -1155,6 +1179,9 @@ export class PilotController {
     if (!id) return Promise.reject(new Error('尚未选择任务'))
     return this.host.readFile(id, path)
   }
+  readProjectFile(projectId: string, path: string) { return this.require('readProjectFile')(projectId, path) }
+  readProjectImage(projectId: string, path: string) { return this.require('readProjectImage')(projectId, path) }
+  openProjectMedia(projectId: string, path: string) { return this.require('openProjectMedia')(projectId, path) }
   readFileFor(sessionId: string, path: string) { return this.host.readFile(sessionId, path) }
   readCommandOutputFor(sessionId: string, runId: string, toolId: string) { return this.require('readCommandOutput')(sessionId, runId, toolId) }
   readModelTraceFor(sessionId: string) { return this.require('readModelTrace')(sessionId) }

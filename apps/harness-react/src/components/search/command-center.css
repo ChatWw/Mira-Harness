@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgb(0 0 0 / 20%);
+  background: transparent;
 }
 .mira-command-center {
   position: fixed;
@@ -18,7 +18,7 @@
   border-radius: 8px;
   background: var(--mira-popover);
   color: var(--mira-foreground);
-  box-shadow: 0 12px 40px rgb(0 0 0 / 22%);
+  box-shadow: var(--shadow-dialog);
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: 0;

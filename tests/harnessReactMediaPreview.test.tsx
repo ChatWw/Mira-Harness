@@ -2,6 +2,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { miraFileTreeIcon } from '../apps/harness-react/src/lib/mira-file-tree-icon'
 import { MiraMediaPreview } from '../apps/harness-react/src/components/workspace/MiraMediaPreview'
 import { FilePreviewPanel } from '../apps/harness-react/src/components/workspace/FilePreviewPanel'
 import { filePreviewKind } from '../apps/harness-react/src/lib/file-preview'
@@ -78,4 +79,52 @@ describe('workspace media preview lifecycle', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="刷新文件"]')!.click())
     expect(host.openMediaFor).toHaveBeenCalledTimes(2); expect(host.closeMedia).toHaveBeenCalledWith(source().id)
   })
+})
+
+
+it('reads a project file without a task, ignores late project responses and supports refresh', async () => {
+  vi.stubGlobal('React', React)
+  let resolve!: (value: { path: string; content: string }) => void
+  const pending = new Promise<{ path: string; content: string }>(yes => { resolve = yes })
+  const host = { readProjectFile: vi.fn().mockReturnValueOnce(pending).mockResolvedValue({ path: 'same.txt', content: 'Project B text' }), readFileFor: vi.fn() }
+  const render = async (projectId: string) => act(async () => root.render(<FilePreviewPanel controller={host as never} sessionId="" projectId={projectId} path="same.txt" directory={`/projects/${projectId}`} active />))
+  await render('a'); expect(host.readProjectFile).toHaveBeenCalledWith('a', 'same.txt')
+  await render('b'); expect(host.readProjectFile).toHaveBeenLastCalledWith('b', 'same.txt')
+  await act(async () => resolve({ path: 'same.txt', content: 'Old Project A text' }))
+  expect(container.textContent).not.toContain('Old Project A text')
+  expect(container.querySelector<HTMLButtonElement>('[aria-label="将当前文件加入对话"]')!.disabled).toBe(true)
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="刷新文件"]')!.click())
+  expect(host.readProjectFile).toHaveBeenCalledTimes(3)
+  expect(host.readFileFor).not.toHaveBeenCalled()
+})
+
+it('reads project images and releases project media through the existing preview controls', async () => {
+  vi.stubGlobal('React', React)
+  const host = {
+    readProjectImage: vi.fn(async () => ({ path: 'image.png', mediaType: 'image/png', dataBase64: 'aW1hZ2U=', byteLength: 5 })),
+    openProjectMedia: vi.fn(async (_project: string, path: string) => source(path)), closeMedia: vi.fn(async () => undefined),
+    readImageFor: vi.fn(), openMediaFor: vi.fn(),
+  }
+  await act(async () => root.render(<FilePreviewPanel controller={host as never} sessionId="" projectId="project" path="image.png" active />))
+  expect(host.readProjectImage).toHaveBeenCalledExactlyOnceWith('project', 'image.png')
+  expect(container.querySelector('.mira-file-preview__body img')?.getAttribute('src')).toContain('data:image/png;base64,')
+  await act(async () => root.render(<FilePreviewPanel controller={host as never} sessionId="" projectId="project" path="clip.webm" active />))
+  expect(host.openProjectMedia).toHaveBeenCalledExactlyOnceWith('project', 'clip.webm')
+  expect(container.querySelector('video')).not.toBeNull()
+  await act(async () => root.render(<FilePreviewPanel controller={host as never} sessionId="" projectId="project" path="clip.webm" active={false} />))
+  expect(host.closeMedia).toHaveBeenCalledWith(source().id)
+  expect(host.readImageFor).not.toHaveBeenCalled(); expect(host.openMediaFor).not.toHaveBeenCalled()
+})
+
+
+it('uses the same type icon in the preview breadcrumb and updates it when the file changes', async () => {
+  vi.stubGlobal('React', React)
+  const host = { readFileFor: vi.fn(async (_id: string, path: string) => ({ path, content: '' })) }
+  for (const path of ['main.py', 'main.java', 'README.md', 'unknown.mira-unknown']) {
+    await act(async () => root.render(<FilePreviewPanel controller={host as never} sessionId="owner" path={path} active />))
+    const icon = container.querySelector('.mira-file-preview__breadcrumb img')!
+    expect(icon.getAttribute('src')).toBe(miraFileTreeIcon(path))
+    expect(icon.getAttribute('width')).toBe('16')
+    expect(icon.getAttribute('alt')).toBe('')
+  }
 })

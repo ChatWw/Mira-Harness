@@ -1,3 +1,5 @@
+import { useMiraGitTools, type MiraGitToolsOwner } from '../git/useMiraGitTools'
+import { MiraGitTools, MiraGitTotals } from '../git/MiraGitTools'
 /* Session plan directory adapted from ZCode ConversationStatusPanel (Apache-2.0).
  * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
  * Mira uses canonical submitted tool inputs and its existing approval path. */
@@ -22,9 +24,10 @@ const planLabels: Record<HarnessPlan['status'], string> = { planning: '正在规
 
 export type MiraTaskSummaryMode = 'auto' | 'mini' | 'panel'
 
-export function TaskSummary({ taskState, taskTone, running, activities, plan, plans = [], onOpenPlan, commands = [], onOpenCommand, subtasks, changes, environment, goal, goalController, goalSessionId, goalDetailsRequest, goalPlanning, workflows, onOpenWorkflow, mode: controlledMode, onModeChange, onOpenChanges, onOpenProgress, onOpenSubtask, onReviewPlan, onStopSubtask, onError }: {
+export function TaskSummary({ taskState, taskTone, running, activities, plan, plans = [], onOpenPlan, commands = [], onOpenCommand, subtasks, changes, environment, git, goal, goalController, goalSessionId, goalDetailsRequest, goalPlanning, workflows, onOpenWorkflow, mode: controlledMode, onModeChange, onOpenChanges, onOpenProgress, onOpenSubtask, onReviewPlan, onStopSubtask, onError }: {
   taskState: string; taskTone: PilotTaskTone; running: boolean; activities: HarnessRunActivity[]; plan?: HarnessPlan; subtasks: HarnessSubtask[]; changes: number
   environment?: ReactNode
+  git?: MiraGitToolsOwner
   plans?: MiraSessionPlan[]; onOpenPlan?: (id: string) => void
   commands?: ToolCallRecord[]; onOpenCommand?: (runId: string, toolId: string) => void
   goal?: HarnessGoal; goalController?: PilotController; goalSessionId?: string; goalDetailsRequest?: number; goalPlanning?: boolean
@@ -32,6 +35,9 @@ export function TaskSummary({ taskState, taskTone, running, activities, plan, pl
   mode?: MiraTaskSummaryMode; onModeChange?: (mode: MiraTaskSummaryMode) => void
   onOpenChanges: () => void; onOpenProgress?: () => void; onOpenSubtask?: (id: string) => void; onReviewPlan: () => void; onStopSubtask: (id: string) => Promise<void>; onError: (error: unknown) => void
 }) {
+  const [gitDialogOpen, setGitDialogOpen] = useState(false)
+  const gitTools = useMiraGitTools(git)
+  const gitVisible = Boolean(gitTools.snapshot && gitTools.snapshot.added + gitTools.snapshot.removed > 0)
   const [localMode, setLocalMode] = useState<MiraTaskSummaryMode>('auto')
   const mode = controlledMode ?? localMode
   const [stopping, setStopping] = useState<string[]>([])
@@ -73,7 +79,7 @@ export function TaskSummary({ taskState, taskTone, running, activities, plan, pl
   const liveWorkflows = workflowRuns.filter(run => run.status === 'running')
   const pendingWorkflows = workflowRuns.filter(run => run.status === 'pending')
   const workflowTitle = liveWorkflows.length ? `${liveWorkflows.length} 个工作流运行中` : pendingWorkflows.length ? `${pendingWorkflows.length} 个工作流等待运行` : workflowRuns.length ? `${workflowRuns.length} 个工作流已结束` : workflows?.error ? '工作流状态读取失败' : ''
-  const title = currentStep?.label || (changes ? `${changes} 个文件有变更` : '') || completedStep?.label || (steps.length ? `待办 ${steps.filter(step => step.status === 'completed').length}/${steps.length}` : '') || (plan && miraPlanTitle(plan.understanding || plan.request)) || (plan ? '任务计划' : '') || (liveAgents.length ? `${liveAgents.length} 个智能体运行中` : '') || (liveWorkflows.length || pendingWorkflows.length ? workflowTitle : '') || (running ? 'Mira 正在工作' : '') || (!workflowTitle ? subtasks.length ? `${subtasks.length} 个智能体已结束` : activities.length ? taskState : environment ? '工作环境' : '' : '')
+  const title = currentStep?.label || (gitVisible ? 'Git 工具' : '') || (changes ? `${changes} 个文件有变更` : '') || completedStep?.label || (steps.length ? `待办 ${steps.filter(step => step.status === 'completed').length}/${steps.length}` : '') || (plan && miraPlanTitle(plan.understanding || plan.request)) || (plan ? '任务计划' : '') || (liveAgents.length ? `${liveAgents.length} 个智能体运行中` : '') || (liveWorkflows.length || pendingWorkflows.length ? workflowTitle : '') || (running ? 'Mira 正在工作' : '') || (!workflowTitle ? subtasks.length ? `${subtasks.length} 个智能体已结束` : activities.length ? taskState : environment ? '工作环境' : gitDialogOpen ? 'Git 工具' : '' : '')
   const setMode = (next: MiraTaskSummaryMode, source?: HTMLButtonElement | null) => {
     pendingFocus.current = source && document.activeElement === source ? { mode: next, source } : null
     if (controlledMode === undefined) setLocalMode(next)
@@ -114,11 +120,12 @@ export function TaskSummary({ taskState, taskTone, running, activities, plan, pl
     try { await onStopSubtask(id) } catch (error) { if (activeOwner.current) onError(error) } finally { if (activeOwner.current) setStopping(previous => previous.filter(item => item !== id)) }
   }
   return <aside className="mira-task-summary" aria-label="任务摘要" data-mode={mode} data-task-tone={summaryTone}>
-    <button ref={miniRef} type="button" className="mira-task-summary__mini" aria-label="展开任务摘要" title={summaryTitle} onClick={() => setMode('panel', miniRef.current)}>{summaryTitle === workflowTitle ? <Workflow size={15} data-mira-workflow-summary-icon aria-hidden="true" /> : <span className="mira-summary-dot" />}<strong>{summaryTitle}</strong>{(running || liveCommands.length > 0 || liveWorkflows.length > 0) && <LoaderCircle size={13} className="animate-spin" />}<ChevronDown size={13} /></button>
+    <button ref={miniRef} type="button" className="mira-task-summary__mini" aria-label="展开任务摘要" title={summaryTitle} onClick={() => setMode('panel', miniRef.current)}>{summaryTitle === workflowTitle ? <Workflow size={15} data-mira-workflow-summary-icon aria-hidden="true" /> : <span className="mira-summary-dot" />}<strong>{summaryTitle}</strong>{summaryTitle === 'Git 工具' && gitTools.snapshot && <MiraGitTotals snapshot={gitTools.snapshot} />}{(running || liveCommands.length > 0 || liveWorkflows.length > 0) && <LoaderCircle size={13} className="animate-spin" />}<ChevronDown size={13} /></button>
     <div ref={panelRef} className="mira-task-summary__panel">
       <div className="mira-task-summary__header"><span>{summaryState}</span><DropdownMenu.Root><DropdownMenu.Trigger asChild><button ref={modeTriggerRef} type="button" aria-label="摘要显示方式" title="摘要显示方式"><MoreHorizontal size={15} /></button></DropdownMenu.Trigger><DropdownMenu.Portal container={document.getElementById('root')}><DropdownMenu.Content ref={bindModeMenu} className="mira-session-menu" align="end" sideOffset={5} onCloseAutoFocus={restoreModeFocus}><DropdownMenu.RadioGroup value={mode} onValueChange={() => { autoSelected.current = true; pendingAutoMode.current = true }}><DropdownMenu.RadioItem value="auto" className="mira-session-menu__item"><DropdownMenu.ItemIndicator><Check size={13} /></DropdownMenu.ItemIndicator>自动</DropdownMenu.RadioItem></DropdownMenu.RadioGroup></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root><button ref={collapseRef} type="button" aria-label="收起任务摘要" title="收起任务摘要" onClick={() => setMode('mini', collapseRef.current)}><Minimize2 size={15} /></button></div>
       <div className="mira-task-summary__body" tabIndex={0} role="region" aria-label="任务摘要内容">
         {goalController && Boolean(goal || goalDetailsRequest) && <MiraGoalSummary key={goal?.id ?? 'empty'} goal={goal} controller={goalController} sessionId={goalSessionId} detailsRequest={goalDetailsRequest} planning={goalPlanning} />}
+        {git && gitTools.snapshot && <MiraGitTools onDialogChange={setGitDialogOpen} visible={gitVisible} owner={git} snapshot={gitTools.snapshot} refresh={gitTools.refresh} />}
         {Boolean(environment) && <details open><summary><strong>环境</strong></summary>{environment}</details>}
         {changes > 0 && <button type="button" className="mira-summary-resource" onClick={onOpenChanges}><GitCompare size={15} /><span>{changes} 个文件变更</span></button>}
         {plans.length > 0 && <details open aria-label="会话计划"><summary><ListChecks size={15} /><strong>会话计划</strong><small>{plans.length} 个方案</small></summary><div className="mira-summary-plans">{plans.map(item => <button type="button" key={item.id} disabled={!onOpenPlan} aria-label={`在右侧打开方案 ${item.title}`} data-plan-directory-id={item.id} onClick={() => onOpenPlan?.(item.id)}><ListChecks size={14} aria-hidden="true" /><span title={item.title}>{item.title}</span>{item.incomplete && <CircleAlert size={13} aria-label="内容不完整" />}<ArrowUpRight size={12} aria-hidden="true" /></button>)}</div></details>}

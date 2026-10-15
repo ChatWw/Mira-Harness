@@ -16,11 +16,13 @@ import { app, net, safeStorage } from 'electron'
 import { MiraMcpCredentialStore } from '../storage/miraMcpCredentialStore'
 import { MiraMcpAuthorization } from './miraMcpAuthorization'
 import { join, resolve } from 'node:path'
+import { MiraWorkspaceHtml } from './miraWorkspaceHtml'
 import { MiraWorkspaceMedia } from './miraWorkspaceMedia'
 
 const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 
 export interface PlatformServices {
+  workspaceHtml: MiraWorkspaceHtml
   workspaceMedia: MiraWorkspaceMedia
   database: PlatformDatabase
   localMicroAppServer: LocalMicroAppServer
@@ -75,6 +77,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   catch { console.error('[mcp] MCP 配置读取失败；请在设置中检查配置文件后重试') }
   automationScheduler.start()
   const pythonEnvironment = new PythonEnvironment()
+  const workspaceHtml = new MiraWorkspaceHtml()
   const workspaceMedia = new MiraWorkspaceMedia()
   const localMicroAppServer = new LocalMicroAppServer({
     mediaHandler: (id, request, response) => { void workspaceMedia.handle(id, request, response) },
@@ -89,5 +92,5 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     database.savePreference('localMicroAppPort', localMicroAppServer.port)
   }
 
-  return { workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, pythonEnvironment, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
+  return { workspaceHtml, workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, pythonEnvironment, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
 }

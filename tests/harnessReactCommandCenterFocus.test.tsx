@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import React, { act, useRef, useState } from 'react'
+import { readFileSync } from 'node:fs'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HarnessCommandCenter } from '../apps/harness-react/src/components/search/HarnessCommandCenter'
@@ -57,6 +58,25 @@ async function mount(action?: () => Promise<void | boolean>, onDismiss?: () => b
 }
 
 describe('real React and Radix command-center dismissal focus', () => {
+  it('inherits a visible light and dark shadow when the search portal is outside the app root', async () => {
+    const style = document.createElement('style')
+    const appCss = readFileSync('apps/harness-react/src/styles/app.css', 'utf8')
+    style.textContent = (appCss.match(/^:root(?:\.dark)? \{[^}]*\}/gm) ?? []).join('\n') + readFileSync('apps/harness-react/src/components/search/command-center.css', 'utf8')
+    document.head.append(style)
+    try {
+      const view = await mount(); await view.open()
+      const dialog = document.querySelector<HTMLElement>('.mira-command-center')!
+      expect(dialog.closest('#root')).toBeNull()
+      const lightShadow = getComputedStyle(dialog).boxShadow
+      expect(lightShadow).toContain('16px 48px')
+      expect(getComputedStyle(document.querySelector('.mira-command-center-overlay')!).backgroundColor).toBe('transparent')
+      document.documentElement.classList.add('dark')
+      const darkShadow = getComputedStyle(dialog).boxShadow
+      expect(darkShadow).toContain('16px 48px')
+      expect(darkShadow).not.toBe(lightShadow)
+    } finally { document.documentElement.classList.remove('dark'); style.remove() }
+  })
+
   it('refocuses an already-open search on a new opening request without resetting its query', async () => {
     const view = await mount(); await view.open()
     const input = view.element('搜索命令、对话和文件') as HTMLInputElement

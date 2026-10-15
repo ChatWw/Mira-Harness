@@ -3,19 +3,19 @@
 import { useRef, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Activity, CircleHelp, Info, Keyboard, LoaderCircle, Settings } from 'lucide-react'
+import { Activity, CircleHelp, Info, Keyboard, MessageSquare, Settings } from 'lucide-react'
 import { SidebarActionHint } from '../session/SidebarCollectionSection'
 
-export function MiraWorkbenchHelp({ onNavigate, onOpenResources }: { onNavigate: (path: string) => Promise<void>; onOpenResources: () => Promise<void> }) {
+export function MiraWorkbenchHelp({ onNavigate, onOpenResources, onShowAbout }: { onNavigate: (path: string) => Promise<void>; onOpenResources: () => Promise<void>; onShowAbout: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const pending = useRef(false)
-  async function navigate(path?: string) {
+  async function navigate(path?: string, about = false) {
     if (pending.current) return
     pending.current = true; setBusy(true); setError('')
-    try { await (path ? onNavigate(path) : onOpenResources()); setOpen(false) }
-    catch { setError(path ? '未能打开页面，当前输入已保留，请重试。' : '未能打开资源管理器，请重试。') }
+    try { await (about ? onShowAbout() : path ? onNavigate(path) : onOpenResources()); setOpen(false) }
+    catch { setError(about ? '未能打开关于 Mira，请重试。' : path ? '未能打开页面，当前输入已保留，请重试。' : '未能打开资源管理器，请重试。') }
     finally { pending.current = false; setBusy(false) }
   }
   return <DropdownMenu.Root open={open} onOpenChange={value => { setOpen(value); if (value) setError('') }}>
@@ -25,8 +25,8 @@ export function MiraWorkbenchHelp({ onNavigate, onOpenResources }: { onNavigate:
       <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate('/settings/general') }}><Settings size={14} />设置</DropdownMenu.Item>
       <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate() }}><Activity size={14} />资源管理器</DropdownMenu.Item>
       <DropdownMenu.Separator className="mira-session-menu__separator" />
-      <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate('/settings/about') }}><Info size={14} />问题反馈与关于</DropdownMenu.Item>
-      {busy && <div className="mira-workbench-help-feedback" role="status"><LoaderCircle size={14} className="animate-spin" />正在打开…</div>}
+      <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate('/settings/about') }}><MessageSquare size={14} />问题反馈</DropdownMenu.Item>
+      <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={event => { event.preventDefault(); void navigate(undefined, true) }}><Info size={14} />关于 Mira</DropdownMenu.Item>
       {error && <div className="mira-workbench-help-feedback" role="alert">{error}</div>}
     </DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>

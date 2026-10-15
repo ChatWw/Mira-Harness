@@ -2,6 +2,7 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: local resource lifecycle, unique Command values, focus and metadata.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
@@ -39,7 +40,7 @@ export function MiraWorkspaceOverview({ tabs, active, recentClosedTabs, onActiva
     const { Icon, type, hint } = miraWorkspaceTabPresentation(tab)
     const time = miraWorkspaceTabTime(closed ? tab.closedAt : tab.openedAt, now)
     return <Command.Item key={tab.id} value={`${closed ? 'closed' : 'open'}:${tab.id}`} className={`mira-workspace-overview__item${!closed && tab.id === active ? ' is-active' : ''}`} onSelect={() => choose(tab, closed)} aria-label={`${closed ? '重新打开' : '切换到'}${tab.label}${hint ? `，${hint}` : ''}`} title={hint || tab.label}>
-      <Icon size={15} aria-hidden="true" /><span className="mira-workspace-overview__text"><span>{tab.label}</span><small>{type}{hint ? ` · ${hint}` : ''}</small></span>
+      {tab.path ? <img className="mira-workspace-file-icon" src={miraFileTreeIcon(tab.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} /> : <Icon size={15} aria-hidden="true" />}<span className="mira-workspace-overview__text"><span>{tab.label}</span><small>{type}{hint ? ` · ${hint}` : ''}</small></span>
       {!closed && tab.id === active && <Check size={13} aria-label="当前标签" />}
       {time && <time className="mira-workspace-overview__time" dateTime={new Date((closed ? tab.closedAt : tab.openedAt)!).toISOString()} title={`${closed ? '关闭' : '打开'}时间：${new Date((closed ? tab.closedAt : tab.openedAt)!).toLocaleString()}`}>{time}</time>}
       {!closed && <button type="button" className="mira-workspace-overview__close" aria-label={`关闭${tab.label}`} title={`关闭${tab.label}`} onPointerDown={event => { event.preventDefault(); event.stopPropagation() }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }} onClick={event => {

@@ -264,6 +264,15 @@ describe('Harness controlled editor opening', () => {
     expect(mocks.reveal).not.toHaveBeenCalled()
   })
 
+  it('rechecks workspace authorization after resolving the editor and file, before launching', async () => {
+    const root = await workspace()
+    await writeFile(join(root, 'notes.txt'), 'Mira')
+    mocks.installed.add('/Applications/Cursor.app')
+    const authorize = vi.fn(() => { throw new Error('revoked') })
+    await expect((await service()).openHarnessWorkspaceInEditor(root, 'notes.txt', 'mira-cursor', authorize)).rejects.toThrow('无法用 Cursor 打开')
+    expect(authorize).toHaveBeenCalledOnce(); expect(mocks.launch).not.toHaveBeenCalled(); expect(mocks.reveal).not.toHaveBeenCalled()
+  })
+
   it('opens the root directory and reveals files through Finder without command text', async () => {
     const root = await workspace()
     await writeFile(join(root, 'notes.txt'), 'Mira')

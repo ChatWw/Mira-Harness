@@ -41,3 +41,58 @@ Mira 将素材放在 `apps/harness-react/src/assets/file-types/`，使用 Mira �
 Mira 使用自己的组件、类型映射和权限回调，保留独立文件名按钮与旁侧目录文字。
 ZCode 原 Apache-2.0 许可另见 `third-party-licenses/zcode/`；这些图标本身采用本目录
 的 MIT 许可。品牌和语言图标仅用于文件类型辨识，不表示品牌授权或官方关联。
+
+2026-10-15：文件树类型图标补充自 ZCode 同一素材目录，保留 SVG 原图形与本目录 MIT 许可，仅增加文件末尾换行。本批素材未另行宣称与上述固定版本逐字节一致。
+
+| 上游文件 | Mira 文件 |
+| --- | --- |
+| `astro.svg` | `mira-astro.svg` |
+| `audio.svg` | `mira-audio.svg` |
+| `babel.svg` | `mira-babel.svg` |
+| `c.svg` | `mira-c.svg` |
+| `certificate.svg` | `mira-certificate.svg` |
+| `cpp.svg` | `mira-cpp.svg` |
+| `csharp.svg` | `mira-csharp.svg` |
+| `dart.svg` | `mira-dart.svg` |
+| `database.svg` | `mira-database.svg` |
+| `docker.svg` | `mira-docker.svg` |
+| `editorconfig.svg` | `mira-editorconfig.svg` |
+| `eslint.svg` | `mira-eslint.svg` |
+| `font.svg` | `mira-font.svg` |
+| `gemfile.svg` | `mira-gemfile.svg` |
+| `git.svg` | `mira-git.svg` |
+| `go.svg` | `mira-go.svg` |
+| `graphql.svg` | `mira-graphql.svg` |
+| `h.svg` | `mira-h.svg` |
+| `hpp.svg` | `mira-hpp.svg` |
+| `java.svg` | `mira-java.svg` |
+| `jest.svg` | `mira-jest.svg` |
+| `kotlin.svg` | `mira-kotlin.svg` |
+| `less.svg` | `mira-less.svg` |
+| `lock.svg` | `mira-lock.svg` |
+| `lua.svg` | `mira-lua.svg` |
+| `makefile.svg` | `mira-makefile.svg` |
+| `nodejs_alt.svg` | `mira-nodejs_alt.svg` |
+| `npm.svg` | `mira-npm.svg` |
+| `pdf.svg` | `mira-pdf.svg` |
+| `php.svg` | `mira-php.svg` |
+| `powerpoint.svg` | `mira-powerpoint.svg` |
+| `prettier.svg` | `mira-prettier.svg` |
+| `r.svg` | `mira-r.svg` |
+| `readme.svg` | `mira-readme.svg` |
+| `ruby.svg` | `mira-ruby.svg` |
+| `rust.svg` | `mira-rust.svg` |
+| `sass.svg` | `mira-sass.svg` |
+| `snapcraft.svg` | `mira-snapcraft.svg` |
+| `storybook.svg` | `mira-storybook.svg` |
+| `svelte.svg` | `mira-svelte.svg` |
+| `svg.svg` | `mira-svg.svg` |
+| `swift.svg` | `mira-swift.svg` |
+| `table.svg` | `mira-table.svg` |
+| `tsconfig.svg` | `mira-tsconfig.svg` |
+| `video.svg` | `mira-video.svg` |
+| `vitest.svg` | `mira-vitest.svg` |
+| `word.svg` | `mira-word.svg` |
+| `xml.svg` | `mira-xml.svg` |
+| `yarn.svg` | `mira-yarn.svg` |
+| `zip.svg` | `mira-zip.svg` |

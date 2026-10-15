@@ -44,7 +44,7 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
-  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
   registerMiraFlowIpc({ flows: services.miraFlowController })
   registerNovelIpcHandlers({ database: services.database })
   registerAutomationIpcHandlers({ database: services.database, automationScheduler: services.automationScheduler, cleanupExpiredTrash: services.cleanupExpiredTrash })
@@ -75,6 +75,7 @@ app.on('before-quit', event => {
   terminalSessions.closeAll()
   workspaceWatch.closeAll()
   services?.workspaceMedia.closeAll()
+  services?.workspaceHtml.closeAll()
   shutdown = (async () => {
     try {
       // Workflow actors finish abort/persistence before the desktop process exits.

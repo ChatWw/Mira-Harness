@@ -118,8 +118,8 @@
 .mira-automation-run footer { justify-content: space-between; color: var(--mira-foreground-subtlest); font-size: 11px; }
 .mira-automation-run footer > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .mira-automation-run footer button { display: inline-flex; min-height: 28px; align-items: center; gap: 5px; padding: 3px 7px; border: 0; border-radius: 5px; color: var(--mira-foreground); background: var(--mira-surface); font-size: 12px; }
-.mira-automation-dialog-overlay { position: fixed; z-index: 80; inset: 0; background: rgb(0 0 0 / 32%); }
-.mira-automation-dialog { position: fixed; z-index: 81; top: 50%; left: 50%; width: min(420px, calc(100% - 40px)); padding: 22px; transform: translate(-50%, -50%); border: 1px solid var(--mira-popover-border); border-radius: 8px; color: var(--mira-foreground); background: var(--mira-popover); box-shadow: 0 8px 40px rgb(0 0 0 / 18%); }
+.mira-automation-dialog-overlay { position: fixed; z-index: 80; inset: 0; background: transparent; }
+.mira-automation-dialog { position: fixed; z-index: 81; top: 50%; left: 50%; width: min(420px, calc(100% - 40px)); padding: 22px; transform: translate(-50%, -50%); border: 1px solid var(--mira-popover-border); border-radius: 8px; color: var(--mira-foreground); background: var(--mira-popover); box-shadow: var(--shadow-dialog); }
 .mira-automation-dialog h2 { margin: 0 24px 10px 0; font-size: 16px; font-weight: 550; }
 .mira-automation-dialog p { margin: 0 0 22px; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .mira-automation-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }

@@ -633,3 +633,15 @@ it('allows only the Harness capability to open the resource window, without navi
   await expect(denied.request('resources.open')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
   expect(denied.api.openResourceManager).not.toHaveBeenCalled()
 })
+
+
+it('restricts About to the Harness workbench and opens its native command without navigation', async () => {
+  const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+  entry.api.windowCommand = vi.fn(async () => undefined)
+  await entry.request('about.show')
+  expect(entry.api.windowCommand).toHaveBeenCalledExactlyOnceWith('about')
+  expect(entry.navigate).not.toHaveBeenCalled()
+  await expect(entry.request('about.show', {})).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  await expect(bridge().request('about.show')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  await expect(bridge({ appId: 'mira-novel-studio', capabilities: ['harness:workbench'] }).request('about.show')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+})

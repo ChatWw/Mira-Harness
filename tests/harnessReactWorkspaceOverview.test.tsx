@@ -2,6 +2,7 @@
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { miraFileTreeIcon } from '../apps/harness-react/src/lib/mira-file-tree-icon'
 import { WorkspaceTabs } from '../apps/harness-react/src/components/workspace/WorkspaceTabs'
 import { useHarnessSessionShortcuts } from '../apps/harness-react/src/components/session/SessionSidebar'
 import { miraSearchWorkspaceTabs, miraWorkspaceTabTime } from '../apps/harness-react/src/lib/mira-workspace-tab-presentation'
@@ -41,6 +42,15 @@ async function fixture(initial = tabs, delayed = false) {
 const items = () => [...container.querySelectorAll<HTMLElement>('[cmdk-item]')]
 
 describe('workspace overview search and resource actions', () => {
+  it('uses the same file-type icon in the resource strip and overview list', async () => {
+    await fixture()
+    const strip = container.querySelector('[data-workspace-tab-id="file:docs/guide.md"] img')!
+    const overview = container.querySelector('.mira-workspace-tab-menu img.mira-workspace-file-icon')!
+    expect(strip.getAttribute('src')).toBe(miraFileTreeIcon('docs/guide.md'))
+    expect(overview.getAttribute('src')).toBe(strip.getAttribute('src'))
+    expect(strip.getAttribute('width')).toBe('16')
+  })
+
   it('keeps workbench shortcuts from opening another task/search/sidebar behind the real Popover', async () => {
     const view = await fixture()
     for (const modifier of ['metaKey', 'ctrlKey']) for (const key of ['n', 'k', 'b']) await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, [modifier]: true, bubbles: true, cancelable: true })))

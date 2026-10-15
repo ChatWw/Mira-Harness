@@ -282,3 +282,152 @@ describe('controlled project Git actions', () => {
     expect(git(directory, 'branch', '--show-current')).toBe('main'); expect(legacyWrite).not.toHaveBeenCalled()
   })
 })
+
+describe('conversation Git tools', () => {
+  it('reports real repository totals, staged and unstaged patches, including untracked files', async () => {
+    const { directory, runtime, project } = await setup()
+    await writeFile(join(directory, 'note.txt'), 'staged\n')
+    git(directory, 'add', 'note.txt')
+    await writeFile(join(directory, 'note.txt'), 'worktree\nextra\n')
+    await writeFile(join(directory, '中文\tnew.txt'), 'new\n')
+    const before = await readFile(join(directory, '.git/index'))
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(snapshot).toMatchObject({ projectId: project.id, repository: directory, branch: 'main', added: 3, removed: 1, mutationBlocked: false })
+    expect(snapshot.files).toContainEqual({ path: 'note.txt', staged: true, unstaged: true, conflict: false })
+    expect(snapshot.stagedPatch).toContain('+staged')
+    expect(snapshot.unstagedPatch).toContain('+worktree')
+    expect(snapshot.unstagedPatch).toContain('+new')
+    expect(await readFile(join(directory, '.git/index'))).toEqual(before)
+  })
+
+  it('commits only the reviewed index when unstaged changes are excluded', async () => {
+    const { directory, runtime, project } = await setup()
+    await writeFile(join(directory, 'note.txt'), 'staged\n')
+    git(directory, 'add', 'note.txt')
+    await writeFile(join(directory, 'note.txt'), 'keep unstaged\n')
+    await writeFile(join(directory, 'new.txt'), 'not included\n')
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(await runtime.gitAction(project.id, 'commit', snapshot.token, 'fix: staged only', false)).toEqual({ committed: true, pushed: false })
+    expect(git(directory, 'show', 'HEAD:note.txt')).toBe('staged')
+    expect(git(directory, 'status', '--porcelain')).toContain('note.txt')
+    expect(git(directory, 'status', '--porcelain')).toContain('?? new.txt')
+    expect(await readFile(join(directory, 'note.txt'), 'utf8')).toBe('keep unstaged\n')
+  })
+
+  it('rejects a changed file snapshot and blocks mutation while a project task runs', async () => {
+    const { directory, runtime, project, session } = await setup()
+    await writeFile(join(directory, 'note.txt'), 'first\n')
+    const snapshot = await runtime.getGitTools(project.id)
+    await writeFile(join(directory, 'note.txt'), 'newer\n')
+    await expect(runtime.gitAction(project.id, 'commit', snapshot.token, 'stale', true)).rejects.toThrow('已变化')
+    expect(git(directory, 'log', '-1', '--format=%s')).toBe('fixture')
+    const token = (runtime as any).runCoordinator.reserve(session.id)
+    try {
+      expect((await runtime.getGitTools(project.id)).mutationBlocked).toBe(true)
+      await expect(runtime.gitAction(project.id, 'commit', snapshot.token, 'busy', true)).rejects.toThrow('请先停止')
+    } finally { (runtime as any).runCoordinator.release(session.id, token) }
+  })
+
+  it('commits and pushes to a temporary bare repository, then shows the graph', async () => {
+    const { root, directory, runtime, project } = await setup()
+    const remote = join(root, 'remote.git'); await mkdir(remote); git(remote, 'init', '--bare')
+    git(directory, 'remote', 'add', 'origin', remote)
+    await writeFile(join(directory, 'new.txt'), 'new file\n')
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(snapshot.canPush).toBe(true)
+    expect(await runtime.gitAction(project.id, 'commit-and-push', snapshot.token, 'feat: new file', true)).toEqual({ committed: true, pushed: true })
+    expect(git(remote, 'rev-parse', 'refs/heads/main')).toBe(git(directory, 'rev-parse', 'HEAD'))
+    const graph = await runtime.getGitGraph(project.id, 0)
+    expect(graph.hasMore).toBe(false)
+    expect(graph.commits).toHaveLength(2)
+    expect(graph.commits[0]).toMatchObject({ subject: 'feat: new file', author: 'Mira Test', parents: [graph.commits[1].hash] })
+    expect(graph.commits[0].refs).toContain('HEAD -> main')
+    expect((await runtime.getGitTools(project.id)).ahead).toBe(0)
+  })
+
+  it('reports commit success separately when push fails, allowing push-only retry', async () => {
+    const { directory, runtime, project } = await setup()
+    await writeFile(join(directory, 'note.txt'), 'changed\n')
+    const snapshot = await runtime.getGitTools(project.id)
+    const result = await runtime.gitAction(project.id, 'commit-and-push', snapshot.token, 'fix: local change', true)
+    expect(result).toMatchObject({ committed: true, pushed: false })
+    expect(result.error).toContain('远程')
+    expect(git(directory, 'rev-list', '--count', 'HEAD')).toBe('2')
+    const next = await runtime.getGitTools(project.id)
+    expect(next.files).toEqual([])
+    expect(await runtime.gitAction(project.id, 'push', next.token, '', false)).toMatchObject({ committed: false, pushed: false })
+    expect(git(directory, 'rev-list', '--count', 'HEAD')).toBe('2')
+  })
+
+  it('handles unborn and worktree repositories without inventing graph commits', async () => {
+    const { root, directory, database, runtime } = await setup()
+    const empty = join(root, 'empty'); await mkdir(empty); git(empty, 'init', '--initial-branch=main')
+    const project = database.harness.createProject(empty)
+    expect(await runtime.getGitGraph(project.id, 0)).toEqual({ commits: [], hasMore: false })
+    await writeFile(join(empty, 'new.txt'), 'one\ntwo\n'); git(empty, 'add', '.')
+    expect(await runtime.getGitTools(project.id)).toMatchObject({ added: 2, removed: 0 })
+    const worktree = join(root, 'worktree'); git(directory, 'worktree', 'add', worktree, 'topic')
+    const linked = database.harness.createProject(worktree)
+    expect((await runtime.getGitGraph(linked.id, 0)).commits).toHaveLength(1)
+    expect(await runtime.getGitTools(linked.id)).toMatchObject({ repository: worktree, branch: 'topic' })
+  })
+
+  it('keeps review and commit scope consistent for a project opened in a repository subdirectory', async () => {
+    const { directory, database, runtime } = await setup()
+    const child = join(directory, 'child'); await mkdir(child)
+    const project = database.harness.createProject(child)
+    await writeFile(join(directory, 'outside.txt'), 'outside child\n')
+    await writeFile(join(child, 'inside.txt'), 'inside child\n')
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(snapshot.repository).toBe(directory)
+    expect(snapshot.files.map(file => file.path).sort()).toEqual(['child/inside.txt', 'outside.txt'])
+    expect(await runtime.gitAction(project.id, 'commit', snapshot.token, 'feat: scoped repository', true)).toEqual({ committed: true, pushed: false })
+    expect(git(directory, 'status', '--porcelain')).toBe('')
+  })
+
+  it('validates all Git tools bridge inputs before dispatch', () => {
+    expect(parseFirstPartyHarnessCall('git.tools', { projectId: 'p' })).toEqual({ method: 'git.tools', projectId: 'p' })
+    expect(() => parseFirstPartyHarnessCall('git.action', { projectId: 'p', action: 'reset', token: 'a'.repeat(64), message: '', includeUnstaged: true })).toThrow('Git 操作无效')
+    expect(() => parseFirstPartyHarnessCall('git.graph', { projectId: 'p', skip: -1 })).toThrow('Git 分页无效')
+    expect(() => parseFirstPartyHarnessCall('git.action', { projectId: 'p', action: 'commit', token: 'bad', message: 'message', includeUnstaged: true })).toThrow('Git 快照无效')
+  })
+})
+
+describe('Git tools edge cases and authorized transport', () => {
+  it('dispatches tools/graph/action through the first-party grant and rejects revocation before mutation', async () => {
+    const { directory, runtime, project, database } = await setup()
+    await writeFile(join(directory, 'note.txt'), 'review me\n')
+    const grants = new FirstPartyGrantStore(), sender = { id: 42, isDestroyed: () => false }
+    const grant = grants.issue('mira-harness', sender.id, ['harness:workbench'])
+    registerPlatformIpcHandlers({ database, harnessRuntime: runtime, firstPartyGrantStore: grants, firstPartyManifests: firstPartyAppManifests } as never)
+    const handler = electron.handlers.get('platform:first-party-harness')!
+    const snapshot = await handler({ sender }, grant, 'git.tools', { projectId: project.id }) as any
+    expect(snapshot.files[0].path).toBe('note.txt')
+    expect((await handler({ sender }, grant, 'git.graph', { projectId: project.id, skip: 0 }) as any).commits).toHaveLength(1)
+    const pause = await pauseGit()
+    const pending = handler({ sender }, grant, 'git.action', { projectId: project.id, action: 'commit', token: snapshot.token, message: 'fix: authorized', includeUnstaged: true })
+    await pause.paused
+    grants.revoke(grant, sender.id); pause.release()
+    await expect(pending).rejects.toThrow('授权无效')
+    expect(git(directory, 'log', '-1', '--format=%s')).toBe('fixture')
+  })
+
+  it('treats untracked symlinks as links, never previewing their external target', async () => {
+    const { root, directory, runtime, project } = await setup()
+    const secret = join(root, 'private.txt'); await writeFile(secret, 'DO NOT PREVIEW TARGET\n')
+    await symlink(secret, join(directory, 'link.txt'))
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(snapshot.unstagedPatch).toContain(secret)
+    expect(snapshot.unstagedPatch).not.toContain('DO NOT PREVIEW TARGET')
+  })
+
+  it('exposes merge conflicts for review and refuses to commit them', async () => {
+    const { directory, runtime, project } = await setup()
+    git(directory, 'switch', 'topic'); await writeFile(join(directory, 'note.txt'), 'topic\n'); git(directory, 'add', '.'); git(directory, 'commit', '-m', 'topic')
+    git(directory, 'switch', 'main'); await writeFile(join(directory, 'note.txt'), 'main\n'); git(directory, 'add', '.'); git(directory, 'commit', '-m', 'main')
+    try { git(directory, 'merge', 'topic') } catch { /* expected conflict */ }
+    const snapshot = await runtime.getGitTools(project.id)
+    expect(snapshot.files.some(file => file.conflict)).toBe(true)
+    expect(await runtime.gitAction(project.id, 'commit', snapshot.token, 'conflict', true)).toMatchObject({ committed: false, error: '请先解决合并冲突' })
+  })
+})

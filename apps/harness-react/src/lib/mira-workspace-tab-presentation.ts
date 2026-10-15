@@ -25,6 +25,7 @@ export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
   if (tab.taskSessionId) return { Icon: MessageSquare, type: '任务', hint: '', aliases: `task conversation ${tab.taskSessionId}` }
   if (tab.subtaskId) return { Icon: Users, type: '智能体', hint: '', aliases: `agent ${tab.subtaskId} ${tab.runId || ''}` }
   if (tab.workflowSessionId) return { Icon: GitBranch, type: '工作流', hint: '', aliases: `workflow ${tab.workflowSessionId} ${tab.runId || ''}` }
+  if (tab.id === 'git') return { Icon: GitCompare, type: 'Git 更改', hint: '', aliases: 'git repository staged unstaged diff 仓库 暂存' }
   if (tab.id === 'changes') return { Icon: GitCompare, type: '变更', hint: '', aliases: 'git diff changes' }
   return { Icon: Activity, type: '调用轨迹', hint: '', aliases: `activity ${tab.runId || ''}` }
 }

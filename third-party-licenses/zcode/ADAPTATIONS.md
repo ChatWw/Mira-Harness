@@ -627,3 +627,21 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 - Sidebar task rows use whole-row dnd-kit activation like ZCode grouped tasks. Mira forwards pointer drops to its own task-grid placement API, retains chronological sort choices separately from dragged scope order, and commits the live preview without a second drop overlay animation.
 
 2026-10-14：对话分屏拖入遮罩参考 `packages/ui/src/v4/WorkbenchPane.tsx` 的 `DROP_PREVIEW_STYLE`，采用 14% 品牌色透明底、34% 内描边、6px 圆角与 4px 边距，移除中央文字；浮动任务行参考 `workspace-grouped-tasks/task-row.tsx` 保留行内图标与标题，Mira 通过 Portal 移出侧栏裁剪层，沿用自身分屏布局、跨项目任务控制器与已有分屏成员去重规则。原 Apache LICENSE/NOTICE 保持。
+
+2026-10-15：关于弹窗改编 ZCode `packages/desktop/src/main/aboutWindow.ts` 与 `about.ts` 的 256×312 独立模态窗口、排版、主题和关闭交互；使用 Mira 图标、实际版本及既有作者信息。帮助与系统菜单共用宿主入口，Cmd+I 保留原设置页跳转；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-15：项目文件树预览参考 ZCode `WorkspaceSidebar.tsx` 的 `onOpenPreview`：预览携带所属 workspace 而不切换当前任务。Mira 使用持久化项目 ID 和宿主复核目录，复用现有文本、图片、媒体及文档预览；跨项目同名文件独立标签，新任务无需创建会话，不把其他项目文件加入当前对话。
+
+2026-10-15：文件树类型图标参考 `workspace-file-tree/WorkspaceFileTreeRowView.tsx` 与 `lib/fileDisplayHelpers.ts`，保留特殊文件名优先、多段配置名逐级回退及扩展名匹配。Mira 使用本地静态 SVG、16px 图标与文档回退，保留自身目录图标、Git 标记及虚拟行交互；Material Icon Theme 图标的独立 MIT 许可与新增素材清单见 `../material-icon-theme/`。
+
+2026-10-15：分屏对话焦点交互参考 `v4/WorkbenchPane.tsx` 的指针/键盘焦点切换和 `INACTIVE_PANE_OVERLAY_STYLE`（34% 背景混合、brightness/saturate 0.94），保持覆盖层不拦截点击；分隔线参考 `WorkbenchSplitDivider.tsx` 的独立拖拽标记，Mira 按需求仅在拖拽时显示线条，标题跟随激活对话。
+
+2026-10-15：共享任务标题栏参考 `app-shell/WorkspaceShellLayout.tsx` 放在分屏内容区之外，拖拽预览、布局和未激活覆盖层仅作用于对话正文；焦点同步参考 `v4/V4WorkspaceChatArea.tsx` 的 `syncShellActiveSession`。Mira 复用已挂载对话的控制器和输入框引用，任务菜单、重命名、终端及资源面板随激活任务切换，分屏布局仍由原任务持有。
+
+2026-10-15：回复链接参考 `components/ai-elements/message.tsx` 的本地文件链接在 Streamdown harden 前解析、独立文件/网页打开回调，以及 `lib/markdownFileLink.ts` 的路径、file URI 与行号处理。Mira 在流式和完成态共用点击捕获，取消普通、修饰键与中键的原生导航；文件交给授权工作目录预览，网页交给所属任务的浏览器面板，保留原 Markdown 安全过滤和宿主路径校验。
+
+2026-10-15：文件树 HTML／HTM 条件菜单参考 `packages/ui/src/workspace-file-tree/WorkspaceFileTreeRowView.tsx` 与 `helpers.ts`（上游 `aac4755666d09fdcd70272fcf063c077a639015f`），沿现有 Radix 菜单补“用内置浏览器打开”和系统文件管理器显示；非当前项目／任务同样可选外部编辑器。Mira 使用自有授权工作目录、独立 loopback HTTP origin、受控浏览器标签与文件来源恢复，不移植上游 file URL／RPC／远程工作区协议，原 Apache LICENSE／NOTICE 保持。
+
+2026-10-15：对话摘要 Git 工具参考 v4/ConversationStatusPanel.tsx 的 GitSection、v4/conversationStatusPanelModel.ts 的工作树变更显示条件、GitActionMenu.tsx 的暂存选择／消息生成／提交推送、GitGraphDialog.tsx 的分页和刷新。miraGitGraphLayout.ts 改编上游 git-graph/layoutAlgorithm.ts，仅替换提交类型导入。Mira 使用自身授权 IPC、项目任务互斥、仓库快照及模型配置；保留无暗色遮罩和悬浮阴影，仓库审阅与提交使用相同根目录，不移植上游 RPC，Apache LICENSE/NOTICE 保持。
+
+2026-10-15：文件交付展示参考 `AssistantPreviewCards.tsx`、`lib/assistantFileReferences.ts`、`v4/ConversationFileSummaryPanel.tsx` 与 `OpenSplitButton.tsx`。Mira 使用自身文件类型图标、Radix 菜单、授权工作区文件校验及现有恢复预览；回复展开列表按文件合并，行数来自宿主保存的本轮首末快照，旧数据缺少快照时不累计中间编辑行数。任务操作历史默认折叠，不移植上游 RPC、远端工作区协议或品牌，Apache LICENSE/NOTICE 保持。

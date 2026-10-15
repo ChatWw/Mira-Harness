@@ -2,6 +2,7 @@
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { MiraBottomTerminal } from '../apps/harness-react/src/components/workspace/MiraBottomTerminal'
 import type { PilotController } from '../apps/harness-react/src/state/pilot-state'
 
@@ -15,6 +16,30 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+
+it.each([false, true])('keeps one conversation frame with the terminal open: %s', async open => {
+  const style = document.createElement('style')
+  // happy-dom cannot expand custom properties inside border shorthands.
+  style.textContent = ['layout', 'workspace'].map(name => readFileSync(`apps/harness-react/src/styles/${name}.css`, 'utf8')).join('\n').replaceAll('var(--color-border)', '#ddd')
+  document.head.append(style)
+  try {
+    await act(async () => root.render(<div className="mira-thread-panel">
+      <header className="harness-thread-header">任务</header>
+      <MiraBottomTerminal controller={{} as PilotController} sessionId="a" retainedSessionIds={['a']} open={open} active onClose={() => {}} onFocus={() => {}} onOpenAddress={() => {}}>
+        <main className="mira-thread-panel mira-thread-terminal-frame">对话</main>
+      </MiraBottomTerminal>
+    </div>))
+    const css = (selector: string) => getComputedStyle(container.querySelector(selector)!)
+    expect(css('.mira-thread-panel').borderTopWidth).toBe('1px')
+    expect(css('.harness-thread-header').borderBottomWidth).toBe('1px')
+    for (const selector of ['.mira-primary-thread', 'main']) {
+      const panel = css(selector)
+      expect(parseFloat(panel.borderTopWidth) || 0).toBe(0)
+      expect(parseFloat(panel.borderRadius) || 0).toBe(0)
+    }
+    if (open) expect(css('.mira-bottom-terminal').borderTopWidth).toBe('1px')
+  } finally { style.remove() }
+})
 
 it('releases the real panel layout when hidden and keeps the same terminal on reopening', async () => {
   function Fixture() {

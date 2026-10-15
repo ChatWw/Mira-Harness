@@ -1,6 +1,7 @@
+import type { MiraGitSnapshot, MiraGitDiff, MiraGitFile, MiraGitAction, MiraGitActionResult, MiraGitGraph, MiraGitCommit } from '../../src/config/miraGit'
 import { execFile, type ExecException } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
+import { lstat, realpath, readFile, readlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path'
 import type { HarnessGitContext } from '../../src/config/harness'
 
@@ -84,7 +85,7 @@ async function runGit(root: Root, args: string[], input?: Buffer, beforeSpawn?: 
         resolve({ stdout, stderr, code: error ? Number(error.code) : 0 })
       }
       const child = execFile('git', ['--no-optional-locks', ...(args[0] === 'status' ? ['--literal-pathspecs'] : []), '-c', 'core.fsmonitor=false', ...(disableHooks ? ['-c', 'core.hooksPath=/dev/null'] : []), '-C', root.path, ...args], {
-        encoding: 'buffer', env: gitEnvironment(), timeout: 10_000, maxBuffer: MAX_OUTPUT_BYTES, killSignal: 'SIGKILL', windowsHide: true,
+        encoding: 'buffer', env: gitEnvironment(), timeout: args[0] === 'push' ? 120_000 : 10_000, maxBuffer: MAX_OUTPUT_BYTES, killSignal: 'SIGKILL', windowsHide: true,
       }, (error, stdout, stderr) => { completed = { error, stdout, stderr }; finish() })
       // execFile may report failure before stdio closes; retain the slot until the process is drained.
       child.once('close', () => { closed = true; finish() })
@@ -333,4 +334,134 @@ function safeGitFailure(error: unknown) {
   return new Error(['Git 未安装或不可用', 'Git 输出超过 8 MiB 限制，请缩小工作目录', 'Git 状态读取超时，请重试', 'Git 状态读取繁忙，请稍后重试',
     'Git 元数据不能使用符号链接', '工作目录已变化，请重新打开文件工作区。', '工作目录不是文件夹', '路径无效', '路径不能离开工作目录'].includes(message)
     ? message : 'Git 状态读取失败，请重试')
+}
+
+// Git tools follow ZCode's worktree review and staged-only commit workflow.
+async function toolsCommand(repository: BranchRepository, args: string[], assertCurrent: () => void, mutation = false) {
+  const result = await branchCommand(repository, args, assertCurrent, mutation)
+  if (result.code !== 0) throw new Error('Git 操作失败，请检查工作区、Git 身份或远程连接后重试')
+  return result.stdout
+}
+
+async function toolsSnapshot(repository: BranchRepository, assertCurrent: () => void): Promise<Omit<MiraGitSnapshot, 'projectId' | 'mutationBlocked'>> {
+  // Review and commit share the same repository scope, also for subdirectory projects.
+  const repo = { ...repository, root: repository.repository, prefix: '' }
+  const head = await branchHead(repo, assertCurrent)
+  const status = await toolsCommand(repo, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], assertCurrent)
+  const records = status.toString('utf8').split('\0'); records.pop()
+  const files: MiraGitFile[] = []
+  const untracked: string[] = []
+  for (let i = 0; i < records.length; i++) {
+    const xy = records[i].slice(0, 2), path = records[i].slice(3)
+    if (!relativeGitPath(repo, path)) throw new Error('Git 文件路径无效')
+    files.push({ path, staged: xy !== '??' && xy[0] !== ' ', unstaged: xy === '??' || xy[1] !== ' ', conflict: xy.includes('U') || xy === 'AA' || xy === 'DD' })
+    if (xy === '??') untracked.push(path)
+    if (/[RC]/.test(xy)) i++
+  }
+  const diffArgs = ['--diff-filter=ACDMRTXB', '--no-ext-diff', '--no-textconv', '--no-renames', '--binary']
+  const staged = await toolsCommand(repo, ['diff', '--cached', ...diffArgs], assertCurrent)
+  const unstaged = await toolsCommand(repo, ['diff', ...diffArgs], assertCurrent)
+  async function fileDiffs(patch: Buffer, cached: boolean): Promise<MiraGitDiff[]> {
+    const names = (await toolsCommand(repo, ['diff', ...(cached ? ['--cached'] : []), '--name-only', '-z', '--diff-filter=ACDMRTXB', '--no-ext-diff', '--no-textconv', '--no-renames'], assertCurrent)).toString('utf8').split('\0').filter(Boolean)
+    const chunks = patch.toString('utf8').split(/(?=^diff --(?:git|cc|combined) )/m).filter(Boolean)
+    if (chunks.length !== names.length) throw new Error('Git 工作区或分支已变化，请刷新后重试')
+    return chunks.map((patch, i) => ({ path: names[i], patch, added: patch.split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++')).length, removed: patch.split('\n').filter(line => line.startsWith('-') && !line.startsWith('---')).length, binary: patch.includes('\nGIT binary patch\n') || patch.includes('\nBinary files ') }))
+  }
+  const stagedFiles = await fileDiffs(staged, true), unstagedFiles = await fileDiffs(unstaged, false)
+  for (const file of files.filter(file => file.conflict)) unstagedFiles.push({ path: file.path, patch: '合并冲突：请在文件中解决冲突后再提交。', added: 0, removed: 0, binary: false })
+  const base = head.commit || (await toolsCommand(repo, ['hash-object', '-t', 'tree', '--stdin'], assertCurrent)).toString('utf8').trim()
+  const totals = await toolsCommand(repo, ['diff', '--numstat', '-z', '--no-ext-diff', '--no-textconv', '--no-renames', base], assertCurrent)
+  let added = 0, removed = 0
+  for (const record of totals.toString('utf8').split('\0')) { const [a, r] = record.split('\t'); added += Number(a) || 0; removed += Number(r) || 0 }
+  const digest = createHash('sha256').update(gitSnapshotToken(repository.root, repository, head)).update(status).update(staged).update(unstaged)
+  let untrackedPatch = ''
+  for (const file of untracked) {
+    const path = join(repo.root.path, file), stat = await lstat(path)
+    if (stat.size > MAX_OUTPUT_BYTES) throw new Error('Git 输出超过 8 MiB 限制，请缩小工作目录')
+    // Never follow an untracked symlink outside the repository.
+    const content = stat.isSymbolicLink() ? Buffer.from(await readlink(path)) : stat.isFile() ? await readFile(path) : Buffer.alloc(0)
+    digest.update(file).update(String(stat.mode)).update(content)
+    const binary = content.includes(0)
+    added += binary || !content.length ? 0 : content.toString('utf8').split('\n').length - (content[content.length - 1] === 10 ? 1 : 0)
+    const patch = '\ndiff --git ' + JSON.stringify('a/' + file) + ' ' + JSON.stringify('b/' + file) + '\nnew file\n' + (binary ? 'Binary file' : content.toString('utf8').split('\n').map(line => '+' + line).join('\n')) + '\n'
+    untrackedPatch += patch
+    unstagedFiles.push({ path: file, patch, added: binary || !content.length ? 0 : content.toString('utf8').split('\n').length - (content[content.length - 1] === 10 ? 1 : 0), removed: 0, binary })
+    if (Buffer.byteLength(untrackedPatch) + staged.length + unstaged.length > MAX_OUTPUT_BYTES) throw new Error('Git 输出超过 8 MiB 限制，请缩小工作目录')
+  }
+  let upstream: string | undefined, ahead = 0, behind = 0
+  const tracking = await branchCommand(repo, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], assertCurrent)
+  if (tracking.code === 0) {
+    upstream = tracking.stdout.toString('utf8').trim()
+    const counts = await toolsCommand(repo, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}'], assertCurrent)
+    ;[ahead, behind] = counts.toString('utf8').trim().split(/\s+/).map(Number)
+  }
+  const remotes = (await toolsCommand(repo, ['remote'], assertCurrent)).toString('utf8').trim().split('\n').filter(Boolean)
+  await verifyRepository(repository); assertCurrent()
+  if (JSON.stringify(head) !== JSON.stringify(await branchHead(repo, assertCurrent))) throw new Error(STALE_GIT_CONTEXT)
+  return { directory: repository.root.original, repository: repo.root.path, branch: head.branchName, head: head.commit,
+    token: digest.update(JSON.stringify([upstream, ahead, behind, remotes])).digest('hex'), files, stagedFiles, unstagedFiles, added, removed, stagedPatch: staged.toString('utf8'), unstagedPatch: unstaged.toString('utf8') + untrackedPatch,
+    upstream, ahead, behind, canPush: head.headType === 'branch' && Boolean(upstream ? ahead > 0 : remotes.includes('origin') || remotes.length === 1) }
+}
+
+export async function readMiraGitTools(directory: string, assertCurrent = () => {}, onRepository?: (directory: string) => void) {
+  const repository = await branchRepository(await rootIdentity(directory), assertCurrent)
+  if (!repository) throw new Error('项目不是 Git 仓库')
+  onRepository?.(repository.repository.path)
+  return toolsSnapshot(repository, assertCurrent)
+}
+
+export async function runMiraGitAction(directory: string, action: MiraGitAction, token: string, message: string, includeUnstaged: boolean, assertCurrent = () => {}, beforeMutation?: (directory: string) => void): Promise<MiraGitActionResult> {
+  const repository = await branchRepository(await rootIdentity(directory), assertCurrent)
+  if (!repository) throw new Error('项目不是 Git 仓库')
+  beforeMutation?.(repository.repository.path)
+  const snapshot = await toolsSnapshot(repository, assertCurrent)
+  if (token !== snapshot.token) throw new Error(STALE_GIT_CONTEXT)
+  const repo = { ...repository, root: repository.repository, prefix: '' }
+  let committed = false
+  try {
+    if (action !== 'push') {
+      if (snapshot.files.some(file => file.conflict)) throw new Error('请先解决合并冲突')
+      const selected = snapshot.files.filter(file => file.staged || includeUnstaged && file.unstaged)
+      if (!selected.length) throw new Error('没有可提交的更改')
+      const commitMessage = message.trim()
+      if (!commitMessage) throw new Error('请填写或生成提交消息')
+      if (includeUnstaged) await toolsCommand(repo, ['add', '--all', '--', '.'], assertCurrent, true)
+      await toolsCommand(repo, ['commit', '-m', commitMessage], assertCurrent, true)
+      committed = true
+    }
+    if (action !== 'commit') {
+      const context = await toolsSnapshot(repository, assertCurrent)
+      if (!context.branch || !context.head) throw new Error('请先创建提交并切换到本地分支')
+      if (context.upstream) {
+        const remote = (await toolsCommand(repo, ['config', '--get', 'branch.' + context.branch + '.remote'], assertCurrent)).toString('utf8').trim()
+        const target = (await toolsCommand(repo, ['config', '--get', 'branch.' + context.branch + '.merge'], assertCurrent)).toString('utf8').trim()
+        if (!remote || remote.startsWith('-') || !target.startsWith('refs/heads/') || target.includes('\n')) throw new Error('远程跟踪分支无效')
+        await toolsCommand(repo, ['push', remote, 'HEAD:' + target], assertCurrent, true)
+      }
+      else {
+        const remotes = (await toolsCommand(repo, ['remote'], assertCurrent)).toString('utf8').trim().split('\n').filter(Boolean)
+        const remote = remotes.includes('origin') ? 'origin' : remotes.length === 1 ? remotes[0] : undefined
+        if (!remote || remote.startsWith('-')) throw new Error('请先配置唯一远程仓库或 origin')
+        await toolsCommand(repo, ['push', '--set-upstream', remote, 'HEAD:refs/heads/' + context.branch], assertCurrent, true)
+      }
+      return { committed, pushed: true }
+    }
+    return { committed, pushed: false }
+  } catch (error) {
+    // Preserve partial success so a push retry cannot accidentally create another commit.
+    return { committed, pushed: false, error: error instanceof Error ? error.message : 'Git 操作失败' }
+  }
+}
+
+export async function readMiraGitGraph(directory: string, skip = 0, assertCurrent = () => {}): Promise<MiraGitGraph> {
+  const repository = await branchRepository(await rootIdentity(directory), assertCurrent)
+  if (!repository) throw new Error('项目不是 Git 仓库')
+  const refs = await toolsCommand(repository, ['for-each-ref', '--format=%(refname)'], assertCurrent)
+  const head = await branchHead(repository, assertCurrent)
+  if (!refs.length && !head.commit) return { commits: [], hasMore: false }
+  const output = await toolsCommand(repository, ['log', '--all', ...(head.commit ? ['HEAD'] : []), '--topo-order', '--date=iso-strict', '--format=%H%x00%P%x00%s%x00%an%x00%aI%x00%D%x00', '--skip=' + skip, '--max-count=51'], assertCurrent)
+  const values = output.toString('utf8').split('\0'), commits: MiraGitCommit[] = []
+  for (let i = 0; i + 5 < values.length; i += 6) commits.push({ hash: values[i].trim(), parents: values[i + 1].split(' ').filter(Boolean), subject: values[i + 2], author: values[i + 3], date: values[i + 4], refs: values[i + 5] })
+  await verifyRepository(repository); assertCurrent()
+  return { commits: commits.slice(0, 50), hasMore: commits.length > 50 }
 }

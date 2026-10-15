@@ -7,8 +7,9 @@
 import { useEffect, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import * as Dialog from '@radix-ui/react-dialog'
+import { MiraGitGraphDialog } from './MiraGitGraphDialog'
 import { Command } from 'cmdk'
-import { Check, ChevronDown, CircleAlert, GitBranch, LoaderCircle, Plus, RotateCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, CircleAlert, GitBranch, GitGraph, LoaderCircle, Plus, RotateCw, Search, X } from 'lucide-react'
 import type { HarnessGitContext, HarnessProject } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
 
@@ -17,14 +18,16 @@ export interface MiraBranchPickerProps {
   project?: HarnessProject
   active?: boolean
   blocked?: boolean
-  placement: 'composer' | 'summary'
+  placement: 'composer' | 'summary' | 'dialog'
   onReturnFocus?: () => void
+  onChanged?: () => void
 }
 
-export function MiraBranchPicker({ controller, project, active = true, blocked = false, placement, onReturnFocus }: MiraBranchPickerProps) {
+export function MiraBranchPicker({ controller, project, active = true, blocked = false, placement, onReturnFocus, onChanged }: MiraBranchPickerProps) {
   const identity = JSON.stringify([project?.id, project?.directory])
   const available = Boolean(controller.supportsGitActions && project?.directoryExists && project.isGitRepository)
   const [open, setOpen] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [snapshot, setSnapshot] = useState<HarnessGitContext>()
@@ -46,7 +49,7 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
   useEffect(() => {
     returnFocus.current = false
     ownerRevision.current++; queryRevision.current++; reading.current = false; writing.current = false
-    setOpen(false); setCreating(false); setName(''); setSnapshot(undefined); setLoading(false); setMutating(false); setError(''); setSelected('')
+    setOpen(false); setCreating(false); setGraphOpen(false); setName(''); setSnapshot(undefined); setLoading(false); setMutating(false); setError(''); setSelected('')
     return () => { ownerRevision.current++; queryRevision.current++ }
   }, [controller, identity, active, available])
   useEffect(() => {
@@ -78,7 +81,7 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
     try {
       const next = create ? await controller.createGitBranch(project.id, branch.trim(), snapshot.snapshotToken) : await controller.checkoutGitBranch(project.id, branch, snapshot.snapshotToken)
       if (ownerRevision.current !== request) return
-      setSnapshot(next); setOpen(false); setCreating(false); setName('')
+      setSnapshot(next); onChanged?.(); setOpen(false); setCreating(false); setGraphOpen(false); setName('')
     } catch (cause) {
       if (ownerRevision.current !== request) return
       setError(cause instanceof Error ? cause.message : '分支操作失败，请重试')
@@ -111,7 +114,7 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
   return <div className={`mira-branch-picker mira-branch-picker--${placement}`}>
     <Popover.Root open={active && open} onOpenChange={next => { if (writing.current) return; if (next) returnFocus.current = true; setOpen(next); if (next) void readContext() }}>
       <Popover.Trigger asChild><button ref={triggerRef} type="button" className="mira-branch-trigger" aria-label="选择 Git 分支" title={label} disabled={!active || mutating}><GitBranch size={16} /><span>{label}</span>{loading || mutating ? <LoaderCircle size={14} className="animate-spin" /> : <ChevronDown size={14} />}</button></Popover.Trigger>
-      <Popover.Portal container={portal}><Popover.Content className="mira-branch-popover" side={placement === 'composer' ? 'top' : 'left'} align="start" sideOffset={6} onOpenAutoFocus={event => { event.preventDefault(); searchRef.current?.focus() }} onCloseAutoFocus={event => { event.preventDefault(); if (creating || !latest.current.active || !returnFocus.current) return; if (onReturnFocus) onReturnFocus(); else triggerRef.current?.focus() }} onEscapeKeyDown={event => { if (mutating) event.preventDefault() }} onInteractOutside={event => { if (mutating) event.preventDefault(); else returnFocus.current = false }}>
+      <Popover.Portal container={portal}><Popover.Content className={placement === 'dialog' ? 'mira-branch-popover mira-branch-popover--dialog' : 'mira-branch-popover'} side={placement === 'composer' ? 'top' : placement === 'dialog' ? 'bottom' : 'left'} align="start" sideOffset={6} onOpenAutoFocus={event => { event.preventDefault(); searchRef.current?.focus() }} onCloseAutoFocus={event => { event.preventDefault(); if (creating || graphOpen || !latest.current.active || !returnFocus.current) return; if (onReturnFocus) onReturnFocus(); else triggerRef.current?.focus() }} onEscapeKeyDown={event => { if (mutating) event.preventDefault() }} onInteractOutside={event => { if (mutating) event.preventDefault(); else returnFocus.current = false }}>
         <Command label="搜索 Git 分支" loop value={selected} onValueChange={setSelected} filter={(value, search) => value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) ? 1 : 0} onKeyDown={event => {
           if (event.defaultPrevented || event.nativeEvent.isComposing || event.keyCode === 229) return
           if (event.key !== 'Tab' || event.shiftKey) return
@@ -128,8 +131,10 @@ export function MiraBranchPicker({ controller, project, active = true, blocked =
           </Command.List>
         </Command>
         <div className="mira-branch-footer"><button type="button" disabled={writeDisabled} onClick={() => { setOpen(false); setCreating(true); setError(''); setName('') }}><Plus size={16} />创建并切换分支</button><button type="button" aria-label="刷新本地分支" disabled={loading || mutating} onClick={() => void readContext()}><RotateCw size={15} /></button></div>
+        {controller.supportsGitTools && <div className="mira-branch-footer"><button type="button" onClick={() => { setOpen(false); setGraphOpen(true) }}><GitGraph size={16} />Git 图谱</button></div>}
       </Popover.Content></Popover.Portal>
     </Popover.Root>
+    {project && <MiraGitGraphDialog controller={controller} projectId={project.id} open={active && graphOpen} onOpenChange={setGraphOpen} />}
     <Dialog.Root open={active && creating} onOpenChange={next => { if (writing.current) return; setCreating(next); if (!next) { setName(''); setError('') } }}><Dialog.Portal container={portal}>
       <Dialog.Overlay className="mira-composer-confirm-overlay" />
       <Dialog.Content className="mira-branch-dialog" onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && ['n', 'k'].includes(event.key.toLowerCase())) { event.preventDefault(); event.stopPropagation() } }} onCloseAutoFocus={event => { event.preventDefault(); if (latest.current.active) triggerRef.current?.focus() }} onEscapeKeyDown={event => { if (mutating) event.preventDefault() }} onInteractOutside={event => { if (mutating) event.preventDefault() }}>

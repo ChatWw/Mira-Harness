@@ -42,6 +42,14 @@
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { min-height: 32px; min-width: 32px; border: 3px solid transparent; border-radius: 9999px; background: var(--color-border); background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
+/* Dialog portals mounted under body share the same light/dark elevation. */
+:root {
+  --shadow-dialog: 0 16px 48px rgb(0 0 0 / 22%), 0 4px 12px rgb(0 0 0 / 10%);
+}
+:root.dark {
+  --shadow-dialog: 0 16px 48px rgb(0 0 0 / 50%), 0 4px 12px rgb(0 0 0 / 24%);
+}
+
 #root {
   --accent: var(--mira-brand);
   --accent-strong: var(--mira-brand);
@@ -71,8 +79,8 @@
   --shadow-soft: 0 4px 16px color-mix(in oklab, black 30%, transparent);
 }
 /* Frozen message and draft attachment previews share the same desktop dialog. */
-.mira-attachment-preview__overlay { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / 60%); }
-.mira-attachment-preview { position: fixed; inset: 10% 8%; z-index: 101; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 12px; color: var(--color-foreground); background: var(--color-card); }
+.mira-attachment-preview__overlay { position: fixed; inset: 0; z-index: 100; background: transparent; }
+.mira-attachment-preview { position: fixed; inset: 10% 8%; z-index: 101; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 12px; color: var(--color-foreground); background: var(--color-card); box-shadow: var(--shadow-dialog); }
 .mira-attachment-preview--binary { inset: auto; top: 50%; left: 50%; width: min(1024px, calc(100% - 32px)); height: min(760px, calc(100% - 32px)); transform: translate(-50%, -50%); }
 .mira-attachment-preview__header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
 .mira-attachment-preview__header h2 { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; }
@@ -84,7 +92,7 @@
 .mira-attachment-preview__body--binary > video { max-width: 100%; max-height: 100%; }
 .mira-attachment-preview__body--binary > .mira-pdf-reader { width: 100%; height: 100%; }
 .mira-attachment-preview__body pre { align-self: stretch; width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
-.mira-attachment-preview--gallery { inset: 16px; padding: 40px; border-radius: 0; background: transparent; pointer-events: auto; -webkit-app-region: no-drag; }
+.mira-attachment-preview--gallery { inset: 16px; padding: 40px; border-radius: 0; background: transparent; box-shadow: none; pointer-events: auto; -webkit-app-region: no-drag; }
 .mira-attachment-preview--gallery .mira-attachment-preview__body { position: relative; padding: 0; overflow: hidden; cursor: grab; user-select: none; }
 .mira-attachment-preview--gallery .mira-attachment-preview__body:active { cursor: grabbing; }
 .mira-attachment-preview--gallery .mira-attachment-preview__body img { border-radius: 12px; background: var(--color-background); box-shadow: 0 16px 48px rgb(0 0 0 / 30%); }

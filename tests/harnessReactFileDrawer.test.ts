@@ -91,7 +91,8 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
   const searchFilesFor = vi.fn(async () => ({ entries: options.searchEntries ?? [entries[TARGET_INDEX]], truncated: false }))
   const listProjectFiles = vi.fn(async (_projectId: string, path: string) => ({ entries: options.directories?.[path] ?? (path ? [] : fileEntries) }))
   const searchProjectFiles = vi.fn(async () => ({ entries: options.searchEntries ?? [entries[TARGET_INDEX]], truncated: false }))
-  const controller = { listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles, supportsWorkspaceGit: options.supportsSessionGit ?? Boolean(git), supportsProjectWorkspaceGit: Boolean(git), getWorkspaceGitFor: git?.read, getWorkspaceIgnoredFor: git?.ignored, getProjectWorkspaceGit: git?.read, getProjectWorkspaceIgnored: git?.ignored } as unknown as PilotController
+  const revealWorkspaceFile = vi.fn(async () => undefined)
+  const controller = { revealWorkspaceFile, listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles, supportsWorkspaceGit: options.supportsSessionGit ?? Boolean(git), supportsProjectWorkspaceGit: Boolean(git), getWorkspaceGitFor: git?.read, getWorkspaceIgnoredFor: git?.ignored, getProjectWorkspaceGit: git?.read, getProjectWorkspaceIgnored: git?.ignored } as unknown as PilotController
   const scroll = { scrollTop: 0, clientHeight: 112, focus: vi.fn() }
   const input = { focus: vi.fn() }
   const rowElements = new Map<string, { focus: ReturnType<typeof vi.fn> }>()
@@ -102,6 +103,7 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
   const onOpenFile = vi.fn((path: string) => {
     if (path !== selectedPath) { selectedPath = path; hooks.dirty = true }
   })
+  const onOpenBrowser = vi.fn(async (_path: string, _isCurrent: () => boolean) => undefined)
   const onAddFile = vi.fn()
   const onOpenEditor = vi.fn(async (_path: string, _editorId: string) => undefined)
   const onOpenDirectory = vi.fn()
@@ -115,7 +117,7 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
   }
   const render = () => {
     hooks.cursor = 0; hooks.dirty = false
-    tree = ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile: options.detached ? undefined : onOpenFile, onAddFile: options.detached ? undefined : onAddFile, onBack: vi.fn(), onOpenDirectory, workspaceWatch, onWatchDirectoriesChange, editors: options.editors, onOpenEditor: options.detached ? undefined : onOpenEditor })
+    tree = ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile: options.detached ? undefined : onOpenFile, onOpenBrowser, onAddFile: options.detached ? undefined : onAddFile, onBack: vi.fn(), onOpenDirectory, workspaceWatch, onWatchDirectoriesChange, editors: options.editors, onOpenEditor: options.detached ? undefined : onOpenEditor })
     visit(tree, props => {
       if (props.role === 'tree') (props.ref as React.RefObject<unknown>).current = scroll
       else if (props['aria-label'] === '搜索文件') (props.ref as React.RefObject<unknown>).current = input
@@ -176,7 +178,7 @@ function mount(workspaceWatch?: WorkspaceWatchDataSource, fileEntries = entries,
     await drain()
   }
   render()
-  return { drain, search, open, clear, scroll, props, allProps, rowProps, changeContext, render, onOpenFile, onAddFile, onOpenEditor, onOpenDirectory, onWatchDirectoriesChange, onExpandedPathsChange, getExpandedPaths: () => expandedPaths, listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles }
+  return { onOpenBrowser, revealWorkspaceFile, drain, search, open, clear, scroll, props, allProps, rowProps, changeContext, render, onOpenFile, onAddFile, onOpenEditor, onOpenDirectory, onWatchDirectoriesChange, onExpandedPathsChange, getExpandedPaths: () => expandedPaths, listFilesFor, searchFilesFor, listProjectFiles, searchProjectFiles }
 }
 
 beforeEach(() => {
@@ -195,7 +197,57 @@ afterEach(() => {
 })
 
 describe('React Harness project-scoped file drawer', () => {
+  it('uses bundled file-type icons for project rows while preserving the file-open callback', async () => {
+    const paths = ['example.py', 'example.java', 'slides.pptx', 'data.csv', '.gitignore', 'README.md', 'unknown.mira-unknown']
+    const view = mount(undefined, paths.map(path => ({ path, name: path, type: 'file' as const })), undefined, { projectId: 'project-a' })
+    await view.drain()
+    const iconSources = paths.map(path => {
+      const row = view.props(props => props['data-file-tree-path'] === path)
+      const icon = (row.children as React.ReactElement<Record<string, unknown>>[]).find(child => React.isValidElement(child) && child.type === 'img')!
+      expect(icon.props).toMatchObject({ width: 16, height: 16, alt: '', 'aria-hidden': 'true', draggable: false })
+      return icon.props.src
+    })
+    expect(new Set(iconSources).size).toBe(paths.length)
+    await view.open('example.py')
+    expect(view.onOpenFile).toHaveBeenCalledWith('example.py')
+  })
+
   const text = (label: string) => (props: Record<string, unknown>) => props.children === label || Array.isArray(props.children) && props.children.includes(label)
+
+  it.each([undefined, 'project-a'])('offers browser opening only for live HTML/HTM files and reveals the captured %s workspace', async projectId => {
+    const paths = ['index.html', 'INDEX.HTM', 'style.css', 'README.md', 'folder.html']
+    const read = vi.fn(async () => ({ available: true, entries: [{ path: 'gone.html', status: 'deleted' as const }] }))
+    const view = mount(undefined, paths.map(path => ({ path, name: path, type: path === 'folder.html' ? 'directory' : 'file' })), { read, ignored: vi.fn(async () => []) }, { projectId })
+    await view.drain()
+    expect(view.allProps(text('用内置浏览器打开'))).toHaveLength(2)
+    ;(view.rowProps('INDEX.HTM', text('用内置浏览器打开')).onSelect as () => void)()
+    expect(view.onOpenBrowser).toHaveBeenCalledWith('INDEX.HTM', expect.any(Function))
+    const guard = view.onOpenBrowser.mock.lastCall![1]
+    expect(guard()).toBe(true)
+    for (const path of ['index.html', 'folder.html']) (view.rowProps(path, text('在文件管理器中显示')).onSelect as () => void)()
+    await view.drain()
+    expect(view.revealWorkspaceFile.mock.calls).toEqual(['index.html', 'folder.html'].map(path => [projectId ? { projectId } : { sessionId: 'session' }, path]))
+    const deleted = view.rowProps('gone.html', text('在文件管理器中显示'))
+    expect(deleted.disabled).toBe(true); (deleted.onSelect as () => void)()
+    expect(view.revealWorkspaceFile).toHaveBeenCalledTimes(2)
+    await view.changeContext('new-session', '/another', 'project-b')
+    expect(guard()).toBe(false)
+    expect(view.onOpenFile).not.toHaveBeenCalled()
+  })
+
+  it('reports browser opening errors but ignores failures after switching the file workspace', async () => {
+    const view = mount(undefined, [{ path: 'index.html', name: 'index.html', type: 'file' }])
+    await view.drain()
+    view.onOpenBrowser.mockRejectedValueOnce(new Error('页面已移除'))
+    ;(view.rowProps('index.html', text('用内置浏览器打开')).onSelect as () => void)()
+    await view.drain(); expect(view.allProps(props => props.children === '页面已移除')).toHaveLength(1)
+    let reject!: (error: Error) => void
+    view.onOpenBrowser.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail }))
+    ;(view.rowProps('index.html', text('用内置浏览器打开')).onSelect as () => void)()
+    await view.changeContext('new-session', '/another')
+    reject(new Error('旧目录错误')); await view.drain()
+    expect(view.allProps(props => props.children === '旧目录错误')).toHaveLength(0)
+  })
 
   it('browses, searches, copies and opens the project directory without a session', async () => {
     const read = vi.fn(async () => ({ available: true, entries: [{ path: 'file.md', status: 'modified' as const }] }))

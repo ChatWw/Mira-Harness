@@ -17,6 +17,21 @@ function bridge() {
 }
 
 describe('workspace editor and watch bridge boundaries', () => {
+  it('allows project-scoped external editors without accepting two workspace owners', async () => {
+    const { request, invoke } = bridge()
+    await request('files.open-editor', { projectId: 'p', path: 'index.html', editorId: 'mira-vscode' })
+    expect(invoke).toHaveBeenLastCalledWith('grant', 'files.open-editor', { projectId: 'p', path: 'index.html', editorId: 'mira-vscode' })
+    await expect(request('files.open-editor', { projectId: 'p', sessionId: 's', path: 'index.html', editorId: 'mira-vscode' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  })
+  it.each(['files.browser-url', 'files.reveal'])('validates project and task paths for %s without accepting renderer roots', async method => {
+    const { request, invoke } = bridge()
+    for (const scope of [{ sessionId: 's' }, { projectId: 'p' }]) {
+      await request(method, { ...scope, path: '原型/index.HTML', root: '/private/secret' })
+      expect(invoke).toHaveBeenLastCalledWith('grant', method, { ...scope, path: '原型/index.HTML' })
+      for (const path of ['../secret.html', '/secret.html', 'file:///secret.html', 'x\\secret.html']) await expect(request(method, { ...scope, path })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+  })
+
   it('keeps media creation and release scoped to host identity, never renderer paths or URLs', async () => {
     const { request, invoke } = bridge()
     await request('files.media-open', { sessionId: 's', path: 'clips/sample.MP4', workspacePath: '/private/injected', mediaType: 'text/html' })
@@ -96,4 +111,17 @@ describe('workspace editor and watch bridge boundaries', () => {
     invoke.mockRejectedValue(new Error('无法用 /Users/private/token=unsafe 打开，请检查应用或选择其他打开方式'))
     await expect(request('files.open-editor', { sessionId: 's', path: '', editorId: 'mira-finder' })).rejects.toMatchObject({ code: 'WORKSPACE_FILE_FAILED', message: '编辑器打开失败，请检查应用或选择其他打开方式。' })
   })
+})
+
+
+it.each(['files.read', 'files.read-image', 'files.media-open'])('previews %s with one explicit project scope and no session', async method => {
+  const { request, invoke } = bridge()
+  await request(method, { projectId: 'project-a', path: 'file.md', workspacePath: '/injected' })
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('grant', method, { projectId: 'project-a', path: 'file.md' })
+  for (const scope of [{}, { projectId: '' }, { projectId: 'a', sessionId: 's' }]) {
+    await expect(request(method, { ...scope, path: 'file.md' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  }
+  for (const path of ['../secret', '/secret', 'C:/secret', 'file:///secret', 'bad\\path']) {
+    await expect(request(method, { projectId: 'a', path })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+  }
 })

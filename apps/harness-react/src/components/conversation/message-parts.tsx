@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type Ref } from 'react'
-import { AtSign, Check, CircleAlert, Copy, FileText, GitCompare, GitFork, LoaderCircle, Paperclip, Pencil, RotateCw, Slash, X } from 'lucide-react'
+import { AtSign, Check, CircleAlert, Copy, FileText, GitFork, LoaderCircle, Paperclip, Pencil, RotateCw, Slash, X } from 'lucide-react'
 import type { HarnessFileChange, HarnessFileReference, HarnessMessage } from '../../../../../src/config/harness'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
 import { isHarnessImageMediaType } from '../../../../../src/config/harness'
@@ -95,15 +95,7 @@ export function UserMessageAttachments({ message, onOpen, sessionId, controller,
 
 const CHANGE_LABELS: Record<HarnessFileChange['tool'], string> = { edit: '编辑', write: '写入', delete: '删除' }
 
-/** 消息内文件变更卡：点击打开工作区的变更标签。 */
-export function FileChangesCard({ changes, onOpen }: { changes: HarnessFileChange[]; onOpen: () => void }) {
-  const paths = [...new Set(changes.map(change => change.path.replace(/\\/g, '/')))]
-  return <button type="button" className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-background-alt px-2.5 py-1.5 text-ui-sm text-foreground-subtle hover:text-brand" onClick={onOpen}>
-    <GitCompare size={14} />
-    <span className="shrink-0 font-medium">本轮修改 {paths.length} 个文件</span>
-    <small className="truncate">{paths.map(path => path.split('/').pop()).filter(Boolean).slice(0, 3).join('、')}{paths.length > 3 ? ' 等' : ''}</small>
-  </button>
-}
+export { MiraReplyChanges as FileChangesCard } from './MiraReplyChanges'
 
 function formatTime(createdAt: number) {
   try { return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } catch { return '' }

@@ -4,9 +4,10 @@
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
-export type WorkspaceResourceId = 'overview' | 'files' | 'changes' | 'terminal' | 'browser' | 'side-chat'
+export type WorkspaceResourceId = 'overview' | 'files' | 'git' | 'changes' | 'terminal' | 'browser' | 'side-chat'
 export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
-export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
+export type WorkspaceHtmlSource = { path: string } & ({ projectId: string } | { sessionId: string })
+export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; projectId?: string; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; htmlSource?: WorkspaceHtmlSource; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
 export type WorkspaceSessionState = {
   tabs: WorkspaceTab[]
   activeTab: WorkspaceTabId
@@ -33,7 +34,7 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   if (id.startsWith('plan:')) return '方案'
   if (id.startsWith('command:')) return '命令输出'
   if (id.startsWith('command-output:')) return '完整输出.log'
-  return { overview: '调用轨迹', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '侧边栏对话' }[id as WorkspaceResourceId]
+  return { overview: '调用轨迹', git: 'Git 更改', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '侧边栏对话' }[id as WorkspaceResourceId]
 }
 
 export function isWorkspaceTerminalTab(id: string): boolean { return id === 'terminal' || id.startsWith('terminal:') }
@@ -57,9 +58,9 @@ export function isWorkspaceRelativePath(value: unknown): value is string {
     && !/[\\\0]/.test(value) && value.split('/').every(segment => segment.length > 0 && segment !== '.' && segment !== '..')
 }
 
-export function createWorkspaceFileTab(path: string): WorkspaceTab {
+export function createWorkspaceFileTab(path: string, projectId?: string): WorkspaceTab {
   if (!isWorkspaceRelativePath(path)) throw new Error('文件路径无效')
-  return { id: `file:${path}`, label: path.split('/').pop()!, path }
+  return { id: projectId ? `file:${JSON.stringify([projectId, path])}` : `file:${path}`, label: path.split('/').pop()!, path, ...(projectId ? { projectId } : {}) }
 }
 
 export function createWorkspaceRunTab(runId?: string): WorkspaceTab {
@@ -178,7 +179,7 @@ export function restoreWorkspaceTab(state: WorkspaceSessionState, id: WorkspaceT
   if (!tab) return state
   if (tab.taskSessionId) return placeWorkspaceTask(state, tab, '$primary', 'right')
   if (isWorkspaceBrowserTab(tab.id)) {
-    const reopened = { ...createWorkspaceBrowserTab(tab.url || (tab.id === 'browser' ? state.browserUrl : '')), label: tab.label, ...(tab.faviconUrl === undefined ? {} : { faviconUrl: tab.faviconUrl }) }
+    const reopened = { ...createWorkspaceBrowserTab(tab.url || (tab.id === 'browser' ? state.browserUrl : '')), label: tab.label, ...(tab.htmlSource ? { htmlSource: tab.htmlSource } : {}), ...(tab.faviconUrl === undefined ? {} : { faviconUrl: tab.faviconUrl }) }
     return openWorkspaceTab({ ...state, recentClosedTabs: state.recentClosedTabs.filter(item => item.id !== id) }, reopened)
   }
   return openWorkspaceTab(state, tab)
@@ -200,7 +201,7 @@ export function labelWorkspaceTab(state: WorkspaceSessionState, id: WorkspaceTab
 
 export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceSessionState> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  const validIds = new Set<WorkspaceTabId>(['overview', 'changes', 'terminal', 'browser'])
+  const validIds = new Set<WorkspaceTabId>(['overview', 'git', 'changes', 'terminal', 'browser'])
   return Object.fromEntries(Object.entries(value).flatMap(([sessionId, raw]) => {
     if (!sessionId || !raw || typeof raw !== 'object' || Array.isArray(raw)) return []
     const data = raw as Partial<WorkspaceSessionState>
@@ -209,9 +210,15 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
       if (Array.isArray(value)) for (const tab of value) {
         if (!tab || typeof tab !== 'object' || typeof tab.id !== 'string' || typeof tab.label !== 'string' || tabs.some(item => item.id === tab.id)) continue
         if (tab.id.startsWith('file:')) {
-          if (isWorkspaceRelativePath(tab.path) && tab.id === `file:${tab.path}`) tabs.push({ id: tab.id, label: tab.label, path: tab.path })
+          if (!isWorkspaceRelativePath(tab.path)) continue
+          if (tab.projectId !== undefined && (typeof tab.projectId !== 'string' || !tab.projectId || tab.projectId.length > 256)) continue
+          const file = createWorkspaceFileTab(tab.path, tab.projectId)
+          if (tab.id === file.id) tabs.push({ ...file, label: tab.label })
         } else if (tab.id.startsWith('browser:')) {
-          if (/^browser:[\w-]{1,128}$/.test(tab.id)) tabs.push({ id: tab.id, label: tab.label, url: typeof tab.url === 'string' && /^https?:\/\//i.test(tab.url) ? tab.url : '', ...(tab.faviconUrl === undefined ? {} : { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null }) })
+          const source = tab.htmlSource
+          const scope = source && typeof source === 'object' && (typeof source.projectId === 'string' && source.projectId.length > 0 && source.projectId.length <= 256 ? { projectId: source.projectId } : typeof source.sessionId === 'string' && source.sessionId.length > 0 && source.sessionId.length <= 256 ? { sessionId: source.sessionId } : undefined)
+          const htmlSource = scope && isWorkspaceRelativePath(source.path) && /\.(html|htm)$/i.test(source.path) ? { ...scope, path: source.path } : undefined
+          if (/^browser:[\w-]{1,128}$/.test(tab.id)) tabs.push({ id: tab.id, label: tab.label, url: typeof tab.url === 'string' && /^https?:\/\//i.test(tab.url) ? tab.url : '', ...(htmlSource ? { htmlSource } : {}), ...(tab.faviconUrl === undefined ? {} : { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null }) })
         } else if (tab.id.startsWith('terminal:')) {
           if (/^terminal:[\w-]{1,128}$/.test(tab.id)) tabs.push({ id: tab.id, label: tab.label })
         } else if (tab.id.startsWith('side-chat:')) {
@@ -230,7 +237,7 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
           if (typeof tab.runId === 'string' && tab.runId.length > 0 && tab.runId.length <= 512 && !/[\u0000-\u001f]/.test(tab.runId) && typeof tab.commandToolId === 'string' && tab.commandToolId.length > 0 && tab.commandToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.commandToolId) && tab.id === createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label).id) tabs.push(createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label))
         } else if (tab.id.startsWith('subtask:')) {
           if (typeof tab.runId === 'string' && tab.runId && typeof tab.subtaskId === 'string' && tab.subtaskId && tab.id === createWorkspaceSubtaskTab(tab.runId, tab.subtaskId, tab.label).id) tabs.push({ id: tab.id, label: tab.label, runId: tab.runId, subtaskId: tab.subtaskId })
-        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'browser' && tab.faviconUrl !== undefined ? { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })
+        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'git' && typeof tab.projectId === 'string' ? { projectId: tab.projectId } : {}), ...(tab.id === 'browser' && tab.faviconUrl !== undefined ? { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })
         const accepted = tabs[tabs.length - 1]
         if (accepted?.id === tab.id) for (const field of ['openedAt', 'closedAt'] as const) {
           if (Number.isSafeInteger(tab[field]) && tab[field] > 0 && tab[field] <= 8_640_000_000_000_000) accepted[field] = tab[field]

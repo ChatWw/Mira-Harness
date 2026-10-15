@@ -1,3 +1,4 @@
+import type { MiraGitSnapshot, MiraGitAction, MiraGitGraph, MiraGitActionResult } from '../../../../src/config/miraGit'
 import type { HarnessEvent, HarnessFileReference, HarnessHistoryPage, HarnessHistoryQuery, HarnessPermissionRequest, HarnessProject, HarnessSession, HarnessSessionOrderScope, HarnessSessionSummary, HarnessUserAnswer, HarnessWorkspaceFileEntry, HarnessWorkspaceFileSearchResult, HarnessWorkspaceGitSnapshot, HarnessWorkspaceImagePreview, ModelProviderSummary, ModelSelection, PermissionMode } from '../../../../src/config/harness'
 import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
 import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../../../src/config/miraFileRewind'
@@ -152,6 +153,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   selectProject = () => this.call<HarnessProject | null>('projects.select')
   getTheme = () => this.theme
   onThemeChange = (listener: () => void) => { this.themeListeners.add(listener); return () => { this.themeListeners.delete(listener) } }
+  showAbout = () => this.request<void>('about.show')
   openResourceManager = () => this.request<void>('resources.open')
   toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
@@ -225,10 +227,16 @@ export class FirstPartyHarnessHost implements PilotHost {
   watchFiles = (sessionId: string, paths: string[]) => this.call<{ watchId: string }>('files.watch', { sessionId, paths })
   unwatchFiles = (sessionId: string, watchId: string) => this.call<void>('files.unwatch', { sessionId, watchId })
   listEditors = (refresh = false) => this.call<Array<{ id: string; name: string; icon?: string }>>('editors.list', { refresh })
+  getWorkspaceHtmlUrl = (scope: { projectId: string } | { sessionId: string }, path: string) => this.call<string>('files.browser-url', { ...scope, path })
+  revealWorkspaceFile = (scope: { projectId: string } | { sessionId: string }, path: string) => this.call<void>('files.reveal', { ...scope, path })
+  openProjectFileInEditor = (projectId: string, path: string, editorId: string) => this.call<void>('files.open-editor', { projectId, path, editorId })
   openFileInEditor = (sessionId: string, path: string, editorId: string) => this.call<void>('files.open-editor', { sessionId, path, editorId })
   readFile = (sessionId: string, path: string) => this.call<{ path: string; content: string }>('files.read', { sessionId, path })
   readImage = (sessionId: string, path: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { sessionId, path })
   openMedia = (sessionId: string, path: string) => this.call<MiraMediaPreview>('files.media-open', { sessionId, path })
+  readProjectFile = (projectId: string, path: string) => this.call<{ path: string; content: string }>('files.read', { projectId, path })
+  readProjectImage = (projectId: string, path: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { projectId, path })
+  openProjectMedia = (projectId: string, path: string) => this.call<MiraMediaPreview>('files.media-open', { projectId, path })
   closeMedia = (id: string) => this.call<void>('files.media-close', { id })
   openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
@@ -272,6 +280,10 @@ export class FirstPartyHarnessHost implements PilotHost {
   reconnectMcp = (id: string) => this.call<import('../../../../src/config/miraMcp').MiraMcpConnection>('mcp.reconnect', { id })
   selectFiles = (sessionId: string) => this.call<HarnessFileReference[]>('files.select', { sessionId })
   listGitBranches = (projectId: string) => this.call<unknown>('git.branches', { projectId })
+  generateGitMessage = (projectId: string, token: string, includeUnstaged: boolean, selection: ModelSelection) => this.call<string>('git.generate-message', { projectId, token, includeUnstaged, selection })
+  getGitTools = (projectId: string) => this.call<MiraGitSnapshot>('git.tools', { projectId })
+  getGitGraph = (projectId: string, skip: number) => this.call<MiraGitGraph>('git.graph', { projectId, skip })
+  gitAction = (projectId: string, action: MiraGitAction, token: string, message: string, includeUnstaged: boolean) => this.call<MiraGitActionResult>('git.action', { projectId, action, token, message, includeUnstaged })
   getGitContext = (projectId: string) => this.call<HarnessGitContext>('git.context', { projectId })
   checkoutGitBranch = (projectId: string, branch: string, snapshotToken: string) => this.call<HarnessGitContext>('git.checkout', { projectId, branch, snapshotToken })
   createGitBranch = (projectId: string, branch: string, snapshotToken: string) => this.call<HarnessGitContext>('git.create-branch', { projectId, branch, snapshotToken })

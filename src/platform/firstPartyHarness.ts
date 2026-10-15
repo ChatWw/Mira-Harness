@@ -321,7 +321,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'files.open-editor': {
       const editorId = string(params.editorId, '打开方式', 128)
       if (!/^mira-[a-z-]+$/.test(editorId)) throw new Error('打开方式无效')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path, true), editorId } as const
+      return { method, ...workspaceScope(params), path: workspacePath(params.path, true), editorId } as const
     }
     case 'files.search':
       return { method, ...workspaceScope(params), query: workspaceSearchQuery(params.query), refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
@@ -347,15 +347,20 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('媒体 ID 无效')
       return { method, id } as const
     }
+    case 'files.browser-url':
+    case 'files.reveal':
     case 'files.media-open':
     case 'files.read-image': {
       const path = workspacePath(params.path)
       if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), path } as const
+      return { method, ...workspaceScope(params), path } as const
     }
     case 'files.list': return { method, ...workspaceScope(params), path: workspacePath(params.path, true) } as const
-    case 'files.read':
-      return { method, sessionId: string(params.sessionId, '会话 ID'), path: workspacePath(params.path) } as const
+    case 'files.read': {
+      const path = workspacePath(params.path)
+      if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')
+      return { method, ...workspaceScope(params), path } as const
+    }
     case 'browser.navigate': return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), url: browserUrl(params.url), bounds: browserBounds(params.bounds), ...(params.visible === undefined ? {} : { visible: boolean(params.visible, '浏览器可见状态') }) } as const
     case 'browser.bounds': return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), bounds: browserBounds(params.bounds) } as const
     case 'browser.protection': {
@@ -440,6 +445,26 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'projects.rename': return { method, id: string(params.id, '项目 ID'), name: string(params.name, '项目名称', 120) } as const
     case 'projects.remove': return { method, id: string(params.id, '项目 ID') } as const
     case 'projects.open': return { method, projectId: string(params.projectId, '项目 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const
+    case 'git.generate-message': {
+      const token = string(params.token, 'Git 快照', 64)
+      if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('Git 快照无效')
+      return { method, projectId: string(params.projectId, '项目 ID'), token, selection: selection(params.selection), includeUnstaged: boolean(params.includeUnstaged, '未暂存更改开关') } as const
+    }
+    case 'git.tools': return { method, projectId: string(params.projectId, '项目 ID') } as const
+    case 'git.graph': {
+      const skip = params.skip ?? 0
+      if (!Number.isSafeInteger(skip) || Number(skip) < 0 || Number(skip) > 100000) throw new Error('Git 分页无效')
+      return { method, projectId: string(params.projectId, '项目 ID'), skip: Number(skip) } as const
+    }
+    case 'git.action': {
+      const action = params.action
+      if (action !== 'commit' && action !== 'commit-and-push' && action !== 'push') throw new Error('Git 操作无效')
+      const token = string(params.token, 'Git 快照', 64)
+      if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('Git 快照无效')
+      const message = params.message
+      if (typeof message !== 'string' || message.length > 10000 || message.includes('\\0')) throw new Error('提交消息无效')
+      return { method, projectId: string(params.projectId, '项目 ID'), action, token, message, includeUnstaged: boolean(params.includeUnstaged, '未暂存更改开关') } as const
+    }
     case 'git.context':
     case 'git.branches': return { method, projectId: string(params.projectId, '项目 ID') } as const
     case 'git.checkout':

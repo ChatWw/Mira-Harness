@@ -37,6 +37,8 @@ function fixture() {
       },
       finish: (id, status, text) => database.harness.updateTool(session.id, id, { status, ...(text ? { diff: publicHarnessText(text, secrets).text } : {}) }),
       readSnapshot: path => readMiraTaskFile(env, path),
+      beforeSnapshot: (id, path, before) => database.harness.beginFileCheckpoint(session.id, id, path, before),
+      afterSnapshot: (id, after) => database.harness.finishFileCheckpoint(session.id, id, after),
       snapshot: (id, path, before, after) => database.harness.recordTaskFileChange(session.id, id, { path, before, after }, secrets),
       target: params => params.path,
     })
@@ -335,4 +337,36 @@ describe('safe host snapshot boundaries', () => {
     for (const path of ['binary.dat', 'large.txt', 'directory', '../outside.txt', 'escape.txt']) expect(await readMiraTaskFile(f.env, path)).toBeUndefined()
     expect(buildMiraTaskFileChange('file', 'binary.dat', 'write', 1, undefined, 'result', [])).toEqual({ key: 'file', path: 'binary.dat', tool: 'write', writes: 1, unavailable: true })
   })
+})
+
+it('publishes per-turn final snapshots, separates later turns, redacts secrets and excludes intermediate edits', async () => {
+  const f = fixture()
+  await f.write('result.txt','first\ntemporary\n')
+  await f.write('result.txt','first\nfinal\n')
+  let records = f.database.harness.getSession(f.session.id).toolCalls
+  expect(records.at(-1)?.fileChangeSummary).toMatchObject({writes:2,added:2,removed:0})
+  expect(records.at(-1)?.fileChangeSummary?.diff).toContain('+final')
+  expect(records.at(-1)?.fileChangeSummary?.diff).not.toContain('temporary')
+  f.database.harness.addMessage(f.session.id,'user','Only change the second line')
+  await f.write('result.txt',`first\n${f.secrets[0]}\n`)
+  records = f.database.harness.getSession(f.session.id).toolCalls
+  expect(records.at(-1)?.fileChangeSummary).toMatchObject({writes:1,added:1,removed:1})
+  expect(records.at(-1)?.fileChangeSummary?.diff).not.toContain(f.secrets[0])
+  await f.write('result.txt','first\nfinal\n')
+  expect(f.database.harness.getSession(f.session.id).toolCalls.at(-1)?.fileChangeSummary).toMatchObject({unchanged:true,added:0,removed:0,writes:2})
+})
+
+it('carries the host net summary into the finalized reply without borrowing another run or inherited writes', async () => {
+  const f = fixture()
+  await f.write('result.md','# first\n')
+  await f.write('result.md','# final\n')
+  const operations=f.database.harness.getSession(f.session.id).toolCalls
+  for(const tool of operations) f.database.harness.updateTool(f.session.id,tool.id,{runId:'owned'})
+  f.database.harness.recordTool(f.session.id,{id:'foreign',tool:'write',target:'foreign.md',runId:'other',status:'ok',createdAt:1})
+  f.database.harness.recordTool(f.session.id,{id:'copied',tool:'write',target:'copied.md',runId:'owned',inherited:true,status:'ok',createdAt:1})
+  f.database.harness.finalizeAssistantMessage(f.session.id,{runId:'owned',messageId:'result',content:'Created result.md',run:{startedAt:0,completedAt:10,durationMs:10,activities:[]}})
+  const reply=f.database.harness.getSession(f.session.id).messages.at(-1)!
+  expect(reply.fileChanges).toHaveLength(2)
+  expect(reply.fileChanges?.at(-1)?.summary).toMatchObject({path:'result.md',added:1,removed:0,writes:2})
+  expect(reply.fileChanges?.at(-1)?.summary?.diff).toContain('+# final')
 })

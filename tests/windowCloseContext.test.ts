@@ -3,6 +3,9 @@ import { createMainWindow, handleWindowCommand, setupApplicationMenu } from '../
 import { miraTrafficLightPosition } from '../electron/bootstrap/miraDesktopZoom'
 import { windowApi } from '../electron/preload/windowApi'
 
+const about = vi.hoisted(() => vi.fn(async () => undefined))
+vi.mock('../electron/bootstrap/miraAbout', () => ({ showMiraAboutDialog: about }))
+
 const electron = vi.hoisted(() => ({ menu: [] as any[], focused: undefined as any, on: vi.fn(), off: vi.fn() }))
 vi.mock('electron', () => ({
   app: { isPackaged: true }, BrowserWindow: class {
@@ -131,4 +134,18 @@ it.each([['CmdOrCtrl+,', '/settings/general'], ['CmdOrCtrl+I', '/settings/about'
   expect(focused.webContents.send).not.toHaveBeenCalled()
   item.click(item, undefined)
   expect(focused.webContents.send).toHaveBeenCalledExactlyOnceWith('window:navigate', path)
+})
+
+
+it('shares the About dialog across native menu and command while retaining the separate settings shortcut', async () => {
+  setupApplicationMenu()
+  const item = electron.menu.flatMap(menu => menu.submenu || []).find(item => item.label === '关于 Mira')
+  expect(item.accelerator).toBeUndefined()
+  const owner = { webContents: { send: vi.fn() } }
+  electron.focused = owner
+  item.click(item, owner)
+  await handleWindowCommand({ sender: {} } as any, 'about')
+  expect(about).toHaveBeenCalledTimes(2)
+  expect(about).toHaveBeenLastCalledWith(owner)
+  expect(owner.webContents.send).not.toHaveBeenCalled()
 })

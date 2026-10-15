@@ -1,7 +1,10 @@
-import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement } from 'react'
+import { cloneElement, isValidElement, useContext, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement } from 'react'
 import MarkdownIt from 'markdown-it'
+import { MiraConversationContext } from './MiraConversationMessages'
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
+import { miraMessageLink } from '../../lib/mira-message-links'
 import { cjk } from '@streamdown/cjk'
-import { Streamdown, type Components } from 'streamdown'
+import { Streamdown, defaultRehypePlugins, type Components } from 'streamdown'
 import { RotateCw } from 'lucide-react'
 import type { HarnessSource } from '../../../../../src/config/harness'
 import { installHarnessCitations } from '../../../../../src/utils/harnessCitations'
@@ -12,6 +15,8 @@ import { MiraMarkdownCode } from './MiraStreamingCode'
 // 流式管线与 ZCode 相同：streamdown（CJK 断行 + shiki 代码高亮）。
 // 两种状态共用 Worker 高亮缓存；完成态继续保留引用角标与代码复制按钮。
 const staticMarkdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
+const validateMarkdownLink = staticMarkdown.validateLink.bind(staticMarkdown)
+staticMarkdown.validateLink = href => /^file:/i.test(href) ? Boolean(miraMessageLink(href)) : validateMarkdownLink(href)
 const blockKey = (language: string, code: string) => JSON.stringify([language, code])
 staticMarkdown.renderer.rules.fence = (tokens, index, _options, environment) => {
   const token = tokens[index]
@@ -22,15 +27,44 @@ staticMarkdown.renderer.rules.fence = (tokens, index, _options, environment) => 
   return `<div class="markdown-code-block"><button type="button" class="markdown-code-copy" data-code="${encodeURIComponent(token.content)}" aria-label="复制代码" title="复制代码"><svg class="markdown-code-copy__icon" aria-hidden="true" viewBox="0 0 1024 1024"><path fill="currentColor" d="M768 832a128 128 0 0 1-128 128H192A128 128 0 0 1 64 832V384a128 128 0 0 1 128-128v64a64 64 0 0 0-64 64v448a64 64 0 0 0 64 64h448a64 64 0 0 0 64-64z"/><path fill="currentColor" d="M384 128a64 64 0 0 0-64 64v448a64 64 0 0 0 64 64h448a64 64 0 0 0 64-64V192a64 64 0 0 0-64-64zm0-64h448a128 128 0 0 1 128 128v448a128 128 0 0 1-128 128H384a128 128 0 0 1-128-128V192A128 128 0 0 1 384 64"/></svg></button>${code}</div>\n`
 }
 installHarnessCitations(staticMarkdown)
+const defaultLinkOpen = staticMarkdown.renderer.rules.link_open ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options))
+staticMarkdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
+  const link = miraMessageLink(String(tokens[index].attrGet('href') || ''), typeof env?.directory === 'string' ? env.directory : undefined)
+  if (link?.kind !== 'file') return defaultLinkOpen(tokens, index, options, env, renderer)
+  tokens[index].attrJoin('class', 'mira-message-file-link')
+  return defaultLinkOpen(tokens, index, options, env, renderer) + `<img src="${staticMarkdown.utils.escapeHtml(miraFileTreeIcon(link.target))}" width="16" height="16" alt="" aria-hidden="true" />`
+}
+function MessageLink({ href, children }: { href?: string; children?: import('react').ReactNode }) {
+  const conversation = useContext(MiraConversationContext)
+  const link = miraMessageLink(href || '', conversation.session?.workingDirectory)
+  return <a href={href} className={link?.kind === 'file' ? 'mira-message-file-link' : undefined}>{link?.kind === 'file' && <img src={miraFileTreeIcon(link.target)} width={16} height={16} alt="" aria-hidden="true" />}{children}</a>
+}
 
+
+// ZCode rewrites local targets before Streamdown hardening, while keeping its sanitizers.
+function rewriteMessageFileLinks(options: { directory?: string }) {
+  type LinkNode = { tagName?: string; properties?: { href?: unknown }; children?: LinkNode[] }
+  return (tree: LinkNode) => {
+    const visit = (node: LinkNode) => {
+      const href = node.properties?.href
+      if (node.tagName === 'a' && typeof href === 'string') {
+        const link = miraMessageLink(href, options.directory)
+        if (link?.kind === 'file') node.properties!.href = /^[a-z]:/i.test(link.target) ? '/' + link.target : link.target
+      }
+      node.children?.forEach(visit)
+    }
+    visit(tree)
+  }
+}
 const streamdownPlugins = { cjk }
 const streamdownComponents: Components = {
   code: MiraMarkdownCode,
+  a: ({ href, children }) => <MessageLink href={href}>{children}</MessageLink>,
   // 保留 Streamdown 的块级标记，无语言代码围栏也不能被当成 inline code。
   pre: ({ children }) => isValidElement(children) ? cloneElement(children as ReactElement<{ 'data-block'?: string }>, { 'data-block': 'true' }) : <>{children}</>,
 }
 
-export const renderCompletedMarkdown = (content: string, sources?: HarnessSource[], highlights?: Map<string, MiraHighlightResult>) => staticMarkdown.render(content, { sources, highlights })
+export const renderCompletedMarkdown = (content: string, sources?: HarnessSource[], highlights?: Map<string, MiraHighlightResult>, directory?: string) => staticMarkdown.render(content, { sources, highlights, directory })
 export async function prepareMarkdownHighlights(content: string, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const fences = staticMarkdown.parse(content, {}).filter(token => token.type === 'fence')
@@ -53,21 +87,48 @@ export async function prepareMarkdownHighlights(content: string, signal?: AbortS
   return new Map(blocks)
 }
 
-export function MessageMarkdown({ content, sources, streaming }: { content: string; sources?: HarnessSource[]; streaming?: boolean }) {
-  if (streaming) {
-    return <div className="message-markdown size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-      <Streamdown mode="streaming" parseIncompleteMarkdown components={streamdownComponents} plugins={streamdownPlugins} shikiTheme={miraCodeThemes} animated={false} isAnimating={false}>{content}</Streamdown>
-    </div>
+export function MessageMarkdown({ content, sources, streaming, directory, onOpenLink }: { content: string; sources?: HarnessSource[]; streaming?: boolean; directory?: string; onOpenLink?: (url: string) => void }) {
+  const conversation = useContext(MiraConversationContext)
+  const linkDirectory = directory ?? conversation.session?.workingDirectory
+  const messageRehypePlugins = useMemo(() => [[rewriteMessageFileLinks, { directory: linkDirectory }] as [typeof rewriteMessageFileLinks, { directory?: string }], ...Object.values(defaultRehypePlugins)], [linkDirectory])
+  const handleLink = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : event.target instanceof Node ? event.target.parentElement : null
+    const anchor = target?.closest('a[href]')
+    if (!anchor || !event.currentTarget.contains(anchor)) return
+    // Cancel synchronously, including modifier/middle clicks, before any renderer handler.
+    event.preventDefault(); event.stopPropagation()
+    if (event.type === 'auxclick' && event.button !== 1) return
+    const link = miraMessageLink(anchor.getAttribute('href') || '', directory ?? conversation.session?.workingDirectory)
+    if (!link) return
+    try {
+      if (link.kind === 'anchor') {
+        const id = decodeURIComponent(link.target.slice(1))
+        const destination = [...event.currentTarget.querySelectorAll('[id]')].find(element => element.id === id)
+        destination?.scrollIntoView?.({ block: 'nearest' })
+      } else if (link.kind === 'web') {
+        if (onOpenLink) onOpenLink(link.target)
+        else if (conversation.active) conversation.openLink?.(link.target)
+      } else if (conversation.active) {
+        const root = conversation.session?.workingDirectory?.replace(/\\/g, '/').replace(/\/$/, '')
+        const inside = root && (/^[a-z]:/i.test(root) ? link.target.toLowerCase().startsWith(root.toLowerCase() + '/') : link.target.startsWith(root + '/'))
+        if (!inside) { conversation.controller?.reportError('文件链接不在当前任务工作目录中'); return }
+        conversation.openFile(link.target.slice(root.length + 1))
+      }
+    } catch (error) { conversation.controller?.reportError(error) }
   }
-  return <StaticMarkdown content={content} sources={sources} />
+  return <div onClickCapture={handleLink} onAuxClickCapture={handleLink}>
+    {streaming ? <div className="message-markdown size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <Streamdown mode="streaming" parseIncompleteMarkdown components={streamdownComponents} rehypePlugins={messageRehypePlugins} urlTransform={href => miraMessageLink(href, directory ?? conversation.session?.workingDirectory) ? href : ''} plugins={streamdownPlugins} shikiTheme={miraCodeThemes} animated={false} isAnimating={false}>{content}</Streamdown>
+    </div> : <StaticMarkdown content={content} sources={sources} directory={linkDirectory} />}
+  </div>
 }
 
-function StaticMarkdown({ content, sources }: { content: string; sources?: HarnessSource[] }) {
+function StaticMarkdown({ content, sources, directory }: { content: string; sources?: HarnessSource[]; directory?: string }) {
   const [highlighted, setHighlighted] = useState<{ content: string; blocks: Map<string, MiraHighlightResult> }>()
   const [highlightFailure, setHighlightFailure] = useState<string>()
   const [retry, setRetry] = useState(0)
   const highlightVersion = useRef(0)
-  const html = useMemo(() => renderCompletedMarkdown(content, sources, highlighted?.content === content ? highlighted.blocks : undefined), [content, sources, highlighted])
+  const html = useMemo(() => renderCompletedMarkdown(content, sources, highlighted?.content === content ? highlighted.blocks : undefined, directory), [content, sources, highlighted, directory])
   useEffect(() => {
     const cancellation = new AbortController()
     const version = ++highlightVersion.current

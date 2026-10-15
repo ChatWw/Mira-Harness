@@ -3,6 +3,7 @@ import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraBrowserPanel, type MiraBrowserRequest } from '../apps/harness-react/src/components/workspace/MiraBrowserPanel'
+import type { WorkspaceHtmlSource } from '../apps/harness-react/src/state/workspace-state'
 import type { PilotController } from '../apps/harness-react/src/state/pilot-state'
 
 let root: Root, container: HTMLDivElement
@@ -13,9 +14,10 @@ beforeEach(() => {
 })
 afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: Error) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
-async function fixture(initial = '', preference?: Promise<unknown>) {
+async function fixture(initial = '', preference?: Promise<unknown>, htmlSource?: WorkspaceHtmlSource) {
   const listeners = new Set<(event: any) => void>()
   const controller = {
+    getWorkspaceHtmlUrl: vi.fn(async () => 'http://127.0.0.1:9876/index.html'),
     onBrowserEvent: vi.fn((callback: (event: any) => void) => { listeners.add(callback); return () => listeners.delete(callback) }),
     navigateBrowserFor: vi.fn(async (_sessionId: string, url: string, _bounds: unknown) => url),
     closeBrowserFor: vi.fn(async () => undefined), controlBrowserFor: vi.fn(async () => undefined), setBrowserBoundsFor: vi.fn(async () => undefined),
@@ -29,7 +31,7 @@ async function fixture(initial = '', preference?: Promise<unknown>) {
   function View() {
     const [url, setUrl] = useState(initial), [request, setRequest] = useState(props.request)
     // Externally requested navigation and browser-observed URL remain separate.
-    return <MiraBrowserPanel controller={controller as unknown as PilotController} {...props} initialUrl={url} request={props.request || request} onRequestHandled={value => { handled(value); props.request = undefined; setRequest(undefined) }} onUrlChange={value => { observed(value); setUrl(value) }} onSelectElement={selectElement} />
+    return <MiraBrowserPanel controller={controller as unknown as PilotController} {...props} initialUrl={url} htmlSource={htmlSource} request={props.request || request} onRequestHandled={value => { handled(value); props.request = undefined; setRequest(undefined) }} onUrlChange={value => { observed(value); setUrl(value) }} onSelectElement={selectElement} />
   }
   const render = async (patch: Partial<typeof props> = {}) => { props = { ...props, ...patch }; await act(async () => root.render(<View />)) }
   const request = async (url: string, sessionId = props.sessionId) => render({ request: { url, sessionId } })
@@ -40,6 +42,20 @@ async function fixture(initial = '', preference?: Promise<unknown>) {
 }
 
 describe('current-task browser explicit navigation', () => {
+  it('reauthorizes restored HTML by workspace identity instead of reusing a dead server URL', async () => {
+    const view = await fixture('http://127.0.0.1:1234/index.html', undefined, { projectId: 'p', path: 'index.html' })
+    expect(view.controller.getWorkspaceHtmlUrl).toHaveBeenCalledExactlyOnceWith({ projectId: 'p' }, 'index.html')
+    expect(view.controller.navigateBrowserFor).toHaveBeenCalledWith('a', 'http://127.0.0.1:9876/index.html', expect.any(Object), 'browser', true)
+    expect(view.address()).toBe('http://127.0.0.1:9876/index.html')
+    view.controller.getWorkspaceHtmlUrl.mockRejectedValueOnce(new Error('项目已移除'))
+    await view.render({ sessionId: 'b' })
+    expect(container.textContent).toContain('项目已移除')
+    expect(view.controller.navigateBrowserFor).toHaveBeenCalledTimes(1)
+    await act(async () => (container.querySelector('.pilot-browser__placeholder--error button') as HTMLButtonElement).click())
+    expect(view.controller.navigateBrowserFor).toHaveBeenCalledTimes(2)
+    expect(container.textContent).not.toContain('项目已移除')
+  })
+
   it('routes selected elements to the source Composer and cancels stale hidden/task results', async () => {
     const view = await fixture('https://mira.test/one')
     await view.event('a', 'https://mira.test/one', { ready: true })

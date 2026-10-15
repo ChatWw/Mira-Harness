@@ -16,6 +16,7 @@ import { MiraPaths } from '../electron/storage/miraPaths'
 import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { HarnessRuntime } from '../electron/services/harnessRuntime'
 import { miraPluginItems } from '../src/config/miraPlugins'
+import { MiraWorkspaceHtml } from '../electron/services/miraWorkspaceHtml'
 import { MiraWorkspaceMedia } from '../electron/services/miraWorkspaceMedia'
 
 const electron = vi.hoisted(() => ({
@@ -27,6 +28,7 @@ const electron = vi.hoisted(() => ({
   readClipboard: vi.fn(),
   openExternal: vi.fn(async () => undefined),
   openPath: vi.fn(async () => ''),
+  showItemInFolder: vi.fn(),
   guestFromId: vi.fn(),
   browserSession: { on: vi.fn() },
 }))
@@ -38,7 +40,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: electron.fromWebContents, getFocusedWindow: electron.getFocusedWindow },
   dialog: { showOpenDialog: electron.showOpenDialog },
   clipboard: { readText: electron.readClipboard },
-  shell: { openExternal: electron.openExternal, openPath: electron.openPath },
+  shell: { openExternal: electron.openExternal, openPath: electron.openPath, showItemInFolder: electron.showItemInFolder },
 }))
 
 import { registerPlatformIpcHandlers } from '../electron/ipc/platformIpc'
@@ -500,7 +502,7 @@ describe('platform IPC registration', () => {
     expect(database.harness.createSession).toHaveBeenCalledTimes(2)
   })
 
-  it('binds media previews to the host workspace and owner, and revokes URLs on navigation or grant removal', async () => {
+  it.each(['sessionId', 'projectId'])('binds media previews to the host workspace and owner using %s, and revokes URLs on navigation or grant removal', async scopeKey => {
     const root = await mkdtemp(join(tmpdir(), 'mira-media-ipc-')), workspaceMedia = new MiraWorkspaceMedia()
     const server = new LocalMicroAppServer({ mediaHandler: (path, request, response) => { void workspaceMedia.handle(path, request, response) } })
     try {
@@ -508,21 +510,21 @@ describe('platform IPC registration', () => {
       const { invoke, invokeAs, database, sender } = register({ harnessRuntime: {} as never, workspaceMedia, localMicroAppServer: server })
       database.harness.getProject.mockReturnValue({ id: 'project', directory: root })
       const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
-      const preview = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav', root: '/untrusted', url: 'https://untrusted.example', mediaType: 'text/html' }) as { id: string; url: string; mediaType: string }
+      const preview = await invoke('platform:first-party-harness', grant, 'files.media-open', { [scopeKey]: scopeKey === 'sessionId' ? 's' : 'project', path: 'sound.wav', root: '/untrusted', url: 'https://untrusted.example', mediaType: 'text/html' }) as { id: string; url: string; mediaType: string }
       expect(preview.mediaType).toBe('audio/wav'); expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(200)
       expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'files.media-close', { id: preview.id })).toThrow('授权无效')
       invokeAs(2, 'platform:revoke-first-party-grant', grant)
       expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(200)
       database.harness.getProject.mockReturnValueOnce({ id: 'project', directory: '/changed' })
       expect((await fetch(preview.url, { method: 'HEAD' })).status).toBe(403)
-      const next = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { id: string; url: string }
+      const next = await invoke('platform:first-party-harness', grant, 'files.media-open', { [scopeKey]: scopeKey === 'sessionId' ? 's' : 'project', path: 'sound.wav' }) as { id: string; url: string }
       invoke('platform:first-party-harness', grant, 'files.media-close', { id: next.id })
       expect((await fetch(next.url, { method: 'HEAD' })).status).toBe(404)
-      const revoked = await invoke('platform:first-party-harness', grant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { url: string }
+      const revoked = await invoke('platform:first-party-harness', grant, 'files.media-open', { [scopeKey]: scopeKey === 'sessionId' ? 's' : 'project', path: 'sound.wav' }) as { url: string }
       invoke('platform:revoke-first-party-grant', grant)
       expect((await fetch(revoked.url, { method: 'HEAD' })).status).toBe(404)
       const freshGrant = invoke('platform:create-first-party-grant', 'mira-harness') as string
-      const navigating = await invoke('platform:first-party-harness', freshGrant, 'files.media-open', { sessionId: 's', path: 'sound.wav' }) as { url: string }
+      const navigating = await invoke('platform:first-party-harness', freshGrant, 'files.media-open', { [scopeKey]: scopeKey === 'sessionId' ? 's' : 'project', path: 'sound.wav' }) as { url: string }
       sender.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
       expect((await fetch(navigating.url, { method: 'HEAD' })).status).toBe(404)
     } finally { workspaceMedia.closeAll(); await server.stop(); await rm(root, { recursive: true, force: true }) }
@@ -1018,6 +1020,31 @@ describe('platform IPC registration', () => {
     database.harness.getSession.mockImplementation(() => { throw new Error('会话不存在') })
     expect(() => invoke('platform:first-party-harness', grant, 'browser.viewport', params)).toThrow('会话不存在')
   })
+  it('opens scoped workspace HTML and reveals files while rechecking grants and project identity', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mira-html-ipc-')), previews = new MiraWorkspaceHtml()
+    try {
+      await writeFile(join(directory, 'index.html'), '<h1>HTML preview</h1>')
+      const { database, invoke, invokeAs, sender } = register({ workspaceHtml: previews, harnessRuntime: {} as HarnessRuntime })
+      database.harness.getSession.mockReturnValue({ id: 'a', workingDirectory: directory } as never)
+      database.harness.getProject.mockReturnValue({ id: 'p', directory } as never)
+      const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+      for (const scope of [{ sessionId: 'a' }, { projectId: 'p' }]) {
+        const params = { ...scope, path: 'index.html' }
+        const url = await invoke('platform:first-party-harness', grant, 'files.browser-url', params) as string
+        expect(await (await fetch(url)).text()).toContain('HTML preview')
+        await invoke('platform:first-party-harness', grant, 'files.reveal', params)
+        expect(electron.showItemInFolder).toHaveBeenLastCalledWith(await workspaceFiles.resolveHarnessWorkspacePath(directory, 'index.html').then(file => file.target))
+        expect(() => invokeAs(2, 'platform:first-party-harness', grant, 'files.browser-url', params)).toThrow('授权无效')
+        expect(() => invoke('platform:first-party-harness', grant, 'files.reveal', { ...scope, path: '../secret.html' })).toThrow()
+      }
+      const url = await invoke('platform:first-party-harness', grant, 'files.browser-url', { projectId: 'p', path: 'index.html' }) as string
+      database.harness.getProject.mockReturnValue({ id: 'p', directory: '/changed' } as never)
+      expect((await fetch(url)).status).toBe(403)
+      sender.emit('render-process-gone')
+      await expect(fetch(url)).rejects.toThrow()
+    } finally { previews.closeAll(); await rm(directory, { recursive: true, force: true }) }
+  })
+
   it('preserves browser resource identity through main-process validation and rejects unauthorized navigation', () => {
     const manifest: FirstPartyAppManifest = {
       appId: 'mira-harness', legacyIds: [], enabled: true,
@@ -1095,6 +1122,9 @@ describe('platform IPC registration', () => {
       const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
       await expect(registered.invoke('platform:first-party-harness', grant, 'files.list', { projectId: 'empty-project', path: '', root: '/private/injected' })).resolves.toMatchObject({ path: '', entries: [{ path: 'project.md' }] })
       await expect(registered.invoke('platform:first-party-harness', grant, 'files.search', { projectId: 'empty-project', query: 'project', root: '/private/injected' })).resolves.toMatchObject({ entries: [{ path: 'project.md' }] })
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.read', { projectId: 'empty-project', path: 'project.md', root: '/private/injected' })).resolves.toEqual({ path: 'project.md', content: 'project-only fixture' })
+      await writeFile(join(root, 'image.png'), Buffer.from('project image'))
+      await expect(registered.invoke('platform:first-party-harness', grant, 'files.read-image', { projectId: 'empty-project', path: 'image.png' })).resolves.toMatchObject({ path: 'image.png', dataBase64: Buffer.from('project image').toString('base64') })
       expect(registered.database.harness.getProject).toHaveBeenCalledWith('empty-project')
       expect(registered.database.harness.getSession).not.toHaveBeenCalled()
       expect(registered.database.harness.createSession).not.toHaveBeenCalled()
@@ -1105,9 +1135,9 @@ describe('platform IPC registration', () => {
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 
-  it.each(['files.list', 'files.search', 'files.git-status', 'files.git-ignored'])('%s checks project grants before reading and rejects all late invalidation cases', async method => {
-    const source = method === 'files.list' ? workspaceFiles : method === 'files.search' ? workspaceFiles : workspaceGit
-    const helper = method === 'files.list' ? 'listHarnessWorkspaceFiles' : method === 'files.search' ? 'searchHarnessWorkspaceFiles' : method === 'files.git-status' ? 'readHarnessWorkspaceGit' : 'readHarnessWorkspaceIgnored'
+  it.each(['files.list', 'files.search', 'files.git-status', 'files.git-ignored', 'files.read', 'files.read-image'])('%s checks project grants before reading and rejects all late invalidation cases', async method => {
+    const source = ['files.list', 'files.search', 'files.read', 'files.read-image'].includes(method) ? workspaceFiles : workspaceGit
+    const helper = method === 'files.read' ? 'readHarnessWorkspaceFile' : method === 'files.read-image' ? 'readHarnessWorkspaceImage' : method === 'files.list' ? 'listHarnessWorkspaceFiles' : method === 'files.search' ? 'searchHarnessWorkspaceFiles' : method === 'files.git-status' ? 'readHarnessWorkspaceGit' : 'readHarnessWorkspaceIgnored'
     let finish!: (value: unknown) => void
     const read = vi.spyOn(source as typeof workspaceFiles & typeof workspaceGit, helper).mockImplementation(() => new Promise(resolve => { finish = resolve }) as never)
     try {
@@ -1116,11 +1146,11 @@ describe('platform IPC registration', () => {
         registered.database.harness.getProject.mockReturnValue({ id: 'project', directory: '/mira-project' })
         const isDestroyed = vi.fn(() => false); Object.assign(registered.sender, { isDestroyed })
         const grant = registered.invoke('platform:create-first-party-grant', 'mira-harness')
-        const params = { projectId: 'project', path: '', query: 'notes', paths: ['build'], root: '/private/injected' }
+        const params = { projectId: 'project', path: method === 'files.read' || method === 'files.read-image' ? 'file.md' : '', query: 'notes', paths: ['build'], root: '/private/injected' }
         expect(() => registered.invokeAs(2, 'platform:first-party-harness', grant, method, params)).toThrow('授权无效')
         expect(() => registered.invokeFromSubframe('platform:first-party-harness', grant, method, params)).toThrow('宿主主页面')
         const request = registered.invoke('platform:first-party-harness', grant, method, params)
-        expect(read).toHaveBeenLastCalledWith('/mira-project', ...(method === 'files.list' ? [''] : method === 'files.search' ? ['notes', false, expect.any(Function)] : method === 'files.git-ignored' ? [['build']] : []))
+        expect(read).toHaveBeenLastCalledWith('/mira-project', ...(method === 'files.read' || method === 'files.read-image' ? ['file.md'] : method === 'files.list' ? [''] : method === 'files.search' ? ['notes', false, expect.any(Function)] : method === 'files.git-ignored' ? [['build']] : []))
         if (invalidation === 'revoked-grant') registered.invoke('platform:revoke-first-party-grant', grant)
         else if (invalidation === 'changed-project-directory') registered.database.harness.getProject.mockReturnValue({ id: 'project', directory: '/different-project' })
         else if (invalidation === 'deleted-project') registered.database.harness.getProject.mockImplementation(() => { throw new Error('未找到项目') })

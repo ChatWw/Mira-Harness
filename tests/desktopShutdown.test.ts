@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
 vi.mock('../electron/services/platformServices', () => ({ createPlatformServices: async () => ({
   database: { getSnapshot: () => ({ preferences: {} }), modelTrace: { flush: vi.fn(async () => {}) } },
   localMicroAppServer: { getApiBaseUrl: () => 'http://127.0.0.1:1/', stop: fixture.stop },
-  automationScheduler: { stop: vi.fn() }, workspaceMedia: { closeAll: vi.fn() },
+  automationScheduler: { stop: vi.fn() }, workspaceHtml: { closeAll: vi.fn() }, workspaceMedia: { closeAll: vi.fn() },
   harnessRuntime: { disposeCommandJobs: fixture.dispose }, miraFlowController: { dispose: vi.fn(async () => {}) },
   mcpManager: { closeAll: vi.fn(async () => {}) }, mcpAuthorization: { closeAll: vi.fn(async () => {}) },
 }) }))

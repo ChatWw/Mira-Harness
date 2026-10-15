@@ -37,9 +37,9 @@ it('counts current net changes while retaining restored files and their operatio
   const restored = { ...summary, added: 0, removed: 0, files: [{ ...summary.files[0]!, unchanged: true, added: 0, removed: 0, diff: undefined }] }
   const view = await mount(operations, restored)
   expect(view.container.querySelector('h2')?.textContent).toBe('本次任务变更 · 0 个文件')
-  expect(view.netButton().textContent).toContain('无净变化')
-  expect(view.container.querySelector('h3')?.textContent).toContain('2 次')
-  await view.click(view.netButton()); expect(view.container.textContent).toContain('没有可显示的净差异')
+  expect(view.netButton()).toBeNull()
+  expect(view.container.querySelector('details')?.open).toBe(false)
+  expect(view.container.querySelector('details summary')?.textContent).toBe('查看编辑历史')
 })
 
 describe('task-owned net changes through real React DOM', () => {
@@ -47,7 +47,8 @@ describe('task-owned net changes through real React DOM', () => {
     const view = await mount()
     expect(view.container.querySelector('h2')?.textContent).toBe('本次任务变更 · 1 个文件')
     expect(view.container.querySelector('[aria-label="任务净变化"]')?.textContent).toBe('+1 行-1 行')
-    expect(view.container.querySelector('h3')?.textContent).toBe('逐次操作记录 · 2 次')
+    expect(view.container.querySelector('details summary')?.textContent).toBe('查看编辑历史')
+    expect(view.container.querySelector('details')?.open).toBe(false)
     expect(view.netButton().querySelector('small')?.textContent).toBe('+1 -1')
     expect(view.operationButton().querySelector('small')?.textContent).toBe('+2 -1')
     expect(view.operationButton(1).querySelector('small')?.textContent).toBe('+1 -2')
@@ -60,7 +61,7 @@ describe('task-owned net changes through real React DOM', () => {
     let region = view.container.querySelector('[role="region"]')!
     expect(view.selected).toHaveBeenLastCalledWith('net-note')
     expect(region.getAttribute('aria-label')).toBe('note.md 的任务净变化')
-    expect(region.textContent).toContain('2 次操作')
+    expect(region.textContent).not.toContain('次操作')
     expect([...region.querySelectorAll('code')].map(line => line.textContent)).toEqual(['@@ -1 +1 @@', '-old', '+final'])
     expect(region.textContent).not.toContain('intermediate')
     await view.click(view.netButton())
@@ -82,7 +83,8 @@ describe('task-owned net changes through real React DOM', () => {
     expect(view.container.querySelector('h2')?.textContent).toBe('本次任务变更 · 1 个文件')
     expect(view.container.querySelector('[aria-label="任务净变化"]')).toBeNull()
     expect(view.container.querySelector('.mira-task-change-note')?.textContent).toContain('不汇总为任务净变化')
-    expect(view.container.querySelectorAll('button')).toHaveLength(2)
+    expect(view.container.querySelectorAll('button')).toHaveLength(3)
+    expect(view.container.querySelector('details')?.open).toBe(false)
   })
 
   it('marks unavailable snapshots explicitly and keeps their operation history reachable', async () => {
@@ -91,7 +93,7 @@ describe('task-owned net changes through real React DOM', () => {
     expect(view.container.querySelector('.mira-task-change-note')?.textContent).toContain('部分文件无法计算净变化')
     await view.click(view.netButton())
     const preview = view.container.querySelector('[role="region"]')!
-    expect(preview.textContent).toContain('未保存完整首末快照，可查看逐次操作记录')
+    expect(preview.textContent).toContain('无法显示完整差异，可展开编辑历史查看')
     expect(preview.textContent).not.toContain('undefined')
     expect(view.operationButton()).not.toBeNull()
   })
@@ -109,7 +111,7 @@ describe('task-owned net changes through real React DOM', () => {
     const view = await mount([], { files: [{ key: 'deleted-note', path: 'note.md', tool: 'delete', writes: 3, added: 0, removed: 12, diffTruncated: true }], added: 0, removed: 12, incomplete: false, estimated: false })
     await view.click(view.netButton())
     const region = view.container.querySelector('[role="region"]')!
-    expect(region.querySelector('strong')?.textContent).toBe('删除 · note.md · 3 次操作')
+    expect(region.querySelector('strong')?.textContent).toBe('删除 · note.md')
     expect(region.textContent).toContain('没有可显示的净差异')
     expect(region.textContent).toContain('差异预览已截断')
   })
@@ -117,7 +119,8 @@ describe('task-owned net changes through real React DOM', () => {
   it('retains verified zero net totals after a revert without erasing forensic history', async () => {
     const view = await mount(operations, { ...summary, files: [{ ...summary.files[0], added: 0, removed: 0, diff: undefined }], added: 0, removed: 0 })
     expect(view.container.querySelector('[aria-label="任务净变化"]')?.textContent).toBe('+0 行-0 行')
-    expect(view.container.querySelector('h3')?.textContent).toBe('逐次操作记录 · 2 次')
+    expect(view.container.querySelector('details summary')?.textContent).toBe('查看编辑历史')
+    expect(view.container.querySelector('details')?.open).toBe(false)
     await view.click(view.netButton())
     expect(view.container.querySelector('[role="region"]')?.textContent).toContain('没有可显示的净差异')
   })

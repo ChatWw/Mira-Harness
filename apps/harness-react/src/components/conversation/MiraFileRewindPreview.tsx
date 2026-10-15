@@ -6,7 +6,7 @@ import { FileClock, LoaderCircle, X } from 'lucide-react'
 import { MIRA_FILE_REWIND_REASONS, type MiraFileRewindPreview, type MiraFileRewindFile, type MiraHistoryEditBlocked, type MiraHistoryEditWorkspace } from '../../../../../src/config/miraFileRewind'
 import type { PilotController } from '../../state/pilot-state'
 
-export function MiraFileRewindPreviewButton({ controller, sessionId, messageId, disabled, onEdit }: { controller: PilotController; sessionId: string; messageId: string; disabled?: boolean; onEdit?: (workspace: MiraHistoryEditWorkspace) => Promise<boolean | MiraHistoryEditBlocked> }) {
+export function MiraFileRewindPreviewButton({ controller, sessionId, messageId, disabled, onEdit, label }: { controller: PilotController; sessionId: string; messageId: string; disabled?: boolean; label?: string; onEdit?: (workspace: MiraHistoryEditWorkspace) => Promise<boolean | MiraHistoryEditBlocked> }) {
   const [open, setOpen] = useState(false), [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState<MiraFileRewindPreview>(), [error, setError] = useState('')
   const [applying, setApplying] = useState(false), [notice, setNotice] = useState('')
@@ -50,7 +50,7 @@ export function MiraFileRewindPreviewButton({ controller, sessionId, messageId, 
     return values.length > 0 && <section className="mira-rewind-preview-section"><h3>{title} · {values.length}</h3><ul>{values.map((file, index) => <li key={`${file.path}:${index}`}><span title={file.path}>{file.path}</span><small>{unsafe && file.reason ? MIRA_FILE_REWIND_REASONS[file.reason] : file.action === 'delete' ? '移除本段新建文件' : '恢复修改前内容'}{file.operationCount > 0 && ` · ${file.operationCount} 次修改`}</small></li>)}</ul></section>
   }
   return <Dialog.Root open={open} onOpenChange={value => { if (!value) close() }}>
-    <Dialog.Trigger asChild><button type="button" className="mira-message-action" disabled={disabled} aria-label={onEdit ? '恢复文件并重跑' : '预览文件恢复'} title={onEdit ? '恢复从此消息开始的文件修改，再保存并重跑' : '预览从此消息开始的文件恢复'} onClick={() => void load()}><FileClock size={onEdit ? 16 : 14} /></button></Dialog.Trigger>
+    <Dialog.Trigger asChild><button type="button" className="mira-message-action" disabled={disabled} aria-label={label ?? (onEdit ? '恢复文件并重跑' : '预览文件恢复')} title={onEdit ? '恢复从此消息开始的文件修改，再保存并重跑' : '预览从此消息开始的文件恢复'} onClick={() => void load()}><FileClock size={onEdit ? 16 : 14} />{label && <span>{label}</span>}</button></Dialog.Trigger>
     <Dialog.Portal container={document.getElementById('root')}>
       <Dialog.Overlay className="mira-composer-confirm-overlay" />
       <Dialog.Content className="mira-model-error-dialog mira-rewind-preview-dialog" onEscapeKeyDown={event => { if (applyingRef.current) event.preventDefault() }} onPointerDownOutside={event => { if (applyingRef.current) event.preventDefault() }} onCloseAutoFocus={event => { if (!mounted.current || disabled || controller.getSnapshot().session?.id !== sessionId) event.preventDefault() }}>

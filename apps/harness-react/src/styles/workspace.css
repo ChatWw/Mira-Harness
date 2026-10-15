@@ -1,7 +1,7 @@
 /* Workspace side pane: tabs, task overview, files, changes, tools, terminal
    and the hosted browser. */
 .mira-terminal-layout { flex: 1; min-height: 0; }
-.mira-primary-thread { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-background); }
+.mira-primary-thread { display: flex; min-height: 0; flex-direction: column; overflow: hidden; background: var(--color-background); }
 .mira-bottom-terminal-panel { overflow: hidden; }
 #mira-bottom-terminal-panel[data-open='false'] { opacity: 0; pointer-events: none; }
 #mira-bottom-terminal-panel.mira-terminal-panel-motion { transition: flex-grow 200ms ease-out, opacity 200ms ease-out; }
@@ -191,7 +191,7 @@
 .pilot-terminal__input input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--term-fg); background: transparent; font: inherit; }
 .pilot-terminal__input input::placeholder { color: var(--term-placeholder); }
 .pilot-browser { display: flex; min-height: 0; height: 100%; flex-direction: column; background: var(--surface); color: var(--text); }
-.mira-browser-tab-icon { flex: 0 0 auto; object-fit: contain; }
+.mira-workspace-file-icon, .mira-browser-tab-icon { flex: 0 0 auto; object-fit: contain; }
 .pilot-browser__toolbar { display: flex; height: 48px; flex: 0 0 auto; align-items: center; gap: 8px; padding: 0 12px; background: var(--color-background); }
 .pilot-browser__toolbar button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; line-height: 1; }
 .pilot-browser__toolbar button:hover:not(:disabled), .pilot-browser__toolbar button[data-state='open'] { color: var(--text); background: var(--hover); }

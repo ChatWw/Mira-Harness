@@ -2,10 +2,11 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: captured-session reads, existing Shiki renderer and virtual source rows.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { AudioLines, Check, ChevronRight, Copy, Ellipsis, ExternalLink, FileCode2, FileText, Image as ImageIcon, LoaderCircle, MessageSquarePlus, RotateCw, Video, WrapText, X } from 'lucide-react'
+import { Check, ChevronRight, Copy, Ellipsis, ExternalLink, FileCode2, FileText, Image as ImageIcon, LoaderCircle, MessageSquarePlus, RotateCw, WrapText, X } from 'lucide-react'
 import type { TokensResult } from 'shiki/core'
 import type { PilotController } from '../../state/pilot-state'
 import { renderMiraHighlightedCode } from '../../lib/code-highlighter'
@@ -17,7 +18,6 @@ import { MiraImagePreview } from './MiraImagePreview'
 import { MiraMediaPreview } from './MiraMediaPreview'
 import { MiraDocumentPreview } from './MiraDocumentPreview'
 import { MiraOfficePreview } from './MiraOfficePreview'
-import { miraMediaFormat } from '../../../../../src/config/miraMedia'
 import { MessageMarkdown } from '../conversation/markdown'
 import { getEmptyWorkspaceWatch, subscribeWithoutWorkspaceWatch, workspaceFileParent, type WorkspaceWatchDataSource } from '../../lib/workspace-watch'
 import type { WorkspaceEditorInfo } from '../../lib/workspace-editors'
@@ -27,6 +27,7 @@ import type { MiraPresentationNavigation } from '../../lib/mira-presentation-ref
 type FilePreviewPanelProps = {
   controller: PilotController
   sessionId: string
+  projectId?: string
   path: string
   directory?: string
   active: boolean
@@ -40,7 +41,12 @@ type FilePreviewPanelProps = {
   presentationNavigation?: MiraPresentationNavigation
 }
 
-export function FilePreviewPanel({ controller, sessionId, path, directory, active, onAddFile, commandOutput, workspaceWatch, selectedEditor, onOpenEditor, onOpenLink, onAddPresentation, presentationNavigation }: FilePreviewPanelProps) {
+export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projectId, path, directory, active, onAddFile, commandOutput, workspaceWatch, selectedEditor, onOpenEditor, onOpenLink, onAddPresentation, presentationNavigation }: FilePreviewPanelProps) {
+  const sessionId = projectId ? JSON.stringify(['project', projectId]) : ownerSessionId
+  const mediaController = useMemo(() => projectId ? {
+    openMediaFor: (_id: string, file: string) => controller.openProjectMedia(projectId, file),
+    closeMedia: (id: string) => controller.closeMedia(id),
+  } : controller, [controller, projectId])
   const key = filePreviewKey({ sessionId, path, directory })
   const [snapshot, setSnapshot] = useState<FilePreviewSnapshot>()
   const [refresh, setRefresh] = useState(0)
@@ -57,7 +63,6 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
   const language = commandOutput ? 'text' : filePreviewLanguage(path)
   const kind = commandOutput ? 'text' : filePreviewKind(path)
   const binary = kind === 'media' || kind === 'pdf' || kind === 'office'
-  const MediaIcon = miraMediaFormat(path)?.kind === 'video' ? Video : AudioLines
   const current = snapshot && filePreviewKey(snapshot) === key ? snapshot : undefined
   const ready = current?.status === 'ready'
   const content = ready ? current.content : ''
@@ -70,10 +75,10 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
   const absolutePath = commandOutput ? undefined : filePreviewAbsolutePath(directory, path)
 
   const reader = useMemo(() => binary ? undefined : kind === 'bitmap'
-    ? createFileImagePreviewReader((id, file) => controller.readImageFor(id, file), { sessionId, path, directory }, setSnapshot)
+    ? createFileImagePreviewReader((id, file) => projectId ? controller.readProjectImage(projectId, file) : controller.readImageFor(id, file), { sessionId, path, directory }, setSnapshot)
     : createFilePreviewReader(commandOutput
       ? async (id, file) => ({ path: file, content: await controller.readCommandOutputFor(id, commandOutput.runId, commandOutput.toolId) })
-      : (id, file) => controller.readFileFor(id, file), { sessionId, path, directory }, setSnapshot), [controller, sessionId, path, directory, kind, binary, commandOutput?.runId, commandOutput?.toolId])
+      : (id, file) => projectId ? controller.readProjectFile(projectId, file) : controller.readFileFor(id, file), { sessionId, path, directory }, setSnapshot), [controller, projectId, sessionId, path, directory, kind, binary, commandOutput?.runId, commandOutput?.toolId])
   useEffect(() => {
     // Directory notifications also include unrelated files and watch registration.
     // Media stays attached until explicit refresh; changed-byte range reads fail safely.
@@ -128,7 +133,7 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
   return <section className="mira-file-preview" aria-label={commandOutput ? '完整命令输出' : `文件预览 ${path}`} onClickCapture={copyMarkdownBlock}>
     <header className="mira-file-preview__toolbar">
       <div className="mira-file-preview__breadcrumb" title={commandOutput ? '完整输出.log' : absolutePath || path} aria-label={commandOutput ? '完整输出.log' : path}>
-        {breadcrumbs.map((segment, index) => <span key={index}>{index > 0 && <ChevronRight size={13} aria-hidden="true" />}{index === breadcrumbs.length - 1 && (kind === 'text' ? <FileCode2 size={14} aria-hidden="true" /> : kind === 'pdf' || kind === 'office' ? <FileText size={14} aria-hidden="true" /> : kind === 'media' ? <MediaIcon size={14} aria-hidden="true" /> : <ImageIcon size={14} aria-hidden="true" />)}<span className={index === breadcrumbs.length - 1 ? 'is-current' : undefined}>{segment}</span></span>)}
+        {breadcrumbs.map((segment, index) => <span key={index}>{index > 0 && <ChevronRight size={13} aria-hidden="true" />}{index === breadcrumbs.length - 1 && (commandOutput ? <FileText size={14} aria-hidden="true" /> : <img className="mira-workspace-file-icon" src={miraFileTreeIcon(path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />)}<span className={index === breadcrumbs.length - 1 ? 'is-current' : undefined}>{segment}</span></span>)}
       </div>
       <div className="mira-file-preview__actions">
         <button type="button" title="刷新文件" aria-label="刷新文件" disabled={!active || current?.status === 'loading'} onClick={() => setRefresh(value => value + 1)}><RotateCw size={14} /></button>
@@ -148,11 +153,11 @@ export function FilePreviewPanel({ controller, sessionId, path, directory, activ
     </header>
     {watch.error && <div className="mira-file-drawer__error" role="alert"><span>{watch.error}</span><button type="button" title="重试文件自动刷新" aria-label="重试文件自动刷新" onClick={workspaceWatch?.retry}><RotateCw size={14} /></button></div>}
     <div className="mira-file-preview__body">
-      {kind === 'office' ? <MiraOfficePreview key={key} controller={controller} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} onOpenLink={onOpenLink} onAddPresentation={onAddPresentation} presentationNavigation={presentationNavigation} /> : kind === 'pdf' ? <MiraDocumentPreview key={key} controller={controller} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} /> : kind === 'media' ? <MiraMediaPreview key={key} controller={controller} sessionId={sessionId} path={path} active={active} refresh={refresh + watchRefresh} onRetry={() => setRefresh(value => value + 1)} /> : !current || current.status === 'loading' ? <div className="mira-file-preview__notice" role="status"><LoaderCircle size={18} className="pilot-spin" /><span>正在读取文件…</span></div>
+      {kind === 'office' ? <MiraOfficePreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} onOpenLink={onOpenLink} onAddPresentation={onAddPresentation} presentationNavigation={presentationNavigation} /> : kind === 'pdf' ? <MiraDocumentPreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} /> : kind === 'media' ? <MiraMediaPreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh + watchRefresh} onRetry={() => setRefresh(value => value + 1)} /> : !current || current.status === 'loading' ? <div className="mira-file-preview__notice" role="status"><LoaderCircle size={18} className="pilot-spin" /><span>正在读取文件…</span></div>
         : current.status === 'error' ? <div className="mira-file-preview__notice" role="alert"><FileText size={20} /><p>{current.error}</p><button type="button" className="pilot-inline-button" onClick={() => setRefresh(value => value + 1)}><RotateCw size={14} />重试</button></div>
           : imageSource && (kind === 'bitmap' || previewMode === 'preview') ? <MiraImagePreview key={imageKey} title={path.split('/').pop()!} source={imageSource} sourcePath={path} fit={kind === 'svg'} active={active} onRetry={() => setRefresh(value => value + 1)} onDecodeChange={failed => setImageDecode({ key: imageKey, failed })} />
             : content.length === 0 ? <div className="mira-file-preview__notice"><FileText size={20} /><span>文件为空</span></div>
-              : language === 'markdown' && previewMode === 'preview' ? <div className="mira-file-preview__markdown"><MessageMarkdown content={content} /></div>
+              : language === 'markdown' && previewMode === 'preview' ? <div className="mira-file-preview__markdown"><MessageMarkdown content={content} directory={directory ? workspaceFileParent(filePreviewAbsolutePath(directory, path)!) : undefined} onOpenLink={onOpenLink} /></div>
               : <FilePreviewSource key={key} content={content} language={language} wrap={wrap} active={active} highlighted={highlighted?.key === key && highlighted.content === content ? highlighted.result : undefined} />}
     </div>
     {feedback?.key === key && <div className={`mira-file-preview__feedback${feedback.error ? ' is-error' : ''}`} role={feedback.error ? 'alert' : 'status'}><span>{feedback.message}</span><button type="button" title="关闭提示" aria-label="关闭提示" onClick={() => setFeedback(undefined)}><X size={12} /></button></div>}

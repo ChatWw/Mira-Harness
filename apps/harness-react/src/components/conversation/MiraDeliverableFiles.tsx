@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Presentation } from 'lucide-react'
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
+import { MiraFileOpenButton } from './MiraFileOpenButton'
 import type { HarnessFileChange } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
-import { miraDeliverablePaths } from '../../lib/mira-deliverable-files'
+import { miraDeliverablePaths, miraDeliverableLabel } from '../../lib/mira-deliverable-files'
 
 export function MiraDeliverableFiles({ content, changes, directory, controller, sessionId, active, onOpen }: {
   content: string; changes: HarnessFileChange[]; directory: string; controller: PilotController
@@ -24,8 +25,8 @@ export function MiraDeliverableFiles({ content, changes, directory, controller, 
   }, [active, sessionId, directory, signature, controller])
   if (!active || validated?.owner !== owner || !validated.paths.length) return null
   return <div className="mira-deliverable-files">{validated.paths.map(path => <div key={path} className="mira-deliverable-file">
-    <Presentation size={26} aria-hidden="true" />
-    <div><strong>{path.split('/').pop()}</strong><span>演示文稿 · PPTX</span></div>
-    <button type="button" className="mira-open-button" aria-label={`预览 ${path.split('/').pop()}`} onClick={() => onOpen(path)}>打开预览</button>
+    <div className="mira-deliverable-file__icon"><img src={miraFileTreeIcon(path)} width={24} height={24} alt="" /></div>
+    <div><strong title={path}>{path.split('/').pop()}</strong><span>{miraDeliverableLabel(path)}</span></div>
+    <MiraFileOpenButton path={path} directory={directory} controller={controller} sessionId={sessionId} active={active} onOpen={onOpen} />
   </div>)}</div>
 }

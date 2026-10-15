@@ -6,7 +6,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ArrowLeft, ChevronRight, CircleAlert, Copy, ExternalLink, FileText, Folder, FolderOpen, GitCommitVertical, LoaderCircle, MoreHorizontal, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { ArrowLeft, ChevronRight, CircleAlert, Copy, ExternalLink, FileText, Folder, Globe, FolderOpen, GitCommitVertical, LoaderCircle, MoreHorizontal, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { FileTreeDataSource, fileTreeAbsolutePath, fileTreeAncestors, fileTreeFocusPath, fileTreeKeyAction, flattenFileTree, type FileTreeRow } from '../../lib/file-tree'
 import { FileSearchDataSource, fileSearchRows } from '../../lib/file-search'
 import { FileGitDataSource, fileGitChangedRows, fileGitDecoration, fileGitStatusLabel, fileGitTreeDirectories } from '../../lib/file-git'
@@ -25,6 +26,7 @@ export type ProjectFileDrawerProps = {
   expandedPaths: string[]
   onExpandedPathsChange: (paths: string[]) => void
   onOpenFile?: (path: string) => void
+  onOpenBrowser?: (path: string, isCurrent: () => boolean) => Promise<void>
   onAddFile?: (path: string) => void
   onBack: () => void
   onOpenDirectory: () => void
@@ -37,7 +39,7 @@ export type ProjectFileDrawerProps = {
 
 const ROW_HEIGHT = 28
 
-export function ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
+export function ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onOpenBrowser, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
   const fileSessionId = projectId ? undefined : sessionId
   const hasWorkspace = Boolean(directory && (projectId || fileSessionId))
   const source = useMemo(() => new FileTreeDataSource(async path => {
@@ -262,7 +264,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
             style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)`, paddingLeft: 8 + row.depth * 12 }}
             onFocus={() => setFocusedPath(row.path)} onClick={event => { if (event.detail <= 1) openRow(row) }} onContextMenu={() => selectRow(row)} onKeyDown={event => handleKey(event, row)}>
             <span className="mira-file-drawer__chevron" aria-hidden="true">{row.type === 'directory' && <ChevronRight size={12} className={row.expanded ? 'is-open' : undefined} />}</span>
-            {row.type === 'directory' ? <Folder size={14} aria-hidden="true" /> : <FileText size={14} aria-hidden="true" />}
+            {row.type === 'directory' ? <Folder size={14} aria-hidden="true" /> : <img className="mira-file-drawer__type-icon" src={miraFileTreeIcon(row.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />}
             <span className={`mira-file-drawer__name${decoration.status ? ` is-git-${decoration.status}` : ''}`} data-file-git-color={decoration.status}>{searching ? row.path : row.name}</span>
             {decoration.indicator && <span className="mira-file-drawer__git-indicator" data-file-git-color={decoration.status} data-file-git-status={decoration.status} title={decoration.label} aria-label={decoration.label}>{decoration.indicator}</span>}
             {!row.loading && decoration.statuses.length > 0 && <span className="mira-file-drawer__git-dot" data-file-git-color={decoration.statuses[0]} data-file-git-dot={decoration.statuses[0]} role="img" title={descendantLabel} aria-label={`目录包含：${descendantLabel}`} />}
@@ -272,8 +274,10 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
             <ContextMenu.Sub><ContextMenu.SubTrigger className="mira-session-menu__item" disabled={deleted || !editors.some(editor => row.type === 'file' || !editor.fileOnly) || !onOpenEditor}><ExternalLink size={14} />打开方式<ChevronRight size={13} /></ContextMenu.SubTrigger><ContextMenu.Portal container={portal}><ContextMenu.SubContent className="mira-session-menu mira-editor-menu" sideOffset={4}>
               {editors.filter(editor => row.type === 'file' || !editor.fileOnly).map(editor => <ContextMenu.Item key={editor.id} className="mira-session-menu__item" disabled={deleted || !onOpenEditor} onSelect={() => { if (deleted || !onOpenEditor) return; const isCurrent = source.guard(); setActionError(''); void onOpenEditor(row.path, editor.id).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '编辑器打开失败，请重试') }) }}>{editor.name}</ContextMenu.Item>)}
             </ContextMenu.SubContent></ContextMenu.Portal></ContextMenu.Sub>
+            {!deleted && row.type === 'file' && /\.(html|htm)$/i.test(row.path) && onOpenBrowser && <ContextMenu.Item className="mira-session-menu__item" onSelect={() => { const isCurrent = source.guard(); setActionError(''); void onOpenBrowser(row.path, isCurrent).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '内置浏览器打开失败，请重试') }) }}><Globe size={14} />用内置浏览器打开</ContextMenu.Item>}
             {row.error && <ContextMenu.Item className="mira-session-menu__item" disabled={row.loading} onSelect={() => void source.loadDirectory(row.path, true)}><RefreshCw size={14} />重新加载</ContextMenu.Item>}
             <ContextMenu.Separator className="mira-session-menu__separator" />
+            <ContextMenu.Item className="mira-session-menu__item" disabled={deleted || !hasWorkspace} onSelect={() => { if (deleted || !hasWorkspace) return; const isCurrent = source.guard(); setActionError(''); void controller.revealWorkspaceFile(projectId ? { projectId } : { sessionId: fileSessionId! }, row.path).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '文件位置打开失败，请重试') }) }}><FolderOpen size={14} />{/mac/i.test(navigator.userAgent || '') ? '在 Finder 中显示' : /windows/i.test(navigator.userAgent || '') ? '在资源管理器中显示' : '在文件管理器中显示'}</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" onSelect={() => void copyPath(row.path)}><Copy size={14} />复制相对路径</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(fileTreeAbsolutePath(directory!, row.path))}><Copy size={14} />复制绝对路径</ContextMenu.Item>
             {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media && !attachmentBinaryType(row.path) ? 'Office 和音频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}
