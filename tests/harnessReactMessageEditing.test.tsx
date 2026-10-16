@@ -38,7 +38,7 @@ async function mount(content = '原始要求', attachments: HarnessMessageAttach
       input().dispatchEvent(event)
     })
   }
-  const submit = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => /保存并重跑|重新发送中/.test(button.textContent!))!
+  const submit = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.getAttribute('aria-label') === '发送')!
   const click = async (element: HTMLElement) => { await act(async () => element.click()) }
   const moveCaret = async (start: number, end = start) => {
     await act(async () => {
@@ -59,6 +59,23 @@ async function mount(content = '原始要求', attachments: HarnessMessageAttach
 }
 
 describe('history edit real DOM admission and draft recovery', () => {
+  it('opens + candidates directly without modifying the prompt and inserts a plugin at the saved caret', async () => {
+    const { controller, host } = historyController()
+    host.listPluginCatalog.mockResolvedValue([{ id: 'pdf@mira-builtin', name: 'pdf', enabled: true, conflicts: [], skills: [{ name: 'pdf' }], listing: { displayName: 'PDF', icon: 'pdf' } }] as any)
+    const view = await mount('原要求', [], controller)
+    await view.moveCaret(3)
+    await view.click(view.container.querySelector<HTMLButtonElement>('[aria-label="添加"]')!)
+    expect(view.input().textContent).toBe('原要求')
+    expect(document.querySelector('[role="menuitem"]')).toBeNull()
+    const option = document.querySelector<HTMLButtonElement>('[data-suggestion-id="plugin-pdf@mira-builtin"]')!
+    expect(option).not.toBeNull()
+    await view.click(option)
+    expect(view.input().querySelector('[data-mira-prompt-reference="plugin"]')?.textContent).toBe('PDF')
+    expect(view.input().textContent).toBe('原要求PDF ')
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    expect(view.props.onConfirm).not.toHaveBeenCalled()
+  })
+
   it.each(['/', '$'])('keeps the discovered %s query and full replacement span while moving within a historical token', async trigger => {
     const { controller } = historyController()
     vi.spyOn(controller, 'listSkills').mockResolvedValue([
@@ -218,7 +235,7 @@ describe('history edit real DOM admission and draft recovery', () => {
     host.selectAttachments.mockReturnValueOnce(picked.promise).mockResolvedValueOnce([{ path: 'mira-attachment:new', name: 'new.txt' }])
     host.getAttachment.mockRejectedValueOnce(new Error('附件读取失败')).mockResolvedValueOnce({ path: 'mira-attachment:new', name: 'new.txt', content: 'New snapshot' })
     const view = await mount('保留要求', [{ path: 'old.txt', name: 'old.txt', content: 'Old snapshot' }], controller)
-    const picker = view.container.querySelector<HTMLButtonElement>('[aria-label="添加历史消息附件"]')!
+    const picker = await menuItem(view, '添加文件')
     await view.click(picker); await view.click(picker)
     expect(host.selectAttachments).toHaveBeenCalledOnce()
     await act(async () => picked.resolve([{ path: 'mira-attachment:new', name: 'new.txt' }]))
@@ -226,7 +243,7 @@ describe('history edit real DOM admission and draft recovery', () => {
     expect(view.input().textContent).toBe('保留要求')
     expect(view.container.querySelector('[aria-label="预览附件 old.txt"]')).not.toBeNull()
     expect(view.container.querySelector('[aria-label="预览附件 new.txt"]')).toBeNull()
-    await view.click(picker)
+    await view.click(await menuItem(view, '添加文件'))
     expect(view.container.querySelector('[aria-label="预览附件 new.txt"]')).not.toBeNull()
     await view.click(view.submit())
     expect(view.props.onConfirm).toHaveBeenLastCalledWith('保留要求', [expect.objectContaining({ path: 'old.txt' }), expect.objectContaining({ path: 'mira-attachment:new' })])
@@ -299,13 +316,14 @@ describe('history edit real DOM admission and draft recovery', () => {
 
   it('inserts a catalog command without running it and retains the source identity for rerun', async () => {
     const listPromptCommands = vi.fn(async () => [{ id: 'command', name: 'check', description: '检查代码', scope: 'project' }])
-    const host = { listSkills: vi.fn(async () => []), listPromptCommands, listPluginCatalog: vi.fn(async () => []), listUserAgents: vi.fn(async () => []) } as unknown as PilotHost
+    const host = { listFiles: vi.fn(async () => ({ entries: [] })), listSkills: vi.fn(async () => []), listPromptCommands, listPluginCatalog: vi.fn(async () => []), listUserAgents: vi.fn(async () => []) } as unknown as PilotHost
     const controller = new PilotController(host)
     vi.spyOn(controller, 'getSnapshot').mockReturnValue({ ...controller.getSnapshot(), session: { id: 'task', workingDirectory: '/fixture' } as any })
     const view = await mount('', [], controller)
-    await view.click(view.container.querySelector<HTMLButtonElement>('[aria-label="命令与能力"]')!)
+    await view.click(await menuItem(view, '命令与能力'))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
     expect(view.input().textContent).toBe('/')
-    const option = document.querySelector<HTMLButtonElement>('[data-suggestion-id="custom-command"]')!
+    const option = await vi.waitFor(() => { const item = document.querySelector<HTMLButtonElement>('[data-suggestion-id="custom-command"]'); expect(item).not.toBeNull(); return item! })
     await view.click(option)
     expect(view.input().querySelector('[data-mira-prompt-reference="command"]')?.textContent).toBe('/check')
     expect(view.props.onConfirm).not.toHaveBeenCalled()
@@ -323,7 +341,7 @@ describe('history edit real DOM admission and draft recovery', () => {
     expect(view.props.onConfirm).toHaveBeenCalledExactlyOnceWith('原要求', [])
     expect(view.props.original.attachments).toEqual(attachments)
     expect(view.input().textContent).toBe('原要求')
-    await view.click([...view.container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '取消')!)
+    await view.click([...view.container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.getAttribute('aria-label') === '取消编辑')!)
     expect(view.props.onCancel).toHaveBeenCalledOnce()
   })
 
@@ -350,7 +368,7 @@ describe('history edit real DOM admission and draft recovery', () => {
     await view.click(view.container.querySelector<HTMLButtonElement>('[aria-label="移除全部网页元素上下文"]')!)
     expect(view.submit().disabled).toBe(true)
     expect(document.activeElement).toBe(view.input())
-    await view.click([...view.container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '取消')!)
+    await view.click([...view.container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.getAttribute('aria-label') === '取消编辑')!)
     expect(view.props.onCancel).toHaveBeenCalledOnce()
     expect(view.props.original.content).toBe(result.reference.text)
   })
@@ -404,3 +422,10 @@ describe('history edit real DOM admission and draft recovery', () => {
     expect(view.props.onCancel).toHaveBeenCalledOnce()
   })
 })
+
+async function menuItem(view: Awaited<ReturnType<typeof mount>>, name: string) {
+  await view.click(view.container.querySelector<HTMLButtonElement>('[aria-label="添加"]')!)
+  return name === '命令与能力'
+    ? [...document.querySelectorAll<HTMLElement>('.mira-composer-suggestions__footer button')].find(item => item.textContent?.includes('选择能力'))!
+    : [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(item => item.textContent === name)!
+}

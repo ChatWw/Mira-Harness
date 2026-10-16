@@ -631,6 +631,10 @@ export interface HarnessSession {
 }
 
 export interface HarnessSkill {
+  source?: 'shared' | 'mira' | 'custom'
+  sourceDirectory?: string
+  /** Alternate registered paths to the same file, retained for existing references. */
+  aliasIds?: string[]
   id: string
   name: string
   description: string
@@ -643,6 +647,9 @@ export interface HarnessSkill {
 
 export interface HarnessSkillSettings {
   directories: string[]
+  /** Automatically discovered roots; these are not custom-directory settings. */
+  sharedDirectory?: string
+  miraDirectory?: string
 }
 
 export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {

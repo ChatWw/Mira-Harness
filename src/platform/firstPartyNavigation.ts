@@ -31,7 +31,7 @@ const harnessQueryKeys: Record<string, readonly string[]> = {
   '/workspace/history': ['q', 'project', 'model', 'status', 'range', 'archive', 'sort', 'page'],
   ...Object.fromEntries([
     '/settings', '/settings/general', '/settings/appearance', '/settings/personalization',
-    '/settings/keyboard-shortcuts', '/settings/model-config', '/settings/mcp',
+    '/settings/keyboard-shortcuts', '/settings/model-config', '/settings/mcp', '/settings/plugins',
     '/settings/python-environment', '/settings/git', '/settings/file-search',
     '/settings/backup-preferences', '/settings/about',
   ].map(path => [path, ['from']])),

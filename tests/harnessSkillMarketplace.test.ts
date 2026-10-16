@@ -163,7 +163,7 @@ describe('public Skill marketplace', () => {
     expect(detail.files.map(file => file.path)).toEqual(['SKILL.md', 'LICENSE.txt', 'scripts/check.sh', 'references/guide.md'])
     const result = await service.install('anthropic-skills:review')
     expect(result).toMatchObject({ installed: true, enabled: true, name: 'Review' })
-    const packageRoot = join(paths.skills, 'marketplace', 'anthropic-review', 'package')
+    const packageRoot = join(paths.sharedSkills, 'anthropic-review')
     expect(readFileSync(join(packageRoot, 'SKILL.md'), 'utf8')).toBe(SKILL)
     expect(readFileSync(join(packageRoot, 'LICENSE.txt'), 'utf8')).toBe(APACHE)
     expect(readFileSync(join(packageRoot, 'UPSTREAM_THIRD_PARTY_NOTICES.md'), 'utf8')).toContain('fixture notice')
@@ -179,19 +179,19 @@ describe('public Skill marketplace', () => {
     expect(readFileSync(join(packageRoot, 'SKILL.md'), 'utf8')).toBe(SKILL)
   })
 
-  it('keeps custom skill directories and adds only the managed root for discovery', async () => {
+  it('keeps custom skill directories while shared discovery finds new installations', async () => {
     const { paths, store, service } = fixture()
     const custom = join(paths.root, 'custom'); mkdirSync(custom)
     store.saveSettings({ directories: [custom] })
     const result = await service.install('anthropic-skills:review')
-    expect(store.settings().directories).toEqual([custom, join(paths.skills, 'marketplace')])
+    expect(store.settings().directories).toEqual([custom])
     expect(store.resolve([result.skillId!])).toHaveLength(1)
   })
 
   it.each(['anthropic-skills:../review', 'https://example.com/skill', 'anthropic-skills:restricted', 'anthropic-skills:unlicensed'])('rejects arbitrary sources and non-distributable packages: %s', async id => {
     const { paths, service } = fixture()
     await expect(service.install(id)).rejects.toThrow()
-    expect(existsSync(join(paths.skills, 'marketplace', 'anthropic-review'))).toBe(false)
+    expect(existsSync(join(paths.sharedSkills, 'anthropic-review'))).toBe(false)
   })
 
   it.each([
@@ -214,32 +214,33 @@ describe('public Skill marketplace', () => {
     const original = contents.get(script.sha)!; contents.set(script.sha, Buffer.from('tampered'))
     await expect(service.install('anthropic-skills:review')).rejects.toThrow('完整性')
     expect(store.list()).toEqual([])
-    expect(readdirSync(join(paths.skills, 'marketplace'))).toEqual([])
+    expect(readdirSync(paths.sharedSkills)).toEqual([])
     expect(readdirSync(paths.config).filter(name => name.startsWith('.market-skill-'))).toEqual([])
     contents.set(script.sha, original)
     await expect(service.install('anthropic-skills:review')).resolves.toMatchObject({ enabled: true })
   })
 
-  it('rolls back the published package and directory preference when enabling fails', async () => {
+  it('rolls back the published package without changing directory preferences when enabling fails', async () => {
     const { paths, store, service } = fixture()
     const custom = join(paths.root, 'custom'); mkdirSync(custom); store.saveSettings({ directories: [custom] })
     vi.spyOn(store, 'setEnabled').mockImplementationOnce(() => { throw new Error('保存启用状态失败') })
     await expect(service.install('anthropic-skills:review')).rejects.toThrow('保存启用状态失败')
     expect(store.settings().directories).toEqual([custom])
-    expect(readdirSync(join(paths.skills, 'marketplace'))).toEqual([])
+    expect(readdirSync(paths.sharedSkills)).toEqual([])
   })
 
   it('never follows an existing managed directory symlink or overwrites user files', async () => {
     const { paths, service } = fixture()
     const outside = join(paths.root, 'outside'); mkdirSync(outside)
-    symlinkSync(outside, join(paths.skills, 'marketplace'))
+    mkdirSync(join(paths.sharedSkills, '..'), { recursive: true })
+    symlinkSync(outside, paths.sharedSkills)
     await expect(service.install('anthropic-skills:review')).rejects.toThrow('安装目录不可用')
     expect(readdirSync(outside)).toEqual([])
   })
 
   it('leaves an existing user directory and file untouched', async () => {
     const { paths, service } = fixture()
-    const existing = join(paths.skills, 'marketplace', 'anthropic-review'); mkdirSync(existing, { recursive: true })
+    const existing = join(paths.sharedSkills, 'anthropic-review'); mkdirSync(existing, { recursive: true })
     writeFileSync(join(existing, 'notes.txt'), 'User-owned file')
     await expect(service.install('anthropic-skills:review')).rejects.toThrow('不会覆盖')
     expect(readFileSync(join(existing, 'notes.txt'), 'utf8')).toBe('User-owned file')
@@ -256,7 +257,7 @@ describe('public Skill marketplace', () => {
       const failure = service.install('anthropic-skills:review').catch(error => error)
       await vi.advanceTimersByTimeAsync(20_001)
       expect(await failure).toMatchObject({ message: 'Skill 市场读取超时，请检查网络后重试' })
-      expect(existsSync(join(paths.skills, 'marketplace'))).toBe(false)
+      expect(existsSync(paths.sharedSkills)).toBe(false)
     } finally { vi.useRealTimers() }
   })
 
@@ -291,7 +292,7 @@ describe('public Skill marketplace', () => {
     const authorize = () => { if (++checks > 2) throw new Error('应用授权已撤销') }
     await expect(service.install('anthropic-skills:review', authorize)).rejects.toThrow('应用授权已撤销')
     expect(store.list()).toEqual([])
-    expect(readdirSync(join(paths.skills, 'marketplace'))).toEqual([])
+    expect(readdirSync(paths.sharedSkills)).toEqual([])
     expect(readdirSync(paths.config).filter(name => name.startsWith('.market-skill-'))).toEqual([])
   })
 

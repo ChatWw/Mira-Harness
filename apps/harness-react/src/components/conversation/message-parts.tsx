@@ -1,12 +1,14 @@
-import { useEffect, useId, useRef, useState, type Ref } from 'react'
-import { AtSign, Check, CircleAlert, Copy, FileText, GitFork, LoaderCircle, Paperclip, Pencil, RotateCw, Slash, X } from 'lucide-react'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { ShortcutKeys } from '../shared/ShortcutKeys'
+import { useEffect, useId, useRef, useState, type Ref, type ReactElement } from 'react'
+import { Check, CircleAlert, Copy, FileText, LoaderCircle, Plus, ArrowUp, Pencil, GitFork, X } from 'lucide-react'
 import type { HarnessFileChange, HarnessFileReference, HarnessMessage } from '../../../../../src/config/harness'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
 import { isHarnessImageMediaType } from '../../../../../src/config/harness'
 import { MiraAttachmentPreview } from '../composer/MiraAttachmentPreview'
 import type { PilotController } from '../../state/pilot-state'
 import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../../../../src/config/miraFileRewind'
-import { MiraFileRewindPreviewButton } from './MiraFileRewindPreview'
+import { MiraHistoryFileReset } from './MiraHistoryFileReset'
 import { MiraPromptEditor, type MiraPromptEditorHandle } from '../composer/MiraPromptEditor'
 import { MiraHistoryPromptEditor, type MiraHistoryPromptEditorHandle } from '../composer/MiraHistoryPromptEditor'
 import { MiraBrowserContexts } from '../composer/MiraBrowserContexts'
@@ -19,11 +21,15 @@ import type { MiraPresentationReference } from '../../../../../src/config/miraPr
 
 export function EditIcon() { return <Pencil size={13} /> }
 
+export function MessageActionHint({ label, children, editing = false, shortcut }: { label: string; children: ReactElement; editing?: boolean; shortcut?: string }) {
+  return <Tooltip.Provider delayDuration={300}><Tooltip.Root><Tooltip.Trigger asChild>{children}</Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className={`mira-composer-hint${editing ? ' mira-history-edit-hint' : ''}`} side={editing ? 'top' : 'bottom'} align="center" sideOffset={editing ? 2 : 6}>{label}{shortcut && <ShortcutKeys shortcut={shortcut} />}</Tooltip.Content></Tooltip.Portal></Tooltip.Root></Tooltip.Provider>
+}
+
 export function MessageCopyButton({ content, label = '复制回复', onError }: { content: string; label?: string; onError?: (error: unknown) => void }) {
   const [copied, setCopied] = useState(false)
-  return <button type="button" className="mira-message-action" aria-label={copied ? '已复制' : label} title={copied ? '已复制' : label} onClick={() => {
+  return <MessageActionHint label={copied ? '已复制' : label}><button type="button" className="mira-message-action" aria-label={copied ? '已复制' : label} onClick={() => {
     void navigator.clipboard.writeText(content).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600) }).catch(error => onError?.(error))
-  }}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+  }}>{copied ? <Check size={14} /> : <Copy size={14} />}</button></MessageActionHint>
 }
 
 /** 消息附件使用实际保存的文件引用，不把附件正文再次写入气泡。 */
@@ -98,26 +104,24 @@ const CHANGE_LABELS: Record<HarnessFileChange['tool'], string> = { edit: '编辑
 export { MiraReplyChanges as FileChangesCard } from './MiraReplyChanges'
 
 function formatTime(createdAt: number) {
-  try { return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } catch { return '' }
-}
-
-function formatUsage(message: HarnessMessage) {
-  const usage = message.usage
-  if (!usage?.totalTokens) return ''
-  const cost = usage.cost?.priced ? ` · ${usage.cost.total.toFixed(4)} ${usage.cost.currency}` : ''
-  return `token ${usage.totalTokens}${cost}`
+  const date = new Date(createdAt), now = new Date()
+  if (!Number.isFinite(createdAt) || Number.isNaN(date.getTime())) return ''
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const sameDay = (other: Date) => date.getFullYear() === other.getFullYear() && date.getMonth() === other.getMonth() && date.getDate() === other.getDate()
+  if (sameDay(now)) return time
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (sameDay(yesterday)) return `昨天 ${time}`
+  return `${date.getFullYear() === now.getFullYear() ? '' : `${date.getFullYear()}年`}${date.getMonth() + 1}月${date.getDate()}日 ${time}`
 }
 
 /** 消息工具栏（ZCode 模式：hover 才显现）。 */
-export function AssistantToolbar({ message, latestAssistantId, canRerun = true, onRerun, onFork, onError }: { message?: HarnessMessage; latestAssistantId?: string; canRerun?: boolean; onRerun?: () => Promise<void>; onFork?: (requestId: string) => Promise<boolean>; onError?: (error: unknown) => void }) {
+export function AssistantToolbar({ message, onFork, onError }: { message?: HarnessMessage; onFork?: (requestId: string) => Promise<boolean>; onError?: (error: unknown) => void }) {
   if (!message) return null
-  const usage = formatUsage(message)
-  return <div className="mt-1 flex items-center gap-1 text-foreground-subtlest">
-    {message.createdAt ? <span className="text-ui-xs">{formatTime(message.createdAt)}</span> : null}
-    {usage && <span className="text-ui-xs">{usage}</span>}
+  return <div className="mira-assistant-toolbar mt-1">
     <MessageCopyButton content={message.content} onError={onError} />
     {onFork && <MiraForkAction onFork={onFork} />}
-    {onRerun && message.id === latestAssistantId && <button type="button" className="mira-message-action" disabled={!canRerun} aria-label="重新生成最新回复" title="重新生成最新回复" onClick={() => { if (canRerun) void onRerun().catch(error => onError?.(error)) }}><RotateCw size={13} /></button>}
+    {message.createdAt ? <span className="mira-assistant-toolbar__time">{formatTime(message.createdAt)}</span> : null}
   </div>
 }
 
@@ -137,7 +141,7 @@ function MiraForkAction({ onFork }: { onFork: (requestId: string) => Promise<boo
     catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : '分支创建失败，请重试。') }
     finally { pending.current = false; if (mounted.current) setBusy(false) }
   }
-  return <><button type="button" className="mira-message-action" disabled={busy} aria-label={busy ? '正在创建分支' : '从这里分支'} title={busy ? '正在创建分支' : '从这里分支；保留当前项目文件'} onClick={() => void fork()}>{busy ? <LoaderCircle size={13} className="animate-spin" /> : <GitFork size={13} />}</button>{error && <span role="alert" className="text-ui-xs text-destructive">{error}</span>}</>
+  return <><MessageActionHint label={busy ? '正在创建分支' : '分支'}><button type="button" className="mira-message-action" disabled={busy} aria-label={busy ? '正在创建分支' : '从这里分支'} onClick={() => void fork()}>{busy ? <LoaderCircle size={13} className="animate-spin" /> : <GitFork size={13} />}</button></MessageActionHint>{error && <span role="alert" className="text-ui-xs text-destructive">{error}</span>}</>
 }
 
 /** 用户消息行内编辑：确认后截断后续并重跑。 */
@@ -146,6 +150,7 @@ export function UserMessageEditor({ original, content, onCancel, onConfirm, onOp
   const [contexts, setContexts] = useState(() => miraPromptContexts(prompt.document))
   const [attachments, setAttachments] = useState(() => original?.attachments ?? [])
   const attachmentsChanged = useRef(false)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [filesBusy, setFilesBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const dragDepth = useRef(0)
@@ -221,21 +226,22 @@ export function UserMessageEditor({ original, content, onCancel, onConfirm, onOp
     'aria-label': '编辑消息', 'aria-describedby': error ? errorId : undefined, className: 'mira-history-editor',
   }
   const canAddFiles = controller?.supportsAttachments && !disabled && !submitting && !filesBusy
-  return <div className={`grid w-full gap-2${dragOver ? ' mira-history-editor--drag-over' : ''}`} aria-busy={submitting || filesBusy || undefined}
+  return <div className={`mira-history-edit-shell${dragOver ? ' mira-history-editor--drag-over' : ''}`} aria-busy={submitting || filesBusy || undefined}
     onDragEnter={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); if (canAddFiles) { dragDepth.current++; setDragOver(true) } }}
     onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = canAddFiles ? 'copy' : 'none' } }}
     onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false) } }}
     onDrop={event => { if (!event.dataTransfer.types.includes('Files')) return; event.preventDefault(); dragDepth.current = 0; setDragOver(false); if (canAddFiles) void addFiles(Array.from(event.dataTransfer.files)) }}>
     <UserMessageAttachments message={original && { ...original, attachments }} controller={controller} sessionId={sessionId} onOpen={onOpenFile ?? (() => undefined)} active={!disabled && !submitting && !filesBusy} onRemove={path => { attachmentsChanged.current = true; setAttachments(values => values.filter(file => file.path !== path)); editor.current?.focus() }} />
     {contexts.length > 0 && <div className="mira-message-contexts"><MiraBrowserContexts references={contexts.filter(reference => reference.kind === 'web')} disabled={submitting} onRemove={id => setContexts(values => values.filter(value => value.id !== id))} onRemoveAll={() => setContexts(values => values.filter(value => value.kind !== 'web'))} onReturnFocus={() => editor.current?.focus()} /><MiraPresentationContexts references={contexts.filter(reference => reference.kind === 'presentation')} disabled={submitting} onOpen={onOpenPresentation} onRemove={id => setContexts(values => values.filter(value => value.id !== id))} onRemoveAll={() => setContexts(values => values.filter(value => value.kind !== 'presentation'))} onReturnFocus={() => editor.current?.focus()} /></div>}
-    {controller && sessionId ? <MiraHistoryPromptEditor {...editorProps} ref={editor as Ref<MiraHistoryPromptEditorHandle>} controller={controller} sessionId={sessionId} onAddFile={addWorkspaceFile} /> : <MiraPromptEditor {...editorProps} ref={editor} />}
+    <div className="mira-history-edit-input">{controller && sessionId ? <MiraHistoryPromptEditor {...editorProps} ref={editor as Ref<MiraHistoryPromptEditorHandle>} controller={controller} sessionId={sessionId} onAddFile={addWorkspaceFile} onAttachFiles={controller.supportsAttachments ? () => void addFiles() : undefined} onActionMenuChange={setActionMenuOpen} /> : <MiraPromptEditor {...editorProps} ref={editor} />}</div>
     {error && <p id={errorId} role="alert" className="text-ui-sm text-destructive wrap-anywhere">{error}</p>}
-    <div className="flex justify-end gap-2">
-      {controller?.supportsAttachments && sessionId && <button type="button" className="mira-message-action mr-auto" aria-label="添加历史消息附件" title="添加文件附件" disabled={disabled || submitting || filesBusy} onClick={() => void addFiles()}>{filesBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Paperclip size={16} />}</button>}
-      {controller && sessionId && <><button type="button" className="mira-message-action" aria-label="引用上下文" title="引用上下文 @" disabled={disabled || submitting || filesBusy} onMouseDown={event => event.preventDefault()} onClick={() => { if (editor.current && 'openTrigger' in editor.current) editor.current.openTrigger('@') }}><AtSign size={16} /></button><button type="button" className="mira-message-action" aria-label="命令与能力" title="命令与能力 /" disabled={disabled || submitting || filesBusy} onMouseDown={event => event.preventDefault()} onClick={() => { if (editor.current && 'openTrigger' in editor.current) editor.current.openTrigger('/') }}><Slash size={16} /></button></>}
-      {controller?.supportsFileRewindApply && sessionId && original && <MiraFileRewindPreviewButton controller={controller} sessionId={sessionId} messageId={original.id} disabled={disabled || filesBusy || !nextContent && !attachments.length} onEdit={submit} />}
-      <button type="button" className="rounded-lg border border-border bg-card px-3 py-1.5 text-ui-sm text-foreground" onClick={onCancel} disabled={submitting}>取消</button>
-      <button type="button" className="rounded-lg border border-brand bg-brand px-3 py-1.5 text-ui-sm text-on-accent disabled:opacity-50" title="保留当前项目文件，保存消息并重新运行" disabled={disabled || !nextContent && !attachments.length || !original || submitting || filesBusy} onClick={() => void submit()}>{submitting ? '重新发送中…' : '保存并重跑'}</button>
+    <div className="mira-history-edit-toolbar">
+      <MessageActionHint editing label="添加"><button type="button" className="mira-message-action" aria-label="添加" aria-expanded={actionMenuOpen} disabled={disabled || submitting || filesBusy || !controller || !sessionId} onMouseDown={event => event.preventDefault()} onClick={() => { if (editor.current && 'openActionMenu' in editor.current) editor.current.openActionMenu() }}><Plus size={16} /></button></MessageActionHint>
+      <div className="mira-history-edit-toolbar__actions">
+        <MessageActionHint editing label="取消" shortcut="Esc"><button type="button" className="mira-message-action mira-history-edit-cancel" aria-label="取消编辑" onClick={onCancel} disabled={submitting}><X size={16} /></button></MessageActionHint>
+        {controller?.supportsFileRewindApply && sessionId && original && <MiraHistoryFileReset controller={controller} sessionId={sessionId} messageId={original.id} disabled={disabled || submitting || filesBusy || !nextContent && !attachments.length} onEdit={submit} />}
+        <MessageActionHint editing label="发送" shortcut="Enter"><button type="button" className="mira-history-edit-send" aria-label="发送" disabled={disabled || !nextContent && !attachments.length || !original || submitting || filesBusy} onClick={() => void submit()}>{submitting ? <LoaderCircle size={16} className="animate-spin" /> : <ArrowUp size={16} />}</button></MessageActionHint>
+      </div>
     </div>
   </div>
 }

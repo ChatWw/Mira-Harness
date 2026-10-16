@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, renameSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import MarkdownIt from 'markdown-it'
 import { parse as parseYaml } from 'yaml'
@@ -42,7 +42,7 @@ export class SkillStore {
     try {
       const value = JSON.parse(readFileSync(this.paths.skillSettings(), 'utf8')) as Partial<StoredSettings>
       const directories = Array.isArray(value.directories) ? value.directories.filter((item): item is string => typeof item === 'string' && isAbsolute(item)).map(item => resolve(item)) : [this.paths.skills]
-      return { directories: directories.length ? [...new Set(directories)] : [this.paths.skills], enabledIds: Array.isArray(value.enabledIds) ? value.enabledIds.filter((item): item is string => typeof item === 'string') : [] }
+      return { directories: [...new Set(directories)], enabledIds: Array.isArray(value.enabledIds) ? value.enabledIds.filter((item): item is string => typeof item === 'string') : [] }
     } catch { return { directories: [this.paths.skills], enabledIds: [] } }
   }
 
@@ -52,44 +52,72 @@ export class SkillStore {
     writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, 'utf8'); renameSync(temporary, file)
   }
 
-  settings(): HarnessSkillSettings { return { directories: this.readSettings().directories } }
+  settings(): HarnessSkillSettings { return { directories: this.readSettings().directories, sharedDirectory: this.paths.sharedSkills, miraDirectory: this.paths.skills } }
   saveSettings(input: HarnessSkillSettings) {
     const directories = [...new Set((input.directories || []).filter((item): item is string => typeof item === 'string' && isAbsolute(item)).map(item => resolve(item)))]
-    if (!directories.length) throw new Error('至少保留一个 Skill 目录')
-    const current = this.readSettings(); this.write({ directories, enabledIds: current.enabledIds }); return { directories }
+    const current = this.readSettings(); this.write({ directories, enabledIds: current.enabledIds }); return this.settings()
   }
 
   list(): HarnessSkill[] {
-    const settings = this.readSettings(); const enabled = new Set(settings.enabledIds); const files: string[] = []
-    const visit = (directory: string, depth = 0) => {
-      if (depth > 4 || !existsSync(directory)) return
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name)
-        if (entry.isDirectory()) visit(path, depth + 1)
-        else if (entry.isFile() && entry.name === 'SKILL.md') files.push(path)
+    const settings = this.readSettings(), enabled = new Set(settings.enabledIds)
+    const files = new Map<string, { path: string; directory: string; source: HarnessSkill['source']; aliases: Set<string> }>()
+    const roots = [...new Set([this.paths.sharedSkills, this.paths.skills, ...settings.directories].map(path => resolve(path)))]
+    for (const root of roots) {
+      const visited = new Set<string>()
+      const source: HarnessSkill['source'] = root === resolve(this.paths.sharedSkills) ? 'shared' : root === resolve(this.paths.skills) ? 'mira' : 'custom'
+      const visit = (directory: string, depth = 0) => {
+        if (depth > 4) return
+        let canonical: string
+        try {
+          canonical = realpathSync(directory)
+          if (!statSync(canonical).isDirectory()) return
+        } catch { return } // A removed directory or dangling link does not hide other skills.
+        const file = join(directory, 'SKILL.md')
+        if (existsSync(file)) {
+          let realFile: string
+          try { realFile = realpathSync(file) } catch { return }
+          const previous = files.get(realFile)
+          if (previous) previous.aliases.add(skillId(file))
+          else files.set(realFile, { path: file, directory: root, source, aliases: new Set([skillId(file), skillId(realFile)]) })
+          return // Resource directories inside a skill are not additional skills.
+        }
+        if (visited.has(canonical)) return
+        visited.add(canonical)
+        let entries: string[]
+        try { entries = readdirSync(directory) } catch { return }
+        for (const name of entries.sort()) {
+          if (!name.startsWith('.')) visit(join(directory, name), depth + 1)
+        }
       }
+      visit(root)
     }
-    settings.directories.forEach(directory => visit(directory))
-    return files.sort().map(path => {
+    return [...files.values()].sort((a, b) => a.path.localeCompare(b.path)).map(file => {
+      const active = [...file.aliases].some(id => enabled.has(id))
+      let skill: HarnessSkill
       try {
-        const source = readFileSync(path, 'utf8')
-        if (Buffer.byteLength(source) > MAX_SKILL_FILE_BYTES) return { id: skillId(path), name: '', description: '', instructions: '', path, enabled: false, valid: false, error: 'Skill 文件超过 256KB' }
-        return parseSkill(path, source, enabled.has(skillId(path)))
-      } catch { return { id: skillId(path), name: '', description: '', instructions: '', path, enabled: false, valid: false, error: '无法读取 Skill 文件' } }
+        if (statSync(file.path).size > MAX_SKILL_FILE_BYTES) throw new Error('Skill 文件超过 256KB')
+        skill = parseSkill(file.path, readFileSync(file.path, 'utf8'), active)
+      } catch (error) {
+        skill = { id: skillId(file.path), name: '', description: '', instructions: '', path: file.path, enabled: false, valid: false, error: error instanceof Error && error.message === 'Skill 文件超过 256KB' ? error.message : '无法读取 Skill 文件' }
+      }
+      return { ...skill, source: file.source, sourceDirectory: file.directory, aliasIds: [...file.aliases].filter(id => id !== skill.id) }
     })
   }
 
+  private matches(skill: HarnessSkill, id: string) { return skill.id === id || Boolean(skill.aliasIds?.includes(id)) }
+
   setEnabled(id: string, enabled: boolean) {
-    const skills = this.list(); const skill = skills.find(item => item.id === id)
+    const skills = this.list(); const skill = skills.find(item => this.matches(item, id))
     if (!skill?.valid) throw new Error('Skill 不存在或格式无效')
     const settings = this.readSettings(); const ids = new Set(settings.enabledIds)
-    if (enabled) ids.add(id); else ids.delete(id)
+    for (const alias of [skill.id, ...(skill.aliasIds || [])]) ids.delete(alias)
+    if (enabled) ids.add(skill.id)
     this.write({ ...settings, enabledIds: [...ids] }); return this.list()
   }
 
   resolve(ids: string[]) {
     const selected = new Set(ids)
-    return this.list().filter(skill => skill.valid && skill.enabled && selected.has(skill.id))
+    return this.list().filter(skill => skill.valid && skill.enabled && [...selected].some(id => this.matches(skill, id)))
   }
 
   resolveNames(names: string[]) {
@@ -117,8 +145,8 @@ export class SkillStore {
       }
     }
     const skills = this.list()
-    if ([...mentioned].some(id => !skills.some(skill => skill.id === id && skill.valid && skill.enabled))) throw new Error('引用的技能已停用或不可用，请移除引用后重新选择')
+    if ([...mentioned].some(id => !skills.some(skill => this.matches(skill, id) && skill.valid && skill.enabled))) throw new Error('引用的技能已停用或不可用，请移除引用后重新选择')
     const selected = new Set([...ids, ...mentioned])
-    return skills.filter(skill => skill.valid && skill.enabled && selected.has(skill.id))
+    return skills.filter(skill => skill.valid && skill.enabled && [...selected].some(id => this.matches(skill, id)))
   }
 }

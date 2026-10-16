@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -38,6 +38,53 @@ describe('SkillStore', () => {
     store.setEnabled(skill.id, true)
     expect(store.resolve([skill.id]).map(item => item.name)).toEqual(['Code review'])
     expect(store.resolve([])).toEqual([])
+  })
+
+  it('discovers shared skills alongside legacy and custom roots without migrating files', () => {
+    const home = mkdtempSync(join(tmpdir(), 'mira-shared-skills-')); directories.push(home)
+    const paths = new MiraPaths(home).ensure(), custom = join(home, 'custom')
+    for (const [root, name] of [[paths.sharedSkills, 'Shared'], [paths.skills, 'Legacy'], [custom, 'Custom']]) {
+      mkdirSync(join(root, name), { recursive: true })
+      writeFileSync(join(root, name, 'SKILL.md'), `# ${name}\n\nReview ${name}.`)
+    }
+    const store = new SkillStore(paths); store.saveSettings({ directories: [custom] })
+    expect(store.list().map(skill => [skill.name, skill.source]).sort()).toEqual([['Custom', 'custom'], ['Legacy', 'mira'], ['Shared', 'shared']])
+    expect(store.settings()).toMatchObject({ directories: [custom], sharedDirectory: paths.sharedSkills, miraDirectory: paths.skills })
+    const shared = store.list().find(skill => skill.source === 'shared')!
+    const before = readFileSync(shared.path, 'utf8')
+    store.setEnabled(shared.id, true); expect(store.resolve([shared.id])).toHaveLength(1)
+    store.setEnabled(shared.id, false); expect(store.resolve([shared.id])).toEqual([])
+    expect(readFileSync(shared.path, 'utf8')).toBe(before)
+  })
+
+  it('deduplicates linked skills, preserves old reference IDs and bounds link cycles', () => {
+    const home = mkdtempSync(join(tmpdir(), 'mira-linked-skills-')); directories.push(home)
+    const paths = new MiraPaths(home).ensure(), external = join(home, 'external'), custom = join(home, 'custom')
+    mkdirSync(external); mkdirSync(custom); mkdirSync(paths.sharedSkills, { recursive: true })
+    writeFileSync(join(external, 'SKILL.md'), '# Linked\n\nRead linked resources.')
+    symlinkSync(external, join(custom, 'linked'), 'dir')
+    const store = new SkillStore(paths); store.saveSettings({ directories: [custom] })
+    const old = store.list()[0]; store.setEnabled(old.id, true)
+    symlinkSync(external, join(paths.sharedSkills, 'linked'), 'dir')
+    symlinkSync(paths.sharedSkills, join(paths.sharedSkills, 'cycle'), 'dir')
+    symlinkSync(join(home, 'missing'), join(paths.sharedSkills, 'broken'), 'dir')
+    store.saveSettings({ directories: [paths.sharedSkills, custom] })
+    const skills = store.list(); expect(skills).toHaveLength(1); expect(skills[0].enabled).toBe(true)
+    expect(store.resolve([old.id])).toHaveLength(1)
+    expect(store.resolvePrompt([], `[$Linked](mira-skill:${old.id})`)).toHaveLength(1)
+    store.setEnabled(old.id, false); expect(store.resolve([old.id])).toEqual([])
+  })
+
+  it('does not silently choose between same-named skills from different sources', () => {
+    const home = mkdtempSync(join(tmpdir(), 'mira-conflicting-skills-')); directories.push(home)
+    const paths = new MiraPaths(home).ensure()
+    for (const root of [paths.skills, paths.sharedSkills]) {
+      mkdirSync(join(root, 'review'), { recursive: true }); writeFileSync(join(root, 'review', 'SKILL.md'), '# Review\n\nRead this source.')
+    }
+    const store = new SkillStore(paths)
+    for (const skill of store.list()) store.setEnabled(skill.id, true)
+    expect(() => store.resolveNames(['Review'])).toThrow('存在重名')
+    expect(store.resolve([store.list()[0].id])).toHaveLength(1)
   })
 
   it('activates exact prompt references without persisting them or reading arbitrary destinations', () => {

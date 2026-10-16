@@ -1,9 +1,9 @@
 <template>
-  <SettingsPageShell title="MCP 服务" wide>
-    <div class="mcp-page">
-      <h2 class="mcp-page__title">MCP 服务器</h2>
-      <p class="mcp-page__desc">连接本地进程或远程 MCP 服务，为智能体提供工具。回到工作台，通过 /mcp 选择当前会话可用的服务。</p>
-      <div class="mcp-toolbar">
+  <component :is="embedded ? 'div' : SettingsPageShell" title="MCP 服务" :wide="true">
+    <div class="mcp-page" :class="{ 'mcp-page--embedded': embedded }">
+      <h2 v-if="!embedded" class="mcp-page__title">MCP 服务器</h2>
+      <p v-if="!embedded" class="mcp-page__desc">连接本地进程或远程 MCP 服务，为智能体提供工具。回到工作台，通过 /mcp 选择当前会话可用的服务。</p>
+      <div class="mcp-toolbar"><h2 v-if="embedded" class="mcp-embedded-heading">MCP <small>{{ filteredServers.length }}</small></h2>
         <label class="mcp-scope-label">配置范围<el-select :model-value="workspace" :disabled="scopeChanging || operationsPending" aria-label="MCP 配置范围" @update:model-value="selectWorkspace">
           <el-option label="全局" value="global" /><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" :disabled="!project.directoryExists" />
         </el-select></label>
@@ -42,7 +42,7 @@
 
       <div v-if="loading && !servers.length && !loadError" class="mcp-loading" aria-label="正在加载 MCP 服务器"><el-skeleton :rows="3" animated /></div>
       <div v-else-if="servers.length" class="mcp-list">
-        <article v-for="server in servers" :key="server.id" class="mcp-row" :data-mcp-id="server.id" :data-mcp-scope="isProjectServer(server) ? 'project' : 'global'" :data-mcp-type="server.type || 'stdio'" :data-mcp-status="server.connection?.state || 'unknown'" :data-mcp-tool-count="server.connection?.toolCount">
+        <article v-for="server in filteredServers" :key="server.id" class="mcp-row" :data-mcp-id="server.id" :data-mcp-scope="isProjectServer(server) ? 'project' : 'global'" :data-mcp-type="server.type || 'stdio'" :data-mcp-status="server.connection?.state || 'unknown'" :data-mcp-tool-count="server.connection?.toolCount">
           <div class="mcp-row__identity">
             <span class="mcp-row__mark"><AppIcon name="Connection" /><span class="mcp-row__dot" :class="`mcp-row__dot--${server.enabled ? server.connection?.state || 'unknown' : 'disabled'}`" :title="statusLabel(server)" /></span>
             <div class="mcp-row__details">
@@ -61,13 +61,14 @@
         </article>
       </div>
       <div v-else-if="!loadError" class="mcp-empty"><strong>还没有配置 MCP 服务器</strong><p>支持本地 stdio、Streamable HTTP 和 SSE。添加并启用后，可在工作台的 /mcp 面板中选择。</p></div>
+      <p v-if="!loading && servers.length && !filteredServers.length" class="mcp-empty">没有匹配的 MCP 服务器</p>
       <p v-if="notice" class="mcp-notice" role="status">{{ notice }}</p>
     </div>
-  </SettingsPageShell>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
@@ -75,9 +76,14 @@ import type { MiraMcpServerRecord, MiraMcpTransport } from '@/config/miraMcp'
 import type { HarnessProject } from '@/config/harness'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
+const props = defineProps<{ embedded?: boolean; searchQuery?: string }>()
+const emit = defineEmits<{ 'count-change': [items: MiraMcpServerRecord[]] }>()
+const filteredServers = computed(() => servers.value.filter(server => `${server.name} ${server.type}`.toLocaleLowerCase().includes((props.searchQuery || '').trim().toLocaleLowerCase())))
+
 interface McpForm { id?: string, name: string, type: MiraMcpTransport, command: string, argsText: string, envText: string, url: string, headersText: string, authentication: 'headers' | 'oauth', enabled: boolean }
 const emptyForm = (): McpForm => ({ name: '', type: 'stdio', command: '', argsText: '', envText: '', url: '', headersText: '', authentication: 'headers', enabled: true })
 const servers = ref<MiraMcpServerRecord[]>([])
+watch(servers, value => emit('count-change', value), { deep: true })
 const loading = ref(false), visible = ref(false), saving = ref(false)
 const loadError = ref(''), saveError = ref(''), notice = ref('')
 const rowErrors = ref<Record<string, string>>({}), rowPending = ref<Record<string, 'delete' | 'reconnect' | 'authorize'>>({})
@@ -262,6 +268,7 @@ async function authorize(server: MiraMcpServerRecord) {
   } catch (error) { if (!disposed) rowErrors.value[server.id] = `打开授权失败：${safeError(error)}。可重试。` }
   finally { delete rowPending.value[server.id] }
 }
+defineExpose({ canLeave: canDiscard })
 onBeforeRouteLeave(canDiscard)
 onMounted(() => { void load(); void loadProjects() })
 onUnmounted(() => { disposed = true; invalidateLoad() })
@@ -299,4 +306,14 @@ onUnmounted(() => { disposed = true; invalidateLoad() })
 .mcp-empty { padding: $spacing-2xl; text-align: center; border: 1px dashed var(--cp-border-light); border-radius: $radius-md; }
 .mcp-empty strong { color: var(--cp-text); }
 .mcp-empty p { margin: $spacing-sm 0 0; color: var(--cp-text-tertiary); font-size: $font-sm; }
+
+.mcp-page--embedded { font-size: 13px; }
+.mcp-page--embedded .mcp-toolbar { gap: 8px; margin-bottom: 16px; }
+.mcp-page--embedded .mcp-toolbar :deep(.el-button) { font-size: 12px; height: 28px; padding: 5px 10px; }
+.mcp-embedded-heading { margin: 0 auto 0 0; font-size: 14px; font-weight: 500; }
+.mcp-embedded-heading small { font-size: 12px; color: var(--cp-text-secondary); font-weight: 400; }
+.mcp-page--embedded .mcp-scope-label { font-size: 12px; }
+.mcp-page--embedded .mcp-list { border: 0; border-radius: 12px; background: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); overflow: hidden; }
+.mcp-page--embedded .mcp-row { padding: 14px 16px; border-radius: 0; background: transparent; }
+.mcp-page--embedded .mcp-empty { border: 1px dashed var(--cp-border-light); border-radius: 12px; padding: 40px 20px; }
 </style>

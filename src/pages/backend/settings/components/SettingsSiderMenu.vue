@@ -52,7 +52,7 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     label: '平台能力',
     items: [
       { key: 'model-config', label: '模型', icon: 'Connection', path: '/settings/model-config' },
-      { key: 'mcp', label: 'MCP 服务', icon: 'lucide:plug', path: '/settings/mcp' },
+      { key: 'plugins', label: '插件', icon: 'lucide:blocks', path: '/settings/plugins' },
       { key: 'python-environment', label: 'Python 环境', icon: 'lucide:terminal-square', path: '/settings/python-environment' },
       { key: 'git', label: 'Git', icon: 'tabler:git-branch', path: '/settings/git' },
       { key: 'file-search', label: '文件搜索', icon: 'lucide:folder-search', path: '/settings/file-search' },
@@ -70,7 +70,7 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
   },
 ]
 // 设置项已拆分为独立路由，按当前路径判断激活项
-const activeSection = computed(() => settingsNavGroups.flatMap(group => group.items).find(item => route.path === item.path)?.key ?? '')
+const activeSection = computed(() => settingsNavGroups.flatMap(group => group.items).find(item => route.path === item.path || item.key === 'plugins' && route.path === '/settings/mcp')?.key ?? '')
 
 function returnToApplication() {
   void router.replace(resolveSettingsReturnPath(route.query.from))

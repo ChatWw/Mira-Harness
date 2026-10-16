@@ -11,6 +11,7 @@ export class MiraPaths {
   readonly memories: string
   readonly logs: string
   readonly skills: string
+  readonly sharedSkills: string
 
   constructor(home: string) {
     this.root = join(home, '.mira')
@@ -22,6 +23,7 @@ export class MiraPaths {
     this.memories = join(this.root, 'memories')
     this.logs = join(this.root, 'logs')
     this.skills = join(this.root, 'skills')
+    this.sharedSkills = join(home, '.agents', 'skills')
   }
 
   stateDatabase() { return join(this.root, 'state.sqlite') }

@@ -13,10 +13,26 @@
 .mira-plan-detail-warning { margin: 0 0 16px; color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
 .pilot-thread__viewport { min-height: 0; flex: 1; overflow: auto; scrollbar-color: var(--color-border) transparent; scrollbar-width: thin; }
 .message-row { margin: 0; }
-.mira-prompt-editor.mira-history-editor { min-height: 80px; max-height: 240px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--color-input-border); border-radius: 12px; background: var(--color-input); }
-.mira-prompt-editor.mira-history-editor:focus-visible { border-color: var(--color-input-border-focused); background: var(--color-input-focused); }
+.mira-history-edit-shell { position: relative; display: flex; width: 100%; min-height: 128px; flex-direction: column; gap: 12px; overflow: hidden; padding: 12px; border: 1px solid var(--color-input-border); border-radius: 16px; background: var(--color-input); }
+.mira-history-edit-shell:hover { border-color: var(--color-input-border-hover); }
+.mira-history-edit-shell:focus-within { border-color: var(--color-input-border-focused); background: var(--color-input-focused); }
+.mira-history-edit-input { position: relative; min-width: 0; flex: 1; }
+.mira-prompt-editor.mira-history-editor { min-height: 40px; max-height: 160px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.mira-history-edit-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.mira-history-edit-toolbar__actions { display: flex; align-items: center; gap: 6px; }
+.mira-history-edit-toolbar .mira-message-action, .mira-history-edit-send { width: 28px; height: 28px; border-radius: 8px; }
+.mira-history-edit-toolbar .mira-history-edit-cancel { width: 32px; height: 32px; }
+.mira-history-edit-toolbar .mira-history-edit-rewind { border: 1px solid var(--color-border); color: var(--mira-foreground); background: transparent; }
+.mira-history-edit-toolbar .mira-message-action { color: var(--mira-foreground); }
+.mira-history-edit-send { display: inline-flex; align-items: center; justify-content: center; border: 0; background: var(--mira-foreground); color: var(--mira-foreground-inverse); }
+.mira-history-edit-send:hover:not(:disabled) { opacity: .85; }
+.mira-history-edit-send:disabled { opacity: .4; }
+.mira-history-edit-send:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.mira-user-message-actions .mira-message-action svg { width: 16px; height: 16px; stroke-width: 1.5; }
 .mira-user-body { position: relative; min-width: 0; }
-.mira-user-body__content { min-width: 0; overflow: hidden; transition: max-height 300ms ease-out; }
+.mira-user-body__content { display: grid; grid-template-rows: 0fr; min-width: 0; overflow: hidden; transition: grid-template-rows 200ms ease-out; }
+.mira-user-body[data-expanded='true'] .mira-user-body__content { grid-template-rows: 1fr; }
+.mira-user-body__clip { min-height: var(--mira-folded-height, 0px); overflow: hidden; }
 .mira-user-body__text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-user-body[data-expandable='true'][data-expanded='false'] .mira-user-body__content { mask-image: linear-gradient(to bottom, black 0%, black 70%, transparent 100%); }
 .mira-user-body__toggle { display: flex; justify-content: center; padding-top: 8px; }
@@ -159,6 +175,9 @@
 .mira-message-action { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; }
 .mira-message-action:hover { color: var(--color-foreground); background: var(--color-hover); }
 .mira-message-action:disabled { cursor: default; opacity: .4; }
+.mira-assistant-toolbar { display: flex; align-items: center; gap: 4px; color: var(--color-foreground-subtle); }
+.mira-assistant-toolbar .mira-message-action svg { width: 16px; height: 16px; stroke-width: 1.5; }
+.mira-assistant-toolbar__time { margin-left: 4px; font-size: var(--text-ui-sm); font-weight: 400; line-height: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mira-message-attachments { display: flex; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 8px; }
 .mira-message-attachments button { display: inline-flex; max-width: 220px; min-height: 30px; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 7px; color: var(--color-foreground-subtle); background: var(--color-card); font-size: 12px; }
 .mira-message-attachments span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -551,7 +570,7 @@
   .mira-side-conversation__close-error { flex-wrap: wrap; gap: 4px; }
   .mira-side-conversation__close-error > span { min-width: 0; flex-basis: 100%; }
 }
-.mira-history-editor--drag-over .mira-prompt-editor.mira-history-editor {
+.mira-history-edit-shell.mira-history-editor--drag-over {
   border-color: var(--color-brand);
   border-style: dashed;
 }
@@ -619,3 +638,28 @@
 .mira-task-change-history > summary { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); cursor: pointer; }
 
 .mira-reply-changes__header > .mira-message-action { display: inline-flex; flex: none; width: auto; align-items: center; gap: 5px; padding: 4px 6px; color: var(--color-foreground); }
+
+/* Match ZCode ControlHintTooltip sizing in the history editor. */
+.mira-history-edit-hint { padding: 4px 10px; font-size: 12px; font-weight: 500; line-height: 18px; box-shadow: none; }
+.mira-history-edit-hint kbd { height: 16px; padding: 0 6px; border-radius: 6px; color: var(--color-foreground-subtle); }
+
+/* ZCode editConflict dialog: compact shell and full-window dimmed, blurred backdrop. */
+.mira-history-reset-overlay { position: fixed; inset: 0; z-index: 120; background: rgb(0 0 0 / 60%); backdrop-filter: blur(4px); }
+.mira-history-reset-dialog { position: fixed; z-index: 121; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(512px, calc(100vw - 32px)); display: grid; gap: 16px; padding: 16px; border: 1px solid var(--color-popover-border); border-radius: 16px; background: var(--color-popover); color: var(--color-foreground); box-shadow: 0 4px 12px rgb(0 0 0 / 12%); font-size: var(--text-ui-base); line-height: 1.625; -webkit-app-region: no-drag; outline: none; }
+.mira-history-reset-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mira-history-reset-heading h2 { margin: 0; font: inherit; font-weight: 500; }
+.mira-history-reset-dialog p { margin: 0; color: var(--color-foreground-subtle); }
+.mira-history-reset-heading + p { margin-top: -12px; }
+.mira-history-reset-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; border: 0; border-radius: 6px; padding: 4px 8px; background: transparent; color: inherit; font: inherit; font-weight: 500; }
+.mira-history-reset-dialog button:hover { background: var(--color-hover); }
+.mira-history-reset-dialog button:disabled { opacity: .5; }
+.mira-history-reset-dialog button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.mira-history-reset-heading button { padding: 4px; width: 24px; min-height: 24px; }
+.mira-history-reset-body { display: grid; gap: 12px; max-height: 50vh; overflow-y: auto; padding-right: 4px; }
+.mira-history-reset-body h3 { margin: 0 0 4px; font: inherit; font-weight: 500; }
+.mira-history-reset-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px; margin-top: 4px; border: 1px solid var(--color-border); border-radius: 6px; }
+.mira-history-reset-file > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-ui-xs); }
+.mira-history-reset-file > small { flex: none; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); }
+.mira-history-reset-footer { display: flex; justify-content: flex-end; gap: 8px; }
+.mira-history-reset-dialog .mira-history-reset-confirm { background: var(--color-foreground); color: var(--color-popover); }
+.mira-history-reset-dialog .mira-history-reset-confirm:hover { background: color-mix(in srgb, var(--color-foreground) 85%, var(--color-popover)); }

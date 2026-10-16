@@ -71,6 +71,20 @@ describe('conversation Git tools DOM', () => {
     expect(view.gitAction).toHaveBeenCalledExactlyOnceWith(project.id, 'commit', snapshot.token, 'feat: generated', false)
   })
 
+  it('shows compact commit controls and applies the shortcut to the selected action', async () => {
+    const { view } = await tools()
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(dialog.querySelector('.mira-git-scope')).toBeNull()
+    expect(dialog.querySelector('.mira-git-files')).toBeNull()
+    expect(dialog.querySelector('textarea')?.placeholder).toBe('提交信息（留空将自动生成）')
+    expect(dialog.querySelector('.mira-git-include small')?.textContent).toBe('2 个文件')
+    expect(dialog.querySelectorAll('.mira-git-actions button svg')).toHaveLength(3)
+    await act(async () => dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+    expect(dialog.querySelector('.mira-git-actions [data-selected="true"]')?.getAttribute('aria-label')).toBe('提交并推送')
+    await act(async () => { dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })); await new Promise(resolve => setTimeout(resolve, 0)) })
+    expect(view.gitAction).toHaveBeenCalledWith(project.id, 'commit-and-push', snapshot.token, 'feat: generated', true)
+  })
+
   it('blocks writes while project activity is pending', async () => {
     const { view } = await tools(controller(), { blocked: true })
     await click('提交')

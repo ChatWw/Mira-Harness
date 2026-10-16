@@ -1,4 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { basename, dirname, join, relative, isAbsolute } from 'node:path'
+import { existsSync, mkdirSync, realpathSync, symlinkSync } from 'node:fs'
 import type { HarnessProjectCreateInput, HarnessSkillSettings, MemoryScope } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 import type { HarnessRuntime } from '../services/harnessRuntime'
@@ -28,6 +30,39 @@ export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, au
   ipcMain.handle('harness:get-skill-settings', () => database.skills.settings())
   ipcMain.handle('harness:save-skill-settings', (_event, settings: HarnessSkillSettings) => database.skills.saveSettings(settings))
   ipcMain.handle('harness:set-skill-enabled', (_event, id: string, enabled: boolean) => database.skills.setEnabled(id, Boolean(enabled)))
+  ipcMain.handle('harness:get-plugin-skill', (_event, id: string, name: string) => {
+    const plugin = database.plugins.snapshots().find(item => item.id === id), skill = plugin?.skills.find(item => item.name === name)
+    if (!plugin || !skill) throw new Error('插件技能不存在，请刷新后重试')
+    return { ...skill, id: plugin.id, enabled: plugin.enabled, valid: true, instructions: '' }
+  })
+  ipcMain.handle('harness:reveal-skill', (_event, id: string, name?: string) => {
+    const skill = name ? database.plugins.snapshots().find(item => item.id === id)?.skills.find(item => item.name === name) : database.skills.list().find(item => item.id === id)
+    if (!skill) throw new Error('技能不存在，请刷新后重试')
+    shell.showItemInFolder(skill.path)
+  })
+  ipcMain.handle('harness:delete-skill', async (_event, id: string) => {
+    const skill = database.skills.list().find(item => item.id === id)
+    if (!skill?.sourceDirectory) throw new Error('技能不存在，请刷新后重试')
+    const directory = dirname(skill.path), parent = realpathSync(dirname(directory)), root = realpathSync(skill.sourceDirectory)
+    const offset = relative(root, parent)
+    if (offset === '..' || offset.startsWith('../') || offset.startsWith('..\\') || isAbsolute(offset)) throw new Error('不能删除技能根目录或目录外的文件')
+    await shell.trashItem(join(parent, basename(directory)))
+    return database.skills.list()
+  })
+  ipcMain.handle('harness:import-skill', async event => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+    const options = { properties: ['openDirectory'] as Array<'openDirectory'>, title: '导入技能：选择包含 SKILL.md 的文件夹' }
+    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+    if (result.canceled || !result.filePaths[0]) return database.skills.list()
+    const directory = realpathSync(result.filePaths[0])
+    if (!existsSync(join(directory, 'SKILL.md'))) throw new Error('所选文件夹中没有 SKILL.md')
+    mkdirSync(miraPaths.sharedSkills, { recursive: true })
+    const target = join(miraPaths.sharedSkills, basename(directory))
+    if (directory !== realpathSync(miraPaths.sharedSkills) && !database.skills.list().some(skill => realpathSync(skill.path) === join(directory, 'SKILL.md'))) {
+      symlinkSync(directory, target, process.platform === 'win32' ? 'junction' : 'dir')
+    }
+    return database.skills.list()
+  })
   ipcMain.handle('harness:list-projects', () => database.harness.listProjects())
   ipcMain.handle('harness:open-project-directory', (_event, id: string) => shell.openPath(database.harness.getProject(id).directory))
   ipcMain.handle('harness:select-project-directory', async event => {

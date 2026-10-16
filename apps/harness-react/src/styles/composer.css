@@ -90,10 +90,21 @@
 .mira-prompt-editor[aria-disabled='true'] { cursor: default; }
 .mira-prompt-reference { padding: 1px 5px; border-radius: 4px; color: var(--color-foreground); background: var(--color-surface-hover); box-decoration-break: clone; -webkit-box-decoration-break: clone; font-size: var(--text-ui-sm); }
 .mira-prompt-reference::before { margin-right: 4px; color: var(--color-foreground-subtle); content: '@'; }
+.mira-prompt-reference-file::before { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; background: var(--mira-reference-file-icon) center / contain no-repeat; content: ''; }
+.mira-prompt-reference-plugin, .mira-prompt-reference-skill, .mira-prompt-reference-command { padding: 0; border-radius: 0; background: none; color: var(--color-plugin-node-foreground, #b87a1a); font-size: var(--text-ui-base); font-weight: 500; line-height: 20px; }
+.mira-prompt-reference-plugin::before { display: inline-block; width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; content: ''; background: currentColor; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1'/%3E%3C/svg%3E") center / contain no-repeat; }
+.mira-prompt-reference-plugin-image::before { background: var(--mira-reference-plugin-icon) center / contain no-repeat; mask: none; }
 .mira-prompt-reference-selection::before { content: none; }
-.mira-prompt-reference-skill::before { content: '$'; }
-.mira-prompt-reference-command::before { content: none; }
+.mira-prompt-reference-skill { color: var(--color-skill-node-foreground); }
+.mira-prompt-reference-command { color: var(--color-command-node-foreground); }
+.mira-prompt-reference-skill::before, .mira-prompt-reference-command::before { color: inherit; display: inline-block; width: 14px; height: 14px; vertical-align: -2px; content: ''; background: currentColor; mask: var(--mira-reference-icon) center / contain no-repeat; }
 .mira-prompt-reference-session::before { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; background: currentColor; content: ''; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* Sent-message references render icons directly rather than relying on token masks. */
+.mira-message-reference { display: inline-flex; align-items: center; gap: 4px; vertical-align: baseline; }
+.mira-message-reference::before { display: none; content: none; }
+.mira-message-reference > svg, .mira-message-reference > img { flex: none; }
+.mira-message-reference > .mira-market-avatar { display: inline-flex; width: 14px; height: 14px; flex: none; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 0; background: none; }
+.mira-message-reference > .mira-market-avatar img, .mira-message-reference > .mira-market-avatar svg { width: 14px; height: 14px; object-fit: contain; }
 .mira-prompt-reference[data-lexical-selected='true'] { background: var(--color-selected); }
 
 /* ZCode ContextAttachmentPill / WebElementContextAttachmentChip proportions. */
@@ -220,6 +231,8 @@
 .mira-attachment-card__open { display: flex; min-width: 0; height: 48px; align-items: center; gap: 8px; padding: 6px 24px 6px 6px; border: 0; border-radius: inherit; color: var(--color-foreground); background: transparent; font-size: var(--text-ui-base); }
 .mira-attachment-card__open > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-attachment-card__open > svg { flex: none; width: 36px; height: 36px; padding: 10px; border-radius: 6px; background: var(--color-background); }
+.mira-attachment-card__open > .mira-composer-attachment-file-icon { flex: none; width: 36px; height: 36px; padding: 8px; border-radius: 6px; background: var(--color-background); object-fit: contain; }
+.mira-attachment-card--image .mira-attachment-card__open > .mira-composer-attachment-file-icon { width: 20px; height: 20px; padding: 0; background: none; }
 .mira-attachment-card__text { display: flex; min-width: 0; flex-direction: column; text-align: left; }
 .mira-attachment-card__text > span { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .mira-attachment-card__text small { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); }
@@ -245,6 +258,10 @@
 .mira-composer-suggestions__heading { display: flex; height: 34px; align-items: center; overflow: hidden; padding: 0 12px; color: var(--color-foreground-subtle); font-size: var(--text-ui-base); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .mira-composer-suggestions__option { display: flex; width: 100%; min-width: 0; height: 32px; align-items: center; gap: 12px; margin: 1px 0; padding: 0 12px; border: 0; border-radius: 12px; color: inherit; background: transparent; font: inherit; text-align: left; }
 .mira-composer-suggestions__option > svg { flex: none; color: var(--color-foreground-subtle); }
+.mira-composer-suggestions__option > .mira-market-avatar { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 4px; background: var(--color-surface); }
+.mira-composer-suggestions__option > .mira-market-avatar img, .mira-composer-suggestions__option > .mira-market-avatar svg { width: 16px; height: 16px; object-fit: contain; }
+.mira-composer-suggestions__option > .mira-composer-skill-icon { color: var(--color-foreground); }
+.mira-composer-suggestions__option > img { flex: none; width: 16px; height: 16px; object-fit: contain; }
 .mira-mcp-connection { display: inline-flex; width: 16px; flex: none; align-items: center; justify-content: center; color: var(--color-foreground-subtle); }
 .mira-mcp-connection[data-state='connected'] { color: var(--color-success); }
 .mira-mcp-connection[data-state='connecting'] { color: var(--color-warning); }

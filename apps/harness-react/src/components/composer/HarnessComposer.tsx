@@ -1,3 +1,5 @@
+import { MiraPluginAvatar, pluginLabel } from '../extensions/MiraPluginAvatar'
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { isMiraPrimaryModifier, miraShortcutLabel } from '../../../../../src/platform/workbenchShortcuts'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
@@ -5,7 +7,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Dialog from '@radix-ui/react-dialog'
-import { ArrowUp, Blocks, Bot, Brain, Check, ChevronDown, Circle, CircleAlert, FileText, Folder, Hand, Lightbulb, LoaderCircle, MessageSquare, Minimize2, Package, Paperclip, Plus, RefreshCw, Search, Settings2, ShieldAlert, ShieldCheck, Square, Target, Wrench, X } from 'lucide-react'
+import { ArrowUp, Blocks, Bot, Brain, Check, ChevronDown, Circle, CircleAlert, FileText, Folder, Hand, Lightbulb, LoaderCircle, MessageSquare, Minimize2, Package, Paperclip, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Square, Goal, Workflow, WandSparkles, Wrench, X } from 'lucide-react'
 import { isModelProviderAvailable, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type HarnessSideConversationInput, type HarnessSubtaskRole, type ModelSelection, type PermissionMode, type SendShortcut } from '../../../../../src/config/harness'
 import { MIRA_SUBTASK_AGENTS } from '../../../../../src/config/miraAgents'
 import { parseMiraGoalCommand } from '../../../../../src/config/miraGoals'
@@ -284,10 +286,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setKnownUserAgents(previous => previous.owner === userAgentOwner && JSON.stringify(previous.names) === JSON.stringify(names) ? previous : { owner: userAgentOwner, names })
   }, [catalogs.userAgents.items, catalogs.userAgents.status, userAgentOwner])
   const slashCommands = [
-    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'goal', label: '持续目标', description: '设置持续目标，逐轮核验完成情况', keywords: 'goal target 目标', icon: <Target size={16} /> }] : []),
-    ...(!state.session?.parentSessionId && fileDirectory && !planning ? [{ id: 'workflow', label: '工作流', description: '用工作流编排任务，审阅流程图后运行', keywords: 'workflow 工作流 编排', icon: <Blocks size={16} /> }] : []),
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'goal', label: '持续目标', description: '设置持续目标，逐轮核验完成情况', keywords: 'goal target 目标', icon: <Goal size={16} /> }] : []),
+    ...(!state.session?.parentSessionId && fileDirectory && !planning ? [{ id: 'workflow', label: '工作流', description: '用工作流编排任务，审阅流程图后运行', keywords: 'workflow 工作流 编排', icon: <Workflow size={16} /> }] : []),
     { id: 'files', label: '添加文件', description: '添加文件附件', icon: <Paperclip size={16} /> },
-    { id: 'skills', label: '引用技能', description: '引用技能到本次消息', icon: <Wrench size={16} /> },
+    { id: 'skills', label: '引用技能', description: '引用技能到本次消息', icon: <WandSparkles size={14} className="mira-composer-skill-icon" /> },
     { id: 'mcp', label: 'MCP 服务', description: '查看 MCP 状态与此会话的服务选择', icon: <Blocks size={16} /> },
     { id: 'model', label: '切换模型', description: '切换模型', icon: <Brain size={16} /> },
     ...(controller.supportsContextCompaction && sessionId && state.session?.draftState !== 'prepared' && !state.session?.archivedAt ? [{ id: 'compact', label: '压缩上下文', description: compactQueued || compactRunning ? '上下文压缩已在运行或排队' : state.running || confirmationPending || state.queue?.items.length ? '加入待发送，按顺序压缩上下文' : '压缩较早上下文，保留最近对话和完整历史', keywords: 'compact compress 压缩 上下文', icon: <Minimize2 size={16} /> }] : []),
@@ -302,15 +304,14 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件附件', description: controller.supportsAttachments ? '图片、PDF、视频或文本文件' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
     { id: 'add-plan', label: '计划模式', description: planning ? '关闭计划模式' : '先制定计划，确认后再执行', selected: planning, disabled: nextConfigBlocked, icon: <Lightbulb size={16} />, action: { type: 'command', value: 'plan' } },
-    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', disabled: editorText !== '' || references.length > 0 || promptDocument.parts.some(part => part.type === 'reference'), icon: <Target size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
-    ...(!state.session?.parentSessionId && fileDirectory && !planning && editorText === '' && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? [{ id: 'add-workflow', label: '工作流', description: '编排任务，审阅后运行', icon: <Blocks size={16} />, action: { type: 'command' as const, value: 'workflow' } }] : []),
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', disabled: editorText !== '' || references.length > 0 || promptDocument.parts.some(part => part.type === 'reference'), icon: <Goal size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
+    ...(!state.session?.parentSessionId && fileDirectory && !planning && editorText === '' && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? [{ id: 'add-workflow', label: '工作流', description: '编排任务，审阅后运行', icon: <Workflow size={16} />, action: { type: 'command' as const, value: 'workflow' } }] : []),
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })
   if (kind === '/' && controller.supportsPromptCommands) {
     const atStart = Boolean(activeToken && !editorText.slice(0, activeToken.start).trim())
     suggestionSections.push({ id: 'custom-commands', title: '自定义命令', items: atStart ? filterMiraSuggestions(catalogs.commands.items.map(command => ({ id: `custom-command-${command.id}`, label: `/${command.name}`, keywords: `${command.name} ${command.description}`, description: command.unavailableReason || (command.shadowed ? '被同名项目命令覆盖' : `${command.scope === 'project' ? '当前项目' : '全局'} · ${[command.argumentHint, command.description].filter(Boolean).join(' · ')}`), disabled: Boolean(command.unavailableReason || command.shadowed), icon: <Wrench size={16} />, action: { type: 'prompt-command' as const, value: command.name } })), suggestionQuery) : [], loading: catalogs.commands.status === 'loading', error: catalogs.commands.error, onRetry: catalogs.reload, empty: atStart ? '还没有自定义命令，可在设置中创建' : '自定义命令需放在消息开头' })
-    suggestionSections.push({ id: 'custom-command-actions', title: '管理', items: filterMiraSuggestions([{ id: 'manage-commands', label: '管理自定义命令', description: '创建、编辑或删除全局与项目命令', icon: <Settings2 size={16} />, action: { type: 'command' as const, value: 'manage-commands' } }], suggestionQuery) })
   }
   if (kind === '/' && controller.supportsPlugins) {
     const atStart = Boolean(activeToken && !editorText.slice(0, activeToken.start).trim())
@@ -321,9 +322,9 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }))), suggestionQuery) : []
     suggestionSections.push({ id: 'plugin-commands', title: commands.length > 40 ? '插件命令 · 前 40 项，请输入名称筛选' : '插件命令', items: commands.slice(0, 40), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: !atStart ? '插件命令需放在消息开头' : '没有匹配的插件命令；可在插件市场添加' })
   }
-  if (controller.supportsPlugins && (kind === '@' || contextOpen && !panelFilter)) suggestionSections.push({ id: 'plugins', title: '插件 Skill', items: filterMiraSuggestions(catalogs.plugins.items.filter(plugin => plugin.skills.length || !plugin.agents?.length && !plugin.commands?.length).map(plugin => ({ id: `plugin-${plugin.id}`, label: plugin.name, keywords: plugin.id, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请在市场中停用其中一个' : !plugin.skills.length ? '此插件在当前会话中没有可用能力' : plugin.description), disabled: Boolean(plugin.error || plugin.conflicts.length || !plugin.skills.length), icon: <Blocks size={16} />, action: { type: 'plugin' as const, value: plugin.id } })), suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的插件 Skill；插件智能体在下方，命令通过 / 选择' })
+  if (controller.supportsPlugins && (kind === '@' || contextOpen && !panelFilter)) suggestionSections.push({ id: 'plugins', title: '插件', items: filterMiraSuggestions(catalogs.plugins.items.filter(plugin => plugin.skills.length || !plugin.agents?.length && !plugin.commands?.length).map(plugin => ({ id: `plugin-${plugin.id}`, label: pluginLabel(plugin), keywords: plugin.id, description: plugin.error || (plugin.conflicts.length ? '同名插件冲突，请在市场中停用其中一个' : !plugin.skills.length ? '此插件在当前会话中没有可用能力' : plugin.description), disabled: Boolean(plugin.error || plugin.conflicts.length || !plugin.skills.length), icon: <MiraPluginAvatar item={plugin} />, action: { type: 'plugin' as const, value: plugin.id } })), suggestionQuery), loading: catalogs.plugins.status === 'loading', error: catalogs.plugins.error, onRetry: catalogs.reload, empty: '没有匹配的插件 Skill；插件智能体在下方，命令通过 / 选择' })
   if (kind !== '/' && kind !== '$' && kind !== 'skills' && kind !== 'mcp') {
-    if (kind !== '#') suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <FileText size={16} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId && !selectedProject ? '请先选择项目，再引用工作区文件' : !fileDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
+    if (kind !== '#') suggestionSections.push({ id: 'files', title: catalogs.files.truncated ? '文件（前 40 项）' : '文件', items: catalogs.files.items.map(file => ({ id: `file-${file.path}`, label: file.name, description: filePreviewKind(file.path) === 'bitmap' && !attachmentImageType(file.path) ? '请先转换为 PNG、JPEG、GIF 或 WebP' : file.path, disabled: filePreviewKind(file.path) === 'bitmap' && (!controller.supportsAttachments || !attachmentImageType(file.path)), icon: <img src={miraFileTreeIcon(file.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />, action: { type: 'file', value: file.path } })), loading: catalogs.files.status === 'loading', error: catalogs.files.error, onRetry: catalogs.reload, empty: !sessionId && !selectedProject ? '请先选择项目，再引用工作区文件' : !fileDirectory ? '当前任务没有可用工作目录' : '没有匹配的文件' })
     const currentProjectId = state.session?.projectId ?? draftProjectId
     // All indexed Mira projects use this controller's local authority; @ stays in its workspace.
     const sessions = state.sessions.filter(session => session.id !== sessionId && (kind === '#' || session.projectId === currentProjectId))
@@ -337,11 +338,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     })
     suggestionSections.push({ id: 'sessions', title: kind === '#' ? '对话 · 各项目最多 20 项' : '对话', items, empty: kind === '#' ? '没有匹配的本地对话' : '当前工作区暂无可引用对话' })
   }
-  if (kind === '$' || kind === 'skills' || kind === '/') suggestionSections.push({ id: 'skills', title: '技能', items: filterMiraSuggestions(catalogs.skills.items.map(skill => ({ id: `skill-${skill.id}`, label: kind === '/' ? `$${skill.name}` : skill.name, keywords: skill.name, description: skill.description, disabled: contextBlocked, icon: <Wrench size={16} />, action: { type: 'skill' as const, value: skill.id } })), suggestionQuery), loading: catalogs.skills.status === 'loading', error: catalogs.skills.error, onRetry: catalogs.reload, empty: '没有匹配的已启用技能' })
+  if (kind === '$' || kind === 'skills' || kind === '/') suggestionSections.push({ id: 'skills', title: '技能', items: filterMiraSuggestions(catalogs.skills.items.map(skill => ({ id: `skill-${skill.id}`, label: kind === '/' ? `$${skill.name}` : skill.name, keywords: skill.name, description: skill.description, disabled: contextBlocked, icon: <WandSparkles size={14} className="mira-composer-skill-icon" />, action: { type: 'skill' as const, value: skill.id } })), suggestionQuery), loading: catalogs.skills.status === 'loading', error: catalogs.skills.error, onRetry: catalogs.reload, empty: '没有匹配的已启用技能' })
   if (kind === '/' || kind === '@' || contextOpen && !panelFilter) {
     if (controller.supportsUserAgents) {
       suggestionSections.push({ id: 'user-agents', title: `自定义智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions(catalogs.userAgents.items.map(agent => ({ id: `user-agent-${agent.id}`, label: agent.name, keywords: `${agent.description} ${agent.scope} agent subagent`, description: agent.unavailableReason || (agent.shadowed ? '被同名项目智能体覆盖' : !agent.enabled ? '已停用，可在设置中启用' : `${agent.scope === 'project' ? '当前项目' : '全局'} · ${agent.description}`), disabled: Boolean(agentUnavailable || agent.unavailableReason || agent.shadowed || !agent.enabled), icon: <Bot size={16} />, action: { type: 'agent' as const, value: agent.name } })), suggestionQuery), loading: catalogs.userAgents.status === 'loading', error: catalogs.userAgents.error, onRetry: catalogs.reload, empty: '没有匹配的自定义智能体，可在设置中创建' })
-      suggestionSections.push({ id: 'user-agent-actions', title: '管理', items: filterMiraSuggestions([{ id: 'manage-agents', label: '管理智能体', description: '创建、编辑或启停全局与项目智能体', icon: <Settings2 size={16} />, action: { type: 'command' as const, value: 'manage-agents' } }], suggestionQuery) })
     }
     suggestionSections.push({ id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, items: filterMiraSuggestions([
     ...Object.entries(MIRA_SUBTASK_AGENTS).map(([role, agent]) => ({ id: `agent-${role}`, label: agent.label, keywords: `${role} agent subagent`, description: `内置 · ${agent.description}`, disabled: Boolean(agentUnavailable), icon: <Bot size={16} />, action: { type: 'agent' as const, value: role } })),
@@ -360,17 +360,15 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }), suggestionQuery), loading: catalogs.mcp.status === 'loading', error: catalogs.mcp.error, onRetry: catalogs.reload, empty: '还没有已启用的 MCP 服务，可在管理页面添加' })
     const reconnectable = controller.supportsMcpReconnect ? catalogs.mcp.items.filter(server => !server.source && server.enabled && !server.unavailableReason && (mcpReconnecting.includes(server.id) || server.connection?.state === 'failed' || server.connection?.state === 'disconnected')) : []
     if (reconnectable.length) suggestionSections.push({ id: 'mcp-recovery', title: '连接恢复', items: filterMiraSuggestions(reconnectable.map(server => ({ id: `reconnect-mcp-${server.id}`, label: `${mcpReconnecting.includes(server.id) ? '正在重连' : '重连'} ${server.name}`, description: state.running ? '当前任务运行中，结束后可重连' : '仅重连此服务，保留其他连接', disabled: configBlocked || mcpReconnecting.includes(server.id), icon: mcpReconnecting.includes(server.id) ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />, action: { type: 'command' as const, value: `reconnect-mcp:${server.id}` } })), suggestionQuery) })
-    suggestionSections.push({ id: 'mcp-actions', title: '管理', items: [
+    suggestionSections.push({ id: 'mcp-actions', title: '连接状态', items: [
       { id: 'refresh-mcp', label: '刷新连接状态', icon: <RefreshCw size={16} />, action: { type: 'command', value: 'refresh-mcp' } },
-      { id: 'manage-mcp', label: '管理 MCP 服务', description: '添加、编辑或启停服务', icon: <Settings2 size={16} />, action: { type: 'command', value: 'manage-mcp' } },
     ] })
   }
   // ZCode's slash panel groups command sources together, then skills and subagents.
-  // Keep source descriptions and management actions inside their owning category.
   const visibleSuggestionSections = kind === '/' ? [
-    { id: 'commands', title: suggestionSections.find(section => section.id === 'plugin-commands')?.title.includes('前 40') ? '命令 · 插件前 40 项，请输入名称筛选' : '命令', sources: ['commands', 'custom-commands', 'plugin-commands', 'custom-command-actions'] },
+    { id: 'commands', title: suggestionSections.find(section => section.id === 'plugin-commands')?.title.includes('前 40') ? '命令 · 插件前 40 项，请输入名称筛选' : '命令', sources: ['commands', 'custom-commands', 'plugin-commands'] },
     { id: 'skills', title: '技能', sources: ['skills'] },
-    { id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, sources: ['user-agents', 'agents', 'user-agent-actions'] },
+    { id: 'agents', title: `子智能体${agentUnavailable ? ` · ${agentUnavailable}` : ' · 引用后由主 Agent 按需委派'}`, sources: ['user-agents', 'agents'] },
   ].map(group => {
     const sections = group.sources.flatMap(id => suggestionSections.filter(section => section.id === id))
     return { id: group.id, title: group.title, items: sections.flatMap(section => section.items),
@@ -418,7 +416,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       setTaskDraft(next)
       selectProject(next.sessionId ? controller.getSnapshot().session?.projectId : projectId === undefined ? latestDraftSnapshot.current.config.projectId : requestedProjectId)
       if (plugin && document && (!pluginIds.has(plugin.id) || pluginPrompt)) {
-        const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), ...(!pluginIds.has(plugin.id) ? [{ type: 'reference' as const, reference: miraPluginReference(plugin.id, plugin.name) }] : []), { type: 'text', text: pluginPrompt ? ` ${pluginPrompt}` : ' ' }] }
+        const nextDocument: MiraPromptDocument = { version: 1, parts: [...document.parts, ...(text && !/\s$/.test(text) ? [{ type: 'text' as const, text: ' ' }] : []), ...(!pluginIds.has(plugin.id) ? [{ type: 'reference' as const, reference: miraPluginReference(plugin.id, pluginLabel(plugin), plugin.listing?.icon) }] : []), { type: 'text', text: pluginPrompt ? ` ${pluginPrompt}` : ' ' }] }
         const end = serializeMiraPromptDocument(nextDocument).length
         setPromptDocument(nextDocument, { start: end, end }, ownerId)
       }
@@ -1019,20 +1017,6 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       return
     }
     if (item.action.type === 'command' && item.action.value === 'open-commands') { openPromptTrigger('/'); return }
-    if (item.action.type === 'command' && item.action.value === 'manage-commands') {
-      closeSuggestions()
-      const projectId = state.session?.projectId ?? draftProjectId
-      try { await persistDrafts(); await controller.navigate(`/settings/commands${projectId ? `?project=${encodeURIComponent(projectId)}` : ''}`) }
-      catch (error) { setComposerError(`打开命令设置失败：${error instanceof Error ? error.message : String(error)}`) }
-      return
-    }
-    if (item.action.type === 'command' && item.action.value === 'manage-agents') {
-      closeSuggestions()
-      const projectId = state.session?.projectId ?? draftProjectId
-      try { await persistDrafts(); await controller.navigate(`/settings/agents${projectId ? `?project=${encodeURIComponent(projectId)}` : ''}`) }
-      catch (error) { setComposerError(`打开智能体设置失败：${error instanceof Error ? error.message : String(error)}`) }
-      return
-    }
     const range = contextOpen ? menuSelection.current : activeToken ? miraPromptReplacementRange(editorText, activeToken, [item.label, item.action.value]) : caret
     if (item.action.type === 'prompt-command') {
       if (editorText.slice(0, range.start).trim()) return
@@ -1061,7 +1045,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     if (item.action.type === 'plugin') {
       const ids = new Set(promptDocument.parts.flatMap(part => part.type === 'reference' && part.reference.kind === 'plugin' ? [part.reference.value] : []))
       if (!ids.has(item.action.value) && ids.size >= 8) { setComposerError('每条消息最多引用 8 个插件，请先移除已有引用'); return }
-      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: miraPluginReference(item.action.value, item.label) }, { type: 'text', text: ' ' }])) closeSuggestions()
+      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: miraPluginReference(item.action.value, item.label, catalogs.plugins.items.find(plugin => plugin.id === item.action.value)?.listing?.icon) }, { type: 'text', text: ' ' }])) closeSuggestions()
       return
     }
     if (item.action.type === 'skill') {
@@ -1130,10 +1114,6 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
     if (commandId === 'files') await selectFiles(draftText)
     if (commandId === 'skills' || commandId === 'mcp') { contextOwnerRef.current = draftKey; setPanelFilter(commandId); setContextOpen(true) }
-    if (commandId === 'manage-mcp') {
-      try { await persistDrafts(); await controller.navigate('/settings/mcp') }
-      catch (error) { setComposerError(`打开 MCP 设置失败：${error instanceof Error ? error.message : String(error)}`) }
-    }
     if (commandId === 'model') setModelOpen(true)
     if (commandId === 'thinking') setReasoningOpen(true)
     if (commandId === 'plan') selectPlanning(!planning)

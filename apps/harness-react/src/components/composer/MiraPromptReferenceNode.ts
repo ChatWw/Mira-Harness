@@ -4,6 +4,7 @@
  * Mira uses its own reference payload, with canonical plugin:// identity for plugin chips.
  */
 import { $applyNodeReplacement, TextNode, type DOMExportOutput, type EditorConfig, type LexicalNode, type NodeKey, type SerializedTextNode } from 'lexical'
+import { decorateMiraPromptReference } from '../../lib/prompt-reference-decoration'
 import { validateMiraPromptDocument, type MiraPromptReference } from '../../lib/prompt-editor-document'
 
 type SerializedMiraReference = SerializedTextNode & { type: 'mira-prompt-reference'; version: 1; reference: MiraPromptReference }
@@ -32,6 +33,7 @@ export class MiraPromptReferenceNode extends TextNode {
     element.classList.add('mira-prompt-reference', `mira-prompt-reference-${this.__reference.kind}`)
     element.setAttribute('data-mira-prompt-reference', this.__reference.kind)
     element.setAttribute('spellcheck', 'false')
+    decorateMiraPromptReference(element, this.__reference)
     element.title = this.__reference.kind === 'agent' ? `${this.__reference.label}智能体（${this.__reference.text}）` : ['file', 'selection', 'web'].includes(this.__reference.kind) ? this.__reference.text : this.__reference.label
     return element
   }

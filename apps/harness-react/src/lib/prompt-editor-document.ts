@@ -2,6 +2,7 @@ export interface MiraPromptReference {
   id: string
   kind: 'file' | 'session' | 'skill' | 'plugin' | 'command' | 'agent' | 'mcp' | 'selection' | 'web' | 'presentation'
   label: string
+  pluginIcon?: string
   value: string
   /** Actual Mira input; display labels and opaque attachment tokens are never substituted here. */
   text: string
@@ -34,8 +35,8 @@ export function validateMiraPromptDocument(value: unknown, expectedText?: string
       length += part.text.length
     } else if (fields(part, ['type', 'reference']) && part.type === 'reference') {
       const reference = part.reference
-      if (!fields(reference, ['id', 'kind', 'label', 'value', 'text']) || !string(reference.id, 4096, true) || typeof reference.kind !== 'string' || !['file', 'session', 'skill', 'plugin', 'command', 'agent', 'mcp', 'selection', 'web', 'presentation'].includes(reference.kind) || !string(reference.label, 512, true) || !string(reference.value, 4096) || !string(reference.text, MAX_TEXT, true)) return
-      parts.push({ type: 'reference', reference: { id: reference.id, kind: reference.kind as MiraPromptReference['kind'], label: reference.label, value: reference.value, text: reference.text } })
+      if (!(fields(reference, ['id', 'kind', 'label', 'value', 'text']) || fields(reference, ['id', 'kind', 'label', 'value', 'text', 'pluginIcon']) && reference.kind === 'plugin' && string(reference.pluginIcon, 2048, true)) || !string(reference.id, 4096, true) || typeof reference.kind !== 'string' || !['file', 'session', 'skill', 'plugin', 'command', 'agent', 'mcp', 'selection', 'web', 'presentation'].includes(reference.kind) || !string(reference.label, 512, true) || !string(reference.value, 4096) || !string(reference.text, MAX_TEXT, true)) return
+      parts.push({ type: 'reference', reference: { id: reference.id, kind: reference.kind as MiraPromptReference['kind'], label: reference.label, value: reference.value, text: reference.text, ...(typeof reference.pluginIcon === 'string' ? { pluginIcon: reference.pluginIcon } : {}) } })
       length += reference.text.length
     } else return
     if (length > MAX_TEXT) return

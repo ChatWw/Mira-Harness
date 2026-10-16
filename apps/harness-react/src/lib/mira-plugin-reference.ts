@@ -11,6 +11,11 @@ export function miraPluginCommandReference(name: string): MiraPromptReference {
 export function restoreMiraPluginCommand(document: MiraPromptDocument): MiraPromptDocument {
   const first = document.parts[0]
   if (first?.type !== 'text') return document
+  const builtin = /^(\s*)\/(goal|workflow)(?=\s|$)/.exec(first.text)
+  if (builtin) {
+    const reference: MiraPromptReference = { id: `mira-command-${builtin[1].length}`, kind: 'command', label: builtin[2] === 'goal' ? '持续目标' : '工作流', value: `builtin:${builtin[2]}`, text: `/${builtin[2]}` }
+    return { version: 1, parts: [...(builtin[1] ? [{ type: 'text' as const, text: builtin[1] }] : []), { type: 'reference', reference }, ...(first.text.length > builtin[0].length ? [{ type: 'text' as const, text: first.text.slice(builtin[0].length) }] : []), ...document.parts.slice(1)] }
+  }
   const match = /^(\s*)(\/[a-z0-9][a-z0-9._-]*(?::[a-z0-9][a-z0-9._-]*)+)(?=\s|$)/i.exec(first.text)
   if (!match || !parseMiraPluginInvocation(match[2])) return document
   const reference = miraPluginCommandReference(match[2].slice(1))
@@ -18,10 +23,10 @@ export function restoreMiraPluginCommand(document: MiraPromptDocument): MiraProm
   return { version: 1, parts: [...(match[1] ? [{ type: 'text' as const, text: match[1] }] : []), { type: 'reference', reference }, ...(first.text.length > match[0].length ? [{ type: 'text' as const, text: first.text.slice(match[0].length) }] : []), ...document.parts.slice(1)] }
 }
 
-export function miraPluginReference(id: string, label: string): MiraPromptReference {
+export function miraPluginReference(id: string, label: string, pluginIcon?: string): MiraPromptReference {
   if (!isMiraPluginId(id)) throw new Error('插件身份无效')
   const escaped = label.replace(/([\\\[\]])/g, '\\$1').replace(/[\r\n]/g, ' ')
-  return { id: crypto.randomUUID(), kind: 'plugin', label, value: id, text: `[@${escaped}](plugin://${id})` }
+  return { id: crypto.randomUUID(), kind: 'plugin', label, ...(pluginIcon ? { pluginIcon } : {}), value: id, text: `[@${escaped}](plugin://${id})` }
 }
 
 export function restoreMiraPluginReferences(document: MiraPromptDocument, ids?: string[]): MiraPromptDocument {

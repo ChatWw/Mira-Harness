@@ -12,21 +12,6 @@
       <p v-if="instructionsPath" class="file-hint">保存位置：{{ instructionsPath }}</p>
     </section>
 
-    <section class="personalization-section" aria-labelledby="skills-heading">
-      <div class="section-heading">
-        <div><h2 id="skills-heading">Skill</h2><p>从受信任的本地目录加载工作规则。Skill 只能在会话中手动选择，不能扩大工具权限。</p></div>
-        <el-button :loading="skillsSaving" @click="saveSkillSettings">保存目录</el-button>
-      </div>
-      <el-input v-model="skillDirectories" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="每行一个绝对路径" aria-label="Skill 目录" />
-      <div class="skill-list">
-        <div v-for="skill in skills" :key="skill.id" class="settings-row">
-          <div class="settings-row__copy"><span class="settings-row__label">{{ skill.name || '无效 Skill' }}</span><span class="settings-row__hint">{{ skill.valid ? skill.description : skill.error }} · {{ skill.path }}</span></div>
-          <el-switch :model-value="skill.enabled" :disabled="!skill.valid || skillsSaving" aria-label="启用 Skill" @change="setSkillEnabled(skill.id, Boolean($event))" />
-        </div>
-        <p v-if="!skills.length" class="file-hint">当前目录中没有发现 SKILL.md。</p>
-      </div>
-    </section>
-
     <section class="personalization-section" aria-labelledby="memory-heading">
       <div class="section-heading">
         <div>
@@ -136,7 +121,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type HarnessSkill, type MemoryCandidate, type MemorySource } from '@/config/harness'
+import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type MemoryCandidate, type MemorySource } from '@/config/harness'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
@@ -150,9 +135,6 @@ const memoryResetting = ref(false)
 const memoryEntries = ref<HarnessMemoryEntry[]>([])
 const pendingMemory = ref<MemoryCandidate[]>([])
 const memoryManaging = ref(false)
-const skills = ref<HarnessSkill[]>([])
-const skillDirectories = ref('')
-const skillsSaving = ref(false)
 const assistantTone = computed<AssistantTone>(() => normalizeAssistantTone(getPreference<unknown>('assistantTone', DEFAULT_ASSISTANT_TONE)))
 const savedMiraUserName = ref(normalizeMiraIdentityName(getPreference<unknown>('miraUserName', '')))
 const miraUserName = ref(savedMiraUserName.value)
@@ -164,16 +146,14 @@ const editingMiraAssistantName = ref(false)
 async function load() {
   const api = getPlatformApi()
   if (!api) return
-  const [content, path, enabled, savedMemoryPath, skillSettings, loadedSkills, entries, pending] = await Promise.all([
+  const [content, path, enabled, savedMemoryPath, entries, pending] = await Promise.all([
     api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
-    api.getHarnessSkillSettings(), api.listHarnessSkills(), api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
+    api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
   ])
   instructions.value = content
   instructionsPath.value = path
   memoryEnabled.value = enabled
   memoryPath.value = savedMemoryPath
-  skillDirectories.value = skillSettings.directories.join('\n')
-  skills.value = loadedSkills
   memoryEntries.value = entries
   pendingMemory.value = pending
 }
@@ -223,19 +203,6 @@ async function discardMemory(id: string) {
   const api = getPlatformApi(); if (!api || memoryManaging.value) return
   memoryManaging.value = true
   try { await api.discardHarnessMemory(id); await refreshMemory() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '放弃记忆失败') } finally { memoryManaging.value = false }
-}
-
-async function saveSkillSettings() {
-  const api = getPlatformApi(); if (!api || skillsSaving.value) return
-  const directories = skillDirectories.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean)
-  skillsSaving.value = true
-  try { const settings = await api.saveHarnessSkillSettings({ directories }); skillDirectories.value = settings.directories.join('\n'); skills.value = await api.listHarnessSkills(); ElMessage.success('Skill 目录已保存') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '保存 Skill 目录失败') } finally { skillsSaving.value = false }
-}
-
-async function setSkillEnabled(id: string, enabled: boolean) {
-  const api = getPlatformApi(); if (!api || skillsSaving.value) return
-  skillsSaving.value = true
-  try { skills.value = await api.setHarnessSkillEnabled(id, enabled) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '更新 Skill 失败') } finally { skillsSaving.value = false }
 }
 
 async function saveInstructions() {

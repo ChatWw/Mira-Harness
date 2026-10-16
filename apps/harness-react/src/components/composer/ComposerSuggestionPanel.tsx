@@ -1,7 +1,7 @@
 // Scroll-edge feedback adapted from ZCode MentionPanel/scrollMask (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode/.
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
+import { Check, CircleAlert, Info, LoaderCircle } from 'lucide-react'
 import type { MiraPromptTrigger } from '../../lib/prompt-input-triggers'
 
 export interface ComposerSuggestion {
@@ -24,9 +24,10 @@ export interface ComposerSuggestionSection {
   onRetry?: () => void
 }
 
-export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIndex, onHighlight, onSelect, onTrigger }: {
+export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIndex, actionMenu = false, onHighlight, onSelect, onTrigger }: {
   listId: string
   hasQuery: boolean
+  actionMenu?: boolean
   sections: ComposerSuggestionSection[]
   selectedIndex: number
   onHighlight: (index: number) => void
@@ -83,8 +84,8 @@ export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIn
       })}
     </div>
     {!hasQuery && <div className="mira-composer-suggestions__footer">
-      {([['@', '上下文'], ['/', '命令'], ['$', '技能'], ['#', '对话']] as const).map(([trigger, label]) => <button key={trigger} type="button" onMouseDown={event => event.preventDefault()} onClick={() => onTrigger(trigger)}><kbd>{trigger}</kbd>{label}</button>)}
-      <span><kbd>↑</kbd><kbd>↓</kbd>选择 <kbd>↵</kbd>确认</span>
+      {(actionMenu ? [['@', '添加上下文'], ['/', '选择能力'], ['$', '选择技能']] as const : [['@', '上下文'], ['/', '命令'], ['$', '技能'], ['#', '对话']] as const).map(([trigger, label]) => <button key={trigger} type="button" onMouseDown={event => event.preventDefault()} onClick={() => onTrigger(trigger)}><kbd>{trigger}</kbd>{label}</button>)}
+      {actionMenu ? <span><Info size={14} />输入内容以搜索插件、文件和对话</span> : <span><kbd>↑</kbd><kbd>↓</kbd>选择 <kbd>↵</kbd>确认</span>}
     </div>}
   </div>
 }

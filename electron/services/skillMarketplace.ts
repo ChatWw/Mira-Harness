@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve, sep } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, cpSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillMarketItem } from '../../src/config/harness'
 import type { MiraPaths } from '../storage/miraPaths'
 import { parseSkill, type SkillStore } from '../storage/skillStore'
@@ -283,20 +283,21 @@ export class SkillMarketplaceService {
   }
 
   installed(): HarnessSkillMarketItem[] {
-    const root = join(this.paths.skills, 'marketplace')
-    if (!existsSync(root) || lstatSync(root).isSymbolicLink()) return []
     const skills = this.skills.list()
     const installed: HarnessSkillMarketItem[] = []
-    for (const entry of readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !/^anthropic-[a-z0-9-]+$/.test(entry.name)) continue
-      const directory = join(root, entry.name, 'package'); const file = join(directory, META_FILE)
-      try {
-        if (lstatSync(directory).isSymbolicLink() || lstatSync(file).isSymbolicLink()) continue
-        const meta = JSON.parse(readFileSync(file, 'utf8')) as InstalledMeta
-        const skill = skills.find(skill => skill.path === join(directory, 'SKILL.md') && skill.valid)
-        if (meta.version !== 1 || meta.sourceId !== SOURCE_ID || !skill || entry.name !== `anthropic-${slugFromId(meta.id)}`) continue
-        installed.push({ id: meta.id, name: skill.name, description: skill.description, sourceId: SOURCE_ID, sourceName: SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit: meta.commit, license: 'Apache-2.0', installed: true, enabled: skill.enabled, skillId: skill.id })
-      } catch { /* 非市场目录或损坏的来源记录不作为已安装项。 */ }
+    for (const root of [this.paths.sharedSkills, join(this.paths.skills, 'marketplace')]) {
+      if (!existsSync(root) || lstatSync(root).isSymbolicLink()) continue
+      for (const entry of readdirSync(root, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !/^anthropic-[a-z0-9-]+$/.test(entry.name)) continue
+        const directory = root === this.paths.sharedSkills ? join(root, entry.name) : join(root, entry.name, 'package'); const file = join(directory, META_FILE)
+        try {
+          if (lstatSync(directory).isSymbolicLink() || lstatSync(file).isSymbolicLink()) continue
+          const meta = JSON.parse(readFileSync(file, 'utf8')) as InstalledMeta
+          const skill = skills.find(skill => skill.path === join(directory, 'SKILL.md') && skill.valid)
+          if (meta.version !== 1 || meta.sourceId !== SOURCE_ID || !skill || entry.name !== `anthropic-${slugFromId(meta.id)}`) continue
+          installed.push({ id: meta.id, name: skill.name, description: skill.description, sourceId: SOURCE_ID, sourceName: SOURCE_NAME, repositoryUrl: REPOSITORY_URL, commit: meta.commit, license: 'Apache-2.0', installed: true, enabled: skill.enabled, skillId: skill.id })
+        } catch { /* 非市场目录或损坏的来源记录不作为已安装项。 */ }
+      }
     }
     return installed.sort((a, b) => a.name.localeCompare(b.name))
   }
@@ -306,15 +307,15 @@ export class SkillMarketplaceService {
     if (this.installing.has(id)) throw new Error('此 Skill 正在安装，请稍后查看结果')
     this.installing.add(id)
     let stage: string | undefined; let published: string | undefined
-    let originalDirectories: string[] | undefined
     try {
       const snapshot = await this.catalog()
       assertAuthorized()
       const candidate = snapshot.candidates.get(id)
       if (!candidate) throw new Error('市场 Skill 不存在或不符合安装许可，请刷新后重试')
-      for (const path of [this.paths.root, this.paths.config, this.paths.skills]) assertDirectory(path)
-      const root = join(this.paths.skills, 'marketplace'); assertDirectory(root)
-      if (realpathSync(root) !== join(realpathSync(this.paths.skills), 'marketplace')) throw new Error('Skill 安装目录不能经过符号链接')
+      for (const path of [this.paths.root, this.paths.config, dirname(this.paths.sharedSkills), this.paths.sharedSkills]) assertDirectory(path)
+      const root = this.paths.sharedSkills
+      if (realpathSync(root) !== join(realpathSync(dirname(root)), 'skills')) throw new Error('Skill 安装目录不能经过符号链接')
+      if (this.installed().some(item => item.id === id)) throw new Error('此 Skill 已安装，不会覆盖现有文件')
       const target = join(root, `anthropic-${slug}`)
       if (existsSync(target) || (() => { try { lstatSync(target); return true } catch { return false } })()) throw new Error('此 Skill 安装目录已存在，请到技能设置管理；不会覆盖现有文件')
       stage = mkdtempSync(join(this.paths.config, '.market-skill-'))
@@ -337,14 +338,12 @@ export class SkillMarketplaceService {
       assertAuthorized()
       writeFileSync(join(stage, META_FILE), `${JSON.stringify({ ...candidate.item, version: 1, files: written }, null, 2)}\n`, { flag: 'wx', mode: 0o644 })
       // 目录完整写入后才发布；下载过程不进入 SkillStore 的扫描目录，也不执行任何包内脚本。
-      mkdirSync(target); published = target
-      const packageRoot = join(target, 'package')
-      renameSync(stage, packageRoot); stage = undefined
-      const settings = this.skills.settings()
-      if (!settings.directories.some(path => resolve(path) === resolve(root) || resolve(path) === resolve(this.paths.skills))) {
-        originalDirectories = settings.directories
-        this.skills.saveSettings({ directories: [...settings.directories, root] })
-      }
+      // Publish a standard skill directory: SKILL.md and resources live directly together.
+      const packageRoot = target
+      const sharedStage = mkdtempSync(join(root, '.mira-install-'))
+      try { cpSync(stage, sharedStage, { recursive: true, force: false, errorOnExist: true }); renameSync(sharedStage, target); published = target }
+      finally { if (existsSync(sharedStage)) rmSync(sharedStage, { recursive: true, force: true }) }
+      rmSync(stage, { recursive: true }); stage = undefined
       const skill = this.skills.list().find(skill => skill.path === join(packageRoot, 'SKILL.md') && skill.valid)
       if (!skill) throw new Error('已下载 Skill 无法被技能目录识别，安装已取消')
       assertAuthorized()
@@ -352,7 +351,6 @@ export class SkillMarketplaceService {
       return this.installed().find(item => item.id === id)!
     } catch (error) {
       if (published) rmSync(published, { recursive: true, force: true })
-      if (originalDirectories) this.skills.saveSettings({ directories: originalDirectories })
       throw error
     } finally {
       if (stage) rmSync(stage, { recursive: true, force: true })

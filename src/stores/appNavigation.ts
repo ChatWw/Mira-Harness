@@ -30,6 +30,12 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     }
   }
 
+  function openExtensions() {
+    const previous = savedSnapshot
+    const entries = [...(previous?.entries.slice(0, previous.cursor + 1) ?? []), { kind: 'extensions' as const }].slice(-50)
+    savedSnapshot = { entries, cursor: entries.length - 1, detached: false }
+  }
+
   function go(direction: MiraAppNavigationDirection) {
     const current = state.value
     if (!send || !current || current.busy || !(direction === 'back' ? current.canGoBack : current.canGoForward)) return false
@@ -40,5 +46,5 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     return false
   }
 
-  return { state, register, getSavedSnapshot, go }
+  return { state, register, getSavedSnapshot, openExtensions, go }
 })

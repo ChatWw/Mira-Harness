@@ -8,6 +8,12 @@ import { HARNESS_WORKBENCH_PATH } from '@/platform/firstPartyNavigation'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
+    path: '/settings/plugins',
+    name: 'SettingsPlugins',
+    component: () => import('@/pages/backend/plugins/index.vue'),
+    meta: { title: '插件' },
+  },
+  {
     path: '/settings/model-config',
     name: 'SettingsModelConfig',
     component: () => import('@/pages/backend/modelConfig/index.vue'),

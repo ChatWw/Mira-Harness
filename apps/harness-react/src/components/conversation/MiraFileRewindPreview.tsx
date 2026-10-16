@@ -1,6 +1,7 @@
 /* File recovery preview adapted from ZCode ConversationFileRewindDialog.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Dialog from '@radix-ui/react-dialog'
 import { FileClock, LoaderCircle, X } from 'lucide-react'
 import { MIRA_FILE_REWIND_REASONS, type MiraFileRewindPreview, type MiraFileRewindFile, type MiraHistoryEditBlocked, type MiraHistoryEditWorkspace } from '../../../../../src/config/miraFileRewind'
@@ -50,7 +51,7 @@ export function MiraFileRewindPreviewButton({ controller, sessionId, messageId, 
     return values.length > 0 && <section className="mira-rewind-preview-section"><h3>{title} · {values.length}</h3><ul>{values.map((file, index) => <li key={`${file.path}:${index}`}><span title={file.path}>{file.path}</span><small>{unsafe && file.reason ? MIRA_FILE_REWIND_REASONS[file.reason] : file.action === 'delete' ? '移除本段新建文件' : '恢复修改前内容'}{file.operationCount > 0 && ` · ${file.operationCount} 次修改`}</small></li>)}</ul></section>
   }
   return <Dialog.Root open={open} onOpenChange={value => { if (!value) close() }}>
-    <Dialog.Trigger asChild><button type="button" className="mira-message-action" disabled={disabled} aria-label={label ?? (onEdit ? '恢复文件并重跑' : '预览文件恢复')} title={onEdit ? '恢复从此消息开始的文件修改，再保存并重跑' : '预览从此消息开始的文件恢复'} onClick={() => void load()}><FileClock size={onEdit ? 16 : 14} />{label && <span>{label}</span>}</button></Dialog.Trigger>
+    <Tooltip.Provider delayDuration={300}><Tooltip.Root><Tooltip.Trigger asChild><span className="inline-flex"><Dialog.Trigger asChild><button type="button" className={`mira-message-action${onEdit ? ' mira-history-edit-rewind' : ''}`} disabled={disabled} aria-label={label ?? (onEdit ? '恢复文件并重跑' : '预览文件恢复')} onClick={() => void load()}><FileClock size={onEdit ? 16 : 14} />{label && <span>{label}</span>}</button></Dialog.Trigger></span></Tooltip.Trigger><Tooltip.Portal container={document.getElementById('root')}><Tooltip.Content className={`mira-composer-hint${onEdit ? ' mira-history-edit-hint' : ''}`} side={onEdit ? 'top' : 'bottom'} align="center" sideOffset={onEdit ? 2 : 6}>{onEdit ? '与文件一起重置' : '预览从此消息开始的文件恢复'}</Tooltip.Content></Tooltip.Portal></Tooltip.Root></Tooltip.Provider>
     <Dialog.Portal container={document.getElementById('root')}>
       <Dialog.Overlay className="mira-composer-confirm-overlay" />
       <Dialog.Content className="mira-model-error-dialog mira-rewind-preview-dialog" onEscapeKeyDown={event => { if (applyingRef.current) event.preventDefault() }} onPointerDownOutside={event => { if (applyingRef.current) event.preventDefault() }} onCloseAutoFocus={event => { if (!mounted.current || disabled || controller.getSnapshot().session?.id !== sessionId) event.preventDefault() }}>

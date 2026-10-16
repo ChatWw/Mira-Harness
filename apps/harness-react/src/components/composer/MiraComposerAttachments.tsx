@@ -1,5 +1,6 @@
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlert, FileText, LoaderCircle, Video, X } from 'lucide-react'
+import { CircleAlert, LoaderCircle, X } from 'lucide-react'
 import { isHarnessImageMediaType } from '../../../../../src/config/harness'
 import type { HarnessFileReference, HarnessMessageAttachment } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
@@ -66,7 +67,7 @@ export function MiraComposerAttachments({ references, ownerId, controller, disab
           if (state?.error) retryAttachment(file.path)
           else if (state?.attachment) setPreview({ ownerId, controller, attachment: state.attachment })
         }}>
-          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : mediaType?.startsWith('video/') ? <Video size={16} /> : <FileText size={16} />}
+          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : <img className="mira-composer-attachment-file-icon" src={miraFileTreeIcon(file.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />}
           {!image && <span className="mira-attachment-card__text"><span>{file.name}</span><small>{attachmentTypeLabel(mediaType)}</small></span>}
         </button>
         <button type="button" className="mira-attachment-card__remove" aria-label={`移除 ${file.name}`} title={`移除 ${file.name}`} disabled={disabled} onClick={() => onRemove(file.path)}><X size={10} /></button>

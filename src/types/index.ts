@@ -184,6 +184,10 @@ export interface PlatformApi {
   getHarnessSkillSettings(): Promise<import('@/config/harness').HarnessSkillSettings>
   saveHarnessSkillSettings(settings: import('@/config/harness').HarnessSkillSettings): Promise<import('@/config/harness').HarnessSkillSettings>
   setHarnessSkillEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSkill[]>
+  getHarnessPluginSkill(id: string, name: string): Promise<import('@/config/harness').HarnessSkill>
+  revealHarnessSkill(id: string, name?: string): Promise<void>
+  deleteHarnessSkill(id: string): Promise<import('@/config/harness').HarnessSkill[]>
+  importHarnessSkill(): Promise<import('@/config/harness').HarnessSkill[]>
   testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
   listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
   reorderHarnessProjects(ids: string[]): Promise<import('@/config/harness').HarnessProject[]>
