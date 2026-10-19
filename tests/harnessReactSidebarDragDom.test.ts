@@ -191,7 +191,7 @@ window.sidebarFixture = { errors, history,
   setWaiting: kind => { state.pendingPermissions = kind === 'permission' ? { source: {} } : {}; state.sessions = state.sessions.map(session => session.id === 'source' ? { ...session, planStatus: kind === 'plan' ? 'needs_input' : undefined } : session); store.change({}) },
   actions: () => {
     const row = document.querySelector('[data-sidebar-session-id="source"]'), actions = row?.querySelector('.mira-session-row__actions'), time = row?.querySelector('time')
-    return { visible: !!actions && getComputedStyle(actions).display !== 'none', timeVisible: !!time && getComputedStyle(time).display !== 'none',
+    return { visible: !!actions && getComputedStyle(actions).display !== 'none', timeVisible: !!time && time.getClientRects().length > 0,
       labels: [...row?.querySelectorAll('.mira-session-row__action') || []].map(button => button.getAttribute('aria-label')),
       files: [...files], opens: [...opens], archives: [...archives], confirming: !!row?.hasAttribute('data-archive-confirming'), busy: row?.getAttribute('aria-busy') === 'true',
       focused: document.activeElement?.getAttribute('aria-label'), error: row?.querySelector('[role="alert"]')?.textContent || '',

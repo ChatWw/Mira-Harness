@@ -25,6 +25,8 @@ export function harnessAttachmentMediaType(bytes: Buffer, name = ''): HarnessAtt
   if (bytes.length >= 5 && bytes.toString('ascii', 0, 5) === '%PDF-') return 'application/pdf'
   const extension = name.split('.').pop()?.toLowerCase()
   if (bytes.length >= 16 && bytes.toString('ascii', 4, 8) === 'ftyp') {
+    // HEIF/AVIF 与 MP4 使用同类容器；它们作为普通文件引用，不能误判为视频上传。
+    if (['avif', 'avis', 'heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1'].includes(bytes.toString('ascii', 8, 12))) return undefined
     return extension === 'mov' ? 'video/quicktime' : extension === 'm4v' ? 'video/x-m4v' : 'video/mp4'
   }
   if (bytes.length >= 8 && bytes.readUInt32BE(0) === 0x1a45dfa3) return extension === 'mkv' ? 'video/x-matroska' : 'video/webm'
@@ -44,6 +46,12 @@ function assertImageStructure(bytes: Buffer, mediaType: HarnessImageMediaType) {
   if (!valid) throw new Error('图片附件内容不完整或签名无效')
 }
 
+export function harnessAttachmentText(bytes: Buffer): string | undefined {
+  let content: string
+  try { content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) } catch { return undefined }
+  return /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content) ? undefined : content
+}
+
 export function harnessAttachmentFromBytes(path: string, name: string, bytes: Buffer, declaredMediaType?: string): HarnessMessageAttachment {
   const mediaType = harnessAttachmentMediaType(bytes, name)
   if (mediaType) {
@@ -54,9 +62,8 @@ export function harnessAttachmentFromBytes(path: string, name: string, bytes: Bu
   if (declaredMediaType?.startsWith('image/')) throw new Error('图片附件签名无效；目前支持 PNG、JPEG、GIF 和 WebP')
   if (declaredMediaType === 'application/pdf' || declaredMediaType?.startsWith('video/')) throw new Error('PDF 或视频附件签名无效，请选择完整的文件')
   if (bytes.length > HARNESS_ATTACHMENT_LIMITS.textFileBytes) throw new Error(`引用文件过大：${name}；文本附件不得超过 256 KiB`)
-  let content: string
-  try { content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) } catch { throw new Error(`不支持引用二进制文件或非 UTF-8 文本：${name}`) }
-  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content)) throw new Error(`不支持引用二进制文件：${name}`)
+  const content = harnessAttachmentText(bytes)
+  if (content === undefined) throw new Error(`不支持引用二进制文件或非 UTF-8 文本：${name}`)
   return { path, name, content }
 }
 
@@ -76,7 +83,7 @@ export function assertHarnessAttachmentTotals(attachments: readonly HarnessMessa
   let textBytes = 0, imageBytes = 0
   for (const attachment of attachments) {
     if (attachment.mediaType) imageBytes += attachment.content.length / 4 * 3 - (attachment.content.endsWith('==') ? 2 : attachment.content.endsWith('=') ? 1 : 0)
-    else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+    else if (!attachment.localPath) textBytes += Buffer.byteLength(attachment.content, 'utf8')
   }
   if (textBytes > HARNESS_ATTACHMENT_LIMITS.textTotalBytes) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
   if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')

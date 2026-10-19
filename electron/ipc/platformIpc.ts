@@ -300,7 +300,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'automations.overview': return database.automations.overview()
       case 'automations.next-runs': {
         if (!automationScheduler) throw new Error('自动化服务不可用')
-        return automationScheduler.nextRuns(call.expression)
+        return automationScheduler.nextRuns(call.expression, call.rule)
       }
       case 'automations.save': {
         if (!automationScheduler) throw new Error('自动化服务不可用')
@@ -318,6 +318,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         automationScheduler.reschedule()
         return
       }
+      case 'automations.delete-run': return database.automations.deleteRun(call.id)
       case 'automations.runs': return database.automations.listRuns(call.id, call.status ? { status: call.status } : {}).map(run => automationRunWithSessionState(database, run))
       case 'automations.run-now':
       case 'automations.retry': {
@@ -567,9 +568,20 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'attachments.stage': return database.harness.stageMessageAttachment(call.sessionId, call.path)
       case 'attachments.select': {
         const session = database.harness.assertAttachmentSessionWritable(call.sessionId)
+        if (call.paths) return database.harness.selectMessageAttachments(call.sessionId, call.paths)
         const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
-        const options: OpenDialogOptions = { ...(session.workingDirectory ? { defaultPath: session.workingDirectory } : {}), properties: ['openFile', 'multiSelections'], title: '选择附件（文本、图片、PDF 或视频）' }
         return (async () => {
+          const options: OpenDialogOptions = { ...(session.workingDirectory ? { defaultPath: session.workingDirectory } : {}), properties: ['openFile', 'openDirectory', 'multiSelections'], title: '选择引用文件或文件夹' }
+          // Windows/Linux treat combined file+directory flags as directory-only.
+          if (process.platform !== 'darwin') {
+            const choice = { message: '添加文件或文件夹', buttons: ['选择文件', '选择文件夹', '取消'], defaultId: 0, cancelId: 2 }
+            const { response } = owner ? await dialog.showMessageBox(owner, choice) : await dialog.showMessageBox(choice)
+            if (response === 2) return []
+            if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')
+            resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
+            database.harness.assertAttachmentSessionWritable(call.sessionId)
+            options.properties = [response === 1 ? 'openDirectory' : 'openFile', 'multiSelections']
+          }
           const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
           // 原生窗口等待期间授权、会话归档/删除都可能变化；不得用旧授权发布附件。
           if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')

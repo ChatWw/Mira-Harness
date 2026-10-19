@@ -3,6 +3,19 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { MiraComposerAttachments } from '../apps/harness-react/src/components/composer/MiraComposerAttachments'
 import { MiraAttachmentPreview } from '../apps/harness-react/src/components/composer/MiraAttachmentPreview'
 import { UserMessageAttachments } from '../apps/harness-react/src/components/conversation/message-parts'
+import { MiraMessageReference } from '../apps/harness-react/src/components/conversation/MiraMessageReference'
+import { Folder } from 'lucide-react'
+import iconWord from '../apps/harness-react/src/assets/file-types/mira-word.svg'
+import iconTable from '../apps/harness-react/src/assets/file-types/mira-table.svg'
+import iconPowerpoint from '../apps/harness-react/src/assets/file-types/mira-powerpoint.svg'
+import iconPdf from '../apps/harness-react/src/assets/file-types/mira-pdf.svg'
+import iconTypescript from '../apps/harness-react/src/assets/file-types/mira-typescript.svg'
+import iconHtml from '../apps/harness-react/src/assets/file-types/mira-html.svg'
+import iconZip from '../apps/harness-react/src/assets/file-types/mira-zip.svg'
+import iconAudio from '../apps/harness-react/src/assets/file-types/mira-audio.svg'
+import iconVideo from '../apps/harness-react/src/assets/file-types/mira-video.svg'
+import iconImage from '../apps/harness-react/src/assets/file-types/mira-image.svg'
+import iconDocument from '../apps/harness-react/src/assets/file-types/mira-document.svg'
 import { validateAttachmentFiles, readAttachmentFile } from '../apps/harness-react/src/lib/attachment-input'
 import type { PilotController } from '../apps/harness-react/src/state/pilot-state'
 import type { HarnessFileReference, HarnessMessageAttachment } from '../src/config/harness'
@@ -39,13 +52,78 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Mira attachment controls', () => {
+  const fileIcons = [
+    ['报告.docx', iconWord], ['表格.xlsx', iconTable], ['演示.PPTX', iconPowerpoint],
+    ['报告.pdf', iconPdf], ['main.ts', iconTypescript], ['页面.html', iconHtml],
+    ['压缩包.zip', iconZip], ['录音.mp3', iconAudio], ['视频.mp4', iconVideo],
+    ['截图.png', iconImage], ['说明.txt', iconDocument], ['未知.custom', iconDocument],
+  ]
+
+  it.each(fileIcons)('uses the real name of sent %s attachments to select its file icon', (name, icon) => {
+    const view = mounted(() => UserMessageAttachments({ message: { id: 'u', role: 'user', content: '', createdAt: 1, attachments: [{ path: 'mira-attachment:opaque-token', name, content: '本地文件引用' }] }, onOpen: vi.fn() }))
+    expect(view.find((_, type) => type === 'img')).toMatchObject({ src: icon, width: 15, height: 15, 'aria-hidden': 'true' })
+  })
+
+  it.each(fileIcons)('uses the real name of pending %s attachments to select its file icon', async (name, icon) => {
+    const file = { path: 'mira-attachment:opaque-token', name, content: '本地文件引用' }
+    const controller = { supportsAttachments: true, getAttachment: vi.fn(async () => file) } as unknown as PilotController
+    const view = mounted(() => MiraComposerAttachments({ references: [file], ownerId: 'owner', controller, active: true, disabled: false, onRemove: vi.fn(), onBlocked: vi.fn() }))
+    await view.drain()
+    expect(view.find((_, type) => type === 'img')).toMatchObject({ src: icon, 'aria-hidden': 'true' })
+  })
+
+  it.each(fileIcons)('uses the label of inline %s references to select its file icon', (name, icon) => {
+    const view = mounted(() => MiraMessageReference({ reference: { kind: 'file', value: 'mira-attachment:opaque-token', label: name, text: `@${name}` } }))
+    expect(view.find((_, type) => type === 'img').src).toBe(icon)
+  })
+
+  it.each(['fantastic-admin.example.v3.2.1', '资料.pptx', '截图.png'])('shows sent directory %s as a folder regardless of its name', name => {
+    const view = mounted(() => UserMessageAttachments({ message: { id: 'u', role: 'user', content: '', createdAt: 1, attachments: [{ path: 'mira-attachment:folder', name, kind: 'directory', content: '本地文件夹引用' }] }, onOpen: vi.fn() }))
+    expect(view.find((_, type) => type === Folder)).toMatchObject({ size: 15, 'aria-hidden': 'true' })
+    expect(view.query((_, type) => type === 'img')).toBeUndefined()
+  })
+
+  it('keeps image-like directory names out of pending image cards and galleries', async () => {
+    const folder = { path: 'mira-attachment:folder', name: '截图.png', kind: 'directory' as const, content: '本地文件夹引用' }
+    const controller = { supportsAttachments: true, getAttachment: vi.fn(async () => folder) } as unknown as PilotController
+    const view = mounted(() => MiraComposerAttachments({ references: [folder], ownerId: 'owner', controller, active: true, disabled: false, onRemove: vi.fn(), onBlocked: vi.fn() }))
+    await view.drain()
+    expect(view.find((_, type) => type === Folder)).toMatchObject({ size: 16, 'aria-hidden': 'true' })
+    expect(view.find(props => props.children === '文件夹')).toBeDefined()
+    expect(view.query(props => props.className === 'mira-attachment-card mira-attachment-card--image')).toBeUndefined()
+    expect(view.find((_, type) => type === MiraAttachmentPreview).gallery).toEqual([])
+  })
+
+  it('uses the trailing directory marker for sent inline folder references', () => {
+    const view = mounted(() => MiraMessageReference({ reference: { kind: 'file', value: 'mira-attachment:folder', label: '资料.pptx', text: '@资料.pptx/' } }))
+    expect(view.find((_, type) => type === Folder)).toMatchObject({ size: 14, 'aria-hidden': 'true' })
+    expect(view.query((_, type) => type === 'img')).toBeUndefined()
+  })
+
+  it('validates inline files without duplicate cards and keeps a failed reference retryable', async () => {
+    const file = { path: 'mira-attachment:pptx', name: '说明.pptx', content: '本地文件引用' }
+    const read = deferred<HarnessMessageAttachment>(), onBlocked = vi.fn()
+    const getAttachment = vi.fn().mockReturnValueOnce(read.promise).mockResolvedValueOnce(file)
+    const controller = { supportsAttachments: true, getAttachment } as unknown as PilotController
+    const view = mounted(() => MiraComposerAttachments({ references: [file], inlinePaths: [file.path], ownerId: 'owner', controller, active: true, disabled: false, onRemove: vi.fn(), onBlocked }))
+    await view.drain()
+    expect(onBlocked).toHaveBeenLastCalledWith(true)
+    expect(view.query(props => props.className === 'mira-attachment-card')).toBeUndefined()
+    read.reject(new Error('读取失败')); await view.drain()
+    expect(onBlocked).toHaveBeenLastCalledWith(true)
+    ;(view.find(props => props['aria-label'] === '重试附件 说明.pptx').onClick as () => void)()
+    await view.drain()
+    expect(onBlocked).toHaveBeenLastCalledWith(false)
+    expect(view.query(props => props.className === 'mira-attachment-card')).toBeUndefined()
+  })
+
   it.each(['application/pdf', 'video/mp4'] as const)('previews %s as a named file rather than an image and excludes it from the image gallery', async mediaType => {
     const file = { path: 'mira-attachment:media', name: mediaType === 'application/pdf' ? '报告.pdf' : '片段.mp4', mediaType, content: 'frozen-native-media' }
     const controller = { supportsAttachments: true, getAttachment: vi.fn(async () => file) } as unknown as PilotController
     const onBlocked = vi.fn()
     const view = mounted(() => MiraComposerAttachments({ references: [file], ownerId: 'owner', controller, active: true, disabled: false, onRemove: vi.fn(), onBlocked }))
     await view.drain()
-    expect(view.query((_, type) => type === 'img')).toBeUndefined()
+    expect(view.find((_, type) => type === 'img')).toMatchObject({ src: mediaType === 'application/pdf' ? iconPdf : iconVideo, 'aria-hidden': 'true' })
     expect(onBlocked).toHaveBeenLastCalledWith(false)
     ;(view.find(props => props['aria-label'] === `预览附件 ${file.name}`).onClick as () => void)(); await view.drain()
     expect(view.find((_, type) => type === MiraAttachmentPreview)).toMatchObject({ attachment: file, gallery: [] })
@@ -56,6 +134,7 @@ describe('Mira attachment controls', () => {
     expect(() => validateAttachmentFiles([{ name: 'clip.mp4', type: 'video/mp4', size: 21 * 1024 * 1024 }] as File[], 0)).toThrow('20 MiB')
     expect(() => validateAttachmentFiles([{ name: 'report.pdf', type: 'application/pdf', size: 20 * 1024 * 1024 }] as File[], 2, [{ mediaType: 'video/mp4', size: 21 * 1024 * 1024 }])).toThrow('40 MiB')
     expect(() => validateAttachmentFiles([{ name: 'notes.txt', type: 'text/plain', size: 1024 * 1024 }] as File[], 0)).toThrow('256 KiB')
+    expect(() => validateAttachmentFiles([{ name: 'notes.txt', type: 'text/plain', size: 1024 }] as File[], 1, [{ localPath: '/workspace/large.csv', size: 5 * 1024 * 1024 * 1024 }])).not.toThrow()
   })
   it('blocks pending images, loads the host snapshot, previews and removes the selected attachment', async () => {
     const read = deferred<HarnessMessageAttachment>(), onRemove = vi.fn(), onBlocked = vi.fn()

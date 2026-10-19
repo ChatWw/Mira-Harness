@@ -92,6 +92,12 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '键盘快捷键' },
   },
   {
+    path: '/settings/usage',
+    name: 'SettingsUsage',
+    component: () => import('@/pages/backend/usage/index.vue'),
+    meta: { title: '使用统计' },
+  },
+  {
     path: '/settings/about',
     name: 'SettingsAbout',
     component: () => import('@/pages/backend/about/index.vue'),

@@ -15,7 +15,7 @@ export function MiraStreamEntrance({ identity, active, children }: { identity: s
     const cleanup = window.setTimeout(() => setAnimate(false), 1000)
     return () => { window.clearTimeout(mark); window.clearTimeout(cleanup) }
   }, [active, identity])
-  return <div data-mira-stream-entrance={animate || undefined}>{children}</div>
+  return <div className="min-w-0" data-mira-stream-entrance={animate || undefined}>{children}</div>
 }
 
 type Snapshot = { key: string; version?: string; content: ReactNode }

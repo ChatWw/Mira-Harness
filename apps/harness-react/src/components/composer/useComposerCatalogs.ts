@@ -36,7 +36,7 @@ export function useComposerCatalogs(controller: PilotController, workspace: { se
         ? query ? controller.searchFilesFor(sessionId, query) : controller.listFilesFor(sessionId)
         : query ? controller.searchProjectFiles(projectId!, query) : controller.listProjectFiles(projectId!)
       void request.then(result => {
-        const entries = result.entries.filter(item => item.type === 'file')
+        const entries = result.entries
         if (active) setFiles({ status: 'ready', items: entries.slice(0, 40), scope: fileScope, truncated: entries.length > 40 || 'truncated' in result && Boolean(result.truncated) })
       }, error => { if (active) setFiles({ status: 'error', items: [], error: error instanceof Error ? error.message : '文件加载失败', scope: fileScope }) })
     }, query ? 120 : 0)

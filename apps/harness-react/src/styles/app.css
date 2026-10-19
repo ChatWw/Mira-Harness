@@ -80,6 +80,7 @@
 }
 /* Frozen message and draft attachment previews share the same desktop dialog. */
 .mira-attachment-preview__overlay { position: fixed; inset: 0; z-index: 100; background: transparent; }
+.mira-attachment-preview__overlay--gallery { background: rgb(0 0 0 / 60%); backdrop-filter: blur(4px); }
 .mira-attachment-preview { position: fixed; inset: 10% 8%; z-index: 101; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 12px; color: var(--color-foreground); background: var(--color-card); box-shadow: var(--shadow-dialog); }
 .mira-attachment-preview--binary { inset: auto; top: 50%; left: 50%; width: min(1024px, calc(100% - 32px)); height: min(760px, calc(100% - 32px)); transform: translate(-50%, -50%); }
 .mira-attachment-preview__header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }

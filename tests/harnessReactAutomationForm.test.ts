@@ -33,6 +33,38 @@ describe('React automation form maps to the existing scheduler contract', () => 
     expect(applyAutomationTrigger(form(), { type: 'cron', expression: '0 */2 * * *' })).toMatchObject({ frequency: 'hourly', interval: 2 })
   })
 
+  it.each(['40 */1 * * *', '44 * * * *', '25 */3 * * *'])('restores hourly minute and interval for %s and saves an equivalent schedule', expression => {
+    const restored = applyAutomationTrigger(form(), { type: 'cron', expression })
+    const minute = expression.split(' ')[0], interval = expression.includes('*/3') ? 3 : 1
+    expect(restored).toMatchObject({ frequency: 'hourly', interval, time: `09:${minute}` })
+    const saved = automationTriggerForForm(restored, now)
+    expect(saved).toMatchObject({ type: 'cron', expression: `${minute} ${interval === 1 ? '*' : '*/3'} * * *`, humanLabel: `${interval === 1 ? '每小时' : '每 3 小时'}的第 ${minute} 分` })
+    expect(applyAutomationTrigger(form(), saved)).toMatchObject({ frequency: 'hourly', interval, time: restored.time })
+  })
+
+  it.each([
+    { frequency: 'daily', time: '18:45' },
+    { frequency: 'workday', time: '08:25' },
+    { frequency: 'weekend', time: '10:35' },
+    { frequency: 'weekly', weekdays: [0, 2, 4], time: '08:15' },
+    { frequency: 'monthly', monthlyDay: 20, time: '10:40' },
+    { frequency: 'monthly', monthlyDay: 'last', time: '10:05' },
+  ] as const)('preserves the visual schedule after creating and reopening $frequency', patch => {
+    const value = { ...form(), ...patch, weekdays: 'weekdays' in patch ? [...patch.weekdays] : form().weekdays }
+    const input = automationInputForForm({ form: value, baseline: '' }, catalogs, now)
+    const reopened = automationFormForTask({ ...input, id: 'saved', createdAt: now, updatedAt: now, enabled: true }, projects, providers)
+    expect(reopened).toMatchObject(patch)
+    expect(automationTriggerForForm(reopened, now)).toEqual(input.trigger)
+  })
+
+  it('preserves custom repeat rules instead of degrading them to the compatibility Cron', () => {
+    const rule = { unit: 'weekly' as const, interval: 2, weekdays: [1, 3], hour: 14, minute: 35, anchorAt: now }
+    const trigger = automationTriggerForForm({ ...form(), frequency: 'cron', expression: '35 14 * * *', scheduleRule: rule }, now)
+    const restored = applyAutomationTrigger(form(), trigger)
+    expect(restored).toMatchObject({ frequency: 'cron', time: '14:35', scheduleRule: rule })
+    expect(automationTriggerForForm(restored, now)).toEqual(trigger)
+  })
+
   it('does not escalate existing default permission and retains paused state and reasoning', () => {
     const task = { id: 'task', name: 'Task', prompt: 'Prompt', projectId: 'project', trigger: { type: 'cron', expression: '0 8 * * *' }, target: { type: 'new-session' }, model: { providerId: 'provider:one', modelId: 'model:version', thinkingLevel: 'low' }, permissionMode: 'default', enabled: false, createdAt: 1, updatedAt: 1 } as AutomationTask
     const value = automationFormForTask(task, projects, providers)

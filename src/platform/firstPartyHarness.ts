@@ -1,3 +1,4 @@
+import { validateAutomationScheduleRule } from '../config/automationRepeat'
 import { HARNESS_ATTACHMENT_MEDIA_TYPES, isPermissionMode, type AutomationRunStatus, type AutomationTaskInput, type AutomationTarget, type AutomationTrigger, type HarnessAttachmentImportFile, type HarnessFileReference, type HarnessAttachmentMediaType, type HarnessMessageSubmissionOptions, type HarnessSessionOrderScope, type HarnessUserAnswer, type ModelSelection, type PermissionMode } from '../config/harness'
 import { isMiraBrowserDimension } from '../config/miraBrowserViewport'
 import { isMiraPluginId } from '../config/miraPlugins'
@@ -109,7 +110,7 @@ function fileReferences(value: unknown): HarnessFileReference[] {
     const mediaType = reference.mediaType
     if (mediaType !== undefined && !HARNESS_ATTACHMENT_MEDIA_TYPES.includes(mediaType as HarnessAttachmentMediaType)) throw new Error('附件媒体类型无效')
     const size = reference.size
-    if (size !== undefined && (!Number.isSafeInteger(size) || Number(size) < 0 || Number(size) > 20 * 1024 * 1024)) throw new Error('附件大小无效')
+    if (size !== undefined && (!Number.isSafeInteger(size) || Number(size) < 0 || mediaType !== undefined && Number(size) > 20 * 1024 * 1024)) throw new Error('附件大小无效')
     return { path: fileReferencePath(reference.path), name: string(reference.name, '引用文件名', 512), ...(mediaType === undefined ? {} : { mediaType: mediaType as HarnessAttachmentMediaType }), ...(size === undefined ? {} : { size: Number(size) }) }
   })
 }
@@ -184,7 +185,7 @@ function timestamp(value: unknown, name: string) {
 function automationTask(value: unknown): AutomationTaskInput {
   const input = fields(value), rawTrigger = fields(input.trigger), rawTarget = fields(input.target)
   let trigger: AutomationTrigger
-  if (rawTrigger.type === 'cron') trigger = { type: 'cron', expression: string(rawTrigger.expression, 'Cron 表达式', 256), ...(rawTrigger.humanLabel === undefined ? {} : { humanLabel: string(rawTrigger.humanLabel, '计划说明', 120) }) }
+  if (rawTrigger.type === 'cron') trigger = { type: 'cron', expression: string(rawTrigger.expression, 'Cron 表达式', 256), ...(rawTrigger.humanLabel === undefined ? {} : { humanLabel: string(rawTrigger.humanLabel, '计划说明', 120) }), ...(rawTrigger.scheduleRule === undefined ? {} : { scheduleRule: validateAutomationScheduleRule(rawTrigger.scheduleRule) }) }
   else if (rawTrigger.type === 'once') trigger = { type: 'once', scheduledAt: timestamp(rawTrigger.scheduledAt, '执行时间') }
   else if (rawTrigger.type === 'session-completed') trigger = { type: 'session-completed' }
   else throw new Error('自动化触发类型无效')
@@ -299,12 +300,13 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (method === 'goal.budget') return { method, ...common, tokenBudget: validateMiraGoalBudget(params.tokenBudget) } as const
       return { method, ...common } as const
     }
-    case 'automations.next-runs': return { method, expression: string(params.expression, 'Cron 表达式', 256) } as const
+    case 'automations.next-runs': return { method, expression: string(params.expression, 'Cron 表达式', 256), ...(params.rule === undefined ? {} : { rule: validateAutomationScheduleRule(params.rule) }) } as const
     case 'automations.save': return { method, input: automationTask(params.input) } as const
     case 'automations.set-enabled': return { method, id: string(params.id, '自动化 ID'), enabled: boolean(params.enabled, '启用状态') } as const
     case 'automations.delete':
     case 'automations.run-now':
     case 'automations.abort': return { method, id: string(params.id, '自动化 ID') } as const
+    case 'automations.delete-run':
     case 'automations.retry': return { method, id: string(params.id, '运行 ID') } as const
     case 'automations.runs': {
       const status = params.status
@@ -316,7 +318,11 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'plugin-marketplace.install':
     case 'marketplace.install': return { method, id: string(params.id, '市场条目 ID') } as const
     case 'files.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
-    case 'attachments.select': return { method, sessionId: string(params.sessionId, '会话 ID') } as const
+    case 'attachments.select': {
+      const paths = params.paths
+      if (paths !== undefined && (!Array.isArray(paths) || !paths.length || paths.length > 12)) throw new Error('引用文件路径无效')
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...(paths === undefined ? {} : { paths: (paths as unknown[]).map(fileReferencePath) }) } as const
+    }
     case 'attachments.import': return { method, sessionId: string(params.sessionId, '会话 ID'), files: attachmentImports(params.files) } as const
     case 'attachments.get': return { method, sessionId: string(params.sessionId, '会话 ID'), path: fileReferencePath(params.path) } as const
     case 'attachments.save': return { method, sessionId: string(params.sessionId, '会话 ID'), path: fileReferencePath(params.path) } as const

@@ -108,20 +108,41 @@ describe('sidebar task rename through real React and Radix DOM', () => {
     expect(view.controller.deleteSession).toHaveBeenLastCalledWith('a')
   })
 
-  it.each(['group', 'project', 'timeline'] as const)('shows status instead of time until a task is read in %s view', async mode => {
+  it.each(['group', 'project', 'timeline'] as const)('shares the leading slot for status and retains time in %s view', async mode => {
     const now = Date.now()
     const view = await mount({ sessions: [{ id: 'a', title: '任务 A', createdAt: now, updatedAt: now, status: 'active' }], runningSessionIds: ['a'] }, { view: mode === 'group' ? 'group' : 'project', projectView: mode === 'timeline' ? 'timeline' : 'collections', sort: 'manual' })
     const badge = () => view.row().querySelector('.mira-session-status')?.getAttribute('aria-label')
     const time = () => view.row().querySelector('time')
-    expect(badge()).toBe('执行中'); expect(time()).toBeNull()
+    expect(badge()).toBe('执行中'); expect(time()?.textContent).toBe('刚刚')
+    expect(view.row().querySelector('.mira-session-row__leading .pilot-spin')).not.toBeNull()
+    view.state.unreadSessionIds = ['a']; await view.render()
+    expect(badge()).toBe('未读')
     view.state.runningSessionIds = []; view.state.unreadSessionIds = ['a']; await view.render()
-    expect(badge()).toBe('未读'); expect(time()).toBeNull()
+    expect(badge()).toBe('未读'); expect(time()?.textContent).toBe('刚刚')
+    expect(view.row().querySelector('.mira-session-row__leading .mira-session-status--unread')).not.toBeNull()
     view.state.unreadSessionIds = []; await view.render()
     expect(badge()).toBeUndefined(); expect(time()?.textContent).toBe('刚刚')
     view.state.sessions = view.state.sessions.map(session => ({ ...session, planStatus: 'executing' })); await view.render()
-    expect(view.row().querySelector('.pilot-spin')).not.toBeNull(); expect(time()).toBeNull()
+    expect(view.row().querySelector('.pilot-spin')).not.toBeNull(); expect(time()?.textContent).toBe('刚刚')
     view.state.sessions = view.state.sessions.map(session => ({ ...session, planStatus: 'completed' })); await view.render()
     expect(time()?.textContent).toBe('刚刚')
+  })
+
+  it.each(['group', 'project', 'timeline'] as const)('shows automation identity next to time independently of the leading status in %s view', async mode => {
+    const now = Date.now()
+    const view = await mount({ sessions: [{ id: 'a', title: '自动化任务', automationId: 'automation-1', createdAt: now, updatedAt: now, status: 'active' }] }, { view: mode === 'group' ? 'group' : 'project', projectView: mode === 'timeline' ? 'timeline' : 'collections' })
+    const metadata = () => view.row().querySelector('.mira-session-row__metadata')!
+    for (const status of ['idle', 'running', 'unread'] as const) {
+      view.state.runningSessionIds = status === 'running' ? ['a'] : []
+      view.state.unreadSessionIds = status === 'unread' ? ['a'] : []
+      await view.render()
+      expect(metadata().querySelector('[aria-label="自动化任务"]')).not.toBeNull()
+      expect(metadata().querySelector('time')?.textContent).toBe('刚刚')
+    }
+    view.state.sessions[0].automationId = undefined; await view.render()
+    expect(metadata().querySelector('svg')).toBeNull()
+    view.state.sessions[0].status = 'failed'; await view.render()
+    expect(view.row().querySelector('.mira-session-row__leading [aria-label="执行失败"]')).not.toBeNull()
   })
 
   it('omits model settings from the conversation context menu', async () => {

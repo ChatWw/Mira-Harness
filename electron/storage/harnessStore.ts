@@ -1,3 +1,4 @@
+import { buildHarnessAppUsage } from '../../src/config/harnessUsage'
 import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { closeSync, cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -47,7 +48,7 @@ import type { MiraTaskChangeSummary, MiraTaskChangedFile } from '../../src/confi
 import { miraCheckpointPathStable, miraCheckpointText, type MiraFileCheckpoint, type MiraFileRewindJournal, type MiraFileRewindOperation } from '../services/miraFileRewind'
 import { MiraPaths } from './miraPaths'
 import { MiraCommandOutputs } from './miraCommandOutputs'
-import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentMediaType } from '../services/harnessAttachmentContent'
+import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentMediaType, harnessAttachmentText } from '../services/harnessAttachmentContent'
 
 type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
 type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, draft_state: HarnessSession['draftState'] | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
@@ -175,13 +176,16 @@ export class HarnessStore {
     const root = realpathSync(directory)
     const resolved = realpathSync(candidate)
     if (resolved !== root && !resolved.startsWith(`${root}${sep}`)) throw new Error('引用文件不能通过符号链接离开项目目录')
-    if (!statSync(resolved).isFile()) throw new Error(`引用文件不存在：${filePath}`)
+    const info = statSync(resolved)
+    if (!info.isFile() && !info.isDirectory()) throw new Error(`引用文件不存在：${filePath}`)
     return resolved
   }
 
   private externalFilePath(filePath: string) {
     if (!filePath || !isAbsolute(filePath)) throw new Error('引用文件路径无效')
-    if (!existsSync(filePath) || !statSync(filePath).isFile()) throw new Error(`引用文件不存在：${filePath}`)
+    if (!existsSync(filePath)) throw new Error(`引用文件不存在：${filePath}`)
+    const info = statSync(filePath)
+    if (!info.isFile() && !info.isDirectory()) throw new Error(`引用文件不存在：${filePath}`)
     return realpathSync(filePath)
   }
 
@@ -194,16 +198,21 @@ export class HarnessStore {
   }
 
   private readAttachmentFile(target: string, path: string, name: string, textBytes = 0, imageBytes = 0) {
-    const size = statSync(target).size
-    if (size > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error(`引用文件过大：${name}；图片、PDF 或视频不得超过 20 MiB`)
+    const info = statSync(target), size = info.size
+    if (info.isDirectory()) return { path, name, kind: 'directory' as const, localPath: target, content: `本地文件夹引用：${JSON.stringify(target)}\n未内联目录内容。请使用目录和文件工具按需列出、搜索与读取，遵循当前访问权限。` }
+    // 和 ZCode 一样，普通本地文件可只引用路径，不受内联正文的类型与字节上限限制。
+    const localReference = (fileSize = size): HarnessMessageAttachment => ({ path, name, localPath: target, size: fileSize, content: `本地文件引用：${JSON.stringify(target)}\n文件大小：${fileSize} 字节；未内联正文。请使用可用的文件工具或文档技能按需读取，并按文件实际格式处理；不要将二进制文件当作 UTF-8 文本。` })
     // 先读取有限签名，再决定文本/图片限额，避免为过大的文本分配整文件内存。
     const header = Buffer.alloc(Math.min(size, 32))
     const descriptor = openSync(target, 'r')
     try { readSync(descriptor, header, 0, header.length, 0) } finally { closeSync(descriptor) }
     const image = harnessAttachmentMediaType(header, name)
-    if (!image && size > MAX_ATTACHMENT_FILE_BYTES) throw new Error(`引用文件过大：${name}；文本附件不得超过 256 KiB`)
-    if (image ? imageBytes + size > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes : textBytes + size > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error(image ? '图片、PDF 和视频附件总大小不得超过 40 MiB' : '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
-    return harnessAttachmentFromBytes(path, name, readFileSync(target))
+    if (image && size > HARNESS_ATTACHMENT_LIMITS.imageFileBytes) throw new Error(`引用文件过大：${name}；图片、PDF 或视频不得超过 20 MiB`)
+    if (image && imageBytes + size > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
+    if (!image && (size > MAX_ATTACHMENT_FILE_BYTES || textBytes + size > MAX_ATTACHMENT_TOTAL_BYTES)) return localReference()
+    const bytes = readFileSync(target)
+    if (!image && (bytes.length > MAX_ATTACHMENT_FILE_BYTES || harnessAttachmentText(bytes) === undefined)) return localReference(bytes.length)
+    return harnessAttachmentFromBytes(path, name, bytes)
   }
 
   private stagedAttachment(sessionId: string, path: string): HarnessMessageAttachment {
@@ -230,20 +239,11 @@ export class HarnessStore {
         attachment = this.readAttachmentFile(target, reference.path, basename(target), textBytes, imageBytes)
       }
       if (attachment.mediaType) imageBytes += attachment.size!
-      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      else if (!attachment.localPath) textBytes += Buffer.byteLength(attachment.content, 'utf8')
       if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
       if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
       return attachment
     })
-  }
-
-  private isTextProjectFile(path: string) {
-    try {
-      const stat = lstatSync(path)
-      return stat.size <= MAX_ATTACHMENT_FILE_BYTES && !readFileSync(path).includes(0)
-    } catch {
-      return false
-    }
   }
 
   private freezeSessionMedia(session: HarnessSession): HarnessSession {
@@ -653,11 +653,15 @@ export class HarnessStore {
 
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
+    // Existing automation conversations predate the persistent origin field.
+    const hasAutomationRuns = this.database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'automation_runs'").get()
+    const automationSessions = new Map(hasAutomationRuns ? (this.database.prepare('SELECT session_id, task_id FROM automation_runs WHERE session_id IS NOT NULL ORDER BY started_at ASC').all() as Array<{ session_id: string; task_id: string }>).map(run => [run.session_id, run.task_id]) : [])
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
       WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => {
       const session = this.getSession(row.id)
       return { id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
+      automationId: session.automationId || automationSessions.get(row.id),
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
       planStatus: this.planStatus(session), changeSummary: this.getTaskChangeSummary(row.id, false, session) }
@@ -773,6 +777,8 @@ export class HarnessStore {
     const projects = new Map<string, HarnessUsageBucket>()
     const sessions = new Map<string, HarnessUsageBucket>()
     const total = empty()
+    const usageRecords: Array<{ timestamp: number; modelId: string; totalTokens: number }> = []
+    let longestSessionMs = 0
     const add = (bucket: HarnessUsageBucket | typeof total, usage: NonNullable<HarnessMessage['usage']>) => {
       bucket.input += usage.input; bucket.output += usage.output; bucket.cacheRead += usage.cacheRead; bucket.cacheWrite += usage.cacheWrite; bucket.totalTokens += usage.totalTokens
       if (usage.cost?.priced) { bucket.costs[usage.cost.currency] = (bucket.costs[usage.cost.currency] || 0) + usage.cost.total; bucket.pricedRuns += 1 } else bucket.unpricedRuns += 1
@@ -789,17 +795,22 @@ export class HarnessStore {
       const providerLabel = row.model_id ? `${providerNames.get(providerId) || '未知供应商'} / ${row.model_id}` : '未选择模型'
       const projectId = row.project_id || TEMPORARY_PROJECT_ID
       const projectLabel = row.project_name || '未关联项目'
+      const completedRuns = new Map<string, number>()
       for (const message of session.messages) {
-        if (message.role !== 'assistant' || message.inherited || !message.usage) continue
+        if (message.role !== 'assistant' || message.inherited) continue
+        if (message.run && !message.inherited && (!message.run.status || message.run.status === 'completed')) completedRuns.set(message.runId || message.id, Math.max(0, message.run.durationMs || 0))
+        if (!message.usage) continue
+        usageRecords.push({ timestamp: message.run?.startedAt ?? message.createdAt, modelId: message.model?.modelId || row.model_id || '未知模型', totalTokens: message.usage.totalTokens })
         add(total, message.usage)
         add(get(providers, providerId, providerLabel), message.usage)
         add(get(projects, projectId, projectLabel), message.usage)
         add(get(sessions, row.id, session.title), message.usage)
       }
+      longestSessionMs = Math.max(longestSessionMs, [...completedRuns.values()].reduce((sum, duration) => sum + duration, 0))
     }
     const totalCost = (bucket: HarnessUsageBucket) => Object.values(bucket.costs).reduce((sum, value) => sum + value, 0)
     const sort = (items: HarnessUsageBucket[]) => items.sort((left, right) => totalCost(right) - totalCost(left) || right.totalTokens - left.totalTokens || left.label.localeCompare(right.label))
-    return { total, providers: sort([...providers.values()]), projects: sort([...projects.values()]), sessions: sort([...sessions.values()]) }
+    return { appUsage: buildHarnessAppUsage(usageRecords, longestSessionMs), total, providers: sort([...providers.values()]), projects: sort([...projects.values()]), sessions: sort([...sessions.values()]) }
   }
 
   getSession(id: string) {
@@ -1010,7 +1021,7 @@ export class HarnessStore {
       const retained = message.attachments?.find(attachment => attachment.path === file.path)
       const attachment = retained?.mediaType && !retained.content ? this.stagedAttachment(id, retained.path) : retained ?? this.resolveMessageAttachments(id, [file])[0]!
       if (attachment.mediaType) imageBytes += attachment.size!
-      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      else if (!attachment.localPath) textBytes += Buffer.byteLength(attachment.content, 'utf8')
       if (textBytes > MAX_ATTACHMENT_TOTAL_BYTES) throw new Error('引用文件总大小超过限制；文本附件总大小不得超过 1 MiB')
       if (imageBytes > HARNESS_ATTACHMENT_LIMITS.imageTotalBytes) throw new Error('图片、PDF 和视频附件总大小不得超过 40 MiB')
       return attachment
@@ -1157,7 +1168,6 @@ export class HarnessStore {
         }
         if (!entry.isFile()) continue
         const target = join(directory, entry.name)
-        if (!this.isTextProjectFile(target)) continue
         const path = relative(project.directory, target)
         if (!term || path.toLocaleLowerCase().includes(term)) files.push({ path, name: entry.name })
       }
@@ -1197,11 +1207,11 @@ export class HarnessStore {
   private stageAttachments(sessionId: string, attachments: HarnessMessageAttachment[]): HarnessFileReference[] {
     this.assertAttachmentSessionWritable(sessionId)
     assertHarnessAttachmentTotals(attachments)
-    const records = attachments.map(attachment => ({ ...attachment, path: `${HARNESS_ATTACHMENT_PREFIX}${randomUUID()}`, size: attachment.mediaType ? attachment.size : Buffer.byteLength(attachment.content, 'utf8') }))
+    const records = attachments.map(attachment => ({ ...attachment, path: `${HARNESS_ATTACHMENT_PREFIX}${randomUUID()}`, size: attachment.mediaType || attachment.localPath ? attachment.size : Buffer.byteLength(attachment.content, 'utf8') }))
     const insert = this.database.prepare('INSERT INTO harness_attachments(session_id, id, payload) VALUES (?, ?, ?)')
     // 只有整批验证通过才发布引用；事务失败不会留下可见的半批附件。
     this.database.transaction(() => records.forEach(record => insert.run(sessionId, record.path.slice(HARNESS_ATTACHMENT_PREFIX.length), JSON.stringify(record))))()
-    return records.map(({ path, name, mediaType, size }) => ({ path, name, ...(mediaType ? { mediaType } : {}), size }))
+    return records.map(({ path, name, mediaType, size, localPath, kind }) => ({ path, name, ...(mediaType ? { mediaType } : {}), ...(localPath ? { localPath } : {}), ...(kind ? { kind } : {}), size }))
   }
 
   importMessageAttachments(sessionId: string, files: HarnessAttachmentImportFile[]): HarnessFileReference[] {
@@ -1233,7 +1243,7 @@ export class HarnessStore {
       const attachment = this.readAttachmentFile(target, '', basename(target), textBytes, imageBytes)
       attachments.push(attachment)
       if (attachment.mediaType) imageBytes += attachment.size!
-      else textBytes += Buffer.byteLength(attachment.content, 'utf8')
+      else if (!attachment.localPath) textBytes += Buffer.byteLength(attachment.content, 'utf8')
       assertHarnessAttachmentTotals(attachments)
     }
     return this.stageAttachments(sessionId, attachments)

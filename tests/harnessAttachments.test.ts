@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crc32 } from 'node:zlib'
@@ -14,6 +14,76 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
 const cleanups: Array<() => void> = []
 afterEach(() => { cleanups.splice(0).reverse().forEach(cleanup => cleanup()) })
+
+it('references picked and mentioned directories without reading or flattening their contents', () => {
+  const { root, store, session } = fixture()
+  const folder = join(session.workingDirectory!, '资料.pptx')
+  mkdirSync(folder); mkdirSync(join(root, 'outside'))
+  writeFileSync(join(folder, 'secret.txt'), '不应自动内联')
+  symlinkSync(join(root, 'outside'), join(session.workingDirectory!, 'escape'))
+  for (const reference of [store.selectMessageAttachments(session.id, [folder])[0]!, store.stageMessageAttachment(session.id, '资料.pptx')]) {
+    expect(reference).toMatchObject({ name: '资料.pptx', localPath: realpathSync(folder), kind: 'directory' })
+    expect(reference.size).toBeUndefined()
+    const stored = store.getMessageAttachment(session.id, reference.path)
+    expect(stored.content).toContain('本地文件夹引用')
+    expect(stored.content).not.toContain('不应自动内联')
+    store.addMessage(session.id, 'user', '分析目录', store.resolveMessageAttachments(session.id, [reference]))
+    expect(store.getSession(session.id).messages.at(-1)?.attachments?.[0]).toMatchObject({ kind: 'directory', localPath: realpathSync(folder) })
+    expect(() => store.getMessageAttachment(store.createSession().id, reference.path)).toThrow('不属于当前会话')
+  }
+  expect(() => store.stageMessageAttachment(session.id, 'escape')).toThrow('符号链接离开项目目录')
+  expect(store.selectMessageAttachments(session.id, [join(root, 'outside')])[0]).toMatchObject({ kind: 'directory', localPath: realpathSync(join(root, 'outside')) })
+})
+
+it('references a local PPTX by its verified path instead of decoding binary bytes as UTF-8', () => {
+  const { root, store, session } = fixture()
+  const name = '项目介绍.pptx'
+  const bytes = Buffer.alloc(900000)
+  bytes.write('PK\x03\x04')
+  const external = join(root, name)
+  writeFileSync(external, bytes)
+  const [picked] = store.selectMessageAttachments(session.id, [external])
+  expect(picked.name).toBe(name)
+  const selected = store.getMessageAttachment(session.id, picked.path)
+  expect(selected.mediaType).toBeUndefined()
+  expect(picked.size).toBe(bytes.length)
+  expect(picked.localPath).toBe(realpathSync(external))
+  expect(selected.content).toContain(external)
+  expect(selected.content).toContain('按需读取')
+  expect(selected.content.length).toBeLessThan(1000)
+  const internal = join(session.workingDirectory!, name)
+  writeFileSync(internal, bytes)
+  const staged = store.stageMessageAttachment(session.id, name)
+  expect(store.getMessageAttachment(session.id, staged.path).content).toContain(internal)
+  const foreign = store.createSession()
+  expect(() => store.getMessageAttachment(foreign.id, staged.path)).toThrow('不属于当前会话')
+  store.addMessage(session.id, 'user', '分析文件', store.resolveMessageAttachments(session.id, [staged]))
+  expect(store.getSession(session.id).messages[0].attachments?.[0].content).toContain(internal)
+})
+
+it.each([
+  ['large.csv', 32 * 1024 * 1024, Buffer.from('col1,col2\n')],
+  ['archive.zip', 32 * 1024 * 1024, Buffer.from('PK\x03\x04')],
+  ['database.sqlite', 4096, Buffer.from('SQLite format 3\0')],
+  ['legacy.txt', 10, Buffer.from([0xff, 0xfe, 65, 0])],
+  ['photo.heic', 100, Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99])],
+  ['huge.custom', 5 * 1024 * 1024 * 1024, Buffer.from([0])],
+] as const)('references %s through picker and @ without reading large files or treating binary as text', (name, size, header) => {
+  const { root, store, session } = fixture()
+  const target = join(session.workingDirectory!, name)
+  writeFileSync(target, header); truncateSync(target, size)
+  for (const reference of [store.selectMessageAttachments(session.id, [target])[0]!, store.stageMessageAttachment(session.id, name)]) {
+    expect(reference).toMatchObject({ name, size, localPath: realpathSync(target) })
+    const stored = store.getMessageAttachment(session.id, reference.path)
+    expect(stored.content).toContain(JSON.stringify(realpathSync(target)))
+    expect(stored.content.length).toBeLessThan(1000)
+    expect(stored.mediaType).toBeUndefined()
+    const parsed = parseFirstPartyHarnessCall('message.run', { sessionId: session.id, text: '分析文件', planning: false, references: [reference], selection: { providerId: 'provider', modelId: 'model' } })
+    expect(parsed).toMatchObject({ references: [{ path: reference.path, name, size }] })
+    store.addMessage(session.id, 'user', '分析文件', store.resolveMessageAttachments(session.id, [reference]))
+  }
+  expect(statSync(join(root, 'state.sqlite')).size).toBeLessThan(1024 * 1024)
+})
 
 it('stores native PDF/video attachments as immutable bytes rather than text or images', () => {
   const { store, session } = fixture()

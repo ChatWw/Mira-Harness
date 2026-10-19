@@ -9,10 +9,10 @@ export function attachmentImageType(path: string) { return IMAGE_TYPES[path.spli
 export function attachmentBinaryType(path: string) { return attachmentImageType(path) || MEDIA_TYPES[path.split('.').pop()?.toLowerCase() || ''] }
 export function attachmentTypeLabel(mediaType?: string) { return mediaType === 'application/pdf' ? 'PDF 文档' : mediaType?.startsWith('video/') ? '视频' : '文本文件' }
 
-export function validateAttachmentFiles(files: readonly File[], existingCount: number, existing: readonly { mediaType?: string; size?: number }[] = []) {
+export function validateAttachmentFiles(files: readonly File[], existingCount: number, existing: readonly { mediaType?: string; size?: number; localPath?: string }[] = []) {
   if (existingCount + files.length > 12) throw new Error('一次最多引用 12 个文件，请先移除部分文件。')
   let imageBytes = existing.reduce((sum, file) => sum + (file.mediaType ? file.size || 0 : 0), 0)
-  let textBytes = existing.reduce((sum, file) => sum + (!file.mediaType ? file.size || 0 : 0), 0)
+  let textBytes = existing.reduce((sum, file) => sum + (!file.mediaType && !file.localPath ? file.size || 0 : 0), 0)
   for (const file of files) {
     const image = attachmentBinaryType(file.name) || file.type.startsWith('image/') || file.type.startsWith('video/') || file.type === 'application/pdf'
     if (file.type.startsWith('image/') && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) throw new Error(`暂不支持这种图片格式：${file.name}，请使用 PNG、JPEG、GIF 或 WebP。`)

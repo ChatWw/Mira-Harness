@@ -5,7 +5,7 @@ import { AutomationStore } from '../electron/storage/automationStore'
 function createStore() {
   const database = new Database(':memory:')
   database.exec(`
-    CREATE TABLE automation_tasks (id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_type TEXT NOT NULL, cron_expression TEXT, trigger_scheduled_at INTEGER, trigger_human_label TEXT, project_id TEXT NOT NULL, target_type TEXT NOT NULL, target_session_id TEXT, prompt TEXT NOT NULL, provider_id TEXT NOT NULL, model_id TEXT NOT NULL, thinking_level TEXT, permission_mode TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, template_id TEXT, valid_from INTEGER, valid_until INTEGER, ended_at INTEGER, last_run_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE automation_tasks (id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_type TEXT NOT NULL, cron_expression TEXT, trigger_scheduled_at INTEGER, trigger_human_label TEXT, schedule_rule TEXT, project_id TEXT NOT NULL, target_type TEXT NOT NULL, target_session_id TEXT, prompt TEXT NOT NULL, provider_id TEXT NOT NULL, model_id TEXT NOT NULL, thinking_level TEXT, permission_mode TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, template_id TEXT, valid_from INTEGER, valid_until INTEGER, ended_at INTEGER, last_run_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE automation_runs (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL, scheduled_at INTEGER, started_at INTEGER, completed_at INTEGER, session_id TEXT, snapshot TEXT NOT NULL, result_summary TEXT, error TEXT, retried_from TEXT);
   `)
   return { database, store: new AutomationStore(database) }
@@ -45,4 +45,16 @@ describe('AutomationStore', () => {
     expect(store.getTask(task.id)).toMatchObject({ enabled: false, endedAt: expect.any(Number) })
     database.close()
   })
+  it('persists calendar rules and deletes only a completed record, never its task or active run', () => {
+    const { database, store } = createStore()
+    const scheduleRule = { unit: 'weekly' as const, interval: 2, hour: 9, minute: 0, anchorAt: Date.now(), weekdays: [1] }
+    const task = store.saveTask({ name: '隔周总结', projectId: 'project', trigger: { type: 'cron', expression: '0 9 * * *', scheduleRule }, target: { type: 'new-session' }, prompt: '总结', model: { providerId: 'provider', modelId: 'model' }, permissionMode: 'default' })
+    expect(store.getTask(task.id).trigger).toMatchObject({ scheduleRule })
+    const run = store.createRun(task, 'manual', { sessionId: 'session' })
+    expect(() => store.deleteRun(run.id)).toThrow('运行中')
+    store.finishRun(run.id, 'completed'); store.deleteRun(run.id)
+    expect(store.listRuns(task.id)).toEqual([]); expect(store.getTask(task.id).id).toBe(task.id)
+    database.close()
+  })
+
 })

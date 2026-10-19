@@ -81,7 +81,7 @@ export function MiraAttachmentPreview({ attachment, gallery, onSave, onClose }: 
   if (!attachment) return null
   return <Dialog.Root open onOpenChange={open => { if (!open) onClose() }}>
     <Dialog.Portal container={document.getElementById('root')}>
-      <Dialog.Overlay className="mira-attachment-preview__overlay" />
+      <Dialog.Overlay className={`mira-attachment-preview__overlay${imageMode ? ' mira-attachment-preview__overlay--gallery' : ''}`} />
       <Dialog.Content className={`mira-attachment-preview${imageMode ? ' mira-attachment-preview--gallery' : binaryMode ? ' mira-attachment-preview--binary' : ''}`} onOpenAutoFocus={() => { restoreFocus.current = document.activeElement as HTMLElement | null }} onCloseAutoFocus={event => {
         event.preventDefault(); if (restoreFocus.current?.isConnected) restoreFocus.current.focus()
       }} onKeyDown={event => {

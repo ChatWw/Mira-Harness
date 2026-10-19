@@ -17,7 +17,7 @@ describe('AutomationScheduler', () => {
 
   it('runs only a completed manual session event in the matching project', async () => {
     const eventTask = task({ trigger: { type: 'session-completed' } })
-    const database = { automations: { markInterruptedRuns: vi.fn(), listTasks: () => [eventTask], getTask: () => eventTask, createRun: vi.fn(() => ({ id: 'run-1' })), startRun: vi.fn(), finishRun: vi.fn() }, harness: { getSession: () => ({ projectId: 'project-1' }) } }
+    const database = { automations: { markInterruptedRuns: vi.fn(), listTasks: () => [eventTask], getTask: () => eventTask, createRun: vi.fn(() => ({ id: 'run-1' })), startRun: vi.fn(), finishRun: vi.fn() }, harness: { updateSession: vi.fn(), getSession: () => ({ projectId: 'project-1' }) } }
     const runtime = { isProjectRunning: () => false, onRunComplete: vi.fn(), runAutomation: vi.fn(() => Promise.resolve({ content: 'ok' })), abort: vi.fn() }
     new AutomationScheduler(database as any, runtime as any)
     const listener = runtime.onRunComplete.mock.calls[0][0]
@@ -34,11 +34,12 @@ describe('AutomationScheduler', () => {
 
   it('creates a new session when manually running a session-completed task', async () => {
     const eventTask = task({ trigger: { type: 'session-completed' } })
-    const database = { automations: { getTask: () => eventTask, createRun: vi.fn(() => ({ id: 'run-1' })), startRun: vi.fn(), finishRun: vi.fn() }, harness: { createSession: vi.fn(() => ({ id: 'manual-session' })), getSession: () => ({ projectId: 'project-1' }) } }
+    const database = { automations: { getTask: () => eventTask, createRun: vi.fn(() => ({ id: 'run-1' })), startRun: vi.fn(), finishRun: vi.fn() }, harness: { createSession: vi.fn(() => ({ id: 'manual-session' })), updateSession: vi.fn(), getSession: () => ({ projectId: 'project-1' }) } }
     const runtime = { isProjectRunning: () => false, onRunComplete: vi.fn(), runAutomation: vi.fn(() => Promise.resolve({ content: 'ok' })), abort: vi.fn() }
     const scheduler = new AutomationScheduler(database as any, runtime as any)
     await scheduler.run(eventTask.id, 'manual')
     expect(runtime.runAutomation).toHaveBeenCalledWith('manual-session', '执行', eventTask.model, 'default')
+    expect(database.harness.updateSession).toHaveBeenCalledWith(expect.objectContaining({ automationId: eventTask.id }))
   })
 
   it('returns a running record without waiting for the agent to finish', async () => {
@@ -54,7 +55,7 @@ describe('AutomationScheduler', () => {
         startRun: vi.fn(() => runs[0]),
         finishRun: vi.fn(),
       },
-      harness: { createSession: () => ({ id: 'session-1' }), getSession: () => ({ projectId: item.projectId }) },
+      harness: { createSession: () => ({ id: 'session-1' }), updateSession: vi.fn(), getSession: () => ({ projectId: item.projectId }) },
     }
     const runtime = { isProjectRunning: () => false, onRunComplete: vi.fn(), runAutomation: vi.fn(() => agentResult), abort: vi.fn() }
     const scheduler = new AutomationScheduler(database as any, runtime as any)

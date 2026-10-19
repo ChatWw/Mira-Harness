@@ -20,19 +20,21 @@ type MiraModelMenuProps = {
   onSelect: (model: MiraModelOption) => void
   onManage: () => void
   onReturnFocus: () => void
+  onEscapeKeyDown?: (event: globalThis.KeyboardEvent) => void
 }
 
 const modelKey = (model: MiraModelOption) => JSON.stringify([model.providerId, model.modelId])
 
 // Provider submenus adapted from ZCode ModelConfigSelect; see third-party-licenses/zcode.
-export function MiraModelMenu({ open, ownerKey, models, selected, container, disabled, onSelect, onManage, onReturnFocus }: MiraModelMenuProps) {
+export function MiraModelMenu({ open, ownerKey, models, selected, container, disabled, onSelect, onManage, onReturnFocus, onEscapeKeyDown }: MiraModelMenuProps) {
   const [query, setQuery] = useState('')
+  const [openProvider, setOpenProvider] = useState<string>()
   const input = useRef<HTMLInputElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const returnFocus = useRef(false)
   useEffect(() => { returnFocus.current = false }, [ownerKey])
   useEffect(() => {
-    if (!open) { setQuery(''); return }
+    if (!open) { setQuery(''); setOpenProvider(undefined); return }
     returnFocus.current = true
     const timer = window.setTimeout(() => input.current?.focus(), 0)
     return () => window.clearTimeout(timer)
@@ -66,15 +68,21 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
       <DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator>
     </DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup>
   }
-  return <DropdownMenu.Portal container={container}><DropdownMenu.Content ref={content} align="end" side="top" sideOffset={4} className="harness-composer__menu harness-composer__model-menu" onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => { if (event.isComposing || event.keyCode === 229) event.preventDefault() }} onInteractOutside={() => { returnFocus.current = false }} onCloseAutoFocus={event => {
+  return <DropdownMenu.Portal container={container}><DropdownMenu.Content ref={content} align="end" side="top" sideOffset={4} className="harness-composer__menu harness-composer__model-menu" onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); else onEscapeKeyDown?.(event) }} onInteractOutside={() => { returnFocus.current = false }} onCloseAutoFocus={event => {
     event.preventDefault()
     if (returnFocus.current && !disabled) onReturnFocus()
   }}>
     <div className="harness-composer__search"><Search size={16} /><input ref={input} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={searchKey} placeholder="搜索模型" aria-label="搜索模型" /></div>
     <div className="mira-model-menu__list">
-      {search ? renderModels(matches, true) : Array.from(groups, ([providerId, options]) => <DropdownMenu.Sub key={providerId}>
+      {search ? renderModels(matches, true) : Array.from(groups, ([providerId, options]) => <DropdownMenu.Sub key={providerId} open={openProvider === providerId} onOpenChange={open => setOpenProvider(open ? providerId : undefined)}>
         <DropdownMenu.SubTrigger disabled={disabled} data-mira-model-row className="harness-composer__menu-item mira-model-menu__provider"><span title={options[0].providerName}>{options[0].providerName}</span>{selected?.providerId === providerId && <Check size={16} aria-label="当前供应商" />}<ChevronRight size={14} /></DropdownMenu.SubTrigger>
-        <DropdownMenu.Portal container={container}><DropdownMenu.SubContent className="harness-composer__menu mira-model-menu__submenu" sideOffset={4} onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => { if (event.isComposing || event.keyCode === 229) event.preventDefault() }}>{renderModels(options)}</DropdownMenu.SubContent></DropdownMenu.Portal>
+        <DropdownMenu.Portal container={container}><DropdownMenu.SubContent className="harness-composer__menu mira-model-menu__submenu" sideOffset={4} onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => {
+          event.preventDefault()
+          if (event.isComposing || event.keyCode === 229) return
+          event.stopPropagation()
+          content.current?.querySelector<HTMLElement>('.mira-model-menu__provider[data-state="open"]')?.focus()
+          setOpenProvider(undefined)
+        }}>{renderModels(options)}</DropdownMenu.SubContent></DropdownMenu.Portal>
       </DropdownMenu.Sub>)}
       {!models.length && <span className="harness-composer__menu-empty">请先在设置中配置模型</span>}
       {models.length > 0 && search && !matches.length && <span className="harness-composer__menu-empty" role="status">没有匹配的模型</span>}

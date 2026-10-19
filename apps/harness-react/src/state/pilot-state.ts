@@ -124,13 +124,17 @@ export interface PilotHost {
   onThemeChange?(listener: () => void): () => void
   showAbout?(): Promise<void>
   openResourceManager?(): Promise<void>
+  getAppearance?(): Promise<{ theme: string; zoomFactor: number }>
+  setTheme?(theme: 'system' | 'light' | 'dark'): Promise<{ theme: string; zoomFactor: number }>
+  zoom?(action: 'zoomIn' | 'zoomOut' | 'resetZoom'): Promise<{ theme: string; zoomFactor: number }>
   toggleTheme?(): Promise<'light' | 'dark'>
   listAutomationTasks?(): Promise<AutomationTask[]>
   getAutomationOverview?(): Promise<AutomationOverview>
-  getAutomationNextRuns?(expression: string): Promise<number[]>
+  getAutomationNextRuns?(expression: string, rule?: import('../../../../src/config/automationRepeat').AutomationScheduleRule): Promise<number[]>
   saveAutomationTask?(input: AutomationTaskInput): Promise<AutomationTask>
   setAutomationTaskEnabled?(id: string, enabled: boolean): Promise<AutomationTask>
   deleteAutomationTask?(id: string): Promise<void>
+  deleteAutomationRun?(id: string): Promise<void>
   listAutomationRuns?(id: string, status?: AutomationRunStatus): Promise<AutomationRun[]>
   runAutomationNow?(id: string): Promise<AutomationRun>
   retryAutomationRun?(id: string): Promise<AutomationRun>
@@ -160,7 +164,8 @@ export interface PilotHost {
   getAttachment?(id: string, path: string): Promise<HarnessMessageAttachment>
   saveAttachment?(id: string, path: string): Promise<HarnessAttachmentSaveResult>
   stageAttachment?(id: string, path: string): Promise<HarnessFileReference>
-  selectAttachments?(id: string): Promise<HarnessFileReference[]>
+  selectAttachments?(id: string, files?: File[]): Promise<HarnessFileReference[]>
+  resolveAttachmentPaths?(files: File[]): Promise<string[]>
   listGitBranches?(projectId: string): Promise<unknown>
   generateGitMessage?(projectId: string, token: string, includeUnstaged: boolean, selection: ModelSelection): Promise<string>
   getGitTools?(projectId: string): Promise<MiraGitSnapshot>
@@ -328,6 +333,9 @@ export class PilotController {
   subscribeTheme = (listener: () => void) => this.host.onThemeChange?.(listener) ?? (() => undefined)
   showAbout = () => this.require('showAbout')()
   openResourceManager = () => this.require('openResourceManager')()
+  getAppearance = () => this.require('getAppearance')()
+  setTheme = (theme: 'system' | 'light' | 'dark') => this.require('setTheme')(theme)
+  zoom = (action: 'zoomIn' | 'zoomOut' | 'resetZoom') => this.require('zoom')(action)
   toggleTheme = () => this.require('toggleTheme')()
   get supportsConversationFork() { return !this.sideSession && Boolean(this.host.forkConversation) }
   get supportsContextCompaction() { return Boolean(this.host.compactConversation) }
@@ -903,10 +911,11 @@ export class PilotController {
   }
   listAutomationTasks() { return this.require('listAutomationTasks')() }
   getAutomationOverview() { return this.require('getAutomationOverview')() }
-  getAutomationNextRuns(expression: string) { return this.require('getAutomationNextRuns')(expression) }
+  getAutomationNextRuns(expression: string, rule?: import('../../../../src/config/automationRepeat').AutomationScheduleRule) { return this.require('getAutomationNextRuns')(expression, rule) }
   saveAutomationTask(input: AutomationTaskInput) { return this.require('saveAutomationTask')(input) }
   setAutomationTaskEnabled(id: string, enabled: boolean) { return this.require('setAutomationTaskEnabled')(id, enabled) }
   deleteAutomationTask(id: string) { return this.require('deleteAutomationTask')(id) }
+  deleteAutomationRun(id: string) { return this.require('deleteAutomationRun')(id) }
   listAutomationRuns(id: string, status?: AutomationRunStatus) { return this.require('listAutomationRuns')(id, status) }
   runAutomationNow(id: string) { return this.require('runAutomationNow')(id) }
   retryAutomationRun(id: string) { return this.require('retryAutomationRun')(id) }
@@ -1018,6 +1027,7 @@ export class PilotController {
     return this.require('selectFiles')(id)
   }
   get supportsAttachments() { return Boolean(this.host.importAttachments && this.host.getAttachment && this.host.selectAttachments) }
+  get supportsLocalAttachmentPaths() { return Boolean(this.host.resolveAttachmentPaths) }
   get supportsFileRewindPreview() { return Boolean(this.host.previewFileRewind) }
   previewFileRewind(sessionId: string, messageId: string) { return this.require('previewFileRewind')(sessionId, messageId) }
   get supportsFileRewindApply() { return Boolean(this.host.applyFileRewind && this.host.recoverFileRewind) }
@@ -1040,7 +1050,8 @@ export class PilotController {
   get supportsAttachmentSave() { return Boolean(this.host.saveAttachment) }
   saveAttachment(id: string, path: string) { return this.require('saveAttachment')(id, path) }
   stageAttachment(id: string, path: string) { return this.require('stageAttachment')(id, path) }
-  selectAttachments(id: string) { return this.require('selectAttachments')(id) }
+  selectAttachments(id: string, files?: File[]) { return this.require('selectAttachments')(id, files) }
+  resolveAttachmentPaths(files: File[]) { return this.require('resolveAttachmentPaths')(files) }
   listGitBranches(projectId: string) { return this.require('listGitBranches')(projectId) }
   generateGitMessage(projectId: string, token: string, includeUnstaged: boolean) {
     if (!this.state.selection) throw new Error('请先选择生成提交消息的模型')

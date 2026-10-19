@@ -64,6 +64,30 @@ function setup() {
 }
 
 describe('Harness runtime admission', () => {
+  it.each([false, true])('sends after a tool-heavy reply without treating cumulative usage as context size (resume=%s)', async resume => {
+    const { runtime, database, memory, sender, prompt } = setup()
+    vi.mocked((runtime as any).compactContext).mockRestore()
+    vi.mocked((runtime as any).publishContextUsage).mockRestore()
+    const usage = { input: 44713, output: 18271, cacheRead: 618752, cacheWrite: 0, totalTokens: 681736 }
+    database.harness.updateSession({ ...database.harness.getSession(), messages: [
+      { id: 'previous-user', role: 'user', content: '对比五家厂商的 Agent 能力', createdAt: 1 },
+      { id: 'previous-reply', role: 'assistant', content: '已检索并生成对比文档。', usage, createdAt: 2 },
+    ] })
+    const queue = (runtime as any).messageQueue
+    if (resume) queue.pause('s', 'failed', '待发送消息执行失败，请重试或撤回后重新发送。')
+    runtime.submitMessage(sender, 's', 'follow-up', '帮我查一下运营商资费', [], { providerId: 'p', modelId: 'model' }, false)
+    if (resume) runtime.resumeMessageQueue('s')
+    memory.resolve()
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledExactlyOnceWith('帮我查一下运营商资费'))
+    await vi.waitFor(() => expect(queue.hasPending('s')).toBe(false))
+    expect(runtime.getMessageQueue('s')).toMatchObject({ items: [] })
+    expect(runtime.getMessageQueue('s').paused).toBeUndefined()
+    expect(generateSummaryWithUsage).not.toHaveBeenCalled()
+    expect(database.harness.getSession().messages[1].usage).toEqual(usage)
+    expect(database.harness.getSession().context.usage).toMatchObject({ source: 'estimated' })
+    expect(database.harness.getSession().context.usage.usedTokens).toBeLessThan(1000)
+  })
+
   it('records accepted input once, excludes rejected intent and ignores submission replay', () => {
     const view = setup(), selection = { providerId: 'p', modelId: 'model' }
     const receipt = view.runtime.submitMessage(view.sender, 's', 'recall-one', '  Accepted  ', [], selection, false)

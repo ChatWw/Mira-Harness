@@ -1,6 +1,6 @@
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlert, LoaderCircle, X } from 'lucide-react'
+import { CircleAlert, Folder, LoaderCircle, X } from 'lucide-react'
 import { isHarnessImageMediaType } from '../../../../../src/config/harness'
 import type { HarnessFileReference, HarnessMessageAttachment } from '../../../../../src/config/harness'
 import type { PilotController } from '../../state/pilot-state'
@@ -9,8 +9,9 @@ import { MiraAttachmentPreview } from './MiraAttachmentPreview'
 
 type AttachmentLoad = { attachment?: HarnessMessageAttachment; error?: string }
 
-export function MiraComposerAttachments({ references, ownerId, controller, disabled, active, onRemove, onBlocked }: {
+export function MiraComposerAttachments({ references, inlinePaths = [], ownerId, controller, disabled, active, onRemove, onBlocked }: {
   references: HarnessFileReference[]; ownerId?: string; controller: PilotController; disabled: boolean; active: boolean
+  inlinePaths?: string[]
   onRemove: (path: string) => void; onBlocked: (blocked: boolean) => void
 }) {
   const [loaded, setLoaded] = useState<Record<string, AttachmentLoad>>({})
@@ -56,10 +57,11 @@ export function MiraComposerAttachments({ references, ownerId, controller, disab
     const next = { ...currentLoaded.current }; delete next[key(path)]; currentLoaded.current = next; setLoaded(next); setRetry(value => value + 1)
   }
   if (!references.length) return null
-  return <><div className="harness-composer__attachments" aria-label="待发送附件">
-    {references.map(file => {
+  const visible = references.filter(file => file.mediaType || !inlinePaths.includes(file.path) || loaded[key(file.path)]?.error)
+  return <>{visible.length > 0 && <div className="harness-composer__attachments" aria-label="待发送附件">
+    {visible.map(file => {
       const state = loaded[key(file.path)]
-      const mediaType = file.mediaType || attachmentBinaryType(file.name || file.path)
+      const mediaType = file.kind === 'directory' ? undefined : file.mediaType || attachmentBinaryType(file.name || file.path)
       const image = isHarnessImageMediaType(mediaType)
       const read = pending.some(item => item.path === file.path)
       return <div key={file.path} className={`mira-attachment-card${image ? ' mira-attachment-card--image' : ''}`}>
@@ -67,14 +69,14 @@ export function MiraComposerAttachments({ references, ownerId, controller, disab
           if (state?.error) retryAttachment(file.path)
           else if (state?.attachment) setPreview({ ownerId, controller, attachment: state.attachment })
         }}>
-          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : <img className="mira-composer-attachment-file-icon" src={miraFileTreeIcon(file.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />}
-          {!image && <span className="mira-attachment-card__text"><span>{file.name}</span><small>{attachmentTypeLabel(mediaType)}</small></span>}
+          {image && state?.attachment?.mediaType ? <img src={`data:${state.attachment.mediaType};base64,${state.attachment.content}`} alt={file.name} onError={() => setLoaded(previous => ({ ...previous, [key(file.path)]: { error: '图片无法解码，请移除或重试。' } }))} /> : state?.error ? <CircleAlert size={18} /> : read && !state ? <LoaderCircle size={18} className="animate-spin" /> : file.kind === 'directory' ? <Folder size={16} strokeWidth={1.5} aria-hidden="true" /> : <img className="mira-composer-attachment-file-icon" src={miraFileTreeIcon(file.name || file.path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />}
+          {!image && <span className="mira-attachment-card__text"><span>{file.name}</span><small>{file.kind === 'directory' ? '文件夹' : attachmentTypeLabel(mediaType)}</small></span>}
         </button>
         <button type="button" className="mira-attachment-card__remove" aria-label={`移除 ${file.name}`} title={`移除 ${file.name}`} disabled={disabled} onClick={() => onRemove(file.path)}><X size={10} /></button>
         {state?.error && <span className="mira-attachment-card__error" role="alert">{state.error}</span>}
       </div>
     })}
-  </div><MiraAttachmentPreview attachment={active && preview?.ownerId === ownerId && preview?.controller === controller && references.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={references.filter(file => isHarnessImageMediaType(file.mediaType || attachmentBinaryType(file.name || file.path))).map(file => ({
+  </div>}<MiraAttachmentPreview attachment={active && preview?.ownerId === ownerId && preview?.controller === controller && references.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={references.filter(file => file.kind !== 'directory' && isHarnessImageMediaType(file.mediaType || attachmentBinaryType(file.name || file.path))).map(file => ({
     path: file.path, name: file.name, ...loaded[key(file.path)], onRetry: () => retryAttachment(file.path),
   }))} onSave={ownerId && controller.supportsAttachmentSave ? attachment => controller.saveAttachment(ownerId, attachment.path) : undefined} onClose={() => setPreview(undefined)} /></>
 }

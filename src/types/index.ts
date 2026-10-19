@@ -220,10 +220,11 @@ export interface PlatformApi {
   queryHarnessUsage(): Promise<import('@/config/harness').HarnessUsageStats>
   listAutomationTasks(): Promise<import('@/config/harness').AutomationTask[]>
   getAutomationOverview(): Promise<import('@/config/harness').AutomationOverview>
-  getAutomationNextRuns(expression: string): Promise<number[]>
+  getAutomationNextRuns(expression: string, rule?: import('../config/automationRepeat').AutomationScheduleRule): Promise<number[]>
   saveAutomationTask(task: import('@/config/harness').AutomationTaskInput): Promise<import('@/config/harness').AutomationTask>
   setAutomationTaskEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').AutomationTask>
   deleteAutomationTask(id: string): Promise<void>
+  deleteAutomationRun(id: string): Promise<void>
   listAutomationRuns(taskId: string, status?: import('@/config/harness').AutomationRunStatus): Promise<import('@/config/harness').AutomationRun[]>
   runAutomationNow(taskId: string): Promise<import('@/config/harness').AutomationRun>
   retryAutomationRun(runId: string): Promise<import('@/config/harness').AutomationRun>

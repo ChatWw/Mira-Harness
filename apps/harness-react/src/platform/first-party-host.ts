@@ -159,6 +159,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   onThemeChange = (listener: () => void) => { this.themeListeners.add(listener); return () => { this.themeListeners.delete(listener) } }
   showAbout = () => this.request<void>('about.show')
   openResourceManager = () => this.request<void>('resources.open')
+  getAppearance = () => this.request<{ theme: string; zoomFactor: number }>('appearance.get')
+  setTheme = (theme: 'system' | 'light' | 'dark') => this.request<{ theme: string; zoomFactor: number }>('appearance.set-theme', { theme })
+  zoom = (action: 'zoomIn' | 'zoomOut' | 'resetZoom') => this.request<{ theme: string; zoomFactor: number }>('appearance.zoom', { action })
   toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
   dismissCommandCenterFocus = (focusRequestId: string) => {
@@ -183,10 +186,11 @@ export class FirstPartyHarnessHost implements PilotHost {
   }
   listAutomationTasks = () => this.call<AutomationTask[]>('automations.list')
   getAutomationOverview = () => this.call<AutomationOverview>('automations.overview')
-  getAutomationNextRuns = (expression: string) => this.call<number[]>('automations.next-runs', { expression })
+  getAutomationNextRuns = (expression: string, rule?: import('../../../../src/config/automationRepeat').AutomationScheduleRule) => this.call<number[]>('automations.next-runs', { expression, rule })
   saveAutomationTask = (input: AutomationTaskInput) => this.call<AutomationTask>('automations.save', { input })
   setAutomationTaskEnabled = (id: string, enabled: boolean) => this.call<AutomationTask>('automations.set-enabled', { id, enabled })
   deleteAutomationTask = (id: string) => this.call<void>('automations.delete', { id })
+  deleteAutomationRun = (id: string) => this.call<void>('automations.delete-run', { id })
   listAutomationRuns = (id: string, status?: AutomationRunStatus) => this.call<AutomationRun[]>('automations.runs', { id, status })
   runAutomationNow = (id: string) => this.call<AutomationRun>('automations.run-now', { id })
   retryAutomationRun = (id: string) => this.call<AutomationRun>('automations.retry', { id })
@@ -205,7 +209,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   getAttachment = (sessionId: string, path: string) => this.call<HarnessMessageAttachment>('attachments.get', { sessionId, path })
   saveAttachment = (sessionId: string, path: string) => this.call<HarnessAttachmentSaveResult>('attachments.save', { sessionId, path })
   stageAttachment = (sessionId: string, path: string) => this.call<HarnessFileReference>('attachments.stage', { sessionId, path })
-  selectAttachments = (sessionId: string) => this.call<HarnessFileReference[]>('attachments.select', { sessionId })
+  selectAttachments = (sessionId: string, files?: File[]) => this.call<HarnessFileReference[]>('attachments.select', { sessionId, ...(files ? { files } : {}) })
+  resolveAttachmentPaths = (files: File[]) => this.call<string[]>('attachments.paths', { files })
   listProviders = () => this.call<ModelProviderSummary[]>('providers.list')
   runMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[] = []) => this.call<void>('message.run', { sessionId, text, references, selection, planning })
   submitMessage = (sessionId: string, text: string, selection: ModelSelection, planning: boolean, references: HarnessFileReference[], submissionId: string, options?: HarnessMessageSubmissionOptions) => this.call<HarnessMessageSubmissionResult>('message.submit', { sessionId, submissionId, text, references, selection, planning, ...(options === undefined ? {} : { options }) })

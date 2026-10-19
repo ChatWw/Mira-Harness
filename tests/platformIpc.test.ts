@@ -25,6 +25,7 @@ const electron = vi.hoisted(() => ({
   fromWebContents: vi.fn(() => null),
   getFocusedWindow: vi.fn(() => null),
   showOpenDialog: vi.fn(),
+  showMessageBox: vi.fn(),
   readClipboard: vi.fn(),
   openExternal: vi.fn(async () => undefined),
   openPath: vi.fn(async () => ''),
@@ -38,7 +39,7 @@ vi.mock('electron', () => ({
   webContents: { fromId: electron.guestFromId },
   session: { fromPartition: () => electron.browserSession },
   BrowserWindow: { fromWebContents: electron.fromWebContents, getFocusedWindow: electron.getFocusedWindow },
-  dialog: { showOpenDialog: electron.showOpenDialog },
+  dialog: { showOpenDialog: electron.showOpenDialog, showMessageBox: electron.showMessageBox },
   clipboard: { readText: electron.readClipboard },
   shell: { openExternal: electron.openExternal, openPath: electron.openPath, showItemInFolder: electron.showItemInFolder },
 }))
@@ -87,6 +88,36 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it.each([0, 1, 2])('keeps file and folder selection available from the Windows entry (choice %s)', async response => {
+    const view = register({ harnessRuntime: {} as never })
+    const writable = vi.fn(() => ({ id: 's', workingDirectory: 'C:\\workspace' })), select = vi.fn(() => [])
+    Object.assign(view.database.harness, { assertAttachmentSessionWritable: writable, selectMessageAttachments: select })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    electron.showMessageBox.mockResolvedValueOnce({ response })
+    if (response !== 2) electron.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['C:\\资料'] })
+    vi.stubGlobal('process', Object.create(process, { platform: { value: 'win32' } }))
+    try {
+      await view.invoke('platform:first-party-harness', grant, 'attachments.select', { sessionId: 's' })
+      if (response === 2) { expect(electron.showOpenDialog).not.toHaveBeenCalled(); expect(select).not.toHaveBeenCalled() }
+      else expect(electron.showOpenDialog).toHaveBeenCalledWith(expect.objectContaining({ properties: [response === 1 ? 'openDirectory' : 'openFile', 'multiSelections'] }))
+    } finally { vi.unstubAllGlobals() }
+  })
+
+  it('selects files and folders through one picker and imports dropped paths without reopening it', async () => {
+    const view = register({ harnessRuntime: {} as never })
+    const writable = vi.fn(() => ({ id: 's', workingDirectory: '/workspace' })), select = vi.fn(() => [{ path: 'mira-attachment:folder', kind: 'directory' }])
+    Object.assign(view.database.harness, { assertAttachmentSessionWritable: writable, selectMessageAttachments: select })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    electron.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/native/资料'] })
+    await view.invoke('platform:first-party-harness', grant, 'attachments.select', { sessionId: 's' })
+    expect(electron.showOpenDialog).toHaveBeenCalledWith(expect.objectContaining({ properties: ['openFile', 'openDirectory', 'multiSelections'], title: '选择引用文件或文件夹' }))
+    expect(select).toHaveBeenCalledWith('s', ['/native/资料'])
+    await view.invoke('platform:first-party-harness', grant, 'attachments.select', { sessionId: 's', paths: ['/native/file.zip', '/native/资料'] })
+    expect(select).toHaveBeenLastCalledWith('s', ['/native/file.zip', '/native/资料'])
+    expect(electron.showOpenDialog).toHaveBeenCalledOnce()
+    view.invoke('platform:revoke-first-party-grant', grant)
+    expect(() => view.invoke('platform:first-party-harness', grant, 'attachments.select', { sessionId: 's', paths: ['/native/资料'] })).toThrow('授权无效')
+  })
   it('reads exact-task model records and diagnostic paths through the owner grant, and rechecks revoked asynchronous access', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mira-trace-ipc-')), database = new PlatformDatabase(root)
     try {

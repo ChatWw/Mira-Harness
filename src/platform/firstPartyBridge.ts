@@ -30,6 +30,13 @@ function requireCapability(manifest: FirstPartyAppManifest, capability: FirstPar
   if (!manifest.capabilities.includes(capability)) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用没有所需能力')
 }
 
+function attachmentPaths(api: PlatformApi, files: unknown) {
+  if (!Array.isArray(files) || !files.length || files.length > 12 || files.some(file => !(file instanceof File))) throw new FirstPartyBridgeError('INVALID_REQUEST', '附件文件无效')
+  // Structured cloning preserves native backing paths; plain path strings cannot grant local file access.
+  try { return files.map(file => api.getPathForFile(file)) }
+  catch { throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '无法读取本地文件或文件夹路径，请重新拖入或使用添加入口。') }
+}
+
 export function isFirstPartyRequest(value: unknown): value is FirstPartyRequest {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
@@ -45,14 +52,29 @@ export async function handleFirstPartyRequest(options: {
   route: string
   navigate: (path: string) => void | Promise<void>
   toggleTheme?: () => 'light' | 'dark'
+  getAppearance?: () => { theme: string; zoomFactor: number }
+  setTheme?: (theme: 'system' | 'light' | 'dark') => void
 }, request: FirstPartyRequest): Promise<unknown> {
   const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
   if (request.method.startsWith('harness.')) {
     requireCapability(manifest, 'harness:workbench')
     if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能使用 Harness 工作台')
+    if (request.method === 'harness.attachments.paths') {
+      const { files } = record(request.params)
+      return attachmentPaths(api, files)
+    }
     let call: ReturnType<typeof parseFirstPartyHarnessCall>
-    try { call = parseFirstPartyHarnessCall(request.method.slice('harness.'.length), request.params) }
+    try {
+      let params = request.params
+      if (request.method === 'harness.attachments.select') {
+        const input = record(params)
+        const paths = input.files === undefined ? undefined : attachmentPaths(api, input.files)
+        if (paths?.some(path => !path)) throw new Error('该附件没有本地路径，请重新拖入文件或文件夹')
+        params = { sessionId: input.sessionId, ...(paths ? { paths } : {}) }
+      }
+      call = parseFirstPartyHarnessCall(request.method.slice('harness.'.length), params)
+    }
     catch (error) { throw new FirstPartyBridgeError('INVALID_REQUEST', error instanceof Error ? error.message : 'Harness 请求无效') }
     const { method, ...params } = call
     try {
@@ -113,6 +135,8 @@ export async function handleFirstPartyRequest(options: {
       // 只映射已知文件失败，避免把主进程异常、堆栈或模型凭据透出到应用。
       if (method.startsWith('attachments.') || method.startsWith('queue.') || method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
+        if (['单个图片、PDF 或视频附件不得超过 20 MiB', '图片、PDF 和视频附件总大小不得超过 40 MiB', 'PDF 或视频附件签名无效，请选择完整的文件'].includes(failure)) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', failure)
+        if (failure.startsWith('引用文件过大：') && failure.endsWith('图片、PDF 或视频不得超过 20 MiB')) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', '图片、PDF 或视频不得超过 20 MiB，请选择较小的文件。')
         const attachmentErrors = ['单张图片不得超过 20 MiB', '图片附件总大小不得超过 40 MiB', '图片附件内容不完整或签名无效', '图片附件签名无效；目前支持 PNG、JPEG、GIF 和 WebP', '附件必须使用规范的 base64 编码', '附件引用无效或不属于当前会话', '归档会话不能新增附件，请先恢复任务', '一次最多引用 12 个文件', '引用文件总大小超过限制；文本附件总大小不得超过 1 MiB', '所选模型不支持图片输入，请在模型设置中启用图片能力或切换支持图片的模型', '只能暂存工作目录中的相对路径文件']
         if (attachmentErrors.includes(failure)) throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', failure)
         if (method === 'attachments.save') throw new FirstPartyBridgeError('FILE_REFERENCE_FAILED', failure === '未找到会话' ? '任务已不存在，请重新创建或选择任务。' : '附件保存失败，请重试。')
@@ -229,6 +253,24 @@ export async function handleFirstPartyRequest(options: {
       if (request.params !== undefined) throw new FirstPartyBridgeError('INVALID_REQUEST', '资源管理器不接受自定义参数')
       await api.openResourceManager()
       return null
+    }
+    case 'appearance.get':
+    case 'appearance.set-theme':
+    case 'appearance.zoom': {
+      requireCapability(manifest, 'harness:workbench')
+      if (manifest.appId !== 'mira-harness') throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用不能修改界面设置')
+      if (!options.getAppearance) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持界面设置')
+      if (request.method === 'appearance.set-theme') {
+        const theme = record(request.params).theme
+        if (theme !== 'system' && theme !== 'light' && theme !== 'dark') throw new FirstPartyBridgeError('INVALID_REQUEST', '主题无效')
+        if (!options.setTheme) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持主题设置')
+        options.setTheme(theme)
+      } else if (request.method === 'appearance.zoom') {
+        const action = record(request.params).action
+        if (action !== 'zoomIn' && action !== 'zoomOut' && action !== 'resetZoom') throw new FirstPartyBridgeError('INVALID_REQUEST', '缩放操作无效')
+        await api.windowCommand(action)
+      } else if (request.params !== undefined) throw new FirstPartyBridgeError('INVALID_REQUEST', '界面设置查询不接受参数')
+      return options.getAppearance()
     }
     case 'appearance.toggle-theme': {
       if (request.params !== undefined && Object.keys(record(request.params)).length) throw new FirstPartyBridgeError('INVALID_REQUEST', '主题切换不接受自定义参数')

@@ -2,7 +2,6 @@
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
  * Mira uses its own brand mark and welcome composition. */
 import { useEffect, useState } from 'react'
-import miraMark from '../../assets/mira-welcome-mark.png'
 
 const boundaries = [5, 9, 12, 14, 18, 23]
 
@@ -30,7 +29,6 @@ export function MiraDraftWelcome({ active }: { active: boolean }) {
   }, [now, active])
 
   return <div className="mira-task-start">
-    <div className="mira-task-start__brand"><img src={miraMark} alt="" />Mira</div>
     <h2>今天，从什么开始？</h2>
     <p data-mira-welcome-text>{greeting}。把想做的事交给 Mira，我们一起推进。</p>
   </div>

@@ -3,6 +3,15 @@ import { appendComposerReferences, createMiraComposerDraftWriter, mergeComposerD
 import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
 
 describe('React Harness composer draft preferences', () => {
+  it('retains large local file references across draft and submission restore without counting their disk size as inline text', () => {
+    const reference = { path: 'mira-attachment:fixture', name: 'archive.zip', localPath: '/workspace/archive.zip', size: 5 * 1024 * 1024 * 1024 }
+    expect(appendComposerReferences([], [reference])).toEqual([reference])
+    const snapshot = readComposerDrafts({ fileDrafts: { owner: [reference] }, submissions: { owner: { id: 'send', text: '分析文件', references: [reference], planning: false, selection: { providerId: 'p', modelId: 'm' } } } })
+    const restored = readComposerDrafts(JSON.parse(JSON.stringify(serializeComposerDrafts(snapshot))))
+    expect(restored.fileDrafts.owner).toEqual([reference])
+    expect(restored.submissions?.owner.references).toEqual([reference])
+  })
+
   it('round-trips durable side-input identity and rejects malformed discriminators rather than downgrading them into a main send', () => {
     const side = { id: 'side-input', text: '/btw 检查结构', references: [], planning: false, selection: { providerId: 'p', modelId: 'm' }, options: { permissionMode: 'full' }, sideInput: true }
     const saved = readComposerDrafts({ submissions: { owner: side, invalid: { ...side, sideInput: 'yes' }, bare: { ...side, text: '/btw' }, attached: { ...side, references: [{ path: 'readme.md', name: 'readme.md' }] }, planning: { ...side, planning: true } } })

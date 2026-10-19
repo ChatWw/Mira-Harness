@@ -20,7 +20,7 @@ describe('first-party Harness navigation', () => {
     expect(() => resolveHarnessNavigationPath('/settings/hooks?file=%2Ftmp%2Fhooks.json')).toThrow('导航参数')
     expect(resolveHarnessNavigationPath('/settings/hooks?plugin=reviewed%40local')).toBe('/settings/hooks?plugin=reviewed%40local&from=%2Fworkspace%2Fharness-react')
   })
-  it.each(['/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts'])('opens the existing settings route and retains its React return path: %s', path => {
+  it.each(['/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts', '/settings/usage'])('opens the existing settings route and retains its React return path: %s', path => {
     const target = new URL(resolveHarnessNavigationPath(path), 'https://mira.invalid')
     expect(target.pathname).toBe(path)
     expect(target.searchParams.get('from')).toBe(HARNESS_WORKBENCH_PATH)

@@ -296,3 +296,22 @@ describe('runPromptSuffix', () => {
     expect(automated).toContain('不要声称“稍后通知你”')
   })
 })
+
+
+describe('automation creation from a chat', () => {
+  it('uses the current project/model with default unattended permissions and never immediately runs it', async () => {
+    const { runtime, sender } = setup('full')
+    ;(runtime as any).database.harness.getSession = () => ({ projectId: 'project', modelProviderId: 'provider', modelId: 'model', modelThinkingLevel: 'high', permissionMode: 'full' })
+    const save = vi.fn(input => ({ ...input, id: 'automation' }))
+    runtime.setAutomationAuthoringHost(save as any)
+    const registered = (runtime as any).tools(sender, 'session-1')
+    const tool = registered.tools.find((tool: any) => tool.name === 'create_automation')
+    await tool.execute('call', { name: '晨会', prompt: '总结', cron: '0 9 * * 1-5' })
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'project', model: { providerId: 'provider', modelId: 'model', thinkingLevel: 'high' }, permissionMode: 'default', target: { type: 'new-session' }, trigger: { type: 'cron', expression: '0 9 * * 1-5' } }))
+    expect(registered.descriptors.get('create_automation').risk).toBe('write')
+    await expect(tool.execute('bad', { name: '晨会', prompt: '总结', cron: '* * * * *', onceAt: '2030-01-01' })).rejects.toThrow('只能提供一个')
+    expect(save).toHaveBeenCalledOnce()
+    expect((runtime as any).tools(undefined, 'session-1').tools.some((tool: any) => tool.name === 'create_automation')).toBe(false)
+    expect((runtime as any).tools(sender, 'session-1', { planning: true }).tools.some((tool: any) => tool.name === 'create_automation')).toBe(false)
+  })
+})

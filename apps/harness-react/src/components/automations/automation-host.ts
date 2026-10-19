@@ -3,10 +3,11 @@ import type { AutomationOverview, AutomationRun, AutomationRunStatus, Automation
 export interface AutomationsHost {
   listAutomationTasks(): Promise<AutomationTask[]>
   getAutomationOverview(): Promise<AutomationOverview>
-  getAutomationNextRuns(expression: string): Promise<number[]>
+  getAutomationNextRuns(expression: string, rule?: import('../../../../../src/config/automationRepeat').AutomationScheduleRule): Promise<number[]>
   saveAutomationTask(input: AutomationTaskInput): Promise<AutomationTask>
   setAutomationTaskEnabled(id: string, enabled: boolean): Promise<AutomationTask>
   deleteAutomationTask(id: string): Promise<void>
+  deleteAutomationRun?(id: string): Promise<void>
   listAutomationRuns(taskId: string, status?: AutomationRunStatus): Promise<AutomationRun[]>
   runAutomationNow(taskId: string): Promise<AutomationRun>
   retryAutomationRun(runId: string): Promise<AutomationRun>

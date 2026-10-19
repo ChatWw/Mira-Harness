@@ -37,6 +37,22 @@ async function fixture(options = models) {
 }
 
 describe('Mira provider model menu', () => {
+  it('returns from a provider submenu to the model menu on Escape before closing the model menu', async () => {
+    const view = await fixture()
+    await key(view.input, 'ArrowDown')
+    const provider = document.activeElement as HTMLElement
+    await key(provider, 'ArrowRight')
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitemradio')
+    await key(document.activeElement as HTMLElement, 'Escape')
+    expect(document.querySelector('.mira-model-menu__submenu')).toBeNull()
+    expect(document.querySelector('.harness-composer__model-menu')).not.toBeNull()
+    expect(document.activeElement).toBe(provider)
+    expect(view.focus).not.toHaveBeenCalled()
+    await key(provider, 'Escape')
+    expect(document.querySelector('.harness-composer__model-menu')).toBeNull()
+    expect(view.focus).toHaveBeenCalledOnce()
+  })
+
   it('opens searchable provider groups and selects the exact model through keyboard submenus', async () => {
     const view = await fixture()
     expect(document.activeElement).toBe(view.input)

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_CONFIG, type AutomationRun, type AutomationTask, type HarnessProject, type HarnessSessionSummary, type ModelProviderSummary } from '../src/config/harness'
 import { AutomationsView, type AutomationsHost, type AutomationsNavigationHandle } from '../apps/harness-react/src/components/automations/AutomationsView'
+import { AutomationCreateButton } from '../apps/harness-react/src/components/automations/AutomationControls'
 import { AutomationEditor } from '../apps/harness-react/src/components/automations/AutomationEditor'
 import { AutomationRunHistory } from '../apps/harness-react/src/components/automations/AutomationRunHistory'
 import { AUTOMATION_DRAFT_KEY, newAutomationForm, type AutomationForm } from '../apps/harness-react/src/components/automations/automation-form'
@@ -44,14 +45,14 @@ function fixture() {
     runAutomationNow: vi.fn(async id => { const result = { ...run('running'), taskId: id, id: 'launched' }; runs[id] = [result, ...(runs[id] || [])]; return result }),
     retryAutomationRun: vi.fn(async () => { const result = { ...run('running'), id: 'retry', retriedFrom: 'run' }; runs[task.id] = [result, ...(runs[task.id] || [])]; return result }),
     abortAutomationRun: vi.fn(async id => { runs[id] = runs[id].map(run => run.status === 'running' ? { ...run, status: 'interrupted' } : run) }),
-    getPreference: vi.fn(async () => stored), setPreference: vi.fn(async (_key, value) => { stored = value }), registerBeforeNavigation: vi.fn(callback => { navigation = callback; return () => { navigation = undefined } }),
+    getPreference: vi.fn(async (key: string) => key === AUTOMATION_DRAFT_KEY ? stored : false), setPreference: vi.fn(async (_key, value) => { stored = value }), registerBeforeNavigation: vi.fn(callback => { navigation = callback; return () => { navigation = undefined } }),
   } satisfies AutomationsHost
   return { host, setTasks: (value: AutomationTask[]) => { tasks = value }, setRuns: (value: AutomationRun[]) => { runs[task.id] = value }, navigation: () => navigation?.(), setStored: (value: unknown) => { stored = value }, stored: () => stored }
 }
 function visit(node: React.ReactNode, callback: (element: React.ReactElement<Record<string, any>>) => void) {
   if (Array.isArray(node)) return node.forEach(child => visit(child, callback))
   if (!React.isValidElement<Record<string, any>>(node)) return
-  callback(node); visit(node.props.children, callback)
+  callback(node); if (node.type === AutomationCreateButton) visit(AutomationCreateButton(node.props as any), callback); else visit(node.props.children, callback)
 }
 function mount(host: AutomationsHost, initiallyActive = true, { onReady, deferPassiveEffects = false }: { onReady?: (handle: AutomationsNavigationHandle) => void; deferPassiveEffects?: boolean } = {}) {
   let tree: React.ReactElement, live = true, active = initiallyActive, navigationBusy = false
@@ -82,14 +83,13 @@ afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimer
 describe('shipped React automations host callbacks', () => {
   it('locks local positions and form edits while global replay still loads and saves drafts and Stop stays available', async () => {
     const api = fixture(), view = mount(api.host); api.setRuns([run('running')]); await view.drain()
-    await view.navigate({ kind: 'automations', taskId: task.id }); await view.change({ prompt: '导航期间保留修改' }); await view.click('返回自动化列表')
+    await view.navigate({ kind: 'automations', taskId: task.id }); await view.change({ prompt: '导航期间保留修改' })
     await view.setNavigationBusy(true)
     expect(view.control('返回自动化列表').disabled).toBe(true); expect(view.editor()).toMatchObject({ active: true, navigationBusy: true, saving: false })
     expect(view.matches(props => props.role === 'tab').every(props => props.disabled)).toBe(true)
     await view.change({ prompt: '禁止的修改' }); await view.click('返回自动化列表')
-    view.find(props => props.role === 'tab' && props.children === '运行记录').onClick(); await view.drain()
+    view.find(props => props.role === 'tab' && props.children === '历史').onClick(); await view.drain()
     expect(view.editor().form.prompt).toBe('导航期间保留修改')
-    expect(view.find(props => props['aria-label'] === '确认放弃修改').disabled).toBe(true)
     expect(view.matches(props => props.open === true)).toHaveLength(0)
     expect(await view.navigate({ kind: 'automations', section: 'runs', runTaskId: task.id })).toBe(true)
     expect(view.history()).toMatchObject({ navigationBusy: true, taskId: task.id, status: 'all' })
@@ -97,12 +97,12 @@ describe('shipped React automations host callbacks', () => {
     expect(view.history()).toMatchObject({ taskId: task.id, status: 'all' })
     const historyTree = AutomationRunHistory(view.history()), controls: Record<string, any>[] = []
     visit(historyTree, element => { if (element.props['aria-label']) controls.push(element.props) })
-    expect(controls.find(props => props['aria-label'] === '按任务筛选运行记录')?.disabled).toBe(true)
+    expect(controls.find(props => props['aria-label'] === '按任务筛选运行记录')).toBeUndefined()
     expect(controls.find(props => props['aria-label'] === `停止 ${task.name}`)?.disabled).toBe(false)
     expect(controls.find(props => props['aria-label'] === `打开 ${task.name} 的关联聊天`)?.disabled).toBe(true)
-    controls.find(props => props['aria-label'] === `停止 ${task.name}`)!.onClick(); await view.drain(); expect(api.host.abortAutomationRun).toHaveBeenCalledWith(task.id)
+    controls.find(props => props['aria-label'] === `停止 ${task.name}`)!.onSelect(); await view.drain(); expect(api.host.abortAutomationRun).toHaveBeenCalledWith(task.id)
     expect(await view.navigate({ kind: 'automations' })).toBe(true)
-    expect(view.control('新建自动化').disabled).toBe(true); expect(view.control('搜索自动化').disabled).toBe(true)
+    expect(view.control('新建自动化').disabled).toBe(true); expect(view.matches(props => props['aria-label'] === '搜索自动化')).toHaveLength(0)
     await view.click('新建自动化'); await view.click(`查看自动化 ${task.name}`); await view.click(`查看 ${task.name} 运行记录`)
     expect(view.matches((_, element) => element.type === AutomationEditor || element.type === AutomationRunHistory)).toHaveLength(0)
     const reads = api.host.listAutomationTasks.mock.calls.length; await vi.advanceTimersByTimeAsync(2500); await view.drain()
@@ -130,7 +130,7 @@ describe('shipped React automations host callbacks', () => {
 
   it('ignores hydration from an earlier Strict Mode effect setup after the current draft was edited', async () => {
     const api = fixture(), stale = deferred<unknown>(), current = deferred<unknown>(), form = { ...newAutomationForm([project], [provider]), prompt: '当前恢复的草稿' }
-    api.host.getPreference.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise)
+    let hydration = 0; api.host.getPreference.mockImplementation(async key => key === AUTOMATION_DRAFT_KEY ? (++hydration === 1 ? stale.promise : current.promise) : false)
     const view = mount(api.host, false); view.restartEffects()
     current.resolve({ form, baseline: '{}' }); await view.drain(); await view.setActive(true); await view.change({ prompt: '恢复后继续编辑' })
     stale.resolve({ form: { ...form, prompt: '旧生命周期草稿' }, baseline: '{}' }); await view.drain()
@@ -171,7 +171,7 @@ describe('shipped React automations host callbacks', () => {
     await view.click('新建自动化')
     expect(view.editor().form.prompt).toBe('独立新草稿'); expect(view.onDraftNavigation).toHaveBeenCalledTimes(2)
     expect(await view.navigate({ kind: 'automations' })).toBe(true)
-    await view.click('使用模板 每周工作周报')
+    await view.click('使用模板 发布简报')
     expect(view.onDraftNavigation).toHaveBeenCalledTimes(3); expect(view.onNavigationChange).not.toHaveBeenCalled()
     view.unmount()
   })
@@ -199,7 +199,7 @@ describe('shipped React automations host callbacks', () => {
     expect(await view.navigate({ kind: 'automations', section: 'runs', runTaskId: task.id, runStatus: 'interrupted' })).toBe(true)
     expect(view.history()).toMatchObject({ taskId: task.id, status: 'interrupted' })
     expect(await view.navigate({ kind: 'automations', section: 'tasks', filter: 'paused' })).toBe(true)
-    expect(view.matches(props => props['aria-pressed'] === true && props.children === '暂停')).toHaveLength(1)
+    expect(view.matches(props => props.className === 'mira-automation-card')).toHaveLength(0)
     expect(view.onNavigationChange).not.toHaveBeenCalled()
     view.unmount()
   })
@@ -261,7 +261,8 @@ describe('shipped React automations host callbacks', () => {
   it('does not reuse inventory from a poll invalidated by hiding and showing the page', async () => {
     const api = fixture(), view = mount(api.host); await view.drain(); await view.navigate({ kind: 'automations', taskId: task.id })
     const stale = deferred<AutomationTask[]>(); api.host.listAutomationTasks.mockReturnValueOnce(stale.promise)
-    await view.click('刷新自动化'); await view.setActive(false); await view.setActive(true)
+    await vi.advanceTimersByTimeAsync(2500); await view.drain()
+    await view.setActive(false); await view.setActive(true)
     expect(api.host.listAutomationTasks).toHaveBeenCalledTimes(4)
     const navigation = view.navigate({ kind: 'automations', taskId: task.id, tab: 'history' }); await view.drain()
     stale.resolve([]); expect(await navigation).toBe(true)
@@ -273,7 +274,7 @@ describe('shipped React automations host callbacks', () => {
     const api = fixture(), view = mount(api.host); await view.drain(); await view.navigate({ kind: 'automations', taskId: task.id })
     const pending = deferred<AutomationTask[]>(); api.host.listAutomationTasks.mockReturnValueOnce(pending.promise)
     const navigation = view.navigate({ kind: 'automations', section: 'runs' }); await view.drain()
-    view.find(props => props.role === 'tab' && props.children === '运行记录').onClick(); await view.drain()
+    view.find(props => props.role === 'tab' && props.children === '历史').onClick(); await view.drain()
     pending.resolve([task]); expect(await navigation).toBe(false)
     expect(view.history().taskId).toBe(task.id); expect(view.onNavigationChange).toHaveBeenLastCalledWith(expect.objectContaining({ taskId: task.id, tab: 'history' }))
     view.unmount()
@@ -307,22 +308,95 @@ describe('shipped React automations host callbacks', () => {
     expect(api.host.getHarnessPermissionConfig).toHaveBeenCalledOnce()
     expect(api.host.listAutomationRuns).toHaveBeenCalledWith(task.id)
     expect(view.matches(props => props.className === 'mira-automation-card')).toHaveLength(1)
-    view.control('搜索自动化').onChange({ target: { value: '没有这个任务' } }); await view.drain()
+    view.find(props => props.children === '失败' && props['aria-pressed'] !== undefined).onClick(); await view.drain()
     expect(view.matches(props => props.className === 'mira-automation-card')).toHaveLength(0)
-    await view.click('使用模板 每周工作周报')
-    expect(view.editor().form).toMatchObject({ templateId: 'weekly-work-report', name: '每周工作周报', permissionMode: 'default', frequency: 'weekly' })
+    await view.click('使用模板 发布简报')
+    expect(view.editor().form).toMatchObject({ templateId: 'release-notes', name: '发布简报', permissionMode: 'default', frequency: 'weekly' })
     expect(api.host.saveAutomationTask).not.toHaveBeenCalled()
     view.unmount()
   })
 
   it('creates once, validates scheduling through the host and clears the persisted draft after saving', async () => {
-    const api = fixture(), view = mount(api.host); await view.drain(); await view.click('新建自动化'); await view.change({ name: '新任务', prompt: '真实任务指令' })
+    const api = fixture(), view = mount(api.host); await view.drain()
+    view.find(props => props.children === '失败' && props['aria-pressed'] !== undefined).onClick(); await view.drain()
+    await view.click('新建自动化'); await view.change({ name: '新任务', prompt: '真实任务指令' })
     const save = view.editor().onSave; save(); save(); await view.drain()
     expect(api.host.saveAutomationTask).toHaveBeenCalledOnce()
-    expect(api.host.getAutomationNextRuns).toHaveBeenCalledWith('0 9 * * 1-5')
+    expect(api.host.getAutomationNextRuns).toHaveBeenCalledWith('0 9 * * *', undefined)
     expect(api.host.saveAutomationTask).toHaveBeenCalledWith(expect.objectContaining({ name: '新任务', prompt: '真实任务指令', permissionMode: 'default', projectId: project.id, enabled: true }))
     expect(api.host.setPreference).toHaveBeenCalledWith(AUTOMATION_DRAFT_KEY, null, true)
-    expect(view.text()).toContain('任务已保存'); expect(view.text()).toContain('新任务')
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0); expect(view.text()).toContain('新任务')
+    expect(view.matches((_, element) => element.type === AutomationEditor)).toHaveLength(0)
+    expect(view.onNavigationChange).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'automations', taskId: undefined, section: 'tasks', filter: 'all' }))
+    await api.navigation()
+    expect(api.stored()).toBeNull()
+    view.unmount()
+  })
+
+  it('saves editor changes before running and uses only the top notice even while launch is pending', async () => {
+    const api = fixture(), view = mount(api.host), pending = deferred<AutomationRun>()
+    await view.drain(); await view.click(`查看自动化 ${task.name}`); await view.change({ prompt: '立即运行使用新指令' })
+    api.host.runAutomationNow.mockReturnValueOnce(pending.promise)
+    view.editor().onReady(true); await view.drain()
+    await view.click('立即运行已保存任务')
+    expect(api.host.saveAutomationTask).toHaveBeenCalledWith(expect.objectContaining({ id: task.id, prompt: '立即运行使用新指令' }))
+    expect(api.host.runAutomationNow).toHaveBeenCalledWith(task.id)
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
+    pending.resolve(run('running')); await view.drain()
+    expect(view.editor().form.prompt).toBe('立即运行使用新指令')
+    expect(view.matches(props => props.className === 'mira-automation-run-notice')).toHaveLength(1)
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
+    view.unmount()
+  })
+
+  it('shows schedule and next run inline with counts, keeping paused and ended schedules without a next-run claim', async () => {
+    const api = fixture(), nextRunAt = Date.now() + 53 * 60_000
+    api.setTasks([
+      { ...task, nextRunAt, trigger: { type: 'cron', expression: '44 * * * *', humanLabel: '每 1 小时' } },
+      { ...task, id: 'paused', name: '暂停任务', enabled: false, nextRunAt },
+      { ...task, id: 'ended', name: '结束任务', endedAt: Date.now(), nextRunAt },
+    ])
+    api.setRuns([run('completed')])
+    const view = mount(api.host); await view.drain()
+    expect(view.text()).toContain('已创建任务')
+    const badges = view.matches(props => props.className === 'mira-automation-status')
+    expect(badges.map(props => props.children[1].props.children)).toEqual(['每小时的第 44 分 · 下次运行 53 分钟后', '每天 09:00', '每天 09:00'])
+    expect(view.control(`查看 ${task.name} 运行记录`).children).toEqual(['已运行 ', 1, ' 次'])
+    expect(view.text()).toContain('已暂停'); expect(view.text()).toContain('已结束')
+    view.unmount()
+  })
+
+  it('shows a dismissible top run notice and opens the actual newly launched conversation without a bottom toast', async () => {
+    const api = fixture(), view = mount(api.host); await view.drain()
+    api.host.runAutomationNow.mockResolvedValueOnce({ ...run('running'), sessionId: 'actual-run-session' })
+    view.find(props => typeof props.onSelect === 'function' && Array.isArray(props.children) && props.children.includes('立即运行')).onSelect(); await view.drain()
+    expect(view.find(props => props.className === 'mira-automation-run-notice').role).toBe('status')
+    expect(view.text()).toContain(`正在运行“${task.name}”…`)
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
+    await view.click('查看本次自动化运行')
+    expect(view.onOpenSession).toHaveBeenCalledWith('actual-run-session')
+    await view.click('关闭自动化运行提示')
+    expect(view.matches(props => props.className === 'mira-automation-run-notice')).toHaveLength(0)
+    view.unmount()
+  })
+
+  it('omits View when no run conversation is available and expires the notice after four seconds', async () => {
+    const api = fixture(), view = mount(api.host); await view.drain()
+    api.host.runAutomationNow.mockResolvedValueOnce({ ...run('running'), sessionId: undefined })
+    view.find(props => typeof props.onSelect === 'function' && Array.isArray(props.children) && props.children.includes('立即运行')).onSelect(); await view.drain()
+    expect(view.matches(props => props['aria-label'] === '查看本次自动化运行')).toHaveLength(0)
+    expect(view.matches(props => props.className === 'mira-automation-run-notice')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(4000); await view.drain()
+    expect(view.matches(props => props.className === 'mira-automation-run-notice')).toHaveLength(0)
+    view.unmount()
+  })
+
+  it('keeps launch failures visible without claiming the task is running', async () => {
+    const api = fixture(), view = mount(api.host); await view.drain()
+    api.host.runAutomationNow.mockResolvedValueOnce({ ...run('failed'), error: '运行初始化失败' })
+    view.find(props => typeof props.onSelect === 'function' && Array.isArray(props.children) && props.children.includes('立即运行')).onSelect(); await view.drain()
+    expect(view.text()).toContain('运行初始化失败')
+    expect(view.matches(props => props.className === 'mira-automation-run-notice' || props.className === 'mira-automation-feedback')).toHaveLength(0)
     view.unmount()
   })
 
@@ -347,24 +421,27 @@ describe('shipped React automations host callbacks', () => {
     view.unmount()
   })
 
-  it('requires explicit confirmation to discard edits or delete a task', async () => {
+  it('discards edits directly on back but confirms task deletion', async () => {
     const api = fixture(), view = mount(api.host); await view.drain(); await view.click('新建自动化'); await view.change({ prompt: '未保存指令' }); await view.click('返回自动化列表')
-    expect(view.editor().form.prompt).toBe('未保存指令')
-    await view.click('确认放弃修改')
+    expect(view.matches(props => props['aria-label'] === '确认放弃修改')).toHaveLength(0)
+    expect(api.host.saveAutomationTask).not.toHaveBeenCalled()
     expect(api.host.setPreference).toHaveBeenCalledWith(AUTOMATION_DRAFT_KEY, null, true)
     view.find(props => props.className === 'mira-automation-menu-danger').onSelect(); await view.drain()
     expect(api.host.deleteAutomationTask).not.toHaveBeenCalled()
+    expect(view.matches(props => props.className === 'mira-automation-dialog-overlay')).toHaveLength(0)
     await view.click('确认删除自动化')
     expect(api.host.deleteAutomationTask).toHaveBeenCalledOnce(); expect(api.host.deleteAutomationTask).toHaveBeenCalledWith(task.id)
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
     expect(view.matches(props => props.className === 'mira-automation-card')).toHaveLength(0)
     view.unmount()
   })
 
   it('uses the existing toggle and run callbacks, stops duplicate dispatches and preserves errors', async () => {
     const api = fixture(), view = mount(api.host); await view.drain()
-    view.control(`启用 ${task.name}`).onChange({ target: { checked: false } }); await view.drain()
+    view.find(props => Array.isArray(props.children) && props.children.includes('暂停')).onSelect(); await view.drain()
     expect(api.host.setAutomationTaskEnabled).toHaveBeenCalledWith(task.id, false)
-    expect(view.control(`启用 ${task.name}`).checked).toBe(false)
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
+    expect(view.find(props => Array.isArray(props.children) && props.children.includes('继续'))).toBeDefined()
     const selectRun = view.find(props => typeof props.onSelect === 'function' && Array.isArray(props.children) && props.children.includes('立即运行')).onSelect
     selectRun(); selectRun(); await view.drain()
     expect(api.host.runAutomationNow).toHaveBeenCalledOnce()
@@ -378,8 +455,8 @@ describe('shipped React automations host callbacks', () => {
   it('keeps operation failure visible even after background inventory refresh succeeds', async () => {
     const api = fixture(), view = mount(api.host); await view.drain()
     api.host.setAutomationTaskEnabled.mockRejectedValueOnce(new Error('状态更新失败'))
-    view.control(`启用 ${task.name}`).onChange({ target: { checked: false } }); await view.drain()
-    expect(view.control(`启用 ${task.name}`).checked).toBe(true)
+    view.find(props => Array.isArray(props.children) && props.children.includes('暂停')).onSelect(); await view.drain()
+    expect(view.find(props => Array.isArray(props.children) && props.children.includes('暂停'))).toBeDefined()
     expect(view.text()).toContain('状态更新失败')
     await vi.advanceTimersByTimeAsync(2500); await view.drain()
     expect(view.text()).toContain('状态更新失败')
@@ -393,7 +470,7 @@ describe('shipped React automations host callbacks', () => {
     expect(view.control('新建自动化').disabled).toBe(true)
     expect(view.text()).toContain('草稿数据库锁定')
     view.find(props => props.children === '重试读取草稿').onClick(); await view.drain()
-    expect(api.host.getPreference).toHaveBeenCalledTimes(2)
+    expect(api.host.getPreference.mock.calls.filter(([key]) => key === AUTOMATION_DRAFT_KEY)).toHaveLength(2)
     expect(view.control('新建自动化').disabled).toBe(false)
     view.unmount()
   })
@@ -447,7 +524,7 @@ describe('shipped React automations host callbacks', () => {
     api.setStored({ form, baseline: '{}' })
     const view = mount(api.host); await view.drain()
     expect(view.editor().form).toEqual(form)
-    expect(view.text()).toContain('已恢复未保存')
+    expect(view.matches(props => props.className === 'mira-automation-feedback')).toHaveLength(0)
     expect(api.host.saveAutomationTask).not.toHaveBeenCalled()
     view.unmount()
   })

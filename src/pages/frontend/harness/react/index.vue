@@ -2,7 +2,7 @@
   <main class="harness-react-host">
     <p v-if="error" class="harness-react-host__error" role="alert">{{ error }} <router-link to="/workspace/chat">使用旧版工作台</router-link></p>
     <p v-else-if="!url" class="harness-react-host__loading">正在加载 Harness…</p>
-    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :toggle-theme="toggleShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
+    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :toggle-theme="toggleShellTheme" :get-appearance="getAppearance" :set-theme="setShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
     <p v-if="routeError" class="harness-react-host__route-error" role="alert">{{ routeError }}</p>
   </main>
 </template>
@@ -21,6 +21,8 @@ const api = getPlatformApi()
 const router = useRouter()
 const theme = useThemeStore()
 function toggleShellTheme() { theme.toggleThemeMode(); return theme.themeMode }
+const getAppearance = () => ({ theme: theme.themePreference, zoomFactor: api?.getDesktopZoomFactor?.() ?? 1 })
+const setShellTheme = (value: 'system' | 'light' | 'dark') => theme.setThemePreference(value)
 const manifest = firstPartyAppManifests.find(item => item.appId === 'mira-harness')!
 const context = computed(() => ({ version: 1 as const, theme: theme.themeMode, language: navigator.language, primaryColor: theme.primaryColor, onPrimary: theme.onPrimaryColor, user: { id: 'platform', name: 'Mira' } }))
 const url = ref('')

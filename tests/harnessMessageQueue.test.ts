@@ -1004,7 +1004,7 @@ describe('HarnessMessageQueue', () => {
     for (const [, snapshot] of vi.mocked(deps.publish).mock.calls) expect(snapshot.error ?? '').not.toMatch(/private|fake-secret|api-key/)
   })
 
-  it.each(['工作目录已变化，请撤回消息后重新发送', '目标会话不可用', '所选模型不属于当前供应商', '演示文稿元素引用不属于当前任务，请重新引用', '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用', '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用', '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限'])('preserves only an exact known host business failure: %s', async message => {
+  it.each(['工作目录已变化，请撤回消息后重新发送', '目标会话不可用', '所选模型不属于当前供应商', '上下文过长，无法在保留最近对话的情况下自动压缩', '演示文稿元素引用不属于当前任务，请重新引用', '当前任务没有工作目录，请选择演示文稿所在的项目后重新引用', '演示文稿或工作目录已变化，或文件不可读取，请重新打开并引用', '最多引用 8 个演示文稿元素', '演示文稿元素引用超过 64 KiB 上限'])('preserves only an exact known host business failure: %s', async message => {
     const { queue, deps, submit } = setup()
     vi.mocked(deps.execute).mockRejectedValueOnce(new Error(message))
     const receipt = submit()

@@ -1,3 +1,4 @@
+import { validateAutomationScheduleRule, type AutomationScheduleRule } from '../../../../../src/config/automationRepeat'
 import { buildCronExpression, describeSemanticSchedule, type SemanticSchedule } from '../../../../../src/config/automationSchedule'
 import { isModelProviderAvailable, type AutomationTask, type AutomationTaskInput, type AutomationTrigger, type HarnessProject, type HarnessSessionSummary, type ModelProviderSummary, type PermissionConfig, type PermissionMode, type ThinkingLevel } from '../../../../../src/config/harness'
 
@@ -26,6 +27,7 @@ export interface AutomationForm {
   validFrom: string
   validUntil: string
   enabled: boolean
+  scheduleRule?: AutomationScheduleRule
   templateId?: string
 }
 export interface AutomationDraft { taskId?: string; form: AutomationForm; baseline: string }
@@ -40,15 +42,18 @@ export function automationLocalTime(timestamp: number) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 export function newAutomationForm(projects: HarnessProject[], providers: ModelProviderSummary[], now = Date.now()): AutomationForm {
-  return { name: '', prompt: '', projectId: projects.find(project => project.directoryExists)?.id || '', modelKey: automationModels(providers)[0]?.key || '', thinkingLevel: 'medium', permissionMode: 'default', targetType: 'new-session', sessionId: '', frequency: 'workday', time: '09:00', interval: 2, weekdays: [1], monthlyDay: 1, onceAt: automationLocalTime(now + 24 * 60 * 60 * 1000), expression: '0 9 * * 1-5', validityEnabled: false, validFrom: '', validUntil: '', enabled: true }
+  return { name: '', prompt: '', projectId: projects.find(project => project.directoryExists)?.id || '', modelKey: automationModels(providers)[0]?.key || '', thinkingLevel: 'medium', permissionMode: 'default', targetType: 'new-session', sessionId: '', frequency: 'daily', time: '09:00', interval: 1, weekdays: [1], monthlyDay: 1, onceAt: automationLocalTime(now + 24 * 60 * 60 * 1000), expression: '0 9 * * 1-5', validityEnabled: false, validFrom: '', validUntil: '', enabled: true }
 }
 export function applyAutomationTrigger(form: AutomationForm, trigger: AutomationTrigger): AutomationForm {
   if (trigger.type === 'once') return { ...form, frequency: 'once', onceAt: automationLocalTime(trigger.scheduledAt) }
   if (trigger.type === 'session-completed') return { ...form, frequency: 'event', targetType: 'new-session', sessionId: '' }
   const [minute, hour, day, month, weekday, extra] = trigger.expression.trim().split(/\s+/)
-  let next: AutomationForm = { ...form, frequency: 'cron', expression: trigger.expression }
+  let next: AutomationForm = { ...form, frequency: 'cron', expression: trigger.expression, scheduleRule: trigger.scheduleRule }
+  if (trigger.scheduleRule) return { ...next, time: `${String(trigger.scheduleRule.hour).padStart(2, '0')}:${String(trigger.scheduleRule.minute).padStart(2, '0')}` }
   if (extra || month !== '*') return next
-  if (minute === '0' && /^\*\/\d+$/.test(hour) && day === '*' && weekday === '*') return { ...next, frequency: 'hourly', interval: Number(hour.slice(2)) }
+  if (/^\d+$/.test(minute) && Number(minute) < 60 && (hour === '*' || /^\*\/([1-9]|1\d|2[0-4])$/.test(hour)) && day === '*' && weekday === '*') {
+    return { ...next, frequency: 'hourly', interval: hour === '*' ? 1 : Number(hour.slice(2)), time: `${form.time.split(':')[0]}:${minute.padStart(2, '0')}` }
+  }
   if (!/^\d+$/.test(minute) || !/^\d+$/.test(hour)) return next
   next = { ...next, time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}` }
   if (day === '*' && weekday === '*') return { ...next, frequency: 'daily' }
@@ -70,12 +75,17 @@ export function automationTriggerForForm(form: AutomationForm, now = Date.now())
   }
   if (form.frequency === 'cron') {
     if (!form.expression.trim()) throw new Error('请填写 Cron 表达式')
-    return { type: 'cron', expression: form.expression.trim() }
+    return { type: 'cron', expression: form.expression.trim(), ...(form.scheduleRule ? { scheduleRule: validateAutomationScheduleRule(form.scheduleRule), humanLabel: `每 ${form.scheduleRule.interval} ${{ minute: '分钟', hourly: '小时', daily: '天', weekly: '周', monthly: '月', yearly: '年' }[form.scheduleRule.unit]}` } : {}) }
   }
   const schedule: SemanticSchedule = form.frequency === 'hourly' ? { type: 'hourly', interval: form.interval }
     : form.frequency === 'weekly' ? { type: 'weekly', weekdays: form.weekdays, time: form.time }
     : form.frequency === 'monthly' ? { type: 'monthly', day: form.monthlyDay, time: form.time }
     : { type: 'daily', kind: form.frequency === 'workday' ? 'workday' : form.frequency === 'weekend' ? 'weekend' : 'every', time: form.time }
+  if (form.frequency === 'hourly') {
+    const minute = Number(form.time.split(':')[1])
+    const expression = buildCronExpression(schedule).replace(/^0 /, `${minute} `)
+    return { type: 'cron', expression: form.interval === 1 ? expression.replace('*/1', '*') : expression, humanLabel: `${form.interval === 1 ? '每小时' : `每 ${form.interval} 小时`}的第 ${minute} 分` }
+  }
   return { type: 'cron', expression: buildCronExpression(schedule), humanLabel: describeSemanticSchedule(schedule) }
 }
 export function automationInputForForm(draft: AutomationDraft, catalogs: AutomationCatalogs, now = Date.now()): AutomationTaskInput {

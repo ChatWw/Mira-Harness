@@ -60,6 +60,10 @@ const settingsNavGroups: Array<{ label: string, items: SettingsNavItem[] }> = [
     ],
   },
   {
+    label: '数据与统计',
+    items: [{ key: 'usage', label: '使用统计', icon: 'lucide:chart-no-axes-column', path: '/settings/usage' }],
+  },
+  {
     label: '应用',
     items: [
       { key: 'commands', label: '自定义命令', icon: 'lucide:terminal', path: '/settings/commands' },

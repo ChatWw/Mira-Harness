@@ -12,6 +12,24 @@ import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { shouldGenerateAutoTitle, type HarnessMessage } from '../src/config/harness'
 
 describe('persistent Mira input history', () => {
+  it('projects persistent automation origin and recognizes older run-owned sessions', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-session-automation-'))
+    let database = new PlatformDatabase(root)
+    try {
+      const session = database.harness.createSession()
+      database.harness.updateSession({ ...session, automationId: 'deleted-automation' })
+      database.harness.addMessage(session.id, 'user', '自动化执行')
+      const legacy = database.harness.createSession()
+      const connection = new Database(new MiraPaths(root).stateDatabase())
+      connection.prepare("INSERT INTO automation_runs (id, task_id, source, status, session_id, snapshot) VALUES (?, ?, 'manual', 'completed', ?, '{}')").run('legacy-run', 'legacy-automation', legacy.id)
+      connection.close()
+      expect(database.harness.listSessions().find(item => item.id === legacy.id)?.automationId).toBe('legacy-automation')
+      database.close(); database = new PlatformDatabase(root)
+      expect(database.harness.listSessions().find(item => item.id === session.id)?.automationId).toBe('deleted-automation')
+      expect(database.harness.getSession(session.id).automationId).toBe('deleted-automation')
+    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('preserves project configuration across startup migrations while moving only recognized legacy trash', () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'mira-project-config-startup-'))), directory = join(root, 'project')
     let database = new PlatformDatabase(root)
@@ -1124,6 +1142,19 @@ describe('HarnessStore', () => {
     expect(stats.providers).toContainEqual(expect.objectContaining({ label: 'Provider One / model-a', totalTokens: 150 }))
     expect(stats.projects).toContainEqual(expect.objectContaining({ id: project.id, totalTokens: 150 }))
     expect(stats.sessions).toContainEqual(expect.objectContaining({ id: unpriced.id, unpricedRuns: 1 }))
+    expect(stats.appUsage?.summary.totalTokens).toBe(180)
+    expect(stats.appUsage?.days.flatMap(day => day.models)).toContainEqual({ modelId: 'model-a', totalTokens: 150 })
+    const changed = store.getSession(unpriced.id)
+    const reply = changed.messages.find(message => message.role === 'assistant')!
+    reply.model = { providerId: 'original-provider', providerName: 'Original', modelId: 'actual-model' }
+    reply.runId = 'original-run'
+    reply.run = { startedAt: reply.createdAt, completedAt: reply.createdAt + 60000, durationMs: 60000, status: 'completed', activities: [] }
+    changed.messages.push({ ...reply, id: 'inherited-reply', inherited: true })
+    store.updateSession(changed)
+    const appUsage = store.usageStats().appUsage!
+    expect(appUsage.summary).toMatchObject({ totalTokens: 180, longestSessionMs: 60000 })
+    expect(appUsage.days.flatMap(day => day.models)).toContainEqual({ modelId: 'actual-model', totalTokens: 30 })
+
 
     database.close(); rmSync(root, { recursive: true, force: true })
   })
@@ -1425,7 +1456,7 @@ describe('HarnessStore', () => {
     } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
-  it('lists and snapshots only safe text files inside the selected project', () => {
+  it('lists ordinary project files and snapshots text while referencing binary files by path', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')
     mkdirSync(directory)
@@ -1436,10 +1467,10 @@ describe('HarnessStore', () => {
     const project = store.createProject(directory, 'Demo 项目')
     const session = store.createSession(project.id)
 
-    expect(store.listProjectFiles(project.id)).toEqual([{ path: 'notes.txt', name: 'notes.txt' }])
+    expect(store.listProjectFiles(project.id)).toEqual([{ path: 'binary.dat', name: 'binary.dat' }, { path: 'notes.txt', name: 'notes.txt' }])
     expect(store.resolveMessageAttachments(session.id, [{ path: 'notes.txt', name: 'notes.txt' }])).toEqual([{ path: 'notes.txt', name: 'notes.txt', content: '项目说明' }])
     expect(() => store.resolveMessageAttachments(session.id, [{ path: '../outside.txt', name: 'outside.txt' }])).toThrow('路径不在项目目录内')
-    expect(() => store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])).toThrow('不支持引用二进制文件')
+    expect(store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])[0]).toMatchObject({ localPath: realpathSync(join(directory, 'binary.dat')), size: 3 })
 
     database.close()
     rmSync(root, { recursive: true, force: true })
@@ -1497,14 +1528,14 @@ describe('HarnessStore', () => {
     }
   })
 
-  it('rejects oversized attachments before reading their contents', () => {
+  it('references oversized local files before reading their contents', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()
     const target = join(session.workingDirectory!, 'large.md')
     writeFileSync(target, Buffer.alloc(256 * 1024 + 1, 65))
     const reads = vi.spyOn(fs, 'readFileSync')
     try {
-      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'large.md', name: 'large.md' }])).toThrow('引用文件过大')
+      expect(store.resolveMessageAttachments(session.id, [{ path: 'large.md', name: 'large.md' }])[0]).toMatchObject({ localPath: realpathSync(target), size: 256 * 1024 + 1 })
       expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(target))).toBe(false)
     } finally {
       reads.mockRestore()
@@ -1513,14 +1544,14 @@ describe('HarnessStore', () => {
     }
   })
 
-  it('rejects attachment total overflow before reading the next file', () => {
+  it('uses a local path when the next text file would overflow the inline total', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()
     const references = Array.from({ length: 5 }, (_, index) => ({ path: `note-${index}.md`, name: `note-${index}.md` }))
     for (const reference of references) writeFileSync(join(session.workingDirectory!, reference.path), Buffer.alloc(256 * 1024, 65))
     const reads = vi.spyOn(fs, 'readFileSync')
     try {
-      expect(() => store.resolveMessageAttachments(session.id, references)).toThrow('引用文件总大小超过限制')
+      expect(store.resolveMessageAttachments(session.id, references)[4]).toMatchObject({ localPath: realpathSync(join(session.workingDirectory!, 'note-4.md')) })
       expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(join(session.workingDirectory!, 'note-3.md')))).toBe(true)
       expect(reads.mock.calls.some(([path]) => String(path) === realpathSync(join(session.workingDirectory!, 'note-4.md')))).toBe(false)
     } finally {
@@ -1540,7 +1571,7 @@ describe('HarnessStore', () => {
     const reads = vi.spyOn(fs, 'readFileSync').mockImplementation(((path: fs.PathOrFileDescriptor, ...args: unknown[]) =>
       String(path) === resolved ? Buffer.alloc(256 * 1024 + 1, 65) : Reflect.apply(actualRead, fs, [path, ...args])) as typeof fs.readFileSync)
     try {
-      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'growing.md', name: 'growing.md' }])).toThrow('引用文件过大')
+      expect(store.resolveMessageAttachments(session.id, [{ path: 'growing.md', name: 'growing.md' }])[0]).toMatchObject({ localPath: resolved, size: 256 * 1024 + 1 })
     } finally {
       reads.mockRestore()
       database.close()
@@ -1548,12 +1579,12 @@ describe('HarnessStore', () => {
     }
   })
 
-  it('keeps personal attachment count and binary restrictions', () => {
+  it('keeps personal attachment count limits while allowing binary path references', () => {
     const { root, database, store } = createStore()
     try {
       const session = store.createSession()
       writeFileSync(join(session.workingDirectory!, 'binary.dat'), Buffer.from([0, 1, 2]))
-      expect(() => store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])).toThrow('不支持引用二进制文件')
+      expect(store.resolveMessageAttachments(session.id, [{ path: 'binary.dat', name: 'binary.dat' }])[0]).toMatchObject({ localPath: realpathSync(join(session.workingDirectory!, 'binary.dat')), size: 3 })
       const references = Array.from({ length: 13 }, (_, index) => ({ path: `note-${index}.md`, name: `note-${index}.md` }))
       expect(() => store.resolveMessageAttachments(session.id, references)).toThrow('一次最多引用 12 个文件')
     } finally {
@@ -1593,7 +1624,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('accepts selected external text files without weakening attachment limits', () => {
+  it('accepts selected external files while retaining attachment count limits', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')
     const externalDirectory = join(root, 'external')
@@ -1615,19 +1646,19 @@ describe('HarnessStore', () => {
     expect(store.resolveMessageAttachments(session.id, [{ path: externalFile, name: 'reference.txt' }])).toEqual([
       { path: externalFile, name: 'reference.txt', content: '外部参考' },
     ])
-    expect(() => store.selectFileReferences(project.id, [binaryFile])).toThrow('不支持引用二进制文件')
+    expect(store.selectFileReferences(project.id, [binaryFile])).toEqual([{ path: binaryFile, name: 'binary.dat' }])
     expect(() => store.resolveMessageAttachments(session.id, [{ path: externalFile, name: 'reference.txt' }, { path: externalFile, name: 'reference.txt' }])).toThrow('引用文件重复或无效')
 
     const oversizedFile = join(externalDirectory, 'oversized.txt')
     writeFileSync(oversizedFile, Buffer.alloc(256 * 1024 + 1, 65))
-    expect(() => store.selectFileReferences(project.id, [oversizedFile])).toThrow('引用文件过大')
+    expect(store.selectFileReferences(project.id, [oversizedFile])).toEqual([{ path: oversizedFile, name: 'oversized.txt' }])
 
     const totalFiles = Array.from({ length: 5 }, (_, index) => {
       const path = join(externalDirectory, `total-${index}.txt`)
       writeFileSync(path, Buffer.alloc(220 * 1024, 65))
       return path
     })
-    expect(() => store.selectFileReferences(project.id, totalFiles)).toThrow('引用文件总大小超过限制')
+    expect(store.selectFileReferences(project.id, totalFiles)).toHaveLength(5)
 
     const countFiles = Array.from({ length: 13 }, (_, index) => {
       const path = join(externalDirectory, `count-${index}.txt`)

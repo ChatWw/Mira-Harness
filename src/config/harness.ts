@@ -467,6 +467,9 @@ export interface HarnessToolText {
 export interface HarnessFileReference {
   path: string
   name: string
+  /** Host-verified local reference; the file tools read its original contents on demand. */
+  localPath?: string
+  kind?: 'directory'
   mediaType?: HarnessAttachmentMediaType
   size?: number
 }
@@ -603,6 +606,8 @@ export interface HarnessSession {
   title: string
   titleSource?: HarnessTitleSource
   titleRevision?: number
+  /** Persistent automation origin, retained after its task or run is deleted. */
+  automationId?: string
   projectId?: string
   workingDirectory?: string
   modelProviderId?: string
@@ -652,7 +657,7 @@ export interface HarnessSkillSettings {
   miraDirectory?: string
 }
 
-export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {
+export interface HarnessSessionSummary extends Pick<HarnessSession, 'id' | 'title' | 'projectId' | 'automationId' | 'modelProviderId' | 'modelId' | 'permissionMode' | 'createdAt' | 'updatedAt' | 'status' | 'pinned' | 'unread'> {
   changeSummary?: import('./miraTaskChanges').MiraTaskChangeSummary
   isRunning?: boolean
   projectName?: string
@@ -891,6 +896,7 @@ export interface HarnessUsageBucket {
 }
 
 export interface HarnessUsageStats {
+  appUsage?: import('./harnessUsage').HarnessAppUsage
   total: Omit<HarnessUsageBucket, 'id' | 'label'>
   providers: HarnessUsageBucket[]
   projects: HarnessUsageBucket[]
@@ -919,7 +925,7 @@ export interface HarnessSideConversationInput {
 
 export type AutomationTrigger =
   | { type: 'once', scheduledAt: number }
-  | { type: 'cron', expression: string, humanLabel?: string }
+  | { type: 'cron', expression: string, humanLabel?: string, scheduleRule?: import('./automationRepeat').AutomationScheduleRule }
   | { type: 'session-completed' }
 
 export type AutomationTarget =

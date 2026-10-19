@@ -309,6 +309,7 @@ export class PlatformDatabase {
     }
     addAutomationTaskColumn('trigger_scheduled_at', 'INTEGER')
     addAutomationTaskColumn('trigger_human_label', 'TEXT')
+    addAutomationTaskColumn('schedule_rule', 'TEXT')
     addAutomationTaskColumn('template_id', 'TEXT')
     addAutomationTaskColumn('valid_from', 'INTEGER')
     addAutomationTaskColumn('valid_until', 'INTEGER')

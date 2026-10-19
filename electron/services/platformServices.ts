@@ -1,12 +1,14 @@
 import { PlatformDatabase } from '../storage/database'
 import { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import { createNovelApiHandler } from '../adapters/novelApi'
+import { electronWebRequest } from '../adapters/electronWebRequest'
 import { HarnessRuntime } from './harnessRuntime'
 import { resolveMiraRipgrepPath } from './miraRuntimeTools'
 import { MiraFlowController } from './flows/miraFlowController'
 import { McpConfigStore } from '../storage/mcpConfigStore'
 import { McpManager } from '../adapters/mcpManager'
 import { PythonEnvironment } from '../adapters/pythonEnv'
+import { saveAutomationTask } from '../ipc/automationIpc'
 import { AutomationScheduler } from './automationScheduler'
 import { SkillMarketplaceService } from './skillMarketplace'
 import type { MiraPaths } from '../storage/miraPaths'
@@ -68,10 +70,12 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   }))
   const mcpManager = new McpManager(mcpAuthorization.fork(), mcpAuthorization)
   const harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent, mcpConfigStore,
-    resolveMiraRipgrepPath({ appPath: app.getAppPath(), isPackaged: app.isPackaged, resourcesPath: process.resourcesPath }))
+    resolveMiraRipgrepPath({ appPath: app.getAppPath(), isPackaged: app.isPackaged, resourcesPath: process.resourcesPath }),
+    electronWebRequest)
   const miraFlowController = new MiraFlowController({ database, runtime: harnessRuntime, paths: miraPaths,
     resourceRoot: app.isPackaged ? join(process.resourcesPath, 'mira-flow-host') : resolve(app.getAppPath(), 'dist/mira-flow-host') })
   const automationScheduler = new AutomationScheduler(database, harnessRuntime)
+  harnessRuntime.setAutomationAuthoringHost(input => saveAutomationTask(database, automationScheduler, input))
   const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init), undefined, app.isPackaged ? join(process.resourcesPath, 'plugins') : join(app.getAppPath(), 'resources/plugins'))
   await skillMarketplace.pluginMarkets.seed()
   try { void mcpManager.refresh(mcpConfigStore.list()) }

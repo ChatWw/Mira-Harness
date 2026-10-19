@@ -29,7 +29,7 @@ export interface MiraPromptEditorHandle {
 export interface MiraPromptEditorProps extends Pick<AriaAttributes, 'aria-label' | 'aria-describedby' | 'aria-expanded' | 'aria-controls' | 'aria-activedescendant'> {
   text: string
   document?: MiraPromptDocument
-  onChange(document: MiraPromptDocument, range: MiraPromptSelectionRange): void
+  onChange(document: MiraPromptDocument, range: MiraPromptSelectionRange, programmatic?: boolean): void
   onSelectionChange?(range: MiraPromptSelectionRange): void
   onFocusChange?(focused: boolean): void
   disabled?: boolean
@@ -162,6 +162,7 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
       const insertion = validateMiraPromptDocument({ version: 1, parts })
       if (!insertion) { reportError(new Error('Invalid prompt reference')); return }
       let result: MiraPromptDocument | undefined
+      // Nested keyboard transactions notify listeners after replaceRange returns; keep the origin in the update tag.
       editor.update(() => {
         const layout = $layout(), normalized = $setRange(selection, layout)
         if (layout.length - (normalized.end - normalized.start) + serializeMiraPromptDocument(insertion).length > 1_048_576) { reportError(new Error('Prompt is too long')); return }
@@ -170,7 +171,7 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
         if (parts.length) active.insertNodes($partNodes(insertion.parts))
         else active.removeText()
         result = $layout().document
-      }, { discrete: true, tag: [HISTORY_PUSH_TAG, ...(ownsFocus() ? [] : [SKIP_DOM_SELECTION_TAG])] })
+      }, { discrete: true, tag: [HISTORY_PUSH_TAG, 'mira-prompt-replacement', ...(ownsFocus() ? [] : [SKIP_DOM_SELECTION_TAG])] })
       return result
     },
   }), [editor])
@@ -211,7 +212,7 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
         if (nextRange && (nextRange.start !== range.current.start || nextRange.end !== range.current.end)) {
           range.current = nextRange; current.current.onSelectionChange?.(nextRange)
         }
-        if (!tags.has('mira-prompt-controlled') && (dirtyElements.size || dirtyLeaves.size)) current.current.onChange(layout.document, nextRange ?? range.current)
+        if (!tags.has('mira-prompt-controlled') && (dirtyElements.size || dirtyLeaves.size)) current.current.onChange(layout.document, nextRange ?? range.current, tags.has('mira-prompt-replacement'))
       })
     })
     const unregisterKeys = editor.registerCommand(KEY_DOWN_COMMAND, event => {

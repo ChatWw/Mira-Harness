@@ -33,8 +33,6 @@
 .mira-conversation-root[data-draft='true'] .mira-conversation-reading-region { display: none; }
 .mira-summary-positioner { position: absolute; z-index: 20; top: 16px; right: 16px; bottom: 16px; display: flex; width: 320px; max-width: calc(100% - 32px); align-items: flex-start; justify-content: flex-end; container: mira-summary-space / size; pointer-events: none; }
 .mira-task-start { display: flex; width: 100%; max-width: 720px; min-height: 172px; flex: none; flex-direction: column; align-self: center; justify-content: flex-end; padding: 0 38px; }
-.mira-task-start__brand { display: flex; align-items: center; gap: 9px; margin-bottom: 19px; color: var(--color-foreground-subtle); font-size: 20px; font-weight: 580; letter-spacing: -.03em; }
-.mira-task-start__brand img { width: 35px; height: 20px; object-fit: contain; }
 .mira-task-start h2 { margin: 0 0 11px; color: var(--color-foreground); font-size: 34px; font-weight: 550; line-height: 1.35; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .mira-task-start p { margin: 0; color: var(--color-foreground-subtle); font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
 .mira-message-column { max-width: 840px; }

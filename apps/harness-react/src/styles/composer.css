@@ -90,6 +90,7 @@
 .mira-prompt-editor[aria-disabled='true'] { cursor: default; }
 .mira-prompt-reference { padding: 1px 5px; border-radius: 4px; color: var(--color-foreground); background: var(--color-surface-hover); box-decoration-break: clone; -webkit-box-decoration-break: clone; font-size: var(--text-ui-sm); }
 .mira-prompt-reference::before { margin-right: 4px; color: var(--color-foreground-subtle); content: '@'; }
+.mira-prompt-reference-file { padding: 0; border-radius: 0; color: var(--color-file-node-foreground); background: none; font-size: var(--text-ui-base); font-weight: 500; }
 .mira-prompt-reference-file::before { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; background: var(--mira-reference-file-icon) center / contain no-repeat; content: ''; }
 .mira-prompt-reference-plugin, .mira-prompt-reference-skill, .mira-prompt-reference-command { padding: 0; border-radius: 0; background: none; color: var(--color-plugin-node-foreground, #b87a1a); font-size: var(--text-ui-base); font-weight: 500; line-height: 20px; }
 .mira-prompt-reference-plugin::before { display: inline-block; width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; content: ''; background: currentColor; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1'/%3E%3C/svg%3E") center / contain no-repeat; }
@@ -269,6 +270,10 @@
 .mira-composer-suggestions__option[aria-selected='true'] { background: var(--color-selected); }
 .mira-composer-suggestions__option:hover:not([aria-selected='true']) { background: var(--color-hover); }
 .mira-composer-suggestions__label { min-width: 0; flex: 1; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.mira-composer-suggestions__option--file { gap: 4px; }
+.mira-composer-suggestions__file { display: flex; align-items: center; gap: 4px; }
+.mira-composer-suggestions__file-name, .mira-composer-suggestions__file-directory { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mira-composer-suggestions__file-directory { color: var(--color-foreground-subtlest); font-weight: 400; }
 .mira-composer-suggestions__option small { min-width: 0; max-width: 55%; flex: 0 1 auto; overflow: hidden; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); text-overflow: ellipsis; white-space: nowrap; }
 .mira-composer-suggestions__option:disabled { opacity: .45; cursor: not-allowed; }
 .mira-composer-suggestions__status { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 12px; color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); overflow-wrap: anywhere; }

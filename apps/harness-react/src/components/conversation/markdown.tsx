@@ -15,6 +15,8 @@ import { MiraMarkdownCode } from './MiraStreamingCode'
 // 流式管线与 ZCode 相同：streamdown（CJK 断行 + shiki 代码高亮）。
 // 两种状态共用 Worker 高亮缓存；完成态继续保留引用角标与代码复制按钮。
 const staticMarkdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
+staticMarkdown.renderer.rules.table_open = () => '<div class="markdown-table-scroll" tabindex="0" role="region" aria-label="表格"><table>\n'
+staticMarkdown.renderer.rules.table_close = () => '</table></div>\n'
 const validateMarkdownLink = staticMarkdown.validateLink.bind(staticMarkdown)
 staticMarkdown.validateLink = href => /^file:/i.test(href) ? Boolean(miraMessageLink(href)) : validateMarkdownLink(href)
 const blockKey = (language: string, code: string) => JSON.stringify([language, code])
@@ -116,7 +118,7 @@ export function MessageMarkdown({ content, sources, streaming, directory, onOpen
       }
     } catch (error) { conversation.controller?.reportError(error) }
   }
-  return <div onClickCapture={handleLink} onAuxClickCapture={handleLink}>
+  return <div className="min-w-0" onClickCapture={handleLink} onAuxClickCapture={handleLink}>
     {streaming ? <div className="message-markdown size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
       <Streamdown mode="streaming" parseIncompleteMarkdown components={streamdownComponents} rehypePlugins={messageRehypePlugins} urlTransform={href => miraMessageLink(href, directory ?? conversation.session?.workingDirectory) ? href : ''} plugins={streamdownPlugins} shikiTheme={miraCodeThemes} animated={false} isAnimating={false}>{content}</Streamdown>
     </div> : <StaticMarkdown content={content} sources={sources} directory={linkDirectory} />}

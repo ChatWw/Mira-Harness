@@ -6,6 +6,7 @@ import type { PilotController, PilotState } from '../apps/harness-react/src/stat
 import type { HarnessWorkspaceFileSearchResult } from '../src/config/harness'
 import type { HarnessComposerHandle } from '../apps/harness-react/src/components/composer/HarnessComposer'
 import type { MiraPromptDocument } from '../apps/harness-react/src/lib/prompt-editor-document'
+import { miraFileTreeIcon } from '../apps/harness-react/src/lib/mira-file-tree-icon'
 
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (reason: unknown) => void
@@ -60,6 +61,9 @@ async function fixture(savedPreference?: unknown, queue = false, paneProps: { dr
       render(); return true
     }),
     stageAttachment: vi.fn(async (_id: string, path: string) => ({ path: 'mira-attachment:readme', name: path.split('/').pop()! })),
+    selectAttachments: vi.fn(async (_id: string, _files?: File[]): Promise<import('../src/config/harness').HarnessFileReference[]> => [{ path: 'mira-attachment:pptx', name: '项目介绍.pptx' }]),
+    supportsLocalAttachmentPaths: false, resolveAttachmentPaths: vi.fn(async (_files: File[]): Promise<string[]> => []),
+    importAttachments: vi.fn(async (_id: string, _files: unknown[]) => []),
     getAttachment: vi.fn(async (_id: string, path: string) => ({ path, name: 'README.md', content: 'frozen contents', type: 'text', size: 15 })),
     send: vi.fn(async (..._args: unknown[]) => true), select: vi.fn(),
   }
@@ -106,6 +110,205 @@ async function fixture(savedPreference?: unknown, queue = false, paneProps: { dr
 }
 
 describe('project file mentions in the real React Composer', () => {
+  it('offers directories in @ with a folder icon, restores their reference and sends it', async () => {
+    const view = await fixture()
+    const reference = { path: 'mira-attachment:folder', name: '资料.pptx', localPath: '/project-a/docs/资料.pptx', kind: 'directory' as const }
+    view.api.listFilesFor.mockResolvedValue({ path: '', entries: [{ path: 'docs/资料.pptx', name: '资料.pptx', type: 'directory' }] })
+    view.api.stageAttachment.mockResolvedValue(reference)
+    await view.scope('a', 'current'); await view.type('@')
+    const row = document.querySelector('[data-suggestion-id="file-docs/资料.pptx"]')!
+    expect(row.querySelector('svg.lucide-folder')).not.toBeNull()
+    expect(row.querySelector('.mira-composer-suggestions__file-directory')?.textContent).toBe('docs/')
+    await view.click(row); await view.settle(30)
+    expect(view.text()).toBe('@docs/资料.pptx/ ')
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.getAttribute('style')).toContain('image/svg+xml')
+    await view.scope('b', 'other'); await view.scope('a', 'current')
+    expect(view.text()).toBe('@docs/资料.pptx/ ')
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('@docs/资料.pptx/', false, [reference])
+  })
+
+  it('keeps the draft background after a picker failure and retries the single files-or-folders entry', async () => {
+    const view = await fixture()
+    const reference = { path: 'mira-attachment:folder', name: '资料', localPath: '/external/资料', kind: 'directory' as const }
+    view.api.selectAttachments.mockRejectedValueOnce(new Error('目录暂不可读取')).mockResolvedValueOnce([reference])
+    await view.scope('a'); await view.type('检查目录')
+    await view.click(document.querySelector('[aria-label="添加上下文"]'))
+    expect(document.querySelector('[data-suggestion-id="attach-files"]')?.textContent).toContain('添加文件或文件夹')
+    await view.click(document.querySelector('[data-suggestion-id="attach-files"]')); await view.settle(60)
+    expect(view.state.session?.draftState).toBe('prepared')
+    expect(document.querySelector('.harness-composer-region--draft .harness-composer__surface')).not.toBeNull()
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('目录暂不可读取')
+    expect(view.text()).toBe('检查目录')
+    await view.click(document.querySelector('.mira-attachment-upload-retry')); await view.settle(60)
+    expect(view.api.selectAttachments).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    expect(view.text()).toBe('检查目录 @资料/ ')
+    expect(document.querySelector('.harness-composer-region--draft')).not.toBeNull()
+  })
+
+  it('uses native paths for dropped folders and large local files instead of reading File bytes', async () => {
+    const view = await fixture()
+    view.api.supportsLocalAttachmentPaths = true
+    view.api.resolveAttachmentPaths.mockResolvedValue(['/external/资料', '/external/large.zip'])
+    const references = [
+      { path: 'mira-attachment:folder', name: '资料', localPath: '/external/资料', kind: 'directory' as const },
+      { path: 'mira-attachment:archive', name: 'large.zip', localPath: '/external/large.zip', size: 32 * 1024 * 1024 },
+    ]
+    view.api.selectAttachments.mockResolvedValue(references)
+    await view.scope('a', 'current')
+    const files = [new File([], '资料'), new File([], 'large.zip')]
+    Object.defineProperty(files[1], 'size', { value: 32 * 1024 * 1024 })
+    await act(async () => {
+      const event = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files } })
+      document.querySelector('.harness-composer')!.dispatchEvent(event)
+    }); await view.settle(60)
+    expect(view.api.selectAttachments).toHaveBeenCalledWith('current', files)
+    expect(view.api.importAttachments).not.toHaveBeenCalled()
+    expect(view.text()).toBe('@资料/ @large.zip ')
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it.each(['mcp', 'skills'].flatMap(command => ['Enter', 'Tab', 'mouse'].map(activation => ({ command, activation }))))('keeps /$command open after $activation and returns to slash commands on Escape', async ({ command, activation }) => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type(`/${command}`)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe(`command-${command}`)
+    if (activation === 'mouse') await view.click(document.querySelector(`[data-suggestion-id="command-${command}"]`))
+    else await view.key(activation)
+    await view.settle(60)
+    const panel = document.querySelector<HTMLElement>('.mira-composer-panel-popover')!
+    expect(panel).not.toBeNull()
+    expect(document.activeElement).toBe(panel)
+    expect(view.text()).toBe('')
+    await act(async () => panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))); await view.settle(60)
+    expect(view.text()).toBe(`/${command}`)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe(`command-${command}`)
+    expect(document.activeElement).toBe(view.input())
+    await view.key('Escape'); await view.settle(30)
+    expect(document.querySelector('.mira-composer-panel-popover')).toBeNull()
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it.each(['model', 'perm', 'thinking'])('opens /%s by keyboard and returns to its command on Escape', async command => {
+    const view = await fixture()
+    view.state.providers[0].models[0].reasoning = true
+    await view.scope('a', 'current'); await view.type(`/${command}`)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe(`command-${command}`)
+    await view.key('Enter'); await view.settle(60)
+    const selector = command === 'model' ? '.harness-composer__model-menu' : command === 'perm' ? '.harness-composer__mode-menu' : '.harness-composer__reasoning-menu'
+    expect(document.querySelector(selector)).not.toBeNull()
+    expect(document.activeElement).not.toBe(view.input())
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))); await view.settle(60)
+    expect(document.querySelector(selector)).toBeNull()
+    expect(view.text()).toBe(`/${command}`)
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe(`command-${command}`)
+    expect(document.activeElement).toBe(view.input())
+    await view.key('Escape')
+    expect(document.querySelector('.mira-composer-panel-popover')).toBeNull()
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+
+  it('restores the slash selection and draft around the command when returning from a submenu', async () => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type('/ 原始内容', 1)
+    for (let index = 0; index < 20 && document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id') !== 'command-mcp'; index++) await view.key('ArrowDown')
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('command-mcp')
+    await view.key('Enter'); await view.settle(60)
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))); await view.settle(60)
+    expect(view.text()).toBe('/ 原始内容')
+    expect(document.querySelector('[aria-selected="true"]')?.getAttribute('data-suggestion-id')).toBe('command-mcp')
+    expect(view.editor().getEditorState().read(() => window.getSelection()?.anchorOffset)).toBe(1)
+  })
+
+  it('does not restore a previous task command when the owner changes with a submenu open', async () => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type('/mcp'); await view.key('Enter')
+    await view.scope('b', 'other'); await view.type('另一个任务')
+    await view.key('Escape')
+    expect(view.text()).toBe('另一个任务')
+    expect(document.querySelector('.mira-composer-panel-popover')).toBeNull()
+    await view.scope('a', 'current')
+    expect(view.text()).toBe('')
+  })
+
+  it('adds a large native picker file inline and preserves its reference after switching tasks', async () => {
+    const view = await fixture()
+    const reference = { path: 'mira-attachment:archive', name: 'archive.zip', localPath: '/external/archive.zip', size: 32 * 1024 * 1024 }
+    view.api.selectAttachments.mockResolvedValue([reference])
+    await view.scope('a', 'current'); await view.type('分析 ')
+    await view.click(document.querySelector('[aria-label="添加上下文"]'))
+    await view.click(document.querySelector('[data-suggestion-id="attach-files"]')); await view.settle(30)
+    await view.scope('b', 'other'); await view.scope('a', 'current')
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('archive.zip')
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('分析 @archive.zip', false, [reference])
+  })
+
+  it.each(['archive.zip', 'large.csv', 'photo.heic', 'scan.tiff'])('allows @ to select and send %s as a large local reference', async name => {
+    const view = await fixture()
+    const reference = { path: 'mira-attachment:local-file', name, localPath: `/project-a/${name}`, size: 32 * 1024 * 1024 }
+    view.api.listFilesFor.mockResolvedValue({ path: '', ...result(name) })
+    view.api.stageAttachment.mockResolvedValue(reference)
+    await view.scope('a', 'current'); await view.type('@')
+    const candidate = document.querySelector<HTMLButtonElement>(`[data-suggestion-id="file-${name}"]`)!
+    expect(candidate.disabled).toBe(false)
+    await view.click(candidate); await view.settle(30)
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe(name)
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith(`@${name}`, false, [reference])
+  })
+
+  it('shows file candidates inline with only their parent directory and keeps duplicate names selectable by path', async () => {
+    const view = await fixture()
+    view.api.listFilesFor.mockResolvedValue({ path: '', entries: ['README.md', 'docs/README.md', 'docs/guide/README.md'].flatMap(path => result(path).entries) })
+    await view.scope('a', 'current'); await view.type('@')
+    const root = document.querySelector('[data-suggestion-id="file-README.md"]')!
+    expect(root.textContent).toBe('README.md')
+    expect(root.querySelector('.mira-composer-suggestions__file-directory')).toBeNull()
+    for (const directory of ['docs/', 'docs/guide/']) {
+      const row = document.querySelector(`[data-suggestion-id="file-${directory}README.md"]`)!
+      expect(row.querySelector('.mira-composer-suggestions__file-name')?.textContent).toBe('README.md')
+      expect(row.querySelector('.mira-composer-suggestions__file-directory')?.textContent).toBe(directory)
+      expect(row.querySelector('small')).toBeNull()
+      await view.click(row); await view.settle(30)
+      expect(view.api.stageAttachment).toHaveBeenLastCalledWith('current', `${directory}README.md`)
+      await view.type('@')
+    }
+    await view.type('/mira-review:')
+    expect(document.querySelector('[data-suggestion-id="plugin-command-mira-review@local-check"] small')?.textContent).toContain('Review actual behavior')
+  })
+
+  it('adds PPTX through @ with its file icon and without a duplicate attachment card', async () => {
+    const view = await fixture()
+    view.api.listFilesFor.mockResolvedValue({ path: '', ...result('项目介绍.pptx') })
+    await view.scope('a', 'current'); await view.type('@')
+    await view.click(document.querySelector('[data-suggestion-id="file-项目介绍.pptx"]')); await view.settle(30)
+    const reference = view.input().querySelector<HTMLElement>('[data-mira-prompt-reference="file"]')!
+    expect(reference.textContent).toBe('项目介绍.pptx')
+    expect(reference.style.getPropertyValue('--mira-reference-file-icon')).toBe(`url(${JSON.stringify(miraFileTreeIcon('项目介绍.pptx'))})`)
+    expect(document.querySelector('.mira-attachment-card')).toBeNull()
+    await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('@项目介绍.pptx', false, [expect.objectContaining({ name: '项目介绍.pptx', path: 'mira-attachment:readme' })])
+  })
+
+  it('adds + picker files inline, restores them after switching tasks and removes their send references with the token', async () => {
+    const view = await fixture()
+    await view.scope('a', 'current'); await view.type('分析 ')
+    await view.click(document.querySelector('[aria-label="添加上下文"]'))
+    await view.click(document.querySelector('[data-suggestion-id="attach-files"]')); await view.settle(30)
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('项目介绍.pptx')
+    expect(document.querySelector('.mira-attachment-card')).toBeNull()
+    expect(view.api.selectAttachments).toHaveBeenCalledWith('current')
+    await view.scope('b', 'other'); await view.scope('a', 'current')
+    expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('项目介绍.pptx')
+    const { $getRoot } = await import('lexical')
+    await act(async () => view.editor().update(() => { $getRoot().getFirstChildOrThrow().getChildren().find((node: any) => node.getType() === 'mira-prompt-reference')?.remove() }, { discrete: true }))
+    await view.settle(); await view.key('Enter')
+    expect(view.api.send).toHaveBeenCalledWith('分析', false, [])
+  })
+
   it('inserts an atomic plugin command with a trailing argument space without sending, keeps unavailable commands disabled and never scans files', async () => {
     const view = await fixture(); await view.scope('a', 'current'); await view.type('/mira-review:')
     const candidate = document.querySelector<HTMLButtonElement>('[data-suggestion-id="plugin-command-mira-review@local-check"]')!
@@ -401,7 +604,8 @@ describe('project file mentions in the real React Composer', () => {
     await view.click(document.querySelector('.mira-attachment-upload-retry')); await view.settle(30)
     expect(view.api.stageAttachment).toHaveBeenCalledTimes(2)
     expect(view.api.prepare).toHaveBeenCalledTimes(1)
-    expect(document.querySelector('[aria-label="待发送附件"]')?.textContent).toContain('README.md')
+    if (changeText) expect(document.querySelector('[aria-label="待发送附件"]')?.textContent).toContain('README.md')
+    else expect(document.querySelector('.mira-attachment-card')).toBeNull()
     expect(view.text()).toBe(changeText ? '改过的新草稿' : '@src/README.md ')
     expect(Boolean(view.input().querySelector('[data-mira-prompt-reference="file"]'))).toBe(!changeText)
   })
@@ -452,13 +656,14 @@ describe('project file mentions in the real React Composer', () => {
     expect(document.querySelector('[aria-label="待发送附件"]')).toBeNull()
     await view.key('z', { ctrlKey: true })
     expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('README.md')
-    expect(document.querySelector('[aria-label="待发送附件"]')?.textContent).toContain('README.md')
+    expect(document.querySelector('.mira-attachment-card')).toBeNull()
     expect(view.text()).toBe('@src/README.md ')
-    await view.click(document.querySelector('[aria-label="移除 README.md"]'))
+    await act(async () => { view.input().focus(); view.editor().update(() => $nodesOfType(MiraPromptReferenceNode)[0].selectEnd(), { discrete: true }) })
+    await view.key('Backspace')
     expect(view.input().querySelector('[data-mira-prompt-reference]')).toBeNull()
     view.input().focus(); await view.key('z', { ctrlKey: true })
     expect(view.input().querySelector('[data-mira-prompt-reference="file"]')).not.toBeNull()
-    expect(document.querySelector('[aria-label="待发送附件"]')?.textContent).toContain('README.md')
+    expect(document.querySelector('.mira-attachment-card')).toBeNull()
     expect(view.api.stageAttachment).toHaveBeenCalledTimes(1)
     await view.settle(280)
     expect(view.api.setPreference.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ drafts: { prepared: '@src/README.md ' }, fileDrafts: { prepared: [expect.objectContaining({ path: 'mira-attachment:readme' })] }, documents: { prepared: expect.objectContaining({ version: 1 }) } }))
@@ -487,7 +692,7 @@ describe('project file mentions in the real React Composer', () => {
     const view = await fixture()
     await view.scope('a'); await view.type('@')
     expect(view.api.listProjectFiles).toHaveBeenCalledWith('a')
-    expect(view.files()).toEqual(['file-README.md', 'file-ignored.txt'])
+    expect(view.files()).toEqual(['file-README.md', 'file-ignored.txt', 'file-src'])
     expect(view.api.prepare).not.toHaveBeenCalled(); expect(view.api.listFilesFor).not.toHaveBeenCalled()
     // Browsing is not filtered by client-side ignore rules; recursive search belongs to the host.
     await view.type('分析 @README 保留尾句', 10)
@@ -498,7 +703,7 @@ describe('project file mentions in the real React Composer', () => {
     expect(view.api.prepare).toHaveBeenCalledTimes(1)
     expect(view.api.prepare.mock.calls[0][0]).toBe('a')
     expect(view.api.stageAttachment).toHaveBeenCalledWith('prepared', 'src/README.md')
-    expect(document.querySelector('[aria-label="待发送附件"]')?.textContent).toContain('README.md')
+    expect(document.querySelector('.mira-attachment-card')).toBeNull()
     expect(view.text()).toBe('分析 @src/README.md  保留尾句')
     expect(view.input().querySelector('[data-mira-prompt-reference="file"]')?.textContent).toBe('README.md')
     await view.settle(30)

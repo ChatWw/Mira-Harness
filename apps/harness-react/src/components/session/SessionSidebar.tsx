@@ -30,7 +30,7 @@ import { MiraSidebarSection } from './MiraSidebarSection'
 import { MiraSidebarStickyHeader } from './MiraSidebarStickyHeader'
 import { MiraSidebarVirtualList } from './MiraSidebarVirtualList'
 import { MiraSidebarTaskTitle } from './MiraSidebarTaskTitle'
-import miraLogo from '../../../../../src/asset/mira-logo.png'
+import { SidebarFooter } from './SidebarFooter'
 import { beginMiraTaskDrag, endMiraTaskDrag, miraTaskPointerDrag } from '../workspace/MiraTaskGrid'
 
 const PROJECT_LIMIT = 6
@@ -502,7 +502,7 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
       {timeline && query && !pinned.length && !timelineSessions.length && <p className="mira-session-hint">没有匹配的任务</p>}
       </>}
     </div></SidebarTabs.Content>{/* The live preview is already at the drop position; avoid animating a second copy. */}{overlayContainer ? createPortal(dragOverlay, overlayContainer) : dragOverlay}</DndContext>
-    <SidebarFooter />
+    <SidebarFooter controller={controller} />
     {removingProject && <Dialog.Root open onOpenChange={open => { if (!open && !removeProjectBusy) { setRemovingProject(undefined); setRemoveProjectError('') } }}><Dialog.Portal container={document.getElementById('root')}><Dialog.Overlay className="mira-confirm-overlay" /><Dialog.Content className="mira-confirm" onEscapeKeyDown={event => { if (removeProjectBusy) event.preventDefault() }} onPointerDownOutside={event => { if (removeProjectBusy) event.preventDefault() }}><Dialog.Title>{`移除项目「${removingProject.name}」？`}</Dialog.Title><Dialog.Description>该项目的全部任务、对话与相关自动化会一并从 Mira 删除，磁盘文件不受影响；项目内仍有运行中的任务时请先停止。</Dialog.Description>{removeProjectError && <p className="mira-confirm-error" role="alert">{removeProjectError}</p>}<div className="mira-confirm-actions"><button type="button" disabled={removeProjectBusy} onClick={() => { setRemovingProject(undefined); setRemoveProjectError('') }}>取消</button><button type="button" className="mira-confirm-danger" aria-label="确认移除项目" disabled={removeProjectBusy} onClick={() => void confirmRemoveProject()}>{removeProjectBusy ? <><LoaderCircle size={14} className="pilot-spin" />正在移除…</> : '移除项目'}</button></div><SidebarActionHint title="关闭移除确认"><Dialog.Close asChild><button type="button" className="mira-confirm-close mira-session-icon" aria-label="关闭移除确认" disabled={removeProjectBusy}><X size={16} /></button></Dialog.Close></SidebarActionHint></Dialog.Content></Dialog.Portal></Dialog.Root>}
   </aside></SidebarTabs.Root></Tooltip.Provider>
 }
@@ -530,10 +530,6 @@ export function groupSidebarTimeline(sessions: HarnessSessionSummary[], sort: 'c
     else groups.push({ label, sessions: [session] })
   }
   return groups
-}
-
-function SidebarFooter() {
-  return <footer className="mira-session-footer" aria-label="Mira"><div className="mira-session-footer__profile"><img src={miraLogo} alt="" className="mira-session-footer__logo" /><span>Mira</span></div></footer>
 }
 
 async function copyText(value: string) { try { await navigator.clipboard.writeText(value) } catch { const area = document.createElement('textarea'); area.value = value; document.body.appendChild(area); area.select(); try { document.execCommand('copy') } finally { area.remove() } } }
@@ -616,6 +612,7 @@ function SessionRow({ session, state, controller, groups, groupsReady, currentGr
     finally { if (renameRequest.current === request) { renameRequest.current = undefined; setSavingTitle(false) } }
   }
   const badge = sessionBadge(session, { running: state.runningSessionIds.includes(session.id), unread: state.unreadSessionIds.includes(session.id), pending: Boolean(state.pendingPermissions[session.id]) })
+  const leadingBadge = session.status === 'failed' ? { kind: 'failed', label: '执行失败' } : state.unreadSessionIds.includes(session.id) || session.unread ? { kind: 'unread', label: '未读' } : badge
   const waiting = Boolean(state.pendingPermissions[session.id]) || session.planStatus === 'needs_input' || session.planStatus === 'awaiting_confirmation'
   const interactionLabel = session.planStatus === 'needs_input' ? '需输入' : session.planStatus === 'awaiting_confirmation' ? '待确认' : '待授权'
   const interactionDescription = session.planStatus === 'needs_input' ? '需要用户输入' : session.planStatus === 'awaiting_confirmation' ? '等待确认' : '等待审批'
@@ -648,11 +645,13 @@ function SessionRow({ session, state, controller, groups, groupsReady, currentGr
           if (event.key === 'Enter') void rename()
           else if (!renameRequest.current) onCancelRename()
         }} /><SidebarActionHint title="保存标题"><button type="submit" aria-label="保存标题" disabled={savingTitle || !title.trim()}>{savingTitle ? <LoaderCircle size={14} className="pilot-spin" /> : <Check size={14} />}</button></SidebarActionHint></form> : <>
-          {!groupedActions && <SidebarActionHint suspended={menuVisible} title={session.pinned ? '取消置顶' : '置顶'}><button type="button" className="mira-session-row__pin" aria-label={`${session.pinned ? '取消置顶' : '置顶'} ${session.title || '新任务'}`} aria-pressed={Boolean(session.pinned)} disabled={busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={event => { event.stopPropagation(); run(() => controller.setSessionPinned(session.id, !session.pinned)) }}>{session.pinned ? <PinOff size={14} /> : <Pin size={14} />}</button></SidebarActionHint>}
+          <div className={`mira-session-row__leading${!groupedActions ? ' has-pin-action' : ''}`}>
+            {!waiting && leadingBadge ? <SidebarActionHint suspended={menuVisible} title={leadingBadge.label}><span tabIndex={0} className={`mira-session-status mira-session-status--${leadingBadge.kind}`} aria-label={leadingBadge.label}>{leadingBadge.kind === 'unread' || leadingBadge.kind === 'failed' ? <span /> : leadingBadge.kind === 'running' || leadingBadge.kind === 'plan' && session.planStatus === 'executing' ? <LoaderCircle size={16} className="pilot-spin" /> : <CircleAlert size={12} />}</span></SidebarActionHint> : session.pinned ? <Pin size={16} className="mira-session-row__pinned" aria-label="已置顶" /> : showProject ? <span className="mira-session-row__idle" /> : null}
+            {!groupedActions && <SidebarActionHint suspended={menuVisible} title={session.pinned ? '取消置顶' : '置顶'}><button type="button" className="mira-session-row__pin" aria-label={`${session.pinned ? '取消置顶' : '置顶'} ${session.title || '新任务'}`} aria-pressed={Boolean(session.pinned)} disabled={busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={event => { event.stopPropagation(); run(() => controller.setSessionPinned(session.id, !session.pinned)) }}><Pin size={16} /></button></SidebarActionHint>}
+          </div>
           <button type="button" className="mira-session-row__open" draggable={Boolean(!sortable && !busy && (taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id))} onDragStart={event => { if (busy || !(taskPaneEntry?.canDrag ?? taskPaneEntry?.canOpen)?.(session.id)) { event.preventDefault(); return }; beginMiraTaskDrag(session.id, event.dataTransfer); event.dataTransfer.setData('text/plain', session.title || '新任务') }} onDragEnd={endMiraTaskDrag} onClick={onOpen} aria-current={active ? 'page' : undefined} aria-label={session.title || '新任务'}><MiraSidebarTaskTitle title={session.title || '新任务'} suspended={menuVisible || busy || isDragging} />{showProject && <span className="mira-session-row__project">{session.projectName || state.projects.find(project => project.id === session.projectId)?.name || '个人工作区'}</span>}</button>
-          {waiting ? <span className={`mira-session-status mira-session-interaction mira-session-interaction--${session.planStatus === 'needs_input' ? 'input' : 'confirmation'}`} title={interactionDescription} aria-label={interactionDescription}>{interactionLabel}</span> : badge && <SidebarActionHint suspended={menuVisible} title={badge.label}><span tabIndex={0} className={`mira-session-status mira-session-status--${badge.kind}`} aria-label={badge.label}>{badge.kind === 'unread' ? <span /> : badge.kind === 'running' || badge.kind === 'plan' && session.planStatus === 'executing' ? <LoaderCircle size={12} className="pilot-spin" /> : <CircleAlert size={12} />}</span></SidebarActionHint>}
-          {!badge && session.status === 'failed' && <SidebarActionHint suspended={menuVisible} title="执行失败"><span tabIndex={0} aria-label="执行失败"><CircleAlert size={12} className="mira-session-status--failed" /></span></SidebarActionHint>}
-          {!waiting && !badge && <time className="mira-session-row__time" dateTime={new Date(session.updatedAt).toISOString()} title={new Date(session.updatedAt).toLocaleString()}>{relativeSessionTime(session.updatedAt)}</time>}
+          {waiting && <span className={`mira-session-status mira-session-interaction mira-session-interaction--${session.planStatus === 'needs_input' ? 'input' : 'confirmation'}`} title={interactionDescription} aria-label={interactionDescription}>{interactionLabel}</span>}
+          {!waiting && <span className="mira-session-row__metadata">{session.automationId && <Clock3 size={14} aria-label="自动化任务" />}<time className="mira-session-row__time" dateTime={new Date(session.updatedAt).toISOString()} title={new Date(session.updatedAt).toLocaleString()}>{relativeSessionTime(session.updatedAt)}</time></span>}
           <div className="mira-session-row__actions">
             {!waiting && <>
               {onMoveTop && <SidebarActionHint suspended={menuVisible} title="移动到顶部"><button type="button" className="mira-session-row__action" aria-label={`移动 ${session.title} 到顶部`} disabled={busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={event => { event.stopPropagation(); run(onMoveTop) }}><ArrowUpToLine size={14} /></button></SidebarActionHint>}

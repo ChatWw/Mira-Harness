@@ -1,11 +1,12 @@
 import { harnessFileIdentity, harnessPathInside } from './harnessFileAccess'
+import type { AutomationTaskInput, AutomationTask } from '../../src/config/harness'
 import type { MiraGitAction } from '../../src/config/miraGit'
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
 import { boundHarnessText, createSandboxedEnv, publicHarnessText, publicHarnessToolInput, publicHarnessToolOutput, wrapHarnessTool } from './agentTools'
 import { MiraCommandJobs } from './miraCommandJobs'
 import { applyMiraFileRewind, buildMiraFileRewindPlan, compensateMiraFileRewind, miraPendingFileRewindPreview, previewMiraFileRewind, readMiraCheckpointFile } from './miraFileRewind'
 import type { MiraHistoryEditBlocked, MiraHistoryEditWorkspace } from '../../src/config/miraFileRewind'
-import { createWebCitationContext, createWebFetchTool, createWebSearchTool } from '../adapters/webTools'
+import { createWebCitationContext, createWebFetchTool, createWebSearchTool, type WebRequest } from '../adapters/webTools'
 import type { MemoryScope } from '../storage/fileMemoryStore'
 import type { McpManager } from '../adapters/mcpManager'
 import { Type, createModels, createAssistantMessageEventStream, validateToolArguments, type ImageContent, type TextContent, type UserMessage } from '@earendil-works/pi-ai'
@@ -265,13 +266,6 @@ function mergeUsage(items: Array<HarnessTokenUsage | undefined>): HarnessTokenUs
   }
 }
 
-function agentUsage(usage: HarnessTokenUsage) {
-  return {
-    ...usage,
-    cost: usage.cost ? { input: usage.cost.input, output: usage.cost.output, cacheRead: usage.cost.cacheRead, cacheWrite: usage.cost.cacheWrite, total: usage.cost.total } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-  }
-}
-
 function contextUsage(messages: unknown[], contextWindow: number): HarnessContextUsage {
   const estimate = estimateContextTokens(messages as any)
   return {
@@ -291,7 +285,7 @@ function activityDetail(toolName: string, args: unknown) {
   return `${prefix}：${safeTarget}`
 }
 
-const TOOL_LABELS: Record<string, string> = { read: '读取文件', load_plugin_skill: '读取插件技能', read_plugin_resource: '读取插件参考文件', list_plugin_skills: '查看插件技能', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆', ask_user: '需要你的输入', present_plan: '等待方案确认', delegate_task: '委派子任务', list_tasks: '查看子任务', wait_for_tasks: '等待子任务', stop_tasks: '停止子任务', create_workflow: '运行工作流', save_workflow: '保存工作流', read_workflow_contract: '读取工作流契约' }
+const TOOL_LABELS: Record<string, string> = { read: '读取文件', load_plugin_skill: '读取插件技能', read_plugin_resource: '读取插件参考文件', list_plugin_skills: '查看插件技能', edit: '编辑文件', list_files: '查看文件', write: '写入文件', delete_file: '删除文件', bash: '执行命令', web_fetch: '抓取网页', web_search: '网页搜索', search_memory: '查询记忆', remember_memory: '保存记忆', forget_memory: '删除记忆', ask_user: '需要你的输入', present_plan: '等待方案确认', delegate_task: '委派子任务', list_tasks: '查看子任务', wait_for_tasks: '等待子任务', stop_tasks: '停止子任务', create_automation: '创建定时任务', create_workflow: '运行工作流', save_workflow: '保存工作流', read_workflow_contract: '读取工作流契约' }
 
 function sanitizeToolTarget(target: string) {
   return target
@@ -350,11 +344,12 @@ export class HarnessRuntime {
   private readonly projectGitRepositories = new Map<string, string>()
   private workflowActivity?: (sessionId: string) => boolean
   private workflowStop?: (sessionId: string, expectedRunId?: string) => boolean
+  private automationAuthoringHost?: (input: AutomationTaskInput) => AutomationTask
   private workflowAuthoringHost?: MiraFlowAuthoringHost
   private readonly workflowNotifications = new Set<string>()
   private commandNoticesClosing = false
   private readonly pausedCommandNotices = new Set<string>()
-  constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager, backgroundEventPublisher?: (event: HarnessEvent) => void, private readonly mcpConfigStore?: McpConfigStore, private readonly flowRipgrepPath = resolveMiraRipgrepPath({ appPath: process.cwd() })) {
+  constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager, backgroundEventPublisher?: (event: HarnessEvent) => void, private readonly mcpConfigStore?: McpConfigStore, private readonly flowRipgrepPath = resolveMiraRipgrepPath({ appPath: process.cwd() }), private readonly webRequest?: WebRequest) {
     this.emit = createHarnessEventPublisher(backgroundEventPublisher)
     this.runCoordinator = new HarnessRunCoordinator(database, this.emit, id => this.assertGitAdmission(id))
     this.permissionPolicy = new HarnessPermissionPolicy(database, this.emit)
@@ -480,6 +475,10 @@ export class HarnessRuntime {
     }
   }
 
+  hasRunningSessions() {
+    return this.runCoordinator.activeSessionIds().length > 0 || this.commandJobs.identities().length > 0 || Boolean(this.workflowActivity && this.database.harness.listSessions().some(session => this.workflowActivity?.(session.id)))
+  }
+
   listSessions(query = '') {
     return this.database.harness.listSessions(query).map(session => ({ ...session, isRunning: this.runCoordinator.isRunning(session.id) || Boolean(this.workflowActivity?.(session.id)) }))
   }
@@ -488,6 +487,8 @@ export class HarnessRuntime {
     this.workflowActivity = guard
     this.workflowStop = stop
   }
+
+  setAutomationAuthoringHost(host: (input: AutomationTaskInput) => AutomationTask) { this.automationAuthoringHost = host }
 
   setWorkflowAuthoringHost(host: MiraFlowAuthoringHost) { this.workflowAuthoringHost = host }
 
@@ -906,7 +907,9 @@ export class HarnessRuntime {
         api: model.api,
         provider: model.provider,
         model: model.id,
-        usage: agentUsage(message.usage || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }),
+        // History retains reply text, not the run's intermediate tool requests.
+        // Its cumulative billing usage cannot size this reconstructed context.
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
         stopReason: 'stop',
       } : {}),
       timestamp: message.createdAt,
@@ -1207,7 +1210,7 @@ export class HarnessRuntime {
       const id = `${options.runId}:${identity}`
       const tool = name === 'delete_file' ? 'delete' : name
       const pluginTool = publicTools.find((item: any) => item.name === name)
-      const label = typeof pluginTool?.miraMcpToolName === 'string' ? publicHarnessText(pluginTool.miraMcpToolName, secrets).text : ['create_workflow', 'save_workflow', 'read_workflow_contract'].includes(name) ? TOOL_LABELS[name] : undefined
+      const label = typeof pluginTool?.miraMcpToolName === 'string' ? publicHarnessText(pluginTool.miraMcpToolName, secrets).text : ['create_automation', 'create_workflow', 'save_workflow', 'read_workflow_contract'].includes(name) ? TOOL_LABELS[name] : undefined
       const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
       const target = publicHarnessText(String(values.path ?? values.command ?? values.url ?? values.query ?? ''), secrets).text
       const createdAt = Date.now()
@@ -1392,8 +1395,8 @@ export class HarnessRuntime {
       },
     })
     const webCitations = createWebCitationContext()
-    const webFetchTool = register(wrapRecordTool(createWebFetchTool(webCitations), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
-    const webSearchTool = register(wrapRecordTool(createWebSearchTool(webCitations), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const webFetchTool = register(wrapRecordTool(createWebFetchTool(webCitations, this.webRequest), params => params.url ?? ''), { risk: 'read', title: () => '', detail: () => '' })
+    const webSearchTool = register(wrapRecordTool(createWebSearchTool(webCitations, this.webRequest), params => params.query ?? ''), { risk: 'read', title: () => '', detail: () => '' })
     const childTask = options.subtaskId ? session().activeRun?.subtasks.find(task => task.id === options.subtaskId) : undefined
     const childName = childTask ? publicHarnessText(childTask.agentName || MIRA_SUBTASK_AGENTS[childTask.role].label, secrets).text : undefined
     const mcpTools = (options.mcpTools ?? [...this.mcpManager.getTools(session().activeMcpServerIds || []), ...(options.pluginMcp?.getTools() || [])]).map(tool => {
@@ -1447,6 +1450,17 @@ export class HarnessRuntime {
       webSearchTool,
       ...(options.planning ? [askUserTool, presentPlanTool] : [planTool]),
       ...memoryTools,
+      ...(this.automationAuthoringHost && sender && !options.planning && !options.role && !options.subtaskId ? [register({
+        name: 'create_automation', label: '创建定时任务', description: '仅在用户明确要求创建定时任务时调用。在当前项目中创建任务，使用当前模型、默认只读权限，在新会话中按本机时间执行。cron 为五段表达式，最小间隔 5 分钟；onceAt 为未来 ISO 日期时间。只创建，不立即运行。成功后给出任务名称与实际计划，不要重复创建。',
+        parameters: Type.Object({ name: Type.String({ minLength: 1, maxLength: 80 }), prompt: Type.String({ minLength: 1, maxLength: 6000 }), cron: Type.Optional(Type.String()), onceAt: Type.Optional(Type.String()) }), executionMode: 'sequential',
+        execute: async (_id: string, input: { name: string; prompt: string; cron?: string; onceAt?: string }) => {
+          const current = session()
+          if (!current.projectId || !current.modelProviderId || !current.modelId) throw new Error('请先在当前会话选择项目与模型')
+          if (Boolean(input.cron) === Boolean(input.onceAt)) throw new Error('cron 与 onceAt 必须且只能提供一个')
+          const task = this.automationAuthoringHost!({ name: input.name, prompt: input.prompt, projectId: current.projectId, model: { providerId: current.modelProviderId, modelId: current.modelId, thinkingLevel: current.modelThinkingLevel }, permissionMode: 'default', target: { type: 'new-session' }, enabled: true, trigger: input.onceAt ? { type: 'once', scheduledAt: new Date(input.onceAt).getTime() } : { type: 'cron', expression: input.cron! } })
+          return { content: [{ type: 'text', text: `定时任务已创建：${task.name}（${task.id}）。计划：${JSON.stringify(task.trigger)}。可在自动化页面管理。` }], details: task }
+        },
+      }, { risk: 'write', title: () => '允许 Mira 创建定时任务？', detail: args => `${String((args as any).name || '')}\n${String((args as any).cron || (args as any).onceAt || '')}` })] : []),
       ...(options.workflow && this.workflowAuthoringHost && sender && !options.planning && !options.role && !options.subtaskId ? (() => {
         const workflow = options.workflow!, host = this.workflowAuthoringHost!
         const context = (providerId: string, name: string): MiraFlowAuthoringContext => ({ sender, sessionId, creatorRunId: options.runId!, toolCallId: prepareTool(providerId, name, undefined), ...workflow })

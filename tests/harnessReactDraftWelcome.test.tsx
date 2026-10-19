@@ -15,11 +15,11 @@ afterEach(async () => { await act(async () => root.unmount()); container.remove(
 const render = async (active = true) => { await act(async () => root.render(<MiraDraftWelcome active={active} />)) }
 const text = () => container.querySelector('[data-mira-welcome-text]')!.textContent!
 describe('Mira draft welcome', () => {
-  it('shows the brand, short heading and a single time-aware introduction', async () => {
+  it('shows the heading and time-aware introduction without the brand row', async () => {
     await render()
     expect(container.querySelector('h2')?.textContent).toBe('今天，从什么开始？')
-    expect(container.querySelector('.mira-task-start__brand')?.textContent).toBe('Mira')
-    expect(container.querySelector('img')?.getAttribute('alt')).toBe('')
+    expect(container.querySelector('.mira-task-start__brand')).toBeNull()
+    expect(container.querySelector('img')).toBeNull()
     expect(text()).toBe('早上好。把想做的事交给 Mira，我们一起推进。')
   })
   it('updates at the next local time boundary without a parent rerender', async () => {

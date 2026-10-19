@@ -77,9 +77,14 @@ export function ComposerSuggestionPanel({ listId, hasQuery, sections, selectedIn
           {section.loading && <div className="mira-composer-suggestions__status" role="status"><LoaderCircle size={14} className="animate-spin" />正在加载{section.title}…</div>}
           {section.error && <div className="mira-composer-suggestions__status is-error" role="alert"><CircleAlert size={14} /><span>{section.error}</span>{section.onRetry && <button type="button" onMouseDown={event => event.preventDefault()} onClick={section.onRetry}>重试</button>}</div>}
           {!section.loading && !section.error && !section.items.length && <div className="mira-composer-suggestions__status">{section.empty || '没有匹配项'}</div>}
-          {section.items.map((item, index) => <button key={item.id} id={`${listId}-${item.id}`} type="button" role="option" aria-selected={start + index === selectedIndex} aria-disabled={item.disabled || undefined} disabled={item.disabled} tabIndex={-1} className="mira-composer-suggestions__option" data-suggestion-id={item.id} title={[item.label, item.description].filter(Boolean).join(' · ')} onMouseDown={event => event.preventDefault()} onMouseEnter={() => { if (!item.disabled) onHighlight(start + index) }} onClick={() => { if (!item.disabled) onSelect(item) }}>
-            {item.icon}<span className="mira-composer-suggestions__label">{item.label}</span>{item.description && <small>{item.description}</small>}{item.selected && <Check size={14} />}
-          </button>)}
+          {section.items.map((item, index) => {
+            const isFile = item.action.type === 'file'
+            const path = isFile ? item.action.value.replace(/\\/g, '/') : ''
+            const directory = path.slice(0, path.lastIndexOf('/') + 1)
+            return <button key={item.id} id={`${listId}-${item.id}`} type="button" role="option" aria-selected={start + index === selectedIndex} aria-disabled={item.disabled || undefined} disabled={item.disabled} tabIndex={-1} className={`mira-composer-suggestions__option${isFile ? ' mira-composer-suggestions__option--file' : ''}`} data-suggestion-id={item.id} title={[item.label, item.description].filter(Boolean).join(' · ')} onMouseDown={event => event.preventDefault()} onMouseEnter={() => { if (!item.disabled) onHighlight(start + index) }} onClick={() => { if (!item.disabled) onSelect(item) }}>
+              {item.icon}{isFile ? <span className="mira-composer-suggestions__label mira-composer-suggestions__file"><span className="mira-composer-suggestions__file-name">{item.label}</span>{directory && <span className="mira-composer-suggestions__file-directory">{directory}</span>}</span> : <span className="mira-composer-suggestions__label">{item.label}</span>}{!isFile && item.description && <small>{item.description}</small>}{item.selected && <Check size={14} />}
+            </button>
+          })}
         </div>
       })}
     </div>

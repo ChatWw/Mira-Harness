@@ -67,6 +67,27 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
 }
 
 describe('first-party capability bridge', () => {
+  it('resolves dropped Files through the desktop owner and ignores supplied path strings', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const file = new File([], '资料'), getPathForFile = vi.fn(() => '/native/资料')
+    Object.assign(entry.api, { getPathForFile })
+    await expect(entry.request('harness.attachments.paths', { files: [file], paths: ['/forged'] })).resolves.toEqual(['/native/资料'])
+    expect(getPathForFile).toHaveBeenCalledExactlyOnceWith(file)
+    expect(entry.api.invokeFirstPartyHarness).not.toHaveBeenCalled()
+    await entry.request('harness.attachments.select', { sessionId: 's', files: [file], paths: ['/forged'] })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'attachments.select', { sessionId: 's', paths: ['/native/资料'] })
+    await entry.request('harness.attachments.select', { sessionId: 's', paths: ['/forged'] })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith('grant-for-novel', 'attachments.select', { sessionId: 's' })
+    for (const files of [[{ name: '资料', path: '/forged' }], ['/forged'], Array(13).fill(file)]) await expect(entry.request('harness.attachments.paths', { files })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    const denied = bridge()
+    await expect(denied.request('harness.attachments.paths', { files: [file] })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  })
+
+  it('validates local attachment batches while preserving the native picker call without paths', () => {
+    expect(parseFirstPartyHarnessCall('attachments.select', { sessionId: 's' })).toEqual({ method: 'attachments.select', sessionId: 's' })
+    expect(parseFirstPartyHarnessCall('attachments.select', { sessionId: 's', paths: ['/native/资料', 'C:\\资料\\file.txt'] })).toMatchObject({ paths: ['/native/资料', 'C:\\资料\\file.txt'] })
+    for (const paths of [[], ['../outside'], ['bad\0path'], Array(13).fill('/file'), 'wrong']) expect(() => parseFirstPartyHarnessCall('attachments.select', { sessionId: 's', paths })).toThrow()
+  })
   it.each([
     ['命令需要的 Skill Research 已停用或不可用，请在技能设置中启用', '命令依赖的 Skill 已停用或不可用，请在技能设置中启用后重试。'],
     ['命令需要的 Skill Research 存在重名，请在技能设置中保留一个启用项', '命令依赖的 Skill 存在重名，请在技能设置中保留一个启用项后重试。'],
@@ -520,6 +541,12 @@ describe('first-party capability bridge', () => {
     await expect(request(Array.from({ length: 12 }, (_, index) => ({ path: `note-${index}.md`, name: 'note.md' })))).resolves.toEqual({ method })
   })
 
+  it('keeps media size errors distinct from the inline text limit', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('引用文件过大：/private/clip.mp4；图片、PDF 或视频不得超过 20 MiB'))
+    await expect(entry.request('harness.attachments.stage', { sessionId: 's', path: 'clip.mp4' })).rejects.toMatchObject({ code: 'FILE_REFERENCE_FAILED', message: '图片、PDF 或视频不得超过 20 MiB，请选择较小的文件。' })
+  })
+
   it.each(fileReferenceCalls.flatMap(call => fileReferenceFailures.flatMap(failure => [false, true].map(wrapped => ({ ...call, ...failure, wrapped })))))('$method sanitizes $source (Electron wrapper: $wrapped) into an actionable attachment error', async ({ method, params, source, recovery, wrapped }) => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     const privatePath = '/Users/mira/private-project/client-contract.md'
@@ -644,4 +671,23 @@ it('restricts About to the Harness workbench and opens its native command withou
   await expect(entry.request('about.show', {})).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   await expect(bridge().request('about.show')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
   await expect(bridge({ appId: 'mira-novel-studio', capabilities: ['harness:workbench'] }).request('about.show')).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+})
+
+describe('Harness sidebar appearance bridge', () => {
+  it('changes shell themes and dispatches only supported desktop zoom commands', async () => {
+    let appearance = { theme: 'system', zoomFactor: 1 }
+    const windowCommand = vi.fn(async () => { appearance = { ...appearance, zoomFactor: 1.1 } })
+    const setTheme = vi.fn((theme: 'system' | 'light' | 'dark') => { appearance = { ...appearance, theme } })
+    const options = { manifest: { ...manifest, appId: 'mira-harness', capabilities: ['harness:workbench'] as FirstPartyAppManifest['capabilities'] }, grantId: 'grant', api: { windowCommand } as unknown as PlatformApi, context, route: '/', navigate: vi.fn(), getAppearance: () => appearance, setTheme }
+    const request = (method: string, params?: unknown) => handleFirstPartyRequest(options, { type: 'mira:request', id: 'appearance', method, params })
+    await expect(request('appearance.get')).resolves.toEqual({ theme: 'system', zoomFactor: 1 })
+    await expect(request('appearance.set-theme', { theme: 'dark' })).resolves.toMatchObject({ theme: 'dark' })
+    expect(setTheme).toHaveBeenCalledWith('dark')
+    await expect(request('appearance.zoom', { action: 'zoomIn' })).resolves.toMatchObject({ zoomFactor: 1.1 })
+    expect(windowCommand).toHaveBeenCalledWith('zoomIn')
+    await expect(request('appearance.zoom', { action: 'quit' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(request('appearance.set-theme', { theme: 'invalid' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(windowCommand).toHaveBeenCalledTimes(1)
+    await expect(handleFirstPartyRequest({ ...options, manifest }, { type: 'mira:request', id: 'appearance', method: 'appearance.get' })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  })
 })

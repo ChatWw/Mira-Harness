@@ -1,3 +1,4 @@
+import { repeatNextRuns, type AutomationScheduleRule } from '../../src/config/automationRepeat'
 import type { AutomationRunSource, AutomationTask } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 import type { HarnessRuntime } from './harnessRuntime'
@@ -34,7 +35,7 @@ export class AutomationScheduler {
     this.database.automations.listTasks().forEach(task => this.scheduleTask(task))
   }
 
-  nextRuns(expression: string) { return validateCronExpression(expression) }
+  nextRuns(expression: string, rule?: AutomationScheduleRule) { return rule ? repeatNextRuns(rule) : validateCronExpression(expression) }
 
   taskNextRun(task: AutomationTask, now = Date.now()) {
     if (!task.enabled || task.endedAt || task.trigger.type === 'session-completed') return undefined
@@ -50,7 +51,7 @@ export class AutomationScheduler {
       if (task.validUntil && task.trigger.scheduledAt > task.validUntil) return undefined
       return task.trigger.scheduledAt
     }
-    const next = nextCronOccurrences(task.trigger.expression, 1, Math.max(now, task.validFrom || 0))[0]
+    const next = task.trigger.scheduleRule ? repeatNextRuns(task.trigger.scheduleRule, 1, Math.max(now, task.validFrom || 0))[0] : nextCronOccurrences(task.trigger.expression, 1, Math.max(now, task.validFrom || 0))[0]
     if (task.validUntil && next > task.validUntil) {
       this.database.automations.markEnded(task.id, task.validUntil)
       return undefined
@@ -63,12 +64,13 @@ export class AutomationScheduler {
     if (this.stopped || !next) return
     const timer = setTimeout(() => {
       this.timers.delete(task.id)
+      if (next > Date.now() + 1000) { this.scheduleTask(this.database.automations.getTask(task.id)); return }
       void this.run(task.id, 'scheduled', next).finally(() => {
         const current = this.database.automations.getTask(task.id)
         if (current.trigger.type === 'once') this.database.automations.markEnded(current.id)
         if (!this.stopped) this.scheduleTask(this.database.automations.getTask(task.id))
       })
-    }, Math.max(0, next - Date.now()))
+    }, Math.min(2_147_483_647, Math.max(0, next - Date.now())))
     this.timers.set(task.id, timer)
   }
 
@@ -104,6 +106,7 @@ export class AutomationScheduler {
     try {
       const session = this.database.harness.getSession(sessionId)
       if (session.projectId !== task.projectId || session.archivedAt) return this.database.automations.createSkippedRun(task, source, '目标会话不可用', scheduledAt)
+      if (!session.automationId) this.database.harness.updateSession({ ...session, automationId: task.id })
     } catch { return this.database.automations.createSkippedRun(task, source, '目标会话不可用', scheduledAt) }
     const run = this.database.automations.createRun(task, source, { scheduledAt, sessionId, retriedFrom })
     try {

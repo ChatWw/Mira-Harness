@@ -10,7 +10,8 @@
           </template>
           <nav class="mira-app-switcher" aria-label="应用列表">
             <button v-for="app in applications" :key="app.code" type="button" :class="{ 'is-current': currentAppCode === app.code }" @click="switchApp(app.code)">
-              <AppIcon :name="app.code === 'main' ? 'lucide:message-square-text' : app.icon || 'Grid'" />
+              <img v-if="app.code === 'main'" class="mira-app-switcher__logo" :src="miraMark" alt="" />
+              <AppIcon v-else :name="app.icon || 'Grid'" />
               <span>{{ app.code === 'main' ? 'Mira Harness' : app.name }}</span>
               <AppIcon v-if="currentAppCode === app.code" name="Check" />
             </button>
@@ -62,6 +63,7 @@ import { useAppNavigationStore } from '@/stores/appNavigation'
 import AppMain from './components/AppMain.vue'
 import WindowsTitlebar from './components/WindowsTitlebar.vue'
 import SearchBar from '@/components/SearchBar/index.vue'
+import miraMark from '@/asset/mira-mark.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -157,4 +159,5 @@ function openSettings() {
 .mira-app-switcher button.is-current { background: var(--cp-bg-hover); outline: none; }
 .mira-app-switcher button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-app-switcher button .app-icon { flex: 0 0 auto; font-size: 16px; }
+.mira-app-switcher__logo { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; }
 </style>

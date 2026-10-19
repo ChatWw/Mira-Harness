@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { useEffect, useId, useRef, useState, type Ref, type ReactElement } from 'react'
-import { Check, CircleAlert, Copy, FileText, LoaderCircle, Plus, ArrowUp, Pencil, GitFork, X } from 'lucide-react'
+import { Check, CircleAlert, Copy, Folder, LoaderCircle, Plus, ArrowUp, Pencil, GitFork, X } from 'lucide-react'
 import type { HarnessFileChange, HarnessFileReference, HarnessMessage } from '../../../../../src/config/harness'
 import type { HarnessMessageAttachment } from '../../../../../src/config/harness'
 import { isHarnessImageMediaType } from '../../../../../src/config/harness'
@@ -18,6 +18,7 @@ import { serializeMiraPromptDocument } from '../../lib/prompt-editor-document'
 import { miraUserPrompt } from '../../lib/mira-user-prompt'
 import { MIRA_PASTED_TEXT_THRESHOLD, MIRA_TEXT_FILE_BYTES, readAttachmentFile, validateAttachmentFiles } from '../../lib/attachment-input'
 import type { MiraPresentationReference } from '../../../../../src/config/miraPresentation'
+import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 
 export function EditIcon() { return <Pencil size={13} /> }
 
@@ -91,7 +92,7 @@ export function UserMessageAttachments({ message, onOpen, sessionId, controller,
       else if (!external) onOpen(attachment.path)
     }}>{state?.error ? <><CircleAlert size={18} className="mx-auto" /><span>重试</span><span className="sr-only" role="alert">{state.error}</span></> : image ? ready ? <img src={`data:${ready.mediaType};base64,${ready.content}`} alt={attachment.name} onError={() => {
       if (isCurrent(fileKey)) setLoaded(previous => ({ ...previous, [fileKey]: { error: '图片无法解码，请重试。' } }))
-    }} /> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <><FileText size={15} /><span>{attachment.name || attachment.path}</span></>}</button>
+    }} /> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <>{attachment.kind === 'directory' ? <Folder size={15} strokeWidth={1.5} aria-hidden="true" /> : <img src={miraFileTreeIcon(attachment.name || attachment.path)} width={15} height={15} alt="" aria-hidden="true" draggable={false} />}<span>{attachment.name || attachment.path}</span></>}</button>
     return onRemove ? <div key={`${attachment.path}:${index}`} className="mira-history-attachment">{previewButton}<button type="button" className="mira-history-attachment__remove" aria-label={`移除附件 ${attachment.name || attachment.path}`} title="仅从这条消息移除，保留本地文件" disabled={!active} onMouseDown={event => event.preventDefault()} onClick={() => onRemove(attachment.path)}><X size={12} /></button></div> : previewButton
   })}</div><MiraAttachmentPreview attachment={active && preview?.scope === scope && preview.controller === controller && attachments.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={attachments.filter(file => isHarnessImageMediaType(file.mediaType)).map(file => {
     const state = active ? loaded[key(file.path)] : undefined

@@ -9,6 +9,7 @@ type TaskRow = {
   cron_expression: string | null
   trigger_scheduled_at: number | null
   trigger_human_label: string | null
+  schedule_rule?: string | null
   project_id: string
   target_type: string
   target_session_id: string | null
@@ -45,7 +46,7 @@ type RunRow = {
 function trigger(row: TaskRow): AutomationTrigger {
   if (row.trigger_type === 'once') return { type: 'once', scheduledAt: row.trigger_scheduled_at || 0 }
   if (row.trigger_type === 'session-completed') return { type: 'session-completed' }
-  return { type: 'cron', expression: row.cron_expression || '', ...(row.trigger_human_label ? { humanLabel: row.trigger_human_label } : {}) }
+  return { type: 'cron', expression: row.cron_expression || '', ...(row.trigger_human_label ? { humanLabel: row.trigger_human_label } : {}), ...(row.schedule_rule ? { scheduleRule: JSON.parse(row.schedule_rule) } : {}) }
 }
 
 function target(row: TaskRow): AutomationTarget {
@@ -105,18 +106,18 @@ export class AutomationStore {
     const id = existing?.id || randomUUID()
     const enabled = input.enabled ?? existing?.enabled ?? true
     this.database.prepare(`INSERT INTO automation_tasks(
-      id, name, trigger_type, cron_expression, trigger_scheduled_at, trigger_human_label, project_id, target_type, target_session_id,
+      id, name, trigger_type, cron_expression, trigger_scheduled_at, trigger_human_label, schedule_rule, project_id, target_type, target_session_id,
       prompt, provider_id, model_id, thinking_level, permission_mode, enabled, template_id, valid_from, valid_until, ended_at, last_run_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name, trigger_type = excluded.trigger_type, cron_expression = excluded.cron_expression, trigger_scheduled_at = excluded.trigger_scheduled_at,
-      trigger_human_label = excluded.trigger_human_label, project_id = excluded.project_id, target_type = excluded.target_type,
+      trigger_human_label = excluded.trigger_human_label, schedule_rule = excluded.schedule_rule, project_id = excluded.project_id, target_type = excluded.target_type,
       target_session_id = excluded.target_session_id, prompt = excluded.prompt, provider_id = excluded.provider_id, model_id = excluded.model_id,
       thinking_level = excluded.thinking_level, permission_mode = excluded.permission_mode, enabled = excluded.enabled, template_id = excluded.template_id,
       valid_from = excluded.valid_from, valid_until = excluded.valid_until, updated_at = excluded.updated_at`)
       .run(
         id, name, input.trigger.type, input.trigger.type === 'cron' ? input.trigger.expression.trim() : null,
-        input.trigger.type === 'once' ? input.trigger.scheduledAt : null, input.trigger.type === 'cron' ? input.trigger.humanLabel || null : null,
+        input.trigger.type === 'once' ? input.trigger.scheduledAt : null, input.trigger.type === 'cron' ? input.trigger.humanLabel || null : null, input.trigger.type === 'cron' && input.trigger.scheduleRule ? JSON.stringify(input.trigger.scheduleRule) : null,
         input.projectId, input.target.type, input.target.type === 'existing-session' ? input.target.sessionId : null, prompt,
         input.model.providerId, input.model.modelId, input.model.thinkingLevel || null, input.permissionMode, Number(enabled), input.templateId || null,
         input.validFrom || null, input.validUntil || null, null, existing?.lastRunAt || null, existing?.createdAt || now, now,
@@ -149,6 +150,12 @@ export class AutomationStore {
       this.database.prepare('DELETE FROM automation_tasks WHERE id = ?').run(id)
     })
     remove()
+  }
+
+  deleteRun(id: string) {
+    const run = this.getRun(id)
+    if (run.status === 'running') throw new Error('运行中的记录不能删除')
+    this.database.prepare('DELETE FROM automation_runs WHERE id = ?').run(id)
   }
 
   listRuns(taskId: string, options: { status?: AutomationRunStatus, limit?: number } = {}) {

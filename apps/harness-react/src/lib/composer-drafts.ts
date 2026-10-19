@@ -54,7 +54,7 @@ export function appendComposerReferences(existing: HarnessFileReference[], selec
   }
   if (references.length > 12) throw new Error('一次最多引用 12 个文件，请先移除部分文件。')
   const imageBytes = references.reduce((sum, file) => sum + (file.mediaType ? file.size || 0 : 0), 0)
-  const textBytes = references.reduce((sum, file) => sum + (!file.mediaType ? file.size || 0 : 0), 0)
+  const textBytes = references.reduce((sum, file) => sum + (!file.mediaType && !file.localPath ? file.size || 0 : 0), 0)
   if (imageBytes > 40 * 1024 * 1024 || textBytes > 1024 * 1024) throw new Error('附件总大小超过上限（图片、PDF、视频合计 40 MiB，文本 1 MiB），请先移除部分附件。')
   return references
 }
@@ -166,6 +166,8 @@ export function readComposerDrafts(value: unknown): ComposerDraftSnapshot {
 
 function referenceMetadata(path: string, name: string, file: Record<string, unknown>): HarnessFileReference {
   return { path, name,
+    ...(file.kind === 'directory' ? { kind: 'directory' as const } : {}),
+    ...(typeof file.localPath === 'string' && file.localPath.trim() && !file.localPath.includes('\0') ? { localPath: file.localPath } : {}),
     ...(HARNESS_ATTACHMENT_MEDIA_TYPES.includes(file.mediaType as NonNullable<HarnessFileReference['mediaType']>) ? { mediaType: file.mediaType as HarnessFileReference['mediaType'] } : {}),
     ...(typeof file.size === 'number' && Number.isSafeInteger(file.size) && file.size >= 0 ? { size: file.size } : {}),
   }

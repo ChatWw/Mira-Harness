@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, powerSaveBlocker } from 'electron'
 import { join, resolve } from 'node:path'
 import { createPlatformServices, type PlatformServices } from './services/platformServices'
 import { registerPlatformIpcHandlers } from './ipc/platformIpc'
@@ -17,6 +17,10 @@ import { type HarnessEvent } from '../src/config/harness'
 import { HarnessTerminalSessions } from './services/harnessTerminalSessions'
 import { HarnessWorkspaceWatch } from './services/harnessWorkspaceWatch'
 
+import { AutomationKeepAwake } from './services/automationKeepAwake'
+
+const keepAwake = new AutomationKeepAwake(powerSaveBlocker)
+let keepAwakeTimer: ReturnType<typeof setInterval> | undefined
 let isQuitting = false
 let services: PlatformServices | undefined
 let shutdown: Promise<void> | undefined
@@ -44,6 +48,11 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
+  keepAwakeTimer = setInterval(() => {
+    if (!services || isQuitting) return
+    const enabled = services.database.getSnapshot().preferences.keepAwakeDuringSessions === true
+    keepAwake.update(enabled, enabled && services.harnessRuntime.hasRunningSessions())
+  }, 1000)
   registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
   registerMiraFlowIpc({ flows: services.miraFlowController })
   registerNovelIpcHandlers({ database: services.database })
@@ -69,6 +78,8 @@ app.on('before-quit', event => {
   event.preventDefault()
   if (shutdown) return
   isQuitting = true
+  clearInterval(keepAwakeTimer)
+  keepAwake.dispose()
   BrowserWindow.getAllWindows().forEach(window => { if (!window.isDestroyed()) window.hide() })
   destroyTray()
   services?.automationScheduler.stop()

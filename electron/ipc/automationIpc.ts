@@ -1,3 +1,4 @@
+import { automationScheduleDefinition } from '../../src/config/automationRepeat'
 import { ipcMain } from 'electron'
 import { isModelProviderAvailable, providerModel, type AutomationRun, type AutomationTaskInput } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
@@ -28,8 +29,15 @@ export function saveAutomationTask(database: PlatformDatabase, automationSchedul
   const permission = database.harness.getPermissionConfig()
   if (input.permissionMode === 'auto-approve' && !permission.autoApproveEnabled) throw new Error('自动审核权限未启用')
   if (input.permissionMode === 'full' && !permission.fullAccessEnabled) throw new Error('完全访问权限未启用')
-  if (input.trigger.type === 'cron') automationScheduler.nextRuns(input.trigger.expression)
-  if (input.trigger.type === 'once' && input.trigger.scheduledAt <= Date.now()) throw new Error('一次性任务的执行时间必须晚于当前时间')
+  if (input.trigger.type === 'cron') {
+    if (input.trigger.scheduleRule) {
+      const previous = input.id ? database.automations.getTask(input.id).trigger : undefined
+      const unchanged = previous?.type === 'cron' && previous.scheduleRule && automationScheduleDefinition(previous.scheduleRule) === automationScheduleDefinition(input.trigger.scheduleRule)
+      input = { ...input, trigger: { ...input.trigger, scheduleRule: { ...input.trigger.scheduleRule, anchorAt: unchanged ? previous.scheduleRule!.anchorAt : Date.now() } } }
+    }
+    if (input.trigger.type === 'cron') automationScheduler.nextRuns(input.trigger.expression, input.trigger.scheduleRule)
+  }
+  if (input.trigger.type === 'once' && (!Number.isFinite(input.trigger.scheduledAt) || input.trigger.scheduledAt <= Date.now())) throw new Error('一次性任务的执行时间必须晚于当前时间')
   if (input.target.type === 'existing-session') {
     const session = database.harness.getSession(input.target.sessionId)
     if (session.projectId !== input.projectId || session.archivedAt) throw new Error('现有聊天必须属于所选项目且未归档')
@@ -45,7 +53,7 @@ export function registerAutomationIpcHandlers({ database, automationScheduler, c
     return { ...task, ...(nextRunAt ? { nextRunAt } : {}) }
   }))
   ipcMain.handle('automation:overview', () => database.automations.overview())
-  ipcMain.handle('automation:next-runs', (_event, expression: string) => automationScheduler.nextRuns(expression))
+  ipcMain.handle('automation:next-runs', (_event, expression: string, rule?: import('../../src/config/automationRepeat').AutomationScheduleRule) => automationScheduler.nextRuns(expression, rule))
   ipcMain.handle('automation:save-task', (_event, input: AutomationTaskInput) => saveAutomationTask(database, automationScheduler, input))
   ipcMain.handle('automation:set-enabled', (_event, id: string, enabled: boolean) => {
     const task = database.automations.setEnabled(id, enabled)
@@ -53,6 +61,7 @@ export function registerAutomationIpcHandlers({ database, automationScheduler, c
     return task
   })
   ipcMain.handle('automation:delete-task', (_event, id: string) => { database.automations.deleteTask(id); automationScheduler.reschedule() })
+  ipcMain.handle('automation:delete-run', (_event, id: string) => database.automations.deleteRun(id))
   ipcMain.handle('automation:list-runs', (_event, taskId: string, status?: string) => database.automations.listRuns(taskId, status ? { status } : {}).map(run => automationRunWithSessionState(database, run)))
   ipcMain.handle('automation:run-now', (_event, taskId: string) => automationScheduler.launch(taskId, 'manual').then(run => automationRunWithSessionState(database, run)))
   ipcMain.handle('automation:retry-run', (_event, runId: string) => {
