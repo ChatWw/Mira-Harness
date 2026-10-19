@@ -17,14 +17,27 @@ export async function buildCuaDriver({ platform = process.platform, arch = proce
   await mkdir(dirname(cache), { recursive: true })
   let bytes = await readFile(cache).catch(error => { if (error.code !== 'ENOENT') throw error })
   if (!bytes || createHash('sha256').update(bytes).digest('hex') !== artifact.sha256) {
+    console.log(`[cua-driver] Downloading ${pinned.version} for ${platform}-${arch} (timeout: 120s): ${artifact.url}`)
     const response = await fetch(artifact.url, { signal: AbortSignal.timeout(120_000), redirect: 'error' })
     if (!response.ok) throw new Error(`Cua Driver download failed: HTTP ${response.status}`)
-    bytes = Buffer.from(await response.arrayBuffer())
+    const total = Number(response.headers.get('content-length'))
+    const chunks = []
+    let received = 0, lastProgress = Date.now()
+    for await (const chunk of response.body) {
+      chunks.push(chunk)
+      received += chunk.length
+      if (Date.now() - lastProgress >= 5000) {
+        console.log(`[cua-driver] Downloaded ${(received / 1024 / 1024).toFixed(1)} MB${total ? ` / ${(total / 1024 / 1024).toFixed(1)} MB` : ''}`)
+        lastProgress = Date.now()
+      }
+    }
+    bytes = Buffer.concat(chunks)
     if (createHash('sha256').update(bytes).digest('hex') !== artifact.sha256) throw new Error('Cua Driver SHA-256 mismatch.')
     const temporary = `${cache}.${randomUUID()}.tmp`
     try { await writeFile(temporary, bytes); await rename(temporary, cache) }
     finally { await rm(temporary, { force: true }) }
   }
+  console.log(`[cua-driver] Extracting verified runtime for ${platform}-${arch}`)
   const binaries = platform === 'win32' ? [binary, 'cua-driver-uia.exe'] : [binary]
   const files = unzipSync(bytes, { filter: file => binaries.some(name => file.name === `cua_driver/bin/${name}`) && file.originalSize <= 160 * 1024 * 1024 })
   for (const name of binaries) if (!files[`cua_driver/bin/${name}`]?.length) throw new Error(`Cua Driver wheel is missing ${name}.`)
@@ -38,5 +51,6 @@ export async function buildCuaDriver({ platform = process.platform, arch = proce
   }
   await copyFile(join(root, 'resources/plugins/computer-use/LICENSE-UPSTREAM'), join(destination, 'LICENSE'))
   await writeFile(join(destination, 'version.json'), `${JSON.stringify({ version: pinned.version, platform, arch, sha256: artifact.sha256 })}\n`)
+  console.log(`[cua-driver] Ready: ${join(destination, binary)}`)
   return join(destination, binary)
 }

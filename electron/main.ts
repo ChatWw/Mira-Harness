@@ -1,4 +1,4 @@
-import { app, BrowserWindow, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, powerSaveBlocker, ipcMain, webContents } from 'electron'
 import { join, resolve } from 'node:path'
 import { createPlatformServices, type PlatformServices } from './services/platformServices'
 import { registerPlatformIpcHandlers } from './ipc/platformIpc'
@@ -17,6 +17,7 @@ import { type HarnessEvent } from '../src/config/harness'
 import { HarnessTerminalSessions } from './services/harnessTerminalSessions'
 import { HarnessWorkspaceWatch } from './services/harnessWorkspaceWatch'
 
+import { miraBrowserAutomation } from './services/miraBrowserAutomation'
 import { AutomationKeepAwake } from './services/automationKeepAwake'
 
 const keepAwake = new AutomationKeepAwake(powerSaveBlocker)
@@ -54,6 +55,14 @@ app.whenReady().then(async () => {
     keepAwake.update(enabled, enabled && services.harnessRuntime.hasRunningSessions())
   }, 1000)
   registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  ipcMain.handle('mira:browser-bind', (event, sessionId, browserId, guestId) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('浏览器绑定仅允许主窗口调用')
+    if (typeof sessionId !== 'string' || typeof browserId !== 'string' || !Number.isSafeInteger(guestId)) throw new Error('浏览器绑定参数无效')
+    services!.database.harness.getSession(sessionId)
+    const guest = webContents.fromId(guestId)
+    if (!guest) throw new Error('浏览器资源已关闭')
+    miraBrowserAutomation.bind(event.sender, sessionId, browserId, guest)
+  })
   registerMiraFlowIpc({ flows: services.miraFlowController })
   registerNovelIpcHandlers({ database: services.database })
   registerAutomationIpcHandlers({ database: services.database, automationScheduler: services.automationScheduler, cleanupExpiredTrash: services.cleanupExpiredTrash })

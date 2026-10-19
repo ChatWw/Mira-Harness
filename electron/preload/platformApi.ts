@@ -1,6 +1,7 @@
 import { ipcRenderer } from 'electron'
 
 export const platformApi = {
+  bindHostedBrowser: (sessionId: string, browserId: string, guestId: number) => ipcRenderer.invoke('mira:browser-bind', sessionId, browserId, guestId),
   hooks: {
     list: (params: unknown = {}) => ipcRenderer.invoke('platform:hooks', 'hooks.list', params),
     save: (params: unknown) => ipcRenderer.invoke('platform:hooks', 'hooks.save', params),

@@ -278,6 +278,7 @@ export interface PlatformApi {
   saveHarnessGitConfig(config: import('@/config/harness').HarnessGitConfig): Promise<import('@/config/harness').HarnessGitConfig>
   listHarnessTrash(projectId?: string): Promise<import('@/config/harness').HarnessTrashEntry[]>
   restoreHarnessTrash(projectId: string, token: string): Promise<void>
+  bindHostedBrowser?(sessionId: string, browserId: string, guestId: number): Promise<void>
   onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
   respondHarnessPermission(requestId: string, allowed: boolean): Promise<void>
   listPendingHarnessPermissions(sessionId: string): Promise<import('@/config/harness').HarnessPermissionRequest[]>

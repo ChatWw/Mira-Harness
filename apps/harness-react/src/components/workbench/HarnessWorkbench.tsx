@@ -584,6 +584,25 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     if (snapshot.session?.id === workspaceSessionId && !snapshot.sessionLoading && mainViewRef.current === 'conversation') openFilePreview(path)
   }
 
+  const [automationBrowserOpen, setAutomationBrowserOpen] = useState<{ sessionId: string; browserId: string; url: string; receivedAt: number }>()
+  useEffect(() => controller.onBrowserOpen(event => {
+    const { browserId, url } = event.payload
+    if (typeof browserId === 'string' && isWorkspaceBrowserTab(browserId) && typeof url === 'string') setAutomationBrowserOpen({ sessionId: event.sessionId, browserId, url, receivedAt: Date.now() })
+  }), [controller])
+  useEffect(() => {
+    // 请求可能先于任务/工作台偏好加载完成到达；等所属任务就绪，不能借用别的任务面板。
+    const request = automationBrowserOpen
+    if (!request || state.session?.id !== request.sessionId || state.sessionLoading || mainView !== 'conversation' || !workspacePreferences.mounted) return
+    setAutomationBrowserOpen(undefined)
+    if (Date.now() - request.receivedAt >= 15000) return
+    const { sessionId, browserId, url } = request, tab = { ...createWorkspaceBrowserTab(url), id: browserId as WorkspaceTabId }
+    setWorkspaceSessions(previous => ({ ...previous, [sessionId]: addWorkspaceTab(previous[sessionId] || createWorkspaceSession(), tab) }))
+    startBrowserView(sessionId, tab.id)
+    setBrowserRequest({ sessionId, browserId, url })
+    setFocusedPane('main')
+    setWorkspaceMounted(true); setWorkspaceOpen(true)
+  }, [automationBrowserOpen, state.session?.id, state.sessionLoading, mainView, workspacePreferences.mounted])
+
   function openConversationLink(sessionId: string, url: string) {
     const ownerController = sessionId === workspaceSessionId ? controller : paneHandles[sessionId]?.controller
     const snapshot = ownerController?.getSnapshot()

@@ -1,3 +1,4 @@
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -21,7 +22,7 @@ export class McpManager {
   private readonly connections = new Map<string, MiraMcpConnection>()
   private revision = 0
   private readonly configs = new Map<string, McpServerConfig>()
-  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization, private readonly cuaDriverPath = resolveMiraCuaDriverPath({ appPath: process.cwd() })) {
+  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization, private readonly cuaDriverPath = resolveMiraCuaDriverPath({ appPath: process.cwd() }), private readonly browserTransport?: () => Promise<Transport>) {
     authorization?.subscribe(event => {
       const config = this.configs.get(event.configId)
       if (!config?.enabled || config.authentication !== 'oauth' || new URL(config.url!).href !== event.serverUrl) return
@@ -33,7 +34,7 @@ export class McpManager {
       else this.connections.set(config.id, { state: 'failed', toolCount: 0, error: event.error || 'MCP 授权已取消，请重新连接' })
     })
   }
-  createSibling() { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot, this.cuaDriverPath) }
+  createSibling(browserTransport?: () => Promise<Transport>) { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot, this.cuaDriverPath, browserTransport) }
 
   async refresh(configs: McpServerConfig[], signal?: AbortSignal) {
     signal?.throwIfAborted()
@@ -109,7 +110,9 @@ export class McpManager {
         if (revision !== this.revision || this.clients.get(config.id) !== client) { await client.close(); return }
       }
       const options = { requestInit: { headers: config.headers }, fetch: remoteFetch, ...(provider ? { authProvider: provider } : {}) }
-      const connection = config.type === 'streamableHttp'
+      const embeddedBrowser = config.id === 'plugin:browser-use@mira-builtin:browser' && config.command === 'mira:embedded-browser'
+      if (config.command === 'mira:embedded-browser' && (!embeddedBrowser || !this.browserTransport)) throw new Error('内置浏览器仅可由桌面任务使用')
+      const connection = embeddedBrowser ? await this.browserTransport!() : config.type === 'streamableHttp'
         ? new StreamableHTTPClientTransport(new URL(config.url || ''), options)
         : config.type === 'sse'
           ? new SSEClientTransport(new URL(config.url || ''), options)

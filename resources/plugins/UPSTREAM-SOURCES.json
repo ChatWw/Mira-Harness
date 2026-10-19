@@ -53,7 +53,7 @@
     "license": "Apache-2.0",
     "licenseBlob": "cefe596afef12e19a8e5e923f1a04c7da3188760",
     "version": "0.0.83",
-    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+    "adaptations": "Historical Playwright MCP adapter replaced in browser-use 0.2.0 by Mira host-owned embedded browser MCP; upstream notice retained, no Playwright MCP runtime dependency"
   },
   {
     "plugin": "plugin-creator",

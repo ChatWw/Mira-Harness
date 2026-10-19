@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { zipSync, strToU8 } from 'fflate'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -19,7 +20,7 @@ function fixture(platform: string, corrupt = false, missingHelper = false) {
   writeFileSync(join(scripts, 'cua-driver-artifacts.json'), JSON.stringify({ version: 'fixture', artifacts: { [platform === 'darwin' ? 'darwin' : `${platform}-x64`]: { sha256, url: 'data:application/zip;base64,AA==' } } }))
   writeFileSync(join(cache, `${sha256}.whl`), corrupt ? 'damaged cache' : bytes)
   writeFileSync(join(licenses, 'LICENSE-UPSTREAM'), 'MIT fixture notice')
-  const run = () => execFileSync(process.execPath, ['--input-type=module', '-e', `import {buildCuaDriver} from ${JSON.stringify(join(scripts, 'build-cua-driver.mjs'))}; await buildCuaDriver({platform:${JSON.stringify(platform)},arch:'x64'});`], { stdio: 'pipe' })
+  const run = () => execFileSync(process.execPath, ['--input-type=module', '-e', `import {buildCuaDriver} from ${JSON.stringify(pathToFileURL(join(scripts, 'build-cua-driver.mjs')).href)}; await buildCuaDriver({platform:${JSON.stringify(platform)},arch:'x64'});`], { stdio: 'pipe' })
   return { root, binary, run, output: join(root, 'dist/mira-tools/cua-driver') }
 }
 

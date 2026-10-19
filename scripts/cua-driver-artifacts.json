@@ -2,23 +2,23 @@
   "version": "0.36.0",
   "artifacts": {
     "darwin": {
-      "url": "https://files.pythonhosted.org/packages/8f/96/a2f0a08dc91c9882e6d3e0c61f3acba13dc417e381d0f62c4ef8f36668a2/cua_driver-0.36.0-py3-none-macosx_13_0_universal2.whl",
+      "url": "https://mirrors.aliyun.com/pypi/packages/8f/96/a2f0a08dc91c9882e6d3e0c61f3acba13dc417e381d0f62c4ef8f36668a2/cua_driver-0.36.0-py3-none-macosx_13_0_universal2.whl",
       "sha256": "ca04c7f73e0dba0d0d08db68d3a3f1335ea6b5fc4f47407ddebf5afa4408b067"
     },
     "linux-arm64": {
-      "url": "https://files.pythonhosted.org/packages/e8/34/b4211748eeffdc13b776f13baa4062ac03f34c9a5ab0e691617e3579eca5/cua_driver-0.36.0-py3-none-manylinux_2_31_aarch64.whl",
+      "url": "https://mirrors.aliyun.com/pypi/packages/e8/34/b4211748eeffdc13b776f13baa4062ac03f34c9a5ab0e691617e3579eca5/cua_driver-0.36.0-py3-none-manylinux_2_31_aarch64.whl",
       "sha256": "a6b81e8809838c0dbae91bd9c35d9808f82fe193d5ef347503426c2203b8e35b"
     },
     "linux-x64": {
-      "url": "https://files.pythonhosted.org/packages/ec/17/ba5534dce1d53adfe72d7b87de9816bce3b1005f99c1ad00c28e820a6a48/cua_driver-0.36.0-py3-none-manylinux_2_31_x86_64.whl",
+      "url": "https://mirrors.aliyun.com/pypi/packages/ec/17/ba5534dce1d53adfe72d7b87de9816bce3b1005f99c1ad00c28e820a6a48/cua_driver-0.36.0-py3-none-manylinux_2_31_x86_64.whl",
       "sha256": "763cb8fd7ac4a9d900417cb1a9bfaca947a564ad9f1cb1b1b41d9a21c485fc38"
     },
     "win32-x64": {
-      "url": "https://files.pythonhosted.org/packages/38/14/5037be19435f89de9ea148cee3da2ee9c6676ccb32f1c12d471d3d8626df/cua_driver-0.36.0-py3-none-win_amd64.whl",
+      "url": "https://mirrors.aliyun.com/pypi/packages/38/14/5037be19435f89de9ea148cee3da2ee9c6676ccb32f1c12d471d3d8626df/cua_driver-0.36.0-py3-none-win_amd64.whl",
       "sha256": "80452c4f7a7547456f95d9e925f8af23d757a4b4e2071928b1d6afe2671c76a8"
     },
     "win32-arm64": {
-      "url": "https://files.pythonhosted.org/packages/ed/51/7681e1f01844f27cdc8ef9018897abe4263794ebba1550f47e613264ab47/cua_driver-0.36.0-py3-none-win_arm64.whl",
+      "url": "https://mirrors.aliyun.com/pypi/packages/ed/51/7681e1f01844f27cdc8ef9018897abe4263794ebba1550f47e613264ab47/cua_driver-0.36.0-py3-none-win_arm64.whl",
       "sha256": "ba332f072bfdb14e2d0e2f8baaa4dcd2784c9574d5cf1abc094a58a26b5f1881"
     }
   }

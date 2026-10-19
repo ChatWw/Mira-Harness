@@ -813,7 +813,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'command-job' | 'task-changes' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
+  type: 'browser-open' | 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'command-job' | 'task-changes' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
   payload: Record<string, unknown>
 }
 

@@ -1,3 +1,4 @@
+import { miraBrowserAutomation } from './miraBrowserAutomation'
 /** Runtime protection adapted from ZCode browserGuestManager (Apache-2.0).
  * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
  * Only a scoped boolean crosses the existing first-party grant. */
@@ -19,6 +20,6 @@ export class MiraBrowserProtection {
     if (guestId === undefined) return { protected: false }
     const guest = webContents.fromId(guestId)
     if (!guest || guest.isDestroyed() || guest.getType() !== 'webview' || guest.hostWebContents !== owner) throw new Error('浏览器目标不属于当前窗口')
-    return { protected: guest.isLoading() || guest.isCurrentlyAudible() || guest.isBeingCaptured() || (this.downloads.get(guest) ?? 0) > 0 }
+    return { protected: miraBrowserAutomation.isBusy(guest) || guest.isLoading() || guest.isCurrentlyAudible() || guest.isBeingCaptured() || (this.downloads.get(guest) ?? 0) > 0 }
   }
 }

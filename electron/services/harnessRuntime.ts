@@ -54,6 +54,7 @@ import { readMiraGitTools, runMiraGitAction, readMiraGitGraph, changeHarnessGitB
 import { executeMiraPluginShell } from './miraPluginShell'
 import { HarnessHooks } from './harnessHooks'
 import { HarnessHookCatalog } from './harnessHookCatalog'
+import { createMiraBrowserTransport } from './miraBrowserMcp'
 import { HarnessPluginMcp } from './harnessPluginMcp'
 import { HarnessProjectMcp } from './harnessProjectMcp'
 import type { McpConfigStore } from '../storage/mcpConfigStore'
@@ -559,7 +560,7 @@ export class HarnessRuntime {
       const projectIds = selectedMcpIds.filter(id => id.startsWith('project:'))
       try {
         if (pluginIds.length) {
-          pluginMcp = new HarnessPluginMcp(this.database.plugins, session.pluginCatalog || [], pluginIds, context.cwd, this.mcpManager.createSibling?.())
+          pluginMcp = new HarnessPluginMcp(this.database.plugins, session.pluginCatalog || [], pluginIds, context.cwd, this.mcpManager.createSibling?.(() => createMiraBrowserTransport(sender, session.id)))
           await pluginMcp.start(context.signal)
         }
         if (projectIds.length) {
@@ -2422,7 +2423,7 @@ export class HarnessRuntime {
       }
       const pluginMcpIds = (session.activeMcpServerIds || []).filter(id => id.startsWith('plugin:'))
       if (!options.planning && pluginMcpIds.length) {
-        pluginMcp = new HarnessPluginMcp(this.database.plugins, session.pluginCatalog || [], pluginMcpIds, session.workingDirectory, this.mcpManager.createSibling?.())
+        pluginMcp = new HarnessPluginMcp(this.database.plugins, session.pluginCatalog || [], pluginMcpIds, session.workingDirectory, this.mcpManager.createSibling?.(() => createMiraBrowserTransport(sender, sessionId)))
         this.pluginMcpConnections.set(sessionId, pluginMcp)
         await pluginMcp.start(controller.signal)
       }

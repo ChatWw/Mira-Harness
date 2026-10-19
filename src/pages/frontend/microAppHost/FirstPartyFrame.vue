@@ -42,7 +42,7 @@ const stage = ref<HTMLDivElement>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
 let unsubscribeHarness: (() => void) | undefined
-const browsers = new MiraHostedBrowsers(() => stage.value, event => send({ type: 'mira:browser-event', event }))
+const browsers = new MiraHostedBrowsers(() => stage.value, event => send({ type: 'mira:browser-event', event }), (sessionId, browserId, guestId) => props.api.bindHostedBrowser?.(sessionId, browserId, guestId) ?? Promise.resolve())
 let disposed = false
 let connectedOnce = false
 let commandFocus: { id: string; port: MessagePort; target?: HTMLElement } | undefined

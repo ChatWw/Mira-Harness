@@ -41,7 +41,7 @@ export class MiraHostedBrowsers {
   private pages = new Map<string, MiraHostedPage>()
   private pending = new Map<string, { valid: boolean; visible: boolean }>()
   private pickerSequence = 0
-  constructor(private stage: () => HTMLElement | undefined, private send: (state: MiraHostedBrowserState) => void) {}
+  constructor(private stage: () => HTMLElement | undefined, private send: (state: MiraHostedBrowserState) => void, private bind?: (sessionId: string, browserId: string, guestId: number) => Promise<void>) {}
   private key(sessionId: string, browserId: string) { return JSON.stringify([sessionId, browserId]) }
   private current(page: MiraHostedPage) { return this.pages.get(this.key(page.sessionId, page.browserId)) === page }
   async request(call: MiraBrowserCall, authorize: (guestId?: number) => Promise<unknown>) {
@@ -178,6 +178,9 @@ export class MiraHostedBrowsers {
     const container = document.createElement('div'); container.appendChild(element)
     const page: MiraHostedPage = { sessionId, browserId, element, container, loading: false, ready: false, requestedUrl: url, committedUrl: url, favicons: new Map(), detach: () => undefined }
     const listeners: Array<[string, EventListener]> = [
+      ['dom-ready', () => {
+        if (this.current(page) && this.bind) void this.bind(sessionId, browserId, element.getWebContentsId()).catch(error => { if (this.current(page)) { page.error = error instanceof Error ? error.message : '浏览器控制绑定失败'; this.state(page) } })
+      }],
       ['did-start-loading', () => { if (this.current(page)) { this.cancelPicker(page); page.loading = true; page.error = undefined; page.errorCode = undefined; this.state(page) } }],
       ['did-stop-loading', () => { if (this.current(page)) { page.loading = false; this.state(page) } }],
       ['did-navigate', () => { if (!this.current(page)) return; this.cancelPicker(page); const url = element.getURL(); if (url !== page.committedUrl) page.faviconUrl = page.favicons.get(url) ?? null; page.committedUrl = url; this.state(page) }], ['did-navigate-in-page', () => { if (this.current(page)) { this.cancelPicker(page); this.state(page) } }],

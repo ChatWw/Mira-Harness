@@ -11,7 +11,7 @@ function deferred() {
 const navigation = (url = 'https://mira.test/one') => ({ method: 'browser.navigate' as const, sessionId: 'a', browserId: 'browser:one', url, bounds })
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); document.body.replaceChildren() })
-function fixture() {
+function fixture(bind?: (sessionId: string, browserId: string, guestId: number) => Promise<void>) {
   const stage = document.createElement('div'); document.body.append(stage)
   Object.defineProperties(stage, { clientWidth: { value: 600 }, clientHeight: { value: 500 } })
   const original = document.createElement.bind(document), guests: Array<MiraHostedBrowserElement & { url: string }> = []
@@ -22,7 +22,7 @@ function fixture() {
     Object.assign(guest, { getWebContentsId: () => guests.indexOf(guest) + 10 })
     guests.push(guest); return guest
   }) as typeof document.createElement)
-  const state = vi.fn(), registry = new MiraHostedBrowsers(() => stage, state)
+  const state = vi.fn(), registry = new MiraHostedBrowsers(() => stage, state, bind)
   const ready = async (index: number) => { guests[index].dispatchEvent(new Event('did-attach')); await Promise.resolve() }
   const open = async (sessionId: string, browserId: string, url: string) => {
     const pending = registry.navigate(sessionId, url, bounds, browserId), index = guests.length - 1
@@ -32,6 +32,16 @@ function fixture() {
 }
 
 describe('task and resource owned native browser lifecycle', () => {
+  it('registers automation only at DOM readiness, and ignores events from a removed page', async () => {
+    const bind = vi.fn(async () => undefined), view = fixture(bind)
+    const guest = await view.open('a', 'browser:one', 'https://mira.test/')
+    expect(bind).not.toHaveBeenCalled()
+    guest.dispatchEvent(new Event('dom-ready')); await Promise.resolve()
+    expect(bind).toHaveBeenCalledExactlyOnceWith('a', 'browser:one', 10)
+    view.registry.control('a', 'close', 'browser:one')
+    guest.dispatchEvent(new Event('dom-ready')); expect(bind).toHaveBeenCalledOnce()
+  })
+
   it('injects exact protection guest identity, protects media, pending navigation and viewport operations', async () => {
     const view = fixture(), guest = await view.open('a', 'browser:one', 'https://mira.test/one')
     const call = { method: 'browser.protection' as const, sessionId: 'a', browserId: 'browser:one', guestId: 999 }

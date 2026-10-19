@@ -1254,6 +1254,7 @@ export class PilotController {
   controlBrowserFor(id: string, action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close', browserId?: string) { return browserId ? this.host.controlBrowser(id, action, browserId) : this.host.controlBrowser(id, action) }
   openBrowserExternalFor(id: string, url: string, browserId?: string) { return this.require('openBrowserExternal')(id, url, browserId) }
   closeBrowserFor(id: string, browserId?: string) { return this.controlBrowserFor(id, 'close', browserId) }
+  onBrowserOpen = (listener: (event: HarnessEvent) => void) => this.host.onEvent(event => { if (!this.disposed && event.type === 'browser-open') listener(event) })
   onBrowserEvent = (listener: (event: PilotBrowserEvent) => void) => this.host.onBrowserEvent(listener)
   onTerminalEvent = (listener: (event: HarnessEvent) => void) => { this.terminalListeners.add(listener); return () => { this.terminalListeners.delete(listener) } }
   private refreshList = async () => {
