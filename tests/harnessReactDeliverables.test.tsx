@@ -46,7 +46,7 @@ it('does not publish stale results after switching tasks', async () => {
 })
 
 it('recognizes ZCode document and media result types without exposing generator scripts as deliverables', () => {
-  expect(miraDeliverablePaths('`note.md` [文档](test.docx) [表格](output/data.xlsx) report.pdf demo.html clip.mp4 audio.mp3 `generate.py`', [], '/project')).toEqual(['note.md', 'test.docx', 'output/data.xlsx', 'report.pdf', 'demo.html', 'clip.mp4', 'audio.mp3'])
+  expect(miraDeliverablePaths('`note.md` [文档](test.docx) [表格](output/data.xlsx) report.pdf demo.html clip.mp4 audio.mp3 `generate.py`', [{toolCallId:'a',tool:'write',path:'note.md'},{toolCallId:'b',tool:'write',path:'demo.html'}], '/project')).toEqual(['note.md', 'test.docx', 'output/data.xlsx', 'report.pdf', 'demo.html', 'clip.mp4', 'audio.mp3'])
 })
 it('uses the last host net snapshot, excludes restored files, and never sums repeated legacy diffs', () => {
   const changes = [
@@ -78,4 +78,28 @@ it('expands a single row per file and reviews the final diff through the actual 
 it('ignores fenced examples and deleted files when deriving result cards', () => {
   expect(miraDeliverablePaths('```md\n[example](example.docx)\n```\n\n[real](real.docx)',[], '/project')).toEqual(['real.docx'])
   expect(miraDeliverablePaths('`deleted.md`',[{toolCallId:'a',tool:'write',path:'deleted.md'},{toolCallId:'b',tool:'delete',path:'deleted.md'}],'/project')).toEqual([])
+})
+
+it('does not show unchanged Markdown or HTML mentioned in ordinary replies', () => {
+  expect(miraDeliverablePaths('重点看 `MiraHarness_bugs.md`、`agent能力对比分析.md`；参考 [说明](docs/readme.md) 和 demo.html。', [], '/project')).toEqual([])
+  expect(miraDeliverablePaths('`note.md` [预览](demo.html)', [{toolCallId:'a',tool:'edit',path:'./note.md',summary:{key:'a',path:'note.md',tool:'edit',writes:1,unchanged:true,added:0,removed:0}}], '/project')).toEqual([])
+})
+
+it('uses actual reply changes for Markdown and HTML cards, including normalized paths and last snapshots', () => {
+  expect(miraDeliverablePaths('`note.md` demo.html', [
+    {toolCallId:'a',tool:'write',path:'note.md'},
+    {toolCallId:'b',tool:'edit',path:'./note.md',summary:{key:'a',path:'note.md',tool:'edit',writes:2,unchanged:true,added:0,removed:0}},
+    {toolCallId:'c',tool:'write',path:'/project/demo.html'},
+  ], '/project')).toEqual(['demo.html'])
+  expect(miraDeliverablePaths('', [{toolCallId:'a',tool:'write',path:'docs\\new.md'},{toolCallId:'b',tool:'edit',path:'./index.htm'}], '/project')).toEqual(['docs/new.md','index.htm'])
+})
+
+it('does not validate or render file cards for a read-only reply mentioning existing notes', async () => {
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container)
+  const listFilesFor = vi.fn(async () => ({path:'',entries:[{name:'MiraHarness_bugs.md',path:'MiraHarness_bugs.md',type:'file'}]}))
+  try {
+    await act(async () => root.render(<MiraDeliverableFiles content="重点看 `MiraHarness_bugs.md`、`agent能力对比分析.md`。" changes={[]} directory="/project" sessionId="a" active controller={{listFilesFor} as unknown as PilotController} onOpen={() => {}} />))
+    expect(container.querySelector('.mira-deliverable-files')).toBeNull()
+    expect(listFilesFor).not.toHaveBeenCalled()
+  } finally { await act(async () => root.unmount()) }
 })

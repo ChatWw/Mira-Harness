@@ -9,14 +9,15 @@ export function miraDeliverableLabel(path: string) {
 }
 
 export function miraDeliverablePaths(content: string, changes: HarnessFileChange[], directory: string) {
-  const latest = new Map(changes.map(change => [change.path, change]))
+  const latest = new Map(changes.map(change => [change.path.replace(/\\/g, '/').replace(/^(\.\/)+/, ''), change]))
+  const changed = [...latest.values()].filter(change => change.tool !== 'delete' && !change.summary?.unchanged)
   const candidates: string[] = []
   const plain = content.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[^\n]*$/gm, '').replace(/\[[^\]\n]*\]\(([^)\n]+)\)|`([^`\n]+)`/g, (_match, link: string, code: string) => { candidates.push(link || code); return ' ' })
   for (const match of plain.matchAll(/(?:^|[\s，。；;：:（(])([^\s`<>"'\[\]()，。；;）]+\.(?:md|html?|docx|xlsx|pptx|pdf|mp4|mov|webm|m4v|mp3|wav|m4a|ogg|opus|flac|weba))(?=$|[\s，。；;）)])/gim)) candidates.push(match[1])
-  candidates.push(...[...latest.values()].filter(change => change.tool !== 'delete').map(change => change.path))
+  candidates.push(...changed.map(change => change.path))
   const root = directory.replace(/\\/g, '/').replace(/\/$/, '')
   const deleted = new Set([...latest.values()].filter(change => change.tool === 'delete').map(change => change.path.replace(/\\/g, '/').replace(/^(\.\/)+/, '')))
-  return [...new Set(candidates.flatMap(candidate => {
+  const normalize = (candidate: string): string[] => {
     let path = candidate.trim().replace(/^<|>$/g, '')
     if (/^file:\/\//i.test(path)) {
       try { const url = new URL(path); if (url.hostname && url.hostname !== 'localhost') return []; path = decodeURIComponent(url.pathname); if (/^\/[a-z]:\//i.test(path)) path = path.slice(1) } catch { return [] }
@@ -31,5 +32,10 @@ export function miraDeliverablePaths(content: string, changes: HarnessFileChange
     path = path.replace(/^(\.\/)+/, '')
     if (deleted.has(path) || !miraDeliverableLabel(path) || path.split('/').some(segment => !segment || segment === '..') || /[\u0000-\u001f]/.test(path)) return []
     return [path]
-  }))].slice(0, 12)
+  }
+  const changedPaths = new Set(changed.flatMap(change => normalize(change.path)))
+  // Like ZCode, Markdown/HTML mentions are previewable only when this reply changed them.
+  return [...new Set(candidates.flatMap(normalize))]
+    .filter(path => !/\.(?:md|html?)$/i.test(path) || changedPaths.has(path))
+    .slice(0, 12)
 }
