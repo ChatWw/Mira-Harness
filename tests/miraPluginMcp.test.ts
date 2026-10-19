@@ -32,6 +32,15 @@ describe('Mira plugin MCP declarations and frozen capability identity', () => {
     expect(view.store.resolveMcp(frozen)).toMatchObject([{ id: 'plugin:tools@local:search', name: 'plugin:tools:search', type: 'streamableHttp', url: 'https://example.test/SECRET_URL', headers: { Authorization: 'SECRET_HEADER' } }])
     expect(readFileSync(join(view.home, '.mira/config/plugins.json'), 'utf8')).not.toContain('SECRET_')
   })
+  it('selects only enabled services from referenced plugins with no duplicate ids and revalidates live declarations', () => {
+    const view = fixture({ first: command, disabled: { ...command, enabled: false } }); view.store.register(view.root)
+    const frozen = view.store.snapshots()
+    expect(view.store.referencedMcpIds(frozen, ['tools@local', 'tools@local'])).toEqual(['plugin:tools@local:first'])
+    expect(view.store.referencedMcpIds(frozen, [])).toEqual([])
+    expect(() => view.store.referencedMcpIds(frozen, ['other@local'])).toThrow('不属于')
+    view.store.setEnabled('tools@local', false)
+    expect(() => view.store.referencedMcpIds(frozen, ['tools@local'])).toThrow('停用')
+  })
   it('merges the default file, relative files and inline arrays, with later manifest declarations winning', () => {
     const view = fixture(['extra.json', { shared: { command: 'last' } }, { mcpServers: { final: command } }])
     writeFileSync(join(view.root, '.mcp.json'), JSON.stringify({ mcpServers: { shared: { command: 'first' }, default: command } }))

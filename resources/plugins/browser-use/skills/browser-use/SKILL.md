@@ -5,7 +5,7 @@ description: 通过浏览器完成网页读取、交互和验证。
 
 # 浏览器操作
 
-使用 Apache-2.0 开源的 [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp)，版本固定为 0.0.83。插件已声明 browser MCP 服务，用户在任务 MCP 选择器中选中后连接。需要 Node.js 18+、npx 和 Chrome；首次连接会下载 npm 依赖，需要网络。服务使用隔离浏览器上下文，不复用用户个人浏览器登录状态，也不等同于 Mira 侧栏中的浏览器预览。
+使用 Apache-2.0 开源的 [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp)，版本固定为 0.0.83。用户在消息中引用本插件后，Mira 自动选择并启动声明的 browser MCP 服务，后续对话保留选择；不要要求用户再去 MCP 选择器开启同一服务。需要 Node.js 18+、npx 和 Chrome；首次连接会下载 npm 依赖，需要网络。服务使用隔离浏览器上下文，不复用用户个人浏览器登录状态，也不等同于 Mira 侧栏中的浏览器预览。
 
 读取服务实际暴露的工具参数，先获取页面快照，再使用快照中的元素引用导航、点击、填写和截图。操作后重新观察验证状态，引用过期时重新获取快照，不猜测元素引用。需要用户登录时等待用户完成，不索取密码。
 

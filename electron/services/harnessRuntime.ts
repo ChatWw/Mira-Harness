@@ -626,7 +626,7 @@ export class HarnessRuntime {
           },
         })
         let hookStarted = false
-        const registered = this.tools(sender, session.id, { runId: context.runId, toolScope: () => `${identity.sessionId}:${actorResponses.get(identity.sessionId) || 0}`, secrets: [apiKey], hooks, mcpTools: selectedMcpTools })
+        const registered = this.tools(sender, session.id, { runId: context.runId, toolScope: () => `${identity.sessionId}:${actorResponses.get(identity.sessionId) || 0}`, secrets: [apiKey], hooks, mcpTools: selectedMcpTools, supportsImages: supportsHarnessImages(configured) })
         const tools = registered.tools.filter((tool: { name: string }) => !['set_plan', 'ask_user', 'present_plan', 'delegate_task', 'spawn_agent', 'workflow', 'create_workflow', 'save_workflow'].includes(tool.name))
         return {
           tools,
@@ -1152,7 +1152,7 @@ export class HarnessRuntime {
   pluginMcpStatus(sessionId: string, serverId: string) { return this.pluginMcpConnections.get(sessionId)?.getStatus(serverId) }
   projectMcpStatus(sessionId: string, serverId: string) { return this.projectMcpConnections.get(sessionId)?.getStatus(serverId) }
 
-  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number | string, toolCallIndex?: () => number, onTool?: (id: string) => void, secrets?: string[], pluginShell?: boolean, assertPluginShell?: () => void, hooks?: HarnessHooks, pluginMcp?: HarnessPluginMcp, mcpTools?: any[], allowBackground?: boolean, commandNotice?: { selection: ModelSelection; permissionMode: PermissionMode }, workflow?: { selection: ModelSelection; permissionMode: PermissionMode; signal: AbortSignal; inputId: string; contractLoaded: boolean; assertCurrent(): void } } = {}) {
+  private tools(sender: WebContents | undefined, sessionId: string, options: { role?: HarnessSubtaskRole, subtaskId?: string, planning?: boolean, runId?: string, toolScope?: () => number | string, toolCallIndex?: () => number, onTool?: (id: string) => void, secrets?: string[], pluginShell?: boolean, assertPluginShell?: () => void, hooks?: HarnessHooks, pluginMcp?: HarnessPluginMcp, mcpTools?: any[], supportsImages?: boolean, allowBackground?: boolean, commandNotice?: { selection: ModelSelection; permissionMode: PermissionMode }, workflow?: { selection: ModelSelection; permissionMode: PermissionMode; signal: AbortSignal; inputId: string; contractLoaded: boolean; assertCurrent(): void } } = {}) {
     const descriptors = new Map<string, ToolDescriptor>()
     const recordedTools = new Map<string, { tool: string, target: string, startedAt: number }>()
     const executionRecord = new AsyncLocalStorage<string>()
@@ -1402,9 +1402,12 @@ export class HarnessRuntime {
     const mcpTools = (options.mcpTools ?? [...this.mcpManager.getTools(session().activeMcpServerIds || []), ...(options.pluginMcp?.getTools() || [])]).map(tool => {
       const serverName = typeof tool.miraMcpServerName === 'string' ? tool.miraMcpServerName : 'MCP 服务'
       const displayName = typeof tool.miraMcpToolName === 'string' ? tool.miraMcpToolName : tool.name
-      const checked = { ...tool, execute: (...args: Parameters<typeof tool.execute>) => {
+      const checked = { ...tool, execute: async (...args: Parameters<typeof tool.execute>) => {
         if (typeof tool.miraMcpServerId === 'string' && !session().activeMcpServerIds?.includes(tool.miraMcpServerId)) throw new Error('当前任务已取消选择此 MCP 服务，请重新发送')
-        return tool.execute(...args)
+        const result = await tool.execute(...args)
+        const imagesSupported = childTask?.agentModelSelection ? supportsHarnessImages(this.requireProvider(childTask.agentModelSelection).model) : options.supportsImages
+        if (imagesSupported === false && result.content?.some((item: any) => item.type === 'image')) throw new Error('MCP 返回了截图，但所选模型不支持图片输入；请切换支持图片的模型，或使用不返回截图的状态读取方式')
+        return result
       } }
       return register(wrapRecordTool(checked, params => `${serverName} / ${displayName}${argumentSummary(params) ? `: ${argumentSummary(params)}` : ''}`), {
         risk: 'mcp',
@@ -1988,6 +1991,8 @@ export class HarnessRuntime {
   }
 
   private async runAgent(sender: WebContents | undefined, sessionId: string, session: HarnessSession, selection: ModelSelection, provider: any, apiKey: string, options: RunOptions = {}) {
+    // All run entries use one permission snapshot, including legacy sends and plan continuations.
+    options = { ...options, permissionMode: options.permissionMode ?? session.permissionMode ?? this.database.harness.getPermissionConfig().globalDefaultMode ?? 'default' }
     this.assertImageModel(session, providerModel(provider, selection.modelId)!, options.input?.attachments)
     const runId = randomUUID()
     const controller = this.runCoordinator.begin(sessionId, runId, options.laneToken)
@@ -2286,6 +2291,11 @@ export class HarnessRuntime {
         // Freeze identity once; live enablement and filesystem provenance are rechecked on use.
         session = this.database.harness.updateSession({ ...session, pluginCatalog: this.database.plugins.snapshots() })
       }
+      if (!options.planning && !options.backgroundCommands && !options.goalContinuation) {
+        const referenced = [...(options.pluginIds ?? miraPluginPromptIds(text)), ...(input.command && 'pluginId' in input.command ? [input.command.pluginId] : [])]
+        const declared = referenced.length ? this.database.plugins.referencedMcpIds(session.pluginCatalog || [], referenced, session.workingDirectory) : []
+        if (declared.length) session = this.database.harness.updateSession({ ...session, activeMcpServerIds: [...new Set([...(session.activeMcpServerIds || []), ...declared])] })
+      }
       session = this.database.harness.updateSession({ ...session, modelProviderId: provider.id, modelId: selection.modelId, modelThinkingLevel: modelConfig.reasoning ? selection.thinkingLevel || 'medium' : 'off', status: 'active' })
       const autoTitleInput = origin === 'manual' && !options.laneToken && !options.goalRun ? firstTurnTitleInput(session) : undefined
       autoTitleRevision = autoTitleInput && session.titleSource === 'auto' ? this.database.harness.reserveAutoTitle(sessionId) : undefined
@@ -2453,7 +2463,7 @@ export class HarnessRuntime {
           this.assertGitAdmission(sessionId)
         },
       } : undefined
-      registeredTools = this.tools(sender, sessionId, { planning: options.planning, runId, toolScope, onTool: appendToolPart, secrets: [apiKey], hooks, mcpTools: selectedMcpTools, workflow, allowBackground: origin !== 'automation', ...(sender && origin === 'manual' ? { commandNotice: { selection: { ...selection }, permissionMode: options.permissionMode ?? session.permissionMode } } : {}) })
+      registeredTools = this.tools(sender, sessionId, { planning: options.planning, runId, toolScope, onTool: appendToolPart, secrets: [apiKey], hooks, mcpTools: selectedMcpTools, supportsImages: supportsHarnessImages(modelConfig), workflow, allowBackground: origin !== 'automation', ...(sender && origin === 'manual' ? { commandNotice: { selection: { ...selection }, permissionMode: options.permissionMode ?? session.permissionMode } } : {}) })
       const preferences = this.database.getSnapshot().preferences
       const commandSkillIds = !options.planning && !options.goalContinuation && !options.backgroundCommands && input.command && 'scope' in input.command ? input.command.requiredSkillIds || [] : []
       if (commandSkillIds.length) this.assertPromptCommand(session, input.content, input.command!, !options.planning)
@@ -2463,7 +2473,7 @@ export class HarnessRuntime {
       let taskTools: any[] = []
       if (!options.planning && origin === 'manual' && session.delegationEnabled !== false && session.workingDirectory) {
         const created = this.subtaskCoordinator.create({
-          sender, sessionId, session, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: modelConfig.pricing, secrets: [apiKey], parentMcpSnapshot,
+          sender, sessionId, session: { ...session, permissionMode: options.permissionMode ?? session.permissionMode }, model, streamFn: models.streamSimple.bind(models) as any, thinkingLevel, pricing: modelConfig.pricing, secrets: [apiKey], parentMcpSnapshot,
           resolveModel: childSelection => {
             const requireChildProvider = () => {
               const resolved = this.requireProvider(childSelection)
@@ -2477,7 +2487,7 @@ export class HarnessRuntime {
               assertAvailable: () => { requireChildProvider() } }
           },
           publishActivities,
-          toolsForTask: (role, taskId, scope, secrets) => this.tools(sender, sessionId, { role, subtaskId: taskId, runId, toolScope: scope.responseIndex, toolCallIndex: scope.callIndex, onTool: scope.onTool, secrets, mcpTools: selectedMcpTools }),
+          toolsForTask: (role, taskId, scope, secrets) => this.tools(sender, sessionId, { role, subtaskId: taskId, runId, toolScope: scope.responseIndex, toolCallIndex: scope.callIndex, onTool: scope.onTool, secrets, mcpTools: selectedMcpTools, supportsImages: supportsHarnessImages(modelConfig) }),
           preflightToolCall: async (name, args) => this.preflightSubtaskToolCall(name, args),
           resolveParentToolCallId: (providerCallId, args) => registeredTools!.prepareTool(providerCallId, 'delegate_task', args),
           getParentAgent: () => agent,

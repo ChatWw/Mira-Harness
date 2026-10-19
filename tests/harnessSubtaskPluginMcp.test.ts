@@ -135,6 +135,16 @@ describe('subtask Agent borrowing selected parent plugin MCP', () => {
     expect(JSON.stringify([view.session(), view.events])).not.toContain('server.mjs')
   })
 
+  it('inherits an explicitly submitted full-access permission for child MCP calls', async () => {
+    const view = setup([{ tools: [call('full-access-child')] }, {}], { permission: 'default' })
+    view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), fullAccessEnabled: true })
+    await view.runtime.submitMessage(view.sender, view.sessionId, 'full-access-delegation', 'Delegate inspection', [], { providerId: 'fixture', modelId: 'model' }, false, { permissionMode: 'full' })
+    await vi.waitFor(() => expect(view.session().messages.at(-1)?.run?.status).toBe('completed'))
+    expect(view.events.some(event => event.type === 'permission-request')).toBe(false)
+    expect(view.rows().filter(row => row.event === 'call')).toMatchObject([{ args: { text: 'full-access-child' } }])
+    expect(view.children()[0].status).toBe('completed')
+  })
+
   it('does not start or expose unselected plugin MCP to a child', async () => {
     const view = setup([{}], { selected: false }); await view.run()
     expect(view.rows()).toEqual([])

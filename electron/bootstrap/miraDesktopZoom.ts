@@ -6,9 +6,9 @@ export function miraZoomLevel(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(5, Math.max(-3, Math.round(value))) : 0
 }
 
-// The shell header is 48 CSS pixels tall; native traffic lights are 14 points tall.
+// The shell header is 36 CSS pixels tall; native traffic lights are 14 points tall.
 export function miraTrafficLightPosition(factor: number) {
-  return { x: 24, y: Math.round(24 * factor - 7) }
+  return { x: 24, y: Math.round(18 * factor - 7) }
 }
 
 export function alignMiraTrafficLights(window: BrowserWindow, factor: number) {

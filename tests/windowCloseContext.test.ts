@@ -116,7 +116,7 @@ it.each([-3, 0, 2, 5])('centers native macOS traffic lights on the scaled header
     getDesktopZoomLevel: () => level,
   })
   expect((window as any).options.trafficLightPosition).toEqual(miraTrafficLightPosition(factor))
-  expect(Math.abs((window as any).options.trafficLightPosition.y + 7 - 24 * factor)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs((window as any).options.trafficLightPosition.y + 7 - 18 * factor)).toBeLessThanOrEqual(0.5)
   const loaded = (window.webContents.on as any).mock.calls.find(([event]: any[]) => event === 'did-finish-load')[1]
   loaded()
   expect(window.setWindowButtonPosition).toHaveBeenCalledWith(miraTrafficLightPosition(factor))

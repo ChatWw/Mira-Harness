@@ -394,7 +394,7 @@ describe('real installed Agent turn-boundary guidance', () => {
     }
   })
 
-  it('keeps direct-run tool authorization dynamic when the global permission is tightened after guidance admission', async () => {
+  it('keeps the session permission snapshot when the global default changes after guidance admission', async () => {
     const gate = deferred()
     const fixture = setup([{ text: 'Before write', wait: gate, tools: [{ id: 'write-one', name: 'write', arguments: { path: 'approved.txt', content: 'Needs authorization' } }] }, { text: 'After denied write' }])
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
@@ -404,12 +404,10 @@ describe('real installed Agent turn-boundary guidance', () => {
     expect(receipt.delivery).toBe('guide')
     fixture.database.harness.savePermissionConfig({ ...fixture.database.harness.getPermissionConfig(), globalDefaultMode: 'default' })
     gate.resolve()
-    await vi.waitFor(() => expect(fixture.runtime.listPendingPermissions(fixture.sessionId)).toHaveLength(1))
-    expect(fixture.events.some(event => event.type === 'message-boundary')).toBe(false)
-    fixture.runtime.resolvePermission(fixture.runtime.listPendingPermissions(fixture.sessionId)[0]!.requestId, false)
     await task
-    expect(fixture.runtime.getSession(fixture.sessionId).toolCalls[0]!).toMatchObject({ status: 'cancelled', error: '用户拒绝了操作' })
-    expect(existsSync(join(fixture.directory, 'approved.txt'))).toBe(false)
+    expect(fixture.runtime.getSession(fixture.sessionId).toolCalls[0]!).toMatchObject({ status: 'ok' })
+    expect(existsSync(join(fixture.directory, 'approved.txt'))).toBe(true)
+    expect(fixture.events.some(event => event.type === 'permission-request')).toBe(false)
     expect(fixture.runtime.getSession(fixture.sessionId).messages.filter(message => message.id === receipt.id)).toHaveLength(1)
   })
 

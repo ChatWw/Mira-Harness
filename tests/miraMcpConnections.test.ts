@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { McpManager } from '../electron/adapters/mcpManager'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { McpServerConfig } from '../electron/storage/mcpConfigStore'
 
 const sdk = vi.hoisted(() => ({ clients: [] as any[], next: undefined as { connectGate?: Promise<void>; listGate?: Promise<void>; failList?: boolean } | undefined }))
@@ -25,6 +28,36 @@ beforeEach(() => { sdk.clients = []; sdk.next = undefined; manager = new McpMana
 afterEach(async () => { await manager.closeAll(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('Mira MCP connection state', () => {
+  it('routes only the builtin computer plugin to the bundled executable, including run-owned siblings', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mira-cua-path-')), binary = join(root, 'cua-driver')
+    writeFileSync(binary, 'fixture')
+    const owned = new McpManager(undefined, undefined, binary), sibling = owned.createSibling()
+    const desktop = { ...config, id: 'plugin:computer-use@mira-builtin:desktop', command: 'cua-driver' }
+    try {
+      await sibling.refresh([desktop, { ...desktop, id: 'plugin:computer-use@local:desktop' }])
+      expect(sdk.clients[0].connect.mock.calls[0][0].config.command).toBe(binary)
+      expect(sdk.clients[1].connect.mock.calls[0][0].config.command).toBe('cua-driver')
+      rmSync(binary); await owned.refresh([desktop])
+      expect(owned.getStatus(desktop.id)).toMatchObject({ state: 'failed', error: expect.stringContaining('电脑控制组件缺失') })
+    } finally { await sibling.closeAll(); await owned.closeAll(); rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('retains image blocks while redacting credentials in text and errors', async () => {
+    await manager.refresh([{ ...config, env: { TOKEN: 'secret-token' } }])
+    const result = { content: [{ type: 'text', text: 'secret-token' }, { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }] }
+    sdk.clients[0].callTool.mockResolvedValue(result)
+    const tool = manager.getTools()[0]
+    expect(await tool.execute('pixels', {})).toMatchObject({ content: [{ type: 'text', text: expect.not.stringContaining('secret-token') }, result.content[1]] })
+    sdk.clients[0].callTool.mockResolvedValue({ ...result, isError: true })
+    await expect(tool.execute('error', {})).rejects.not.toThrow('aW1hZ2U=')
+  })
+
+  it.each([{ data: 'not base64', mimeType: 'image/png' }, { data: 'YQ==', mimeType: 'text/html' }, { data: 'a'.repeat(28 * 1024 * 1024 + 4), mimeType: 'image/png' }])('rejects malformed or oversized image results', async image => {
+    await manager.refresh([config])
+    sdk.clients[0].callTool.mockResolvedValue({ content: [{ type: 'image', ...image }] })
+    await expect(manager.getTools()[0].execute('bad-image', {})).rejects.toThrow('图片格式无效')
+  })
+
   it('closes a plugin run handshake promptly on cancellation instead of waiting for its timeout', async () => {
     const gate = deferred(); sdk.next = { connectGate: gate.promise }
     const controller = new AbortController()

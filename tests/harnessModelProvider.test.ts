@@ -60,6 +60,15 @@ describe('createHarnessModelProvider', () => {
       expect(requestPath).toBe('/v1/chat/completions')
       expect(requestBody.model).toBe('local-model')
       expect(requestBody.messages).toEqual([{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } }] }])
+      // MCP screenshots are tool results; verify the installed SDK also sends their pixels.
+      await models.completeSimple(model, { messages: [
+        { role: 'user', content: 'Inspect the window', timestamp: 0 },
+        { ...result, content: [{ type: 'toolCall', id: 'capture', name: 'get_window_state', arguments: {} }], stopReason: 'toolUse' },
+        { role: 'toolResult', toolCallId: 'capture', toolName: 'get_window_state', content: [{ type: 'text', text: 'Test window' }, { type: 'image', mimeType: 'image/png', data: 'AQID' }], isError: false, timestamp: 1 },
+      ] })
+      expect(requestBody.messages).toContainEqual(expect.objectContaining({ role: 'tool', tool_call_id: 'capture' }))
+      expect(requestBody.messages.flatMap((message: any) => Array.isArray(message.content) ? message.content : [])).toContainEqual({ type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } })
+
     } finally {
       server.closeAllConnections()
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))

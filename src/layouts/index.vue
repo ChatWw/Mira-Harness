@@ -103,7 +103,7 @@ function openSettings() {
 
 <style scoped lang="scss">
 .mira-shell {
-  --cp-titlebar-height: 48px;
+  --cp-titlebar-height: 36px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -116,7 +116,7 @@ function openSettings() {
 
 .mira-shell__bar {
   display: flex;
-  flex: 0 0 48px;
+  flex: 0 0 var(--cp-titlebar-height);
   align-items: center;
   justify-content: space-between;
   gap: 16px;

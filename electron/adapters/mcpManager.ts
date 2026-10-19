@@ -9,6 +9,8 @@ import type { McpServerConfig } from '../storage/mcpConfigStore'
 import type { MiraMcpConnection } from '../../src/config/miraMcp'
 import type { MiraMcpAuthorization } from '../services/miraMcpAuthorization'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { resolveMiraCuaDriverPath } from '../services/miraRuntimeTools'
+import { existsSync } from 'node:fs'
 
 /**
  * MCP 连接管理器：连接已配置的 MCP server，把工具转成 Agent 可调用的 AgentTool。
@@ -19,7 +21,7 @@ export class McpManager {
   private readonly connections = new Map<string, MiraMcpConnection>()
   private revision = 0
   private readonly configs = new Map<string, McpServerConfig>()
-  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization) {
+  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization, private readonly cuaDriverPath = resolveMiraCuaDriverPath({ appPath: process.cwd() })) {
     authorization?.subscribe(event => {
       const config = this.configs.get(event.configId)
       if (!config?.enabled || config.authentication !== 'oauth' || new URL(config.url!).href !== event.serverUrl) return
@@ -31,7 +33,7 @@ export class McpManager {
       else this.connections.set(config.id, { state: 'failed', toolCount: 0, error: event.error || 'MCP 授权已取消，请重新连接' })
     })
   }
-  createSibling() { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot) }
+  createSibling() { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot, this.cuaDriverPath) }
 
   async refresh(configs: McpServerConfig[], signal?: AbortSignal) {
     signal?.throwIfAborted()
@@ -93,12 +95,14 @@ export class McpManager {
         ? 'MCP 服务拒绝访问，请在设置中检查凭据或服务权限后重连'
         : remote ? 'MCP 远程连接失败，请检查服务地址、网络和服务状态后重连' : 'MCP 连接失败，请检查启动命令、参数和环境变量后重连'
     let provider: OAuthClientProvider | undefined
+    const bundledComputer = config.id === 'plugin:computer-use@mira-builtin:desktop' && config.command === 'cua-driver'
     const remoteFetch: typeof fetch = async (url, init) => {
       const response = provider && this.authorization ? await this.authorization.fetch(provider, url, init) : await fetch(url, { ...init, redirect: 'error' })
       authStatus = response.status === 401 || response.status === 403 ? response.status : undefined
       return response
     }
     try {
+      if (bundledComputer && !existsSync(this.cuaDriverPath)) throw new Error('Mira 电脑控制组件缺失，请修复安装；开发环境请运行 npm run tools:build')
       if (remote && config.authentication === 'oauth') {
         if (!this.authorization) throw new Error('MCP 浏览器授权服务不可用')
         provider = await this.authorization.createProvider(config.id, config.url!)
@@ -109,7 +113,7 @@ export class McpManager {
         ? new StreamableHTTPClientTransport(new URL(config.url || ''), options)
         : config.type === 'sse'
           ? new SSEClientTransport(new URL(config.url || ''), options)
-          : new StdioClientTransport({ command: config.command, args: config.args, ...(config.cwd && { cwd: config.cwd }), ...(config.env && { env: { ...getDefaultEnvironment(), ...config.env } }), stderr: 'ignore' })
+          : new StdioClientTransport({ command: bundledComputer ? this.cuaDriverPath : config.command, args: config.args, ...(config.cwd && { cwd: config.cwd }), ...(config.env && { env: { ...getDefaultEnvironment(), ...config.env } }), stderr: 'ignore' })
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         await Promise.race([
@@ -143,7 +147,7 @@ export class McpManager {
       const current = revision === this.revision && this.clients.get(config.id) === client
       if (this.clients.get(config.id) === client) this.clients.delete(config.id)
       if (current) {
-        const message = error instanceof Error && ['系统安全存储不可用，MCP 授权凭据未写入', 'MCP 授权凭据不可读取，请重新授权；原文件未被覆盖', 'MCP 本机授权回调无法启动，请重试'].includes(error.message) ? error.message : safeError()
+        const message = error instanceof Error && ['系统安全存储不可用，MCP 授权凭据未写入', 'MCP 授权凭据不可读取，请重新授权；原文件未被覆盖', 'MCP 本机授权回调无法启动，请重试', 'Mira 电脑控制组件缺失，请修复安装；开发环境请运行 npm run tools:build'].includes(error.message) ? error.message : safeError()
         const pending = remote && config.authentication === 'oauth' ? this.authorization?.getPending(config.id, config.url!) : undefined
         this.connections.set(config.id, pending ? { state: 'authorization-required', toolCount: 0, authorization: pending } : { state: 'failed', toolCount: 0, error: message })
         if (!pending) console.error('[mcp]', message)
@@ -184,11 +188,15 @@ export class McpManager {
           if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) throw new Error('MCP 工具调用超时，请重试；如果持续超时，请检查服务状态')
           throw connectionError ? new Error(connectionError()) : error
         })
-        const text = redact(Array.isArray(result.content)
-          ? result.content.map((item: any) => item.type === 'text' ? item.text : JSON.stringify(item)).join('\n')
-          : String(result.content ?? ''))
-        if (result.isError) throw new Error(text || 'MCP 工具执行失败')
-        return { content: [{ type: 'text', text }], details: { name: tool.name } }
+        const content = Array.isArray(result.content) ? result.content.map((item: any) => {
+          if (item.type === 'image') {
+            if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(item.mimeType) || typeof item.data !== 'string' || item.data.length > 28 * 1024 * 1024 || item.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data) || Buffer.byteLength(item.data, 'base64') > 20 * 1024 * 1024) throw new Error('MCP 返回的图片格式无效或超过 20 MiB')
+            return { type: 'image', data: item.data, mimeType: item.mimeType }
+          }
+          return { type: 'text', text: redact(item.type === 'text' ? item.text : JSON.stringify(item)) }
+        }) : [{ type: 'text', text: redact(String(result.content ?? '')) }]
+        if (result.isError) throw new Error(content.filter(item => item.type === 'text').map(item => item.text).join('\n') || 'MCP 工具执行失败')
+        return { content, details: { name: tool.name } }
       },
     }
   }

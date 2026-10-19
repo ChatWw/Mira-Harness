@@ -3,7 +3,7 @@ import { LocalMicroAppServer } from '../adapters/localMicroAppServer'
 import { createNovelApiHandler } from '../adapters/novelApi'
 import { electronWebRequest } from '../adapters/electronWebRequest'
 import { HarnessRuntime } from './harnessRuntime'
-import { resolveMiraRipgrepPath } from './miraRuntimeTools'
+import { resolveMiraCuaDriverPath, resolveMiraRipgrepPath } from './miraRuntimeTools'
 import { MiraFlowController } from './flows/miraFlowController'
 import { McpConfigStore } from '../storage/mcpConfigStore'
 import { McpManager } from '../adapters/mcpManager'
@@ -68,7 +68,8 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     encryptString: value => safeStorage.encryptString(value), decryptString: value => safeStorage.decryptString(value),
     isAvailable: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
   }))
-  const mcpManager = new McpManager(mcpAuthorization.fork(), mcpAuthorization)
+  const mcpManager = new McpManager(mcpAuthorization.fork(), mcpAuthorization,
+    resolveMiraCuaDriverPath({ appPath: app.getAppPath(), isPackaged: app.isPackaged, resourcesPath: process.resourcesPath }))
   const harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent, mcpConfigStore,
     resolveMiraRipgrepPath({ appPath: app.getAppPath(), isPackaged: app.isPackaged, resourcesPath: process.resourcesPath }),
     electronWebRequest)

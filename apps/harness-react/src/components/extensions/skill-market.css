@@ -110,7 +110,7 @@
 .mira-market-group-toggle:hover { background: var(--mira-hover); }
 .mira-market-examples { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 .mira-market-examples button { border: 1px solid var(--mira-border); border-radius: 12px; padding: 16px; text-align: left; background: var(--mira-surface); color: inherit; }
-.mira-market-dialog-overlay { position: fixed; inset: 0; background: #0005; z-index: 100; }
+.mira-market-dialog-overlay { position: fixed; inset: 0; background: transparent; z-index: 100; }
 .mira-market-dialog { position: fixed; z-index: 101; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(540px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid var(--mira-border); border-radius: 16px; color: var(--mira-foreground); background: var(--mira-panel); box-shadow: 0 16px 60px #0003; }
 .mira-market-dialog h2 { margin: 0; font-size: 20px; }
 .mira-market-dialog p { color: var(--mira-foreground-subtle); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }

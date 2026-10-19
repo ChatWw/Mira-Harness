@@ -5,7 +5,9 @@ description: 通过桌面应用界面完成操作。
 
 # 电脑控制
 
-使用 MIT 开源的 [Windows-MCP](https://github.com/CursorTouch/Windows-MCP)，版本固定为 0.8.8。插件已经声明 desktop MCP 服务；用户需要在任务 MCP 选择器中选中后连接。仅支持 Windows，运行需要 uv／uvx 和 Python 3.14。首次通过 uvx 连接会下载运行依赖，需要网络；未安装运行环境时明确说明，不声称插件已能控制电脑。
+使用 MIT 开源的 [Cua Driver](https://github.com/trycua/cua/tree/main/libs/cua-driver)，版本固定为 0.36.0，随 Mira 打包。支持 macOS、Windows 和 Linux；Linux 具体能力依赖 X11／Wayland 及桌面环境。无需用户安装 Python、uv 或手动启动服务。用户在消息中引用本插件后，Mira 自动选择并连接声明的 desktop MCP 服务，后续对话保留选择；不要要求用户再去 MCP 选择器开启同一服务。
+
+先读取实际工具定义，检查系统权限和服务状态。macOS 使用直接 MCP 模式，辅助功能与屏幕录制权限归属于启动它的 Mira 应用；缺少权限时说明具体缺项，让用户在系统设置中授权 Mira 后重试。不能绕过系统授权，也不要自行启动独立守护进程或安装 Cua Spaces。只使用当前连接暴露的工具，不假设旧版 screenshot、Windows-MCP 等工具名。需要观察画面时使用服务实际提供的窗口状态／截图工具；截图通过图片内容传给支持视觉的模型。
 
 先读取连接返回的真实工具列表和参数定义，不猜测工具名称。通过桌面状态工具观察当前应用和可访问控件，优先按控件身份定位；坐标只用于没有语义控件的界面。输入、点击、滚动后重新观察确认结果，不以调用成功代替任务成功。保留用户应用和文档，不关闭无关窗口。
 

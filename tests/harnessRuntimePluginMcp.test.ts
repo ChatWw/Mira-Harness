@@ -29,6 +29,7 @@ function alive(pid: number) { try { process.kill(pid, 0); return true } catch { 
 function mcpName(key = 'echo', plugin = 'probe', tool = 'echo') {
   return `mira_mcp_${createHash('sha256').update(`plugin:${plugin}@local:${key}`).digest('hex').slice(0, 10)}_${tool.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28)}_${createHash('sha256').update(tool).digest('hex').slice(0, 8)}`
 }
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jq2kAAAAASUVORK5CYII='
 const call = (text: string, key = 'echo', id = 'actual-plugin-call'): ToolCall => ({ id, name: mcpName(key), arguments: { text } })
 
 /** Real Agent, SQLite and SDK stdio child; only the external model response is controlled. */
@@ -43,13 +44,13 @@ function setup(steps: Step[] = [{}], permission: 'default' | 'full' = 'full') {
   const manager = new McpManager(), runtime = new HarnessRuntime(database, manager)
   vi.spyOn(runtime as any, 'compactContext').mockImplementation(async (_sender, session) => session)
   vi.spyOn(database.memories, 'enabled').mockReturnValue(false)
-  const contexts: Array<{ messages: any[]; tools: any[] }> = [], events: HarnessEvent[] = []
+  const contexts: Array<{ messages: any[]; tools: any[]; systemPrompt: string }> = [], events: HarnessEvent[] = []
   const original = modelProvider.createHarnessModelProvider
   vi.spyOn(modelProvider, 'createHarnessModelProvider').mockImplementation((...args) => {
     const configured = original(...args)
     vi.spyOn(configured.models, 'streamSimple').mockImplementation((_model, context) => {
       const step = steps[contexts.length] || {}, text = 'Actual fixture response'
-      contexts.push({ messages: structuredClone(context.messages), tools: JSON.parse(JSON.stringify(context.tools || [])) })
+      contexts.push({ systemPrompt: context.systemPrompt || '', messages: structuredClone(context.messages), tools: JSON.parse(JSON.stringify(context.tools || [])) })
       const stream = createAssistantMessageEventStream()
       const message: any = { role: 'assistant', content: [{ type: 'text', text }, ...(step.tools || []).map(tool => ({ type: 'toolCall', ...tool }))], api: 'openai-completions', provider: 'mira-openai', model: 'model', timestamp: Date.now(), stopReason: step.tools?.length ? 'toolUse' : 'stop', usage: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 12, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } }
       void (async () => {
@@ -65,7 +66,7 @@ function setup(steps: Step[] = [{}], permission: 'default' | 'full' = 'full') {
   })
   const sender: any = { isDestroyed: () => false, send: (_channel: string, event: HarnessEvent) => events.push(structuredClone(event)) }
   const runs: Promise<unknown>[] = [], sessionIds = [created.id]
-  const run = (sessionId = created.id) => { const result = runtime.runMessage(sender, sessionId, 'Call selected plugin', [], { providerId: 'fixture', modelId: 'model' }); result.catch(() => {}); runs.push(result); return result }
+  const run = (sessionId = created.id, prompt = 'Call selected plugin', planning = false) => { const result = runtime.runMessage(sender, sessionId, prompt, [], { providerId: 'fixture', modelId: 'model' }, planning); result.catch(() => {}); runs.push(result); return result }
   const packageRoot = join(root, 'package'), manifest = join(packageRoot, '.mira-plugin/plugin.json'), log = join(root, 'server.jsonl')
   mkdirSync(join(packageRoot, '.mira-plugin'), { recursive: true })
   const script = join(packageRoot, 'server.mjs')
@@ -82,7 +83,7 @@ server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:toolNames.map(n
 server.setRequestHandler(CallToolRequestSchema,async(request,extra)=>{
   log({event:'call',name:request.params.name,args:request.params.arguments});
   if(request.params.arguments.text==='hold') await new Promise(resolve=>{extra.signal.addEventListener('abort',()=>{log({event:'cancel'});resolve();},{once:true});});
-  return {isError:request.params.arguments.text==='fail',content:[{type:'text',text:key+':real:'+request.params.arguments.text}]};
+  return {isError:request.params.arguments.text==='fail',content:[{type:'text',text:key+':real:'+request.params.arguments.text},...(request.params.arguments.text==='screenshot'?[{type:'image',data:${JSON.stringify(png)},mimeType:'image/png'}]:[])]};
 });
 await server.connect(new StdioServerTransport());
 `
@@ -122,11 +123,118 @@ describe('selected plugin MCP in the real Harness Agent runtime', () => {
     expect(view.rows().every(row => !alive(row.pid))).toBe(true)
   })
 
+  it.each(['full', 'auto-approve'] as const)('honors the session %s permission when the global default still requires MCP approval', async permissionMode => {
+    const view = setup([{ tools: [call('without-confirmation')] }, {}]); view.register()
+    view.database.harness.updateSession({ ...view.session(), permissionMode })
+    view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), globalDefaultMode: 'default' })
+    const pending = view.run()
+    await vi.waitFor(() => expect(view.rows().some(row => row.event === 'call') || view.runtime.listPendingPermissions(view.sessionId).length > 0).toBe(true))
+    const requests = view.runtime.listPendingPermissions(view.sessionId)
+    for (const request of requests) view.runtime.resolvePermission(request.requestId, true)
+    await pending
+    expect(requests).toEqual([])
+    expect(view.events.some(event => event.type === 'permission-request')).toBe(false)
+    expect(view.rows().filter(row => row.event === 'call')).toHaveLength(1)
+    expect(view.session().toolCalls.find(record => record.tool === mcpName())).toMatchObject({ status: 'ok' })
+  })
+
+  it('keeps a default-permission session from inheriting full access from global preferences', async () => {
+    const view = setup([{ tools: [call('needs-confirmation')] }, {}], 'default'); view.register()
+    view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), globalDefaultMode: 'full' })
+    const pending = view.run()
+    await vi.waitFor(() => expect(view.rows().some(row => row.event === 'call') || view.runtime.listPendingPermissions(view.sessionId).length > 0).toBe(true))
+    const requests = view.runtime.listPendingPermissions(view.sessionId)
+    const beforeApproval = view.rows().filter(row => row.event === 'call')
+    for (const request of requests) view.runtime.resolvePermission(request.requestId, true)
+    await pending
+    expect(requests).toHaveLength(1)
+    expect(beforeApproval).toEqual([])
+  })
+
+  it('honors an explicitly submitted full-access message when the session and global defaults require approval', async () => {
+    const view = setup([{ tools: [call('submitted-full')] }, {}], 'default'); view.register()
+    view.database.harness.savePermissionConfig({ ...view.database.harness.getPermissionConfig(), fullAccessEnabled: true })
+    const receipt = await view.runtime.submitMessage(view.sender, view.sessionId, 'full-access-message', 'Call selected plugin', [], { providerId: 'fixture', modelId: 'model' }, false, { permissionMode: 'full' })
+    expect(receipt).toHaveProperty('submissionId', 'full-access-message')
+    await vi.waitFor(() => expect(view.session().messages.at(-1)?.run?.status).toBe('completed'))
+    expect(view.events.some(event => event.type === 'permission-request')).toBe(false)
+    expect(view.rows().filter(row => row.event === 'call')).toHaveLength(1)
+    expect(view.session().permissionMode).toBe('full')
+  })
+
   it('does not start or expose unselected plugin services', async () => {
     const view = setup(); view.register(['echo'], false); await view.run()
     expect(view.rows()).toEqual([])
     expect(view.contexts[0].tools.some(tool => tool.name.startsWith('mira_mcp_'))).toBe(false)
     expect(view.session().messages.at(-1)?.run?.status).toBe('completed')
+  })
+
+  it('automatically connects an explicitly referenced plugin, keeps operation approval and reuses selection on the next turn', async () => {
+    const view = setup([{ tools: [call('first')] }, {}, {}], 'default'); view.register(['echo'], false)
+    const pending = view.run(view.sessionId, 'Use [probe](plugin://probe@local)')
+    await vi.waitFor(() => expect(view.runtime.listPendingPermissions(view.sessionId)).toHaveLength(1))
+    expect(view.session().activeMcpServerIds).toEqual(['plugin:probe@local:echo'])
+    expect(view.rows().filter(row => row.event === 'call')).toEqual([])
+    view.runtime.resolvePermission(view.runtime.listPendingPermissions(view.sessionId)[0].requestId, true)
+    await pending
+    await view.run()
+    expect(view.contexts.at(-1)!.tools.some(tool => tool.name === mcpName())).toBe(true)
+    expect(view.rows().filter(row => row.event === 'start')).toHaveLength(2)
+    expect(view.rows().every(row => !alive(row.pid))).toBe(true)
+  })
+
+  it('connects services declared by an invoked plugin command', async () => {
+    const view = setup(); view.register(['echo'], false)
+    const commands = join(view.root, 'package/commands'); mkdirSync(commands)
+    writeFileSync(join(commands, 'inspect.md'), '---\ndescription: Inspect with the plugin\n---\nUse the available plugin tools.')
+    view.database.harness.updateSession({ ...view.session(), pluginCatalog: view.database.plugins.snapshots() })
+    await view.run(view.sessionId, '/probe:inspect')
+    expect(view.session().activeMcpServerIds).toEqual(['plugin:probe@local:echo'])
+    expect(view.contexts[0].tools.some(tool => tool.name === mcpName())).toBe(true)
+    expect(view.rows().filter(row => row.event === 'start')).toHaveLength(1)
+    expect(view.rows().every(row => !alive(row.pid))).toBe(true)
+  })
+
+  it.each(['> [probe](plugin://probe@local)', '`[probe](plugin://probe@local)`'])('does not activate quoted or code references: %s', async prompt => {
+    const view = setup(); view.register(['echo'], false); await view.run(view.sessionId, prompt)
+    expect(view.rows()).toEqual([])
+    expect(view.session().activeMcpServerIds).toEqual([])
+  })
+
+  it('does not connect or select plugin services in planning mode', async () => {
+    const view = setup(); view.register(['echo'], false)
+    await expect(view.run(view.sessionId, '[probe](plugin://probe@local)', true)).rejects.toThrow('未提交可确认的计划')
+    expect(view.rows()).toEqual([])
+    expect(view.session().activeMcpServerIds).toEqual([])
+    expect(view.contexts[0].tools.some(tool => tool.name === mcpName())).toBe(false)
+  })
+
+  it.each(['disable', 'change'] as const)('does not start a referenced plugin after %s', async kind => {
+    const view = setup(); view.register(['echo'], false)
+    if (kind === 'disable') view.database.plugins.setEnabled('probe@local', false)
+    else view.changeDefinition()
+    await expect(view.run(view.sessionId, '[probe](plugin://probe@local)')).rejects.toThrow(kind === 'disable' ? '停用' : '变化')
+    expect(view.rows()).toEqual([])
+    expect(view.contexts).toEqual([])
+    expect(view.session().messages.at(-1)?.run?.status).toBe('failed')
+  })
+
+  it('passes screenshot pixels to the next real Agent model turn without storing base64 in public records', async () => {
+    const view = setup([{ tools: [call('screenshot')] }, {}]); view.register(['echo'], false)
+    view.database.models.save({ ...view.database.models.get('fixture')!, models: [{ id: 'model', enabled: true, reasoning: false, multimodal: true }] })
+    await view.run(view.sessionId, '[probe](plugin://probe@local)')
+    expect(view.contexts[1].messages.find(message => message.role === 'toolResult').content).toContainEqual({ type: 'image', data: png, mimeType: 'image/png' })
+    expect(JSON.stringify(view.session())).not.toContain(png)
+    expect(JSON.stringify(view.events)).not.toContain(png)
+  })
+
+  it('reports unsupported screenshot input to a text-only model without forwarding pixels', async () => {
+    const view = setup([{ tools: [call('screenshot')] }, {}]); view.register()
+    await view.run()
+    const next = JSON.stringify(view.contexts[1].messages)
+    expect(next).toContain('所选模型不支持图片输入')
+    expect(next).not.toContain(png)
+    expect(view.session().toolCalls.find(record => record.tool === mcpName())?.status).toBe('failed')
   })
 
   it('validates the actual discovered MCP schema before any remote call', async () => {
