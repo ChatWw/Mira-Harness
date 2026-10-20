@@ -13,7 +13,9 @@ import type { RunEvent, RunRecord } from '../../../packages/mira-flow-kit/src/en
 import type { DriverFactory, runMiraFlowScript } from '../../../packages/mira-flow-runtime/src/mira-index'
 import type { PlatformDatabase } from '../../storage/database'
 import type { MiraPaths } from '../../storage/miraPaths'
-import { MiraWorkflowDefinitions } from '../../storage/miraWorkflowDefinitions'
+import { MiraWorkflowDefinitions, parseMiraWorkflowSource } from '../../storage/miraWorkflowDefinitions'
+import type { MiraFlowRunPresentation } from '../../../src/config/miraFlowWorkbench'
+import type { ArtifactVersionRecord } from '../../../packages/mira-flow-kit/src/engine/mira-types'
 import { MiraFlowCompiler } from './miraFlowCompiler'
 import { MiraFlowRunService, type MiraFlowDriverContext, type MiraFlowExecution } from './miraFlowRunService'
 import type { MiraFlowActorContextStorage } from './miraFlowActorDriver'
@@ -28,6 +30,7 @@ export interface MiraFlowControllerRuntime {
   setWorkflowActivityGuard(guard: (sessionId: string) => boolean, stop?: (sessionId: string, expectedRunId?: string) => boolean): void
   prepareMiraFlowDriver(context: MiraFlowDriverContext, sender: WebContents, selection: ModelSelection, permissionMode: PermissionMode, contextStorage: MiraFlowActorContextStorage, artifactRoot: string): DriverFactory
   publishMiraFlowEvent(sender: WebContents, sessionId: string, runId: string, event: RunEvent): void
+  notifySessionActivityChanged?(sender: WebContents, sessionId: string): void
   setWorkflowAuthoringHost?(host: MiraFlowAuthoringHost): void
   notifyMiraFlowCompletion?(sender: WebContents, sessionId: string, runId: string, selection: ModelSelection, permissionMode: PermissionMode): void
 }
@@ -141,7 +144,7 @@ export class MiraFlowController implements MiraFlowAuthoringHost {
     } catch (error) {
       context.signal.removeEventListener('abort', abortPreparation)
       if (execution) { this.service.stop(execution.runId, session.id); await execution.settled.catch(() => undefined) }
-      this.owners.delete(session.id)
+      this.releaseOwner(session.id)
       throw error
     }
   }
@@ -180,17 +183,20 @@ export class MiraFlowController implements MiraFlowAuthoringHost {
       case 'definitions.list': return this.definitions(request.projectId).list()
       case 'definitions.read': return this.definitions(request.projectId).read(request.name, request.scope)
       case 'definitions.preview': return this.trackLaunch(this.preview(request, assertAuthorized))
+      case 'definitions.move': return this.definitions(request.projectId).moveToProject(request.name, request.expectedRevision)
+      case 'definitions.delete': return this.definitions(request.projectId).delete(request.name, request.scope, request.expectedRevision)
       case 'definitions.save': return this.definitions(request.projectId).save(request.input)
       case 'runs.start': return this.trackLaunch(this.start(sender, request, assertAuthorized))
       case 'runs.list': {
         if (request.sessionId) this.options.database.harness.getSession(request.sessionId)
         if (request.projectId) this.projectDirectory(request.projectId)
-        return this.options.database.flowJournal.listRuns(request.sessionId).filter(run => this.matchesProject(run, request.projectId))
+        return this.options.database.flowJournal.listRuns(request.sessionId).filter(run => this.matchesProject(run, request.projectId)).map(run => ({ ...run, presentation: this.presentation(run) }))
       }
       case 'runs.snapshot': {
         this.writableSession(request.sessionId, false)
         const selection = this.selectionForRun(request.runId, request.sessionId)
-        return { ...this.service.snapshot(request.runId, request.sessionId, request.afterSequence, request.limit),
+        const snapshot = this.service.snapshot(request.runId, request.sessionId, request.afterSequence, request.limit)
+        return { ...snapshot, presentation: this.presentation(snapshot.run),
           ...(selection ? { selection } : {}) }
       }
       case 'runs.stop': this.writableSession(request.sessionId); this.service.stop(request.runId, request.sessionId); return
@@ -252,7 +258,7 @@ export class MiraFlowController implements MiraFlowAuthoringHost {
       return { sessionId: session.id, runId: execution.runId }
     } catch (error) {
       if (execution) { this.service.stop(execution.runId, session.id); await execution.settled.catch(() => undefined) }
-      this.owners.delete(session.id)
+      this.releaseOwner(session.id)
       const current = this.options.database.harness.getSession(session.id)
       if (!current.messages.length && !this.options.database.flowJournal.listRuns(session.id).length) this.options.database.harness.deleteSession(session.id)
       throw error
@@ -271,7 +277,7 @@ export class MiraFlowController implements MiraFlowAuthoringHost {
       const execution = await this.service.resume(request.runId, session.id, directory, controller.signal)
       this.retainUntilSettled(session.id, execution)
       return { sessionId: session.id, runId: execution.runId }
-    } catch (error) { this.owners.delete(session.id); throw error }
+    } catch (error) { this.releaseOwner(session.id); throw error }
   }
 
   private async preview(request: Extract<MiraFlowWorkbenchRequest, { action: 'definitions.preview' | 'definitions.save' }>, authorize?: () => void) {
@@ -292,14 +298,36 @@ export class MiraFlowController implements MiraFlowAuthoringHost {
     this.owners.set(sessionId, owner)
   }
 
+  private releaseOwner(sessionId: string): void {
+    const owner = this.owners.get(sessionId)
+    if (!owner) return
+    this.owners.delete(sessionId)
+    this.options.runtime.notifySessionActivityChanged?.(owner.sender, sessionId)
+  }
+
   private retainUntilSettled(sessionId: string, execution: MiraFlowExecution): void {
     const owner = this.owners.get(sessionId)
     const release = () => {
       if (this.owners.get(sessionId) !== owner) return
-      this.owners.delete(sessionId)
-      if (owner?.creatorRunId && !this.closed) this.options.runtime.notifyMiraFlowCompletion?.(owner.sender, sessionId, execution.runId, owner.selection, owner.permissionMode)
+      this.releaseOwner(sessionId)
+      if (owner && !this.closed) this.options.runtime.notifyMiraFlowCompletion?.(owner.sender, sessionId, execution.runId, owner.selection, owner.permissionMode)
     }
     void execution.settled.then(release, release)
+  }
+
+  private presentation(run: RunRecord): MiraFlowRunPresentation {
+    const parsed = parseMiraWorkflowSource(run.scriptText ?? '')
+    const artifacts = new Map<string, ArtifactVersionRecord>()
+    for (const node of this.options.database.flowJournal.listNodes(run.runId)) {
+      if (node.kind !== 'artifact' || node.status !== 'completed' || !node.result || typeof node.result !== 'object') continue
+      const artifact = node.result as ArtifactVersionRecord
+      if (!artifact.id || !artifact.version) continue
+      if ((artifacts.get(artifact.id)?.version ?? 0) < artifact.version) artifacts.set(artifact.id, artifact)
+    }
+    const session = run.parentSessionId ? this.options.database.harness.getSession(run.parentSessionId) : undefined
+    const saved = this.definitions(session?.projectId).list().find(entry => entry.name === run.name && entry.revision === run.scriptHash && !entry.diagnostic)
+    return { ...this.options.database.flowJournal.runTimes(run.runId), ...(parsed.ok ? { description: parsed.meta.description } : {}), artifacts: [...artifacts.values()].sort((a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary))),
+      ...(saved?.revision ? { savedDefinition: { name: saved.name, scope: saved.scope, revision: saved.revision, ...(session?.projectId ? { projectId: session.projectId } : {}) } } : {}) }
   }
 
   private selectionForRun(runId: string, sessionId: string): ModelSelection | undefined {

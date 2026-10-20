@@ -62,22 +62,29 @@ describe('actual production workflow model, tools and permission integration', (
     const view = await setup([
       { name: 'bash', args: { command: 'sleep 10', run_in_background: true } },
       { name: 'submit_result', args: { result: { text: 'ACTOR-DONE' } } },
+      { name: 'answer', args: '已核对工作流结果。' },
     ])
     try {
+      const released: boolean[] = []
+      vi.mocked(view.sender.send).mockImplementation((_channel: string, event: import('../src/config/harness').HarnessEvent) => {
+        if (event.type === 'session-activity-changed') released.push(view.runtime.listSessions().find(item => item.id === event.sessionId)!.isRunning)
+      })
       const identity = await view.start(await view.save('return await agent("writer").ask<{text: string}>("Run the test command, then submit the typed answer");'))
       await vi.waitFor(() => expect(view.runtime.listPendingPermissions(identity.sessionId)).toHaveLength(1), { timeout: 10_000 })
       view.runtime.resolvePermission(view.runtime.listPendingPermissions(identity.sessionId)[0].requestId, true)
       await vi.waitFor(async () => expect((await view.snapshot(identity)).run.status).toBe('completed'), { timeout: 10_000 })
       await vi.waitFor(() => expect(view.controller.hasActiveSession(identity.sessionId)).toBe(false))
+      expect(released).toEqual([false])
       const session = view.runtime.getSession(identity.sessionId)
       expect(session.toolCalls.find(tool => tool.tool === 'bash')).toMatchObject({ status: 'ok', commandJob: { mode: 'background', status: 'cancelled' } })
       expect(view.runtime.isProjectRunning(session.projectId!)).toBe(false)
       expect(view.runtime.getMessageQueue(session.id).items).toEqual([])
-      expect(view.requests).toHaveLength(2)
+      await vi.waitFor(() => expect(view.runtime.getSession(identity.sessionId).messages.some(message => message.role === 'assistant' && message.content === '已核对工作流结果。')).toBe(true))
+      expect(view.requests).toHaveLength(3)
     } finally { await view.close() }
   }, 20_000)
   it('executes files.grep through the production workflow host with packaged search and no system PATH', async () => {
-    const view = await setup([])
+    const view = await setup([{ name: 'answer', args: '检索完成。' }])
     try {
       writeFileSync(join(view.directory, '问\n答.md'), 'Mira 你好\n')
       const definition = await view.save('return await files.grep("你好", "*.md");')
@@ -85,7 +92,8 @@ describe('actual production workflow model, tools and permission integration', (
       const identity = await view.start(definition)
       await vi.waitFor(async () => expect((await view.snapshot(identity)).run.status).toBe('completed'), { timeout: 10_000 })
       expect((await view.snapshot(identity)).run.result).toEqual([{ path: '问\n答.md', line: 1, text: 'Mira 你好' }])
-      expect(view.requests).toHaveLength(0)
+      await vi.waitFor(() => expect(view.runtime.getSession(identity.sessionId).messages.some(message => message.role === 'assistant' && message.content === '检索完成。')).toBe(true))
+      expect(view.requests).toHaveLength(1)
     } finally { vi.unstubAllEnvs(); await view.close() }
   }, 20_000)
 
@@ -149,9 +157,11 @@ describe('actual production workflow model, tools and permission integration', (
     const view = await setup([], () => ({ name: 'answer', args: '真实后台结果已回报。' }))
     let restorePersistence: (() => void) | undefined
     try {
+      const automatic = vi.spyOn(view.runtime, 'notifyMiraFlowCompletion').mockImplementationOnce(() => undefined)
       const identity = await view.start(await view.save('return "RETRY-COMPLETION";'))
       await vi.waitFor(() => expect(view.database.flowJournal.getRun(identity.runId)?.status).toBe('completed'), { timeout: 10_000 })
       await vi.waitFor(() => expect(view.controller.hasActiveSession(identity.sessionId)).toBe(false))
+      automatic.mockRestore()
       const provider = view.database.models.get('test')!
       if (failure === 'provider configuration') view.database.models.save({ ...provider, enabled: false })
       else {
@@ -302,7 +312,7 @@ describe('actual production workflow model, tools and permission integration', (
       view.runtime.resolvePermission(view.runtime.listPendingPermissions(identity.sessionId)[0]!.requestId, true)
       await vi.waitFor(async () => expect((await view.snapshot(identity)).run.status).toBe('completed'), { timeout: 10_000 })
       expect((await view.snapshot(identity)).run.result).toMatchObject({ stdout: 'argv-result', exitCode: 0 })
-      expect(view.requests).toHaveLength(0)
+      expect(view.requests.filter(request => !JSON.stringify(request).includes('<mira-workflow-result'))).toHaveLength(0)
     } finally { await view.close() }
   }, 20_000)
 })

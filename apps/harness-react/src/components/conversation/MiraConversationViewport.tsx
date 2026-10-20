@@ -14,7 +14,7 @@ export function MiraConversationViewport({ memoryKey, viewportRef, actionsRef, t
   children: ReactNode
 }) {
   const scroll = useConversationScroll({ memoryKey, active, ready, viewportRef, actionsRef, timelineRef, onBottomChange })
-  return <div ref={scroll.ref} className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasContent ? { display: 'none' } : !ready ? { visibility: 'hidden' } : undefined}>
+  return <div ref={scroll.ref} tabIndex={0} role="region" aria-label="对话内容" className="mira-message-viewport min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]" style={!hasContent ? { display: 'none' } : !ready ? { visibility: 'hidden' } : undefined}>
     {children}
   </div>
 }

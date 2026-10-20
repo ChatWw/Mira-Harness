@@ -32,6 +32,8 @@ export class MiraPromptReferenceNode extends TextNode {
     const element = super.createDOM(config)
     element.classList.add('mira-prompt-reference', `mira-prompt-reference-${this.__reference.kind}`)
     element.setAttribute('data-mira-prompt-reference', this.__reference.kind)
+    element.contentEditable = 'false'
+    element.style.userSelect = 'none'
     element.setAttribute('spellcheck', 'false')
     decorateMiraPromptReference(element, this.__reference)
     element.title = this.__reference.kind === 'agent' ? `${this.__reference.label}智能体（${this.__reference.text}）` : ['file', 'selection', 'web'].includes(this.__reference.kind) ? this.__reference.text : this.__reference.label

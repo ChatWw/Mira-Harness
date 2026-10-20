@@ -70,8 +70,20 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     const current = liveRef.current, epoch = sessionEpochRef.current
     if (!geometry || !current.sessionId || !current.active || current.overlayOpen || !openedRef.current) return Promise.resolve()
     const id = current.sessionId
-    return controller.setBrowserViewportFor(id, geometry, current.browserId).then(value => { if (isCurrent(epoch, id)) setDesktopZoom(value.desktopZoomFactor) })
+    return controller.setBrowserViewportFor(id, { ...geometry, exclusions: [...document.querySelectorAll<HTMLElement>('.mira-full-view-host[data-mode="floating"], .mira-floating-toolbar, .mira-floating-answer')].filter(element => {
+      const style = getComputedStyle(element)
+      return style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) > 0 && element.getClientRects().length
+    }).map(element => {
+      const rect = element.getBoundingClientRect()
+      return { x: Math.floor(rect.left), y: Math.floor(rect.top), width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
+    }) }, current.browserId).then(value => { if (isCurrent(epoch, id)) setDesktopZoom(value.desktopZoomFactor) })
   }
+  useEffect(() => {
+    if (!active) return
+    const update = () => { void syncGeometry().catch(cause => { if (liveRef.current.active) setError(cause instanceof Error ? cause.message : '浏览器视图调整失败') }) }
+    window.addEventListener('mira:full-view-geometry', update)
+    return () => window.removeEventListener('mira:full-view-geometry', update)
+  }, [active, controller, sessionId, browserId])
   const bounds = (): HarnessBrowserBounds => {
     const rect = viewportRef.current?.getBoundingClientRect()
     return { x: Math.max(0, Math.round(rect?.left || 0)), y: Math.max(0, Math.round(rect?.top || 0)), width: Math.max(16, Math.round(rect?.width || 0)), height: Math.max(16, Math.round(rect?.height || 0)) }
@@ -108,9 +120,17 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     const root = document.getElementById('root')
     if (!root) return
     const selector = '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"], [data-mira-browser-context-details]'
-    const update = () => setOverlayOpen([...root.querySelectorAll<HTMLElement>(selector)].some(element =>
-      element.getAttribute('data-state') !== 'closed' && element.getAttribute('aria-hidden') !== 'true'
-      && element.getClientRects().length > 0 && !element.contains(viewportRef.current)))
+    const update = () => {
+      const viewport = viewportRef.current?.getBoundingClientRect()
+      setOverlayOpen([...root.querySelectorAll<HTMLElement>(selector)].some(element => {
+        if (element.getAttribute('data-state') === 'closed' || element.closest('[aria-hidden="true"], [hidden]') || !element.getClientRects().length || element.contains(viewportRef.current)) return false
+        // Modal surfaces block the whole app; local popups only obscure intersecting guests.
+        const role = element.getAttribute('role')
+        if (role === 'alertdialog' || role === 'dialog' && element.getAttribute('aria-modal') !== 'false') return true
+        const rect = element.getBoundingClientRect()
+        return Boolean(viewport && rect.left < viewport.right && rect.right > viewport.left && rect.top < viewport.bottom && rect.bottom > viewport.top)
+      }))
+    }
     update()
     const observer = new MutationObserver(records => {
       // Streaming text is unrelated to overlay visibility; only inspect changed overlay subtrees.
@@ -119,7 +139,9 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
         : [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || Boolean(node.querySelector(selector)))))) update()
     })
     observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['role', 'data-state', 'aria-hidden', 'hidden', 'style'] })
-    return () => observer.disconnect()
+    window.addEventListener('resize', update)
+    root.addEventListener('scroll', update, true)
+    return () => { observer.disconnect(); window.removeEventListener('resize', update); root.removeEventListener('scroll', update, true) }
   }, [active])
   useEffect(() => {
     if (!active || !sessionId || !preferencesReady) return
@@ -151,7 +173,7 @@ export function MiraBrowserPanel({ controller, sessionId, browserId = 'browser',
     const epoch = sessionEpochRef.current, revision = ++navigationRevisionRef.current
     openedRef.current = true; setLoading(true); setError('')
     try {
-      const value = await controller.getWorkspaceHtmlUrl('projectId' in htmlSource ? { projectId: htmlSource.projectId } : { sessionId: htmlSource.sessionId }, htmlSource.path)
+      const value = await controller.getWorkspaceHtmlUrl('projectId' in htmlSource ? { projectId: htmlSource.projectId, rootPath: htmlSource.rootPath } : { sessionId: htmlSource.sessionId }, htmlSource.path)
       if (isCurrent(epoch, sessionId) && revision === navigationRevisionRef.current) await openAddress(value)
     } catch (cause) { if (isCurrent(epoch, sessionId) && revision === navigationRevisionRef.current) { setLoading(false); setPageFailed(true); setError(cause instanceof Error ? cause.message : 'HTML 文件打开失败，请重试') } }
   }

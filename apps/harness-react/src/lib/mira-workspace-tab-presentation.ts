@@ -2,7 +2,7 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: local resource metadata and identity, Chinese labels, optional real times.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
-import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, GitBranch, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
+import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, Workflow, Bot, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
 import { miraMediaFormat } from '../../../../src/config/miraMedia'
 import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceTab } from '../state/workspace-state'
 
@@ -13,6 +13,7 @@ export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
   if (tab.planToolId) return { Icon: ListChecks, type: '方案', hint: '', aliases: 'plan proposal 会话计划 历史方案' }
   if (isWorkspaceBrowserTab(tab.id)) return { Icon: Globe2, type: '浏览器', hint: tab.url || '', aliases: 'browser web' }
   if (isWorkspaceTerminalTab(tab.id)) return { Icon: TerminalSquare, type: '终端', hint: '', aliases: 'terminal shell command' }
+  if (tab.fileManager && !tab.path) return { Icon: FileCode2, type: '文件', hint: tab.fileManager.directory, aliases: 'files folder directory 文件目录' }
   if (tab.path) {
     const media = miraMediaFormat(tab.path)
     if (media?.kind === 'pdf') return { Icon: FileText, type: 'PDF', hint: tab.path, aliases: 'file document pdf 文档' }
@@ -24,7 +25,7 @@ export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
   if (tab.childSessionId) return { Icon: MessageSquare, type: '侧边栏对话', hint: '', aliases: `side chat ${tab.childSessionId}` }
   if (tab.taskSessionId) return { Icon: MessageSquare, type: '任务', hint: '', aliases: `task conversation ${tab.taskSessionId}` }
   if (tab.subtaskId) return { Icon: Users, type: '智能体', hint: '', aliases: `agent ${tab.subtaskId} ${tab.runId || ''}` }
-  if (tab.workflowSessionId) return { Icon: GitBranch, type: '工作流', hint: '', aliases: `workflow ${tab.workflowSessionId} ${tab.runId || ''}` }
+  if (tab.workflowSessionId) return { Icon: tab.workflowDetail?.kind === 'artifact' ? FileText : tab.workflowDetail?.kind === 'actor' ? Bot : Workflow, type: tab.workflowDetail?.kind === 'artifact' ? '产物' : '工作流', hint: '', aliases: `workflow ${tab.workflowSessionId} ${tab.runId || ''}` }
   if (tab.id === 'git') return { Icon: GitCompare, type: 'Git 更改', hint: '', aliases: 'git repository staged unstaged diff 仓库 暂存' }
   if (tab.id === 'changes') return { Icon: GitCompare, type: '变更', hint: '', aliases: 'git diff changes' }
   return { Icon: Activity, type: '调用轨迹', hint: '', aliases: `activity ${tab.runId || ''}` }

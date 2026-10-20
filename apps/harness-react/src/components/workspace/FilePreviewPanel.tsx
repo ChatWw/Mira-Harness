@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 /* File preview interaction adapted from ZCode PreviewPane.tsx / components/ui/code-viewer.tsx.
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: captured-session reads, existing Shiki renderer and virtual source rows.
@@ -28,7 +29,9 @@ type FilePreviewPanelProps = {
   controller: PilotController
   sessionId: string
   projectId?: string
+  rootPath?: string
   path: string
+  toolbarContainer?: HTMLElement
   directory?: string
   active: boolean
   onAddFile?(path: string): void
@@ -41,12 +44,12 @@ type FilePreviewPanelProps = {
   presentationNavigation?: MiraPresentationNavigation
 }
 
-export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projectId, path, directory, active, onAddFile, commandOutput, workspaceWatch, selectedEditor, onOpenEditor, onOpenLink, onAddPresentation, presentationNavigation }: FilePreviewPanelProps) {
+export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projectId, rootPath, path, toolbarContainer, directory, active, onAddFile, commandOutput, workspaceWatch, selectedEditor, onOpenEditor, onOpenLink, onAddPresentation, presentationNavigation }: FilePreviewPanelProps) {
   const sessionId = projectId ? JSON.stringify(['project', projectId]) : ownerSessionId
   const mediaController = useMemo(() => projectId ? {
-    openMediaFor: (_id: string, file: string) => controller.openProjectMedia(projectId, file),
+    openMediaFor: (_id: string, file: string) => controller.openProjectMedia(projectId, file, rootPath),
     closeMedia: (id: string) => controller.closeMedia(id),
-  } : controller, [controller, projectId])
+  } : controller, [controller, projectId, rootPath])
   const key = filePreviewKey({ sessionId, path, directory })
   const [snapshot, setSnapshot] = useState<FilePreviewSnapshot>()
   const [refresh, setRefresh] = useState(0)
@@ -55,7 +58,7 @@ export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projec
   const watch = useSyncExternalStore(workspaceWatch?.subscribe || subscribeWithoutWorkspaceWatch, workspaceWatch?.getSnapshot || getEmptyWorkspaceWatch, getEmptyWorkspaceWatch)
   const [wrap, setWrap] = useState(false)
   const [previewMode, setPreviewMode] = useState('preview')
-  const [imageDecode, setImageDecode] = useState<{ key: string; failed: boolean }>()
+  const [imageDecode, setImageDecode] = useState<{ key: string; source: string; failed: boolean }>()
   const [highlighted, setHighlighted] = useState<{ key: string; content: string; result: TokensResult }>()
   const [feedback, setFeedback] = useState<{ key: string; message: string; error: boolean }>()
   const [openingEditor, setOpeningEditor] = useState(false)
@@ -66,25 +69,25 @@ export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projec
   const current = snapshot && filePreviewKey(snapshot) === key ? snapshot : undefined
   const ready = current?.status === 'ready'
   const content = ready ? current.content : ''
-  const imageKey = JSON.stringify([key, refresh, watchRefresh])
+  const imageKey = JSON.stringify([key, refresh])
   const imageSource = useMemo(() => current?.status === 'image' ? filePreviewImageSource(current.image) : kind === 'svg' && current?.status === 'ready' ? miraSvgImageSource(current.content) : '', [current, kind])
-  const imageFailed = imageDecode?.key === imageKey && imageDecode.failed
+  const imageFailed = imageDecode?.key === imageKey && imageDecode.source === imageSource && imageDecode.failed
   const unsupportedImageAttachment = kind === 'bitmap' && !attachmentImageType(path)
   const canAddFile = active && !unsupportedImageAttachment && (binary ? controller.supportsAttachments && Boolean(attachmentBinaryType(path)) : kind === 'bitmap' ? current?.status === 'image' && !imageFailed : ready && !(previewMode === 'preview' && imageFailed))
   const breadcrumbs = commandOutput ? ['命令输出', '完整输出.log'] : filePreviewBreadcrumbs(directory, path)
   const absolutePath = commandOutput ? undefined : filePreviewAbsolutePath(directory, path)
 
   const reader = useMemo(() => binary ? undefined : kind === 'bitmap'
-    ? createFileImagePreviewReader((id, file) => projectId ? controller.readProjectImage(projectId, file) : controller.readImageFor(id, file), { sessionId, path, directory }, setSnapshot)
+    ? createFileImagePreviewReader((id, file) => projectId ? controller.readProjectImage(projectId, file, rootPath) : controller.readImageFor(id, file), { sessionId, path, directory }, setSnapshot)
     : createFilePreviewReader(commandOutput
       ? async (id, file) => ({ path: file, content: await controller.readCommandOutputFor(id, commandOutput.runId, commandOutput.toolId) })
-      : (id, file) => projectId ? controller.readProjectFile(projectId, file) : controller.readFileFor(id, file), { sessionId, path, directory }, setSnapshot), [controller, projectId, sessionId, path, directory, kind, binary, commandOutput?.runId, commandOutput?.toolId])
+      : (id, file) => projectId ? controller.readProjectFile(projectId, file, rootPath) : controller.readFileFor(id, file), { sessionId, path, directory }, setSnapshot), [controller, projectId, rootPath, sessionId, path, directory, kind, binary, commandOutput?.runId, commandOutput?.toolId])
   useEffect(() => {
     // Directory notifications also include unrelated files and watch registration.
     // Media stays attached until explicit refresh; changed-byte range reads fail safely.
-    if (!binary && watch.revision && watch.paths.includes(workspaceFileParent(path))) setWatchRefresh(value => value + 1)
-  }, [workspaceWatch, path, binary, watch.revision])
-  useEffect(() => { reader?.read(active, refresh + watchRefresh) }, [reader, active, refresh, watchRefresh])
+    if (!binary && !commandOutput && watch.revision && watch.paths.includes(workspaceFileParent(path))) setWatchRefresh(value => value + 1)
+  }, [workspaceWatch, path, binary, commandOutput?.runId, commandOutput?.toolId, watch.revision])
+  useEffect(() => { reader?.read(active, refresh, watchRefresh) }, [reader, active, refresh, watchRefresh])
   useEffect(() => () => reader?.dispose(), [reader])
   useEffect(() => { setPreviewMode('preview'); copyVersion.current += 1 }, [key])
   useEffect(() => {
@@ -130,8 +133,7 @@ export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projec
     } finally { setOpeningEditor(false) }
   }
 
-  return <section className="mira-file-preview" aria-label={commandOutput ? '完整命令输出' : `文件预览 ${path}`} onClickCapture={copyMarkdownBlock}>
-    <header className="mira-file-preview__toolbar">
+  const toolbar = (<header className="mira-file-preview__toolbar">
       <div className="mira-file-preview__breadcrumb" title={commandOutput ? '完整输出.log' : absolutePath || path} aria-label={commandOutput ? '完整输出.log' : path}>
         {breadcrumbs.map((segment, index) => <span key={index}>{index > 0 && <ChevronRight size={13} aria-hidden="true" />}{index === breadcrumbs.length - 1 && (commandOutput ? <FileText size={14} aria-hidden="true" /> : <img className="mira-workspace-file-icon" src={miraFileTreeIcon(path)} width={16} height={16} alt="" aria-hidden="true" draggable={false} />)}<span className={index === breadcrumbs.length - 1 ? 'is-current' : undefined}>{segment}</span></span>)}
       </div>
@@ -151,11 +153,14 @@ export function FilePreviewPanel({ controller, sessionId: ownerSessionId, projec
         {!commandOutput && <button type="button" title={selectedEditor ? `在 ${selectedEditor.name} 中打开` : '在编辑器中打开'} aria-label={selectedEditor ? `在 ${selectedEditor.name} 中打开` : '在编辑器中打开'} disabled={!active || !selectedEditor || !onOpenEditor || openingEditor} onClick={() => void openInEditor()}>{openingEditor ? <LoaderCircle size={14} className="pilot-spin" /> : <ExternalLink size={14} />}</button>}
       </div>
     </header>
+)
+  return <section className="mira-file-preview" aria-label={commandOutput ? '完整命令输出' : `文件预览 ${path}`} onClickCapture={copyMarkdownBlock}>
+    {toolbarContainer ? createPortal(toolbar, toolbarContainer) : toolbar}
     {watch.error && <div className="mira-file-drawer__error" role="alert"><span>{watch.error}</span><button type="button" title="重试文件自动刷新" aria-label="重试文件自动刷新" onClick={workspaceWatch?.retry}><RotateCw size={14} /></button></div>}
     <div className="mira-file-preview__body">
       {kind === 'office' ? <MiraOfficePreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} onOpenLink={onOpenLink} onAddPresentation={onAddPresentation} presentationNavigation={presentationNavigation} /> : kind === 'pdf' ? <MiraDocumentPreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh} onRetry={() => setRefresh(value => value + 1)} /> : kind === 'media' ? <MiraMediaPreview key={key} controller={mediaController} sessionId={sessionId} path={path} active={active} refresh={refresh + watchRefresh} onRetry={() => setRefresh(value => value + 1)} /> : !current || current.status === 'loading' ? <div className="mira-file-preview__notice" role="status"><LoaderCircle size={18} className="pilot-spin" /><span>正在读取文件…</span></div>
         : current.status === 'error' ? <div className="mira-file-preview__notice" role="alert"><FileText size={20} /><p>{current.error}</p><button type="button" className="pilot-inline-button" onClick={() => setRefresh(value => value + 1)}><RotateCw size={14} />重试</button></div>
-          : imageSource && (kind === 'bitmap' || previewMode === 'preview') ? <MiraImagePreview key={imageKey} title={path.split('/').pop()!} source={imageSource} sourcePath={path} fit={kind === 'svg'} active={active} onRetry={() => setRefresh(value => value + 1)} onDecodeChange={failed => setImageDecode({ key: imageKey, failed })} />
+          : imageSource && (kind === 'bitmap' || previewMode === 'preview') ? <MiraImagePreview key={imageKey} title={path.split('/').pop()!} source={imageSource} sourcePath={path} fit={kind === 'svg'} active={active} onRetry={() => setRefresh(value => value + 1)} onDecodeChange={failed => setImageDecode({ key: imageKey, source: imageSource, failed })} />
             : content.length === 0 ? <div className="mira-file-preview__notice"><FileText size={20} /><span>文件为空</span></div>
               : language === 'markdown' && previewMode === 'preview' ? <div className="mira-file-preview__markdown"><MessageMarkdown content={content} directory={directory ? workspaceFileParent(filePreviewAbsolutePath(directory, path)!) : undefined} onOpenLink={onOpenLink} /></div>
               : <FilePreviewSource key={key} content={content} language={language} wrap={wrap} active={active} highlighted={highlighted?.key === key && highlighted.content === content ? highlighted.result : undefined} />}

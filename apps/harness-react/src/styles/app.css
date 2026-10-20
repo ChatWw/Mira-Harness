@@ -1,3 +1,4 @@
+@import "./side-pane-full-view.css";
 @import "tailwindcss";
 /* 深浅色由宿主在 <html> 上切换 .dark 类。 */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -21,6 +22,7 @@
 @import "./mira-tool-files.css";
 @import "../components/extensions/skill-market.css";
 @import "../components/search/command-center.css";
+@import "../components/session/project-editor.css";
 @import "../components/automations/automations.css";
 @import "../components/workflows/workflows.css";
 @import "../components/workflows/workflow-review.css";

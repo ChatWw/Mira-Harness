@@ -1,13 +1,43 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { miraInitialTaskLayout, miraTaskPaneIds, splitMiraTaskLayout, removeMiraTaskPane, resizeMiraTaskSplit, readMiraTaskLayout, miraTaskLayoutGeometry, miraTaskDropSide } from '../apps/harness-react/src/state/mira-task-layout'
-import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspacePlanTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
-import { miraSearchWorkspaceTabs } from '../apps/harness-react/src/lib/mira-workspace-tab-presentation'
+import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspacePlanTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, createWorkspaceWorkflowTab, createWorkspaceWorkflowDetailTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
+import { miraWorkspaceTabPresentation, miraSearchWorkspaceTabs } from '../apps/harness-react/src/lib/mira-workspace-tab-presentation'
 
 const NOW = 1_791_664_800_000
 beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(NOW))
 afterEach(() => vi.restoreAllMocks())
 
 describe('React Harness workspace state', () => {
+  it('keeps workflow overview, actors and workspace operations in independent restorable tabs', () => {
+    const overview = createWorkspaceWorkflowTab('parent', 'run')
+    const actor = createWorkspaceWorkflowDetailTab('parent', 'run', { kind: 'actor', siteId: 'actor#1', ordinal: 1 }, '核验助手')
+    const second = createWorkspaceWorkflowDetailTab('parent', 'run', { kind: 'actor', siteId: 'actor#1', ordinal: 2 }, '核验助手 2')
+    const operations = createWorkspaceWorkflowDetailTab('parent', 'run', { kind: 'operations', phaseId: 'prepare', participantId: 'workspace' }, '工作区')
+    let state = [overview, actor, second, operations].reduce(openWorkspaceTab, createWorkspaceSession())
+    expect(state.tabs).toHaveLength(4)
+    state = openWorkspaceTab(state, actor)
+    expect(state.tabs).toHaveLength(4)
+    expect(state.activeTab).toBe(actor.id)
+    expect(miraWorkspaceTabPresentation(overview).Icon.displayName).toBe('Workflow')
+    expect(miraWorkspaceTabPresentation(actor).Icon.displayName).toBe('Bot')
+    const restored = readWorkspaceSessions({ parent: JSON.parse(JSON.stringify(closeWorkspaceTab(state, actor.id))) }).parent
+    const reopened = restoreWorkspaceTab(restored, actor.id)
+    expect(reopened.tabs.map(tab => tab.id)).toEqual([overview.id, second.id, operations.id, actor.id])
+    expect(reopened.tabs.at(-1)?.workflowDetail).toEqual(actor.workflowDetail)
+    expect(readWorkspaceSessions({ parent: { ...state, tabs: [{ ...actor, workflowDetail: { ...actor.workflowDetail, ordinal: -1 } }] } }).parent.tabs).toEqual([])
+    expect(withoutWorkspaceTaskOwners({ parent: state, other: state }, new Set(['parent']))).toEqual({ other: { ...state, tabs: [], activeTab: 'overview', recentClosedTabs: [] } })
+  })
+  it('restores artifact tabs by exact version without persisting their bytes', () => {
+    const first = createWorkspaceWorkflowDetailTab('parent', 'run', { kind: 'artifact', artifactId: 'report', version: 1 }, '报告')
+    const second = createWorkspaceWorkflowDetailTab('parent', 'run', { kind: 'artifact', artifactId: 'report', version: 2 }, '报告')
+    const state = [first, second].reduce(openWorkspaceTab, createWorkspaceSession())
+    expect(state.tabs).toHaveLength(2)
+    expect(readWorkspaceSessions({ parent: JSON.parse(JSON.stringify(state)) }).parent.tabs).toEqual(state.tabs)
+    expect(miraWorkspaceTabPresentation(first).type).toBe('产物')
+    const reopened = restoreWorkspaceTab(readWorkspaceSessions({ parent: closeWorkspaceTab(state, first.id) }).parent, first.id)
+    expect(reopened.tabs.at(-1)?.workflowDetail).toEqual({ kind: 'artifact', artifactId: 'report', version: 1 })
+    expect(readWorkspaceSessions({ parent: { ...state, tabs: [{ ...first, workflowDetail: { kind: 'artifact', artifactId: '../bad', version: 1 } }] } }).parent.tabs).toEqual([])
+  })
   it('restores multiple historical plan tabs by immutable tool identity, without persisting copied plan content', () => {
     const first = createWorkspacePlanTab('first', '首版方案'), revised = createWorkspacePlanTab('revised', '修订方案')
     let state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), first), revised)

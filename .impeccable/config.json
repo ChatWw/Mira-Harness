@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-10-16T03:33:02.074Z",
         "reason": "Codex review: reported border belongs to Markdown blockquote, a conventional quotation marker, not a card accent."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "apps/harness-react/src/styles/side-pane-full-view.css"
+        ],
+        "createdAt": "2026-10-20T09:49:58.679Z",
+        "reason": "Agent reviewed: ZCode 3c5b2276 ConversationHost.tsx lines 427 and 469 intentionally use 150ms height transitions; docs/ui/side-pane-full-view.md specifies the drawer height motion. Mira preserves this requested source behavior, uses a fixed-height inner conversation, disables transitions during dragging/minimizing, and respects reduced motion."
       }
     ]
   }

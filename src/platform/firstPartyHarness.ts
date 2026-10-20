@@ -86,11 +86,12 @@ function workspaceSearchQuery(value: unknown) {
   return value
 }
 
-function workspaceScope(params: Record<string, unknown>): { projectId: string } | { sessionId: string } {
+function workspaceScope(params: Record<string, unknown>): { projectId: string; rootPath?: string } | { sessionId: string } {
   const project = Object.prototype.hasOwnProperty.call(params, 'projectId')
   const session = Object.prototype.hasOwnProperty.call(params, 'sessionId')
   if (project === session) throw new Error('文件范围必须指定一个项目或会话')
-  return project ? { projectId: string(params.projectId, '项目 ID') } : { sessionId: string(params.sessionId, '会话 ID') }
+  if (!project && params.rootPath !== undefined) throw new Error('任务文件范围不允许覆盖工作目录')
+  return project ? { projectId: string(params.projectId, '项目 ID'), ...(params.rootPath === undefined ? {} : { rootPath: string(params.rootPath, '源文件夹', 4096) }) } : { sessionId: string(params.sessionId, '会话 ID') }
 }
 
 function fileReferencePath(value: unknown) {
@@ -149,7 +150,7 @@ function browserUrl(value: unknown) {
 }
 
 export interface HarnessBrowserBounds { x: number; y: number; width: number; height: number }
-export interface HarnessBrowserPresentation { bounds: HarnessBrowserBounds; clip: HarnessBrowserBounds; viewport: { width: number; height: number } | null; scale: number }
+export interface HarnessBrowserPresentation { bounds: HarnessBrowserBounds; clip: HarnessBrowserBounds; viewport: { width: number; height: number } | null; scale: number; exclusions?: HarnessBrowserBounds[] }
 function browserResource(params: Record<string, unknown>) {
   if (params.browserId === undefined) return {}
   if (typeof params.browserId !== 'string' || !/^browser(?::[\w-]{1,128})?$/.test(params.browserId)) throw new Error('浏览器资源 ID 无效')
@@ -275,7 +276,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     if (sessionId && projectId) throw new Error('MCP 范围只能指定一个项目或会话')
     return { method, ...(sessionId ? { sessionId } : {}), ...(projectId ? { projectId } : {}) } as const
   }
-  if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'providers.list' || method === 'skills.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
+  if (method === 'sessions.list' || method === 'sessions.archived-snapshot' || method === 'projects.list' || method === 'projects.select' || method === 'projects.select-directories' || method === 'providers.list' || method === 'skills.list' || method === 'composer.preferences' || method === 'marketplace.installed' || method === 'automations.list' || method === 'automations.overview' || method === 'permissions.config') return { method } as const
   if (method === 'marketplace.browse' || method === 'plugin-marketplace.browse') {
     const params = raw === undefined ? {} : fields(raw)
     return { method, refresh: params.refresh === undefined ? false : boolean(params.refresh, '刷新状态') } as const
@@ -348,9 +349,9 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (!Array.isArray(params.paths) || !params.paths.length || params.paths.length > 256) throw new Error('一次最多监听 256 个目录')
       const paths = [...new Set(params.paths.map(path => workspacePath(path, true)))]
       if (!paths.includes('') && paths.length === 256) throw new Error('一次最多监听 256 个目录')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), paths } as const
+      return { method, ...workspaceScope(params), paths } as const
     }
-    case 'files.unwatch': return { method, sessionId: string(params.sessionId, '会话 ID'), watchId: string(params.watchId, '监听 ID') } as const
+    case 'files.unwatch': return { method, ...workspaceScope(params), watchId: string(params.watchId, '监听 ID') } as const
     case 'files.media-close': {
       const id = string(params.id, '媒体 ID', 64)
       if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('媒体 ID 无效')
@@ -360,7 +361,7 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'files.reveal':
     case 'files.media-open':
     case 'files.read-image': {
-      const path = workspacePath(params.path)
+      const path = workspacePath(params.path, method === 'files.reveal')
       if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new Error('路径无效')
       return { method, ...workspaceScope(params), path } as const
     }
@@ -386,7 +387,9 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
       if (viewport && (!isMiraBrowserDimension('width', viewport.width) || !isMiraBrowserDimension('height', viewport.height))) throw new Error('浏览器尺寸无效')
       if (typeof params.scale !== 'number' || !Number.isFinite(params.scale) || params.scale <= 0 || params.scale > 2) throw new Error('浏览器缩放无效')
       if (params.guestId !== undefined && (!Number.isSafeInteger(params.guestId) || Number(params.guestId) <= 0)) throw new Error('浏览器目标无效')
-      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), bounds: browserBounds(params.bounds, -10_000), clip: browserBounds(params.clip), viewport: viewport ? { width: viewport.width as number, height: viewport.height as number } : null, scale: params.scale, ...(params.guestId === undefined ? {} : { guestId: params.guestId as number }) } as const
+      if (params.exclusions !== undefined && (!Array.isArray(params.exclusions) || params.exclusions.length > 16)) throw new Error('浏览器遮挡区域无效')
+      const exclusions = (params.exclusions as unknown[] | undefined)?.map(value => browserBounds(value, -10_000))
+      return { method, sessionId: string(params.sessionId, '会话 ID'), ...browserResource(params), ...(exclusions ? { exclusions } : {}), bounds: browserBounds(params.bounds, -10_000), clip: browserBounds(params.clip), viewport: viewport ? { width: viewport.width as number, height: viewport.height as number } : null, scale: params.scale, ...(params.guestId === undefined ? {} : { guestId: params.guestId as number }) } as const
     }
     case 'browser.control': {
       if (!['back', 'forward', 'reload', 'devtools', 'hide', 'show', 'close'].includes(String(params.action))) throw new Error('浏览器操作无效')
@@ -451,6 +454,13 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
     case 'mcp.reconnect': return { method, id: string(params.id, 'MCP 服务 ID') } as const
     case 'session.set-delegation': return { method, id: string(params.id, '会话 ID'), enabled: boolean(params.enabled, '委派开关') } as const
     case 'projects.reorder': return { method, ids: idList(params.ids, '项目 ID 列表') } as const
+    case 'projects.update':
+    case 'projects.create': {
+      const input = fields(params.input)
+      if (!Array.isArray(input.roots) || !input.roots.length || input.roots.length > 64) throw new Error('源文件夹无效')
+      const draft = { name: string(input.name, '项目名称', 120), roots: input.roots.map(root => string(root, '源文件夹', 4096)), primaryRoot: string(input.primaryRoot, '主要目录', 4096) }
+      return method === 'projects.update' ? { method, id: string(params.id, '项目 ID'), input: draft } as const : { method, input: draft } as const
+    }
     case 'projects.rename': return { method, id: string(params.id, '项目 ID'), name: string(params.name, '项目名称', 120) } as const
     case 'projects.remove': return { method, id: string(params.id, '项目 ID') } as const
     case 'projects.open': return { method, projectId: string(params.projectId, '项目 ID'), target: params.target === undefined ? 'file-manager' as const : openTarget(params.target) } as const

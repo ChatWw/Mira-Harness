@@ -1,3 +1,4 @@
+import { useMiraConversationPresentation } from '../workspace/MiraFullViewHost'
 import { COMPOSER_PERMISSIONS as PERMISSIONS, ComposerPermissionOptions, ComposerReasoningOptions, ComposerProjectOptions } from './ComposerConfigurationOptions'
 import { MiraPluginAvatar, pluginLabel } from '../extensions/MiraPluginAvatar'
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
@@ -81,6 +82,7 @@ type HarnessComposerProps = {
 }
 
 export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposerProps>(function HarnessComposer({ state, controller, planning, setPlanning, draftProjectId, onDraftProjectChange, active = true, keyboardActive = active, draftPreferenceKey = DRAFT_PREFERENCE_KEY, selectionSourceSessionId, onReady, onOpenSideConversation, onShowConfirmation, onShowGoal, onOpenPresentation, interactionSlot, leadingActions, navigationSaveFailed = false, onDraftChange, onDraftAccepted }, ref) {
+  const presentation = useMiraConversationPresentation()
   const interactionBlocked = Boolean(interactionSlot)
   const wasInteractionBlocked = useRef(false)
   const sessionId = state.session?.id
@@ -170,7 +172,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const [showContextUsage, setShowContextUsage] = useState(true)
   const [followupMode, setFollowupMode] = useState<'queue' | 'guide'>('queue')
   const editorRef = useRef<MiraPromptEditorHandle>(null)
-  const toolbarRef = useMiraComposerToolbar()
+  const toolbarRef = useMiraComposerToolbar(presentation.floating)
   const programmaticPromptChange = useRef(false)
   const migratingDraft = useRef<string | undefined>(undefined)
   const editorIdentity = useRef({ owner: draftKey, key: draftKey })
@@ -302,8 +304,8 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   if (contextOpen && !panelFilter) suggestionSections.push({ id: 'add', title: '添加', items: [
     { id: 'attach-files', label: '添加文件或文件夹', description: controller.supportsAttachments ? '引用本地文件或文件夹' : selectedProject ? '文本文件' : '先选择项目', icon: <Paperclip size={16} />, action: { type: 'command', value: 'files' } },
     { id: 'add-plan', label: '计划模式', description: planning ? '关闭计划模式' : '先制定计划，确认后再执行', selected: planning, disabled: nextConfigBlocked, icon: <Lightbulb size={16} />, action: { type: 'command', value: 'plan' } },
-    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', disabled: editorText !== '' || references.length > 0 || promptDocument.parts.some(part => part.type === 'reference'), icon: <Goal size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
-    ...(!state.session?.parentSessionId && fileDirectory && !planning && editorText === '' && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? [{ id: 'add-workflow', label: '工作流', description: '编排任务，审阅后运行', icon: <Workflow size={16} />, action: { type: 'command' as const, value: 'workflow' } }] : []),
+    ...(controller.supportsGoals && !state.session?.parentSessionId ? [{ id: 'add-goal', label: '目标', description: '设置持续目标，逐轮核验完成情况', disabled: references.length > 0 || promptDocument.parts.some(part => part.type === 'reference'), icon: <Goal size={16} />, action: { type: 'command' as const, value: 'goal' } }] : []),
+    ...(!state.session?.parentSessionId && fileDirectory && !planning && !references.length && !promptDocument.parts.some(part => part.type === 'reference') ? [{ id: 'add-workflow', label: '工作流', description: '编排任务，审阅后运行', icon: <Workflow size={16} />, action: { type: 'command' as const, value: 'workflow' } }] : []),
     { id: 'open-commands', label: '命令与能力', description: '/', icon: <Wrench size={16} />, action: { type: 'command', value: 'open-commands' } },
   ] })
   if (kind === '/') suggestionSections.push({ id: 'commands', title: 'Mira 命令', items: filterMiraSuggestions(slashCommands, suggestionQuery), empty: '没有匹配的 Mira 命令' })
@@ -1141,9 +1143,15 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       return
     }
     if (item.action.type === 'command' && (item.action.value === 'goal' || item.action.value === 'workflow')) {
-      if (editorText.slice(0, range.start).trim()) return
-      // ZCode SlashCommandPlugin 同时保留原子标签和实际 /command 文本，不能只插入普通文字。
-      if (applyPromptParts(contextOpen ? { start: range.start, end: range.start } : range, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'command', label: item.action.value === 'goal' ? '持续目标' : '工作流', value: `builtin:${item.action.value}`, text: `/${item.action.value}` } }, { type: 'text', text: ' ' }])) closeSuggestions()
+      const remaining = replaceMiraPromptDocumentRange(editorDocument, contextOpen ? { start: range.start, end: range.start } : range, [])
+      if (!remaining) return
+      const parts = remaining.document.parts, first = parts[0]
+      // These commands select a message mode, so keep one leading chip and retain the body.
+      if (first?.type === 'reference' && first.reference.kind === 'command' && ['builtin:goal', 'builtin:workflow'].includes(first.reference.value)) {
+        parts.shift()
+        if (parts[0]?.type === 'text') parts[0].text = parts[0].text.replace(/^ /, '')
+      }
+      if (applyPromptParts({ start: 0, end: editorText.length }, [{ type: 'reference', reference: { id: crypto.randomUUID(), kind: 'command', label: item.action.value === 'goal' ? '持续目标' : '工作流', value: `builtin:${item.action.value}`, text: `/${item.action.value}` } }, { type: 'text', text: ' ' }, ...parts])) closeSuggestions()
       return
     }
     const opensMenu = item.action.type === 'command' && ['skills', 'mcp', 'model', 'thinking', 'perm'].includes(item.action.value)
@@ -1559,7 +1567,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               return { owner: draftKey, text: draft, token }
             })
             setCaret(range)
-          }} onChange={(document, range, programmatic) => { if (!programmatic && !interactionBlocked && !programmaticPromptChange.current && active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setPromptDocument(withMiraPromptContexts(document, miraPromptContexts(latestDraftSnapshot.current.documents?.[draftKey] ?? restoreMiraContextPromptDocument(latestDraftSnapshot.current.drafts[draftKey] ?? ''))), range) } }} onError={error => setComposerError(`输入编辑器出错：${error.message}；草稿会保留`)} onKeyDown={event => { if (event.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation || event.key === 'Enter' && event.shiftKey) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key) && onSuggestionKeyDown(event)) return; if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, reverseOptions); return } if (shouldSendWithShortcut(sendShortcut, event)) { event.preventDefault(); void submit() } }} placeholder={placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? suggestionListId : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `${suggestionListId}-${selectedSuggestion.id}` : undefined} />
+          }} onChange={(document, range, programmatic) => { if (!programmatic && !interactionBlocked && !programmaticPromptChange.current && active && !busyRef.current && !controller.getSnapshot().sessionLoading) { setContextOpen(false); setPanelFilter(null); setPromptDocument(withMiraPromptContexts(document, miraPromptContexts(latestDraftSnapshot.current.documents?.[draftKey] ?? restoreMiraContextPromptDocument(latestDraftSnapshot.current.drafts[draftKey] ?? ''))), range) } }} onError={error => setComposerError(`输入编辑器出错：${error.message}；草稿会保留`)} onKeyDown={event => { if (event.isComposing || event.keyCode === 229 || inputBlocked || queueConfirmation || event.key === 'Enter' && event.shiftKey) return; if (suggestionsOpen && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key) && onSuggestionKeyDown(event)) return; if (event.shiftKey) return; if (submissionOptionsSupported && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(undefined, reverseOptions); return } if (shouldSendWithShortcut(sendShortcut, event)) { event.preventDefault(); void submit() } }} placeholder={presentation.placeholder || placeholder} aria-label="任务内容" aria-expanded={suggestionsOpen} aria-controls={suggestionsOpen ? suggestionListId : undefined} aria-activedescendant={suggestionsOpen && selectedSuggestion ? `${suggestionListId}-${selectedSuggestion.id}` : undefined} />
         <div ref={toolbarRef} className="harness-composer__footer">
           <div className="harness-composer__controls" data-mira-toolbar-leading><div className="mira-composer-leading-content" data-mira-toolbar-content>
             <ComposerControlHint title="添加上下文与能力"><button ref={contextTriggerRef} type="button" className="harness-composer__icon-button" aria-label="添加上下文" aria-expanded={contextOpen} aria-controls={contextOpen ? suggestionListId : undefined} disabled={contextBlocked} onMouseDown={event => { event.preventDefault(); captureMenuSelection() }} onClick={openContext}><Plus size={16} /></button></ComposerControlHint>

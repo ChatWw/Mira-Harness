@@ -22,11 +22,11 @@ function fitToolbar(root: HTMLElement) {
   if (overflow() > 0) root.dataset.miraModelIcon = 'true'
 }
 
-export function useMiraComposerToolbar() {
+export function useMiraComposerToolbar(floating = false) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const root = ref.current
-    if (!root) return
+    if (!root || floating) return
     let disposed = false
     const update = () => {
       if (disposed || !root.isConnected || !root.parentElement || root.getBoundingClientRect().width <= 0) return
@@ -57,6 +57,6 @@ export function useMiraComposerToolbar() {
     observe()
     void document.fonts?.ready.then(update)
     return () => { disposed = true; resize.disconnect(); mutations.disconnect() }
-  }, [])
+  }, [floating])
   return ref
 }

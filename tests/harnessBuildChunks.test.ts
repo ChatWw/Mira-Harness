@@ -27,6 +27,13 @@ describe('Harness generated chunks', () => {
       })
       return value
     }
+    // These dialogs must survive the Tailwind build that replaces esbuild's CSS output.
+    expect(declaration('.mira-project-editor', 'position')).toBe('fixed')
+    expect(declaration('.mira-project-editor', 'width')).toBe('512px')
+    expect(declaration('.mira-project-editor', 'box-shadow')).toBe('var(--shadow-dialog)')
+    expect(declaration('.mira-project-editor__root', 'display')).toBe('flex')
+    expect(declaration('.mira-project-editor__actions', 'display')).toBe('flex')
+    expect(declaration('.mira-project-trust', 'z-index')).toBe('72')
     expect(declaration('.pilot-side-tab__close', 'position')).toBe('absolute')
     expect(declaration('.pilot-side-tab__close', 'pointer-events')).toBe('none')
     // 选中态沿用统一收缩宽度，避免挤窄其他资源标题。

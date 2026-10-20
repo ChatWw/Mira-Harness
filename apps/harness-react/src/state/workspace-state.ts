@@ -5,9 +5,10 @@
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'git' | 'changes' | 'terminal' | 'browser' | 'side-chat'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
-export type WorkspaceHtmlSource = { path: string } & ({ projectId: string } | { sessionId: string })
-export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; projectId?: string; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; htmlSource?: WorkspaceHtmlSource; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `file-manager:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
+export type WorkspaceHtmlSource = { path: string } & ({ projectId: string; rootPath?: string } | { sessionId: string })
+export type WorkspaceWorkflowDetail = { kind: 'actor'; siteId: string; ordinal: number } | { kind: 'operations'; phaseId: string; participantId?: string } | { kind: 'artifact'; artifactId: string; version: number }
+export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; projectId?: string; rootPath?: string; fileManager?: { directory: string; sessionId?: string }; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; workflowDetail?: WorkspaceWorkflowDetail; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; htmlSource?: WorkspaceHtmlSource; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
 export type WorkspaceSessionState = {
   tabs: WorkspaceTab[]
   activeTab: WorkspaceTabId
@@ -58,6 +59,10 @@ export function isWorkspaceRelativePath(value: unknown): value is string {
     && !/[\\\0]/.test(value) && value.split('/').every(segment => segment.length > 0 && segment !== '.' && segment !== '..')
 }
 
+export function createWorkspaceFileManagerTab(directory: string, projectId?: string, sessionId?: string): WorkspaceTab {
+  return { id: `file-manager:${crypto.randomUUID()}`, label: '文件', ...(projectId ? { projectId, rootPath: directory } : {}), fileManager: { directory, sessionId } }
+}
+
 export function createWorkspaceFileTab(path: string, projectId?: string): WorkspaceTab {
   if (!isWorkspaceRelativePath(path)) throw new Error('文件路径无效')
   return { id: projectId ? `file:${JSON.stringify([projectId, path])}` : `file:${path}`, label: path.split('/').pop()!, path, ...(projectId ? { projectId } : {}) }
@@ -81,6 +86,11 @@ export function createWorkspaceCommandOutputTab(runId: string, commandToolId: st
 
 export function createWorkspaceWorkflowTab(sessionId: string, runId: string): WorkspaceTab {
   return { id: `workflow:${JSON.stringify([sessionId, runId])}`, label: '工作流', workflowSessionId: sessionId, runId }
+}
+
+export function createWorkspaceWorkflowDetailTab(sessionId: string, runId: string, detail: WorkspaceWorkflowDetail, label: string): WorkspaceTab {
+  const key = detail.kind === 'artifact' ? ['artifact', detail.artifactId, detail.version] : detail.kind === 'actor' ? ['actor', detail.siteId, detail.ordinal] : ['operations', detail.phaseId, detail.participantId ?? null]
+  return { id: `workflow:${JSON.stringify([sessionId, runId, ...key])}`, label, workflowSessionId: sessionId, runId, workflowDetail: detail }
 }
 
 export function createWorkspaceSubtaskTab(runId: string, subtaskId: string, label: string): WorkspaceTab {
@@ -209,14 +219,21 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
       const tabs: WorkspaceTab[] = []
       if (Array.isArray(value)) for (const tab of value) {
         if (!tab || typeof tab !== 'object' || typeof tab.id !== 'string' || typeof tab.label !== 'string' || tabs.some(item => item.id === tab.id)) continue
-        if (tab.id.startsWith('file:')) {
+        if (tab.id.startsWith('file-manager:')) {
+          const manager = tab.fileManager
+          if (!manager || typeof manager.directory !== 'string' || !manager.directory || manager.directory.length > 4096) continue
+          if (tab.path !== undefined && !isWorkspaceRelativePath(tab.path)) continue
+          if (tab.projectId !== undefined && (typeof tab.projectId !== 'string' || !tab.projectId)) continue
+          if (!tab.projectId && (typeof manager.sessionId !== 'string' || !manager.sessionId)) continue
+          tabs.push({ id: tab.id, label: tab.label, path: tab.path, projectId: tab.projectId, rootPath: tab.projectId ? manager.directory : undefined, fileManager: { directory: manager.directory, sessionId: manager.sessionId } })
+        } else if (tab.id.startsWith('file:')) {
           if (!isWorkspaceRelativePath(tab.path)) continue
           if (tab.projectId !== undefined && (typeof tab.projectId !== 'string' || !tab.projectId || tab.projectId.length > 256)) continue
           const file = createWorkspaceFileTab(tab.path, tab.projectId)
           if (tab.id === file.id) tabs.push({ ...file, label: tab.label })
         } else if (tab.id.startsWith('browser:')) {
           const source = tab.htmlSource
-          const scope = source && typeof source === 'object' && (typeof source.projectId === 'string' && source.projectId.length > 0 && source.projectId.length <= 256 ? { projectId: source.projectId } : typeof source.sessionId === 'string' && source.sessionId.length > 0 && source.sessionId.length <= 256 ? { sessionId: source.sessionId } : undefined)
+          const scope = source && typeof source === 'object' && (typeof source.projectId === 'string' && source.projectId.length > 0 && source.projectId.length <= 256 ? { projectId: source.projectId, ...(typeof source.rootPath === 'string' && source.rootPath.length <= 4096 ? { rootPath: source.rootPath } : {}) } : typeof source.sessionId === 'string' && source.sessionId.length > 0 && source.sessionId.length <= 256 ? { sessionId: source.sessionId } : undefined)
           const htmlSource = scope && isWorkspaceRelativePath(source.path) && /\.(html|htm)$/i.test(source.path) ? { ...scope, path: source.path } : undefined
           if (/^browser:[\w-]{1,128}$/.test(tab.id)) tabs.push({ id: tab.id, label: tab.label, url: typeof tab.url === 'string' && /^https?:\/\//i.test(tab.url) ? tab.url : '', ...(htmlSource ? { htmlSource } : {}), ...(tab.faviconUrl === undefined ? {} : { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null }) })
         } else if (tab.id.startsWith('terminal:')) {
@@ -228,7 +245,12 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
         } else if (tab.id.startsWith('task:')) {
           if (typeof tab.taskSessionId === 'string' && /^[\w-]{1,128}$/.test(tab.taskSessionId) && tab.taskSessionId !== sessionId && tab.id === `task:${tab.taskSessionId}`) tabs.push(createWorkspaceTaskTab(tab.taskSessionId, tab.label))
         } else if (tab.id.startsWith('workflow:')) {
-          if (typeof tab.workflowSessionId === 'string' && typeof tab.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.workflowSessionId) && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.runId) && tab.id === createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId).id) tabs.push(createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId))
+          if (typeof tab.workflowSessionId === 'string' && typeof tab.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.workflowSessionId) && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tab.runId)) {
+            const detail = tab.workflowDetail
+            const validDetail = detail && (detail.kind === 'artifact' ? /^[A-Za-z0-9_.-]{1,64}$/.test(detail.artifactId) && Number.isSafeInteger(detail.version) && detail.version >= 1 && detail.version <= 16 : detail.kind === 'actor' ? typeof detail.siteId === 'string' && detail.siteId.length > 0 && detail.siteId.length <= 512 && Number.isSafeInteger(detail.ordinal) && detail.ordinal >= 0 : detail.kind === 'operations' && typeof detail.phaseId === 'string' && detail.phaseId.length > 0 && detail.phaseId.length <= 512 && (detail.participantId === undefined || typeof detail.participantId === 'string' && detail.participantId.length > 0 && detail.participantId.length <= 512))
+            const restored = validDetail ? createWorkspaceWorkflowDetailTab(tab.workflowSessionId, tab.runId, detail, tab.label) : createWorkspaceWorkflowTab(tab.workflowSessionId, tab.runId)
+            if (tab.id === restored.id) tabs.push(restored)
+          }
         } else if (tab.id.startsWith('plan:')) {
           if (typeof tab.planToolId === 'string' && tab.planToolId.length > 0 && tab.planToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.planToolId) && tab.id === `plan:${tab.planToolId}`) tabs.push(createWorkspacePlanTab(tab.planToolId, tab.label))
         } else if (tab.id.startsWith('command-output:')) {

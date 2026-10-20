@@ -11,6 +11,9 @@ import { taskFindTargetKey } from '../../lib/conversation-find'
 import { miraAssistantWorkItems } from '../../lib/tool-exploration'
 import { MiraToolExploration } from './MiraToolExploration'
 import { MiraToolCommandGroup } from './MiraToolCommandGroup'
+import { MiraWorkflowToolSummary } from '../workflows/MiraWorkflowToolSummary'
+import type { MiraFlowRunSummary, MiraFlowRunIdentity } from '../../../../../src/config/miraFlowWorkbench'
+import type { ArtifactVersionRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'
 import { MiraWorkflowSourceReview } from '../workflows/MiraWorkflowSourceReview'
 
 export interface PermissionResponseCardProps {
@@ -33,8 +36,8 @@ export function PermissionResponseCard({ request, responding, error, placement, 
   }}>
     <ShieldCheck size={19} aria-hidden="true" />
     <div>
-      <strong>{request.title}</strong>
-      {request.workflowReview ? <div className="mira-tool-permission__review-body"><p className="mira-tool-permission__detail">{request.detail}</p><MiraWorkflowSourceReview review={request.workflowReview} /></div> : <p className="mira-tool-permission__detail">{request.detail}</p>}
+      {!request.workflowReview && <strong>{request.title}</strong>}
+      {request.workflowReview ? <div className="mira-tool-permission__review-body"><MiraWorkflowSourceReview review={request.workflowReview} /></div> : <p className="mira-tool-permission__detail">{request.detail}</p>}
       {error && <p className="mira-tool-error" role="alert">{error}</p>}
       {responding && <p role="status">正在提交确认…</p>}
       <div className="pilot-action__buttons">
@@ -89,7 +92,9 @@ const AssistantReasoning = memo(function AssistantReasoning({ part, memoryKey }:
   </details>
 })
 
-export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId, rendererId = message.id, onOpenFile, onOpenCommand, hasPlan = false, subtaskForTool, onOpenSubtask, onStopSubtask }: {
+export function AssistantMessageParts({ message, toolsById, streaming = false, permission, permissionPartId, rendererId = message.id, onOpenFile, onOpenCommand, hasPlan = false, subtaskForTool, onOpenSubtask, onStopSubtask, workflowRuns, onOpenWorkflow }: {
+  workflowRuns?: MiraFlowRunSummary[]
+  onOpenWorkflow?: (identity: MiraFlowRunIdentity, artifact?: ArtifactVersionRecord) => void
   message: HarnessMessage
   toolsById: ReadonlyMap<string, ToolCallRecord>
   streaming?: boolean
@@ -111,7 +116,7 @@ export function AssistantMessageParts({ message, toolsById, streaming = false, p
     const child = tool?.tool === 'delegate_task' ? subtaskForTool?.(tool.id) : undefined
     return <MiraStreamEntrance key={part.id} identity={`${rendererId}:${part.id}`} active={streaming && part.type !== 'text'}><div className="mira-assistant-part" data-message-part-id={part.id} data-message-part-type={part.type} data-mira-find-target={part.type === 'text' ? taskFindTargetKey(rendererId, part.id) : undefined}>
       {part.type === 'text' ? <div data-mira-selectable="assistant" data-mira-selection-region={part.id}><MessageMarkdown content={part.text} sources={message.sources} streaming={streaming && part.state === 'streaming'} /></div> : part.type === 'reasoning' ? <AssistantReasoning part={part} memoryKey={JSON.stringify(['reasoning', message.runId ?? message.id, part.id])} /> : <>
-        {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
+        {child && onOpenSubtask ? <MiraSubtaskRecord key={child.id} subtask={child} onOpen={() => onOpenSubtask(child.id)} onStop={onStopSubtask ? () => onStopSubtask(child.id) : undefined} /> : tool?.tool === 'create_workflow' && tool.status === 'ok' ? <MiraWorkflowToolSummary tool={tool} run={workflowRuns?.find(run => run.toolCallId === tool.id)} onOpen={onOpenWorkflow} /> : tool ? <ToolRecord tool={tool} onOpenFile={onOpenFile} onOpenCommand={onOpenCommand} /> : <p className="mira-tool-missing" role="status">工具记录暂不可用。</p>}
         {permission && permissionPartId === part.id && <PermissionResponseCard {...permission} />}
       </>}
     </div></MiraStreamEntrance>

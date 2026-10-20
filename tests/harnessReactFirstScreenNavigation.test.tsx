@@ -1,3 +1,4 @@
+import { MiraProjectEditor } from '../apps/harness-react/src/components/session/MiraProjectEditor'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HarnessWorkbench } from '../apps/harness-react/src/components/workbench/HarnessWorkbench'
@@ -11,7 +12,8 @@ import { PilotController, type PilotHost } from '../apps/harness-react/src/state
 import type { HarnessActiveRun, HarnessMessage, HarnessProject, HarnessRunSummary, HarnessSession, HarnessSubtask } from '../src/config/harness'
 import { parseFirstPartyNavigationPath } from '../src/platform/firstPartyNavigation'
 import { SidebarPreferenceStore } from '../apps/harness-react/src/components/session/sidebar-preferences'
-import { ProjectFileDrawer } from '../apps/harness-react/src/components/workspace/ProjectFileDrawer'
+import { MiraFileManager } from '../apps/harness-react/src/components/workspace/MiraFileManager'
+import { MiraFullViewHost } from '../apps/harness-react/src/components/workspace/MiraFullViewHost'
 import { MiraTaskTitleEditor } from '../apps/harness-react/src/components/workbench/MiraTaskTitleEditor'
 import { TaskSummary } from '../apps/harness-react/src/components/conversation/TaskSummary'
 import { WorkspaceTabs } from '../apps/harness-react/src/components/workspace/WorkspaceTabs'
@@ -36,6 +38,7 @@ import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNaviga
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
 vi.mock('react', async original => ({
   ...await original<typeof import('react')>(),
+  useContext: (context: { _currentValue: unknown }) => context._currentValue,
   useState: (initial: unknown) => { const slot = hooks.slots[hooks.cursor++] ??= { value: typeof initial === 'function' ? initial() : initial }; return [slot.value, (value: unknown) => { const next = typeof value === 'function' ? value(slot.value) : value; if (!Object.is(next, slot.value)) { slot.value = next; hooks.dirty = true } }] },
   useRef: (initial: unknown) => (hooks.slots[hooks.cursor++] ??= { value: { current: initial } }).value,
   useCallback: (callback: unknown) => callback,
@@ -299,6 +302,22 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(controller.getSnapshot().session).toBeUndefined()
     expect(view.pageProps((_, element) => element.type === HarnessComposer).draftProjectId).toBe('empty')
     expect(host.createSession).not.toHaveBeenCalled(); expect(host.prepareSession).not.toHaveBeenCalled()
+    view.unmount()
+  })
+  it('opens the native React creation form from the project command without selecting or registering a directory', async () => {
+    const { controller, host } = fixture()
+    const createProject = vi.fn(), selectProjectDirectories = vi.fn()
+    Object.assign(host, { createProject, selectProjectDirectories })
+    const view = mount(controller); await view.drain()
+    const before = controller.getSnapshot().session
+    expect(await view.command('open-project')).toBe(true); await view.drain()
+    const editor = view.props((_, element) => element.type === MiraProjectEditor)
+    expect(editor.project).toBeUndefined()
+    expect(host.selectProject).not.toHaveBeenCalled()
+    expect(selectProjectDirectories).not.toHaveBeenCalled(); expect(createProject).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().session).toBe(before)
+    ;(editor.onClose as () => void)(); await view.drain()
+    expect(() => view.props((_, element) => element.type === MiraProjectEditor)).toThrow('Missing workbench element')
     view.unmount()
   })
   it('does not let a late directory picker replace a newer task, and prevents duplicate pickers', async () => {
@@ -590,24 +609,12 @@ describe('first-screen navigation owns each awaited transition', () => {
     view.unmount(); secondaryController.dispose()
   })
 
-  it('allows dragging project and personal tasks from different directories into the current split', async () => {
-    const { controller, host } = fixture()
-    const records = [task('a', 'project-a'), task('b', 'project-b'), task('personal')].map((session, index) => ({ ...session, workingDirectory: ['/project-a', '/project-b', '/personal'][index] }))
-    host.getSession.mockImplementation(async id => records.find(session => session.id === id)!)
-    Object.assign(controller.getSnapshot(), { session: records[0], sessions: records })
-    const view = mount(controller); await view.drain()
-    const grid = () => view.props((_, element) => element.type === MiraTaskGrid) as unknown as React.ComponentProps<typeof MiraTaskGrid>
-    expect(grid().canPlace('b')).toBe(true)
-    await grid().onPlace('b', '$primary', 'right'); await view.drain()
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'b'])
-    expect(grid().canPlace('personal')).toBe(true)
-    await grid().onPlace('personal', 'b', 'down'); await view.drain()
-    expect(miraTaskPaneIds(grid().layout)).toEqual(['$primary', 'b', 'personal'])
-    expect(grid().canPlace('b')).toBe(false)
-    await controller.flushBeforeNavigation()
-    const saved = host.setPreference.mock.calls.filter(([key]) => key === 'harness-react-workspace').at(-1)![1] as Record<string, { taskLayout: unknown }>
-    expect(saved.a.taskLayout).toEqual(grid().layout)
+  it('retires split creation through task menus and drop targets while retaining existing layout callbacks', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const entry = view.sidebar().taskPaneEntry as { canOpen: (id: string) => boolean; canDrag: (id: string) => boolean }
+    const grid = view.props((_, element) => element.type === MiraTaskGrid) as unknown as React.ComponentProps<typeof MiraTaskGrid>
+    expect(entry.canOpen('b')).toBe(false); expect(entry.canDrag('b')).toBe(false); expect(grid.canPlace('b')).toBe(false)
+    // Old saved layouts still use the existing opening/focus/closing path, covered below.
     view.unmount()
   })
 
@@ -1212,23 +1219,6 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(view.sidebar().automationsActive).toBe(true)
     expect(host.setPreference.mock.calls.some(([key, value]) => key === 'active-session' && value === 'b')).toBe(false)
   })
-  it('opens external editors for the browsed project or personal task without requiring it to be active', async () => {
-    const { controller, host } = fixture()
-    controller.getSnapshot().sessions.push({ ...task('personal'), workingDirectory: '/personal' })
-    const openProjectFileInEditor = vi.fn(async () => undefined), openFileInEditor = vi.fn(async () => undefined)
-    Object.assign(host, { openProjectFileInEditor, openFileInEditor })
-    const view = mount(controller); await view.drain()
-    await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('project-b'); await view.drain()
-    let drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
-    await drawer.onOpenEditor!('index.html', 'mira-vscode')
-    expect(openProjectFileInEditor).toHaveBeenCalledWith('project-b', 'index.html', 'mira-vscode')
-    ;(drawer.onBack as () => void)(); await view.drain()
-    await (view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>)('personal'); await view.drain()
-    drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
-    await drawer.onOpenEditor!('index.html', 'mira-vscode')
-    expect(openFileInEditor).toHaveBeenCalledWith('personal', 'index.html', 'mira-vscode')
-    expect(controller.getSnapshot().session?.id).toBe('a')
-  })
   it.each(['project', 'personal'])('opens HTML from another %s workspace in an independent browser without switching tasks', async kind => {
     const { controller, host } = fixture()
     if (kind === 'personal') controller.getSnapshot().sessions.push({ ...task('personal'), workingDirectory: '/personal' })
@@ -1238,9 +1228,9 @@ describe('first-screen navigation owns each awaited transition', () => {
     if (kind === 'project') await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('project-b')
     else await (view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>)('personal')
     await view.drain()
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
-    await drawer.onOpenBrowser!('prototype/index.html', () => true); await view.drain()
-    expect(getWorkspaceHtmlUrl).toHaveBeenCalledWith(kind === 'project' ? { projectId: 'project-b' } : { sessionId: 'personal' }, 'prototype/index.html')
+    const drawer = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
+    await drawer.onOpenBrowser('prototype/index.html', () => true); await view.drain()
+    expect(getWorkspaceHtmlUrl).toHaveBeenCalledWith(kind === 'project' ? { projectId: 'project-b', rootPath: '/project-b' } : { sessionId: 'personal' }, 'prototype/index.html')
     expect(controller.getSnapshot().session?.id).toBe('a')
     expect(host.getSession).not.toHaveBeenCalled(); expect(host.createSession).not.toHaveBeenCalled()
     const browser = view.props((props, element) => element.type === MiraBrowserPanel && props.active === true)
@@ -1253,8 +1243,8 @@ describe('first-screen navigation owns each awaited transition', () => {
     await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('project-b'); await view.drain()
     expect(view.composer.prepareSession).not.toHaveBeenCalled()
     view.composer.prepareSession = vi.fn(async (isCurrent?: () => boolean) => await controller.prepare(undefined, isCurrent) ? controller.getSnapshot().session?.id : undefined)
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
-    await drawer.onOpenBrowser!('index.html', () => true); await view.drain()
+    const drawer = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
+    await drawer.onOpenBrowser('index.html', () => true); await view.drain()
     expect(view.composer.prepareSession).toHaveBeenCalledWith(expect.any(Function))
     expect(view.props((props, element) => element.type === MiraBrowserPanel && props.active === true)).toMatchObject({ sessionId: 'created', htmlSource: { projectId: 'project-b', path: 'index.html' } })
   })
@@ -1263,134 +1253,88 @@ describe('first-screen navigation owns each awaited transition', () => {
     Object.assign(host, { getWorkspaceHtmlUrl: vi.fn(async () => 'http://127.0.0.1:8123/index.html') })
     const view = mount(controller); await view.drain()
     await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('project-b'); await view.drain()
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
-    await expect(drawer.onOpenBrowser!('index.html', () => true)).rejects.toThrow('工作区准备失败')
+    const drawer = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
+    await expect(drawer.onOpenBrowser('index.html', () => true)).rejects.toThrow('工作区准备失败')
   })
   it('discards HTML completion after the originating file drawer is replaced', async () => {
     const { controller, host } = fixture(), pending = deferred<string>()
     Object.assign(host, { getWorkspaceHtmlUrl: vi.fn(() => pending.promise) })
     const view = mount(controller); await view.drain()
     await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('project-b'); await view.drain()
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer) as unknown as React.ComponentProps<typeof ProjectFileDrawer>
+    const drawer = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
     let current = true
-    const opening = drawer.onOpenBrowser!('index.html', () => current)
+    const opening = drawer.onOpenBrowser('index.html', () => current)
     current = false
     pending.resolve('http://127.0.0.1:8123/index.html'); await opening; await view.drain()
     expect(() => view.props((_, element) => element.type === MiraBrowserPanel)).toThrow('Missing workbench element')
     expect(controller.getSnapshot().session?.id).toBe('a')
   })
 
-  it('opens project files without waiting for a conversation draft flush or changing the task', async () => {
+  it('opens selected project roots as independent right tabs without flushing or changing tasks', async () => {
     const { controller, host } = fixture(), view = mount(controller); await view.drain()
+    controller.getSnapshot().projects[0].roots = [{ rootPath: '/project-a', isPrimary: true }, { rootPath: '/secondary', isPrimary: false }]
     const flush = vi.fn(() => new Promise<void>(() => {})); controller.registerBeforeNavigation(flush)
-    ;(view.sidebar().onOpenProjectFiles as (id: string) => void)('empty'); await view.drain()
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer)
-    expect(drawer).toMatchObject({ projectId: 'empty', directory: '/empty' })
-    expect(drawer.sessionId).toBeUndefined()
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(flush).not.toHaveBeenCalled()
+    const open = view.sidebar().onOpenProjectFiles as (id: string, root?: string) => Promise<void>
+    await open('project-a', '/secondary'); await view.drain()
+    const manager = () => view.props((p, element) => element.type === MiraFileManager && p.active) as unknown as React.ComponentProps<typeof MiraFileManager>
+    expect(manager().tab).toMatchObject({ projectId: 'project-a', rootPath: '/secondary', fileManager: { directory: '/secondary' } })
+    const first = manager().tab.id
+    manager().onNavigate('README.md'); await view.drain(); expect(manager().tab.path).toBe('README.md')
+    await open('project-a'); await view.drain()
+    expect(manager().tab.id).not.toBe(first); expect(manager().tab.rootPath).toBe('/project-a')
+    expect(controller.getSnapshot().session?.id).toBe('a'); expect(flush).not.toHaveBeenCalled()
     expect(host.createSession).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled()
+    view.unmount()
   })
-  it('keeps the automation view while browsing files for a project without any tasks', async () => {
-    const { controller, host } = fixture(), view = mount(controller); await view.drain()
-    view.view('automations'); await view.drain()
-    ;(view.sidebar().onOpenProjectFiles as (id: string) => void)('empty'); await view.drain()
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer)
-    expect(drawer.projectId).toBe('empty')
-    expect(view.props((_, element) => element.type === AutomationsView).active).toBe(true)
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(host.createSession).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled()
-    ;(drawer.onBack as () => void)(); await view.drain()
-    expect(view.sidebar().automationsActive).toBe(true)
-  })
-  it('opens the sidebar project tree from an empty draft without preparing a task', async () => {
+  it('opens files from a draft or automation page without preparing or changing the conversation', async () => {
     const { controller, host } = fixture(); controller.newConversation()
-    const view = mount(controller); await view.drain()
-    ;(view.sidebar().onOpenProjectFiles as (id: string) => void)('empty'); await view.drain()
-    expect(view.props((_, element) => element.type === ProjectFileDrawer).projectId).toBe('empty')
-    expect(controller.getSnapshot().session).toBeUndefined()
-    expect(view.composer.prepareSession).not.toHaveBeenCalled()
-    expect(host.createSession).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled()
-  })
-  it('opens another task project tree without flushing or selecting that task', async () => {
-    const { controller, host } = fixture(), view = mount(controller); await view.drain()
-    const flush = vi.fn(() => new Promise<void>(() => {})); controller.registerBeforeNavigation(flush)
-    await (view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>)('b'); await view.drain()
-    expect(view.props((_, element) => element.type === ProjectFileDrawer)).toMatchObject({ projectId: 'project-b', directory: '/project-b' })
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(flush).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled(); expect(host.createSession).not.toHaveBeenCalled()
-  })
-  it('captures a personal task directory while the automation page and another task stay active', async () => {
-    const { controller, host } = fixture()
-    const snapshot = controller.getSnapshot()
-    snapshot.sessions = snapshot.sessions.map(item => item.id === 'b' ? { ...item, projectId: undefined, workingDirectory: '/personal-b' } : item)
     const view = mount(controller); await view.drain(); view.view('automations'); await view.drain()
-    await (view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>)('b'); await view.drain()
-    const drawer = () => view.props((_, element) => element.type === ProjectFileDrawer)
-    expect(drawer()).toMatchObject({ sessionId: 'b', directory: '/personal-b', expandedPaths: [] })
-    expect(drawer().projectId).toBeUndefined()
-    ;(drawer().onExpandedPathsChange as (paths: string[]) => void)(['src']); await view.drain()
-    expect(drawer().expandedPaths).toEqual(['src'])
-    ;(drawer().onOpenDirectory as () => void)(); await view.drain()
-    expect(host.openSessionProject).toHaveBeenCalledExactlyOnceWith('b', 'file-manager')
-    expect(view.automationProps().active).toBe(true)
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(host.getSession).not.toHaveBeenCalled(); expect(host.createSession).not.toHaveBeenCalled()
-    ;(drawer().onBack as () => void)(); await view.drain()
-    expect(view.sidebar().automationsActive).toBe(true)
+    await (view.sidebar().onOpenProjectFiles as (id: string) => Promise<void>)('empty'); await view.drain()
+    const manager = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
+    expect(manager.tab).toMatchObject({ projectId: 'empty', fileManager: { directory: '/empty' } })
+    expect(view.automationProps().active).toBe(true); expect(controller.getSnapshot().session).toBeUndefined()
+    expect(view.composer.prepareSession).not.toHaveBeenCalled(); expect(host.getSession).not.toHaveBeenCalled(); expect(host.createSession).not.toHaveBeenCalled()
+    view.unmount()
   })
-  it('reports personal-directory host error strings and ignores callbacks from a replaced file tree', async () => {
+  it('binds a browsed task tree to its persisted secondary directory instead of its project primary', async () => {
     const { controller, host } = fixture()
-    const snapshot = controller.getSnapshot()
-    snapshot.sessions = snapshot.sessions.map(item => item.id === 'b' ? { ...item, projectId: undefined, workingDirectory: '/personal-b' } : item)
+    controller.getSnapshot().sessions[1].workingDirectory = '/secondary-b'
     const view = mount(controller); await view.drain()
-    const open = view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>
-    await open('b'); await view.drain()
-    const oldTree = view.props((_, element) => element.type === ProjectFileDrawer)
-    host.openSessionProject.mockResolvedValueOnce('目录不可用')
-    ;(oldTree.onOpenDirectory as () => void)(); await view.drain()
-    expect(controller.getSnapshot().error).toBe('目录不可用')
-    await open('a'); await view.drain()
-    ;(oldTree.onExpandedPathsChange as (paths: string[]) => void)(['old-path']); await view.drain()
-    const tree = view.props((_, element) => element.type === ProjectFileDrawer)
-    expect(tree).toMatchObject({ projectId: 'project-a', directory: '/project-a', expandedPaths: [] })
-    ;(tree.onExpandedPathsChange as (paths: string[]) => void)(['src'])
-    ;(tree.onExpandedPathsChange as (paths: string[]) => void)(['src', 'src/lib']); await view.drain()
-    expect(view.props((_, element) => element.type === ProjectFileDrawer).expandedPaths).toEqual(['src', 'src/lib'])
-    expect(controller.getSnapshot().session?.id).toBe('a')
+    await (view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>)('b'); await view.drain()
+    const manager = view.props((_, element) => element.type === MiraFileManager) as unknown as React.ComponentProps<typeof MiraFileManager>
+    expect(manager.tab).toMatchObject({ fileManager: { sessionId: 'b', directory: '/secondary-b' } })
+    expect(manager.tab.projectId).toBeUndefined(); expect(manager.onAddFile).toBeUndefined()
+    expect(controller.getSnapshot().session?.id).toBe('a'); expect(host.getSession).not.toHaveBeenCalled()
+    view.unmount()
   })
-  it('rejects missing tasks and unavailable directories instead of browsing the active task', async () => {
-    const { controller, host } = fixture()
+  it('rejects missing tasks, unavailable directories and unregistered roots without browsing the active task', async () => {
+    const { controller } = fixture()
     controller.getSnapshot().sessions.push({ ...task('no-directory'), workingDirectory: undefined })
     const view = mount(controller); await view.drain()
     const open = view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>
     await expect(open('deleted')).rejects.toThrow('任务已不在当前列表')
     await expect(open('no-directory')).rejects.toThrow('当前任务没有可用工作目录')
-    expect(controller.getSnapshot().session?.id).toBe('a')
-    expect(() => view.props((_, element) => element.type === ProjectFileDrawer)).toThrow('Missing workbench element')
-    expect(host.getSession).not.toHaveBeenCalled(); expect(host.createSession).not.toHaveBeenCalled()
+    const projectOpen = view.sidebar().onOpenProjectFiles as (id: string, root?: string) => Promise<void>
+    projectOpen('project-a','/unregistered'); await view.drain(); expect(controller.getSnapshot().error).toBe('所选文件夹不在项目中')
+    expect(() => view.props((_, element) => element.type === MiraFileManager)).toThrow('Missing workbench element')
+    expect(controller.getSnapshot().session?.id).toBe('a'); view.unmount()
   })
-  it('watches the current personal task tree and releases its subscription when a different owner is browsed', async () => {
-    const { controller, host } = fixture()
-    const snapshot = controller.getSnapshot()
-    snapshot.session = { ...snapshot.session!, projectId: undefined, workingDirectory: '/personal-a' }
-    snapshot.sessions = snapshot.sessions.map(item => item.id === 'a' ? { ...item, projectId: undefined, workingDirectory: '/personal-a' } : item)
-    const watchFiles = vi.fn(async (_id: string, _paths: string[]) => ({ watchId: 'personal-tree' }))
-    const unwatchFiles = vi.fn(async (_id: string, _watchId: string) => undefined)
-    Object.assign(host, { watchFiles, unwatchFiles })
-    const view = mount(controller); await view.drain()
-    expect(watchFiles).not.toHaveBeenCalled()
-    const open = view.sidebar().onOpenSessionFiles as (id: string) => Promise<void>
-    await open('a'); await view.drain()
-    expect(watchFiles).toHaveBeenCalledExactlyOnceWith('a', [''])
-    const drawer = view.props((_, element) => element.type === ProjectFileDrawer)
-    ;(drawer.onWatchDirectoriesChange as (paths: string[]) => void)(['src']); await view.drain()
-    expect(watchFiles.mock.lastCall).toEqual(['a', ['', 'src']])
-    await open('b'); await view.drain()
-    expect(unwatchFiles).toHaveBeenCalledWith('a', 'personal-tree')
-    expect(watchFiles.mock.calls.every(([id]) => id === 'a')).toBe(true)
-    expect(watchFiles).toHaveBeenCalledTimes(2)
-    expect(view.props((_, element) => element.type === ProjectFileDrawer).workspaceWatch).toBeUndefined()
+  it('remembers each task full view and floating mode, hides guests on conversation tab and clears on pane close', async () => {
+    const { controller } = fixture(), view = mount(controller); await view.drain()
+    const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
+    const host = () => view.props((_, element) => element.type === MiraFullViewHost) as unknown as React.ComponentProps<typeof MiraFullViewHost>
+    ;(view.props(p => p['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
+    await tabs().onOpen('browser'); await view.drain(); tabs().onFullView!(); await view.drain()
+    expect(host().view).toEqual({ surface:'resource', floating:'collapsed' })
+    host().onChange({ surface:'resource', floating:'minimized' }); await view.drain()
+    await view.sidebar().onOpenSession('b'); await view.drain(); expect(host().view).toBeUndefined()
+    await view.sidebar().onOpenSession('a'); await view.drain(); expect(host().view).toEqual({ surface:'resource', floating:'minimized' })
+    tabs().onConversation!(); await view.drain(); expect(host().view?.surface).toBe('conversation')
+    expect(view.props((_, element) => element.type === MiraBrowserPanel).active).toBe(false)
+    tabs().onActivate(tabs().tabs[0].id); await view.drain(); expect(host().view?.surface).toBe('resource')
+    await tabs().onCloseAll(); await view.drain(); expect(host().view).toBeUndefined()
+    await tabs().onOpen('browser'); await view.drain(); expect(host().view).toBeUndefined()
+    view.unmount()
   })
   it('does not render task status or file-tree controls in the conversation header', async () => {
     const { controller } = fixture()

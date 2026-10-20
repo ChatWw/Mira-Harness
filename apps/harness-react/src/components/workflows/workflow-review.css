@@ -19,3 +19,21 @@
 .mira-flow-review pre { max-height: 240px; margin: 8px 0; padding: 12px; overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background-alt); font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
 .mira-flow-review__hash { display: block; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .mira-tool-permission[data-permission-placement='dock'] .mira-tool-permission__review-body > .mira-tool-permission__detail { max-height: none; overflow: visible; }
+.mira-tool-permission:has(.mira-flow-review) { padding: 16px; border-radius: 16px; background: var(--mira-panel); }
+.mira-tool-permission:has(.mira-flow-review) > svg { display: none; }
+.mira-tool-permission:has(.mira-flow-review) > div { width: 100%; min-width: 0; }
+.mira-tool-permission:has(.mira-flow-review) > div > strong { display: block; font-size: 12px; font-weight: 400; color: var(--color-foreground-subtle); }
+.mira-tool-permission:has(.mira-flow-review) .mira-tool-permission__detail { color: var(--color-foreground-subtle); font-size: 12px; }
+.mira-flow-review { gap: 12px; margin-top: 0; }
+.mira-flow-review__title { display: flex; align-items: center; gap: 8px; }.mira-flow-review__title > svg { flex: none; color: var(--color-foreground-subtle); }.mira-flow-review__title > strong { font-size: 13px; font-weight: 500; }.mira-flow-review__title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-foreground-subtle); }.mira-flow-review__title > small { margin-left: auto; flex: none; }
+.mira-flow-review__facts { flex-direction: column; gap: 8px; font-size: 12px; }.mira-flow-review__facts strong { display: inline-block; margin: 0 6px; padding: 0; background: transparent; font-weight: 400; color: var(--color-foreground); }
+.mira-flow-review__metadata { padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-background-alt); }.mira-flow-review__metadata > div { display: flex; align-items: baseline; gap: 10px; }.mira-flow-review__metadata > div > span { flex: none; color: var(--color-foreground-subtlest); font-size: 12px; }.mira-flow-review__metadata p { margin: 4px 0; line-height: 1.7; color: var(--color-foreground-subtle); }
+.mira-flow-review__args table { border-collapse: collapse; width: 100%; font-size: 12px; color: var(--color-foreground-subtle); }.mira-flow-review__args :is(td,th) { padding: 8px 12px 8px 0; text-align: left; font-weight: 400; vertical-align: top; }.mira-flow-review__args th { border-bottom: 1px solid var(--color-border); color: var(--color-foreground-subtlest); }.mira-flow-review__args td:first-child { width: 45%; }.mira-flow-review__args td small { display: block; line-height: 1.6; margin-top: 6px; }.mira-flow-review__args h4 { margin: 0 0 6px; font-size: 12px; color: var(--color-foreground-subtle); font-weight: 400; }
+.mira-flow-review__structure .mira-flow-line__header { display: none; }.mira-flow-review__structure .mira-flow-line__relations { display: none; }
+
+.mira-tool-permission:has(.mira-flow-review) .pilot-action__buttons { padding-top: 12px; }
+.mira-flow-review__title { min-height: 28px; }
+.mira-flow-review__facts { gap: 6px; }
+.mira-flow-review__facts > span { display: flex; align-items: baseline; gap: 8px; }
+.mira-flow-review__structure { min-width: 0; padding: 4px 0; }
+.mira-flow-review__structure .mira-flow-line__selection { margin-top: 12px; }

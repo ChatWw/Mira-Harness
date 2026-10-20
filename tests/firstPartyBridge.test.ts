@@ -67,6 +67,17 @@ function bridge(overrides: Partial<FirstPartyAppManifest> = {}) {
 }
 
 describe('first-party capability bridge', () => {
+  it('validates React project drafts and forwards data without a shell editor event', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    const input = { name: 'Project', roots: ['/a', '/b'], primaryRoot: '/b' }
+    await entry.request('harness.projects.update', { id: 'p', input: { ...input, unexpected: 'ignored' } })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith(expect.anything(), 'projects.update', { id: 'p', input })
+    await entry.request('harness.projects.create', { input })
+    expect(entry.api.invokeFirstPartyHarness).toHaveBeenLastCalledWith(expect.anything(), 'projects.create', { input })
+    await expect(entry.request('harness.projects.create', { input: { ...input, roots: [] } })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(bridge().request('harness.projects.create', { input })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
+  })
+
   it('resolves dropped Files through the desktop owner and ignores supplied path strings', async () => {
     const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
     const file = new File([], '资料'), getPathForFile = vi.fn(() => '/native/资料')
@@ -690,4 +701,13 @@ describe('Harness sidebar appearance bridge', () => {
     expect(windowCommand).toHaveBeenCalledTimes(1)
     await expect(handleFirstPartyRequest({ ...options, manifest }, { type: 'mira:request', id: 'appearance', method: 'appearance.get' })).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' })
   })
+})
+
+it('preserves bounded native-browser overlay exclusions and rejects malformed geometry', () => {
+  const bounds = { x: 0, y: 0, width: 800, height: 600 }
+  const params = { sessionId: 'a', bounds, clip: bounds, viewport: null, scale: 1, exclusions: [{ x: -6, y: 100, width: 560, height: 48 }] }
+  expect(parseFirstPartyHarnessCall('browser.viewport', params)).toMatchObject({ exclusions: params.exclusions })
+  for (const exclusions of [Array(17).fill(bounds), [{...bounds, width: NaN}], [{}], 'invalid']) {
+    expect(() => parseFirstPartyHarnessCall('browser.viewport', { ...params, exclusions })).toThrow()
+  }
 })

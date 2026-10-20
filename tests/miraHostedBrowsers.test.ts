@@ -86,6 +86,18 @@ describe('task and resource owned native browser lifecycle', () => {
     await expect(view.registry.request(call, async () => undefined)).rejects.toThrow('请先打开')
     expect(guest.executeJavaScript).not.toHaveBeenCalled()
   })
+  it('cuts overlapping floating conversation overlays out of the guest without reloading or reparenting it', async () => {
+    const view = fixture(), guest = await view.open('a', 'browser:one', 'https://mira.test/')
+    const parent = guest.parentElement!
+    const presentation = { method: 'browser.viewport' as const, sessionId: 'a', browserId: 'browser:one', bounds, clip: bounds, viewport: null, scale: 1 }
+    const authorize = async () => ({ desktopZoomFactor: 1 })
+    await view.registry.request({ ...presentation, exclusions: [{ x: 112, y: 124, width: 100, height: 100 }, { x: 162, y: 174, width: 100, height: 100 }] }, authorize)
+    expect(parent.style.clipPath).toBe("path(evenodd, 'M0 0H400V300H0Z M116 100H234Q250 100 250 116V234Q250 250 234 250H116Q100 250 100 234V116Q100 100 116 100Z')")
+    expect(guest.parentElement).toBe(parent); expect(guest.loadURL).not.toHaveBeenCalled()
+    await view.registry.request({ ...presentation, exclusions: [] }, authorize)
+    expect(parent.style.clipPath).toBe(''); expect(guest.parentElement).toBe(parent)
+    view.registry.clear()
+  })
   it('uses the registry guest ID, keeps its DOM parent through modes, clips and ignores late closed updates', async () => {
     const view = fixture(), first = await view.open('a', 'browser:one', 'https://mira.test/one'), other = await view.open('b', 'browser:one', 'https://mira.test/two')
     const parent = first.parentElement

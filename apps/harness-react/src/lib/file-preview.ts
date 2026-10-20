@@ -78,22 +78,37 @@ export function startFilePreviewRead(readFile: PreviewFileReader, sessionId: str
 
 function createPreviewReader(startRead: (onChange: (snapshot: FilePreviewSnapshot) => void) => () => void, onChange: (snapshot: FilePreviewSnapshot) => void) {
   let refreshVersion: number | undefined
+  let watchVersion: number | undefined
   let disposeRead: (() => void) | undefined
+  let current: FilePreviewSnapshot | undefined
   let pending = false
   return {
-    read(active: boolean, refresh: number) {
+    read(active: boolean, refresh: number, watchRefresh = 0) {
       if (!active) {
-        if (pending) { disposeRead?.(); refreshVersion = undefined; pending = false }
+        if (pending) { disposeRead?.(); watchVersion = undefined; pending = false }
         return
       }
-      if (refreshVersion === refresh) return
+      if (refreshVersion === refresh && watchVersion === watchRefresh) return
+      // Directory invalidations can be unrelated to this file. Keep its preview
+      // mounted while checking, and publish only changed content or a read error.
+      const background = refreshVersion === refresh && (current?.status === 'ready' || current?.status === 'image')
       disposeRead?.()
       refreshVersion = refresh
-      disposeRead = startRead(snapshot => { pending = snapshot.status === 'loading'; onChange(snapshot) })
+      watchVersion = watchRefresh
+      disposeRead = startRead(snapshot => {
+        pending = snapshot.status === 'loading'
+        if (background && (pending
+          || (snapshot.status === 'ready' && current?.status === 'ready' && snapshot.content === current.content)
+          || (snapshot.status === 'image' && current?.status === 'image' && snapshot.image.mediaType === current.image.mediaType && snapshot.image.dataBase64 === current.image.dataBase64))) return
+        current = snapshot
+        onChange(snapshot)
+      })
     },
     dispose() {
       disposeRead?.()
       refreshVersion = undefined
+      watchVersion = undefined
+      current = undefined
       pending = false
     },
   }

@@ -1,3 +1,4 @@
+import { formatConversationWorkDuration } from '../../lib/conversation-work-duration'
 // Adapted from ZCode ConversationTurnGroup (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Uses Mira's ordered public message parts.
 import * as Collapsible from '@radix-ui/react-collapsible'
@@ -39,12 +40,7 @@ export function MiraAssistantProcess(props: ComponentProps<typeof AssistantMessa
     const timer = window.setInterval(() => tick(value => value + 1), 1000)
     return () => window.clearInterval(timer)
   }, [streaming, startedAt, rendererId])
-  // ZCode conversationWorkDuration: round to seconds, show at most two nonzero units.
-  const seconds = message.run ? Math.max(1, Math.round((streaming ? Date.now() - message.run.startedAt : message.run.durationMs) / 1000)) : undefined
-  const duration = seconds === undefined ? undefined : [
-    [Math.floor(seconds / 86400), '天'], [Math.floor(seconds % 86400 / 3600), '小时'],
-    [Math.floor(seconds % 3600 / 60), '分钟'], [seconds % 60, '秒'],
-  ].filter(([value]) => Number(value) > 0).slice(0, 2).map(([value, unit]) => `${value} ${unit}`).join(' ')
+  const duration = message.run ? formatConversationWorkDuration(streaming ? Date.now() - message.run.startedAt : message.run.durationMs) : undefined
   const approval = Boolean(permission || waiting || (streaming && props.waitingForApproval))
   const label = approval ? '等待确认'
     : streaming ? `工作中${duration ? ` ${duration}` : ''}`

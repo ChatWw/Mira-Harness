@@ -45,7 +45,7 @@ function sidebar(view: 'group' | 'project' = 'group', overrides: Partial<Session
   const state = { sessions: [{ id: 's1', title: '个人任务', createdAt: 1, updatedAt: 2, status: 'active' }, { id: 's2', title: '项目任务', projectId: 'p', createdAt: 2, updatedAt: 3, status: 'active' }] as HarnessSessionSummary[], projects: [{ id: 'p', name: 'Mira', directory: '/tmp/mira', directoryExists: true, createdAt: 1, updatedAt: 1, sessionCount: 1 }], runningSessionIds: [] as string[], pendingPermissions: {} as Record<string, unknown>, unreadSessionIds: [], session: undefined as { id: string; projectId?: string } | undefined }
   const controller = {
     getPreference: vi.fn(async () => preferences), setPreference: vi.fn(async () => undefined), registerBeforeNavigation: vi.fn(() => () => undefined), getSnapshot: () => state,
-    createConversation: vi.fn(async () => ({ id: 'new-session' })), open: vi.fn(async () => undefined), renameProject: vi.fn(async () => undefined), removeProject: vi.fn(async () => undefined), supportsProjectRemoval: true, openProject: vi.fn(async () => undefined), selectProject: vi.fn(async () => null as { id: string } | null), reportError: vi.fn(), reorderProjects: vi.fn(async () => undefined), reorderSessions: vi.fn(async () => undefined), moveSession: vi.fn(), deleteSession: vi.fn(),
+    createConversation: vi.fn(async () => ({ id: 'new-session' })), open: vi.fn(async () => undefined), supportsProjectEditing: true, renameProject: vi.fn(async () => undefined), removeProject: vi.fn(async () => undefined), supportsProjectRemoval: true, openProject: vi.fn(async () => undefined), selectProject: vi.fn(async () => null as { id: string } | null), reportError: vi.fn(), reorderProjects: vi.fn(async () => undefined), reorderSessions: vi.fn(async () => undefined), moveSession: vi.fn(), deleteSession: vi.fn(),
   }
   const onNewProjectConversation = vi.fn(), onOpenProjectFiles = vi.fn(), onOpenSession = vi.fn()
   const mounted = mount(() => SessionSidebar({ state, controller, width: 260, onClose: vi.fn(), onNewProjectConversation, onOpenProjectFiles, onOpenSession, ...overrides } as unknown as SessionDrawerProps))
@@ -116,6 +116,18 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     expect(view.props(p => (p.session as HarnessSessionSummary | undefined)?.id === 's2')).toBeDefined()
     ;(collection.onToggle as () => void)(); await view.drain()
     expect(view.onOpenSession).not.toHaveBeenCalled(); expect(view.controller.open).not.toHaveBeenCalled()
+  })
+
+  it.each(['context', 'dropdown'] as const)('shows edit without a duplicate rename for projects in the %s menu', kind => {
+    const onEdit = vi.fn()
+    const menu = SidebarCollectionMenu({ kind, name: 'Project', onNewTask: vi.fn(), onBeginRename: vi.fn(), onEdit })
+    const items = findAll(menu, p => typeof p.onSelect === 'function')
+    const text = items.map(item => JSON.stringify(item.children)).join(' ')
+    expect(text).toContain('编辑项目')
+    expect(text).not.toContain('重命名')
+    const item = items.find(item => JSON.stringify(item.children).includes('编辑项目'))!
+    ;(item.onSelect as () => void)()
+    expect(onEdit).toHaveBeenCalledOnce()
   })
 
   it.each(['context', 'dropdown'] as const)('explains disabled directory actions in the %s menu but allows rename and removal', kind => {
@@ -558,6 +570,11 @@ describe('Mira sidebar collections through actual component callbacks', () => {
     const view = sidebar('project'); await view.drain()
     const project = view.props(p => p.id === 'sidebar-project:p')
     ;(project.onNewTask as () => void)(); (project.onOpenFiles as () => void)()
+    await (project.onEdit as () => Promise<void>)()
+    await view.drain()
+    expect(view.props(p => (p.project as { id?: string })?.id === 'p' && typeof p.onSaved === 'function').project).toBe(view.state.projects[0])
+    ;(view.props(p => (p.project as { id?: string })?.id === 'p' && typeof p.onSaved === 'function').onClose as () => void)()
+    await view.drain()
     await (project.onRename as (name: string) => Promise<void>)('Mira Next')
     await (project.onOpenDirectory as (target: string) => Promise<void>)('terminal')
     expect(view.onNewProjectConversation).toHaveBeenCalledExactlyOnceWith('p'); expect(view.onOpenProjectFiles).toHaveBeenCalledExactlyOnceWith('p')

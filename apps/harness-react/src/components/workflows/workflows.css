@@ -6,24 +6,22 @@
 .mira-workflow-title-switch button:focus-visible, .mira-workflows button:focus-visible, .mira-workflow-run button:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
 .mira-workflows { width: 100%; }
 .mira-workflow-toolbar { display: flex; align-items: center; gap: 12px; margin: 24px 0; }
-.mira-workflow-search { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--mira-foreground-subtle); }
-.mira-workflow-search input { width: 190px; border: 0; background: transparent; color: var(--mira-foreground); font-size: 13px; outline-offset: 3px; }
 .mira-workflow-group { margin: 0 0 28px; }
 .mira-workflow-group .mira-automation-section-title { display: flex; gap: 8px; }
 .mira-workflow-group .mira-automation-section-title button { margin-left: auto; }
-.mira-workflow-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-.mira-workflow-card { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--mira-card-border); border-radius: 10px; background: var(--mira-background); }
-.mira-workflow-card:hover { background: var(--mira-hover); }
-.mira-workflow-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.mira-workflow-card__title { display: flex; min-width: 0; gap: 8px; align-items: center; padding: 0; border: 0; background: transparent; color: var(--mira-foreground); text-align: left; }
-.mira-workflow-card__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; }
-.mira-workflow-card p { min-height: 40px; margin: 0; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.mira-workflow-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--mira-foreground-subtle); font-size: 12px; }
-.mira-workflow-card__footer div { display: flex; gap: 4px; }
-.mira-workflow-card__footer span { max-width: 90px; padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--mira-border); border-radius: 4px; }
+.mira-workflow-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-rows: 132px; gap: 16px; margin-top: 20px; }
+.mira-workflow-saved-card { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--mira-card-border); border-radius: 12px; background: var(--mira-panel); }
+.mira-workflow-saved-card:hover { background: var(--mira-hover); }
+.mira-workflow-saved-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mira-workflow-saved-card__title { display: flex; min-width: 0; gap: 8px; align-items: center; padding: 0; border: 0; background: transparent; color: var(--mira-foreground); text-align: left; }
+.mira-workflow-saved-card__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; }
+.mira-workflow-saved-card p { min-height: 40px; margin: 0; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mira-workflow-saved-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-workflow-saved-card__footer div { display: flex; gap: 4px; }
+.mira-workflow-saved-card__footer > div > span { max-width: 90px; padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--mira-border); border-radius: 4px; }
 .mira-workflow-empty { padding: 24px 0; color: var(--mira-foreground-subtle); font-size: 13px; }
 .mira-workflow-history { display: flex; flex-direction: column; gap: 8px; }
-.mira-workflow-history > button { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid var(--mira-card-border); border-radius: 8px; background: var(--mira-background); color: var(--mira-foreground); text-align: left; }
+.mira-workflow-history > button { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid var(--mira-card-border); border-radius: 8px; background: var(--mira-panel); color: var(--mira-foreground); text-align: left; }
 .mira-workflow-history > button:hover { background: var(--mira-hover); }
 .mira-workflow-history > button > div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
 .mira-workflow-history small, .mira-workflow-muted { color: var(--mira-foreground-subtle); font-size: 12px; overflow-wrap: anywhere; }
@@ -70,12 +68,16 @@
 .mira-workflow-actor { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .mira-workflow-actor__open { align-self: flex-start; }
 .mira-workflow-run h2:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 4px; }
-.mira-workflow-card { min-width: 0; max-width: 100%; padding: 12px 0; color: var(--mira-foreground); }
-.mira-workflow-card__header { display: flex; align-items: center; gap: 10px; }
-.mira-workflow-card__toggle { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; padding: 4px 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
-.mira-workflow-card__toggle strong { font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
-.mira-workflow-card__toggle small { font-size: 12px; color: var(--mira-foreground-subtle); }
-.mira-workflow-card__toggle:focus-visible { outline: 2px solid var(--color-input-border-focused); outline-offset: 4px; border-radius: 4px; }
+.mira-workflow-digests { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mira-workflow-card { display: flex; flex-direction: column; gap: 4px; box-sizing: border-box; min-width: 0; width: 100%; max-width: 100%; padding: 6px 14px 8px; border: 1px solid color-mix(in srgb, var(--mira-border) 70%, transparent); border-radius: 12px; color: var(--mira-foreground); background: var(--mira-panel); }
+.mira-workflow-card[role=button] { cursor: pointer; }
+.mira-workflow-card:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-workflow-card__header { display: flex; min-width: 0; align-items: center; gap: 8px; font-size: 13px; min-height: 28px; }
+.mira-workflow-card__header > svg { flex: none; color: var(--mira-foreground-subtle); }
+.mira-workflow-card__kind { flex: none; white-space: nowrap; font-weight: 500; }
+.mira-workflow-card__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mira-foreground-subtle); }
+.mira-workflow-card__detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mira-foreground-subtlest); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mira-workflow-card__header > .mira-automation-hint { flex: none; }
 .mira-workflow-actor > strong, .mira-workflow-actor__model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-workflow-nodes li { padding: 10px 0; border-top: 1px solid var(--mira-border); }
 .mira-workflow-nodes li > span { display: flex; align-items: center; gap: 7px; overflow-wrap: anywhere; }
@@ -88,7 +90,7 @@
 .mira-workflow-run dd { margin: 0 0 6px; overflow-wrap: anywhere; font-family: var(--font-mono, ui-monospace), SFMono-Regular, Menlo, monospace; }
 .mira-workflow-run pre { margin: 8px 0; padding: 10px; border: 1px solid var(--mira-border); border-radius: 6px; background: var(--mira-background); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .mira-workflow-events li { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--mira-border); white-space: pre-wrap; overflow-wrap: anywhere; }
-.mira-workflow-digest { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--mira-card-border); border-radius: 8px; color: var(--mira-foreground); background: var(--mira-background); text-align: left; }
+.mira-workflow-digest { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--mira-card-border); border-radius: 8px; color: var(--mira-foreground); background: var(--mira-panel); text-align: left; }
 .mira-workflow-digest > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .mira-workflow-digest strong { font-size: 13px; font-weight: 550; }
 .mira-workflow-digest small { font-size: 12px; color: var(--mira-foreground-subtle); }
@@ -110,3 +112,228 @@
 .mira-workflow-task-progress { display: flex; flex-direction: column; gap: 5px; font-size: 12px; line-height: 1.6; color: var(--mira-foreground-subtle); overflow-wrap: anywhere; }
 .mira-workflow-task-result > strong { font-size: 12px; font-weight: 550; }
 .mira-workflow-run summary:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+
+.mira-workflows > .mira-workflow-description { margin: -8px 0 32px; color: var(--mira-foreground-subtlest); font-size: 13px; line-height: 20px; }
+.mira-workflow-toolbar { margin: 0 0 20px; min-height: 32px; }
+.mira-workflow-toolbar h2 { margin: 0; color: var(--mira-foreground-subtle); font-size: 13px; font-weight: 500; }
+.mira-workflow-toolbar h2 span { margin-left: 6px; color: var(--mira-foreground-subtlest); font-weight: 400; }
+.mira-workflow-toolbar .mira-automation-tabs { margin: 0; }
+.mira-workflow-group { margin-bottom: 32px; }
+.mira-workflow-group .mira-automation-section-title { align-items: center; margin-bottom: 0; }
+.mira-workflow-group .mira-automation-section-title h3 { margin: 0; color: var(--mira-foreground); font-size: 13px; font-weight: 500; }
+.mira-workflow-scope { padding: 2px 6px; border: 1px solid var(--mira-border); border-radius: 4px; font-size: 10px; color: var(--mira-foreground-subtlest); }
+.mira-workflow-saved-card { position: relative; cursor: pointer; overflow: hidden; box-sizing: border-box; }
+.mira-workflow-saved-card:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+.mira-workflow-saved-card__header { min-height: 20px; padding-right: 110px; }
+.mira-workflow-saved-card__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 550; }
+.mira-workflow-saved-card__actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; align-items: center; }
+.mira-workflow-saved-card__footer { margin-top: auto; height: 24px; }
+.mira-workflow-last-run { display: inline-flex; min-width: 0; align-items: center; gap: 5px; font-size: 12px; }
+.mira-workflow-last-run svg { flex: none; }
+.mira-workflow-last-run[data-status=running] { color: var(--mira-warning); }
+.mira-workflow-last-run[data-status=completed] { color: var(--mira-success); }
+.mira-workflow-last-run[data-status=errored] { color: var(--mira-destructive); }
+.mira-workflow-hub-empty { display: flex; min-height: 226px; flex-direction: column; align-items: center; justify-content: center; gap: 20px; margin-top: 32px; padding: 24px; border: 1px solid var(--mira-card-border); border-radius: 16px; color: var(--mira-foreground-subtlest); text-align: center; }
+.mira-workflow-hub-empty p { max-width: 420px; margin: 0; font-size: 13px; line-height: 20px; }
+.mira-workflow-detail { display: flex; flex-direction: column; gap: 24px; }
+.mira-workflow-detail__header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.mira-workflow-detail__header h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+.mira-workflow-detail__header p { margin: 0; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 20px; }
+.mira-workflow-detail__header > div:last-child { display: flex; flex: none; gap: 8px; }
+.mira-workflow-detail .mira-automation-tabs { margin: 0; align-self: flex-start; }
+.mira-workflow-detail__definition { display: flex; flex-direction: column; gap: 24px; font-size: 13px; }
+.mira-workflow-detail__definition h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; }
+.mira-workflow-detail__definition p { margin: 0; color: var(--mira-foreground-subtle); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mira-workflow-source-header { display: flex; align-items: center; justify-content: space-between; }
+.mira-workflow-detail pre { max-height: 440px; overflow: auto; margin: 0; padding: 16px; border-radius: 8px; background: var(--mira-surface); font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+.mira-workflow-card__progress { display: flex; align-items: flex-start; gap: 8px; color: var(--mira-foreground-subtle); font-size: 12px; line-height: 20px; }
+.mira-workflow-card__progress > svg { flex: none; margin-top: 3px; }
+.mira-workflow-card__progress span { overflow-wrap: anywhere; }
+.mira-workflow-card__progress small { margin-left: auto; flex: none; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mira-workflow-card__header > svg { flex: none; }
+
+.mira-workflow-detail__path { margin-left: auto; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mira-foreground-subtle); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.mira-workflows > .mira-automation-page-title { margin-bottom: 10px; }
+.mira-workflows > .mira-workflow-description { margin-top: 0; }
+.mira-workflow-grid:empty { display: none; }
+.mira-workflow-group > .mira-workflow-empty { margin: 16px 0 0; padding: 0; line-height: 20px; }
+.mira-workflow-detail > .mira-workflow-toolbar { margin: 0; }
+.mira-automation-dialog-overlay.mira-workflow-dialog-overlay { background: transparent; }
+.mira-workflow-launch { background: var(--mira-panel); }
+
+.mira-workflow-launch__title { display: flex; align-items: center; gap: 8px; }
+.mira-workflow-launch__title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 16px/24px var(--font-mono, ui-monospace), monospace; }
+.mira-workflow-launch__title > svg { flex: none; color: var(--mira-foreground-subtle); }
+.mira-workflow-launch__title > small { flex: none; border: 1px solid var(--mira-border); border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 400; line-height: 1; color: var(--mira-foreground-subtlest); }
+.mira-workflow-launch__field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.mira-workflow-launch__field > .mira-automation-select { width: 100%; justify-content: space-between; }
+.mira-workflow-launch__field > .mira-automation-select > span { flex: 1; text-align: left; }
+.mira-workflow-launch__note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--mira-background); border-radius: 8px; color: var(--mira-foreground-subtle); font-size: 13px; line-height: 20px; }
+.mira-workflow-launch__note > svg { flex: none; margin-top: 2px; }
+.mira-workflow-launch textarea { padding: 8px 10px; border: 1px solid var(--mira-border); border-radius: 6px; background: var(--mira-background); color: var(--mira-foreground); font: 12px/1.6 var(--font-mono, ui-monospace), monospace; resize: vertical; }
+.mira-workflow-launch label .mira-automation-switch input { padding: 0; }
+
+/* SavedWorkflowMetaForm / SavedWorkflowArgsTable: one frame and one divider per row. */
+.mira-workflow-meta { display: flex; flex-direction: column; gap: 16px; }
+.mira-workflow-meta label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; }
+.mira-workflow-meta textarea { resize: none; field-sizing: content; min-height: 64px; padding: 8px; border: 1px solid var(--mira-input-border); border-radius: 8px; background: var(--mira-input); color: var(--mira-foreground); font-family: inherit; font-size: 13px; font-weight: 400; line-height: 1.7; }
+.mira-workflow-meta textarea:hover { border-color: var(--mira-input-border-hover); }
+.mira-workflow-meta :is(textarea,input):focus-visible { outline: none; border-color: var(--mira-input-border-focused); }
+.mira-workflow-meta > h3 { margin: 0; color: var(--mira-foreground-subtle); }
+.mira-workflow-meta strong { font-weight: 500; }
+.mira-workflow-meta small { color: var(--mira-foreground-subtle); font-size: 12px; font-weight: 400; }
+.mira-workflow-args-table { overflow: hidden; margin-top: 8px; border: 1px solid var(--mira-border); border-radius: 8px; }
+.mira-workflow-args-header, .mira-workflow-arg-row { display: grid; grid-template-columns: minmax(0,1.4fr) 112px 64px minmax(0,1fr) minmax(0,1.6fr) 28px; gap: 12px; align-items: center; padding: 8px 12px; }
+.mira-workflow-args-header { padding-block: 6px; background: var(--mira-surface); color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-workflow-arg-row, .mira-workflow-args-footer { border-top: 1px solid var(--mira-border); }
+.mira-workflow-arg-row > input, .mira-workflow-arg-row > .mira-automation-select { box-sizing: border-box; width: 100%; min-width: 0; height: 28px; padding: 3px 8px; border: 1px solid var(--mira-input-border); border-radius: 6px; color: var(--mira-foreground); background: var(--mira-input); font: 12px var(--font-mono, ui-monospace), monospace; }
+.mira-workflow-arg-row > input:nth-child(5) { font-family: inherit; }
+.mira-workflow-arg-row > .mira-automation-select { justify-content: space-between; }
+.mira-workflow-meta .mira-automation-switch, .mira-workflow-meta .mira-automation-switch > span { width: 32px; height: 18px; }
+.mira-workflow-meta .mira-automation-switch > span::after { width: 16px; height: 16px; margin: 1px; background: var(--mira-primary-foreground); }
+.mira-workflow-meta .mira-automation-switch input:checked + span::after { transform: translateX(14px); }
+.mira-workflow-meta .mira-automation-switch input:checked + span { background: var(--mira-primary); }
+.mira-workflow-args-footer { padding: 6px 8px; }
+.mira-workflow-add-arg { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--mira-foreground-subtle); font: inherit; cursor: pointer; }
+.mira-workflow-add-arg:hover { background: var(--mira-hover); }
+.mira-workflow-meta__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mira-workflow-meta__footer > div { display: flex; gap: 8px; }
+.mira-workflow-meta__footer :is(.mira-automation-primary,.mira-automation-secondary) { height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; }
+.mira-workflow-meta__footer .mira-automation-secondary { border-color: var(--mira-border); background: transparent; }
+.mira-workflow-meta__footer .mira-automation-secondary:hover { background: var(--mira-hover); }
+.mira-workflow-source-header { margin-bottom: 16px; }
+.mira-workflow-source-header > h3 { margin: 0; color: var(--mira-foreground-subtle); }
+.mira-workflow-source-header > small { margin-left: auto; color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-workflow-card__progress { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mira-workflow-run-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.mira-workflow-run-actions > p { max-width: 180px; font-size: 12px; }
+.mira-workflow-settings { display: flex; flex-direction: column; gap: 16px; width: 300px; padding: 16px; }
+.mira-workflow-settings > label { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; }
+.mira-workflow-settings > small { color: var(--mira-foreground-subtle); line-height: 1.6; }.mira-workflow-settings > div:last-child { display: flex; justify-content: flex-end; gap: 8px; }
+.mira-workflow-stepper { display: inline-flex; align-items: center; gap: 6px; }.mira-workflow-stepper button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--mira-foreground-subtle); cursor: pointer; }.mira-workflow-stepper button:hover { background: var(--mira-hover); }.mira-workflow-stepper input { box-sizing: border-box; width: 42px; padding: 4px; border: 0; background: transparent; color: var(--mira-foreground); text-align: center; appearance: textfield; }.mira-workflow-stepper input::-webkit-inner-spin-button { appearance: none; }
+.mira-workflow-run__header { flex-wrap: wrap; }.mira-workflow-run__header > svg { display: none; }.mira-workflow-run__header > span { display: none; }.mira-workflow-run__header h2 { font-size: 14px; margin: 0; }.mira-workflow-run__status { gap: 12px; padding: 12px 0 20px; border-bottom: 1px solid var(--mira-border); margin-bottom: 16px; }.mira-workflow-run__status strong { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; }.mira-workflow-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mira-foreground-subtle); }.mira-workflow-status-dot[data-status=running] { background: var(--mira-warning); }.mira-workflow-status-dot[data-status=completed] { background: var(--mira-success); }
+.mira-workflow-activity { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: 6px; color: var(--mira-foreground-subtle); font-size: 11px; line-height: 18px; }
+.mira-workflow-activity > svg { flex: none; }.mira-workflow-activity > span:last-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mira-workflow-phase-dots { display: inline-flex; flex: none; align-items: center; gap: 3px; }.mira-workflow-phase-dots > i { width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--mira-foreground-subtlest); background: transparent; }.mira-workflow-phase-dots > i[data-phase-state=completed] { background: var(--mira-success); border-color: var(--mira-success); }.mira-workflow-phase-dots > i:is([data-phase-state=executing],[data-phase-state=dispatched],[data-phase-state=queued],[data-phase-state=repairing]) { background: var(--mira-warning); border-color: var(--mira-warning); }
+.mira-session-row[data-workflow-active] .mira-session-row__open { height: 52px; }.mira-session-row__open .mira-workflow-activity { display: flex; }.mira-session-row__open .mira-workflow-phase-dots { display: inline-flex; overflow: visible; }.mira-session-row__open .mira-workflow-activity > span:last-child { display: block; }
+.mira-summary-workflows > button { flex-wrap: wrap; }.mira-summary-workflows > button > .mira-workflow-activity { flex-basis: calc(100% - 20px); margin-left: 20px; order: 2; }.mira-summary-workflows > button > .mira-workflow-activity > svg { display: none; }
+.mira-task-summary__mini > .mira-workflow-activity { max-width: 160px; }.mira-task-summary__mini > .mira-workflow-activity > svg { display: none; }.mira-task-summary__mini > .mira-workflow-activity > .mira-workflow-phase-dots > i:not(:is([data-phase-state=executing],[data-phase-state=dispatched],[data-phase-state=repairing])) { display: none; }
+
+.mira-workflow-detail .mira-workflow-code { border: 1px solid var(--mira-border); border-radius: 8px; overflow: hidden; background: var(--mira-surface); }
+.mira-workflow-detail .mira-workflow-code-caption { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--mira-border); color: var(--mira-foreground-subtle); font: 12px var(--font-mono, ui-monospace), monospace; }
+.mira-workflow-detail .mira-workflow-code-body { max-height: 480px; overflow: auto; background: #ffffff; }
+.dark .mira-workflow-code .shiki, .dark .mira-workflow-code .shiki span { color: var(--shiki-dark, inherit) !important; font-style: var(--shiki-dark-font-style, inherit) !important; font-weight: var(--shiki-dark-font-weight, inherit) !important; text-decoration: var(--shiki-dark-text-decoration, inherit) !important; }
+.mira-workflow-detail .mira-workflow-code pre { margin: 0; max-height: none; overflow: visible; border-radius: 0; background: transparent !important; }
+
+.mira-automations .mira-automation-scroll--workflows { padding: 0; }
+.mira-workflow-hub-page { padding: 56px 32px 40px; }
+.mira-workflows > .mira-workflow-toolbar > h2 { margin-right: auto; }
+.mira-workflow-detail-page { padding: 0 32px 40px; }
+.mira-workflow-breadcrumb { display: flex; align-items: center; height: 48px; gap: 0; margin: 0 -32px 24px; padding: 0 10px; font-size: 13px; }
+.mira-workflow-breadcrumb > button { height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--mira-foreground-subtle); cursor: pointer; }
+.mira-workflow-breadcrumb > button:hover { background: var(--mira-hover); color: var(--mira-foreground); }
+.mira-workflow-breadcrumb > svg { flex: none; color: var(--mira-foreground-subtlest); }
+.mira-workflow-breadcrumb > span { color: var(--mira-foreground-subtle); }
+.mira-workflow-breadcrumb > [aria-current] { padding: 0 8px; color: var(--mira-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mira-task-summary[data-workflow-only] .mira-task-summary__header { padding: 10px 12px 6px; }
+.mira-task-summary[data-workflow-only] .mira-task-summary__header > span { flex: none; margin-right: 16px; }
+.mira-workflow-capsule-count { flex: 1; font-size: 11px; color: var(--mira-foreground-subtle); }
+.mira-task-summary[data-workflow-only][data-task-tone="running"] .mira-workflow-capsule-count::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-right: 6px; background: var(--mira-warning); }
+.mira-task-summary[data-workflow-only] .mira-task-summary__body { padding-top: 0; }
+.mira-task-summary[data-workflow-only] [aria-label="工作流摘要"] { border-top: 0; padding-top: 0; }
+.mira-task-summary[data-workflow-only] [aria-label="工作流摘要"] > summary { display: none; }
+.mira-task-summary[data-workflow-only] .mira-summary-workflows > button > svg:last-child { visibility: hidden; }
+.mira-task-summary[data-workflow-only] .mira-summary-workflows > button:hover > svg:last-child { visibility: visible; }
+
+/* ZCode completion card: published output first, four factual figures beneath a rule. */
+.mira-workflow-completion-figures { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; padding-top: 10px; border-top: 1px solid var(--mira-border); }
+.mira-workflow-completion-figures > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.mira-workflow-completion-figures strong { font: 500 18px/24px var(--font-mono,ui-monospace),monospace; font-variant-numeric: tabular-nums; }
+.mira-workflow-completion-figures span { color: var(--mira-foreground-subtle); font-size: 12px; }
+.mira-workflow-artifact-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,180px)); gap: 12px; }
+.mira-workflow-artifact-list--primary { display: flex; flex-direction: column; }
+.mira-workflow-artifact-row { position: relative; min-width: 0; }
+.mira-workflow-artifact-list--primary > .mira-workflow-artifact-row { display: grid; grid-template-columns: 160px minmax(0,1fr); gap: 12px; }
+.mira-workflow-artifact__thumbnail { height: 100px; overflow: hidden; border: 1px solid var(--mira-border); border-radius: 8px; background: var(--mira-panel); display: flex; align-items: center; justify-content: center; color: var(--mira-foreground-subtle); }
+.mira-workflow-artifact__thumbnail > .pilot-markdown { width: 560px; min-width: 560px; height: 350px; padding: 28px; transform: scale(.2857); transform-origin: top left; align-self: flex-start; flex: none; margin-right: -400px; margin-bottom: -250px; color: var(--mira-foreground); }
+.mira-workflow-artifact__thumbnail pre { font: 8px/1.5 ui-monospace,monospace; padding: 8px; white-space: pre-wrap; }
+.mira-workflow-artifact__thumbnail img { width: 100%; height: 100%; object-fit: contain; }
+.mira-workflow-artifact-row__open { display: flex; flex-direction: column; gap: 5px; width: 100%; min-width: 0; padding: 2px 0; margin-top: 6px; color: var(--mira-foreground); border: 0; background: transparent; text-align: left; cursor: pointer; }
+.mira-workflow-artifact-row__open::after { content: ''; position: absolute; inset: 0; border-radius: 8px; }
+.mira-workflow-artifact-row__open:focus-visible { outline: none; }
+.mira-workflow-artifact-row__open:focus-visible::after { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+.mira-workflow-artifact-row__open:disabled { cursor: default; }
+.mira-workflow-artifact-row__open strong { display: flex; align-items: center; gap: 7px; max-width: 100%; font-size: 13px; font-weight: 550; }
+.mira-workflow-artifact-row__open strong > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-workflow-artifact-row__open strong > svg:first-child, .mira-workflow-artifact-chip > svg { flex: none; color: var(--mira-link); }
+.mira-workflow-artifact-row__open p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0; color: var(--mira-foreground-subtle); font-size: 12px; line-height: 20px; }
+.mira-workflow-artifact-row__open small { color: var(--mira-foreground-subtle); font-size: 11px; }
+.mira-workflow-artifact-row__arrow { margin-left: auto; opacity: 0; flex: none; }
+.mira-workflow-artifact-row__open:is(:hover,:focus-visible) .mira-workflow-artifact-row__arrow { opacity: 1; }
+.mira-workflow-artifact-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--mira-surface); color: var(--mira-foreground); font-family: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
+.mira-workflow-artifact-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-workflow-artifact-chip:disabled { cursor: default; }
+.mira-workflow-artifact-chip:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
+.mira-workflow-artifact-pane { height: 100%; overflow: auto; min-width: 0; }
+.mira-workflow-artifact--detail { border: 0; border-radius: 0; padding: 0; margin: 0; }
+.mira-workflow-artifact--detail > .mira-workflow-artifact__header { padding: 16px; border-bottom: 1px solid var(--mira-border); flex-wrap: wrap; }
+.mira-workflow-artifact--detail > p { padding: 0 16px; }
+.mira-workflow-artifact--detail .mira-workflow-artifact__preview { max-height: none; padding: 20px; border: 0; background: transparent; }
+.mira-workflow-artifact--detail .mira-workflow-artifact__markdown { max-height: none; }
+.mira-workflow-artifact--detail [hidden] { display: none; }
+.mira-workflow-history__row { display: grid; grid-template-columns: 112px minmax(0,1fr) auto; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--mira-border); border-radius: 8px; }
+.mira-workflow-history__row > span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.mira-workflow-history__row > span[data-status=completed] { color: var(--mira-success); }
+.mira-workflow-history__row > span[data-status=errored] { color: var(--mira-destructive); }
+.mira-workflow-history__row > div { min-width: 0; }
+.mira-workflow-history__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
+.mira-workflow-history__meta > span, .mira-workflow-history__note { color: var(--mira-foreground-subtle); }
+.mira-workflow-history__meta code { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 5px; border: 1px solid var(--mira-border); border-radius: 3px; font-size: 11px; }
+.mira-workflow-history__row > button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--mira-foreground-subtle); cursor: pointer; }
+.mira-workflow-history__artifacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mira-workflow-history__note { font-size: 12px; line-height: 20px; }
+.mira-workflow-recent-artifacts { display: flex; align-items: center; gap: 8px; margin: 0 0 24px; }
+.mira-workflow-recent-artifacts > small { color: var(--mira-foreground-subtle); }
+/* Run pane retains the output section at the bottom while the phase list scrolls. */
+.mira-workflow-run:not([aria-label="工作流操作详情"]), .pilot-inspector .mira-workflow-run:not([aria-label="工作流操作详情"]) { padding: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.mira-workflow-run > .mira-workflow-run__header { padding: 16px 16px 0; }
+.mira-workflow-run > .mira-workflow-run__status { padding: 12px 16px 16px; margin: 0; align-items: flex-start; flex-direction: column; gap: 8px; }
+.mira-workflow-run__status > span { font-size: 12px; color: var(--mira-foreground-subtle); }
+.mira-workflow-run__provenance, .mira-workflow-run__result { padding: 12px 16px; border-bottom: 1px solid var(--mira-border); font-size: 12px; line-height: 20px; }
+.mira-workflow-run__provenance > p, .mira-workflow-run__result > p { margin: 6px 0 0; color: var(--mira-foreground-subtle); overflow-wrap: anywhere; }
+.mira-workflow-run__provenance dl > div { display: flex; gap: 12px; }
+.mira-workflow-run__provenance dl dd { margin: 0; }
+.mira-workflow-run__body > .mira-flow-line { padding: 16px; }
+.mira-workflow-run__body > :is(.mira-workflow-run__diagnostics,.mira-workflow-run__source,.mira-workflow-run__journal) { margin: 0; padding: 0 16px; }
+
+.mira-workflow-run > .mira-workflow-run__artifacts { margin: auto 0 0; padding: 0 0 16px; border-top: 1px solid var(--mira-border); }
+.mira-workflow-run__artifacts > summary { display: flex; align-items: center; gap: 8px; padding: 10px 16px; list-style: none; }
+.mira-workflow-run__artifacts > summary::-webkit-details-marker { display: none; }
+.mira-workflow-run__artifacts > summary > svg { margin-left: auto; }
+.mira-workflow-run__artifacts > .mira-workflow-artifact-list { padding: 0 16px; max-height: 50vh; overflow: auto; }
+.mira-workflow-saved-actions { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.mira-workflow-saved-actions > span { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; background: var(--mira-surface); padding: 3px 7px; color: var(--mira-foreground-subtle); font-size: 11px; }
+.mira-workflow-saved-actions > p { font-size: 12px; max-width: 200px; }
+.mira-workflow-tool-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 28px; color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-workflow-tool-summary > svg { flex: none; }
+.mira-workflow-tool-summary > button { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mira-workflow-tool-summary > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mira-workflow-tool-summary > button:disabled { cursor: default; }
+.mira-workflow-tool-summary > button:not(:disabled):hover { color: var(--mira-foreground); }
+.mira-workflow-tool-summary > button:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
+.mira-workflow-tool-summary i { font-style: normal; }
+.mira-workflow-run__header > .mira-workflow-saved-actions, .mira-workflow-run__header > .mira-workflow-run-actions { flex: none; }
+
+.mira-workflow-run__body { flex: 1; min-height: 0; overflow-y: auto; }
+.mira-workflow-run > :is(header,.mira-workflow-run__status,.mira-workflow-run__artifacts) { flex: none; }
+.mira-workflow-run__header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-inspector .mira-workflow-run__header h2 { margin: 0; font-size: 14px; }
+.mira-workflow-run__header .mira-workflow-saved-actions > :is(span,small) { display: none; }
+.mira-workflow-run__status { display: grid; grid-template-columns: max-content 1fr; }
+.mira-workflow-run__status > span { grid-column: 1 / -1; }
+.mira-workflow-saved-label { justify-self: start; padding: 2px 6px; border-radius: 999px; background: var(--mira-surface); color: var(--mira-foreground-subtle); font-size: 10px; }
+.mira-workflow-completed-label { display: inline-flex; align-items: center; gap: 5px; color: var(--mira-success); white-space: nowrap; }
+.mira-workflow-artifact--detail > .mira-workflow-muted { padding: 12px 16px 0; }
+.mira-workflow-run > .mira-workflow-run__artifacts { max-height: 40%; overflow-y: auto; }

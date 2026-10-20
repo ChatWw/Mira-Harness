@@ -52,3 +52,18 @@ describe('serializable Mira workflow workbench contract', () => {
     expect(() => parseMiraFlowWorkbenchRequest({ ...start, args: getter })).toThrow('工作流请求无效')
   })
 })
+
+
+describe('saved workflow removal and move request boundaries', () => {
+  it('requires a selected project and a reviewed source revision', () => {
+    const revision = 'a'.repeat(64)
+    expect(parseMiraFlowWorkbenchRequest({ action: 'definitions.delete', scope: 'global', name: 'review', expectedRevision: revision })).toMatchObject({ action: 'definitions.delete' })
+    expect(parseMiraFlowWorkbenchRequest({ action: 'definitions.move', projectId: 'project', name: 'review', expectedRevision: revision })).toMatchObject({ action: 'definitions.move' })
+    for (const value of [
+      { action: 'definitions.delete', scope: 'project', name: 'review', expectedRevision: revision },
+      { action: 'definitions.delete', scope: 'global', name: 'review' },
+      { action: 'definitions.move', name: 'review', expectedRevision: revision },
+      { action: 'definitions.move', projectId: 'project', name: '../review', expectedRevision: revision },
+    ]) expect(() => parseMiraFlowWorkbenchRequest(value)).toThrow()
+  })
+})

@@ -25,6 +25,7 @@ import {
   type HarnessHistorySort,
   type HarnessMessageAttachment,
   type HarnessProject,
+  type HarnessProjectUpdateInput,
   type HarnessPlan,
   type HarnessPendingInteraction,
   type HarnessPlanSessionStatus,
@@ -50,7 +51,7 @@ import { MiraPaths } from './miraPaths'
 import { MiraCommandOutputs } from './miraCommandOutputs'
 import { assertHarnessAttachmentTotals, decodeHarnessAttachmentImport, HARNESS_ATTACHMENT_LIMITS, HARNESS_ATTACHMENT_PREFIX, harnessAttachmentFromBytes, harnessAttachmentMediaType, harnessAttachmentText } from '../services/harnessAttachmentContent'
 
-type ProjectRow = { id: string, name: string, icon: string, directory: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
+type ProjectRow = { id: string, name: string, icon: string, directory: string, roots: string, default_model_provider_id: string | null, sort_order: number, created_at: number, updated_at: number, last_session_at: number | null }
 type SessionRow = { id: string, project_id: string | null, title: string, model_provider_id: string | null, model_id: string | null, permission_mode: PermissionMode, status: HarnessSession['status'], pinned: number, unread: number, archived_at: number | null, draft_state: HarnessSession['draftState'] | null, sort_order: number, path: string, working_directory: string | null, created_at: number, updated_at: number }
 
 const IGNORED_FILE_DIRECTORIES = new Set(['.git', '.mira', 'node_modules', 'dist', 'build', 'coverage'])
@@ -77,6 +78,10 @@ function trashPaths(root: string, relativePath = ''): string[] {
 function createSessionId() { return randomUUID() }
 function titleFor(content: string) { return content.trim().replace(/\s+/g, ' ').slice(0, 42) || '新对话' }
 function projectIcon(value?: string) { return isProjectIcon(value) ? value : DEFAULT_PROJECT_ICON }
+function projectRoots(row: ProjectRow) {
+  const roots = JSON.parse(row.roots || '[]') as string[]
+  return (roots.length ? roots : [row.directory]).map(rootPath => ({ rootPath, isPrimary: rootPath === row.directory }))
+}
 function validateProjectIcon(value?: string) {
   if (value !== undefined && !isProjectIcon(value)) throw new Error('项目图标无效')
   return value || DEFAULT_PROJECT_ICON
@@ -417,7 +422,7 @@ export class HarnessStore {
     return (this.database.prepare('SELECT * FROM harness_projects ORDER BY sort_order DESC, created_at DESC').all() as ProjectRow[]).map(row => {
       const directoryExists = existsSync(row.directory)
       return {
-        id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, createdAt: row.created_at, updatedAt: row.updated_at,
+        id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, roots: projectRoots(row), directoryExists, createdAt: row.created_at, updatedAt: row.updated_at,
         ...(directoryExists ? gitMetadata(row.directory) : {}), lastSessionAt: row.last_session_at || undefined,
         defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount: countMap.get(row.id) || 0,
       }
@@ -444,7 +449,7 @@ export class HarnessStore {
     if (!row) throw new Error('未找到项目')
     const sessionCount = (this.database.prepare("SELECT COUNT(*) AS count FROM harness_sessions WHERE project_id = ? AND COALESCE(draft_state, '') <> 'prepared' AND parent_session_id IS NULL").get(id) as { count: number }).count
     const directoryExists = existsSync(row.directory)
-    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, directoryExists, ...(directoryExists ? gitMetadata(row.directory) : {}), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
+    return { id: row.id, name: row.name, icon: projectIcon(row.icon), directory: row.directory, roots: projectRoots(row), directoryExists, ...(directoryExists ? gitMetadata(row.directory) : {}), createdAt: row.created_at, updatedAt: row.updated_at, lastSessionAt: row.last_session_at || undefined, defaultModelProviderId: row.default_model_provider_id || undefined, sessionCount }
   }
 
   listGitBranches(projectId: string): HarnessGitBranch[] {
@@ -502,10 +507,45 @@ export class HarnessStore {
     return this.getProject(id)
   }
 
+  createProjectWithRoots(input: HarnessProjectUpdateInput) {
+    return this.database.transaction(() => {
+      if (!isAbsolute(input.primaryRoot) || !existsSync(input.primaryRoot) || !statSync(input.primaryRoot).isDirectory()) throw new Error('主要目录不可用')
+      if (this.database.prepare('SELECT id FROM harness_projects WHERE directory = ?').get(resolve(input.primaryRoot))) throw new Error('该主要目录已被其他项目使用')
+      const project = this.createProject(input.primaryRoot, input.name)
+      return this.updateProject(project.id, input)
+    })()
+  }
+
   renameProject(id: string, name: string, icon?: string) {
     if (!name.trim()) throw new Error('项目名称不能为空')
     if (icon === undefined) this.database.prepare('UPDATE harness_projects SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now(), id)
     else this.database.prepare('UPDATE harness_projects SET name = ?, icon = ?, updated_at = ? WHERE id = ?').run(name.trim(), validateProjectIcon(icon), now(), id)
+    return this.getProject(id)
+  }
+
+  updateProject(id: string, input: HarnessProjectUpdateInput) {
+    const project = this.getProject(id)
+    if (!input.name.trim()) throw new Error('项目名称不能为空')
+    if (!Array.isArray(input.roots) || input.roots.some(path => typeof path !== 'string' || !path.trim() || !isAbsolute(path))) throw new Error('源文件夹路径无效')
+    const roots = [...new Set(input.roots.map(path => resolve(path)))]
+    if (!roots.length) throw new Error('至少保留一个源文件夹')
+    if (typeof input.primaryRoot !== 'string' || !isAbsolute(input.primaryRoot)) throw new Error('主要目录无效')
+    const primary = resolve(input.primaryRoot)
+    if (!roots.includes(primary)) throw new Error('主要目录必须属于源文件夹列表')
+    // 未移动的旧目录允许暂时离线；新增目录必须真实存在且为文件夹。
+    const previous = project.roots!.map(root => root.rootPath)
+    for (const root of roots) {
+      if ((!previous.includes(root) || existsSync(root)) && (!existsSync(root) || !statSync(root).isDirectory())) throw new Error(`源文件夹不可用：${root}`)
+    }
+    const conflict = this.database.prepare('SELECT id FROM harness_projects WHERE directory = ? AND id <> ?').get(primary, id)
+    if (conflict) throw new Error('该主要目录已被其他项目使用')
+    const icon = validateProjectIcon(input.icon ?? project.icon)
+    this.database.transaction(() => {
+      // 旧回收站没有来源标记；切换主目录前固定其原始还原位置。
+      if (primary !== project.directory) for (const entry of this.listTrash(id)) this.database.prepare('INSERT OR IGNORE INTO harness_settings(key, value) VALUES (?, ?)').run(`trash-directory:${id}:${entry.token}`, project.directory)
+      this.database.prepare('UPDATE harness_projects SET name = ?, icon = ?, directory = ?, roots = ?, updated_at = ? WHERE id = ?')
+        .run(input.name.trim(), icon, primary, JSON.stringify(roots), now(), id)
+    })()
     return this.getProject(id)
   }
 
@@ -1176,14 +1216,15 @@ export class HarnessStore {
     return files.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'))
   }
 
-  selectFileReferences(projectId: string, filePaths: string[]): HarnessFileReference[] {
+  selectFileReferences(projectId: string, filePaths: string[], workingDirectory?: string): HarnessFileReference[] {
     const project = this.getProject(projectId)
+    const directory = workingDirectory || project.directory
     const references = filePaths.map(filePath => {
       if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('引用文件路径无效')
       const candidate = resolve(filePath)
-      const relativePath = relative(project.directory, candidate)
+      const relativePath = relative(directory, candidate)
       if (relativePath && !relativePath.startsWith(`..${sep}`) && relativePath !== '..' && !isAbsolute(relativePath)) {
-        const target = this.workspaceFilePath(project.directory, relativePath)
+        const target = this.workspaceFilePath(directory, relativePath)
         // 引用路径沿用“原始相对路径”（而非用 realpath 回算 relative），
         // 避免 macOS（/var → /private/var）与 Windows（符号链接 / junction / 盘符大小写）
         // 下 project.directory 与 realpath 前缀不一致，从而拼出 ../.. 逃逸路径。
@@ -1193,7 +1234,7 @@ export class HarnessStore {
       // attachmentFilePath → externalFilePath 再次 realpathSync，跨平台稳定且显示与来源一致。
       return { path: candidate, name: basename(candidate) }
     })
-    this.resolveAttachments(project.directory, references, true)
+    this.resolveAttachments(directory, references, true)
     return references
   }
 
@@ -1266,7 +1307,7 @@ export class HarnessStore {
   resolveMessageAttachments(sessionId: string, references: HarnessFileReference[] = []): HarnessMessageAttachment[] {
     if (!references.length) return []
     const session = this.getSession(sessionId)
-    const directory = session.projectId ? this.getProject(session.projectId).directory : session.workingDirectory
+    const directory = session.workingDirectory || (session.projectId ? this.getProject(session.projectId).directory : undefined)
     if (!directory) throw new Error('该会话没有可用工作目录')
     return this.resolveAttachments(directory, references, Boolean(session.projectId), sessionId)
   }
@@ -1614,11 +1655,12 @@ export class HarnessStore {
     const session = this.getSession(sessionId)
     if (!session.projectId || !session.workingDirectory) throw new Error('请先选择项目目录')
     const project = this.getProject(session.projectId)
-    const source = this.ensureInside(project.directory, join(project.directory, relativePath))
+    const source = this.ensureInside(session.workingDirectory, join(session.workingDirectory, relativePath))
     if (!existsSync(source)) throw new Error('文件不存在')
     const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
     const destination = join(this.paths.projectTrash(project.id), stamp, relativePath)
     mkdirSync(dirname(destination), { recursive: true }); renameSync(source, destination)
+    this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run(`trash-directory:${project.id}:${stamp}`, session.workingDirectory)
     return { token: stamp, path: relativePath }
   }
 
@@ -1642,14 +1684,17 @@ export class HarnessStore {
   restoreTrash(projectId: string, token: string) {
     if (!/^[a-zA-Z0-9-]+$/.test(token)) throw new Error('回收站记录无效')
     const project = this.getProject(projectId)
-    if (!existsSync(project.directory)) throw new Error('项目目录不存在，无法还原')
+    const key = `trash-directory:${projectId}:${token}`
+    const directory = (this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get(key) as { value: string } | undefined)?.value || project.directory
+    if (!existsSync(directory)) throw new Error('项目目录不存在，无法还原')
     const root = join(this.paths.projectTrash(projectId), token)
     if (!existsSync(root)) throw new Error('未找到回收站记录')
     const paths = trashPaths(root)
-    const conflict = paths.find(path => existsSync(this.ensureInside(project.directory, join(project.directory, path))))
+    const conflict = paths.find(path => existsSync(this.ensureInside(directory, join(directory, path))))
     if (conflict) throw new Error(`目标路径已存在，无法还原：${conflict}`)
-    for (const entry of readdirSync(root)) cpSync(join(root, entry), join(project.directory, entry), { recursive: true, force: false })
+    for (const entry of readdirSync(root)) cpSync(join(root, entry), join(directory, entry), { recursive: true, force: false })
     rmSync(root, { recursive: true, force: true })
+    this.database.prepare('DELETE FROM harness_settings WHERE key = ?').run(key)
   }
 
   cleanupExpiredTrash(referenceTime = now()) {
@@ -1663,6 +1708,7 @@ export class HarnessStore {
         try {
           if (trashTime(entry.name, directory) < cutoff) {
             rmSync(directory, { recursive: true, force: true })
+            this.database.prepare('DELETE FROM harness_settings WHERE key = ?').run(`trash-directory:${project.name}:${entry.name}`)
             removed += 1
           }
         } catch (error) {

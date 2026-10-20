@@ -61,6 +61,28 @@ describe('Mira saved workflow source codec', () => {
 })
 
 describe('Mira workflow definitions with host-injected roots', () => {
+  it('deletes only the reviewed revision and keeps other definitions', () => {
+    const { store } = fixture()
+    const saved = store.save(input)
+    expect(() => store.delete(saved.name, saved.scope, '0'.repeat(64))).toThrow('已被修改')
+    expect(store.read(saved.name, saved.scope)).toBeDefined()
+    store.delete(saved.name, saved.scope, saved.revision)
+    expect(store.read(saved.name, saved.scope)).toBeUndefined()
+  })
+  it('moves a global definition to the selected project without overwriting a namesake', () => {
+    const { store } = fixture()
+    const global = store.save({ ...input, scope: 'global' })
+    store.save(input)
+    expect(() => store.moveToProject(global.name, global.revision)).toThrow('已被修改')
+    expect(store.read(global.name, 'global')).toBeDefined()
+    const project = store.read(global.name, 'project')!
+    store.delete(project.name, project.scope, project.revision)
+    const moved = store.moveToProject(global.name, global.revision)
+    expect(moved.scope).toBe('project')
+    expect(moved.script).toBe(global.script)
+    expect(store.read(global.name, 'global')).toBeUndefined()
+  })
+
   it('reads without creating directories and prefers project while allowing explicit global reads', () => {
     const view = fixture()
     expect(view.store.list()).toEqual([]); expect(view.store.read('review')).toBeUndefined()

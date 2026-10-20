@@ -1,3 +1,4 @@
+import type { HarnessProjectUpdateInput } from '../../../../src/config/harness'
 import type { MiraGitSnapshot, MiraGitAction, MiraGitGraph, MiraGitActionResult } from '../../../../src/config/miraGit'
 import { isModelProviderAvailable, type HarnessContextUsage, type HarnessEvent, type HarnessFileReference, type HarnessMessage, type HarnessPermissionRequest, type HarnessProject, type HarnessSession, type HarnessSessionOrderScope, type HarnessSessionSummary, type HarnessUserAnswer, type HarnessWorkspaceFileEntry, type HarnessWorkspaceFileSearchResult, type HarnessWorkspaceGitSnapshot, type HarnessWorkspaceImagePreview, type ModelProviderSummary, type ModelSelection, type PermissionMode } from '../../../../src/config/harness'
 import type { MiraMediaPreview } from '../../../../src/config/miraMedia'
@@ -54,20 +55,22 @@ export interface PilotHost {
   searchFiles?(sessionId: string, query: string, refresh?: boolean): Promise<HarnessWorkspaceFileSearchResult>
   getWorkspaceGit?(sessionId: string): Promise<HarnessWorkspaceGitSnapshot>
   getWorkspaceIgnored?(sessionId: string, paths: string[]): Promise<string[]>
-  listProjectFiles?(projectId: string, path: string): Promise<{ path: string; entries: HarnessWorkspaceFileEntry[] }>
-  searchProjectFiles?(projectId: string, query: string, refresh?: boolean): Promise<HarnessWorkspaceFileSearchResult>
-  getProjectWorkspaceGit?(projectId: string): Promise<HarnessWorkspaceGitSnapshot>
-  getProjectWorkspaceIgnored?(projectId: string, paths: string[]): Promise<string[]>
+  listProjectFiles?(projectId: string, path: string, rootPath?: string): Promise<{ path: string; entries: HarnessWorkspaceFileEntry[] }>
+  searchProjectFiles?(projectId: string, query: string, refresh?: boolean, rootPath?: string): Promise<HarnessWorkspaceFileSearchResult>
+  getProjectWorkspaceGit?(projectId: string, rootPath?: string): Promise<HarnessWorkspaceGitSnapshot>
+  getProjectWorkspaceIgnored?(projectId: string, paths: string[], rootPath?: string): Promise<string[]>
+  watchProjectFiles?(projectId: string, rootPath: string, paths: string[]): Promise<{ watchId: string }>
+  unwatchProjectFiles?(projectId: string, rootPath: string, watchId: string): Promise<void>
   watchFiles?(sessionId: string, paths: string[]): Promise<{ watchId: string }>
   unwatchFiles?(sessionId: string, watchId: string): Promise<void>
   listEditors?(refresh?: boolean): Promise<Array<{ id: string; name: string; icon?: string }>>
-  getWorkspaceHtmlUrl?(scope: { projectId: string } | { sessionId: string }, path: string): Promise<string>
-  revealWorkspaceFile?(scope: { projectId: string } | { sessionId: string }, path: string): Promise<void>
-  openProjectFileInEditor?(projectId: string, path: string, editorId: string): Promise<void>
+  getWorkspaceHtmlUrl?(scope: { projectId: string; rootPath?: string } | { sessionId: string }, path: string): Promise<string>
+  revealWorkspaceFile?(scope: { projectId: string; rootPath?: string } | { sessionId: string }, path: string): Promise<void>
+  openProjectFileInEditor?(projectId: string, path: string, editorId: string, rootPath?: string): Promise<void>
   openFileInEditor?(sessionId: string, path: string, editorId: string): Promise<void>
-  readProjectFile?(projectId: string, path: string): Promise<{ path: string; content: string }>
-  readProjectImage?(projectId: string, path: string): Promise<HarnessWorkspaceImagePreview>
-  openProjectMedia?(projectId: string, path: string): Promise<MiraMediaPreview>
+  readProjectFile?(projectId: string, path: string, rootPath?: string): Promise<{ path: string; content: string }>
+  readProjectImage?(projectId: string, path: string, rootPath?: string): Promise<HarnessWorkspaceImagePreview>
+  openProjectMedia?(projectId: string, path: string, rootPath?: string): Promise<MiraMediaPreview>
   readFile(id: string, path: string): Promise<{ path: string; content: string }>
   readImage?(id: string, path: string): Promise<HarnessWorkspaceImagePreview>
   openMedia?(id: string, path: string): Promise<MiraMediaPreview>
@@ -116,6 +119,9 @@ export interface PilotHost {
   onNavigationCommand?(listener: (command: MiraAppNavigationCommand) => void): () => void
   onNavigationRestore?(listener: (snapshot: MiraAppNavigationSnapshot | undefined) => void): () => void
   publishNavigationState?(state: MiraAppNavigationState): void
+  updateProject?(id: string, input: HarnessProjectUpdateInput): Promise<HarnessProject>
+  createProject?(input: HarnessProjectUpdateInput): Promise<HarnessProject>
+  selectProjectDirectories?(): Promise<string[]>
   renameProject?(id: string, name: string): Promise<void>
   removeProject?(id: string): Promise<void>
   openProject?(id: string, target?: 'file-manager' | 'terminal'): Promise<string>
@@ -328,6 +334,7 @@ export class PilotController {
   get supportsSideConversations() { return Boolean(this.host.createSideConversation) }
   get supportsThemeSwitch() { return Boolean(this.host.toggleTheme) }
   get supportsProjectSelection() { return Boolean(this.host.selectProject) }
+  get supportsProjectEditing() { return Boolean(this.host.updateProject && this.host.selectProjectDirectories) }
   get supportsProjectRemoval() { return Boolean(this.host.removeProject) }
   getTheme = () => this.host.getTheme?.() ?? 'light'
   subscribeTheme = (listener: () => void) => this.host.onThemeChange?.(listener) ?? (() => undefined)
@@ -874,6 +881,15 @@ export class PilotController {
   }
   publishNavigationState(state: MiraAppNavigationState) { this.host.publishNavigationState?.(state) }
   onSessionDeleted(listener: (id: string) => void) { this.deletedSessionListeners.add(listener); return () => { this.deletedSessionListeners.delete(listener) } }
+  get supportsProjectCreation() { return Boolean(this.host.createProject && this.host.selectProjectDirectories) }
+  selectProjectDirectories = () => this.require('selectProjectDirectories')()
+  async saveProject(input: HarnessProjectUpdateInput, id?: string) {
+    const project = id ? await this.require('updateProject')(id, input) : await this.require('createProject')(input)
+    if (this.disposed) return project
+    const projects = await this.host.listProjects()
+    if (!this.disposed) this.update({ projects })
+    return project
+  }
   async renameProject(id: string, name: string) {
     await this.require('renameProject')(id, name)
     const projects = await this.host.listProjects()
@@ -1169,26 +1185,29 @@ export class PilotController {
     return this.host.listFiles(id, path)
   }
   listFilesFor(sessionId: string, path = '') { return this.host.listFiles(sessionId, path) }
-  listProjectFiles(projectId: string, path = '') { return this.host.listProjectFiles?.(projectId, path) ?? Promise.reject(new Error('当前宿主不支持项目文件浏览')) }
-  searchProjectFiles(projectId: string, query: string, refresh = false) { return this.host.searchProjectFiles?.(projectId, query, refresh) ?? Promise.reject(new Error('当前宿主不支持项目文件搜索')) }
+  listProjectFiles(projectId: string, path = '', rootPath?: string) { return this.host.listProjectFiles?.(projectId, path, rootPath) ?? Promise.reject(new Error('当前宿主不支持项目文件浏览')) }
+  searchProjectFiles(projectId: string, query: string, refresh = false, rootPath?: string) { return this.host.searchProjectFiles?.(projectId, query, refresh, rootPath) ?? Promise.reject(new Error('当前宿主不支持项目文件搜索')) }
   get supportsProjectWorkspaceGit() { return Boolean(this.host.getProjectWorkspaceGit && this.host.getProjectWorkspaceIgnored) }
-  getProjectWorkspaceGit(projectId: string) { return this.host.getProjectWorkspaceGit?.(projectId) ?? Promise.reject(new Error('当前宿主不支持项目 Git 状态')) }
-  getProjectWorkspaceIgnored(projectId: string, paths: string[]) { return this.host.getProjectWorkspaceIgnored?.(projectId, paths) ?? Promise.reject(new Error('当前宿主不支持项目 Git 忽略状态')) }
+  getProjectWorkspaceGit(projectId: string, rootPath?: string) { return this.host.getProjectWorkspaceGit?.(projectId, rootPath) ?? Promise.reject(new Error('当前宿主不支持项目 Git 状态')) }
+  getProjectWorkspaceIgnored(projectId: string, paths: string[], rootPath?: string) { return this.host.getProjectWorkspaceIgnored?.(projectId, paths, rootPath) ?? Promise.reject(new Error('当前宿主不支持项目 Git 忽略状态')) }
   get supportsWorkspaceGit() { return Boolean(this.host.getWorkspaceGit && this.host.getWorkspaceIgnored) }
   getWorkspaceGitFor(sessionId: string) { return this.host.getWorkspaceGit?.(sessionId) ?? Promise.resolve({ available: false, entries: [] } as HarnessWorkspaceGitSnapshot) }
   getWorkspaceIgnoredFor(sessionId: string, paths: string[]) { return this.host.getWorkspaceIgnored?.(sessionId, paths) ?? Promise.resolve([]) }
   searchFilesFor(sessionId: string, query: string, refresh = false): Promise<HarnessWorkspaceFileSearchResult> {
     return this.host.searchFiles ? this.host.searchFiles(sessionId, query, refresh) : Promise.reject(new Error('当前宿主不支持工作目录搜索'))
   }
+  get supportsProjectWorkspaceWatch() { return Boolean(this.host.watchProjectFiles && this.host.unwatchProjectFiles) }
+  watchProjectFiles(projectId: string, rootPath: string, paths: string[]) { return this.require('watchProjectFiles')(projectId, rootPath, paths) }
+  unwatchProjectFiles(projectId: string, rootPath: string, watchId: string) { return this.require('unwatchProjectFiles')(projectId, rootPath, watchId) }
   get supportsWorkspaceWatch() { return Boolean(this.host.watchFiles && this.host.unwatchFiles) }
   watchFilesFor(sessionId: string, paths: string[]) {
     return this.host.watchFiles ? this.host.watchFiles(sessionId, paths) : Promise.reject(new Error('当前宿主不支持文件自动刷新'))
   }
   unwatchFilesFor(sessionId: string, watchId: string) { return this.host.unwatchFiles?.(sessionId, watchId) ?? Promise.resolve() }
-  getWorkspaceHtmlUrl(scope: { projectId: string } | { sessionId: string }, path: string) { return this.require('getWorkspaceHtmlUrl')(scope, path) }
-  revealWorkspaceFile(scope: { projectId: string } | { sessionId: string }, path: string) { return this.require('revealWorkspaceFile')(scope, path) }
+  getWorkspaceHtmlUrl(scope: { projectId: string; rootPath?: string } | { sessionId: string }, path: string) { return this.require('getWorkspaceHtmlUrl')(scope, path) }
+  revealWorkspaceFile(scope: { projectId: string; rootPath?: string } | { sessionId: string }, path: string) { return this.require('revealWorkspaceFile')(scope, path) }
   listEditors(refresh = false) { return this.host.listEditors?.(refresh) ?? Promise.resolve([]) }
-  openProjectFileInEditor(projectId: string, path: string, editorId: string) { return this.require('openProjectFileInEditor')(projectId, path, editorId) }
+  openProjectFileInEditor(projectId: string, path: string, editorId: string, rootPath?: string) { return this.require('openProjectFileInEditor')(projectId, path, editorId, rootPath) }
   openFileInEditorFor(sessionId: string, path: string, editorId: string) { return this.host.openFileInEditor ? this.host.openFileInEditor(sessionId, path, editorId) : Promise.reject(new Error('当前宿主不支持外部编辑器')) }
   onWorkspaceFilesChanged = (listener: (event: PilotWorkspaceFileEvent) => void) => { this.workspaceFileListeners.add(listener); return () => { this.workspaceFileListeners.delete(listener) } }
   readFile(path: string) {
@@ -1196,9 +1215,9 @@ export class PilotController {
     if (!id) return Promise.reject(new Error('尚未选择任务'))
     return this.host.readFile(id, path)
   }
-  readProjectFile(projectId: string, path: string) { return this.require('readProjectFile')(projectId, path) }
-  readProjectImage(projectId: string, path: string) { return this.require('readProjectImage')(projectId, path) }
-  openProjectMedia(projectId: string, path: string) { return this.require('openProjectMedia')(projectId, path) }
+  readProjectFile(projectId: string, path: string, rootPath?: string) { return this.require('readProjectFile')(projectId, path, rootPath) }
+  readProjectImage(projectId: string, path: string, rootPath?: string) { return this.require('readProjectImage')(projectId, path, rootPath) }
+  openProjectMedia(projectId: string, path: string, rootPath?: string) { return this.require('openProjectMedia')(projectId, path, rootPath) }
   readFileFor(sessionId: string, path: string) { return this.host.readFile(sessionId, path) }
   readCommandOutputFor(sessionId: string, runId: string, toolId: string) { return this.require('readCommandOutput')(sessionId, runId, toolId) }
   readModelTraceFor(sessionId: string) { return this.require('readModelTrace')(sessionId) }
@@ -1434,6 +1453,13 @@ export class PilotController {
     this.update({ pendingPermissions, ...(this.activeSessionId === sessionId && (!this.state.permission || this.state.permission.requestId === requestId) ? { permission: next } : {}) })
   }
   private handleEvent = (event: HarnessEvent) => {
+    if (event.type === 'session-activity-changed') {
+      // A released workflow changes aggregate session activity, not the main reply cursor.
+      // Invalidate in-flight lists captured while that workflow still owned the session.
+      this.runningRevisions.set(event.sessionId, ++this.runningRevision)
+      void this.refreshList().catch(error => this.fail(error))
+      return
+    }
     if (event.type === 'command-job') {
       if (event.sessionId !== this.activeSessionId || !this.state.session) return
       const { id, runId, commandJob } = event.payload
@@ -1479,6 +1505,13 @@ export class PilotController {
       for (const request of [...this.pendingToolApprovals.values()]) if (request.sessionId === event.sessionId && (!request.runId || request.runId === event.runId)) this.forgetPermission(request.requestId, event.sessionId)
     }
     if (event.type === 'status' || event.type === 'run-start') this.applyStatusBadge(event.sessionId, event.type === 'run-start' ? 'running' : String(event.payload.state || ''), event.sessionId !== this.activeSessionId, event.runId)
+    if (event.type === 'title-updated' && typeof event.payload.title === 'string' && event.payload.title) {
+      const title = event.payload.title
+      this.update({
+        sessions: this.state.sessions.map(session => session.id === event.sessionId ? { ...session, title } : session),
+        ...(this.state.session?.id === event.sessionId ? { session: { ...this.state.session, title } } : {}),
+      })
+    }
     if (event.type === 'status' || event.type === 'title-updated') void this.refreshList().catch(error => this.fail(error))
     if (event.type === 'permission-request' && typeof event.payload.requestId === 'string') {
       const request: HarnessPermissionRequest = { sessionId: event.sessionId, requestId: event.payload.requestId, title: String(event.payload.title || '请求权限'), detail: String(event.payload.detail || ''), ...(typeof event.payload.toolCallId === 'string' ? { toolCallId: event.payload.toolCallId } : {}), ...(typeof event.payload.runId === 'string' ? { runId: event.payload.runId } : event.runId ? { runId: event.runId } : {}), ...(event.payload.workflowReview ? { workflowReview: event.payload.workflowReview as HarnessPermissionRequest['workflowReview'] } : {}) }

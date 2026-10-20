@@ -6,7 +6,7 @@ import type { Layout, PanelImperativeHandle } from 'react-resizable-panels'
 import { MIRA_PANE_PREFERENCE_KEY, MIRA_PANE_TRANSITION_MS, miraNarrowPaneAction, miraPanePreferences, miraSidebarWidth, miraWorkspaceRatio } from '../lib/pane-geometry'
 
 type PaneHost = { getPreference: (key: string) => Promise<unknown>; setPreference: (key: string, value: unknown, reportFailure?: boolean) => Promise<unknown>; reportError: (error: unknown) => void; registerBeforeNavigation?: (flush: () => Promise<void>) => () => void }
-type Options = { host: PaneHost; conversation: boolean; workspaceOpen: boolean; sessionsOpen: boolean; closeWorkspace: () => void; closeSessions: () => void }
+type Options = { host: PaneHost; isFullView?: () => boolean; conversation: boolean; workspaceOpen: boolean; sessionsOpen: boolean; closeWorkspace: () => void; closeSessions: () => void }
 
 export function useMiraPaneGeometry(options: Options) {
   const { host, workspaceOpen } = options
@@ -71,21 +71,24 @@ export function useMiraPaneGeometry(options: Options) {
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (motion.matches || document.hidden || windowResizing.current) {
       animating.current = true
-      applyTarget()
-      animating.current = false
-      return
+      // Panel constraints are registered by child effects; even without motion,
+      // apply after registration so a just-closed non-collapsible panel can collapse.
+      const frame = window.requestAnimationFrame(() => { applyTarget(); animating.current = false })
+      return () => { window.cancelAnimationFrame(frame); animating.current = false }
     }
     // Keep expensive tab contents at their final width during the 200ms reveal.
     const contentWidth = workspaceOpen ? bodyWidth * ratio : element.getBoundingClientRect().width
     if (content && contentWidth > 0) content.style.width = `${contentWidth}px`
     animating.current = true
     element.classList.add('mira-pane-toggling')
+    conversationRef.current?.classList.add('mira-pane-toggling')
     let pending = true
     const frame = window.requestAnimationFrame(() => { pending = false; applyTarget() })
     const timer = window.setTimeout(() => cleanup(true), MIRA_PANE_TRANSITION_MS)
     const cleanup = (settlePending = false) => {
       window.cancelAnimationFrame(frame); window.clearTimeout(timer)
       element.classList.remove('mira-pane-toggling')
+      conversationRef.current?.classList.remove('mira-pane-toggling')
       if (content) content.style.removeProperty('width')
       if (settlePending && pending) { pending = false; applyTarget() }
       animating.current = false
@@ -106,7 +109,7 @@ export function useMiraPaneGeometry(options: Options) {
     const collapseIfNarrow = () => {
       const current = latest.current
       const width = conversationRef.current?.getBoundingClientRect().width
-      if (!current.conversation || width === undefined) return
+      if (!current.conversation || current.isFullView?.() || width === undefined) return
       const action = miraNarrowPaneAction(width, current.workspaceOpen, current.sessionsOpen)
       if (action === 'workspace') {
         current.closeWorkspace()

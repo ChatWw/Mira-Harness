@@ -42,6 +42,40 @@ async function fixture(initial = '', preference?: Promise<unknown>, htmlSource?:
 }
 
 describe('current-task browser explicit navigation', () => {
+  it('keeps the browser visible for reference details outside its viewport and restores it after an overlapping popup closes', async () => {
+    const view = await fixture('https://mira.test/one')
+    const viewport = container.querySelector('.pilot-browser__view')
+    expect(viewport).not.toBeNull()
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this === viewport ? new DOMRect(600, 150, 500, 500) : new DOMRect(50, 400, 400, 100)
+    })
+    view.controller.controlBrowserFor.mockClear()
+    const details = document.createElement('div'); details.setAttribute('data-mira-browser-context-details', ''); details.setAttribute('role', 'region')
+    await act(async () => { container.append(details); await new Promise(done => setTimeout(done, 5)) })
+    expect(view.controller.controlBrowserFor).not.toHaveBeenCalledWith('a', 'hide', 'browser')
+    vi.spyOn(details, 'getBoundingClientRect').mockReturnValue(new DOMRect(700, 400, 200, 100))
+    await act(async () => { details.setAttribute('style', 'left:700px'); await new Promise(done => setTimeout(done, 5)) })
+    expect(view.controller.controlBrowserFor).toHaveBeenLastCalledWith('a', 'hide', 'browser')
+    await act(async () => { details.remove(); await new Promise(done => setTimeout(done, 5)) })
+    expect(view.controller.controlBrowserFor).toHaveBeenLastCalledWith('a', 'show', 'browser')
+    expect(view.controller.navigateBrowserFor).toHaveBeenCalledOnce()
+    expect(view.controller.closeBrowserFor).not.toHaveBeenCalled()
+  })
+
+  it.each(['menu', 'listbox', 'dialog'])('does not hide the browser for a nonmodal %s in the conversation column', async role => {
+    const view = await fixture('https://mira.test/one')
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('role') === role ? new DOMRect(20, 300, 400, 200) : new DOMRect(600, 150, 500, 500)
+    })
+    view.controller.controlBrowserFor.mockClear()
+    const popup = document.createElement('div'); popup.setAttribute('role', role); popup.setAttribute('aria-modal', 'false')
+    await act(async () => { container.append(popup); await new Promise(done => setTimeout(done, 5)) })
+    expect(view.controller.controlBrowserFor).not.toHaveBeenCalledWith('a', 'hide', 'browser')
+    popup.remove()
+  })
+
   it('reauthorizes restored HTML by workspace identity instead of reusing a dead server URL', async () => {
     const view = await fixture('http://127.0.0.1:1234/index.html', undefined, { projectId: 'p', path: 'index.html' })
     expect(view.controller.getWorkspaceHtmlUrl).toHaveBeenCalledExactlyOnceWith({ projectId: 'p' }, 'index.html')

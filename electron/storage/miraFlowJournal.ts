@@ -155,6 +155,11 @@ export class MiraFlowJournal implements JournalStorePort {
     return rows.map(row => ({ sequence: row.sequence, event: JSON.parse(row.payload), timeCreated: row.time_created }))
   }
 
+  runTimes(runId: string): { startedAt?: number; endedAt?: number } {
+    const row = this.database.prepare("SELECT MIN(time_created) AS startedAt, MAX(CASE WHEN json_extract(payload, '$.type') = 'run-settled' THEN time_created END) AS endedAt FROM mira_flow_events WHERE run_id = ?").get(runId) as { startedAt: number | null; endedAt: number | null }
+    return { ...(row.startedAt === null ? {} : { startedAt: row.startedAt }), ...(row.endedAt === null ? {} : { endedAt: row.endedAt }) }
+  }
+
   /** Called once by the owning host at startup, never by initialize or another live reader. */
   recoverInterruptedRuns(): number {
     return this.database.transaction(() => {

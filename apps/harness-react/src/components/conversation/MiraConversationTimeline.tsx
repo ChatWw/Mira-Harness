@@ -1,7 +1,7 @@
 // Adapted from ZCode ConversationTimeline and conversationTimelineLiveTail (Apache-2.0).
 // Copyright 2026 Z.AI Co., Ltd. Mira renders its authoritative messages in visible turns.
 import { defaultRangeExtractor, measureElement as measureVirtualElement, useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type RefObject } from 'react'
 import type { HarnessGoal } from '../../../../../src/config/miraGoals'
 import { MiraGoalVerification } from './MiraGoalVerification'
 import { goalVerificationsByMessage, miraModelChanges } from './conversation-model'
@@ -19,7 +19,8 @@ function TimelineMessage({ message, liveMessageId, components }: { message: Time
   return message.original.role === 'user' ? <components.UserMessage {...message} /> : message.original.role === 'assistant' ? <components.AssistantMessage {...message} streaming={message.original.id === liveMessageId} /> : null
 }
 
-export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange, goal, providers }: {
+export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, viewportRef, scrollActionsRef, actionsRef, components, onActiveTurnChange, goal, providers, renderTurnEnd }: {
+  renderTurnEnd?: (turn: ConversationRenderTurn) => ReactNode
   goal?: HarnessGoal
   providers?: Array<{ id: string; name: string }>
   messages: TimelineRenderMessage[]
@@ -291,7 +292,7 @@ export function MiraConversationTimeline({ messages, memoryKey, liveMessageId, v
       <TimelineMessage message={message} liveMessageId={liveMessageId} components={components} />
       {(goalVerifications.get(message.original.id) ?? goalVerifications.get(message.original.id.replace(/^stream-/, '')))?.map(verification => <MiraGoalVerification key={verification.id} verification={verification} />)}
     </Fragment>
-  })}</div>
+  })}{renderTurnEnd?.(turn)}</div>
   return <div ref={containerRef} className="relative w-full" onFocusCapture={retainInteractions} onBlurCapture={() => queueMicrotask(retainInteractions)}>
     <div data-mira-virtual-history="true" style={{ height: totalSize }} aria-hidden="true" />
     {/* Keep a turn under the same keyed parent when the running tail becomes history. */}

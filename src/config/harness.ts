@@ -734,6 +734,8 @@ export interface HarnessProject {
   name: string
   icon: string
   directory: string
+  /** directory 始终为主要目录；旧项目省略时视为单目录。 */
+  roots?: Array<{ rootPath: string; isPrimary: boolean }>
   directoryExists: boolean
   isGitRepository?: boolean
   gitBranch?: string
@@ -797,6 +799,13 @@ export interface HarnessProjectCreateInput {
   icon?: string
 }
 
+export interface HarnessProjectUpdateInput {
+  name: string
+  icon?: string
+  roots: string[]
+  primaryRoot: string
+}
+
 export const DEFAULT_PROJECT_ICON = 'FolderOpened'
 
 export function isProjectIcon(value?: string) {
@@ -813,7 +822,7 @@ export interface HarnessEvent {
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number
-  type: 'browser-open' | 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'command-job' | 'task-changes' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event'
+  type: 'browser-open' | 'run-start' | 'run-activity' | 'message-delta' | 'message-part' | 'message-complete' | 'message-boundary' | 'context-usage' | 'tool-call' | 'command-job' | 'task-changes' | 'status' | 'error' | 'permission-request' | 'memory-status' | 'title-updated' | 'plan-updated' | 'plan-confirmed' | 'plan-cancelled' | 'interaction-created' | 'interaction-resolved' | 'terminal-output' | 'terminal-exit' | 'workspace-files-changed' | 'queue-updated' | 'goal-updated' | 'workflow-event' | 'session-activity-changed'
   payload: Record<string, unknown>
 }
 

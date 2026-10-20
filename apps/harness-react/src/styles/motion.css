@@ -20,15 +20,15 @@
 [data-radix-popper-content-wrapper] > [data-state='closed'] { animation-name: mira-surface-exit; animation-duration: var(--mira-motion-exit, 100ms); animation-timing-function: ease-in; pointer-events: none; }
 [data-radix-popper-content-wrapper]:has(> [data-state='closed']) { pointer-events: none; }
 
-:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state] {
+:is(.mira-confirm, .mira-project-editor, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state] {
   --mira-motion-x: 0px;
   --mira-motion-y: -4px;
   animation-duration: 180ms;
   animation-timing-function: var(--mira-motion-ease, ease-out);
   animation-fill-mode: both;
 }
-:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='open'] { animation-name: mira-surface-enter; }
-:is(.mira-confirm, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='closed'] { animation-name: mira-surface-exit; animation-duration: 100ms; animation-timing-function: ease-in; pointer-events: none; }
+:is(.mira-confirm, .mira-project-editor, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='open'] { animation-name: mira-surface-enter; }
+:is(.mira-confirm, .mira-project-editor, .mira-command-center, .mira-composer-confirm, .mira-model-error-dialog, .mira-branch-dialog, .mira-automation-dialog, .mira-attachment-preview)[data-state='closed'] { animation-name: mira-surface-exit; animation-duration: 100ms; animation-timing-function: ease-in; pointer-events: none; }
 
 @keyframes mira-surface-enter {
   from { opacity: 0; scale: .95; translate: var(--mira-motion-x) var(--mira-motion-y); }

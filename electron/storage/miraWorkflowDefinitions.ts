@@ -132,6 +132,19 @@ export class MiraWorkflowDefinitions {
     const hasOther = (other !== 'project' || this.roots.projectRoot) && Boolean(stat(this.path(other, input.name)))
     return { ...(previous ? { previous } : {}), next: document(input.name, input.scope, path, source), ...(hasOther ? { shadowing: input.scope === 'project' ? 'hides_global' : 'hidden_by_project' } : {}) }
   }
+  moveToProject(name: string, expectedRevision: string) {
+    const source = this.read(name, 'global')
+    if (!source || source.revision !== expectedRevision) throw new Error(CONFLICT)
+    const target = this.save({ name, scope: 'project', meta: source.meta, script: source.script })
+    try { this.delete(name, 'global', expectedRevision) }
+    catch (error) { this.delete(name, 'project', target.revision); throw error }
+    return target
+  }
+  delete(name: string, scope: MiraWorkflowScope, expectedRevision: string) {
+    const path = this.path(scope, name), source = readSource(path)
+    if (source === undefined || hash(source) !== expectedRevision) throw new Error(CONFLICT)
+    unlinkSync(checked(path))
+  }
   save(input: MiraWorkflowWrite): MiraWorkflowDocument {
     const preview = this.preview(input), { next, previous } = preview
     if (previous?.revision !== input.expectedRevision) throw new Error(CONFLICT)

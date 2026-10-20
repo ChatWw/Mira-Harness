@@ -36,6 +36,29 @@ interface MiraHostedPage {
   operations?: number
 }
 
+// Merge intersecting overlays before cutting rounded holes, preserving transparent overlaps.
+function browserClipPath(bounds: HarnessBrowserBounds, exclusions: HarnessBrowserBounds[] = []) {
+  if (!exclusions.length) return ''
+  const holes: HarnessBrowserBounds[] = []
+  for (const exclusion of exclusions) {
+    let rect = { ...exclusion }
+    for (let index = 0; index < holes.length;) {
+      const other = holes[index]
+      if (rect.x <= other.x + other.width && rect.x + rect.width >= other.x && rect.y <= other.y + other.height && rect.y + rect.height >= other.y) {
+        const x = Math.min(rect.x, other.x), y = Math.min(rect.y, other.y)
+        rect = { x, y, width: Math.max(rect.x + rect.width, other.x + other.width) - x, height: Math.max(rect.y + rect.height, other.y + other.height) - y }
+        holes.splice(index, 1); index = 0
+      } else index++
+    }
+    holes.push(rect)
+  }
+  const paths = holes.map(rect => {
+    const x = rect.x - bounds.x, y = rect.y - bounds.y, right = x + rect.width, bottom = y + rect.height, r = Math.min(16, rect.width / 2, rect.height / 2)
+    return `M${x+r} ${y}H${right-r}Q${right} ${y} ${right} ${y+r}V${bottom-r}Q${right} ${bottom} ${right-r} ${bottom}H${x+r}Q${x} ${bottom} ${x} ${bottom-r}V${y+r}Q${x} ${y} ${x+r} ${y}Z`
+  })
+  return `path(evenodd, 'M0 0H${bounds.width}V${bounds.height}H0Z ${paths.join(' ')}')`
+}
+
 // Guests belong to a task and resource together; late events never read a global current guest.
 export class MiraHostedBrowsers {
   private pages = new Map<string, MiraHostedPage>()
@@ -126,14 +149,14 @@ export class MiraHostedBrowsers {
       const x = Math.max(0, clip.x, bounds.x), y = Math.max(0, clip.y, bounds.y)
       const width = Math.max(0, Math.min(stage.clientWidth, clip.x + clip.width, bounds.x + bounds.width) - x)
       const height = Math.max(0, Math.min(stage.clientHeight, clip.y + clip.height, bounds.y + bounds.height) - y)
-      Object.assign(page.container.style, { position: 'absolute', left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px`, overflow: 'hidden', zIndex: '2', display: page.element.style.display })
+      Object.assign(page.container.style, { position: 'absolute', left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px`, overflow: 'hidden', zIndex: '2', display: page.element.style.display, clipPath: browserClipPath({ x, y, width, height }, page.presentation?.exclusions) })
       const layout = zoom < 1 ? 1 / zoom : 1, transform = scale / zoom * (zoom < 1 ? zoom : 1)
       Object.assign(page.element.style, { position: 'absolute', left: `${bounds.x - x}px`, top: `${bounds.y - y}px`, width: `${viewport.width * layout}px`, height: `${viewport.height * layout}px`, transform: `scale(${transform})`, transformOrigin: 'top left', border: '0', background: '#fff' })
       return
     }
     const x = Math.min(bounds.x, stage.clientWidth), y = Math.min(bounds.y, stage.clientHeight)
     const width = Math.max(0, Math.min(bounds.width, stage.clientWidth - x)), height = Math.max(0, Math.min(bounds.height, stage.clientHeight - y))
-    Object.assign(page.container.style, { position: 'absolute', left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px`, overflow: 'hidden', zIndex: '2', display: page.element.style.display })
+    Object.assign(page.container.style, { position: 'absolute', left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px`, overflow: 'hidden', zIndex: '2', display: page.element.style.display, clipPath: browserClipPath({ x, y, width, height }, page.presentation?.exclusions) })
     Object.assign(page.element.style, { position: 'absolute', left: '0', top: '0', width: `${width}px`, height: `${height}px`, transform: '', transformOrigin: '', border: '0', background: '#fff' })
   }
   control(sessionId: string, action: 'back' | 'forward' | 'reload' | 'devtools' | 'hide' | 'show' | 'close', browserId = 'browser') {

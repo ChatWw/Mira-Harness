@@ -1,6 +1,6 @@
 import { isPermissionMode, type ModelSelection, type PermissionMode } from './harness'
 import { validateMiraWorkflowMeta, type MiraWorkflowDocument, type MiraWorkflowEntry, type MiraWorkflowPreview, type MiraWorkflowScope, type MiraWorkflowWrite } from './miraWorkflows'
-import type { ActorRecord, NodeRecord, RunRecord, StoredEvent } from '../../packages/mira-flow-kit/src/engine/mira-types'
+import type { ActorRecord, ArtifactVersionRecord, NodeRecord, RunRecord, StoredEvent } from '../../packages/mira-flow-kit/src/engine/mira-types'
 import type { MiraFlowReviewGraph } from './miraFlowReview'
 import type { MiraFlowActorConversationPage } from './miraFlowConversation'
 export type { MiraFlowActorConversationPage, MiraFlowConversationMessage, MiraFlowConversationPart } from './miraFlowConversation'
@@ -9,6 +9,8 @@ export type { MiraFlowActorConversationPage, MiraFlowConversationMessage, MiraFl
 export type MiraFlowWorkbenchRequest =
   | { action: 'definitions.list'; projectId?: string }
   | { action: 'definitions.read'; projectId?: string; name: string; scope?: MiraWorkflowScope }
+  | { action: 'definitions.move'; projectId: string; name: string; expectedRevision: string }
+  | { action: 'definitions.delete'; projectId?: string; name: string; scope: MiraWorkflowScope; expectedRevision: string }
   | { action: 'definitions.preview' | 'definitions.save'; projectId?: string; input: MiraWorkflowWrite }
   | { action: 'runs.start'; projectId: string; name: string; scope: MiraWorkflowScope; args?: Record<string, unknown>; revision: string; selection: ModelSelection; permissionMode?: PermissionMode }
   | { action: 'runs.list'; sessionId?: string; projectId?: string }
@@ -19,7 +21,15 @@ export type MiraFlowWorkbenchRequest =
   | { action: 'artifacts.read' | 'artifacts.save'; sessionId: string; runId: string; artifactId: string; version: number }
   | { action: 'actors.conversation'; sessionId: string; runId: string; siteId: string; ordinal: number; offset?: number; limit?: number }
 
-export interface MiraFlowRunSnapshot { run: RunRecord; actors: ActorRecord[]; nodes: NodeRecord[]; events: StoredEvent[]; selection?: ModelSelection; graph?: MiraFlowReviewGraph }
+export interface MiraFlowRunPresentation {
+  description?: string
+  startedAt?: number
+  endedAt?: number
+  artifacts: ArtifactVersionRecord[]
+  savedDefinition?: { name: string; scope: MiraWorkflowScope; revision: string; projectId?: string }
+}
+export interface MiraFlowRunSummary extends RunRecord { presentation?: MiraFlowRunPresentation }
+export interface MiraFlowRunSnapshot { run: RunRecord; actors: ActorRecord[]; nodes: NodeRecord[]; events: StoredEvent[]; selection?: ModelSelection; graph?: MiraFlowReviewGraph; presentation?: MiraFlowRunPresentation }
 export interface MiraFlowRunIdentity { sessionId: string; runId: string }
 export interface MiraFlowActorConversationIdentity extends MiraFlowRunIdentity { siteId: string; ordinal: number }
 export interface MiraFlowArtifactContent { contentType: string; bytes: number; dataBase64: string; title: string }
@@ -79,6 +89,14 @@ export function parseMiraFlowWorkbenchRequest(value: unknown): MiraFlowWorkbench
         only(request, ['action', 'projectId', 'name', 'scope']); name(request.name)
         if (request.scope !== undefined) scope(request.scope)
         if (request.scope === 'project' && !request.projectId) invalid()
+        break
+      case 'definitions.move':
+        only(request, ['action', 'projectId', 'name', 'expectedRevision']); name(request.name)
+        if (!request.projectId || typeof request.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(request.expectedRevision)) invalid()
+        break
+      case 'definitions.delete':
+        only(request, ['action', 'projectId', 'name', 'scope', 'expectedRevision']); name(request.name); scope(request.scope)
+        if (request.scope === 'project' && !request.projectId || typeof request.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(request.expectedRevision)) invalid()
         break
       case 'definitions.preview':
       case 'definitions.save': {

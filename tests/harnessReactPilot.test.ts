@@ -43,6 +43,50 @@ function fixture() {
 
 const goal = (revision = 1, id = 'goal'): HarnessGoal => ({ id, objective: '完成目标', revision, status: 'active', tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, iteration: 1, createdAt: 1, updatedAt: revision })
 
+describe('automatic session title synchronization', () => {
+  it('updates the open conversation title and sidebar together without reloading the conversation', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    const before = controller.getSnapshot()
+    const getSessionCalls = vi.mocked(host.getSession).mock.calls.length
+    let finish!: (value: Awaited<ReturnType<PilotHost['listSessions']>>) => void
+    vi.mocked(host.listSessions).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    emit('title-updated', { title: '百度查询南京宣城三天天气' })
+    expect(controller.getSnapshot().session?.title).toBe('百度查询南京宣城三天天气')
+    expect(controller.getSnapshot().sessions.find(item => item.id === 'a')?.title).toBe('百度查询南京宣城三天天气')
+    expect(controller.getSnapshot().messages).toBe(before.messages)
+    expect(controller.getSnapshot().session?.toolCalls).toBe(before.session?.toolCalls)
+    expect(controller.getSnapshot().running).toBe(before.running)
+    expect(host.getSession).toHaveBeenCalledTimes(getSessionCalls)
+    finish([{ ...session('a'), title: '百度查询南京宣城三天天气' }, session('b')])
+    await Promise.resolve(); await Promise.resolve()
+    expect(controller.getSnapshot().session?.title).toBe(controller.getSnapshot().sessions[0].title)
+    controller.dispose()
+  })
+
+  it('keeps a background title update separate from the current conversation', async () => {
+    const { controller, host, emit } = fixture()
+    await controller.start()
+    const current = controller.getSnapshot().session
+    vi.mocked(host.listSessions).mockResolvedValue([session('a'), { ...session('b'), title: '后台会话新标题' }])
+    emit('title-updated', { title: '后台会话新标题' }, 'b')
+    expect(controller.getSnapshot().sessions.find(item => item.id === 'b')?.title).toBe('后台会话新标题')
+    expect(controller.getSnapshot().session).toBe(current)
+    await Promise.resolve(); await Promise.resolve()
+    expect(controller.getSnapshot().session).toBe(current)
+    controller.dispose()
+  })
+
+  it.each([undefined, '', 123])('does not replace the current title with an invalid payload: %s', async title => {
+    const { controller, emit } = fixture()
+    await controller.start()
+    emit('title-updated', { title })
+    expect(controller.getSnapshot().session?.title).toBe('a')
+    await Promise.resolve(); await Promise.resolve()
+    controller.dispose()
+  })
+})
+
 describe('sidebar reorder persistence', () => {
   it('updates project order immediately and reloads the project list after persistence', async () => {
     const { controller, host } = fixture()
@@ -210,6 +254,37 @@ describe('workflow source review projection', () => {
     await controller.permission(true, 'second')
     expect(host.respondPermission).toHaveBeenCalledExactlyOnceWith('second', true)
     expect(controller.getSnapshot().permission).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('reconciles the workflow-only busy badge after release and rejects an older busy list response', async () => {
+    const { controller, host, emit } = fixture()
+    vi.mocked(host.listSessions).mockResolvedValue([{ ...session('a'), isRunning: true }, session('b')])
+    await controller.start()
+    expect(controller.getSnapshot().running).toBe(false)
+    expect(controller.getSnapshot().runningSessionIds).toContain('a')
+    let finishOld!: (value: Awaited<ReturnType<PilotHost['listSessions']>>) => void
+    vi.mocked(host.listSessions).mockReturnValueOnce(new Promise(resolve => { finishOld = resolve }))
+    const oldRefresh = controller.refreshSessions()
+    vi.mocked(host.listSessions).mockResolvedValue([{ ...session('a'), isRunning: false }, session('b')])
+    emit('session-activity-changed', {})
+    await vi.waitFor(() => expect(controller.getSnapshot().runningSessionIds).not.toContain('a'))
+    finishOld([{ ...session('a'), isRunning: true }, session('b')]); await oldRefresh
+    expect(controller.getSnapshot().runningSessionIds).not.toContain('a')
+    expect(controller.getSnapshot().running).toBe(false)
+    controller.dispose()
+  })
+
+  it('keeps a real main reply busy when the workflow releases and a stale refresh returns idle', async () => {
+    const { controller, host, emit } = fixture(); await controller.start()
+    let finish!: (value: Awaited<ReturnType<PilotHost['listSessions']>>) => void
+    vi.mocked(host.listSessions).mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    emit('session-activity-changed', {})
+    emit('status', { state: 'running' }, 'a', 'report')
+    finish([{ ...session('a'), isRunning: false }, session('b')])
+    await Promise.resolve(); await Promise.resolve()
+    expect(controller.getSnapshot().runningSessionIds).toContain('a')
+    expect(controller.getSnapshot().running).toBe(true)
     controller.dispose()
   })
 
@@ -451,6 +526,22 @@ describe('project metadata refresh', () => {
     expect(await controller.selectProject()).toBeNull()
     expect(host.listProjects).not.toHaveBeenCalled(); expect(host.listSessions).not.toHaveBeenCalled()
     expect(controller.getSnapshot()).toBe(before); expect(host.createSession).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('refreshes project folders after saving the React editor without replacing the active conversation', async () => {
+    const { host, controller } = fixture()
+    host.updateProject = vi.fn(async () => controller.getSnapshot().projects[0]!)
+    host.selectProjectDirectories = vi.fn(async () => [])
+    await controller.start(); await controller.open('b')
+    const before = controller.getSnapshot()
+    const projects = before.projects.map(project => ({ ...project, directory: '/new-primary', roots: [{ rootPath: '/new-primary', isPrimary: true }] }))
+    vi.mocked(host.listProjects).mockResolvedValueOnce(projects)
+    expect(controller.supportsProjectEditing).toBe(true)
+    const input = { name: 'Project', roots: ['/new-primary'], primaryRoot: '/new-primary' }
+    await controller.saveProject(input, 'project')
+    expect(host.updateProject).toHaveBeenCalledExactlyOnceWith('project', input)
+    expect(controller.getSnapshot()).toMatchObject({ projects, session: before.session, messages: before.messages })
     controller.dispose()
   })
 

@@ -110,7 +110,8 @@ describe('task summary through real React DOM and Radix', () => {
     const runs = [{ runId: 'live', name: '资料核对', status: 'running', spentTokens: 12 }, { runId: 'done', name: '报告汇总', status: 'completed', spentTokens: 24 }] as RunRecord[]
     const onOpenWorkflow = vi.fn(async () => undefined)
     const view = await mount({ changes: 0, activities: [], running: false, taskTone: 'completed', taskState: '最近任务已完成', workflows: { sessionId: 'task-A', runs, error: '', loading: false, refresh: vi.fn() }, onOpenWorkflow })
-    expect(view.button('展开任务摘要').textContent).toContain('1 个工作流运行中')
+    expect(view.button('展开任务摘要').textContent).toBe('资料核对')
+    expect(view.button('展开任务摘要').querySelector('.mira-workflow-activity')).toBeNull()
     expect(view.button('展开任务摘要').querySelector('[data-mira-workflow-summary-icon]')).not.toBeNull()
     await view.click('展开任务摘要')
     expect(document.querySelector('[aria-label="工作流摘要"]')?.textContent).toContain('报告汇总')
@@ -130,7 +131,8 @@ describe('task summary through real React DOM and Radix', () => {
   it('does not let a completed parent turn mask a live workflow in its persistent summary', async () => {
     const view = await mount({ changes: 0, running: false, taskTone: 'completed', taskState: '最近任务已完成', activities: [{ id: 'tool', kind: 'tool', label: '已启动工作流', status: 'completed', startedAt: 1 }], workflows: { sessionId: 'task-A', runs: [{ runId: 'live', status: 'running', spentTokens: 0 } as RunRecord], error: '', loading: false, refresh: vi.fn() } })
     expect(view.button('展开任务摘要').textContent).toContain('1 个工作流运行中')
-    expect(document.querySelector('.mira-task-summary__header > span')?.textContent).toBe('工作流运行中')
+    expect(document.querySelector('.mira-task-summary__header > span')?.textContent).toBe('工作流')
+    expect(document.querySelector('.mira-workflow-capsule-count')?.textContent).toBe('1 个运行中')
   })
   it('does not render a zero Goal request when only live agents need a summary', async () => {
     const view = await mount({ changes: 0, goalController: {} as NonNullable<Props['goalController']>, goalDetailsRequest: 0, subtasks: [agent()] })

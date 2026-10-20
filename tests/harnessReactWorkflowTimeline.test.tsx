@@ -24,9 +24,10 @@ async function mount(props: Partial<MiraWorkflowTimelineProps> = {}) { const con
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === text)!
 
 describe('ZCode-shaped Mira compiled workflow timeline', () => {
-  it('renders only compiler-backed edges, parallel tracks and directed loop arcs', async () => {
+  it('folds parallel edges into tracks and retains a single return arc', async () => {
     const container = await mount()
-    expect(container.querySelectorAll('[data-line-edge]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-line-edge]')).toHaveLength(1)
+    expect(container.querySelector('[marker-end], marker')).toBeNull()
     expect(container.querySelector('[data-line-back=true]')?.getAttribute('data-line-from')).toBe('review')
     const stations = buildMiraWorkflowTimeline(graph)
     expect(stations.map(station => station.track)).toEqual([0, 1, 0])
@@ -39,15 +40,67 @@ describe('ZCode-shaped Mira compiled workflow timeline', () => {
     expect(container.querySelector('.mira-flow-line__canvas')).not.toBeNull()
   })
 
+  it('removes self-loops and duplicate phase pairs before reserving arc height', async () => {
+    const phases = ['start', 'check', 'report'].map(id => ({ id, name: id }))
+    const phaseEdges = [
+      { from: 'start', to: 'start', kind: 'loop' },
+      { from: 'start', to: 'check', kind: 'next' },
+      { from: 'start', to: 'check', kind: 'branch' },
+      { from: 'check', to: 'report', kind: 'next' },
+      { from: 'start', to: 'report', kind: 'jump' },
+      { from: 'start', to: 'report', kind: 'branch' },
+      { from: 'missing', to: 'report', kind: 'jump' },
+    ]
+    const fixture = { ...graph, phases, phaseEdges, participants: [], steps: [] }
+    const original = JSON.stringify(fixture)
+    const container = await mount({ graph: fixture })
+    expect(container.querySelectorAll('[data-line-edge]')).toHaveLength(3)
+    expect(container.querySelector('[data-line-from=start][data-line-to=start]')).toBeNull()
+    const geometry = miraWorkflowTimelineGeometry(fixture, buildMiraWorkflowTimeline(fixture))
+    expect(geometry.mainY).toBe(38)
+    expect(JSON.stringify(fixture)).toBe(original)
+  })
+
+  it('absorbs parallel fan-out and joins instead of stacking redundant overhead arcs', () => {
+    const fixture = { ...graph, phases: [{ id: 'start', name: 'start' }, { id: 'a', name: 'a' }, { id: 'b', name: 'b', alongside: ['a'] }, { id: 'end', name: 'end' }], participants: [], steps: [], phaseEdges: [
+      { from: 'start', to: 'a', kind: 'fork' }, { from: 'start', to: 'b', kind: 'fork' },
+      { from: 'a', to: 'end', kind: 'join' }, { from: 'b', to: 'end', kind: 'join' },
+      { from: 'a', to: 'b', kind: 'fork' },
+    ] }
+    const geometry = miraWorkflowTimelineGeometry(fixture, buildMiraWorkflowTimeline(fixture))
+    expect(geometry.mainY).toBe(36)
+    expect(geometry.paths.filter(path => path.kind === 'arc')).toHaveLength(0)
+    expect(geometry.paths.filter(path => path.edge.kind === 'fork')).toHaveLength(1)
+    expect(geometry.paths.filter(path => path.edge.kind === 'join')).toHaveLength(1)
+  })
+
+  it('folds multiple returns from a parallel band into one arc and keeps true skips', () => {
+    const fixture = { ...graph, phases: [{ id: 'start', name: 'start' }, { id: 'a', name: 'a' }, { id: 'b', name: 'b', alongside: ['a'] }, { id: 'end', name: 'end' }], participants: [], steps: [], phaseEdges: [
+      { from: 'a', to: 'start', kind: 'loop' }, { from: 'b', to: 'start', kind: 'loop' },
+      { from: 'start', to: 'end', kind: 'branch' },
+    ] }
+    const geometry = miraWorkflowTimelineGeometry(fixture, buildMiraWorkflowTimeline(fixture))
+    expect(geometry.paths.filter(path => path.back)).toHaveLength(1)
+    expect(geometry.paths.find(path => path.back)).toMatchObject({ from: 2, to: 0 })
+    expect(geometry.paths.find(path => path.from === 0 && path.to === 3)).toMatchObject({ kind: 'arc' })
+  })
+
+  it('places shorter nested arcs lower regardless of compiler edge order', () => {
+    const fixture = { ...graph, phases: ['a', 'b', 'c', 'd'].map(id => ({ id, name: id })), participants: [], steps: [], phaseEdges: [
+      { from: 'a', to: 'd', kind: 'jump' }, { from: 'a', to: 'c', kind: 'jump' },
+    ] }
+    const geometry = miraWorkflowTimelineGeometry(fixture, buildMiraWorkflowTimeline(fixture))
+    expect(geometry.paths.filter(path => path.kind === 'arc').map(path => [path.from, path.to, path.lane])).toEqual([[0, 2, 0], [0, 3, 1]])
+    expect(new Set(geometry.paths.map(path => path.d.split(' V ')[0])).size).toBe(2)
+  })
+
   it('opens real workspace operations and participant handoffs without inventing a transcript', async () => {
     const onActor = vi.fn(), onSelect = vi.fn(), container = await mount({ onActor, onSelect })
     const workspace = container.querySelector<HTMLButtonElement>('[data-line-participant=workspace]')!
     workspace.focus(); expect(document.activeElement).toBe(workspace)
     await act(async () => workspace.click())
-    expect(container.querySelector('[role=region]')?.textContent).toContain('files.read')
-    expect(container.querySelector('[role=region]')?.textContent).toContain('第 2 行')
-    expect(container.querySelector('[role=region]')?.textContent).toContain('资料')
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'participant', id: 'workspace', phaseId: 'draft' })
+    expect(container.querySelector('[role=region]')).toBeNull()
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'participant', id: 'workspace', phaseId: 'draft', label: '工作区' })
     expect(button('查看智能体记录')).toBeUndefined(); expect(onActor).not.toHaveBeenCalled()
   })
 
@@ -58,12 +111,12 @@ describe('ZCode-shaped Mira compiled workflow timeline', () => {
     expect(stations[1]?.status).toBe('unobserved'); expect(stations[2]?.status).toBe('unobserved')
     expect(buildMiraWorkflowTimeline(graph, run, [ask], events, [actor], false)[0]?.status).toBe('pending')
     const onActor = vi.fn(), container = await mount({ run, actors: [actor], nodes: [ask], events, onActor })
+    expect(container.querySelector('[data-line-participant=writer] [data-line-state=executing] svg')?.getAttribute('class')).toContain('pilot-spin')
     await act(async () => container.querySelector<HTMLButtonElement>('[data-line-participant=writer]')!.click())
-    await act(async () => button('查看智能体记录').click())
     expect(onActor).toHaveBeenCalledExactlyOnceWith(actor)
     const summary = container.querySelector('summary')!
     expect(summary).toBeTruthy()
-    expect(container.querySelector('[role=region]')?.textContent).toContain('根据真实文件整理')
+    expect(container.querySelector('[role=region]')).toBeNull()
   })
 
   it('does not attach dynamic receiver or shared phase nodes to the wrong participant', () => {
@@ -84,13 +137,13 @@ describe('ZCode-shaped Mira compiled workflow timeline', () => {
     const container = await mount({ variant: 'pane', run, actors: [actor], nodes: [ask], events: [event({ type: 'node-executing', instance: { siteId: 'ask1', ordinal: 1 } })] })
     expect(container.querySelector('.mira-flow-line__canvas')).toBeNull()
     expect(container.querySelectorAll('.mira-flow-line__spine-section')).toHaveLength(3)
-    expect(container.querySelectorAll('.mira-flow-line__spine-rail')).toHaveLength(1)
+    expect(container.querySelectorAll('.mira-flow-line__spine-rail')).toHaveLength(0)
     expect(container.querySelector('[data-line-track="1"]')?.getAttribute('style')).toContain('36px')
     const phase = [...container.querySelectorAll<HTMLButtonElement>('.mira-flow-line__phase-toggle')].find(item => item.textContent === '撰写')!
     expect(phase.getAttribute('aria-expanded')).toBe('true')
     await act(async () => phase.click())
     expect(phase.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('.mira-flow-line__roster')?.textContent).toContain('真实作者')
+    expect(container.querySelector('.mira-flow-line__roster [title="真实作者"]')).not.toBeNull()
     expect(container.textContent).toContain('未观察到运行')
   })
 

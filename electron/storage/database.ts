@@ -275,6 +275,9 @@ export class PlatformDatabase {
       CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);
     `)
     const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
+    if (!projectColumns.some(column => column.name === 'roots')) {
+      this.database.exec("ALTER TABLE harness_projects ADD COLUMN roots TEXT NOT NULL DEFAULT '[]'")
+    }
     if (!projectColumns.some(column => column.name === 'icon')) {
       this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")
     }

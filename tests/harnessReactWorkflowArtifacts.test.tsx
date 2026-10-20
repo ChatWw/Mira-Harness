@@ -3,6 +3,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraWorkflowArtifactPreview } from '../apps/harness-react/src/components/workflows/MiraWorkflowArtifactPreview'
+import { MiraWorkflowArtifactPane } from '../apps/harness-react/src/components/workflows/MiraWorkflowArtifactPane'
 import { MiraWorkflowRunPane } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunPane'
 import type { MiraWorkflowHost } from '../apps/harness-react/src/components/workflows/workflow-model'
 import type { MiraFlowWorkbenchRequest } from '../src/config/miraFlowWorkbench'
@@ -24,6 +25,16 @@ function fixture(handler: (request: MiraFlowWorkbenchRequest) => unknown) {
   return { request, host: { requestWorkflow: request as MiraWorkflowHost['requestWorkflow'], onWorkflowEvent: () => () => undefined } }
 }
 describe('workflow published-version preview and native-save UI', () => {
+  it('opens a pinned historical version and copies its published content', async () => {
+    const copy = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText: copy } })
+    const view = fixture(request => request.action === 'artifacts.read' ? encoded('# First published version') : { run: { ...identity, status: 'completed', spentTokens: 0 }, events: [], actors: [], nodes: [1, 2].map(version => ({ kind: 'artifact', status: 'completed', result: { ...artifact, version } })) })
+    await mount(<MiraWorkflowArtifactPane host={view.host} identity={identity} artifactId="draft" version={1} active />)
+    expect(document.querySelector('h1')?.textContent).toBe('First published version')
+    expect(view.request).toHaveBeenLastCalledWith({ action: 'artifacts.read', ...identity, artifactId: 'draft', version: 1 })
+    await click('复制')
+    expect(copy).toHaveBeenCalledWith('# First published version')
+  })
   it('previews published Markdown without inherited links/images or renderer-provided paths', async () => {
     const view = fixture(() => encoded('# Immutable draft\n[remote](https://example.com)\n![remote image](https://example.com/pixel.png)\n<script>alert(1)</script>'))
     await mount(<MiraWorkflowArtifactPreview host={view.host} identity={identity} artifact={artifact} active />)
@@ -32,6 +43,18 @@ describe('workflow published-version preview and native-save UI', () => {
     expect(document.querySelector('.mira-workflow-artifact__markdown a, .mira-workflow-artifact__markdown img, .mira-workflow-artifact__markdown script')).toBeNull()
     expect(document.body.textContent).toContain('<script>alert(1)</script>')
     expect(view.request).toHaveBeenCalledWith({ action: 'artifacts.read', ...identity, artifactId: 'draft', version: 1 })
+  })
+  it('loads a newly selected version while the previous automatic preview is still pending', async () => {
+    let finish!: (value: ReturnType<typeof encoded>) => void
+    const pending = new Promise<ReturnType<typeof encoded>>(resolve => { finish = resolve })
+    const view = fixture(request => 'version' in request && request.version === 1 ? pending : encoded('# Current version'))
+    const rerender = await mount(<MiraWorkflowArtifactPreview host={view.host} identity={identity} artifact={artifact} active mode="detail" />)
+    await rerender(<MiraWorkflowArtifactPreview host={view.host} identity={identity} artifact={{ ...artifact, version: 2 }} active mode="detail" />)
+    expect(document.querySelector('h1')?.textContent).toBe('Current version')
+    await rerender(<MiraWorkflowArtifactPreview host={view.host} identity={identity} artifact={{ ...artifact, version: 3 }} active mode="detail" />)
+    expect(view.request).toHaveBeenLastCalledWith({ action: 'artifacts.read', ...identity, artifactId: 'draft', version: 3 })
+    await act(async () => finish(encoded('# Old version')))
+    expect(document.querySelector('h1')?.textContent).toBe('Current version')
   })
   it('keeps HTML as escaped source, without iframe or executable DOM', async () => {
     const view = fixture(() => encoded('<h1>HTML</h1><script>bad()</script>', 'text/html'))

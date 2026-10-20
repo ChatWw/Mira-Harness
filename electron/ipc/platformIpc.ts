@@ -273,14 +273,17 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       if (event.sender.isDestroyed()) throw new Error('Harness 连接已关闭')
       resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
     }
-    const fileWorkspace = (scope: { projectId: string } | { sessionId: string }) => {
+    const fileWorkspace = (scope: { projectId: string; rootPath?: string } | { sessionId: string }) => {
       const session = 'sessionId' in scope ? database.harness.getSession(scope.sessionId) : undefined
       const projectId = 'projectId' in scope ? scope.projectId : session?.projectId
-      const directory = projectId ? database.harness.getProject(projectId).directory : session?.workingDirectory
+      const project = projectId ? database.harness.getProject(projectId) : undefined
+      const rootPath = 'rootPath' in scope ? scope.rootPath : undefined
+      if (rootPath && !project?.roots?.some(root => root.rootPath === rootPath) && project?.directory !== rootPath) throw new Error('所选源文件夹已不在项目中，请重新打开文件工作区。')
+      const directory = 'projectId' in scope ? rootPath || project?.directory : session?.workingDirectory || project?.directory
       if (!directory) throw new Error('该会话没有可用工作目录')
-      return { directory, identity: JSON.stringify([projectId, directory]) }
+      return { directory, identity: JSON.stringify([projectId, directory]), owner: 'projectId' in scope ? JSON.stringify(['project', projectId, directory]) : scope.sessionId }
     }
-    const assertFileWorkspace = (scope: { projectId: string } | { sessionId: string }, expected: ReturnType<typeof fileWorkspace>) => {
+    const assertFileWorkspace = (scope: { projectId: string; rootPath?: string } | { sessionId: string }, expected: ReturnType<typeof fileWorkspace>) => {
       if (event.sender.isDestroyed?.()) throw new Error('Harness 连接已关闭')
       resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
       if (fileWorkspace(scope).identity !== expected.identity) throw new Error('工作目录已变化，请重新打开文件工作区。')
@@ -392,6 +395,22 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       }
       case 'sessions.search': return database.harness.searchConversations(call.query).then(result => { assertMarketAuthorized(); return result })
       case 'projects.list': return database.harness.listProjects()
+      case 'projects.update': {
+        if (harnessRuntime.isProjectRunning(call.id)) throw new Error('请先停止项目任务并处理待发送消息')
+        const project = database.harness.updateProject(call.id, call.input)
+        workspaceWatch?.closeInvalid()
+        return project
+      }
+      case 'projects.create': return database.harness.createProjectWithRoots(call.input)
+      case 'projects.select-directories': {
+        const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const options: OpenDialogOptions = { properties: ['openDirectory', 'multiSelections'], title: '选择项目源文件夹' }
+        return (async () => {
+          const selected = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+          assertMarketAuthorized()
+          return selected.canceled ? [] : selected.filePaths
+        })()
+      }
       case 'projects.rename': return database.harness.renameProject(call.id, call.name)
       case 'projects.remove': return removeHarnessProject({ database, harnessRuntime, automationScheduler, workspaceWatch }, call.id)
       case 'projects.select': {
@@ -532,14 +551,14 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       case 'files.select': {
         const session = database.harness.getSession(call.sessionId)
         if (!session.projectId) throw new Error('请先选择项目，再引用项目文件')
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        const directory = session.workingDirectory || (session.projectId ? database.harness.getProject(session.projectId).directory : undefined)
         if (!directory) throw new Error('该会话没有可用工作目录')
         const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
         const options = { defaultPath: directory, properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'>, title: '选择引用文件' }
         return (async () => {
           const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
           if (result.canceled) return []
-          return database.harness.selectFileReferences(session.projectId, result.filePaths)
+          return database.harness.selectFileReferences(session.projectId, result.filePaths, directory)
         })()
       }
       case 'attachments.import': return database.harness.importMessageAttachments(call.sessionId, call.files)
@@ -675,29 +694,20 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
       }
       case 'files.watch': {
         if (!workspaceWatch) throw new Error('文件变化监听不可用，请使用手动刷新。')
-        const resolveWorkspace = () => {
-          const session = database.harness.getSession(call.sessionId)
-          const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
-          if (!directory) throw new Error('该会话没有可用工作目录')
-          return directory
-        }
-        const originalDirectory = resolveWorkspace()
-        const isAuthorized = () => {
-          try {
-            resolveFirstPartyGrant(event, grantId, firstPartyGrantStore, firstPartyManifests, 'harness:workbench', 'mira-harness')
-            return resolveWorkspace() === originalDirectory
-          } catch { return false }
-        }
-        return workspaceWatch.start(event.sender, grantId, call.sessionId, call.paths, resolveWorkspace, isAuthorized)
+        const workspace = fileWorkspace(call)
+        const resolveWorkspace = () => { assertFileWorkspace(call, workspace); return workspace.directory }
+        const isAuthorized = () => { try { assertFileWorkspace(call, workspace); return true } catch { return false } }
+        return workspaceWatch.start(event.sender, grantId, workspace.owner, call.paths, resolveWorkspace, isAuthorized)
       }
       case 'files.unwatch': {
-        workspaceWatch?.stop(event.sender.id, grantId, call.sessionId, call.watchId)
+        const owner = 'sessionId' in call ? call.sessionId : JSON.stringify(['project', call.projectId, call.rootPath || database.harness.getProject(call.projectId).directory])
+        workspaceWatch?.stop(event.sender.id, grantId, owner, call.watchId)
         return undefined
       }
       case 'terminal.open': {
         if (!terminalSessions) throw new Error('终端服务不可用')
         const session = database.harness.getSession(call.sessionId)
-        const directory = session.projectId ? database.harness.getProject(session.projectId).directory : session.workingDirectory
+        const directory = session.workingDirectory || (session.projectId ? database.harness.getProject(session.projectId).directory : undefined)
         if (!directory) throw new Error('该会话没有可用工作目录')
         return terminalSessions.open(event.sender, call.sessionId, directory)
       }

@@ -52,6 +52,8 @@ function setup(wait?: Promise<void>) {
     assertFlowAdmission: vi.fn(id => { if (guard(id)) throw new Error('Already busy') }),
     setWorkflowActivityGuard: vi.fn((next, stopping) => { guard = next; stop = stopping }),
     publishMiraFlowEvent: vi.fn(),
+    notifySessionActivityChanged: vi.fn(),
+    notifyMiraFlowCompletion: vi.fn(),
     prepareMiraFlowDriver: vi.fn((context, _sender, selected, _permissionMode, storage, artifactRoot) => {
       expect(selected).toMatchObject(selection)
       const world = createMiraFlowWorld({ workspacePath: context.cwd, signal: context.signal, artifactRoot })
@@ -73,6 +75,12 @@ function setup(wait?: Promise<void>) {
 }
 
 describe('production Mira workflow controller with real SQLite/compiler/child/Pi Agent', () => {
+  it('requests a parent summary after a saved workflow releases its owner', async () => {
+    const view = setup(), document = await view.save(view.write('return "SAVED-RESULT";'))
+    const id = await view.launch(document)
+    await view.settled(id)
+    expect(view.runtime.notifyMiraFlowCompletion).toHaveBeenCalledExactlyOnceWith(view.sender, id.sessionId, id.runId, selection, expect.any(String))
+  })
   const authoredContext = (view: ReturnType<typeof setup>, signal = new AbortController().signal): MiraFlowAuthoringContext => {
     const parent = view.database.harness.createSession(view.project.id)
     return { sender: view.sender, sessionId: parent.id, creatorRunId: 'ordinary-run', toolCallId: 'ordinary-tool', inputId: 'user-input', selection, permissionMode: 'default', signal, assertCurrent: () => signal.throwIfAborted() }
@@ -90,7 +98,10 @@ describe('production Mira workflow controller with real SQLite/compiler/child/Pi
     expect(view.controller.hasActiveSession(context.sessionId)).toBe(true)
     expect(view.stop({ sessionId: context.sessionId, runId: 'foreign-run' })).toBe(false)
     gate.resolve()
+    const released: boolean[] = []
+    vi.mocked(view.runtime.notifySessionActivityChanged!).mockImplementation(() => { released.push(view.controller.hasActiveSession(id.sessionId)) })
     const snapshot = await view.settled(id)
+    expect(released).toEqual([false])
     expect(snapshot.run.status).toBe('completed')
     expect(snapshot.events.find(item => item.event.type === 'run-launched')?.event).toMatchObject({ inputId: context.inputId, toolCallId: context.toolCallId, parentSessionId: context.sessionId })
     expect(review).toHaveBeenCalledOnce()
@@ -161,8 +172,8 @@ describe('production Mira workflow controller with real SQLite/compiler/child/Pi
     expect(view.runtime.publishMiraFlowEvent).toHaveBeenCalledWith(view.sender, id.sessionId, id.runId, expect.objectContaining({ type: 'run-settled' }))
     const parent = view.database.harness.getSession(id.sessionId)
     expect(parent).toMatchObject({ title: doc.name, draftState: 'accepted', modelProviderId: 'fixture', modelId: 'fixture' })
-    expect(await view.request<RunRecord[]>({ action: 'runs.list', projectId: view.project.id })).toEqual([snapshot.run])
-    expect(await view.request<RunRecord[]>({ action: 'runs.list', sessionId: id.sessionId })).toEqual([snapshot.run])
+    expect(await view.request<RunRecord[]>({ action: 'runs.list', projectId: view.project.id })).toEqual([expect.objectContaining(snapshot.run)])
+    expect(await view.request<RunRecord[]>({ action: 'runs.list', sessionId: id.sessionId })).toEqual([expect.objectContaining(snapshot.run)])
   })
 
   it('rejects stale revision and invalid args before creating a parent session or model request', async () => {
@@ -283,6 +294,17 @@ describe('production Mira workflow controller with real SQLite/compiler/child/Pi
     await expect(view.request(request, () => { if (++checks > 2) throw new Error('第一方授权无效或应用已停用') })).rejects.toThrow('第一方授权无效或应用已停用')
   })
 
+  it('projects immutable run descriptions, real times and latest artifact versions into history', async () => {
+    const view = setup(), doc = await view.save(view.write('await artifact.markdown("draft", "first"); await artifact.markdown("draft", "second"); return "done";'))
+    const identity = await view.launch(doc), snapshot = await view.settled(identity)
+    expect(snapshot.presentation).toMatchObject({ description: 'Actual workflow', savedDefinition: { name: doc.name, revision: doc.revision } })
+    expect(snapshot.presentation!.endedAt).toBeGreaterThanOrEqual(snapshot.presentation!.startedAt!)
+    expect(snapshot.presentation!.artifacts.map(item => [item.id, item.version])).toEqual([['draft', 2]])
+    await view.save({ ...view.write('return "changed";'), meta: { description: 'New description' }, expectedRevision: doc.revision })
+    const runs = await view.request<Array<{ presentation: typeof snapshot.presentation }>>({ action: 'runs.list', projectId: view.project.id })
+    expect(runs[0].presentation!.description).toBe('Actual workflow')
+    expect(runs[0].presentation!.savedDefinition).toBeUndefined()
+  })
   it('ships the real compiler/runtime/licenses in ordinary desktop build hooks and resources', () => {
     const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8'))
     for (const hook of ['predesktop:dev', 'predesktop:build', 'predesktop:build:win']) expect(packageJson.scripts[hook]).toContain('npm run flow:build')

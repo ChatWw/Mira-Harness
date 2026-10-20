@@ -37,11 +37,13 @@ export interface SidebarCollectionProps {
   disabled?: boolean
   unavailableReason?: string
   onToggle: () => void
+  onEdit?: () => void | Promise<void>
   onBeginRename: () => void
   onCancelRename: () => void
   onRename: (name: string) => void | Promise<void>
   onNewTask: () => void | Promise<void>
-  onOpenFiles?: () => void
+  fileRoots?: string[]
+  onOpenFiles?: (rootPath?: string) => void
   onOpenDirectory?: (target: 'file-manager' | 'terminal') => Promise<void>
   onColor?: (color: SidebarGroupColor) => void
   onRemove?: () => void
@@ -54,9 +56,9 @@ export interface SidebarCollectionProps {
 }
 
 export function SidebarCollectionSection(props: SidebarCollectionProps) {
-  const { id, name, directory, color, count, hasUnread, runningCount = 0, waitingCount = 0, expanded, sortable, renaming, disabled, unavailableReason, children, onToggle, onBeginRename, onCancelRename, onRename, onNewTask, onOpenFiles, onOpenDirectory, onColor, onRemove, onUngroup } = props
+  const { id, name, directory, color, count, hasUnread, runningCount = 0, waitingCount = 0, expanded, sortable, renaming, disabled, unavailableReason, children, onToggle, onEdit, onBeginRename, onCancelRename, onRename, onNewTask, onOpenFiles, onOpenDirectory, onColor, onRemove, onUngroup } = props
   const directoryBlocked = Boolean(disabled || unavailableReason)
-  const openFiles = () => { if (!directoryBlocked) onOpenFiles?.() }
+  const openFiles = () => { if (!directoryBlocked) onOpenFiles?.(props.fileRoots?.[0]) }
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !sortable || renaming })
   const [draft, setDraft] = useState(name)
   const [error, setError] = useState('')
@@ -94,7 +96,7 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
     catch (cause) { if (renameRequest.current === request) setError(cause instanceof Error ? cause.message : '重命名失败，请重试') }
     finally { if (renameRequest.current === request) { renameRequest.current = undefined; setSaving(false) } }
   }
-  const menu = (kind: 'context' | 'dropdown') => <SidebarCollectionMenu kind={kind} name={name} color={color} disabled={directoryBlocked || creating} unavailableReason={unavailableReason} onNewTask={create} onBeginRename={onBeginRename} onOpenFiles={onOpenFiles ? openFiles : undefined} onOpenDirectory={onOpenDirectory ? target => { if (!directoryBlocked) run(() => onOpenDirectory(target)) } : undefined} onColor={onColor} onRemove={onRemove} onUngroup={onUngroup} />
+  const menu = (kind: 'context' | 'dropdown') => <SidebarCollectionMenu kind={kind} name={name} color={color} disabled={directoryBlocked || creating} unavailableReason={unavailableReason} onNewTask={create} onEdit={onEdit ? () => run(onEdit) : undefined} onBeginRename={onBeginRename} onOpenFiles={onOpenFiles ? openFiles : undefined} onOpenDirectory={onOpenDirectory ? target => { if (!directoryBlocked) run(() => onOpenDirectory(target)) } : undefined} onColor={onColor} onRemove={onRemove} onUngroup={onUngroup} />
   const portal = document.getElementById('root')
   return <section ref={setNodeRef} className={`mira-session-group mira-sidebar-collection${isDragging ? ' is-dragging' : ''}`} data-collection-id={id} data-collection-expanded={expanded} data-collection-renaming={renaming} data-group-color={color} style={{ transform: isDragging ? undefined : transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined, transition }}>
     <ContextMenu.Root onOpenChange={setContextMenuOpen}><ContextMenu.Trigger asChild disabled={renaming}><div ref={props.headerDropRef} data-sidebar-drop-id={props.headerDropId} data-collection-header data-menu-open={menuVisible || undefined} className="mira-collection-head">
@@ -116,7 +118,7 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
         </>}
         {color && <span className="mira-collection-count">{count}</span>}
         {unavailableReason && <SidebarActionHint suspended={menuVisible} title={`${unavailableReason}\n${directory || name}`}><span role="img" tabIndex={0} aria-label={unavailableReason} className="mira-collection-status mira-collection-status--unavailable"><CircleAlert size={13} /></span></SidebarActionHint>}
-        <div className="mira-collection-actions"><DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}><SidebarActionHint suspended={menuVisible} title="更多"><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={`${name} 的菜单`}><MoreHorizontal size={15} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={portal}><DropdownMenu.Content ref={menuRef} className="mira-session-menu" sideOffset={4} align="end" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}>{menu('dropdown')}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>{onOpenFiles && <SidebarActionHint suspended={menuVisible} title="显示文件树"><button type="button" className="mira-session-icon" aria-label={`显示 ${name} 的文件树`} disabled={directoryBlocked} onClick={openFiles}><ListTree size={14} /></button></SidebarActionHint>}<SidebarActionHint suspended={menuVisible} title="新建任务"><button type="button" className="mira-session-icon" aria-label={`在 ${name} 新建任务`} disabled={directoryBlocked || creating} onClick={create}>{creating ? <LoaderCircle size={14} className="pilot-spin" /> : <MessageCirclePlus size={14} />}</button></SidebarActionHint></div>
+        <div className="mira-collection-actions"><DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}><SidebarActionHint suspended={menuVisible} title="更多"><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={`${name} 的菜单`}><MoreHorizontal size={15} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={portal}><DropdownMenu.Content ref={menuRef} className="mira-session-menu" sideOffset={4} align="end" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}>{menu('dropdown')}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>{onOpenFiles && (props.fileRoots && props.fileRoots.length > 1 && !directoryBlocked ? <DropdownMenu.Root modal={false}><SidebarActionHint suspended={menuVisible} title="查看文件"><DropdownMenu.Trigger asChild><button type="button" className="mira-session-icon" aria-label={`显示 ${name} 的文件树`}><ListTree size={14} /></button></DropdownMenu.Trigger></SidebarActionHint><DropdownMenu.Portal container={portal}><DropdownMenu.Content className="mira-session-menu" sideOffset={4} align="end">{props.fileRoots.map(root => <DropdownMenu.Item key={root} className="mira-session-menu__item" onSelect={() => onOpenFiles(root)}><ListTree size={14} />查看文件 · {root}</DropdownMenu.Item>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root> : <SidebarActionHint suspended={menuVisible} title="查看文件"><button type="button" className="mira-session-icon" aria-label={`显示 ${name} 的文件树`} disabled={directoryBlocked} onClick={openFiles}><ListTree size={14} /></button></SidebarActionHint>)}<SidebarActionHint suspended={menuVisible} title="新建任务"><button type="button" className="mira-session-icon" aria-label={`在 ${name} 新建任务`} disabled={directoryBlocked || creating} onClick={create}>{creating ? <LoaderCircle size={14} className="pilot-spin" /> : <MessageCirclePlus size={14} />}</button></SidebarActionHint></div>
       </>}
     </div></ContextMenu.Trigger><ContextMenu.Portal container={portal}><ContextMenu.Content className="mira-session-menu" onCloseAutoFocus={event => { if (renaming) event.preventDefault() }}>{menu('context')}</ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
     {error && <p className="mira-session-feedback" role="alert">{error}</p>}
@@ -125,14 +127,15 @@ export function SidebarCollectionSection(props: SidebarCollectionProps) {
   </section>
 }
 
-export function SidebarCollectionMenu({ kind, name, color, disabled, unavailableReason, onNewTask, onBeginRename, onOpenFiles, onOpenDirectory, onColor, onRemove, onUngroup }: Pick<SidebarCollectionProps, 'name' | 'color' | 'disabled' | 'unavailableReason' | 'onNewTask' | 'onBeginRename' | 'onOpenFiles' | 'onColor' | 'onRemove' | 'onUngroup'> & { kind: 'context' | 'dropdown'; onOpenDirectory?: (target: 'file-manager' | 'terminal') => void }) {
+export function SidebarCollectionMenu({ kind, name, color, disabled, unavailableReason, onNewTask, onEdit, onBeginRename, fileRoots, onOpenFiles, onOpenDirectory, onColor, onRemove, onUngroup }: Pick<SidebarCollectionProps, 'name' | 'color' | 'disabled' | 'unavailableReason' | 'onNewTask' | 'onEdit' | 'onBeginRename' | 'fileRoots' | 'onOpenFiles' | 'onColor' | 'onRemove' | 'onUngroup'> & { kind: 'context' | 'dropdown'; onOpenDirectory?: (target: 'file-manager' | 'terminal') => void }) {
   const Menu = kind === 'context' ? ContextMenu : DropdownMenu
   const directoryBlocked = Boolean(disabled || unavailableReason)
   return <>
     {unavailableReason && <Menu.Label className="mira-session-menu__label">{unavailableReason}</Menu.Label>}
     <Menu.Item className="mira-session-menu__item" disabled={directoryBlocked} onSelect={onNewTask}><MessageCirclePlus size={14} />新建任务</Menu.Item>
-    {onOpenFiles && <Menu.Item className="mira-session-menu__item" disabled={directoryBlocked} onSelect={onOpenFiles}><ListTree size={14} />显示文件树</Menu.Item>}
-    <Menu.Item className="mira-session-menu__item" onSelect={onBeginRename}><Pencil size={14} />重命名</Menu.Item>
+    {onOpenFiles && (fileRoots?.length ? fileRoots : [undefined]).map(root => <Menu.Item key={root || 'files'} className="mira-session-menu__item" disabled={directoryBlocked} onSelect={() => onOpenFiles(root)}><ListTree size={14} />{fileRoots && fileRoots.length > 1 ? `查看文件 · ${root}` : '查看文件'}</Menu.Item>)}
+    {onEdit && <Menu.Item className="mira-session-menu__item" onSelect={() => { void onEdit() }}><Pencil size={14} />编辑项目</Menu.Item>}
+    {!onEdit && <Menu.Item className="mira-session-menu__item" onSelect={onBeginRename}><Pencil size={14} />重命名</Menu.Item>}
     {color && onColor && <Menu.Sub><Menu.SubTrigger className="mira-session-menu__item"><Hash size={14} />更改颜色<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={document.getElementById('root')}><Menu.SubContent className="mira-session-menu">{SIDEBAR_GROUP_COLORS.map(value => <Menu.Item key={value} className="mira-session-menu__item" onSelect={() => onColor(value)}><span className="mira-collection-swatch" data-group-color={value} />{colorLabels[value]}{value === color && <Check size={13} className="mira-session-menu__arrow" />}</Menu.Item>)}</Menu.SubContent></Menu.Portal></Menu.Sub>}
     {onOpenDirectory && <><Menu.Separator className="mira-session-menu__separator" /><Menu.Sub><Menu.SubTrigger className="mira-session-menu__item" disabled={directoryBlocked}><TerminalSquare size={14} />打开方式<ChevronRight size={13} className="mira-session-menu__arrow" /></Menu.SubTrigger><Menu.Portal container={document.getElementById('root')}><Menu.SubContent className="mira-session-menu" sideOffset={3}><Menu.Item className="mira-session-menu__item" disabled={directoryBlocked} onSelect={() => onOpenDirectory('file-manager')}><Folder size={14} />{fileManagerLabel()}</Menu.Item><Menu.Item className="mira-session-menu__item" disabled={directoryBlocked} onSelect={() => onOpenDirectory('terminal')}><TerminalSquare size={14} />终端</Menu.Item></Menu.SubContent></Menu.Portal></Menu.Sub></>}
     {onRemove && <><Menu.Separator className="mira-session-menu__separator" /><Menu.Item className="mira-session-menu__item mira-session-menu__item--danger" onSelect={onRemove}><Trash2 size={14} />移除项目</Menu.Item></>}

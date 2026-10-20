@@ -51,7 +51,7 @@ function collapseMiraTimelineStates(statuses: MiraTimelineStatus[], live: boolea
 }
 
 /** Symmetric parallel membership and declaration-order track coloring, as in ZCode's bands. */
-function miraTimelineTracks(graph: MiraFlowReviewGraph): number[] {
+function miraTimelineLayout(graph: MiraFlowReviewGraph) {
   const index = new Map(graph.phases.map((phase, i) => [phase.id, i]))
   const near = graph.phases.map(() => new Set<number>())
   graph.phases.forEach((phase, i) => phase.alongside?.forEach(id => {
@@ -78,15 +78,16 @@ function miraTimelineTracks(graph: MiraFlowReviewGraph): number[] {
     else merged.push({ ...span })
   })
   const tracks = graph.phases.map(() => 0)
-  merged.forEach(span => {
+  const bands = merged.map(span => {
     const rows: number[][] = []
     for (let i = span.from; i <= span.to; i++) {
       let track = rows.findIndex(members => !members.some(member => near[i]!.has(member)))
       if (track < 0) { track = rows.length; rows.push([]) }
       rows[track]!.push(i); tracks[i] = track
     }
-  })
-  return tracks
+    return { ...span, tracks: rows }
+  }).filter(band => band.tracks.length > 1)
+  return { tracks, bands }
 }
 
 export function buildMiraWorkflowTimeline(graph: MiraFlowReviewGraph, run?: RunRecord, nodes: readonly NodeRecord[] = [], events: readonly StoredEvent[] = [], actors: readonly ActorRecord[] = [], eventsCurrent = true): MiraTimelineStation[] {
@@ -98,7 +99,7 @@ export function buildMiraWorkflowTimeline(graph: MiraFlowReviewGraph, run?: RunR
     if (!sourcePhases.has(source)) sourcePhases.set(source, new Set())
     sourcePhases.get(source)!.add(step.phase)
   })
-  const tracks = miraTimelineTracks(graph)
+  const { tracks } = miraTimelineLayout(graph)
   return graph.phases.map((phase, index) => {
     const operations = (participant?: MiraTimelineParticipant, actor?: ActorRecord): MiraTimelineOperation[] => graph.steps
       .filter(step => step.phase === phase.id && (!participant || participant.steps.includes(step.id)))
@@ -135,41 +136,126 @@ export function buildMiraWorkflowTimeline(graph: MiraFlowReviewGraph, run?: RunR
   })
 }
 
-/** No declaration-order links: every rendered edge is backed by the compiled phase graph. */
+/** ZCode projection: dedupe phase pairs, absorb band edges, then allocate only remaining arcs. */
 export function miraWorkflowTimelineGeometry(graph: MiraFlowReviewGraph, stations: readonly MiraTimelineStation[]) {
   const index = new Map(stations.map((station, i) => [station.phase.id, i]))
-  const maxTrack = Math.max(0, ...stations.map(station => station.track))
-  const arcEdges = graph.phaseEdges.filter(edge => {
-    const from = index.get(edge.from), to = index.get(edge.to)
-    return from !== undefined && to !== undefined && (to <= from || to !== from + 1 && stations[from]!.track === stations[to]!.track)
+  const seen = new Set<string>()
+  const edges = graph.phaseEdges.flatMap(edge => {
+    const from = index.get(edge.from), to = index.get(edge.to), key = `${from}>${to}`
+    if (from === undefined || to === undefined || from === to || seen.has(key)) return []
+    seen.add(key)
+    return [{ from, to, edge }]
   })
+  const { bands: folded } = miraTimelineLayout(graph)
+  const bandOf = (i: number) => folded.find(band => band.from <= i && i <= band.to)
+  const bands = folded.map(band => ({ ...band,
+    pred: band.from > 0 && !bandOf(band.from - 1) && edges.some(edge => edge.from === band.from - 1 && bandOf(edge.to) === band) ? band.from - 1 : undefined,
+    join: band.to + 1 < stations.length && !bandOf(band.to + 1) && edges.some(edge => edge.to === band.to + 1 && bandOf(edge.from) === band) ? band.to + 1 : undefined,
+  }))
+  type Connection = { from: number; to: number; edge: MiraFlowReviewGraph['phaseEdges'][number]; kind: 'rail' | 'arc'; lane?: number; inTrack?: boolean }
+  const rails: Connection[] = [], arcs: Connection[] = []
+  function rail(from: number, to: number, kind = 'next') {
+    rails.push({ from, to, kind: 'rail', edge: { from: stations[from]!.phase.id, to: stations[to]!.phase.id, kind } })
+  }
+  for (const band of bands) band.tracks.forEach((members, track) => {
+    for (let k = 1; k < members.length; k++) rail(members[k - 1]!, members[k]!)
+    if (band.pred !== undefined) rail(band.pred, members[0]!, track ? 'fork' : 'next')
+    if (band.join !== undefined) rail(members[members.length - 1]!, band.join, track ? 'join' : 'next')
+  })
+  for (const connection of edges) {
+    const { from, to } = connection, source = bandOf(from), target = bandOf(to)
+    if (!source && !target) {
+      if (to === from + 1) rails.push({ ...connection, kind: 'rail' })
+      else arcs.push({ ...connection, kind: 'arc' })
+      continue
+    }
+    if (source && source === target) {
+      if (stations[from]!.track !== stations[to]!.track) {
+        if (to < from) arcs.push({ ...connection, from: source.to, to: source.from, kind: 'arc' })
+      } else {
+        const members = source.tracks[stations[from]!.track]!
+        if (members[members.indexOf(from) + 1] !== to) arcs.push({ ...connection, kind: 'arc', inTrack: true })
+      }
+      continue
+    }
+    if ((source && !target && to === source.to + 1) || (!source && target && from === target.from - 1)) continue
+    const projected = { ...connection, from: source?.to ?? from, to: target?.from ?? to }
+    if (source && target && source.to + 1 === target.from) rails.push({ ...projected, kind: 'rail' })
+    else arcs.push({ ...projected, kind: 'arc' })
+  }
+  const unique = (connections: Connection[]) => {
+    const pairs = new Set<string>()
+    return connections.filter(({ from, to }) => {
+      const key = `${from}>${to}`
+      if (from === to || pairs.has(key)) return false
+      pairs.add(key); return true
+    })
+  }
   const lanes: { start: number; end: number; lane: number }[] = []
-  const laneByEdge = new Map<MiraFlowReviewGraph['phaseEdges'][number], number>()
-  arcEdges.forEach(edge => {
-    const from = index.get(edge.from)!, to = index.get(edge.to)!, start = Math.min(from, to), end = Math.max(from, to)
+  const placed = unique(arcs).sort((a, b) => Math.abs(a.from - a.to) - Math.abs(b.from - b.to)).map(connection => {
+    const start = Math.min(connection.from, connection.to), end = Math.max(connection.from, connection.to)
     let lane = 0
     while (lanes.some(item => item.lane === lane && start <= item.end && end >= item.start)) lane++
-    lanes.push({ start, end, lane }); laneByEdge.set(edge, lane)
+    lanes.push({ start, end, lane })
+    return { ...connection, lane }
   })
+  // Separate arc terminals at a shared lamp, as in ZCode's 10px terminal spacing.
+  const terminals = new Map<number, { arc: number; end: 'start' | 'end'; side: number; lane: number }[]>()
+  placed.forEach((arc, i) => {
+    for (const end of ['start', 'end'] as const) {
+      const station = end === 'start' ? arc.from : arc.to
+      if (bandOf(station) && !arc.inTrack) continue
+      const list = terminals.get(station) ?? []
+      list.push({ arc: i, end, side: (end === 'start' ? arc.to > arc.from : arc.from > arc.to) ? 1 : -1, lane: arc.lane })
+      terminals.set(station, list)
+    }
+  })
+  const offsets = placed.map(() => ({ start: 0, end: 0 }))
+  for (const list of terminals.values()) {
+    list.sort((a, b) => a.side - b.side || (a.side < 0 ? a.lane - b.lane : b.lane - a.lane))
+    list.forEach((terminal, i) => { offsets[terminal.arc]![terminal.end] = (i - (list.length - 1) / 2) * 10 })
+  }
+  const maxTrack = Math.max(0, ...stations.map(station => station.track))
   const airHeight = lanes.length ? 26 + Math.max(...lanes.map(item => item.lane)) * 14 : 0
   const mainY = airHeight + maxTrack * 24 + 12
   const y = (i: number) => mainY - stations[i]!.track * 24
   const x = (i: number) => i * MIRA_PHASE_PITCH + 17
-  const paths = graph.phaseEdges.flatMap((edge, id) => {
-    const from = index.get(edge.from), to = index.get(edge.to)
-    if (from === undefined || to === undefined) return []
-    const lane = laneByEdge.get(edge)
+  const forkX = (band: typeof bands[number]) => band.from === 0 ? 4 : band.from * MIRA_PHASE_PITCH - 16
+  const mergeX = (band: typeof bands[number]) => band.join === undefined ? band.to * MIRA_PHASE_PITCH + MIRA_PHASE_WIDTH + 6 : band.join * MIRA_PHASE_PITCH - 10
+  const forkPath = (band: typeof bands[number], head: number) => {
+    const xf = forkX(band) - 8 * (stations[head]!.track - 1), yt = y(head)
+    return `M ${xf} ${mainY} Q ${xf + 8} ${mainY} ${xf + 8} ${mainY - 8} V ${yt + 8} Q ${xf + 8} ${yt} ${xf + 16} ${yt} H ${x(head) - 8}`
+  }
+  const mergePath = (band: typeof bands[number], tail: number) => {
+    const xm = mergeX(band) - 8 * (band.tracks.length - 1 - stations[tail]!.track), yt = y(tail)
+    return `M ${x(tail) + 8} ${yt} H ${xm - 8} Q ${xm} ${yt} ${xm} ${yt + 8} V ${mainY - 8} Q ${xm} ${mainY} ${xm + 8} ${mainY}`
+  }
+  const uniqueRails = unique(rails)
+  const paths = [...uniqueRails, ...placed].map((connection, id) => {
+    const { from, to, edge, lane } = connection
+    const source = bands.find(band => band.from <= from && from <= band.to), target = bands.find(band => band.from <= to && to <= band.to)
     let d: string
     if (lane !== undefined) {
-      const top = Math.min(y(from), y(to)) - 26 - lane * 14
-      if (from === to) d = `M ${x(from) + 5} ${y(from) - 8} V ${top + 8} Q ${x(from) + 5} ${top} ${x(from) + 13} ${top} H ${x(from) + 36} Q ${x(from) + 44} ${top} ${x(from) + 44} ${top + 8} V ${y(from)} H ${x(from) + 9}`
-      else d = `M ${x(from)} ${y(from) - 8} V ${top + 8} Q ${x(from)} ${top} ${x(from) + (to > from ? 8 : -8)} ${top} H ${x(to) + (to > from ? -8 : 8)} Q ${x(to)} ${top} ${x(to)} ${top + 8} V ${y(to) - 8}`
-    } else if (y(from) === y(to)) d = `M ${x(from) + 8} ${y(from)} H ${x(to) - 8}`
-    else {
-      const fork = x(from) + 34, join = x(to) - 34, middle = edge.kind === 'join' ? join : fork
-      d = `M ${x(from) + 8} ${y(from)} H ${middle - 8} Q ${middle} ${y(from)} ${middle} ${y(from) + (y(to) > y(from) ? 8 : -8)} V ${y(to) + (y(to) > y(from) ? -8 : 8)} Q ${middle} ${y(to)} ${middle + 8} ${y(to)} H ${x(to) - 8}`
-    }
-    return [{ id, edge, from, to, d, back: to <= from || edge.kind === 'loop' }]
+      const inTrack = connection.inTrack
+      const offset = offsets[id - uniqueRails.length]!
+      const start = source && !inTrack ? mergeX(source) : x(from) + offset.start, end = target && !inTrack ? forkX(target) : x(to) + offset.end
+      const fromY = source && !inTrack ? mainY : y(from), toY = target && !inTrack ? mainY : y(to)
+      const top = mainY - maxTrack * 24 - 26 - lane * 14, direction = end > start ? 1 : -1
+      d = `M ${start} ${fromY - 8} V ${top + 8} Q ${start} ${top} ${start + direction * 8} ${top} H ${end - direction * 8} Q ${end} ${top} ${end} ${top + 8} V ${toY - 8}`
+    } else if (edge.kind === 'fork' && target) d = forkPath(target, to)
+    else if (edge.kind === 'join' && source) d = mergePath(source, from)
+    else if (source && target && source !== target) d = `M ${mergeX(source)} ${mainY} H ${forkX(target)}`
+    else d = `M ${x(from) + (bands.length ? 8 : MIRA_PHASE_WIDTH - 17)} ${y(from)} H ${x(to) - 8}`
+    return { ...connection, id, d, edge: { ...edge, from: stations[from]!.phase.id, to: stations[to]!.phase.id }, back: to < from }
   })
-  return { width: stations.length ? (stations.length - 1) * MIRA_PHASE_PITCH + MIRA_PHASE_WIDTH : 0, mainY, y, pillsTop: mainY + 36, paths }
+  // Bands without an outside predecessor/join still need a shared fork and merge, not pairwise edges.
+  const supports = bands.flatMap(band => band.tracks.flatMap((members, track) => {
+    const head = members[0]!, tail = members[members.length - 1]!
+    return [
+      ...(band.pred === undefined ? [track ? forkPath(band, head) : `M ${forkX(band)} ${mainY} H ${x(head) - 8}`] : []),
+      ...(band.join === undefined ? [track ? mergePath(band, tail) : `M ${x(tail) + 8} ${mainY} H ${mergeX(band) + 6}`] : []),
+    ]
+  }))
+  const tailWidth = bands.some(band => band.to === stations.length - 1 && band.join === undefined) ? 12 : 0
+  return { width: stations.length ? (stations.length - 1) * MIRA_PHASE_PITCH + MIRA_PHASE_WIDTH + tailWidth : 0, mainY, y, captionY: mainY + (bands.length ? 24 : 0), pillsTop: mainY + (bands.length ? 48 : 24), paths, supports }
 }

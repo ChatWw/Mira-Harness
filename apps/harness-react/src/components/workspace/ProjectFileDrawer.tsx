@@ -21,6 +21,8 @@ export type ProjectFileDrawerProps = {
   controller: PilotController
   projectId?: string
   sessionId?: string
+  rootPath?: string
+  embedded?: boolean
   directory?: string
   selectedPath?: string
   expandedPaths: string[]
@@ -39,28 +41,28 @@ export type ProjectFileDrawerProps = {
 
 const ROW_HEIGHT = 28
 
-export function ProjectFileDrawer({ controller, projectId, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onOpenBrowser, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
+export function ProjectFileDrawer({ controller, projectId, rootPath, embedded, sessionId, directory, selectedPath, expandedPaths, onExpandedPathsChange, onOpenFile, onOpenBrowser, onAddFile, onBack, onOpenDirectory, openingDirectory, workspaceWatch, onWatchDirectoriesChange, editors = [], onOpenEditor }: ProjectFileDrawerProps) {
   const fileSessionId = projectId ? undefined : sessionId
   const hasWorkspace = Boolean(directory && (projectId || fileSessionId))
   const source = useMemo(() => new FileTreeDataSource(async path => {
-    if (projectId) return (await controller.listProjectFiles(projectId, path)).entries
+    if (projectId) return (await controller.listProjectFiles(projectId, path, rootPath)).entries
     if (fileSessionId) return (await controller.listFilesFor(fileSessionId, path)).entries
     throw new Error('未关联项目或任务')
-  }), [controller, projectId, fileSessionId, directory])
+  }), [controller, projectId, rootPath, fileSessionId, directory])
   const data = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot)
   const searchSource = useMemo(() => new FileSearchDataSource(async (query, refresh) => {
-    if (projectId) return controller.searchProjectFiles(projectId, query, refresh)
+    if (projectId) return controller.searchProjectFiles(projectId, query, refresh, rootPath)
     if (fileSessionId) return controller.searchFilesFor(fileSessionId, query, refresh)
     throw new Error('未关联项目或任务')
-  }), [controller, projectId, fileSessionId, directory])
+  }), [controller, projectId, rootPath, fileSessionId, directory])
   const search = useSyncExternalStore(searchSource.subscribe, searchSource.getSnapshot, searchSource.getSnapshot)
   const supportsGit = Boolean(projectId ? controller.supportsProjectWorkspaceGit : fileSessionId && controller.supportsWorkspaceGit)
   const gitSource = useMemo(() => new FileGitDataSource(
-    supportsGit ? () => projectId ? controller.getProjectWorkspaceGit(projectId) : controller.getWorkspaceGitFor(fileSessionId!) : undefined,
-    supportsGit ? paths => projectId ? controller.getProjectWorkspaceIgnored(projectId, paths) : controller.getWorkspaceIgnoredFor(fileSessionId!, paths) : undefined,
-  ), [controller, projectId, fileSessionId, directory, supportsGit])
+    supportsGit ? () => projectId ? controller.getProjectWorkspaceGit(projectId, rootPath) : controller.getWorkspaceGitFor(fileSessionId!) : undefined,
+    supportsGit ? paths => projectId ? controller.getProjectWorkspaceIgnored(projectId, paths, rootPath) : controller.getWorkspaceIgnoredFor(fileSessionId!, paths) : undefined,
+  ), [controller, projectId, rootPath, fileSessionId, directory, supportsGit])
   const git = useSyncExternalStore(gitSource.subscribe, gitSource.getSnapshot, gitSource.getSnapshot)
-  const activeWorkspaceWatch = fileSessionId ? workspaceWatch : undefined
+  const activeWorkspaceWatch = workspaceWatch
   const watch = useSyncExternalStore(activeWorkspaceWatch?.subscribe || subscribeWithoutWorkspaceWatch, activeWorkspaceWatch?.getSnapshot || getEmptyWorkspaceWatch, getEmptyWorkspaceWatch)
   const searching = Boolean(search.query.trim())
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -127,7 +129,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
     void gitSource.refresh()
   }, [source, searchSource, gitSource, watch.revision])
 
-  useEffect(() => { if (fileSessionId) onWatchDirectoriesChange?.(watchedDirectories) }, [fileSessionId, onWatchDirectoriesChange, watchedDirectoriesKey])
+  useEffect(() => { if (hasWorkspace) onWatchDirectoriesChange?.(watchedDirectories) }, [hasWorkspace, onWatchDirectoriesChange, watchedDirectoriesKey])
 
   useEffect(() => {
     setSelectionPath(selectedPath)
@@ -222,7 +224,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
   }
 
   return <aside className="mira-file-drawer" aria-label="项目文件">
-    <div className="mira-file-drawer__back"><button type="button" onClick={onBack}><ArrowLeft size={16} /><span>返回任务</span></button></div>
+    {!embedded && <div className="mira-file-drawer__back"><button type="button" onClick={onBack}><ArrowLeft size={16} /><span>返回任务</span></button></div>}
     <div className="mira-file-drawer__search"><Search size={14} aria-hidden="true" /><input ref={searchInputRef} type="text" aria-label="搜索文件" placeholder="搜索文件" maxLength={256} disabled={!hasWorkspace} value={search.query} onChange={event => setSearchQuery(event.target.value)} onKeyDown={event => {
       if (event.nativeEvent.isComposing) return
       if (event.key === 'Escape' && search.query) { event.preventDefault(); setSearchQuery('') }
@@ -277,7 +279,7 @@ export function ProjectFileDrawer({ controller, projectId, sessionId, directory,
             {!deleted && row.type === 'file' && /\.(html|htm)$/i.test(row.path) && onOpenBrowser && <ContextMenu.Item className="mira-session-menu__item" onSelect={() => { const isCurrent = source.guard(); setActionError(''); void onOpenBrowser(row.path, isCurrent).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '内置浏览器打开失败，请重试') }) }}><Globe size={14} />用内置浏览器打开</ContextMenu.Item>}
             {row.error && <ContextMenu.Item className="mira-session-menu__item" disabled={row.loading} onSelect={() => void source.loadDirectory(row.path, true)}><RefreshCw size={14} />重新加载</ContextMenu.Item>}
             <ContextMenu.Separator className="mira-session-menu__separator" />
-            <ContextMenu.Item className="mira-session-menu__item" disabled={deleted || !hasWorkspace} onSelect={() => { if (deleted || !hasWorkspace) return; const isCurrent = source.guard(); setActionError(''); void controller.revealWorkspaceFile(projectId ? { projectId } : { sessionId: fileSessionId! }, row.path).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '文件位置打开失败，请重试') }) }}><FolderOpen size={14} />{/mac/i.test(navigator.userAgent || '') ? '在 Finder 中显示' : /windows/i.test(navigator.userAgent || '') ? '在资源管理器中显示' : '在文件管理器中显示'}</ContextMenu.Item>
+            <ContextMenu.Item className="mira-session-menu__item" disabled={deleted || !hasWorkspace} onSelect={() => { if (deleted || !hasWorkspace) return; const isCurrent = source.guard(); setActionError(''); void controller.revealWorkspaceFile(projectId ? { projectId, rootPath } : { sessionId: fileSessionId! }, row.path).catch(cause => { if (isCurrent()) setActionError(cause instanceof Error ? cause.message : '文件位置打开失败，请重试') }) }}><FolderOpen size={14} />{/mac/i.test(navigator.userAgent || '') ? '在 Finder 中显示' : /windows/i.test(navigator.userAgent || '') ? '在资源管理器中显示' : '在文件管理器中显示'}</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" onSelect={() => void copyPath(row.path)}><Copy size={14} />复制相对路径</ContextMenu.Item>
             <ContextMenu.Item className="mira-session-menu__item" disabled={!directory} onSelect={() => void copyPath(fileTreeAbsolutePath(directory!, row.path))}><Copy size={14} />复制绝对路径</ContextMenu.Item>
             {row.type === 'file' && <><ContextMenu.Separator className="mira-session-menu__separator" /><ContextMenu.Item className="mira-session-menu__item" title={media && !attachmentBinaryType(row.path) ? 'Office 和音频可在文件预览中打开，暂不支持作为模型附件' : unsupportedImageAttachment ? '图片附件支持 PNG、JPEG、GIF 或 WebP，请先转换格式' : undefined} disabled={!canAddFile} onSelect={() => { if (canAddFile) onAddFile?.(row.path) }}><Plus size={14} />加入对话</ContextMenu.Item></>}

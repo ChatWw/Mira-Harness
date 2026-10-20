@@ -31,6 +31,7 @@ export interface MiraEnvironmentContext {
   /** IANA 时区，如 Asia/Shanghai。 */
   timezone?: string
   workingDirectory?: string
+  projectRoots?: Array<{ rootPath: string; isPrimary: boolean }>
   gitBranch?: string
   /** 权限档位原始值：default / auto-approve / full。 */
   permissionMode?: string
@@ -85,6 +86,7 @@ function environmentBlock(environment?: MiraEnvironmentContext) {
   const lines = [`当前时间：${currentDateTime}（${environment?.timezone?.trim() || '本机时区'}）`]
   const workingDirectory = environment?.workingDirectory?.trim()
   if (workingDirectory) lines.push(`工作目录：${workingDirectory}`)
+  if (environment?.projectRoots?.length) lines.push(`项目源文件夹：${JSON.stringify(environment.projectRoots)}`)
   const gitBranch = environment?.gitBranch?.trim()
   if (gitBranch) lines.push(`Git 分支：${gitBranch}（可能滞后）`)
   const permissionMode = environment?.permissionMode?.trim()

@@ -88,6 +88,39 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('updates React project roots through the authorized data bridge and rejects active projects', async () => {
+    const isProjectRunning = vi.fn(() => false), closeInvalid = vi.fn()
+    const view = register({ harnessRuntime: { isProjectRunning } as never, workspaceWatch: { closeInvalid, closeForGrant: vi.fn() } as never })
+    const updateProject = vi.fn(() => ({ id: 'p', directory: '/workspace/shared' }))
+    Object.assign(view.database.harness, { updateProject })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const input = { name: 'Project', roots: ['/workspace', '/workspace/shared'], primaryRoot: '/workspace/shared' }
+    expect(await view.invoke('platform:first-party-harness', grant, 'projects.update', { id: 'p', input })).toMatchObject({ id: 'p' })
+    expect(updateProject).toHaveBeenCalledExactlyOnceWith('p', input)
+    expect(closeInvalid).toHaveBeenCalledOnce()
+    isProjectRunning.mockReturnValue(true)
+    expect(() => view.invoke('platform:first-party-harness', grant, 'projects.update', { id: 'p', input })).toThrow('请先停止')
+    expect(updateProject).toHaveBeenCalledOnce()
+    view.invoke('platform:revoke-first-party-grant', grant)
+    expect(() => view.invoke('platform:first-party-harness', grant, 'projects.update', { id: 'p', input })).toThrow('授权无效')
+  })
+
+  it('selects source directories without registering a project and creates only on explicit submission', async () => {
+    const view = register({ harnessRuntime: {} as never })
+    const createProjectWithRoots = vi.fn(() => ({ id: 'created' }))
+    Object.assign(view.database.harness, { createProjectWithRoots })
+    const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
+    electron.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/workspace', '/shared'] })
+    expect(await view.invoke('platform:first-party-harness', grant, 'projects.select-directories')).toEqual(['/workspace', '/shared'])
+    expect(electron.showOpenDialog).toHaveBeenLastCalledWith(expect.objectContaining({ properties: ['openDirectory', 'multiSelections'] }))
+    expect(createProjectWithRoots).not.toHaveBeenCalled()
+    electron.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
+    expect(await view.invoke('platform:first-party-harness', grant, 'projects.select-directories')).toEqual([])
+    const input = { name: 'Created', roots: ['/workspace', '/shared'], primaryRoot: '/workspace' }
+    expect(await view.invoke('platform:first-party-harness', grant, 'projects.create', { input })).toEqual({ id: 'created' })
+    expect(createProjectWithRoots).toHaveBeenCalledExactlyOnceWith(input)
+  })
+
   it.each([0, 1, 2])('keeps file and folder selection available from the Windows entry (choice %s)', async response => {
     const view = register({ harnessRuntime: {} as never })
     const writable = vi.fn(() => ({ id: 's', workingDirectory: 'C:\\workspace' })), select = vi.fn(() => [])
@@ -150,7 +183,7 @@ describe('platform IPC registration', () => {
       const other = database.harness.createProject(join(root, 'keep'), '保留我')
       let running = true
       const reschedule = vi.fn(), closeInvalid = vi.fn()
-      const view = register({ database, harnessRuntime: { isProjectRunning: (id: string) => running && id === project.id } as never, automationScheduler: { reschedule } as never, workspaceWatch: { closeInvalid } as never })
+      const view = register({ database, harnessRuntime: { isProjectRunning: (id: string) => running && id === project.id } as never, automationScheduler: { reschedule } as never, workspaceWatch: { closeInvalid, closeForGrant: vi.fn() } as never })
       const grant = view.invoke('platform:create-first-party-grant', 'mira-harness') as string
       expect(() => view.invoke('platform:first-party-harness', grant, 'projects.remove', { id: project.id })).toThrow('请先停止项目任务并处理待发送消息')
       expect(database.harness.listProjects().map(item => item.id)).toContain(project.id)
@@ -568,6 +601,32 @@ describe('platform IPC registration', () => {
     const grantId = invoke('platform:create-first-party-grant', 'mira-harness') as string
     await expect(invoke('platform:first-party-harness', grantId, 'files.media-open', { sessionId: 's', path: 'sound.wav' })).rejects.toThrow('工作目录已变化')
     expect(workspaceMedia.release).toHaveBeenCalledExactlyOnceWith(id, { grantId, webContentsId: sender.id })
+  })
+
+  it('binds secondary-root reads and watches to registered folders and invalidates removed roots', async () => {
+    const workspaceWatch = { start: vi.fn(async () => ({ watchId: 'watch' })), stop: vi.fn() }
+    const { invoke, sender, database } = register({ harnessRuntime: {} as never, workspaceWatch: workspaceWatch as never })
+    const primary = process.cwd(), secondary = '/registered-secondary'
+    database.harness.getProject.mockReturnValue({ id: 'project', directory: primary, roots: [{ rootPath: primary, isPrimary: true }, { rootPath: secondary, isPrimary: false }] } as never)
+    const read = vi.spyOn(workspaceFiles, 'readHarnessWorkspaceFile').mockResolvedValue({ path: 'note.md', content: 'secondary' })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    const scope = { projectId: 'project', rootPath: secondary }
+    await expect(invoke('platform:first-party-harness', grant, 'files.read', { ...scope, path: 'note.md' })).resolves.toMatchObject({ content: 'secondary' })
+    expect(read).toHaveBeenCalledExactlyOnceWith(secondary, 'note.md')
+    expect(() => invoke('platform:first-party-harness', grant, 'files.read', { ...scope, rootPath: '/unregistered', path: 'note.md' })).toThrow('不在项目中')
+    expect(() => invoke('platform:first-party-harness', grant, 'files.read', { sessionId: 's', rootPath: secondary, path: 'note.md' })).toThrow('不允许覆盖')
+    await invoke('platform:first-party-harness', grant, 'files.watch', { ...scope, paths: ['', 'docs'] })
+    const owner = JSON.stringify(['project', 'project', secondary])
+    expect(workspaceWatch.start).toHaveBeenCalledWith(sender, grant, owner, ['', 'docs'], expect.any(Function), expect.any(Function))
+    const authorize = workspaceWatch.start.mock.calls[0][5] as unknown as () => boolean
+    expect(authorize()).toBe(true)
+    read.mockImplementationOnce(async () => { database.harness.getProject.mockReturnValue({ id: 'project', directory: primary } as never); return { path: 'note.md', content: 'stale' } })
+    await expect(invoke('platform:first-party-harness', grant, 'files.read', { ...scope, path: 'note.md' })).rejects.toThrow('不在项目中')
+    expect(authorize()).toBe(false)
+    database.harness.getProject.mockImplementation(() => { throw Error('removed project') })
+    invoke('platform:first-party-harness', grant, 'files.unwatch', { ...scope, watchId: 'watch' })
+    expect(workspaceWatch.stop).toHaveBeenCalledExactlyOnceWith(sender.id, grant, owner, 'watch')
+    read.mockRestore()
   })
 
   it('binds workspace watchers to the host grant and checks session ownership throughout their lifetime', async () => {
@@ -997,7 +1056,7 @@ describe('platform IPC registration', () => {
 
     electron.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['README.md'] })
     await expect(invoke('platform:first-party-harness', grant, 'files.select', { sessionId: 'project-session' })).resolves.toEqual([{ path: 'README.md' }])
-    expect(database.harness.selectFileReferences).toHaveBeenCalledWith('project', ['README.md'])
+    expect(database.harness.selectFileReferences).toHaveBeenCalledWith('project', ['README.md'], process.cwd())
     electron.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
     await expect(invoke('platform:first-party-harness', grant, 'files.select', { sessionId: 'project-session' })).resolves.toEqual([])
     expect(database.harness.selectFileReferences).toHaveBeenCalledTimes(1)

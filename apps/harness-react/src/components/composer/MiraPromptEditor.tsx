@@ -122,6 +122,7 @@ function $setRange(range: MiraPromptSelectionRange, layout = $layout()): MiraPro
         let local = offset - leaf.start
         if ($isMiraPromptReferenceNode(leaf.node)) {
           local = local <= 0 || (local < leaf.end - leaf.start && (bias === 'start' || (bias === 'nearest' && local < (leaf.end - leaf.start) / 2))) ? 0 : leaf.node.getTextContentSize()
+          point.set(leaf.node.getParentOrThrow().getKey(), leaf.node.getIndexWithinParent() + (local > 0 ? 1 : 0), 'element'); return
         }
         point.set(leaf.node.getKey(), local, 'text'); return
       }

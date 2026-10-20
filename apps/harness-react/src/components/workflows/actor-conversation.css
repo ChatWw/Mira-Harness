@@ -1,8 +1,8 @@
 .mira-actor-conversation { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; height: 100%; padding: 20px; overflow-y: auto; color: var(--mira-foreground); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .pilot-inspector .mira-actor-conversation { padding: 20px; border-bottom: 0; }
 .mira-actor-conversation :where(div, header, footer, li, details, summary, pre) { min-width: 0; max-width: 100%; }
-.mira-actor-conversation button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; padding: 4px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--mira-foreground-subtle); font-size: 12px; cursor: pointer; }
-.mira-actor-conversation button:hover:not(:disabled) { background: var(--mira-hover); color: var(--mira-foreground); }
+.mira-actor-conversation :is(.mira-actor-conversation__header, .mira-actor-conversation__pagination, .mira-actor-conversation__error) button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; padding: 4px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--mira-foreground-subtle); font-size: 12px; cursor: pointer; }
+.mira-actor-conversation :is(.mira-actor-conversation__header, .mira-actor-conversation__pagination, .mira-actor-conversation__error) button:hover:not(:disabled) { background: var(--mira-hover); color: var(--mira-foreground); }
 .mira-actor-conversation button:disabled { opacity: .45; cursor: default; }
 .mira-actor-conversation :where(button, summary):focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 3px; }
 .mira-actor-conversation__header { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
@@ -12,19 +12,9 @@
 .mira-actor-conversation__notice { display: block; }
 .mira-actor-conversation__messages { list-style: none; padding: 0; margin: 24px 0; }
 .mira-actor-conversation__messages > li { margin: 0 0 28px; }
-.mira-actor-conversation__role { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
-.mira-actor-conversation__role strong { flex: 1; font-size: 12px; font-weight: 550; }
-.mira-actor-conversation__role time { color: var(--mira-foreground-subtle); font-size: 12px; font-variant-numeric: tabular-nums; }
-.mira-actor-conversation__messages > li[data-message-role=user] .mira-actor-conversation__markdown { padding: 10px 12px; border-radius: 12px; background: var(--mira-hover); }
 .mira-actor-conversation__markdown.pilot-markdown { font-size: 13px; line-height: 1.7; }
 .mira-actor-conversation__markdown.pilot-markdown > :first-child { margin-top: 0; }
 .mira-actor-conversation__markdown.pilot-markdown > :last-child { margin-bottom: 0; }
-.mira-actor-conversation__detail { margin: 8px 0; }
-.mira-actor-conversation__detail summary { display: flex; align-items: center; gap: 7px; color: var(--mira-foreground-subtle); cursor: pointer; }
-.mira-actor-conversation__detail[open] .mira-actor-conversation__chevron { transform: rotate(90deg); }
-.mira-actor-conversation__detail svg { flex-shrink: 0; }
-.mira-actor-conversation__detail summary small { color: var(--mira-destructive); }
-.mira-actor-conversation pre { box-sizing: border-box; padding: 10px; overflow: auto; border-radius: 6px; background: var(--mira-hover); font: 12px/1.7 var(--font-mono, ui-monospace), SFMono-Regular, Menlo, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-actor-conversation__pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 20px 0 8px; }
 .mira-actor-conversation__pagination span { color: var(--mira-foreground-subtle); font-size: 12px; font-variant-numeric: tabular-nums; }
 .mira-actor-conversation__empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 12px; text-align: center; color: var(--mira-foreground-subtle); }
@@ -32,3 +22,6 @@
 .mira-actor-conversation__empty p { margin: 0; }
 .mira-actor-conversation__error { margin: 16px 0; color: var(--mira-destructive); }
 .mira-actor-conversation__error p { margin: 0 0 5px; }
+
+.mira-actor-conversation__user { margin-left: auto; max-width: 100%; width: fit-content; box-sizing: border-box; }
+.mira-actor-conversation__messages > li > :is(.mira-tool-record, .mira-assistant-parts) { margin: 12px 0; }

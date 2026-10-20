@@ -322,15 +322,47 @@ describe('native Plan input and Workflow quick entry in the shipped Composer', (
     expect(view.api.send.mock.calls[0]?.[0]).toBe('/workflow 整理项目')
     expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBeUndefined()
   })
-  it('keeps Workflow quick entry out of nonempty and unsupported drafts', async () => {
-    const view = fixture({ queue: true }); await view.drain(); await view.type(' '); await view.plus()
-    expect(view.items().some(item => item.id === 'add-workflow')).toBe(false)
-    await view.type(''); view.state.session = { ...view.state.session!, parentSessionId: 'parent' }; view.render(); await view.drain(); await view.plus()
+  it('keeps Workflow quick entry out of unsupported drafts', async () => {
+    const view = fixture({ queue: true }); await view.drain()
+    view.state.session = { ...view.state.session!, parentSessionId: 'parent' }; view.render(); await view.drain(); await view.plus()
     expect(view.items().some(item => item.id === 'add-workflow')).toBe(false)
   })
   it('keeps Workflow quick entry out of attached and plan-mode drafts', async () => {
     const view = fixture({ queue: true, draftPreference: Promise.resolve({ fileDrafts: { current: [{ path: 'note.md', name: 'note.md' }] }, config: { planning: true } }) }); await view.drain(); await view.plus()
     expect(view.items().some(item => item.id === 'add-workflow')).toBe(false)
+  })
+})
+
+describe('message modes after existing draft text', () => {
+  it.each(['goal', 'workflow'])('enables /%s in the add menu after typing and keeps the draft', async command => {
+    const view = fixture({ goals: true }); await view.drain(); await view.type('已有正文'); await view.plus()
+    expect(view.items().find(item => item.id === `add-${command}`)?.disabled).not.toBe(true)
+    await view.select(`add-${command}`)
+    expect(view.text()).toBe(`/${command} 已有正文`)
+    expect(view.api.send).not.toHaveBeenCalled()
+  })
+  it.each(['goal', 'workflow'])('promotes a selected /%s to the front and retains text before and after the trigger', async command => {
+    const view = fixture({ queue: true, goals: true, submissionOptions: true }); await view.drain()
+    await view.type('已有正文 / 保留后文', 6)
+    await view.select(`command-${command}`)
+    expect(view.text()).toBe(`/${command} 已有正文  保留后文`)
+    expect((view.inputProps().document as MiraPromptDocument).parts[0]).toMatchObject({ type: 'reference', reference: { value: `builtin:${command}` } })
+    await view.formSubmit()
+    expect(view.api.send.mock.calls[0]?.[0]).toBe(`/${command} 已有正文  保留后文`)
+    expect(view.api.send.mock.calls[0]?.[5]?.hasStructuredContext).toBeUndefined()
+  })
+  it.each(['goal', 'workflow'])('can switch to /%s after an existing command and preserve structured references', async command => {
+    const view = fixture({ goals: true }); await view.drain()
+    await view.type('/go'); await view.select('command-goal')
+    await view.append('原文 $res'); await view.select('skill-research')
+    await view.append('/'); await view.select(`command-${command}`)
+    const document = view.inputProps().document as MiraPromptDocument
+    expect(document.parts.filter(part => part.type === 'reference' && part.reference.kind === 'command')).toHaveLength(1)
+    expect(document.parts[0]).toMatchObject({ type: 'reference', reference: { value: `builtin:${command}` } })
+    expect(document.parts.some(part => part.type === 'reference' && part.reference.kind === 'skill')).toBe(true)
+    expect(view.text()).toContain('原文 ')
+    expect(view.text().endsWith('/')).toBe(false)
+    expect(view.api.send).not.toHaveBeenCalled()
   })
 })
 

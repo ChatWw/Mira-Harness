@@ -33,12 +33,19 @@ const render = (open: boolean) => act(async () => root.render(<View open={open} 
 describe('sidebar compositor animation lifecycle', () => {
   it('skips initial hydration, carries the live position into a rapid reversal, and clears temporary paint state', async () => {
     await render(true); expect(animations).toHaveLength(0)
-    await render(false); expect(animations[1].frames[0].transform).toBe('translateX(284px)')
-    offset = 80; await render(true)
-    expect(animations[1].cancel).toHaveBeenCalled(); expect(animations[3].frames[0].transform).toBe('translateX(-204px)')
-    animations[2].dispatchEvent(new Event('finish'))
+    await render(false); expect(animations[0].frames).toEqual([{ width: '280px' }, { width: '0px' }])
+    vi.spyOn(container.querySelector<HTMLElement>('.mira-sidebar-panel')!, 'getBoundingClientRect').mockReturnValue({ width: 80 } as DOMRect)
+    await render(true)
+    expect(animations[0].cancel).toHaveBeenCalled(); expect(animations[1].frames).toEqual([{ width: '80px' }, { width: '280px' }])
+    animations[1].dispatchEvent(new Event('finish'))
     expect(container.querySelector<HTMLElement>('.mira-sidebar-panel')!.style.overflow).toBe('')
-    expect(animations[3].cancel).toHaveBeenCalled()
+    expect(animations[1].cancel).toHaveBeenCalled()
+  })
+  it('reopens from zero after a completed close instead of sampling the already committed open width', async () => {
+    await render(true); await render(false)
+    animations[0].dispatchEvent(new Event('finish'))
+    await render(true)
+    expect(animations[1].frames[0]).toEqual({ width: '0px' })
   })
   it.each(['reduce', 'hidden'])('applies final state without starting motion under %s policy', async policy => {
     await render(true)

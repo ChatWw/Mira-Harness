@@ -48,3 +48,18 @@ export function createConversationHeightCache(limit = 4000) {
     },
   }
 }
+
+/** Floating status comes from the same final render turn as the visible timeline. */
+export function conversationFloatingStatus(messages: TimelineRenderMessage[], liveMessageId: string | undefined, running: boolean, startedAt?: number) {
+  const turns = buildConversationRenderTurns(messages, liveMessageId)
+  const turn = turns[turns.length - 1]
+  const last = turn && [...turn.messageIndexes].reverse().map(index => messages[index].original).find(message => message.role === 'assistant' && !message.internal)
+  const parts = last?.parts
+  let boundary = parts?.length || 0
+  while (boundary > 0 && parts![boundary - 1].type === 'text') boundary--
+  const reply = parts?.slice(boundary).filter(part => part.type === 'text')
+  const answer = !running && last && !last.interrupted && last.run?.status !== 'failed' && last.run?.status !== 'stopped'
+    && (!reply || reply.every(part => part.type === 'text' && part.state === 'complete'))
+    ? reply?.length ? reply.map(part => part.type === 'text' ? part.text : '').join('\n') : !parts?.length ? last.content : '' : ''
+  return { turnKey: turn?.id || '', running, startedAt: startedAt ?? last?.run?.startedAt, answer }
+}

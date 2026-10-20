@@ -3,9 +3,14 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraWorkflowsView, MiraAutomationTitleSwitch } from '../apps/harness-react/src/components/workflows/MiraWorkflowsView'
+import { MiraWorkflowMetaForm } from '../apps/harness-react/src/components/workflows/MiraWorkflowMetaForm'
+import { MiraWorkflowRunControls } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunControls'
+import { useMiraWorkflowActivityIndex } from '../apps/harness-react/src/components/workflows/MiraWorkflowActivity'
 import { MiraWorkflowEditor } from '../apps/harness-react/src/components/workflows/MiraWorkflowEditor'
 import { MiraWorkflowLaunch } from '../apps/harness-react/src/components/workflows/MiraWorkflowLaunch'
 import { MiraWorkflowRunPane } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunPane'
+import { MiraWorkflowSavedRunActions } from '../apps/harness-react/src/components/workflows/MiraWorkflowSavedRunActions'
+import { MiraWorkflowToolSummary } from '../apps/harness-react/src/components/workflows/MiraWorkflowToolSummary'
 import { MiraWorkflowDigest } from '../apps/harness-react/src/components/workflows/MiraWorkflowDigest'
 import { useMiraWorkflowRuns } from '../apps/harness-react/src/components/workflows/useMiraWorkflowRuns'
 import { workflowActorModelLabel, workflowNodeLabel, type MiraWorkflowHost } from '../apps/harness-react/src/components/workflows/workflow-model'
@@ -47,19 +52,57 @@ function hostFixture(handler: (request: MiraFlowWorkbenchRequest) => unknown = (
 }
 
 describe('workflow hub, editor and real launch interactions', () => {
+  it('reruns the exact saved revision with original arguments and model', async () => {
+    const onOpen = vi.fn(), identity = { sessionId: 'rerun-session', runId: 'rerun' }
+    const view = hostFixture(() => identity)
+    const saved = { name: '核对', scope: 'project' as const, revision: 'a'.repeat(64), projectId: project.id }
+    await mount(<MiraWorkflowSavedRunActions host={view.host} snapshot={{ ...snapshot, run: { ...snapshot.run, status: 'completed' }, presentation: { artifacts: [], savedDefinition: saved } }} onOpen={onOpen} />)
+    await click('再次运行')
+    expect(view.request).toHaveBeenCalledExactlyOnceWith({ action: 'runs.start', ...saved, args: snapshot.run.args, selection: snapshot.selection })
+    expect(onOpen).toHaveBeenCalledWith(identity)
+  })
+  it('opens a workflow and exact artifact from the compact tool summary', async () => {
+    const artifact = { id: 'report', kind: 'markdown' as const, title: '验真报告', version: 2 }, onOpen = vi.fn()
+    await mount(<MiraWorkflowToolSummary tool={{ id: 'tool', tool: 'create_workflow', status: 'ok' }} run={{ ...snapshot.run, status: 'completed', presentation: { artifacts: [artifact] } }} onOpen={onOpen} />)
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.mira-workflow-tool-summary button')].find(item => item.textContent?.includes('验真报告'))!.click())
+    expect(onOpen).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' }, artifact)
+    expect(document.querySelector('.mira-tool-record')).toBeNull()
+    expect(document.body.textContent).toContain('工作流已完成')
+  })
   it('switches the automation title by keyboard with selected tab focus', async () => {
     const onChange = vi.fn(); await mount(<MiraAutomationTitleSwitch value="automations" onChange={onChange} />)
     await act(async () => document.querySelector('[aria-label="自动化与工作流"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
     expect(onChange).toHaveBeenCalledWith('workflows'); expect(document.activeElement?.textContent).toBe('工作流')
   })
   it('lists global/project sources independently, renders diagnostics and real run history', async () => {
-    const view = hostFixture(request => request.action === 'definitions.list' ? request.projectId ? [definition, { ...definition, name: 'broken', diagnostic: { reason: 'invalid_yaml', detail: '真实元数据错误' } }] : [{ ...definition, name: 'global', scope: 'global' }] : request.action === 'runs.list' ? [snapshot.run] : undefined)
+    const view = hostFixture(request => request.action === 'definitions.list' ? request.projectId ? [definition, { ...definition, name: 'broken', diagnostic: { reason: 'invalid_yaml', detail: '真实元数据错误' } }] : [{ ...definition, name: 'global', scope: 'global' }] : request.action === 'definitions.read' ? definition : request.action === 'runs.list' ? [{ ...snapshot.run, name: 'review' }] : undefined)
     const onOpenRun = vi.fn(async () => undefined)
     await mount(<MiraWorkflowsView host={view.host} projects={[project]} providers={[provider]} onOpenRun={onOpenRun} onManageModels={vi.fn()} />)
     expect(document.querySelector('[data-workflow-name="global"]')).not.toBeNull(); expect(document.querySelector('[data-workflow-name="review"]')).not.toBeNull()
     expect(button('运行工作流 broken').disabled).toBe(true); expect(document.body.textContent).toContain('真实元数据错误')
-    await click('运行记录'); await click('核对/project运行中37 tokens')
+    expect(document.querySelector('[aria-label="搜索工作流"]')).toBeNull()
+    expect(document.querySelector('[aria-label="新建工作流"]')).toBeNull()
+    await act(async () => document.querySelector<HTMLElement>('[data-workflow-name="review"]')!.click())
+    await click('运行历史 1'); await click('查看实例')
     expect(onOpenRun).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' })
+  })
+
+  it('opens definition details before editing and preserves source and scoped chat creation', async () => {
+    const view = hostFixture(request => request.action === 'definitions.list' ? request.projectId ? [definition] : [] : request.action === 'definitions.read' ? definition : request.action === 'runs.list' ? [] : undefined)
+    const create = vi.fn()
+    await mount(<MiraWorkflowsView host={view.host} projects={[project]} providers={[provider]} onOpenRun={vi.fn()} onManageModels={vi.fn()} onCreateViaChat={create} />)
+    const group = [...document.querySelectorAll('.mira-workflow-group')].find(group => group.textContent?.includes(project.name))!
+    await act(async () => group.querySelector<HTMLButtonElement>('.mira-automation-primary')!.click())
+    expect(create).toHaveBeenCalledWith(expect.any(String), project.id)
+    await act(async () => document.querySelector<HTMLElement>('[data-workflow-name="review"]')!.click())
+    expect(document.querySelector('[aria-label="工作流详情 review"]')).not.toBeNull()
+    expect(document.querySelector('[aria-label="工作流编辑器"]')).toBeNull()
+    expect(document.querySelector('pre')?.textContent).toContain(definition.script)
+    await click('运行历史')
+    expect(document.body.textContent).toContain('尚无工作流运行记录')
+    expect(document.querySelector('[aria-label="编辑工作流定义"]')).toBeNull()
+    await click('自动化')
+    expect(document.querySelector('[aria-label="工作流工作台"]')).not.toBeNull()
   })
   it('does not save after authoritative compile rejection and preserves the script', async () => {
     const view = hostFixture(request => { if (request.action === 'definitions.preview') throw new Error('3:5 找不到名称 broken') })
@@ -91,6 +134,22 @@ describe('workflow hub, editor and real launch interactions', () => {
     await change('工作流参数 count', '3'); await change('工作流参数 task', '检查代码'); await click('启动工作流')
     expect(view.request).toHaveBeenCalledWith(expect.objectContaining({ action: 'runs.start', args: { task: '检查代码', count: 3, enabled: false, data: {} }, revision: definition.revision, projectId: project.id }))
     expect(accepted).not.toHaveBeenCalled(); expect(document.querySelector<HTMLInputElement>('[aria-label="工作流参数 task"]')!.value).toBe('检查代码'); expect(document.querySelector('[role="alert"]')?.textContent).toContain('项目已变化')
+  })
+  it('edits boolean and JSON parameters using a switch and multiline field', async () => {
+    const view = hostFixture(() => ({ sessionId: 'session', runId: 'run' }))
+    await mount(<MiraWorkflowLaunch host={view.host} document={definition} projectId={project.id} projects={[project]} providers={[provider]} onClose={vi.fn()} onAccepted={vi.fn(async () => undefined)} onManageModels={vi.fn()} />)
+    const enabled = document.querySelector<HTMLInputElement>('[aria-label="工作流参数 enabled"]')!
+    expect(enabled.type).toBe('checkbox')
+    expect(document.querySelector('[aria-label="工作流参数 data"]')?.tagName).toBe('TEXTAREA')
+    await act(async () => enabled.click())
+    await change('工作流参数 task', '核验参数')
+    await change('工作流参数 data', '{invalid}')
+    await click('启动工作流')
+    expect(view.request).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('有效的 JSON')
+    await change('工作流参数 data', '{"ready":true}')
+    await click('启动工作流')
+    expect(view.request).toHaveBeenCalledWith(expect.objectContaining({ action: 'runs.start', args: expect.objectContaining({ enabled: true, data: { ready: true } }) }))
   })
   it('keeps an unfilled required string in the launch form without starting a model run', async () => {
     const view = hostFixture(() => ({ sessionId: 'session', runId: 'run' })), accepted = vi.fn(async () => undefined)
@@ -191,6 +250,31 @@ describe('real workflow journal pane and conversation digest', () => {
     await view.emit('other', 'run'); expect(view.request).toHaveBeenCalledTimes(count)
     await click('查看工作流 核对'); expect(onOpen).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' })
   })
+  it('toggles the whole run card without intercepting its detail controls or nested keyboard input', async () => {
+    const view = hostFixture(request => request.action === 'runs.snapshot' ? { ...snapshot, graph: { phases: [{ id: 'phase', name: '审阅' }], participants: [], steps: [], phaseEdges: [], handoffs: [], truncated: false } } : undefined)
+    const onOpen = vi.fn(async () => undefined)
+    await mount(<MiraWorkflowDigest host={view.host} workflows={{ sessionId: 'session', runs: [snapshot.run], loading: false, error: '', refresh: vi.fn() }} active onOpen={onOpen} />)
+    const card = document.querySelector<HTMLElement>('[data-workflow-card-id="run"]')!
+    expect(card.getAttribute('aria-expanded')).toBe('true')
+    await click('查看工作流 核对')
+    expect(onOpen).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' })
+    expect(card.getAttribute('aria-expanded')).toBe('true')
+    await act(async () => card.querySelector<HTMLElement>('.mira-workflow-card__name')!.click())
+    expect(card.getAttribute('aria-expanded')).toBe('false')
+    await act(async () => card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(card.getAttribute('aria-expanded')).toBe('true')
+    await act(async () => button('查看工作流 核对').dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true })))
+    expect(card.getAttribute('aria-expanded')).toBe('true')
+  })
+  it('reports total agents on a completed card instead of a working count', async () => {
+    const settled = { ...snapshot.run, status: 'completed' as const }
+    const view = hostFixture(request => request.action === 'runs.snapshot' ? { ...snapshot, run: settled, graph: { phases: [{ id: 'phase', name: '审阅' }], participants: [{ id: 'reviewer', phase: 'phase', lane: 'actor', name: '审稿人', steps: [] }], steps: [], phaseEdges: [], handoffs: [], truncated: false } } : undefined)
+    await mount(<MiraWorkflowDigest host={view.host} workflows={{ sessionId: 'session', runs: [settled], loading: false, error: '', refresh: vi.fn() }} active onOpen={vi.fn(async () => undefined)} />)
+    expect(document.querySelector('.mira-workflow-card__detail')).toBeNull()
+    expect(document.querySelector('.mira-flow-line__canvas')).toBeNull()
+    expect(document.querySelector('.mira-workflow-completion-figures')?.textContent).toContain('1子代理1阶段')
+    expect(document.querySelector('.mira-workflow-card__kind')?.textContent).toBe('工作流已完成')
+  })
   it('shares fresh workflow lists, coalesces burst events and rejects late previous-owner responses', async () => {
     const late = deferred<RunRecord[]>(), pending = deferred<RunRecord[]>(); let current = 0
     const view = hostFixture(request => request.action === 'runs.list' ? request.sessionId === 'old' ? late.promise : ++current === 2 ? pending.promise : [{ ...snapshot.run, name: `当前-${current}` }] : undefined)
@@ -217,5 +301,67 @@ describe('real workflow journal pane and conversation digest', () => {
     await mount(<Host />); await click('重新读取工作流')
     expect(document.querySelector('[role="alert"]')?.textContent).toBe('列表读取失败'); expect(document.querySelector('span')?.textContent).toBe('1')
     await click('重新读取工作流'); expect(document.querySelector('[role="alert"]')?.textContent).toBe(''); expect(attempt).toBe(3)
+  })
+})
+
+
+describe('workflow editable metadata and live controls', () => {
+  it('rejects duplicate parameters, parses typed defaults, preserves failed drafts and discards changes', async () => {
+    const save = vi.fn().mockRejectedValueOnce(new Error('版本冲突'))
+    await mount(<MiraWorkflowMetaForm meta={{ description: '原始说明' }} onSave={save} />)
+    await click('添加参数'); await change('参数 1 名称', 'count')
+    await click('添加参数'); await change('参数 2 名称', 'count'); await click('保存元数据')
+    expect(save).not.toHaveBeenCalled(); expect(document.querySelector('[role=alert]')?.textContent).toContain('重复')
+    await click('删除参数 2'); await change('工作流说明', '新说明'); await click('保存元数据')
+    expect(document.querySelector('[role=alert]')?.textContent).toContain('版本冲突')
+    expect((document.querySelector('[aria-label="工作流说明"]') as HTMLTextAreaElement).value).toBe('新说明')
+    await click('放弃更改'); expect((document.querySelector('[aria-label="工作流说明"]') as HTMLTextAreaElement).value).toBe('原始说明')
+    expect(document.querySelector('[aria-label="参数 1 名称"]')).toBeNull()
+  })
+  it('saves metadata with the original script and expected revision', async () => {
+    const view = hostFixture(request => request.action === 'definitions.list' ? request.projectId ? [definition] : [] : request.action === 'definitions.read' ? definition : request.action === 'definitions.save' ? { ...definition, meta: request.input.meta, revision: 'c'.repeat(64) } : request.action === 'runs.list' ? [] : undefined)
+    await mount(<MiraWorkflowsView host={view.host} projects={[project]} providers={[provider]} onOpenRun={vi.fn()} onManageModels={vi.fn()} />)
+    await act(async () => document.querySelector<HTMLElement>('[data-workflow-name="review"]')!.click())
+    await change('工作流说明', '新说明'); await change('参数 2 默认值', '5'); await click('保存元数据')
+    expect(view.request).toHaveBeenCalledWith(expect.objectContaining({ action: 'definitions.save', input: expect.objectContaining({ script: definition.script, expectedRevision: definition.revision, meta: expect.objectContaining({ description: '新说明', args: expect.objectContaining({ count: expect.objectContaining({ type: 'number', default: 5 }) }) }) }) }))
+  })
+  it('applies real concurrency commands, rejects invalid values and keeps failed stops actionable', async () => {
+    const view = hostFixture(request => { if (request.action === 'runs.stop') throw new Error('无法停止'); return {} }), changed = vi.fn()
+    await mount(<MiraWorkflowRunControls host={view.host} identity={{ sessionId: 'session', runId: 'run' }} run={snapshot.run} onChanged={changed} />)
+    await click('配置工作流'); await change('工作流并发数', '0'); expect(button('应用').disabled).toBe(true)
+    await change('工作流并发数', '4'); await click('应用')
+    expect(view.request).toHaveBeenCalledWith({ action: 'runs.concurrency', sessionId: 'session', runId: 'run', maxConcurrency: 4 }); expect(changed).toHaveBeenCalledOnce()
+    await click('停止工作流'); expect(document.querySelector('[role=alert]')?.textContent).toContain('无法停止'); expect(button('停止工作流').disabled).toBe(false)
+  })
+  it('uses one sidebar index, chooses the journal order and removes ended activity', async () => {
+    vi.useFakeTimers()
+    let runs = [snapshot.run, { ...snapshot.run, runId: 'older' }]
+    const view = hostFixture(request => request.action === 'runs.list' ? runs : request.action === 'runs.snapshot' ? snapshot : undefined)
+    function Index() { const index = useMiraWorkflowActivityIndex(view.host); return <output>{Object.values(index).map(value => value.run.runId).join(',')}</output> }
+    try {
+      await mount(<Index />); expect(document.querySelector('output')?.textContent).toBe('run')
+      expect(view.request.mock.calls.filter(([request]) => request.action === 'runs.snapshot')).toHaveLength(1)
+      runs = []; await view.emit('session', 'run'); await act(async () => { await vi.advanceTimersByTimeAsync(101) })
+      expect(document.querySelector('output')?.textContent).toBe('')
+    } finally { vi.useRealTimers() }
+  })
+})
+
+describe('ZCode completion output layout', () => {
+  it('shows published output, description, duration and opens the exact artifact in a peer tab', async () => {
+    const artifact = { id: 'report', kind: 'markdown' as const, version: 2, title: '审查报告', description: '已核对的发现', contentType: 'text/markdown', bytes: 12, primary: true as const }
+    const completed = { ...snapshot, run: { ...snapshot.run, status: 'completed' as const, result: '核验完毕' }, presentation: { description: '按规范检查项目文件', startedAt: 1000, endedAt: 62000, artifacts: [artifact] } }
+    const view = hostFixture(request => request.action === 'runs.snapshot' ? completed : request.action === 'artifacts.read' ? { dataBase64: btoa('# Actual report'), contentType: 'text/markdown', bytes: 15, title: '审查报告' } : undefined)
+    const open = vi.fn(async () => undefined)
+    await mount(<MiraWorkflowDigest host={view.host} workflows={{ sessionId: 'session', runs: [completed.run], loading: false, error: '', refresh: vi.fn() }} active onOpen={open} />)
+    expect(document.querySelector('.mira-flow-line__canvas')).toBeNull()
+    expect(document.querySelector('.mira-workflow-artifact__thumbnail')?.textContent).toContain('Actual report')
+    expect(document.querySelector('.mira-workflow-completion-figures')?.textContent).toContain('1 分 1 秒')
+    await act(async () => document.querySelector<HTMLButtonElement>('.mira-workflow-artifact-row__open')!.click())
+    expect(open).toHaveBeenCalledWith({ sessionId: 'session', runId: 'run' }, undefined, undefined, artifact)
+    await act(async () => root!.render(<MiraWorkflowRunPane host={view.host} identity={{ sessionId: 'session', runId: 'run' }} providers={[provider]} onOpenArtifact={value => { void open({ sessionId: 'session', runId: 'run' }, undefined, undefined, value) }} />))
+    expect(document.querySelector('.mira-workflow-run__provenance')?.textContent).toContain('按规范检查项目文件')
+    expect(document.querySelector('.mira-workflow-run__result')?.textContent).toContain('核验完毕')
+    expect(document.querySelector('details.mira-workflow-run__artifacts')?.hasAttribute('open')).toBe(true)
   })
 })

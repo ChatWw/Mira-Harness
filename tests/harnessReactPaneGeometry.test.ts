@@ -62,7 +62,7 @@ describe('Mira desktop panel geometry', () => {
   it.each(['reduced', 'hidden'])('settles opening immediately for %s motion without saving constrained geometry', async policy => {
     const view = mount(); await flush(); view.render(); flushFrames(); vi.advanceTimersByTime(240)
     if (policy === 'reduced') motion.matches = true; else doc.hidden = true
-    view.options.workspaceOpen = true; view.render()
+    view.options.workspaceOpen = true; view.render(); flushFrames()
     expect(view.panel.resize).toHaveBeenLastCalledWith('45%')
     expect(view.inspector.classes.has('mira-pane-toggling')).toBe(false)
     expect(view.content.styles.has('width')).toBe(false)
@@ -204,6 +204,7 @@ describe('Mira desktop panel geometry', () => {
     const view = mount(); await flush(); view.render(); flushFrames(); vi.advanceTimersByTime(240)
     view.options.workspaceOpen = true; view.render()
     expect(view.inspector.classes.has('mira-pane-toggling')).toBe(true)
+    expect(view.geometry().conversationRef.current!.classList.contains('mira-pane-toggling')).toBe(true)
     expect(view.content.styles.get('width')).toBe('450px')
     events.dispatchEvent(new Event('resize'))
     expect(view.inspector.classes.has('mira-pane-toggling')).toBe(false)

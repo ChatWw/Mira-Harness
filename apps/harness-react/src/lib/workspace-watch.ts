@@ -112,7 +112,7 @@ export class WorkspaceWatchDataSource {
   }
 }
 
-export function useWorkspaceWatch(controller: PilotController, sessionId: string | undefined, directory: string | undefined, paths: readonly string[]) {
+export function useWorkspaceWatch(controller: Pick<PilotController, 'supportsWorkspaceWatch' | 'watchFilesFor' | 'unwatchFilesFor' | 'onWorkspaceFilesChanged'>, sessionId: string | undefined, directory: string | undefined, paths: readonly string[]) {
   const source = useMemo(() => new WorkspaceWatchDataSource(controller, sessionId || ''), [controller, sessionId, directory])
   const key = JSON.stringify(paths)
   useEffect(() => { source.activate(); return () => source.deactivate() }, [source])
