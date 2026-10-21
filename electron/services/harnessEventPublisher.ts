@@ -5,7 +5,7 @@ import type { HarnessEvent } from '../../src/config/harness'
 type BackgroundPublisher = (event: HarnessEvent) => void
 
 /** 为公开 HarnessEvent 补齐幂等与排序元数据。 */
-export function createHarnessEventPublisher(backgroundPublisher?: BackgroundPublisher) {
+export function createHarnessEventPublisher(backgroundPublisher?: BackgroundPublisher, observer?: BackgroundPublisher) {
   const activeRuns = new Map<string, string>()
   const sequences = new Map<string, number>()
   // Cancellation may publish final tool/Hook records after the run has settled.
@@ -38,6 +38,7 @@ export function createHarnessEventPublisher(backgroundPublisher?: BackgroundPubl
     }
     if (sender && !sender.isDestroyed()) sender.send('harness:event', published)
     else backgroundPublisher?.(published)
+    observer?.(published)
     if (event.type === 'status' && event.payload.state === 'idle' && activeRuns.get(event.sessionId) === runId) activeRuns.delete(event.sessionId)
     return published
   }

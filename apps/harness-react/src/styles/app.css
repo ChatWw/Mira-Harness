@@ -115,3 +115,6 @@
 .mira-attachment-preview__notice p { margin: 0; }
 .mira-attachment-preview__notice button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 6px; color: inherit; background: var(--color-background); }
 .mira-attachment-preview__save-error { position: absolute; bottom: 44px; left: 50%; max-width: calc(100% - 32px); margin: 0; padding: 8px 12px; border-radius: 8px; color: var(--color-destructive); background: var(--color-card); transform: translateX(-50%); }
+
+@import './remote.css';
+@import './mobile.css';

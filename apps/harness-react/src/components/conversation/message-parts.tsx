@@ -34,7 +34,7 @@ export function MessageCopyButton({ content, label = '复制回复', onError }: 
 }
 
 /** 消息附件使用实际保存的文件引用，不把附件正文再次写入气泡。 */
-export function UserMessageAttachments({ message, onOpen, sessionId, controller, active = true, onRemove }: { message?: HarnessMessage; onOpen: (path: string) => void; sessionId?: string; controller?: Pick<PilotController, 'getAttachment'> & Partial<Pick<PilotController, 'saveAttachment' | 'supportsAttachmentSave'>>; active?: boolean; onRemove?: (path: string) => void }) {
+export function UserMessageAttachments({ onPreviewBlocked, message, onOpen, sessionId, controller, active = true, onRemove }: { onPreviewBlocked?: () => void; message?: HarnessMessage; onOpen: (path: string) => void; sessionId?: string; controller?: Pick<PilotController, 'getAttachment'> & Partial<Pick<PilotController, 'saveAttachment' | 'supportsAttachmentSave'>>; active?: boolean; onRemove?: (path: string) => void }) {
   const [loaded, setLoaded] = useState<Record<string, { attachment?: HarnessMessageAttachment; error?: string }>>({})
   const [retry, setRetry] = useState(0)
   const [preview, setPreview] = useState<{ scope: string; controller?: Pick<PilotController, 'getAttachment'>; attachment: HarnessMessageAttachment }>()
@@ -59,7 +59,7 @@ export function UserMessageAttachments({ message, onOpen, sessionId, controller,
     const retained = active ? current.current.keys : new Set<string>()
     setLoaded(previous => Object.fromEntries(Object.entries(previous).filter(([fileKey]) => retained.has(fileKey))))
     for (const fileKey of requests.current.keys()) if (!retained.has(fileKey)) requests.current.delete(fileKey)
-    if (!active || !sessionId || !controller) return
+    if (onPreviewBlocked || !active || !sessionId || !controller) return
     for (const file of attachments) {
       const fileKey = key(file.path)
       if (!file.mediaType || file.content || currentLoaded.current[fileKey] || requests.current.has(fileKey)) continue
@@ -83,16 +83,17 @@ export function UserMessageAttachments({ message, onOpen, sessionId, controller,
     const frozenPreview = Boolean(attachment.mediaType || attachment.path.startsWith('mira-attachment:'))
     const fileKey = key(attachment.path), state = active ? loaded[fileKey] : undefined
     const ready = state?.error ? undefined : attachment.content || !attachment.mediaType ? attachment : state?.attachment
-    const loading = Boolean(attachment.mediaType && !ready && !state?.error)
+    const loading = Boolean(!onPreviewBlocked && attachment.mediaType && !ready && !state?.error)
     const image = isHarnessImageMediaType(attachment.mediaType)
-    const previewButton = <button key={`${attachment.path}:${index}`} type="button" className={image ? 'mira-message-attachment--image' : undefined} title={state?.error ? `${state.error}\n点击重试` : external && !frozenPreview ? `${attachment.path}\n外部附件，不在当前工作区中` : frozenPreview ? attachment.name : attachment.path} aria-label={`${state?.error ? '重试附件' : loading ? '正在读取附件' : '预览附件'} ${attachment.name || attachment.path}`} aria-busy={loading || undefined} disabled={!active || external && !frozenPreview || loading} onClick={() => {
+    const previewButton = <button key={`${attachment.path}:${index}`} type="button" className={image ? 'mira-message-attachment--image' : undefined} title={state?.error ? `${state.error}\n点击重试` : external && !frozenPreview ? `${attachment.path}\n外部附件，不在当前工作区中` : frozenPreview ? attachment.name : attachment.path} aria-label={`${state?.error ? '重试附件' : loading ? '正在读取附件' : '预览附件'} ${attachment.name || attachment.path}`} aria-busy={loading || undefined} disabled={!active || !onPreviewBlocked && (external && !frozenPreview || loading)} onClick={() => {
       if (!isCurrent(fileKey)) return
+      if (onPreviewBlocked) { onPreviewBlocked(); return }
       if (state?.error) retryAttachment(attachment.path)
       else if (frozenPreview && ready) setPreview({ scope, controller, attachment: ready })
       else if (!external) onOpen(attachment.path)
     }}>{state?.error ? <><CircleAlert size={18} className="mx-auto" /><span>重试</span><span className="sr-only" role="alert">{state.error}</span></> : image ? ready ? <img src={`data:${ready.mediaType};base64,${ready.content}`} alt={attachment.name} onError={() => {
       if (isCurrent(fileKey)) setLoaded(previous => ({ ...previous, [fileKey]: { error: '图片无法解码，请重试。' } }))
-    }} /> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <>{attachment.kind === 'directory' ? <Folder size={15} strokeWidth={1.5} aria-hidden="true" /> : <img src={miraFileTreeIcon(attachment.name || attachment.path)} width={15} height={15} alt="" aria-hidden="true" draggable={false} />}<span>{attachment.name || attachment.path}</span></>}</button>
+    }} /> : onPreviewBlocked ? <span>{attachment.name}</span> : <LoaderCircle size={18} className="mx-auto animate-spin" /> : <>{attachment.kind === 'directory' ? <Folder size={15} strokeWidth={1.5} aria-hidden="true" /> : <img src={miraFileTreeIcon(attachment.name || attachment.path)} width={15} height={15} alt="" aria-hidden="true" draggable={false} />}<span>{attachment.name || attachment.path}</span></>}</button>
     return onRemove ? <div key={`${attachment.path}:${index}`} className="mira-history-attachment">{previewButton}<button type="button" className="mira-history-attachment__remove" aria-label={`移除附件 ${attachment.name || attachment.path}`} title="仅从这条消息移除，保留本地文件" disabled={!active} onMouseDown={event => event.preventDefault()} onClick={() => onRemove(attachment.path)}><X size={12} /></button></div> : previewButton
   })}</div><MiraAttachmentPreview attachment={active && preview?.scope === scope && preview.controller === controller && attachments.some(file => file.path === preview.attachment.path) ? preview.attachment : undefined} gallery={attachments.filter(file => isHarnessImageMediaType(file.mediaType)).map(file => {
     const state = active ? loaded[key(file.path)] : undefined

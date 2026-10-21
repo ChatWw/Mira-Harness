@@ -103,3 +103,16 @@ it('does not validate or render file cards for a read-only reply mentioning exis
     expect(listFilesFor).not.toHaveBeenCalled()
   } finally { await act(async () => root.unmount()) }
 })
+
+it('keeps mobile deliverable actions without requesting desktop resources', async () => {
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container)
+  const listFilesFor = vi.fn(), listEditors = vi.fn(), blocked = vi.fn()
+  const controller = { listFilesFor, listEditors } as unknown as PilotController
+  try {
+    await act(async () => root.render(<MiraDeliverableFiles content="[report](report.pdf)" changes={[]} directory="/project" sessionId="a" active controller={controller} onOpen={blocked} onDesktopOnly={blocked} />))
+    expect(container.textContent).toContain('report.pdf')
+    for (const button of container.querySelectorAll<HTMLButtonElement>('button')) await act(async () => button.click())
+    expect(blocked).toHaveBeenCalledTimes(2)
+    expect(listFilesFor).not.toHaveBeenCalled(); expect(listEditors).not.toHaveBeenCalled()
+  } finally { await act(async () => root.unmount()) }
+})

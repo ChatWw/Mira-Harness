@@ -88,6 +88,15 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('keeps LAN controls on the desktop owner grant', async () => {
+    const remoteControl = vi.fn(async () => ({ enabled: false, urls: [] }))
+    const { invoke } = register({ remoteControl, harnessRuntime: {} as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    await expect(invoke('platform:first-party-harness', grant, 'remote.control', { action: 'status' })).resolves.toEqual({ enabled: false, urls: [] })
+    expect(remoteControl).toHaveBeenCalledOnce()
+    expect(() => invoke('platform:first-party-harness', 'invalid', 'remote.control', { action: 'start' })).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'remote.control', { action: 'invalid' })).toThrow('操作无效')
+  })
   it('updates React project roots through the authorized data bridge and rejects active projects', async () => {
     const isProjectRunning = vi.fn(() => false), closeInvalid = vi.fn()
     const view = register({ harnessRuntime: { isProjectRunning } as never, workspaceWatch: { closeInvalid, closeForGrant: vi.fn() } as never })

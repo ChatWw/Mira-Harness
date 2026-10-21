@@ -16,6 +16,8 @@ import { createMainWindow, destroyTray, setupApplicationMenu, setupDevelopmentDo
 import { type HarnessEvent } from '../src/config/harness'
 import { HarnessTerminalSessions } from './services/harnessTerminalSessions'
 import { HarnessWorkspaceWatch } from './services/harnessWorkspaceWatch'
+import { MiraLanRemote } from './services/miraLanRemote'
+import { createRemoteHarness } from './services/miraRemoteHarness'
 
 import { miraBrowserAutomation } from './services/miraBrowserAutomation'
 import { AutomationKeepAwake } from './services/automationKeepAwake'
@@ -24,6 +26,7 @@ const keepAwake = new AutomationKeepAwake(powerSaveBlocker)
 let keepAwakeTimer: ReturnType<typeof setInterval> | undefined
 let isQuitting = false
 let services: PlatformServices | undefined
+let lanRemote: MiraLanRemote | undefined
 let shutdown: Promise<void> | undefined
 let shutdownComplete = false
 const terminalSessions = new HarnessTerminalSessions()
@@ -49,12 +52,23 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
+  let remoteOwner: import('electron').WebContents | undefined
+  const remoteHarness = createRemoteHarness(services.database, services.harnessRuntime, () => {
+    if (!remoteOwner || remoteOwner.isDestroyed()) throw new Error('电脑窗口已关闭，请重新开启远程控制')
+    return remoteOwner
+  })
+  lanRemote = new MiraLanRemote({ root: app.isPackaged ? join(process.resourcesPath, 'harness-react-app') : resolve(app.getAppPath(), 'dist/harness-react-app'), ...remoteHarness })
+  const remoteControl: NonNullable<import('./ipc/platformIpc').PlatformIpcDependencies['remoteControl']> = async (sender, action, id) => {
+    if (action === 'start') { if (!lanRemote!.status().enabled) remoteHarness.reset(); remoteOwner = sender; return lanRemote!.start() }
+    if (action === 'stop') { remoteHarness.reset(); return lanRemote!.stop() }
+    return lanRemote!.status()
+  }
   keepAwakeTimer = setInterval(() => {
     if (!services || isQuitting) return
     const enabled = services.database.getSnapshot().preferences.keepAwakeDuringSessions === true
     keepAwake.update(enabled, enabled && services.harnessRuntime.hasRunningSessions())
   }, 1000)
-  registerPlatformIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  registerPlatformIpcHandlers({ remoteControl, database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
   ipcMain.handle('mira:browser-bind', (event, sessionId, browserId, guestId) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('浏览器绑定仅允许主窗口调用')
     if (typeof sessionId !== 'string' || typeof browserId !== 'string' || !Number.isSafeInteger(guestId)) throw new Error('浏览器绑定参数无效')
@@ -99,6 +113,7 @@ app.on('before-quit', event => {
   shutdown = (async () => {
     try {
       // Workflow actors finish abort/persistence before the desktop process exits.
+      await lanRemote?.stop()
       await Promise.all([services?.harnessRuntime.disposeCommandJobs(), services?.miraFlowController.dispose()])
       await services?.database.modelTrace.flush()
       await Promise.allSettled([services?.mcpManager.closeAll(), services?.mcpAuthorization.closeAll(), services?.localMicroAppServer.stop()])

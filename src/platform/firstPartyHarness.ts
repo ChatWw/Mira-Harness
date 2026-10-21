@@ -201,6 +201,11 @@ function automationTask(value: unknown): AutomationTaskInput {
 }
 
 export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
+  if (method === 'remote.control') {
+    const params = fields(raw)
+    if (!['status', 'start', 'stop'].includes(String(params.action))) throw new Error('远程控制操作无效')
+    return { method, action: params.action as import('../config/miraRemote').MiraRemoteAction, id: params.id === undefined ? undefined : string(params.id, '连接请求') } as const
+  }
   if (method === 'agent-models.list') return { method } as const
   if (method === 'agent-models.set') {
     const params = fields(raw), input = fields(params.target)

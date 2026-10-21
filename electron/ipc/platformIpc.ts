@@ -36,6 +36,7 @@ import { HarnessHookCatalog } from '../services/harnessHookCatalog'
 import { isMiraPluginId } from '../../src/config/miraPlugins'
 
 export interface PlatformIpcDependencies {
+  remoteControl?: (sender: import('electron').WebContents, action: import('../../src/config/miraRemote').MiraRemoteAction, id?: string) => Promise<import('../../src/config/miraRemote').MiraRemoteStatus>
   workspaceHtml?: MiraWorkspaceHtml
   workspaceMedia?: MiraWorkspaceMedia
   flows?: MiraFlowRequestPort
@@ -75,7 +76,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, workspaceHtml, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ remoteControl, database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, workspaceHtml, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const userAgents = (call: ReturnType<typeof parseFirstPartyHarnessCall>) => {
     if (!['agents.list', 'agents.read', 'agents.save', 'agents.delete', 'agents.setEnabled'].includes(call.method)) throw new Error('智能体请求无效')
     let directory: string | undefined
@@ -295,6 +296,7 @@ export function registerPlatformIpcHandlers({ database, harnessRuntime, flows, l
         const directory = session?.workingDirectory || (projectId ? database.harness.getProject(projectId).directory : undefined)
         return database.promptHistory.list(directory)
       }
+      case 'remote.control': { if (!remoteControl) throw new Error('远程控制不可用'); return remoteControl(event.sender, call.action, call.id) }
       case 'permissions.config': return database.harness.getPermissionConfig()
       case 'automations.list': {
         if (!automationScheduler) throw new Error('自动化服务不可用')

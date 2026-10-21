@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { PilotController } from '../../state/pilot-state'
 import { workspaceEditorIcon, type WorkspaceEditorInfo } from '../../lib/workspace-editors'
 
-export function MiraFileOpenButton({ path, directory, controller, sessionId, active = true, onOpen }: {
-  path: string; directory: string; controller?: PilotController; sessionId?: string; active?: boolean; onOpen: (path: string) => void
+export function MiraFileOpenButton({ path, directory, controller, sessionId, active = true, onOpen, onDesktopOnly }: {
+  onDesktopOnly?: () => void; path: string; directory: string; controller?: PilotController; sessionId?: string; active?: boolean; onOpen: (path: string) => void
 }) {
   const [editors, setEditors] = useState<WorkspaceEditorInfo[]>([])
   const [loading, setLoading] = useState(false), [error, setError] = useState(''), [busy, setBusy] = useState(false)
@@ -33,7 +33,7 @@ export function MiraFileOpenButton({ path, directory, controller, sessionId, act
   return <div className="mira-file-open-actions">
     <div className="mira-file-open-button">
       <button type="button" disabled={!active || busy} aria-label={`打开 ${path.split('/').pop()}`} onClick={() => onOpen(path)}>打开</button>
-      <DropdownMenu.Root onOpenChange={open => { if (open) void load() }}><DropdownMenu.Trigger disabled={!active || busy} aria-label={`${path.split('/').pop()} 的打开方式`}><ChevronDown size={13} /></DropdownMenu.Trigger>
+      {onDesktopOnly ? <button type="button" aria-label="打开方式" onClick={onDesktopOnly}><ChevronDown size={13} /></button> : <DropdownMenu.Root onOpenChange={open => { if (open) void load() }}><DropdownMenu.Trigger disabled={!active || busy} aria-label={`${path.split('/').pop()} 的打开方式`}><ChevronDown size={13} /></DropdownMenu.Trigger>
         <DropdownMenu.Portal container={typeof document === 'undefined' ? undefined : document.getElementById('root')}><DropdownMenu.Content className="mira-session-menu mira-editor-menu" align="end" sideOffset={5}>
           {loading && <DropdownMenu.Label className="mira-session-menu__label">正在检测应用…</DropdownMenu.Label>}
           {editors.map(editor => <DropdownMenu.Item key={editor.id} className="mira-session-menu__item" disabled={busy || !sessionId} onSelect={() => void action(() => controller!.openFileInEditorFor(sessionId!, path, editor.id))}>{workspaceEditorIcon(editor.icon) ? <img width={16} height={16} src={workspaceEditorIcon(editor.icon)} alt="" /> : <ExternalLink size={14} />}{editor.name}</DropdownMenu.Item>)}
@@ -43,7 +43,7 @@ export function MiraFileOpenButton({ path, directory, controller, sessionId, act
           <DropdownMenu.Item className="mira-session-menu__item" disabled={busy || !directory} onSelect={() => void action(() => navigator.clipboard.writeText(`${directory.replace(/[\\/]$/, '')}/${path}`))}><Copy size={14} />复制绝对路径</DropdownMenu.Item>
           <DropdownMenu.Item className="mira-session-menu__item" disabled={busy} onSelect={() => void action(() => navigator.clipboard.writeText(path))}><Copy size={14} />复制相对路径</DropdownMenu.Item>
         </DropdownMenu.Content></DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      </DropdownMenu.Root>}
     </div>
     {error && <span className="mira-file-action-error" role="alert">{error}</span>}
   </div>

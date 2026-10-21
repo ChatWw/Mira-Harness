@@ -117,6 +117,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   }
 
   onPrepareLeave(callback: () => Promise<void>) { this.prepareLeave = callback }
+  remoteControl = (action: import('../../../../src/config/miraRemote').MiraRemoteAction, id?: string) => this.call<import('../../../../src/config/miraRemote').MiraRemoteStatus>('remote.control', { action, id })
   onCloseContext(callback: () => Promise<boolean>) {
     if (!this.closed) this.closeContext = callback
     return () => { if (this.closeContext === callback) this.closeContext = undefined }

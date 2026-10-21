@@ -23,6 +23,7 @@ export interface PilotBrowserEvent { sessionId: string; browserId?: string; url:
 export interface PilotWorkspaceFileEvent { sessionId: string; watchId: string; directory: string; paths: string[]; error?: string }
 
 export interface PilotHost {
+  remoteControl?(action: import('../../../../src/config/miraRemote').MiraRemoteAction, id?: string): Promise<import('../../../../src/config/miraRemote').MiraRemoteStatus>
   requestWorkflow?<T>(request: import('../../../../src/config/miraFlowWorkbench').MiraFlowWorkbenchRequest): Promise<T>
   listSessions(): Promise<HarnessSessionSummary[]>
   listProjects(): Promise<HarnessProject[]>
@@ -849,6 +850,26 @@ export class PilotController {
   get supportsArchivedDeletion() { return Boolean(this.host.getArchivedSnapshot && this.host.deleteArchivedSessions) }
   getArchivedSnapshot() { return this.require('getArchivedSnapshot')() }
   refreshSessions() { return this.refreshList() }
+  async refreshRemoteCatalog() {
+    const [projects, providers] = await Promise.all([this.host.listProjects(), this.host.listProviders()])
+    if (!this.disposed) this.update({ projects, providers, selection: this.availableSelection(this.state.selection, providers) })
+    await this.refreshList()
+  }
+  async refreshCurrent() {
+    const id = this.activeSessionId; const generation = this.generation
+    if (!id) return
+    await this.refreshSession(id, generation, true, true)
+    if (generation !== this.generation || id !== this.activeSessionId) return
+    const revision = this.permissionRevision
+    const [pending, queue] = await Promise.all([this.host.listPendingPermissions(id), this.host.getMessageQueue?.(id)])
+    if (generation !== this.generation || id !== this.activeSessionId) return
+    if (queue) this.applyQueue(queue)
+    if (revision !== this.permissionRevision) return
+    for (const [key, request] of this.pendingToolApprovals) if (request.sessionId === id) this.pendingToolApprovals.delete(key)
+    pending.forEach(request => this.pendingToolApprovals.set(request.requestId, request))
+    const permissions = { ...this.state.pendingPermissions }; if (pending[0]) permissions[id] = pending[0]; else delete permissions[id]
+    this.update({ permission: pending[0], pendingPermissions: permissions })
+  }
   deleteArchivedSessions(snapshotId: string) {
     if (this.archivedDeletion) {
       if (this.archivedDeletion.snapshotId === snapshotId) return this.archivedDeletion.promise
@@ -1025,6 +1046,7 @@ export class PilotController {
     })
   }
   setSessionPermission(id: string, mode: PermissionMode) { return this.run(async () => { await this.require('setSessionPermission')(id, mode); await this.refreshList(); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
+  remoteControl = (action: import('../../../../src/config/miraRemote').MiraRemoteAction, id?: string) => this.require('remoteControl')(action, id)
   setSessionSkills(id: string, skillIds: string[]) { return this.run(async () => { await this.require('setSessionSkills')(id, skillIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   setSessionMcpServers(id: string, serverIds: string[]) { return this.run(async () => { await this.require('setSessionMcpServers')(id, serverIds); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }
   setSessionDelegation(id: string, enabled: boolean) { return this.run(async () => { await this.require('setSessionDelegation')(id, enabled); if (id === this.activeSessionId) await this.refreshSession(id, this.generation) }) }

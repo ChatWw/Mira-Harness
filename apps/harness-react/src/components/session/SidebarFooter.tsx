@@ -1,3 +1,4 @@
+import { MiraRemoteControl } from './MiraRemoteControl'
 /* Sidebar menu structure follows ZCode WorkspaceSidebarFooter (Apache-2.0).
  * See third-party-licenses/zcode. Mira exposes only its local appearance and settings actions. */
 import { useState } from 'react'
@@ -21,5 +22,5 @@ export function SidebarFooter({ controller }: { controller: PilotController }) {
     <DropdownMenu.Separator className="harness-composer__menu-separator" />
     <DropdownMenu.Item className="harness-composer__menu-item" onSelect={() => { void controller.navigate('/settings/usage') }}><ChartNoAxesColumn size={16} /><span>使用统计</span></DropdownMenu.Item>
     <DropdownMenu.Item className="harness-composer__menu-item" onSelect={() => { void controller.navigate('/settings') }}><Settings size={16} /><span>设置</span></DropdownMenu.Item>
-  </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root></footer>
+  </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root><MiraRemoteControl controller={controller} /></footer>
 }

@@ -350,8 +350,10 @@ export class HarnessRuntime {
   private readonly workflowNotifications = new Set<string>()
   private commandNoticesClosing = false
   private readonly pausedCommandNotices = new Set<string>()
+  private readonly eventObservers = new Set<(event: HarnessEvent) => void>()
+  onPublicEvent(listener: (event: HarnessEvent) => void) { this.eventObservers.add(listener); return () => { this.eventObservers.delete(listener) } }
   constructor(private readonly database: PlatformDatabase, private readonly mcpManager: McpManager, backgroundEventPublisher?: (event: HarnessEvent) => void, private readonly mcpConfigStore?: McpConfigStore, private readonly flowRipgrepPath = resolveMiraRipgrepPath({ appPath: process.cwd() }), private readonly webRequest?: WebRequest) {
-    this.emit = createHarnessEventPublisher(backgroundEventPublisher)
+    this.emit = createHarnessEventPublisher(backgroundEventPublisher, event => { for (const observer of this.eventObservers) observer(event) })
     this.runCoordinator = new HarnessRunCoordinator(database, this.emit, id => this.assertGitAdmission(id))
     this.permissionPolicy = new HarnessPermissionPolicy(database, this.emit)
     this.subtaskCoordinator = new HarnessSubtaskCoordinator(database)

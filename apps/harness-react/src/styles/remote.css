@@ -1,0 +1,32 @@
+.mira-remote-trigger { display: grid; flex: none; width: 32px; height: 32px; place-items: center; margin-left: auto; border: 0; border-radius: 7px; background: transparent; color: var(--mira-foreground-subtle); }
+.mira-remote-trigger:hover { background: var(--mira-hover); }
+.mira-remote-trigger:focus, .mira-remote-trigger:focus-visible { outline: none; box-shadow: none; }
+.mira-remote-trigger[data-connection-state='waiting'] { color: #d99b00; }
+.mira-remote-trigger[data-connection-state='connected'] { color: var(--mira-success); }
+.mira-remote-dialog { position: fixed; z-index: 151; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; gap: 20px; width: min(536px, calc(100vw - 40px)); max-height: calc(100dvh - 64px); overflow: auto; padding: 20px; border: 1px solid var(--mira-border); border-radius: 16px; color: var(--mira-foreground); background: var(--mira-background); box-shadow: var(--shadow-dialog); }
+.mira-remote-dialog header { display: flex; align-items: center; gap: 8px; padding-right: 20px; }
+.mira-remote-heading-icon { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border: 1px solid var(--mira-border); border-radius: 8px; background: var(--mira-surface); }
+.mira-remote-dialog h2, .mira-remote-dialog h3 { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; }
+.mira-remote-dialog p { margin: 4px 0 0; font-size: 13px; line-height: 1.7; color: var(--mira-foreground-subtle); }
+.mira-remote-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 4px 9px; border: 1px solid var(--mira-border); border-radius: 6px; color: inherit; background: transparent; font-size: 12px; cursor: pointer; }
+.mira-remote-dialog button:hover:not(:disabled) { background: var(--mira-hover); }
+.mira-remote-dialog button:disabled { opacity: .5; cursor: default; }
+.mira-remote-dialog .mira-remote-close { position: absolute; top: 8px; right: 8px; width: 28px; padding: 4px; border: 0; }
+.mira-remote-scan { padding: 16px; border: 1px solid var(--mira-border); border-radius: 12px; }
+.mira-remote-section-heading { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 16px; }
+.mira-remote-section-heading > svg { margin-top: 3px; color: var(--mira-foreground-subtle); }
+.mira-remote-connection { padding: 10px 12px; border-radius: 8px; background: var(--mira-surface); }
+.mira-remote-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mira-remote-status-label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.mira-remote-status-label strong { font-weight: 500; }
+.mira-remote-status-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 999px; background: var(--mira-background); color: var(--mira-foreground-subtle); font-size: 10px; }
+.mira-remote-status-tag i { width: 6px; height: 6px; border-radius: 50%; background: var(--mira-foreground-subtle); }
+.mira-remote-status-tag[data-connection-state='waiting'] i { background: #d99b00; }
+.mira-remote-status-tag[data-connection-state='connected'] i { background: var(--mira-success); }
+.mira-remote-copy-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--mira-border); color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-remote-copy-row button, .mira-remote-status-row > button { flex: none; color: var(--mira-foreground); }
+.mira-remote-qr { display: grid; min-height: 300px; place-items: center; margin-top: 12px; padding: 16px; border: 1px dashed var(--mira-border); border-radius: 12px; background: var(--mira-background-alt); }
+.mira-remote-qr img { display: block; width: min(256px, 100%); height: auto; border-radius: 8px; background: #fff; }
+.mira-remote-qr > div { display: grid; justify-items: center; gap: 12px; color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-remote-dialog .mira-remote-notice { margin: -8px 0 0; font-size: 12px; }
+.mira-remote-dialog .mira-remote-error { color: var(--mira-destructive); }

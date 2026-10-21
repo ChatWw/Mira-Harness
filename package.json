@@ -61,23 +61,17 @@
       {
         "from": "dist/harness-react-app",
         "to": "harness-react-app",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "dist/mira-flow-host",
         "to": "mira-flow-host",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "dist/mira-tools/ripgrep",
         "to": "tools/ripgrep",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "dist/mira-tools/cua-driver",
@@ -87,16 +81,12 @@
       {
         "from": "resources/python",
         "to": "python",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "resources/plugins",
         "to": "plugins",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       }
     ]
   },
@@ -153,6 +143,7 @@
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.28.2",
+    "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-pdf": "10.4.1",
@@ -177,6 +168,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^26.1.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/turndown": "^5.0.6",

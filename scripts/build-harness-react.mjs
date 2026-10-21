@@ -84,6 +84,7 @@ async function buildHarnessReact() {
   const result = await build({
     entryPoints: {
       app: resolve('apps/harness-react/src/app/app-main.tsx'),
+      mobile: resolve('apps/harness-react/src/app/mobile-main.tsx'),
       'mira-code-highlight.worker': resolve('apps/harness-react/src/workers/mira-code-highlight.worker.ts'),
     },
     define: { MIRA_HIGHLIGHT_WORKER_PATH: JSON.stringify('./mira-code-highlight.worker.js') },
@@ -103,6 +104,7 @@ async function buildHarnessReact() {
     logLevel: 'info',
   })
   await copyFile(resolve('apps/harness-react/app.html'), resolve(output, 'index.html'))
+  await copyFile(resolve('apps/harness-react/mobile.html'), resolve(output, 'mobile.html'))
   await copyFile(resolve('apps/harness-react/NOTICE.md'), resolve(output, 'NOTICE.md'))
   await cp(resolve('third-party-licenses'), resolve(output, 'third-party-licenses'), { recursive: true })
   // Tailwind v4（CSS-first）：令牌与组件类统一由 CLI 编译，扫描 harness-react 源码与 streamdown 运行时类名。

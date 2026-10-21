@@ -18,7 +18,7 @@ type MiraModelMenuProps = {
   container?: HTMLElement | null
   disabled: boolean
   onSelect: (model: MiraModelOption) => void
-  onManage: () => void
+  onManage?: () => void
   onReturnFocus: () => void
   onEscapeKeyDown?: (event: globalThis.KeyboardEvent) => void
 }
@@ -84,9 +84,9 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
           setOpenProvider(undefined)
         }}>{renderModels(options)}</DropdownMenu.SubContent></DropdownMenu.Portal>
       </DropdownMenu.Sub>)}
-      {!models.length && <span className="harness-composer__menu-empty">请先在设置中配置模型</span>}
+      {!models.length && <span className="harness-composer__menu-empty">{onManage ? '请先在设置中配置模型' : '暂无可用模型，请在电脑上配置'}</span>}
       {models.length > 0 && search && !matches.length && <span className="harness-composer__menu-empty" role="status">没有匹配的模型</span>}
     </div>
-    <div className="mira-model-menu__footer"><DropdownMenu.Separator className="harness-composer__menu-separator" /><DropdownMenu.Item data-mira-model-row className="harness-composer__menu-item" onSelect={() => { returnFocus.current = false; onManage() }}><Settings2 size={16} /><span>管理模型</span></DropdownMenu.Item></div>
+    {onManage && <div className="mira-model-menu__footer"><DropdownMenu.Separator className="harness-composer__menu-separator" /><DropdownMenu.Item data-mira-model-row className="harness-composer__menu-item" onSelect={() => { returnFocus.current = false; onManage() }}><Settings2 size={16} /><span>管理模型</span></DropdownMenu.Item></div>}
   </DropdownMenu.Content></DropdownMenu.Portal>
 }

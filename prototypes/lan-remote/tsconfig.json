@@ -1,0 +1,4 @@
+{
+  "extends": "../../apps/harness-react/tsconfig.json",
+  "include": ["pc-preview.tsx", "../../apps/harness-react/src/**/*.ts", "../../apps/harness-react/src/**/*.tsx"]
+}
