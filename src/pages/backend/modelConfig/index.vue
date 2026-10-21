@@ -1,5 +1,5 @@
 <template>
-  <SettingsPageShell title="模型" wide workspace :show-title="false">
+  <SettingsPageShell title="模型服务" wide workspace :show-title="false">
     <div class="provider-page">
       <aside class="provider-rail">
         <header class="provider-rail__header">
@@ -184,6 +184,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { onBeforeRouteLeave } from 'vue-router'
 import Draggable from 'vuedraggable'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MODEL_PRICING, inferModelReasoning, isModelProviderAvailable, MODEL_PROVIDER_PRESETS, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ProviderModelConfig } from '@/config/harness'
@@ -259,7 +260,7 @@ const activePreset = computed(() => FIXED_PRESETS.find(preset => preset.key === 
 const endpointLocked = computed(() => form.providerKey !== 'ollama')
 const previewAvailable = computed(() => isModelProviderAvailable({ ...form, id: form.id || 'draft', providerKey: form.providerKey || 'glm', authMode: form.authMode || 'api-key', hasApiKey: Boolean(form.apiKey?.trim()), createdAt: 0, updatedAt: 0 } as ModelProviderSummary))
 const modelCandidates = computed(() => [...new Set([...(activePreset.value?.models || []), ...remoteModels.value, ...form.models.map(model => model.id)])])
-const saveHint = computed(() => !form.enabled ? '供应商当前为停用状态' : previewAvailable.value ? '保存后可在聊天、小说和自动化中使用' : '完成凭据并至少启用一个模型后可用')
+const saveHint = computed(() => !form.enabled ? '供应商当前为停用状态' : previewAvailable.value ? '保存后可在工作台任务和自动化中使用' : '完成凭据并至少启用一个模型后可用')
 const hasUnsavedChanges = computed(() => Boolean(cleanSnapshot.value && cleanSnapshot.value !== formSnapshot()))
 
 function providerIconUrl(key: ModelProviderKey) {
@@ -399,15 +400,20 @@ async function openConfigFile() {
 }
 function refreshWhenVisible() { if (document.visibilityState === 'visible' && !hasUnsavedChanges.value) void load() }
 
+onBeforeRouteLeave(async () => {
+  if (saving.value || loading.value) return false
+  if (!hasUnsavedChanges.value) return true
+  try { await ElMessageBox.confirm('供应商配置尚未保存，离开后将丢失修改。', '未保存的修改', { type: 'warning', confirmButtonText: '放弃修改', cancelButtonText: '继续编辑' }); return true } catch { return false }
+})
 onMounted(() => { void load(); window.addEventListener('focus', refreshWhenVisible); document.addEventListener('visibilitychange', refreshWhenVisible) })
 onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible); document.removeEventListener('visibilitychange', refreshWhenVisible) })
 </script>
 
 <style scoped lang="scss">
-.provider-page { display: grid; height: 100%; min-width: 0; min-height: 560px; grid-template-columns: 260px minmax(0, 1fr); overflow: hidden; background: var(--cp-bg); }
+.provider-page { display: grid; height: 100%; min-width: 0; min-height: 0; grid-template-columns: 260px minmax(0, 1fr); overflow: hidden; background: var(--cp-bg); }
 .provider-rail { display: flex; min-height: 0; flex-direction: column; background: var(--cp-bg); border-right: 1px solid var(--cp-border); }
 .provider-rail__header { padding: 24px 20px 18px; }
-.provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: 20px; line-height: 1.3; }
+.provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 600; line-height: 1.3; }
 .provider-rail__header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
 .provider-list { min-width: 0; min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 4px 10px 16px; }
 .provider-group { display: grid; min-width: 0; max-width: 100%; gap: 6px; margin-bottom: 6px; border-radius: 8px; cursor: grab; }
@@ -421,7 +427,7 @@ onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible);
 .provider-mark { width: 34px; height: 34px; margin-left: 0px; border-radius: 7px; }
 .provider-mark img { width: 23px; height: 23px; object-fit: contain; }
 .provider-name { min-width: 0; flex: 1; overflow: hidden; font-size: $font-sm; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.provider-item.active .provider-name { font-weight: 600; }
+.provider-item.active .provider-name { font-weight: 500; }
 .provider-drag-indicator { color: var(--cp-text-secondary); opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
 .provider-item:hover .provider-drag-indicator, .provider-item.active .provider-drag-indicator, .provider-item:focus-visible .provider-drag-indicator { opacity: 1; }
 .provider-status { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--cp-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-success) 16%, transparent); }
@@ -433,22 +439,22 @@ onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible);
 .provider-panel__header { display: flex; min-height: 88px; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 30px; border-bottom: 1px solid var(--cp-border); }
 .provider-identity { display: flex; min-width: 0; align-items: center; gap: 14px; }
 .provider-logo { width: 48px; height: 48px; border-radius: 8px; }.provider-logo img { width: 32px; height: 32px; object-fit: contain; }
-.provider-identity h2 { margin: 0; color: var(--cp-text); font-size: 19px; line-height: 1.35; }.provider-identity p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-identity h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 600; line-height: 1.35; }.provider-identity p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
 .provider-enable { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: $font-xs; }
 .provider-panel__body { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 30px 28px; }
 .settings-section { padding: 26px 0 30px; border-bottom: 1px solid var(--cp-border-light); }.settings-section:last-child { border-bottom: 0; }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
-.section-heading h3 { margin: 0; color: var(--cp-text); font-size: $font-base; }.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
-.readiness { display: inline-flex; height: 26px; align-items: center; gap: 7px; padding: 0 10px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 13px; font-size: 11px; }.readiness i { width: 7px; height: 7px; border-radius: 50%; background: var(--cp-border); }.readiness.ready { color: var(--cp-success); }.readiness.ready i { background: var(--cp-success); }
-.connection-form { max-width: 700px; }.connection-form :deep(.el-form-item) { margin-bottom: 18px; }.connection-form :deep(.el-input__inner::placeholder), .model-dialog-form :deep(.el-input__inner::placeholder) { color: var(--cp-text-secondary); }.connection-form :deep(.el-input.is-disabled .el-input__inner) { -webkit-text-fill-color: var(--cp-text-secondary); }.field-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-secondary); font-size: 11px; }
-.no-auth-row { display: flex; max-width: 700px; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 14px; background: var(--cp-bg-hover); border-radius: $radius-sm; }.no-auth-row__icon { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-success); }.no-auth-row strong { color: var(--cp-text); font-size: $font-sm; }.no-auth-row p { margin: 3px 0 0; color: var(--cp-text-secondary); font-size: 11px; }
+.section-heading h3 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 600; }.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
+.readiness { display: inline-flex; height: 26px; align-items: center; gap: 7px; padding: 0 10px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 13px; font-size: var(--settings-text-small); }.readiness i { width: 7px; height: 7px; border-radius: 50%; background: var(--cp-border); }.readiness.ready { color: var(--cp-success); }.readiness.ready i { background: var(--cp-success); }
+.connection-form { max-width: 700px; }.connection-form :deep(.el-form-item) { margin-bottom: 18px; }.connection-form :deep(.el-input__inner::placeholder), .model-dialog-form :deep(.el-input__inner::placeholder) { color: var(--cp-text-secondary); }.connection-form :deep(.el-input.is-disabled .el-input__inner) { -webkit-text-fill-color: var(--cp-text-secondary); }.field-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.no-auth-row { display: flex; max-width: 700px; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 14px; background: var(--cp-bg-hover); border-radius: $radius-sm; }.no-auth-row__icon { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-success); }.no-auth-row strong { color: var(--cp-text); font-size: $font-sm; }.no-auth-row p { margin: 3px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .connection-actions, .model-actions { display: flex; align-items: center; gap: 10px; }.connection-result { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-text-secondary); font-size: $font-xs; }.connection-result.success { color: var(--cp-success); }.connection-result.error { color: var(--cp-danger); }
 .model-list { border-top: 1px solid var(--cp-border-light); }.model-row { display: grid; min-height: 62px; align-items: center; column-gap: 14px; grid-template-columns: auto minmax(180px, 1fr) 112px 92px auto; border-bottom: 1px solid var(--cp-border-light); }
 .model-row__identity { display: flex; min-width: 0; align-items: center; gap: 7px; }.model-row__identity strong { overflow: hidden; color: var(--cp-text); font-size: $font-sm; text-overflow: ellipsis; white-space: nowrap; }
-.model-badge { padding: 2px 6px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 3px; font-size: 10px; white-space: nowrap; }.model-meta { color: var(--cp-text-secondary); font-size: 11px; white-space: nowrap; }.model-row__actions { display: flex; gap: 2px; }.model-row__actions :deep(.el-button) { margin: 0; }
-.model-empty { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; color: var(--cp-text-secondary); background: transparent; border: 1px dashed var(--cp-border); border-radius: $radius-sm; font: inherit; cursor: pointer; }.model-empty:hover { border-color: var(--cp-primary); }.model-empty > span { display: grid; width: 32px; height: 32px; place-items: center; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: 50%; }.model-empty strong { color: var(--cp-text); font-size: $font-sm; }.model-empty small { color: var(--cp-text-secondary); font-size: 11px; }
-.provider-panel__footer { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 10px 30px; }.provider-panel__footer span { color: var(--cp-text-secondary); font-size: 11px; }
-.model-dialog-form :deep(.el-select) { width: 100%; }.model-dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.input-suffix { margin-left: 8px; color: var(--cp-text-secondary); font-size: $font-xs; }.pricing-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; padding-top: 16px; border-top: 1px solid var(--cp-border-light); }.pricing-heading strong { color: var(--cp-text); font-size: $font-sm; }.pricing-heading p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: 11px; }.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }.pricing-grid :deep(.el-input-number), .pricing-grid :deep(.el-input) { width: 100%; }
+.model-badge { padding: 2px 6px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 3px; font-size: 10px; white-space: nowrap; }.model-meta { color: var(--cp-text-secondary); font-size: var(--settings-text-small); white-space: nowrap; }.model-row__actions { display: flex; gap: 2px; }.model-row__actions :deep(.el-button) { margin: 0; }
+.model-empty { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; color: var(--cp-text-secondary); background: transparent; border: 1px dashed var(--cp-border); border-radius: $radius-sm; font: inherit; cursor: pointer; }.model-empty:hover { border-color: var(--cp-primary); }.model-empty > span { display: grid; width: 32px; height: 32px; place-items: center; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: 50%; }.model-empty strong { color: var(--cp-text); font-size: $font-sm; }.model-empty small { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.provider-panel__footer { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 10px 30px; }.provider-panel__footer span { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.model-dialog-form :deep(.el-select) { width: 100%; }.model-dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.input-suffix { margin-left: 8px; color: var(--cp-text-secondary); font-size: $font-xs; }.pricing-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; padding-top: 16px; border-top: 1px solid var(--cp-border-light); }.pricing-heading strong { color: var(--cp-text); font-size: $font-sm; }.pricing-heading p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }.pricing-grid :deep(.el-input-number), .pricing-grid :deep(.el-input) { width: 100%; }
 @media (max-width: 1180px) {
   .provider-page { grid-template-columns: 220px minmax(0, 1fr); }
   .provider-panel__header, .provider-panel__footer { padding-right: 20px; padding-left: 20px; }

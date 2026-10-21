@@ -22,6 +22,8 @@ import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-d
 import type { MiraPromptCommandItem } from '../src/config/miraPromptCommands'
 import type { MiraUserAgentItem } from '../src/config/miraUserAgents'
 
+vi.mock('../apps/harness-react/src/components/workspace/MiraFullViewHost', () => ({ useMiraConversationPresentation: () => ({ floating: false, placeholder: undefined }) }))
+
 const hooks = vi.hoisted(() => ({ cursor: 0, dirty: false, slots: [] as Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }>, effects: [] as Array<() => void> }))
 // Exercise shipped Composer hooks/catalogues through an explicit editor handle mock.
 // Lexical DOM behavior has its own real-editor tests; Radix owns positioning.

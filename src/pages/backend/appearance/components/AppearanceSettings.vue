@@ -48,7 +48,7 @@ function setTheme(mode: ThemeMode, event: MouseEvent) {
 .appearance-settings { max-width: 720px; padding-bottom: 24px; }
 .settings-section { min-width: 0; }
 .section-heading { margin-bottom: 18px; }
-.section-heading h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; }
+.section-heading h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: $font-semibold; }
 .section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 12px; }
 .theme-option { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; color: var(--cp-text); background: var(--cp-bg-elevated); cursor: pointer; font: inherit; text-align: left; transition: border-color $transition-fast, background-color $transition-fast, box-shadow $transition-fast; }

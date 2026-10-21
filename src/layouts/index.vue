@@ -22,6 +22,10 @@
           </nav>
         </el-popover>
         <div v-if="showAppNavigation" class="mira-shell__navigation" role="group" aria-label="应用导航">
+          <el-tooltip v-if="appNavigation.controls" popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+            <button type="button" class="mira-shell__navigation-button" :aria-label="appNavigation.controls.sidebarOpen ? '收起会话侧栏' : '展开会话侧栏'" :aria-expanded="appNavigation.controls.sidebarOpen" @click="appNavigation.control('toggle-sidebar')"><AppIcon :name="appNavigation.controls.sidebarOpen ? 'lucide:panel-left-close' : 'lucide:panel-left-open'" /></button>
+            <template #content><div class="mira-shell-tooltip__surface"><span>{{ appNavigation.controls.sidebarOpen ? '收起会话侧栏' : '展开会话侧栏' }}</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel('B'))" :key="index">{{ key }}</kbd></span></div></template>
+          </el-tooltip>
           <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
             <button type="button" class="mira-shell__navigation-button" aria-label="后退" :disabled="!appNavigation.state?.canGoBack || appNavigation.state?.busy" @click="appNavigation.go('back')"><AppIcon name="lucide:arrow-left" /></button>
             <template #content><div class="mira-shell-tooltip__surface"><span>后退</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel('['))" :key="index">{{ key }}</kbd></span></div></template>
@@ -30,6 +34,12 @@
             <button type="button" class="mira-shell__navigation-button" aria-label="前进" :disabled="!appNavigation.state?.canGoForward || appNavigation.state?.busy" @click="appNavigation.go('forward')"><AppIcon name="lucide:arrow-right" /></button>
             <template #content><div class="mira-shell-tooltip__surface"><span>前进</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel(']'))" :key="index">{{ key }}</kbd></span></div></template>
           </el-tooltip>
+          <div v-if="appNavigation.controls" class="mira-shell__new-task" :class="{ 'is-visible': !appNavigation.controls.sidebarOpen }" :aria-hidden="appNavigation.controls.sidebarOpen" :inert="appNavigation.controls.sidebarOpen || undefined">
+            <el-tooltip popper-class="mira-tooltip mira-shortcut-tooltip mira-shell-tooltip" transition="mira-shell-hint" :show-after="350" :hide-after="0" :offset="6" :show-arrow="false" placement="bottom" :enterable="false" :popper-style="{ pointerEvents: 'none' }">
+              <button type="button" class="mira-shell__navigation-button" aria-label="新建任务" @click="appNavigation.control('new-task')"><AppIcon name="lucide:message-circle-plus" /></button>
+              <template #content><div class="mira-shell-tooltip__surface"><span>新建任务</span><span class="mira-shell-shortcut-keys"><kbd v-for="(key, index) in miraShortcutKeys(miraShortcutLabel('N'))" :key="index">{{ key }}</kbd></span></div></template>
+            </el-tooltip>
+          </div>
         </div>
       </div>
       <div class="mira-shell__actions">
@@ -124,6 +134,8 @@ function openSettings() {
   -webkit-app-region: drag;
 }
 
+:global([data-theme='light'] .mira-shell__bar) { background: #f8f8f9; }
+
 .mira-shell--standard .mira-shell__bar { padding-left: 16px; }
 .mira-shell--macos-overlay .mira-shell__bar { padding-left: max(92px, calc(92px / var(--mira-desktop-zoom, 1))); }
 .mira-shell--windows-overlay .mira-shell__bar { padding-left: 16px; padding-right: 148px; }
@@ -138,6 +150,10 @@ function openSettings() {
 .mira-shell__icon-button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 16px; }
 .mira-shell__navigation { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
 .mira-shell__navigation-button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: var(--cp-radius-md); color: var(--cp-text-secondary); background: transparent; font-size: 16px; }
+.mira-shell__new-task { display: inline-flex; width: 0; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity 300ms ease-out, width 300ms ease-out; }
+.mira-shell__new-task.is-visible { width: 28px; opacity: 1; pointer-events: auto; }
+.mira-shell__new-task .mira-shell__navigation-button { flex: 0 0 28px; }
+@media (prefers-reduced-motion: reduce) { .mira-shell__new-task { transition: none; } }
 .mira-shell__navigation-button:hover:not(:disabled) { color: var(--cp-text); background: var(--cp-bg-hover); }
 .mira-shell__navigation-button:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: 2px; }
 .mira-shell__navigation-button:disabled { color: var(--cp-text-tertiary); cursor: default; opacity: .45; }

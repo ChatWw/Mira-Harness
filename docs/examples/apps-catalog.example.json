@@ -1,0 +1,79 @@
+{
+  "example": true,
+  "notice": "仅用于展示目录结构。版本、下载地址、文件大小和 SHA-256 均未经过发布验证，不能直接用于正式安装。正式发布时移除 example、notice，并填写真实发布数据。",
+  "schemaVersion": 1,
+  "revision": 1,
+  "publishedAt": "2026-10-21T12:00:00+08:00",
+  "apps": [
+    {
+      "id": "mira-novel-studio",
+      "name": "Mira Novel Studio",
+      "description": "AI 长篇小说创作工作台，支持作品管理、章节写作和 AI 辅助创作。",
+      "repository": "https://github.com/ChatWw/Mira-Novel-Studio",
+      "releases": [
+        {
+          "version": "0.2.0",
+          "channel": "stable",
+          "publishedAt": "2026-10-21T12:00:00+08:00",
+          "releaseNotes": "示例更新：完善章节编排和 AI 辅助写作。需要新版宿主，旧版宿主可以选择下方兼容版本。",
+          "compatibility": {
+            "minHostVersion": "0.0.11",
+            "platformApi": {
+              "major": 1,
+              "minMinor": 1
+            }
+          },
+          "package": {
+            "url": "https://github.com/ChatWw/Mira-Novel-Studio/releases/download/v0.2.0/mira-novel-studio-0.2.0.zip",
+            "sizeBytes": null,
+            "sha256": "REPLACE_WITH_REAL_64_CHARACTER_SHA256"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "channel": "stable",
+          "publishedAt": "2026-10-20T12:00:00+08:00",
+          "releaseNotes": "示例首版：作品书架、章节编辑和基础 AI 写作。",
+          "compatibility": {
+            "minHostVersion": "0.0.10",
+            "platformApi": {
+              "major": 1,
+              "minMinor": 0
+            }
+          },
+          "package": {
+            "url": "https://github.com/ChatWw/Mira-Novel-Studio/releases/download/v0.1.0/mira-novel-studio-0.1.0.zip",
+            "sizeBytes": null,
+            "sha256": "REPLACE_WITH_REAL_64_CHARACTER_SHA256"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mira-vision",
+      "name": "Mira Vision",
+      "description": "视觉创作应用，具体功能及宿主能力要求以实际发布版本为准。",
+      "repository": "https://github.com/ChatWw/Mira-Vision",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "channel": "preview",
+          "publishedAt": "2026-10-21T12:00:00+08:00",
+          "releaseNotes": "示例预览版：仅展示第二个应用的目录写法，不代表已发布或已接通。",
+          "compatibility": {
+            "minHostVersion": "0.0.11",
+            "platformApi": {
+              "major": 1,
+              "minMinor": 1
+            }
+          },
+          "package": {
+            "url": "https://github.com/ChatWw/Mira-Vision/releases/download/v0.1.0/mira-vision-0.1.0.zip",
+            "sizeBytes": null,
+            "sha256": "REPLACE_WITH_REAL_64_CHARACTER_SHA256"
+          }
+        }
+      ]
+    }
+  ]
+}

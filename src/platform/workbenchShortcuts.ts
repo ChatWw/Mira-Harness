@@ -25,3 +25,7 @@ export function miraWorkbenchShortcut(event: Pick<KeyboardEvent, 'key' | 'metaKe
 export function miraShortcutKeys(label: string): string[] {
   return label.replace(/⌘/g, '⌘+').replace(/⇧/g, 'Shift+').replace(/⌥/g, '⌥+').replace(/⌃/g, 'Ctrl+').split('+').filter(Boolean)
 }
+
+export function isMiraFullViewShortcut(event: Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'repeat' | 'isComposing' | 'keyCode' | 'defaultPrevented'>) {
+  return !event.defaultPrevented && !event.repeat && !event.isComposing && event.keyCode !== 229 && isMiraPrimaryModifier(event) && event.shiftKey && !event.altKey && (event.key.toLowerCase() === 'f' || event.code === 'KeyF')
+}

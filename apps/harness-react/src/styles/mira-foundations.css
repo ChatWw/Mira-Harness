@@ -153,18 +153,21 @@
   --color-plugin-node-foreground: var(--mira-plugin-node-foreground);
   --color-plugin-paid-plan-badge: var(--mira-plugin-paid-plan-badge);
   --color-plugin-paid-plan-badge-foreground: var(--mira-plugin-paid-plan-badge-foreground);
+  --color-resize-handle: var(--mira-resize-handle);
   --color-icon-blue: var(--mira-icon-blue);
   --color-markdown-inline-code: var(--mira-markdown-inline-code);
 }
 
 /* 主题由宿主在 html 上切换 .dark；主操作跟随黑白前景。 */
 :root {
+  /* ZCode styles.css: sky-500 in light, sky-400 in dark. */
+  --mira-resize-handle: var(--color-sky-500);
   --mira-font-size: 14px;
   --mira-icon-blue: var(--mira-terminal-bright-blue);
   --mira-markdown-inline-code: var(--mira-tag);
   --mira-animated-gradient-text-strong: rgba(13, 13, 13, 1);
   --mira-animated-gradient-text-soft: rgba(13, 13, 13, 0.22);
-  --mira-background: #f8f8f8;
+  --mira-background: #ffffff;
   --mira-background-win-alt: #ececee;
   --mira-background-alt: color-mix(in oklab, var(--mira-background) 70%, transparent);
   --mira-brand: #000000;
@@ -185,7 +188,7 @@
   --mira-selected: rgba(13, 13, 13, 0.05);
   --mira-header: #ffffff;
   --mira-panel: #ffffff;
-  --mira-sidebar: #fafafa;
+  --mira-sidebar: #f8f8f9;
   --mira-surface: rgba(13, 13, 13, 0.03);
   --mira-surface-hover: rgba(13, 13, 13, 0.05);
   --mira-card: #ffffff;
@@ -307,6 +310,7 @@
 }
 
 .dark {
+  --mira-resize-handle: var(--color-sky-400);
   --mira-animated-gradient-text-strong: rgba(255, 255, 255, 1);
   --mira-animated-gradient-text-soft: rgba(255, 255, 255, 0.22);
   --mira-background: #161616;

@@ -10,7 +10,7 @@ import type { PilotController } from '../../state/pilot-state'
 import { createTerminalResizeScheduler } from '../../lib/terminal-resize'
 import { miraTerminalWebLinks } from '../../lib/mira-terminal-links'
 
-export function TerminalPanel({ controller, sessionId, directory, active, onOpenAddress, onExit, focusOnActivate = false }: { controller: PilotController; sessionId: string; directory?: string; active: boolean; onOpenAddress?: (url: string) => void; onExit?: () => void; focusOnActivate?: boolean }) {
+export function TerminalPanel({ controller, sessionId, directory, active, onOpenAddress, onExit, focusOnActivate = false, onShellLabelChange }: { controller: PilotController; sessionId: string; directory?: string; active: boolean; onOpenAddress?: (url: string) => void; onExit?: () => void; focusOnActivate?: boolean; onShellLabelChange?: (label: string) => void }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const scheduleResizeRef = useRef<(() => void) | undefined>(undefined)
@@ -25,6 +25,8 @@ export function TerminalPanel({ controller, sessionId, directory, active, onOpen
   activeRef.current = active
   const openAddressRef = useRef(onOpenAddress)
   openAddressRef.current = onOpenAddress
+  const shellLabelRef = useRef(onShellLabelChange)
+  shellLabelRef.current = onShellLabelChange
   const exitRef = useRef(onExit)
   exitRef.current = onExit
   function focusTerminal() { focusTerminalWithIntent(false) }
@@ -116,6 +118,8 @@ export function TerminalPanel({ controller, sessionId, directory, active, onOpen
     if (root) themeObserver.observe(root, themeAttributes)
     void controller.openTerminalFor(sessionId).then(result => {
       if (!mounted) return void controller.closeTerminalFor(sessionId, result.terminalId)
+      const shell = result.shell?.split(/[\\/]/).pop()?.replace(/\.exe$/i, '').toLowerCase()
+      if (shell) shellLabelRef.current?.(['powershell', 'pwsh'].includes(shell) ? 'PowerShell' : shell)
       terminalIdRef.current = result.terminalId
       term.clear()
       for (const event of pendingEventsRef.current.splice(0)) if (event.payload.terminalId === result.terminalId) writeEvent(event)

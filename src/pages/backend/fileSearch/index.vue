@@ -15,9 +15,10 @@
       <p v-else-if="!listing && !listError" class="search-ignore__empty">暂无可用工作区</p>
     </section>
 
+    <p class="search-ignore__hint">规则保存在所选工作区的 .miraignore，仅影响文件搜索，不限制文件浏览或 Agent 的文件访问权限。</p>
     <section v-if="selectedKey" class="search-ignore" aria-labelledby="search-rules-heading">
       <div class="search-ignore__heading">
-        <h2 id="search-rules-heading">.miraignore</h2>
+        <h2 id="search-rules-heading">搜索忽略规则</h2>
         <span class="search-ignore__status" role="status">{{ busy ? '处理中…' : dirty ? '未保存' : status || (loaded?.source === 'template' ? '尚未创建' : '') }}</span>
       </div>
       <div class="search-ignore__toolbar">
@@ -98,10 +99,11 @@ onMounted(() => { void reloadWorkspaces() })
 </script>
 
 <style scoped lang="scss">
+.search-ignore__hint { margin: 16px 0 24px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
 .search-ignore { min-width: 0; }
 .search-ignore + .search-ignore { margin-top: 36px; }
 .search-ignore__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.search-ignore__heading h2 { margin: 0; font-size: 18px; font-weight: $font-semibold; letter-spacing: 0; }
+.search-ignore__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: $font-semibold; letter-spacing: 0; }
 .search-ignore__selector { width: min(420px, 100%); }
 .search-ignore__path { margin: 10px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.6; overflow-wrap: anywhere; }
 .search-ignore__empty, .search-ignore__status { color: var(--cp-text-secondary); font-size: $font-sm; }

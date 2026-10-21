@@ -100,7 +100,7 @@ describe('terminal activation and clipboard ownership', () => {
     const listeners = new Set<(event: any) => void>()
     let serial = 0
     const controller = {
-      openTerminalFor: vi.fn(async () => ({ terminalId: `bottom-${++serial}` })), closeTerminalFor: vi.fn(async () => undefined),
+      openTerminalFor: vi.fn(async () => ({ terminalId: `bottom-${++serial}`, shell: serial === 1 ? '/bin/zsh' : 'C:\\Windows\\pwsh.exe' })), closeTerminalFor: vi.fn(async () => undefined),
       resizeTerminalFor: vi.fn(async () => undefined), onTerminalEvent: (listener: (event: any) => void) => { listeners.add(listener); return () => listeners.delete(listener) },
     } as unknown as PilotController
     const close = vi.fn(), focus = vi.fn(), address = vi.fn()
@@ -108,9 +108,11 @@ describe('terminal activation and clipboard ownership', () => {
     const click = async (label: string) => { await act(async () => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click()) }
     await render(false); expect(controller.openTerminalFor).not.toHaveBeenCalled()
     await render(true); expect(controller.openTerminalFor).toHaveBeenCalledExactlyOnceWith('a')
+    expect(container.querySelector('.mira-bottom-terminal__shell')?.textContent).toBe('zsh')
     await render(false); expect(controller.closeTerminalFor).not.toHaveBeenCalled()
     await render(true); expect(controller.openTerminalFor).toHaveBeenCalledTimes(1)
     await click('新建底部终端'); expect(controller.openTerminalFor).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('.mira-bottom-terminal__shell')?.textContent).toBe('PowerShell')
     await render(true, 'b'); expect(controller.openTerminalFor).toHaveBeenLastCalledWith('b')
     expect(controller.closeTerminalFor).not.toHaveBeenCalled()
     await render(true, 'a'); expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2)

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { miraInitialTaskLayout, miraTaskPaneIds, splitMiraTaskLayout, removeMiraTaskPane, resizeMiraTaskSplit, readMiraTaskLayout, miraTaskLayoutGeometry, miraTaskDropSide } from '../apps/harness-react/src/state/mira-task-layout'
-import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspacePlanTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, createWorkspaceWorkflowTab, createWorkspaceWorkflowDetailTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
+import { closeAllWorkspaceTabs, closeOtherWorkspaceTabs, closeWorkspaceTab, createWorkspaceNewTab, createWorkspaceBrowserTab, createWorkspaceFileTab, createWorkspacePlanTab, createWorkspaceSession, isWorkspaceRelativePath, labelWorkspaceTab, openWorkspaceTab, readWorkspaceSessions, reorderWorkspaceTabs, restoreWorkspaceTab, workspaceTabLabel, createWorkspaceTaskTab, createWorkspaceWorkflowTab, createWorkspaceWorkflowDetailTab, withoutWorkspaceTaskOwners, placeWorkspaceTask, replaceWorkspaceTask } from '../apps/harness-react/src/state/workspace-state'
 import { miraWorkspaceTabPresentation, miraSearchWorkspaceTabs } from '../apps/harness-react/src/lib/mira-workspace-tab-presentation'
 
 const NOW = 1_791_664_800_000
@@ -414,3 +414,36 @@ it('keeps project file identities through persistence, close and reopen without 
   expect(reopened.tabs[0].id).not.toBe(tab.id)
   expect(readWorkspaceSessions({ a: { ...state, tabs: [{ ...tab, htmlSource: { projectId: 'p', path: '../secret.html' } }] } }).a.tabs[0].htmlSource).toBeUndefined()
  })
+
+
+describe('workspace new tab launcher', () => {
+  it('supports multiple launchers, persistence, independent closing and restoring', () => {
+    const first = createWorkspaceNewTab(), second = createWorkspaceNewTab()
+    expect(first.id).not.toBe(second.id)
+    let state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), first), second)
+    expect(state.tabs.map(tab => tab.label)).toEqual(['新标签页', '新标签页'])
+    expect(readWorkspaceSessions({ task: state }).task).toEqual(state)
+    state = closeWorkspaceTab(state, second.id)
+    expect(state.activeTab).toBe(first.id)
+    state = restoreWorkspaceTab(state, second.id)
+    expect(state.tabs.map(tab => tab.id)).toEqual([first.id, second.id])
+    expect(state.activeTab).toBe(second.id)
+  })
+
+  it('replaces only the selected launcher in place when opening a tool', () => {
+    const first = createWorkspaceNewTab(), second = createWorkspaceNewTab()
+    const file = createWorkspaceFileTab('readme.md')
+    const state = openWorkspaceTab({ ...openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), first), second), activeTab: first.id }, file)
+    expect(state.tabs.map(tab => tab.id)).toEqual([file.id, second.id])
+    expect(state.activeTab).toBe(file.id)
+    expect(state.recentClosedTabs).toEqual([])
+  })
+
+  it('activates an existing resource without duplicating it or remembering the consumed launcher', () => {
+    const file = createWorkspaceFileTab('readme.md'), launcher = createWorkspaceNewTab()
+    const state = openWorkspaceTab(openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), launcher), file)
+    expect(state.tabs.map(tab => tab.id)).toEqual([file.id])
+    expect(state.activeTab).toBe(file.id)
+    expect(state.recentClosedTabs).toEqual([])
+  })
+})

@@ -1,0 +1,52 @@
+// Typography roles reference ZCode styles.css and settings/SettingsPageParts.tsx.
+// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
+// See third-party-licenses/zcode/; font families follow Mira Harness.
+.settings-page,
+body:has(.settings-page) :where(.el-popper, .el-dialog, .el-message-box) {
+  --settings-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+  --settings-text-title: 24px;
+  --settings-text-section: 18px;
+  --settings-text-subheading: 16px;
+  --settings-text-base: 14px;
+  --settings-text-caption: 13px;
+  --settings-text-small: 12px;
+  --el-font-family: var(--settings-font-family);
+  --el-font-size-base: var(--settings-text-base);
+  --el-font-size-small: var(--settings-text-small);
+  --el-font-size-large: var(--settings-text-subheading);
+  font-family: var(--settings-font-family);
+  font-size: var(--settings-text-base);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.settings-page :where(h1, h2, h3, h4) {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.settings-page :where(strong, b),
+body:has(.settings-page) :where(.el-dialog, .el-message-box) :where(strong, b) {
+  font-weight: 500;
+}
+
+.settings-page :where(button, input, select, textarea),
+body:has(.settings-page) :where(.el-popper, .el-dialog, .el-message-box) :where(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+.settings-page .el-form-item__label,
+body:has(.settings-page) :where(.el-dialog, .el-message-box) .el-form-item__label {
+  font-size: var(--settings-text-base);
+  font-weight: 500;
+}
+
+body:has(.settings-page) :where(.el-dialog__title, .el-message-box__title) {
+  font-size: var(--settings-text-subheading);
+  font-weight: 600;
+  line-height: 24px;
+}
+
+body:has(.settings-page) .el-select-dropdown__item.is-selected {
+  font-weight: 500;
+}

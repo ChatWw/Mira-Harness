@@ -20,7 +20,7 @@ describe('first-party Harness navigation', () => {
     expect(() => resolveHarnessNavigationPath('/settings/hooks?file=%2Ftmp%2Fhooks.json')).toThrow('导航参数')
     expect(resolveHarnessNavigationPath('/settings/hooks?plugin=reviewed%40local')).toBe('/settings/hooks?plugin=reviewed%40local&from=%2Fworkspace%2Fharness-react')
   })
-  it.each(['/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts', '/settings/usage'])('opens the existing settings route and retains its React return path: %s', path => {
+  it.each(['/settings/permissions', '/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts', '/settings/usage'])('opens the existing settings route and retains its React return path: %s', path => {
     const target = new URL(resolveHarnessNavigationPath(path), 'https://mira.invalid')
     expect(target.pathname).toBe(path)
     expect(target.searchParams.get('from')).toBe(HARNESS_WORKBENCH_PATH)
@@ -39,6 +39,11 @@ describe('first-party Harness navigation', () => {
   it('opens the real usage route and preserves the supported history query', () => {
     expect(resolveHarnessNavigationPath('/workspace/usage')).toBe('/workspace/usage')
     expect(resolveHarnessNavigationPath('/workspace/history?q=notes&archive=archived&sort=created-desc&page=2')).toBe('/workspace/history?q=notes&archive=archived&sort=created-desc&page=2')
+  })
+
+  it.each(['/settings/conversation', '/settings/file-trash', '/settings/archives'])('accepts reorganized settings with a preserved return path: %s', path => {
+    const target = `${path}?from=%2Fworkspace%2Fharness-react`
+    expect(resolveHarnessNavigationPath(target)).toBe(target)
   })
 
   it.each([

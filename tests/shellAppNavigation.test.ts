@@ -184,3 +184,20 @@ describe('Shell navigation controls', () => {
     expect(environment.push).toHaveBeenCalledWith({ path: '/settings/general', query: { from: '/workspace/harness-react' } })
   })
 })
+
+
+describe('Harness titlebar sidebar controls', () => {
+  it('places the toggle before history and hides new task from focus while expanded', async () => {
+    const { owner } = connect()
+    owner.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    const renderer = mount(ActualLayout)
+    const labels = () => renderer.all().filter(node => node.type === 'button').map(node => node.props['aria-label'])
+    expect(labels().filter(label => ['收起会话侧栏', '后退', '前进', '新建任务'].includes(String(label)))).toEqual(['收起会话侧栏', '后退', '前进', '新建任务'])
+    const wrapper = () => renderer.all().filter(node => String(node.props.class).includes('mira-shell__new-task'))[0]
+    expect(wrapper().props['aria-hidden']).toBe(true)
+    owner.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: false }); await nextTick()
+    expect(labels()).toContain('展开会话侧栏'); expect(wrapper().props['aria-hidden']).toBe(false)
+    environment.route.path = '/novel'; await nextTick()
+    expect(labels()).not.toContain('展开会话侧栏'); expect(labels()).not.toContain('新建任务')
+  })
+})

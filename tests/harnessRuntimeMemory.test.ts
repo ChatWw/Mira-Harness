@@ -37,7 +37,7 @@ describe('HarnessRuntime file memory tools', () => {
     const { database, runtime, sender } = createRuntime()
     const temporary = database.harness.createSession()
 
-    await expect(runtime.saveProjectMemory(sender, temporary.id, { providerId: 'missing', modelId: 'missing' })).rejects.toThrow('请先在个性化设置中启用记忆')
+    await expect(runtime.saveProjectMemory(sender, temporary.id, { providerId: 'missing', modelId: 'missing' })).rejects.toThrow('请先在指令与记忆设置中启用记忆')
     database.memories.setEnabled(true)
     await expect(runtime.saveProjectMemory(sender, temporary.id, { providerId: 'missing', modelId: 'missing' })).rejects.toThrow('请先选择项目')
     database.close()

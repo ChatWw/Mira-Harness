@@ -8,16 +8,34 @@ import { HARNESS_WORKBENCH_PATH } from '@/platform/firstPartyNavigation'
 
 const staticRoutes: RouteRecordRaw[] = [
   {
+    path: '/settings/conversation',
+    name: 'SettingsConversation',
+    component: () => import('@/pages/backend/conversation/index.vue'),
+    meta: { title: '对话设置' },
+  },
+  {
+    path: '/settings/file-trash',
+    name: 'SettingsFileTrash',
+    component: () => import('@/pages/backend/fileTrash/index.vue'),
+    meta: { title: '文件回收站' },
+  },
+  {
+    path: '/settings/app-extensions',
+    name: 'SettingsAppExtensions',
+    component: () => import('@/pages/backend/appExtensions/index.vue'),
+    meta: { title: '应用扩展' },
+  },
+  {
     path: '/settings/plugins',
     name: 'SettingsPlugins',
     component: () => import('@/pages/backend/plugins/index.vue'),
-    meta: { title: '插件' },
+    meta: { title: '工具与扩展' },
   },
   {
     path: '/settings/model-config',
     name: 'SettingsModelConfig',
     component: () => import('@/pages/backend/modelConfig/index.vue'),
-    meta: { title: '模型' },
+    meta: { title: '模型服务' },
   },
   {
     path: '/settings/mcp',
@@ -28,14 +46,12 @@ const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/python-environment',
     name: 'SettingsPythonEnvironment',
-    component: () => import('@/pages/backend/pythonEnv/index.vue'),
-    meta: { title: 'Python 环境' },
+    redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
     path: '/settings/git',
     name: 'SettingsGit',
-    component: () => import('@/pages/backend/git/index.vue'),
-    meta: { title: 'Git' },
+    redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
     path: '/settings/file-search',
@@ -47,7 +63,7 @@ const staticRoutes: RouteRecordRaw[] = [
     path: '/settings/hooks',
     name: 'SettingsHooks',
     component: () => import('@/pages/backend/hooks/index.vue'),
-    meta: { title: 'Hooks' },
+    meta: { title: '事件钩子（Hooks）' },
   },
   {
     path: '/settings/commands',
@@ -74,6 +90,12 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '常规' },
   },
   {
+    path: '/settings/permissions',
+    name: 'SettingsPermissions',
+    component: () => import('@/pages/backend/permissions/index.vue'),
+    meta: { title: '权限与审批' },
+  },
+  {
     path: '/settings/appearance',
     name: 'SettingsAppearance',
     component: () => import('@/pages/backend/appearance/index.vue'),
@@ -83,7 +105,7 @@ const staticRoutes: RouteRecordRaw[] = [
     path: '/settings/personalization',
     name: 'SettingsPersonalization',
     component: () => import('@/pages/backend/personalization/index.vue'),
-    meta: { title: '个性化' },
+    meta: { title: '指令与记忆' },
   },
   {
     path: '/settings/keyboard-shortcuts',
@@ -92,28 +114,34 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '键盘快捷键' },
   },
   {
+    path: '/settings/archives',
+    name: 'SettingsArchives',
+    component: () => import('@/pages/backend/archives/index.vue'),
+    meta: { title: '会话归档' },
+  },
+  {
     path: '/settings/usage',
     name: 'SettingsUsage',
     component: () => import('@/pages/backend/usage/index.vue'),
-    meta: { title: '使用统计' },
+    meta: { title: '用量统计' },
   },
   {
     path: '/settings/about',
     name: 'SettingsAbout',
     component: () => import('@/pages/backend/about/index.vue'),
-    meta: { title: '关于' },
+    meta: { title: '关于Mira' },
   },
   {
     path: '/settings/backup-preferences',
     name: 'SettingsBackupPreferences',
     component: () => import('@/pages/backend/backupPreferences/index.vue'),
-    meta: { title: '备份与偏好' },
+    meta: { title: '应用配置' },
   },
   {
     path: '/settings/ai-novel',
     name: 'SettingsAiNovel',
     redirect: '/settings/model-config',
-    meta: { title: '模型' },
+    meta: { title: '模型服务' },
   },
   {
     path: '/system/components/loading',

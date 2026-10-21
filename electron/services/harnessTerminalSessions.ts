@@ -11,6 +11,7 @@ export interface HarnessTerminalSession {
   terminalId: string
   sessionId: string
   cwd: string
+  shell: string
 }
 
 interface TerminalProcess {
@@ -68,7 +69,7 @@ export class HarnessTerminalSessions {
       this.sessions.delete(terminalId)
       if (!sender.isDestroyed()) sender.send('harness:event', terminalEvent(sessionId, 'terminal-exit', { terminalId, exitCode: result.exitCode, signal: result.signal }))
     })
-    return { terminalId, sessionId, cwd }
+    return { terminalId, sessionId, cwd, shell }
   }
 
   write(sender: WebContents, sessionId: string, terminalId: string, data: string) {

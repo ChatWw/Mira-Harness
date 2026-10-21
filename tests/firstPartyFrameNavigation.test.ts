@@ -23,7 +23,7 @@ const navigationState = () => ({ type: 'mira:app-navigation-state', revision: 3,
 
 function mountFrame(options: { appId?: string; capabilities?: string[]; restore?: MiraAppNavigationSnapshot } = {}) {
   const api = { createFirstPartyGrant: vi.fn(async () => 'grant-' + channels.length), revokeFirstPartyGrant: vi.fn(async () => undefined), onHarnessEvent: vi.fn(() => vi.fn()) }
-  const states = vi.fn(), resets = vi.fn(), errors = vi.fn()
+  const states = vi.fn(), controls = vi.fn(), resets = vi.fn(), errors = vi.fn()
   const props = reactive({
     url: 'https://mira.test/harness', title: 'Mira Harness', api,
     manifest: { appId: options.appId || 'mira-harness', capabilities: options.capabilities || ['harness:workbench'] },
@@ -31,17 +31,19 @@ function mountFrame(options: { appId?: string; capabilities?: string[]; restore?
     route: '/', navigate: vi.fn(), navigationSnapshot: options.restore,
     toggleTheme: vi.fn(() => { props.context.theme = props.context.theme === 'light' ? 'dark' : 'light'; return props.context.theme }),
   })
-  const exposed = ref<{ navigateHistory(command: MiraAppNavigationCommand): boolean; closeContext(): Promise<boolean> }>()
+  const exposed = ref<{ navigateHistory(command: MiraAppNavigationCommand): boolean; harnessControl(command: { type: 'mira:harness-control'; action: 'toggle-sidebar' | 'new-task' }): boolean; closeContext(): Promise<boolean> }>()
   const renderer = createVueNodeRenderer()
-  const { app } = renderer.mount({ setup: () => () => h(Frame, { ...props, ref: exposed, onNavigationState: states, onNavigationReset: resets, onError: errors } as never) })
+  const { app } = renderer.mount({ setup: () => () => h(Frame, { ...props, ref: exposed, onControlsState: controls, onNavigationState: states, onNavigationReset: resets, onError: errors } as never) })
   mounts.push(app)
   const iframe = renderer.all().find(node => node.type === 'iframe')!
   const target = { postMessage: vi.fn() }; iframe.contentWindow = target
   const connect = () => (iframe.props.onLoad as () => Promise<void>)()
-  return { api, states, resets, errors, props, exposed, target, connect, app }
+  return { api, states, controls, resets, errors, props, exposed, target, connect, app }
 }
 
 beforeEach(() => {
+  vi.stubGlobal('window', new EventTarget())
+  vi.stubGlobal('document', { querySelectorAll: () => [] })
   channels.length = 0
   vi.mocked(isFirstPartyRequest).mockReturnValue(false)
   vi.mocked(handleFirstPartyRequest).mockReset()
@@ -156,5 +158,50 @@ describe('authorized first-party navigation messages', () => {
     expect(frame.api.revokeFirstPartyGrant).toHaveBeenCalledWith('pending-grant')
     expect(channels[0].port1.close).toHaveBeenCalledOnce(); expect(frame.target.postMessage).not.toHaveBeenCalled()
     await frame.connect(); expect(frame.api.createFirstPartyGrant).toHaveBeenCalledOnce()
+  })
+})
+
+
+it('forwards full-view shortcuts from the Shell without focusing the iframe and stops after unmount', async () => {
+  const frame = mountFrame(); await frame.connect()
+  const event = () => Object.assign(new Event('keydown', { cancelable: true }), { key: 'F', code: 'KeyF', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, repeat: false, isComposing: false, keyCode: 70 })
+  vi.stubGlobal('navigator', { platform: 'MacIntel' })
+  vi.stubGlobal('document', { querySelectorAll: () => [{ getClientRects: () => [] }] })
+  const first = event(); window.dispatchEvent(first)
+  expect(first.defaultPrevented).toBe(true)
+  expect(channels[0].port1.postMessage).toHaveBeenLastCalledWith({ type: 'mira:full-view-toggle' })
+  const count = channels[0].port1.postMessage.mock.calls.length
+  window.dispatchEvent(Object.assign(event(), { repeat: true }))
+  expect(channels[0].port1.postMessage).toHaveBeenCalledTimes(count)
+  vi.stubGlobal('document', { querySelectorAll: () => [{ getClientRects: () => [{}] }] })
+  vi.stubGlobal('getComputedStyle', () => ({ visibility: 'visible' }))
+  const blocked = event(); window.dispatchEvent(blocked)
+  expect(blocked.defaultPrevented).toBe(false)
+  expect(channels[0].port1.postMessage).toHaveBeenCalledTimes(count)
+  frame.app.unmount()
+  window.dispatchEvent(event())
+  expect(channels[0].port1.postMessage).toHaveBeenCalledTimes(count)
+})
+
+
+describe('Harness frame titlebar controls', () => {
+  it('forwards controls and state only while its granted connection is active', async () => {
+    const frame = mountFrame(), command = { type: 'mira:harness-control' as const, action: 'toggle-sidebar' as const }
+    expect(frame.exposed.value?.harnessControl(command)).toBe(false)
+    await frame.connect(); const port = channels[0].port1
+    expect(frame.exposed.value?.harnessControl(command)).toBe(true)
+    expect(port.postMessage).toHaveBeenLastCalledWith(command)
+    const state = { type: 'mira:harness-controls-state', sidebarOpen: false }
+    await port.receive({ ...state, extra: true }); expect(frame.controls).not.toHaveBeenCalled()
+    await port.receive(state); expect(frame.controls).toHaveBeenCalledExactlyOnceWith(state)
+    frame.props.url = 'https://mira.test/replaced'; await nextTick()
+    expect(frame.exposed.value?.harnessControl(command)).toBe(false)
+    await port.receive(state); expect(frame.controls).toHaveBeenCalledOnce()
+  })
+  it.each([{ appId: 'mira-novel-studio' }, { capabilities: [] }])('does not expose Harness controls to another app or an ungranted frame %j', async options => {
+    const frame = mountFrame(options); await frame.connect()
+    expect(frame.exposed.value?.harnessControl({ type: 'mira:harness-control', action: 'new-task' })).toBe(false)
+    await channels[0].port1.receive({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(frame.controls).not.toHaveBeenCalled()
   })
 })

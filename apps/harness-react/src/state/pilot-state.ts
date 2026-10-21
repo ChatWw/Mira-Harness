@@ -11,6 +11,7 @@ import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillM
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
 import type { HarnessGitContext, HarnessMessagePart, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
+import type { MiraHarnessControlAction, MiraHarnessControlsState } from '../../../../src/platform/harnessControls'
 import type { MiraAppNavigationCommand, MiraAppNavigationSnapshot, MiraAppNavigationState } from '../../../../src/platform/appNavigation'
 import type { HarnessMessageAttachment, ToolCallRecord } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
@@ -75,7 +76,7 @@ export interface PilotHost {
   readImage?(id: string, path: string): Promise<HarnessWorkspaceImagePreview>
   openMedia?(id: string, path: string): Promise<MiraMediaPreview>
   closeMedia?(id: string): Promise<void>
-  openTerminal(id: string): Promise<{ terminalId: string; sessionId: string; cwd: string }>
+  openTerminal(id: string): Promise<{ terminalId: string; sessionId: string; cwd: string; shell?: string }>
   writeTerminal(id: string, terminalId: string, data: string): Promise<void>
   pasteTerminal?(id: string, terminalId: string, bracketed: boolean): Promise<void>
   resizeTerminal(id: string, terminalId: string, columns: number, rows: number): Promise<void>
@@ -113,6 +114,9 @@ export interface PilotHost {
   getArchivedSnapshot?(): Promise<HarnessArchivedSnapshot>
   deleteArchivedSessions?(snapshotId: string): Promise<HarnessArchivedDeletionResult>
   searchConversations?(query: string): Promise<HarnessConversationSearchResult[]>
+  onHarnessControl?(listener: (action: MiraHarnessControlAction) => void): () => void
+  publishHarnessControls?(state: MiraHarnessControlsState): void
+  onFullViewToggle?(listener: () => void): () => void
   onCommandCenterOpen?(listener: (focusRequestId?: string) => void): () => void
   onCloseContext?(callback: () => Promise<boolean>): () => void
   dismissCommandCenterFocus?(focusRequestId: string): boolean
@@ -870,6 +874,9 @@ export class PilotController {
     } catch { return { ...result, refreshError: '删除操作已完成，但任务列表刷新失败，请重试刷新。' } }
   }
   searchConversations(query: string) { return this.require('searchConversations')(query) }
+  onHarnessControl(listener: (action: MiraHarnessControlAction) => void) { return this.host.onHarnessControl?.(listener) || (() => undefined) }
+  publishHarnessControls(state: MiraHarnessControlsState) { this.host.publishHarnessControls?.(state) }
+  onFullViewToggle(listener: () => void) { return this.host.onFullViewToggle?.(listener) || (() => undefined) }
   onCommandCenterOpen(listener: (focusRequestId?: string) => void) { return this.host.onCommandCenterOpen?.(listener) || (() => undefined) }
   onCloseContext(callback: () => Promise<boolean>) { return this.host.onCloseContext?.(callback) || (() => undefined) }
   dismissCommandCenterFocus(focusRequestId: string) { return this.host.dismissCommandCenterFocus?.(focusRequestId) ?? false }

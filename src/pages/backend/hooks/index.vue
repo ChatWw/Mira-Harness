@@ -1,5 +1,5 @@
 <template>
-  <SettingsPageShell title="Hooks" wide>
+  <SettingsPageShell title="事件钩子（Hooks）" wide>
     <section class="mira-hooks" :aria-busy="loading">
       <p class="mira-hooks__description">在会话、输入和工具执行的关键时机运行本地脚本。全局 Hook 用于所有项目，项目 Hook 仅用于所属项目；插件 Hook 需要单独审阅并授权。</p>
       <div class="mira-hooks__toolbar">
@@ -229,7 +229,7 @@ onMounted(load)
 .mira-hooks__toolbar :deep(.app-icon) { margin-right: 4px; }
 .mira-hooks__editor { margin-bottom: 24px; padding: 20px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }
 .mira-hooks__heading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.mira-hooks__heading h2 { margin: 0; font-size: $font-lg; }
+.mira-hooks__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; }
 .mira-hooks__heading span { color: var(--cp-text-secondary); font-size: $font-sm; }
 .mira-hooks__fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .mira-hooks__fields :deep(.el-select) { width: 100%; }
@@ -243,7 +243,8 @@ onMounted(load)
 .mira-hooks__row + .mira-hooks__row { border-top: 1px solid var(--cp-border-light); }
 .mira-hooks__mark { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: $radius-sm; background: var(--cp-bg); color: var(--cp-text-secondary); }
 .mira-hooks__identity { flex: 1; min-width: 0; }
-.mira-hooks__identity h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: $font-sm; overflow-wrap: anywhere; }
+.mira-hooks__identity h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: var(--settings-text-base); font-weight: 500; overflow-wrap: anywhere; }
+.mira-hooks__identity h2 span { font-weight: 400; }
 .mira-hooks__identity h2 span, .mira-hooks__identity p { color: var(--cp-text-secondary); font-size: $font-sm; }
 .mira-hooks__identity p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .mira-hooks__identity .mira-hooks__command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

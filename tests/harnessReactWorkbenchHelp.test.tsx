@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import * as React from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MiraWorkbenchHelp } from '../apps/harness-react/src/components/workbench/MiraWorkbenchHelp'
@@ -15,7 +16,7 @@ afterEach(async () => { await React.act(async () => root.unmount()); container.r
 async function mount(save = async () => undefined, navigate = vi.fn(async (_path: string) => undefined), openResources = vi.fn(async () => undefined), showAbout = vi.fn(async () => undefined)) {
   const controller = new PilotController({ navigate } as unknown as PilotHost)
   controller.registerBeforeNavigation(save)
-  await React.act(async () => root.render(<><div contentEditable suppressContentEditableWarning role="textbox">尚未发送的草稿</div><MiraWorkbenchHelp onShowAbout={showAbout} onOpenResources={openResources} onNavigate={path => controller.navigate(path, true)} /></>))
+  await React.act(async () => root.render(<><div contentEditable suppressContentEditableWarning role="textbox">尚未发送的草稿</div><Tooltip.Provider><MiraWorkbenchHelp onShowAbout={showAbout} onOpenResources={openResources} onNavigate={path => controller.navigate(path, true)} /></Tooltip.Provider></>))
   const trigger = container.querySelector<HTMLButtonElement>('[aria-label="帮助"]')!
   await React.act(async () => trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })))
   const select = async (label: string) => {

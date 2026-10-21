@@ -21,8 +21,8 @@
 .mira-bottom-terminal .xterm-viewport { background-color: var(--term-bg); }
 .mira-bottom-terminal__view { height: 100%; }
 .mira-terminal-resize { position: relative; height: 4px; flex: none; cursor: row-resize; }
-.mira-terminal-resize::after { position: absolute; inset: 1px 12px; border-radius: 1px; background: var(--color-foreground-subtle); opacity: 0; content: ''; }
-.mira-terminal-resize:hover::after, .mira-terminal-resize:active::after, .mira-terminal-resize:focus-visible::after { opacity: .5; }
+.mira-terminal-resize::after { position: absolute; inset: 1px 12px; border-radius: 1px; background: var(--color-resize-handle); opacity: 0; content: ''; }
+.mira-terminal-resize:hover::after, .mira-terminal-resize:active::after, .mira-terminal-resize:focus-visible::after, .mira-terminal-resize[data-separator='hover']::after, .mira-terminal-resize[data-separator='active']::after { opacity: 1; }
 .pilot-inspector { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--color-background); }
 .pilot-inspector__head { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; background: var(--surface); }
 .pilot-inspector__head > div { display: grid; min-width: 0; gap: 3px; }
@@ -40,7 +40,7 @@
 .pilot-open-directory { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 0; border: 0; color: var(--accent); background: transparent; font-size: 11px; }
 .pilot-open-directory:disabled { cursor: not-allowed; opacity: .45; }
 .pilot-side-tabs { display: flex; height: 48px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 10px 8px; border-bottom: 1px solid var(--border); background: var(--color-background); }
-.pilot-side-tabs__list { display: flex; min-width: 0; flex: 1; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+.pilot-side-tabs__list { display: flex; min-width: 0; flex: 1; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .pilot-side-tabs__list::-webkit-scrollbar { display: none; }
 .pilot-side-tab { position: relative; display: flex; min-width: 60px; max-width: 156px; height: 28px; flex: 1 1 156px; align-items: center; border-radius: 8px; color: var(--muted); }
 .pilot-side-tab.is-dragging { z-index: 2; opacity: .85; background: var(--hover); box-shadow: var(--shadow-soft); }
@@ -49,7 +49,7 @@
 .pilot-side-tab.is-active .pilot-side-tab__select { font-weight: 600; }
 .pilot-side-tab__select { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 6px; padding: 0 7px; border: 0; color: inherit; background: transparent; text-align: left; font-size: 12px; cursor: default; touch-action: none; user-select: none; }
 .pilot-side-tab.is-dragging .pilot-side-tab__select { cursor: grabbing; }
-.pilot-side-tab__select span { overflow: hidden; white-space: nowrap; mask-image: linear-gradient(to right, black calc(100% - 6px), transparent); }
+.pilot-side-tab__select span { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; mask-image: linear-gradient(to right, black calc(100% - 6px), transparent); }
 .pilot-side-tab__select svg { flex: 0 0 auto; }
 .pilot-side-tab__select em { padding: 1px 4px; border-radius: 4px; color: var(--accent); background: var(--surface); font-size: 9px; font-style: normal; }
 .pilot-side-tab__close, .pilot-side-tabs__dismiss { display: grid; width: 22px; height: 26px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; }
@@ -57,7 +57,8 @@
 .pilot-side-tab__close { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); opacity: 0; pointer-events: none; }
 .pilot-side-tab:hover .pilot-side-tab__select, .pilot-side-tab.is-active .pilot-side-tab__select, .pilot-side-tab:focus-within .pilot-side-tab__select { padding-right: 27px; }
 .pilot-side-tab:hover .pilot-side-tab__close, .pilot-side-tab.is-active .pilot-side-tab__close, .pilot-side-tab:focus-within .pilot-side-tab__close { opacity: 1; pointer-events: auto; }
-.mira-workspace-add, .mira-workspace-overview { display: grid; width: 26px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
+.pilot-side-tabs__actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.pilot-side-tabs__dismiss, .mira-workspace-add, .mira-workspace-overview { display: grid; width: 28px; height: 28px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; }
 .mira-workspace-add:hover, .mira-workspace-overview:hover, .mira-workspace-overview[data-state='open'] { color: var(--text); background: var(--hover); }
 .mira-workspace-add:focus-visible, .mira-workspace-overview:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .mira-workspace-tab-menu { z-index: 100; width: 288px; max-height: min(420px, var(--radix-popover-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--menu, var(--surface)); box-shadow: var(--shadow-soft); }
@@ -240,3 +241,9 @@
 .pilot-panel-shortcuts button:hover, .pilot-panel-shortcuts button:focus-visible { color: var(--accent); background: var(--hover); }
 .pilot-panel-shortcuts button span { white-space: nowrap; }
 .pilot-empty-panel { min-height: 220px; padding: 48px 24px; }
+
+/* ZCode keeps the conversation and terminal in separate rounded desktop frames. */
+.mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) { border: 0; border-radius: 0; background: transparent; }
+.mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) > .harness-thread-header { border: 1px solid var(--color-border); border-bottom: 0; border-radius: 12px 12px 0 0; background: var(--color-background); }
+.mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) .mira-full-view-host[data-mode='docked'] .mira-primary-thread { border: 1px solid var(--color-border); border-top: 0; border-radius: 0 0 12px 12px; }
+.mira-bottom-terminal__shell { flex: none; color: var(--color-foreground-subtle); font-size: 12px; }

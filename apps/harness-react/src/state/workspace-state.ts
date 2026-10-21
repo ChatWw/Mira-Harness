@@ -5,7 +5,7 @@
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'git' | 'changes' | 'terminal' | 'browser' | 'side-chat'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `file-manager:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `new-tab:${string}` | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `file-manager:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
 export type WorkspaceHtmlSource = { path: string } & ({ projectId: string; rootPath?: string } | { sessionId: string })
 export type WorkspaceWorkflowDetail = { kind: 'actor'; siteId: string; ordinal: number } | { kind: 'operations'; phaseId: string; participantId?: string } | { kind: 'artifact'; artifactId: string; version: number }
 export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; projectId?: string; rootPath?: string; fileManager?: { directory: string; sessionId?: string }; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; workflowDetail?: WorkspaceWorkflowDetail; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; htmlSource?: WorkspaceHtmlSource; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
@@ -24,6 +24,7 @@ export type WorkspaceSessionState = {
 const RECENT_WORKSPACE_LIMIT = 8
 
 export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
+  if (id.startsWith('new-tab:')) return '新标签页'
   if (isWorkspaceTerminalTab(id)) return '终端'
   if (isWorkspaceBrowserTab(id)) return '浏览器'
   if (id.startsWith('file:')) return id.slice(5).split('/').pop() || '文件'
@@ -40,6 +41,10 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
 
 export function isWorkspaceTerminalTab(id: string): boolean { return id === 'terminal' || id.startsWith('terminal:') }
 export function isWorkspaceBrowserTab(id: string): boolean { return id === 'browser' || id.startsWith('browser:') }
+export function createWorkspaceNewTab(): WorkspaceTab {
+  return { id: `new-tab:${crypto.randomUUID()}`, label: '新标签页' }
+}
+
 export function createWorkspaceBrowserTab(url = ''): WorkspaceTab {
   let label = '浏览器'
   try { label = new URL(url).hostname || label } catch { /* empty browser tab */ }
@@ -148,6 +153,11 @@ export function withoutWorkspaceTaskOwners(sessions: Record<string, WorkspaceSes
 
 export function openWorkspaceTab(state: WorkspaceSessionState, tab: WorkspaceTab): WorkspaceSessionState {
   const { closedAt: _closedAt, ...opening } = tab
+  const launcher = state.tabs.find(item => item.id === state.activeTab && item.id.startsWith('new-tab:'))
+  if (launcher && !tab.id.startsWith('new-tab:')) {
+    const existing = state.tabs.some(item => item.id === tab.id)
+    state = { ...state, tabs: existing ? state.tabs.filter(item => item !== launcher) : state.tabs.map(item => item === launcher ? { ...opening, openedAt: Date.now() } : item) }
+  }
   return {
     ...state,
     // An explicit run opening replaces the overview owner; restoring a child keeps
@@ -219,7 +229,9 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
       const tabs: WorkspaceTab[] = []
       if (Array.isArray(value)) for (const tab of value) {
         if (!tab || typeof tab !== 'object' || typeof tab.id !== 'string' || typeof tab.label !== 'string' || tabs.some(item => item.id === tab.id)) continue
-        if (tab.id.startsWith('file-manager:')) {
+        if (tab.id.startsWith('new-tab:') && tab.id.length > 8) {
+          tabs.push({ id: tab.id, label: '新标签页' })
+        } else if (tab.id.startsWith('file-manager:')) {
           const manager = tab.fileManager
           if (!manager || typeof manager.directory !== 'string' || !manager.directory || manager.directory.length > 4096) continue
           if (tab.path !== undefined && !isWorkspaceRelativePath(tab.path)) continue

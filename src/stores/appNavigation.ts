@@ -1,3 +1,4 @@
+import { readMiraHarnessControlsState, type MiraHarnessControlsState, type MiraHarnessControlCommand, type MiraHarnessControlAction } from '@/platform/harnessControls'
 import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
 import { readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationDirection, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '@/platform/appNavigation'
@@ -5,6 +6,8 @@ import { readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraApp
 /** The active frame owns navigation; only its last snapshot survives a settings visit. */
 export const useAppNavigationStore = defineStore('appNavigation', () => {
   const state = shallowRef<MiraAppNavigationState | null>(null)
+  const controls = shallowRef<MiraHarnessControlsState | null>(null)
+  let sendControl: ((command: MiraHarnessControlCommand) => boolean) | undefined
   let owner: symbol | undefined
   let send: ((command: MiraAppNavigationCommand) => boolean) | undefined
   let savedSnapshot: MiraAppNavigationSnapshot | undefined
@@ -13,9 +16,9 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     return appId === 'mira-harness' ? readMiraAppNavigationSnapshot(savedSnapshot) : undefined
   }
 
-  function register(appId: string, sendCommand: (command: MiraAppNavigationCommand) => boolean) {
+  function register(appId: string, sendCommand: (command: MiraAppNavigationCommand) => boolean, controlCommand?: (command: MiraHarnessControlCommand) => boolean) {
     const token = Symbol(appId)
-    if (appId === 'mira-harness') { owner = token; send = sendCommand; state.value = null }
+    if (appId === 'mira-harness') { owner = token; send = sendCommand; sendControl = controlCommand; state.value = null; controls.value = null }
     const isCurrent = () => owner === token
     return {
       receive(value: unknown) {
@@ -25,8 +28,13 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
         state.value = next
         savedSnapshot = readMiraAppNavigationSnapshot(next.snapshot)
       },
-      reset() { if (isCurrent()) state.value = null },
-      release() { if (isCurrent()) { owner = undefined; send = undefined; state.value = null } },
+      receiveControls(value: unknown) {
+        if (!isCurrent()) return
+        const next = readMiraHarnessControlsState(value)
+        if (next) controls.value = next
+      },
+      reset() { if (isCurrent()) { state.value = null; controls.value = null } },
+      release() { if (isCurrent()) { owner = undefined; send = undefined; sendControl = undefined; state.value = null; controls.value = null } },
     }
   }
 
@@ -46,5 +54,9 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     return false
   }
 
-  return { state, register, getSavedSnapshot, openExtensions, go }
+  function control(action: MiraHarnessControlAction) {
+    return Boolean(controls.value && sendControl?.({ type: 'mira:harness-control', action }))
+  }
+
+  return { state, controls, control, register, getSavedSnapshot, openExtensions, go }
 })

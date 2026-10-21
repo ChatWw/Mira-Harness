@@ -1,14 +1,15 @@
 <template>
-  <SettingsPageShell title="个性化">
+  <SettingsPageShell title="指令与记忆">
+    <p v-if="loadError" class="settings-error" role="alert">{{ loadError }} <el-button text @click="load">重试</el-button></p>
     <section class="personalization-section" aria-labelledby="instructions-heading">
       <div class="section-heading">
         <div>
           <h2 id="instructions-heading">自定义指令</h2>
           <p>为所有 Mira 对话提供持续有效的行为和语气说明。当前用户消息可以针对单次任务提出明确例外。</p>
         </div>
-        <el-button type="primary" :loading="instructionsSaving" @click="saveInstructions">保存</el-button>
+        <el-button type="primary" :disabled="loading || Boolean(loadError) || instructions === savedInstructions" :loading="instructionsSaving" @click="saveInstructions">保存</el-button>
       </div>
-      <el-input v-model="instructions" type="textarea" :autosize="{ minRows: 10, maxRows: 20 }" resize="vertical" placeholder="输入适用于所有对话的自定义指令…" aria-label="自定义指令" />
+      <el-input v-model="instructions" :disabled="loading || Boolean(loadError)" type="textarea" :autosize="{ minRows: 10, maxRows: 20 }" resize="vertical" placeholder="输入适用于所有对话的自定义指令…" aria-label="自定义指令" />
       <p v-if="instructionsPath" class="file-hint">保存位置：{{ instructionsPath }}</p>
     </section>
 
@@ -25,19 +26,19 @@
             <span class="settings-row__label">启用记忆</span>
             <span class="settings-row__hint">自动提炼长期事实，并在每次对话时从本地记忆文件载入相关内容</span>
           </div>
-          <el-switch v-model="memoryEnabled" :loading="memorySaving" aria-label="启用记忆" @change="setMemoryEnabled" />
+          <el-switch v-model="memoryEnabled" :disabled="loading || Boolean(loadError)" :loading="memorySaving" aria-label="启用记忆" @change="setMemoryEnabled" />
         </div>
         <div class="settings-row">
           <div class="settings-row__copy">
             <span class="settings-row__label">重置记忆</span>
             <span class="settings-row__hint">删除所有 Mira 全局记忆</span>
           </div>
-          <el-button type="danger" plain :loading="memoryResetting" @click="resetMemory">重置</el-button>
+          <el-button type="danger" plain :disabled="loading || Boolean(loadError) || memoryManaging" :loading="memoryResetting" @click="resetMemory">重置</el-button>
         </div>
       </div>
       <p v-if="memoryPath" class="file-hint">关闭记忆不会删除本地数据，只会暂停对话中的读取和自动写入。全局记忆文件：{{ memoryPath }}。</p>
       <div class="memory-manager">
-        <div class="memory-manager__header"><strong>全局记忆</strong><el-button size="small" @click="addMemory">新增记忆</el-button></div>
+        <div class="memory-manager__header"><strong>全局记忆</strong><el-button size="small" :disabled="loading || Boolean(loadError) || memoryManaging" @click="addMemory">新增记忆</el-button></div>
         <el-empty v-if="!memoryEntries.length" description="还没有全局记忆" :image-size="52" />
         <div v-for="entry in memoryEntries" :key="entry.id" class="memory-entry">
           <div class="memory-entry__content"><p>{{ entry.content }}</p><small>{{ memorySourceLabel(entry.source) }} · {{ formatMemoryTime(entry.updatedAt) }}<template v-if="entry.sourceSessionId"> · 会话 {{ entry.sourceSessionId.slice(0, 8) }}</template></small></div>
@@ -68,7 +69,7 @@
           <div class="identity-card__actions">
             <template v-if="editingMiraUserName">
               <el-button @click="cancelMiraUserName">取消</el-button>
-              <el-button type="primary" :disabled="miraUserName === savedMiraUserName" @click="saveMiraUserName">保存</el-button>
+              <el-button type="primary" :disabled="Boolean(preferenceSaving) || miraUserName === savedMiraUserName" @click="saveMiraUserName">保存</el-button>
             </template>
             <el-button v-else @click="editMiraUserName">编辑</el-button>
           </div>
@@ -80,7 +81,7 @@
           <div class="identity-card__actions">
             <template v-if="editingMiraAssistantName">
               <el-button @click="cancelMiraAssistantName">取消</el-button>
-              <el-button type="primary" :disabled="miraAssistantName === savedMiraAssistantName" @click="saveMiraAssistantName">保存</el-button>
+              <el-button type="primary" :disabled="Boolean(preferenceSaving) || miraAssistantName === savedMiraAssistantName" @click="saveMiraAssistantName">保存</el-button>
             </template>
             <el-button v-else @click="editMiraAssistantName">编辑</el-button>
           </div>
@@ -108,7 +109,7 @@
             <span class="settings-row__label">Mira 回复语气</span>
             <span class="settings-row__hint">轻松模式更自然亲切；专业模式更清晰、克制、结构化。</span>
           </div>
-          <el-radio-group class="assistant-tone-picker" :model-value="assistantTone" aria-label="Mira 回复语气" @change="setAssistantTone">
+          <el-radio-group class="assistant-tone-picker" :disabled="Boolean(preferenceSaving)" :model-value="assistantTone" aria-label="Mira 回复语气" @change="setAssistantTone">
             <el-radio-button value="casual">轻松</el-radio-button>
             <el-radio-button value="professional">专业</el-radio-button>
           </el-radio-group>
@@ -122,10 +123,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type MemoryCandidate, type MemorySource } from '@/config/harness'
-import { getPlatformApi, getPreference, savePreference } from '@/platform'
+import { getPlatformApi, getPreference } from '@/platform'
+import { onBeforeRouteLeave } from 'vue-router'
+import { useSettingsPreference } from '../settings/useSettingsPreference'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 const instructions = ref('')
+const savedInstructions = ref('')
+const loading = ref(true), loadError = ref('')
+const { saving: preferenceSaving, save: savePreference } = useSettingsPreference()
 const instructionsPath = ref('')
 const instructionsSaving = ref(false)
 const memoryEnabled = ref(false)
@@ -145,17 +151,23 @@ const editingMiraAssistantName = ref(false)
 
 async function load() {
   const api = getPlatformApi()
-  if (!api) return
-  const [content, path, enabled, savedMemoryPath, entries, pending] = await Promise.all([
-    api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
-    api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
-  ])
-  instructions.value = content
-  instructionsPath.value = path
-  memoryEnabled.value = enabled
-  memoryPath.value = savedMemoryPath
-  memoryEntries.value = entries
-  pendingMemory.value = pending
+  loading.value = true
+  loadError.value = ''
+  try {
+    if (!api) throw new Error('指令与记忆仅在桌面端中可用')
+    const [content, path, enabled, savedMemoryPath, entries, pending] = await Promise.all([
+      api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
+      api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
+    ])
+    instructions.value = content
+    savedInstructions.value = content
+    instructionsPath.value = path
+    memoryEnabled.value = enabled
+    memoryPath.value = savedMemoryPath
+    memoryEntries.value = entries
+    pendingMemory.value = pending
+  } catch (error) { loadError.value = error instanceof Error ? error.message : '读取失败，请重试' }
+  finally { loading.value = false }
 }
 
 async function refreshMemory() {
@@ -210,7 +222,10 @@ async function saveInstructions() {
   if (!api || instructionsSaving.value) return
   instructionsSaving.value = true
   try {
-    await api.saveGlobalInstructions(instructions.value)
+    const value = instructions.value
+    await api.saveGlobalInstructions(value)
+    savedInstructions.value = value
+    ElMessage.success('自定义指令已保存')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '自定义指令保存失败')
   } finally {
@@ -243,6 +258,7 @@ async function resetMemory() {
   memoryResetting.value = true
   try {
     await api.resetHarnessMemory()
+    await refreshMemory()
     ElMessage.success('记忆已重置')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '记忆重置失败')
@@ -255,11 +271,11 @@ function setAssistantTone(value: string) {
   savePreference('assistantTone', normalizeAssistantTone(value))
 }
 
-function saveMiraUserName() {
+async function saveMiraUserName() {
   const value = normalizeMiraIdentityName(miraUserName.value)
+  if (!await savePreference('miraUserName', value)) return
   miraUserName.value = value
   savedMiraUserName.value = value
-  savePreference('miraUserName', value)
   editingMiraUserName.value = false
 }
 
@@ -273,11 +289,11 @@ function cancelMiraUserName() {
   editingMiraUserName.value = false
 }
 
-function saveMiraAssistantName() {
+async function saveMiraAssistantName() {
   const value = normalizeMiraIdentityName(miraAssistantName.value)
+  if (!await savePreference('miraAssistantName', value)) return
   miraAssistantName.value = value
   savedMiraAssistantName.value = value
-  savePreference('miraAssistantName', value)
   editingMiraAssistantName.value = false
 }
 
@@ -291,24 +307,30 @@ function cancelMiraAssistantName() {
   editingMiraAssistantName.value = false
 }
 
+onBeforeRouteLeave(async () => {
+  if (instructionsSaving.value || preferenceSaving.value || memorySaving.value || memoryResetting.value || memoryManaging.value) return false
+  if (instructions.value === savedInstructions.value && (!editingMiraUserName.value || miraUserName.value === savedMiraUserName.value) && (!editingMiraAssistantName.value || miraAssistantName.value === savedMiraAssistantName.value)) return true
+  try { await ElMessageBox.confirm('当前修改尚未保存，离开后将丢失。', '未保存的修改', { confirmButtonText: '放弃修改', cancelButtonText: '继续编辑', type: 'warning' }); return true } catch { return false }
+})
 onMounted(() => { void load() })
 </script>
 
 <style scoped lang="scss">
-.personalization-section { min-width: 0; margin-bottom: 38px; }
+.personalization-section { min-width: 0; margin-bottom: 32px; }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
-.section-heading h2 { margin: 0; color: var(--cp-text); font-size: 18px; font-weight: $font-semibold; }
+.section-heading h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: $font-semibold; }
 .section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.55; }
 .settings-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 66px; padding: 12px 16px; }
 .settings-row + .settings-row { border-top: 1px solid var(--cp-border-light); }
 .settings-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.settings-row__label { color: var(--cp-text); font-size: $font-sm; }
-.settings-row__hint, .file-hint { color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
+.settings-row__label { color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
+.settings-row__hint { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 24px; }
+.file-hint { color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.5; }
 .file-hint { margin: 8px 0 0; word-break: break-all; }
 .identity-settings { display: grid; gap: 16px; }
 .identity-card { padding: 18px; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
-.identity-card__label { display: block; margin-bottom: 12px; color: var(--cp-text); font-size: $font-sm; font-weight: $font-semibold; }
+.identity-card__label { display: block; margin-bottom: 12px; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
 .identity-card__value { min-height: 32px; margin: 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 32px; }
 .identity-card__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .personalization-alert { margin: 0 0 14px; }

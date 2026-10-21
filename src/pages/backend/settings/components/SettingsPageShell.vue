@@ -10,11 +10,14 @@
     <SettingsSiderMenu />
 
     <section class="settings-main">
-      <div class="settings-main__content" :class="{ 'is-wide': wide, 'is-workspace': workspace }">
-        <header v-if="showTitle !== false" class="settings-page-header">
-          <h1>{{ title }}</h1>
-        </header>
-        <slot />
+      <div class="settings-main__titlebar" aria-hidden="true" />
+      <div class="settings-main__scroll" :class="{ 'is-workspace': workspace }">
+        <div class="settings-main__content" :class="{ 'is-wide': wide, 'is-workspace': workspace }">
+          <header v-if="showTitle !== false" class="settings-page-header">
+            <h1>{{ title }}</h1>
+          </header>
+          <slot />
+        </div>
       </div>
     </section>
   </main>
@@ -41,7 +44,7 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
   height: 100vh;
   min-height: 0;
   overflow: hidden;
-  background: var(--cp-bg);
+  background: var(--cp-bg-elevated);
   color: var(--cp-text);
 }
 
@@ -49,8 +52,9 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
   padding-top: var(--cp-titlebar-height);
 }
 
-.settings-page.is-windows-overlay .settings-main__content:not(.is-workspace) {
-  padding-top: 40px;
+.settings-page.is-windows-overlay .settings-main {
+  margin: 6px 6px 6px 0;
+  border-radius: 6px;
 }
 
 .settings-page.is-macos-overlay::before {
@@ -64,21 +68,40 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
   -webkit-app-region: drag;
 }
 
-.settings-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
-.settings-main__content { box-sizing: border-box; width: min(920px, 100%); margin: 0 auto; padding: 76px 48px 56px; }
+// 布局参考 ZCode SettingsPage / SettingsPageParts；沿用 Mira 主题和 Vue 控件。
+// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
+// See third-party-licenses/zcode/.
+.settings-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; margin: 4px 4px 4px 0; overflow: hidden; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg); }
+.settings-main__titlebar { flex: 0 0 48px; -webkit-app-region: drag; }
+.settings-main__scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
+.settings-main__scroll.is-workspace { overflow: hidden; }
+.settings-main__content { box-sizing: border-box; width: min(896px, 100%); margin: 0 auto; padding: 0 32px 40px; }
 .settings-main__content.is-wide { width: min(1280px, 100%); }
 .settings-main__content.is-workspace { width: 100%; height: 100%; padding: 0; }
-.settings-page-header { margin-bottom: 38px; }
-.settings-page-header h1 { margin: 0; font-size: 30px; line-height: 1.25; }
+.settings-page-header { margin-bottom: 32px; }
+.settings-page-header h1 { margin: 0; font-size: var(--settings-text-title); font-weight: $font-semibold; line-height: 1.333333; letter-spacing: -0.02em; }
 .settings-page-header p { margin: 10px 0 0; color: var(--cp-text-secondary); }
+
+// 只统一设置表单的尺寸与状态，不改变全局控件和浮层的动画。
+.settings-main :deep(.el-button),
+.settings-main :deep(.el-input),
+.settings-main :deep(.el-select),
+.settings-main :deep(.el-input-number) { --el-component-size: 32px; }
+.settings-main :deep(.el-form-item__label) { color: var(--cp-text); }
+.settings-main :deep(.el-select),
+.settings-main :deep(.el-input-number),
+.settings-main :deep(.el-switch),
+.settings-main :deep(.el-radio-group) { flex-shrink: 0; }
+.settings-main :deep(.settings-row__copy) { overflow-wrap: anywhere; }
+.settings-main :deep(.settings-error) { margin-bottom: 16px; color: var(--cp-danger); font-size: $font-sm; line-height: 1.6; }
+.settings-main :deep(button:focus-visible) { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
+.settings-main :deep(input),
+.settings-main :deep(textarea) { caret-color: var(--cp-text); }
 
 // 抽屉会覆盖顶部拖拽区，必须明确退出 Electron 的窗口拖拽命中区域。
 :global(.el-overlay),
 :global(.el-drawer) { -webkit-app-region: no-drag; }
 
-@media (max-width: 768px) {
-  .settings-page { display: flex; flex-direction: column; }
-  .settings-main { flex: 1; }
-  .settings-main__content { padding: 32px 20px; }
-}
 </style>
+
+<style lang="scss" src="./settings-typography.scss" />

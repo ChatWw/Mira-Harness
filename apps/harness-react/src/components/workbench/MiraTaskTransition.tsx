@@ -3,7 +3,7 @@
  * Mira keeps the composer mounted and animates its position across layout modes. */
 import { Component, createRef, type ReactNode } from 'react'
 
-type Props = { draft: boolean; children: ReactNode }
+type Props = { draft: boolean; ready?: boolean; children: ReactNode }
 type Snapshot = { composer?: DOMRect; welcome?: HTMLElement; welcomeRect?: DOMRect }
 const easing = 'cubic-bezier(0.23, 1, 0.32, 1)'
 
@@ -21,12 +21,13 @@ export class MiraTaskTransition extends Component<Props> {
     window.addEventListener('resize', this.stop)
   }
   getSnapshotBeforeUpdate(previous: Props): Snapshot | null {
-    if (previous.draft === this.props.draft) return null
+    if (previous.ready === false || this.props.ready === false || previous.draft === this.props.draft) return null
     const root = this.root.current
     const welcome = root?.querySelector<HTMLElement>('.mira-task-start')
     return { composer: root?.querySelector('.mira-composer-region')?.getBoundingClientRect(), ...(welcome ? { welcome: welcome.cloneNode(true) as HTMLElement, welcomeRect: welcome.getBoundingClientRect() } : {}) }
   }
   componentDidUpdate(_previous: Props, _state: unknown, snapshot: Snapshot | null) {
+    if (this.props.ready === false) { this.stop(); return }
     if (!snapshot) return
     this.stop()
     const root = this.root.current
@@ -56,5 +57,5 @@ export class MiraTaskTransition extends Component<Props> {
     this.stop(); this.motion?.removeEventListener('change', this.stop)
     document.removeEventListener('visibilitychange', this.visibility); window.removeEventListener('resize', this.stop)
   }
-  render() { return <div ref={this.root} className="mira-conversation-root" data-draft={this.props.draft}>{this.props.children}</div> }
+  render() { return <div ref={this.root} className="mira-conversation-root" data-draft={this.props.draft} style={this.props.ready === false ? { visibility: 'hidden' } : undefined} aria-busy={this.props.ready === false || undefined}>{this.props.children}</div> }
 }

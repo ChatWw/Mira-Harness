@@ -128,3 +128,17 @@ it.each([false, true])('blocks bottom-edge dragging while closed (previously ope
   await drag(separator, separator.getBoundingClientRect().top + 2, separator.getBoundingClientRect().top - 100)
   expect(Number(panel().style.flexGrow)).toBeGreaterThan(sizeBeforeDrag)
 })
+
+it('separates the conversation frame from the open bottom terminal', async () => {
+  const style = document.createElement('style')
+  style.textContent = ['layout', 'workspace'].map(name => readFileSync(`apps/harness-react/src/styles/${name}.css`, 'utf8')).join('\n').replaceAll('var(--color-border)', '#ddd')
+  document.head.append(style)
+  try {
+    await act(async () => root.render(<div className="mira-thread-panel mira-conversation-frame"><header className="harness-thread-header" /><div className="mira-full-view-host" data-mode="docked"><div className="mira-primary-thread" /><div className="mira-bottom-terminal-panel" data-open="true"><div className="mira-bottom-terminal" aria-hidden="false" /></div></div></div>))
+    const frame = getComputedStyle(container.querySelector('.mira-conversation-frame')!)
+    expect(parseFloat(frame.borderTopWidth) || 0).toBe(0)
+    expect(getComputedStyle(container.querySelector('.harness-thread-header')!).borderTopWidth).toBe('1px')
+    expect(getComputedStyle(container.querySelector('.mira-primary-thread')!).borderBottomWidth).toBe('1px')
+    expect(getComputedStyle(container.querySelector('.mira-bottom-terminal')!).borderTopWidth).toBe('1px')
+  } finally { style.remove() }
+})

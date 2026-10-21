@@ -1,7 +1,7 @@
 <template>
   <SettingsPageShell title="键盘快捷键">
     <div class="keyboard-shortcuts">
-      <p class="page-description">查看 Mira 和 Harness 工作台已支持的快捷键。以下导航快捷键为固定预设。</p>
+      <p class="page-description">查看 Mira 和 Harness 工作台已支持的快捷键。导航快捷键为固定预设；发送快捷键可在对话设置中调整。</p>
 
       <section class="shortcut-section" aria-labelledby="global-shortcuts-heading">
         <div class="section-heading">
@@ -59,7 +59,8 @@ const harnessShortcuts = computed(() => [
   { label: '前台命令转后台', hint: '作用于当前焦点任务最近启动的前台命令，保留草稿；自动化命令不可转后台。', keys: [shortcutModifier.value, 'B'] },
   { label: '查找当前任务', hint: '查找当前焦点任务的正文、思考、工具和文件变更。', keys: [shortcutModifier.value, 'F'] },
   { label: '切换底部终端', hint: '打开或收起当前任务的终端。', keys: [shortcutModifier.value, 'J'] },
-  { label: '切换面板', hint: '打开或收起右侧资源面板，保留原标签。', keys: [shortcutModifier.value, shortcutModifier.value === '⌘' ? '⌥' : 'Alt', 'B'] },
+  { label: '切换面板', hint: '打开或收起右侧资源面板，保留已有标签；空面板展开时创建新标签页。', keys: [shortcutModifier.value, shortcutModifier.value === '⌘' ? '⌥' : 'Alt', 'B'] },
+  { label: '切换完整视图', hint: '进入或退出面板完整视图；面板收起时会先展开，菜单或模态弹窗打开时不生效。', keys: [shortcutModifier.value, 'Shift', 'F'] },
   { label: '后退', hint: '返回上一个工作台位置。', keys: [shortcutModifier.value, '['] },
   { label: '前进', hint: '恢复后退前的工作台位置。', keys: [shortcutModifier.value, ']'] },
   { label: '上一个任务', hint: '按当前工作目录及侧栏排序选择上一项，保留草稿；到达首项后不循环。', keys: [shortcutModifier.value, 'Shift', '['] },
@@ -67,6 +68,9 @@ const harnessShortcuts = computed(() => [
   { label: '打开模型选择', hint: '文件编辑器和终端保留自身快捷键。', keys: [shortcutModifier.value, 'M'] },
   { label: '切换权限模式', hint: '依次切换逐次确认、自动审核和完全访问，作用于下一次提交。', keys: [shortcutModifier.value, 'Shift', 'M'] },
   { label: '切换推理强度', hint: '焦点在输入框且当前模型支持推理时生效。', keys: [shortcutModifier.value, 'T'] },
+  { label: '发送消息', hint: `默认按 Enter 发送；可在对话设置中改为 ${miraShortcutLabel('Enter')}。候选列表打开时优先选择候选。`, keys: ['Enter'] },
+  { label: '切换发送方式', hint: '支持消息队列的任务运行中，临时切换默认发送方式：排队模式下立即发送，引导模式下加入待发送。', keys: [shortcutModifier.value, 'Enter'] },
+  { label: '停止当前任务', hint: '停止当前焦点任务；候选列表、查找栏、菜单或弹窗打开时优先处理关闭操作，终端和其他编辑器保留自身按键。', keys: ['Esc'] },
   { label: '输入换行', hint: '候选列表打开时也保留换行，不选择候选或发送消息。', keys: ['Shift', 'Enter'] },
 ])
 </script>
@@ -75,7 +79,7 @@ const harnessShortcuts = computed(() => [
 .keyboard-shortcuts { max-width: 760px; }
 .page-description { margin: -24px 0 38px; color: var(--cp-text-secondary); }
 .section-heading { margin-bottom: 14px; }
-.section-heading h2 { margin: 0; font-size: $font-lg; line-height: 1.5; }
+.section-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; line-height: 1.5; }
 .shortcut-section + .shortcut-section { margin-top: 32px; }
 .section-description { margin: -4px 0 14px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.5; }
 .shortcut-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }

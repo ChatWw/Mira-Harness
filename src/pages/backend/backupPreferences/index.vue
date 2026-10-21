@@ -1,6 +1,6 @@
 <template>
-  <SettingsPageShell title="备份与偏好">
-    <p class="page-description">导出完整配置快照，或在变更前恢复到已保存和默认状态。</p>
+  <SettingsPageShell title="应用配置">
+    <p class="page-description">导入、导出或恢复 Mira 应用配置。配置导出不包含完整任务数据。</p>
     <el-alert
       v-if="!desktopAvailable"
       type="warning"
@@ -13,36 +13,29 @@
     <section class="summary-list">
       <div class="summary-row">
         <div class="summary-icon"><AppIcon name="Coin" /></div>
-        <div><strong>SQLite 本机存储</strong><span>菜单、微应用和界面偏好保存在应用用户数据目录中。</span></div>
+        <div><strong>SQLite 本机存储</strong><span>菜单、微应用和偏好保存在应用用户数据目录中。</span></div>
       </div>
       <div class="summary-row">
         <div class="summary-icon"><AppIcon name="Setting" /></div>
-        <div><strong>{{ preferenceCount }} 项界面偏好</strong><span>偏好随配置快照一起导出和恢复，本页不提供单项编辑。</span></div>
+        <div><strong>{{ preferenceCount }} 项应用偏好</strong><span>偏好包含外观、工作台布局、打开状态及消息草稿，会随应用配置一起导出和恢复。</span></div>
       </div>
     </section>
 
     <section class="action-section">
-      <div><h3>当前布局配置</h3><p>复制当前外观、布局和工作区设置的 JSON，便于留存或在需要时手动比对。</p></div>
-      <el-button :loading="action === 'copy-layout'" :disabled="busy" @click="copyLayoutConfig">
-        <AppIcon name="CopyDocument" />复制布局配置
-      </el-button>
-    </section>
-
-    <section class="action-section">
-      <div><h3>配置快照</h3><p>导出当前全部配置，或导入此前保存的 JSON 快照。导入前会自动备份当前数据库。</p></div>
+      <div><h3>应用配置</h3><p>包含菜单、微应用和偏好记录；不包含任务与消息、模型服务及凭据、权限配置、记忆、技能文件或项目文件。导入会替换配置中的偏好，执行前自动备份当前数据库。</p></div>
       <div class="action-buttons">
         <el-button :loading="action === 'export'" :disabled="busy || !desktopAvailable" @click="exportConfig">
-          <AppIcon name="Download" />导出配置
+          <AppIcon name="Download" />导出应用配置
         </el-button>
         <el-button :loading="action === 'import'" :disabled="busy || !desktopAvailable" @click="importInput?.click()">
-          <AppIcon name="Upload" />导入配置
+          <AppIcon name="Upload" />导入应用配置
         </el-button>
         <input ref="importInput" class="file-input" type="file" accept="application/json,.json" @change="importConfig" />
       </div>
     </section>
 
     <section class="action-section danger-section">
-      <div><h3>恢复默认配置</h3><p>覆盖当前菜单、微应用和界面偏好。执行前同样会自动创建数据库备份。</p></div>
+      <div><h3>恢复默认配置</h3><p>重置菜单、微应用及应用偏好，包括工作台布局、打开状态和消息草稿。不会删除任务消息、模型服务、权限配置、记忆或项目文件。执行前自动创建数据库备份。</p></div>
       <el-button type="danger" plain :loading="action === 'restore'" :disabled="busy || !desktopAvailable" @click="restoreDefaults">
         恢复默认配置
       </el-button>
@@ -51,35 +44,21 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeRouteLeave } from 'vue-router'
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi } from '@/platform'
-import { useLayoutStore } from '@/stores/layout'
 import { applyManagementSnapshot, requirePlatformApi } from '../platformManagement'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
-type Action = '' | 'copy-layout' | 'export' | 'import' | 'restore'
+type Action = '' | 'export' | 'import' | 'restore'
 
 const desktopAvailable = Boolean(getPlatformApi())
 const importInput = ref<HTMLInputElement>()
 const action = ref<Action>('')
 const busy = computed(() => Boolean(action.value))
 const preferenceCount = computed(() => Object.keys(platformPreferences).length)
-const layoutStore = useLayoutStore()
-
-async function copyLayoutConfig() {
-  action.value = 'copy-layout'
-  try {
-    await navigator.clipboard.writeText(layoutStore.copyConfig())
-    ElMessage.success('当前布局配置已复制到剪贴板')
-  } catch {
-    ElMessage.error('复制失败，请检查剪贴板权限')
-  } finally {
-    action.value = ''
-  }
-}
-
 async function exportConfig() {
   action.value = 'export'
   try {
@@ -90,7 +69,7 @@ async function exportConfig() {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-    ElMessage.success('配置快照已导出')
+    ElMessage.success('应用配置已导出')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败')
   } finally {
@@ -104,10 +83,12 @@ async function importConfig(event: Event) {
   if (!file) return
   action.value = 'import'
   try {
-    applyManagementSnapshot(await requirePlatformApi().importSnapshot(await file.text()))
+    const raw = await file.text()
+    await ElMessageBox.confirm('导入将替换菜单、微应用和偏好，包括工作台状态及消息草稿；当前数据库会自动备份。是否继续？', '导入应用配置', { type: 'warning', confirmButtonText: '导入', cancelButtonText: '取消' })
+    applyManagementSnapshot(await requirePlatformApi().importSnapshot(raw))
     ElMessage.success('配置已导入，原数据库已自动备份')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '导入失败')
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '导入失败')
   } finally {
     action.value = ''
     input.value = ''
@@ -116,7 +97,7 @@ async function importConfig(event: Event) {
 
 async function restoreDefaults() {
   try {
-    await ElMessageBox.confirm('这会覆盖当前菜单、微应用和界面偏好，是否继续？', '恢复默认配置', { type: 'warning' })
+    await ElMessageBox.confirm('这会重置菜单、微应用和全部应用偏好，包括工作台布局、打开状态与消息草稿。任务消息、模型服务、权限配置、记忆和项目文件不会删除；执行前将自动备份数据库。是否继续？', '恢复默认配置', { type: 'warning' })
   } catch {
     return
   }
@@ -130,6 +111,7 @@ async function restoreDefaults() {
     action.value = ''
   }
 }
+onBeforeRouteLeave(() => !busy.value)
 </script>
 
 <style scoped lang="scss">
@@ -154,7 +136,7 @@ async function restoreDefaults() {
   padding: $spacing-lg 0;
   border-bottom: 1px solid var(--cp-border);
 
-  h3 { margin: 0 0 $spacing-xs; color: var(--cp-text); font-size: $font-base; }
+  h3 { margin: 0 0 $spacing-xs; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 600; }
   p { margin: 0; max-width: 70ch; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.7; }
 }
 .danger-section { border-bottom: 0; }

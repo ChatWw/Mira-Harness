@@ -14,7 +14,9 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { readMiraHarnessControlCommand, readMiraHarnessControlsState, type MiraHarnessControlCommand, type MiraHarnessControlsState } from '@/platform/harnessControls'
+import { isMiraFullViewShortcut } from '@/platform/workbenchShortcuts'
 import { PLATFORM_API_VERSION, type FirstPartyAppManifest } from '@/config/firstPartyApps'
 import { FirstPartyBridgeError, handleFirstPartyRequest, isFirstPartyRequest } from '@/platform/firstPartyBridge'
 import { FirstPartyConnectionSession } from '@/platform/firstPartySession'
@@ -37,7 +39,7 @@ const props = defineProps<{
   setTheme?: (theme: 'system' | 'light' | 'dark') => void
   navigationSnapshot?: MiraAppNavigationSnapshot
 }>()
-const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: [] }>()
+const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: []; controlsState: [state: MiraHarnessControlsState] }>()
 const stage = ref<HTMLDivElement>()
 const frame = ref<HTMLIFrameElement>()
 let port: MessagePort | undefined
@@ -47,6 +49,16 @@ let disposed = false
 let connectedOnce = false
 let commandFocus: { id: string; port: MessagePort; target?: HTMLElement } | undefined
 const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
+
+function fullViewShortcut(event: KeyboardEvent) {
+  if (!port || disposed || !hasHarnessNavigation() || !isMiraFullViewShortcut(event)) return
+  const overlays = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], [role="menu"][data-state="open"]')
+  if ([...overlays].some(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')) return
+  event.preventDefault()
+  send({ type: 'mira:full-view-toggle' })
+}
+onMounted(() => window.addEventListener('keydown', fullViewShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', fullViewShortcut))
 
 function invalidateConnection() { commandFocus = undefined; browsers.clear(); unsubscribeHarness?.(); unsubscribeHarness = undefined; session.invalidate(); port = undefined; emit('navigationReset') }
 
@@ -87,6 +99,11 @@ function navigateHistory(command: MiraAppNavigationCommand) {
   if (disposed || !port || !hasHarnessNavigation() || !message) return false
   try { port.postMessage(message); return true } catch { return false }
 }
+function harnessControl(command: MiraHarnessControlCommand) {
+  const message = readMiraHarnessControlCommand(command)
+  if (disposed || !port || !hasHarnessNavigation() || !message) return false
+  try { port.postMessage(message); return true } catch { return false }
+}
 function prepareLeave() {
   const activePort = port
   if (disposed || !activePort) return Promise.reject(new Error('Harness 连接尚未就绪，无法确认草稿保存'))
@@ -97,7 +114,7 @@ function closeContext() {
   if (disposed || !activePort || !hasHarnessNavigation()) return Promise.reject(new Error('Harness 连接尚未就绪，已保留当前窗口'))
   return session.closeContext(message => activePort.postMessage(message))
 }
-defineExpose({ prepareLeave, openCommandCenter, navigateHistory, closeContext })
+defineExpose({ harnessControl, prepareLeave, openCommandCenter, navigateHistory, closeContext })
 
 
 async function connect() {
@@ -145,6 +162,8 @@ async function connect() {
   activePort.onmessage = async event => {
     if (!session.isActive(nextGrant, activePort)) return
     if (restoreCommandFocus(event.data, activePort)) return
+    const controlsState = readMiraHarnessControlsState(event.data)
+    if (controlsState) { if (hasHarnessNavigation()) emit('controlsState', controlsState); return }
     const navigationState = readMiraAppNavigationState(event.data)
     if (navigationState) { if (hasHarnessNavigation()) emit('navigationState', navigationState); return }
     if (session.receiveLeaveReady(event.data)) return

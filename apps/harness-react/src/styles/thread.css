@@ -479,10 +479,10 @@
 @container conversation (min-width: 1280px) {
   .mira-task-summary[data-mode='auto'] .mira-task-summary__panel { display: flex; }
   .mira-task-summary[data-mode='auto'] .mira-task-summary__mini { display: none; }
-  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - 840px) / 2)); margin-right: 344px; }
-  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - 840px) / 2)); }
-  .mira-side-conversation__thread:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - 840px) / 2)); margin-right: 344px; }
-  .mira-side-conversation__thread:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - 840px) / 2)); }
+  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - var(--mira-conversation-width, 840px)) / 2)); margin-right: 344px; }
+  .mira-conversation-layout:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - var(--mira-conversation-width, 840px)) / 2)); }
+  .mira-side-conversation__thread:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-message-column { width: calc(100% - 344px); margin-left: max(0px, calc((100% - 344px - var(--mira-conversation-width, 840px)) / 2)); margin-right: 344px; }
+  .mira-side-conversation__thread:has(.mira-task-summary[data-mode='auto'], .mira-task-summary[data-mode='panel']) .mira-composer-region { width: calc(100% - 344px); align-self: flex-start; margin-left: max(0px, calc((100% - 344px - var(--mira-conversation-width, 840px)) / 2)); }
 }
 @container mira-summary-space (max-height: 140px) {
   .mira-task-summary[data-mode] .mira-task-summary__panel { display: none; }

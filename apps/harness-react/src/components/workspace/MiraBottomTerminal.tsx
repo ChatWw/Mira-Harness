@@ -6,7 +6,7 @@ import { Plus, X } from 'lucide-react'
 import type { PilotController } from '../../state/pilot-state'
 import { TerminalPanel } from './TerminalPanel'
 
-type MiraTerminalTab = { id: string; sessionId: string; directory?: string; index: number; label: string }
+type MiraTerminalTab = { id: string; sessionId: string; directory?: string; index: number; label: string; shellLabel?: string }
 type MiraTerminalState = { tabs: MiraTerminalTab[]; selected: Record<string, string> }
 
 export function MiraBottomTerminal({ controller, sessionId, directory, retainedSessionIds, open, active, onClose, onFocus, onOpenAddress, children }: {
@@ -105,6 +105,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
       {terminals.tabs.length > 0 && <section id="mira-bottom-terminal" className="mira-bottom-terminal" aria-label="底部终端" aria-hidden={!open} inert={!open} onFocusCapture={onFocus} onPointerDownCapture={onFocus}>
         <div className="mira-bottom-terminal__toolbar">
           <span className="mira-bottom-terminal__title">终端</span>
+          {selected?.shellLabel && <span className="mira-bottom-terminal__shell">{selected.shellLabel}</span>}
           <div className="mira-bottom-terminal__tabs" role="tablist" aria-label="底部终端标签">
             {currentTabs.map(tab => <div key={tab.id} className="mira-bottom-terminal__tab" data-active={selected?.id === tab.id}>
               <button type="button" id={`mira-terminal-tab-${tab.id}`} role="tab" aria-selected={selected?.id === tab.id} aria-controls={`mira-terminal-view-${tab.id}`} tabIndex={selected?.id === tab.id ? 0 : -1} title={tab.label} onClick={() => selectTerminal(tab.id)} onKeyDown={event => {
@@ -123,7 +124,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
         <div className="mira-bottom-terminal__body">{terminals.tabs.map(tab => {
           const visible = open && tab.sessionId === sessionId && tab.id === selected?.id
           return <div key={tab.id} id={`mira-terminal-view-${tab.id}`} role="tabpanel" aria-labelledby={`mira-terminal-tab-${tab.id}`} data-bottom-terminal-id={tab.id} hidden={!visible} inert={!visible} className="mira-bottom-terminal__view">
-            <TerminalPanel controller={controller} sessionId={tab.sessionId} directory={tab.directory} active={visible && active} focusOnActivate={visible} onExit={() => removeTerminal(tab, true)} onOpenAddress={url => {
+            <TerminalPanel onShellLabelChange={shellLabel => setTerminals(current => ({ ...current, tabs: current.tabs.map(item => item.id === tab.id ? { ...item, shellLabel } : item) }))} controller={controller} sessionId={tab.sessionId} directory={tab.directory} active={visible && active} focusOnActivate={visible} onExit={() => removeTerminal(tab, true)} onOpenAddress={url => {
               const owner = latest.current
               if (owner.open && owner.active && owner.sessionId === tab.sessionId && owner.selectedId === tab.id) owner.onOpenAddress(tab.sessionId, url)
             }} />

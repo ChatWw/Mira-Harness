@@ -1319,16 +1319,24 @@ describe('first-screen navigation owns each awaited transition', () => {
     expect(() => view.props((_, element) => element.type === MiraFileManager)).toThrow('Missing workbench element')
     expect(controller.getSnapshot().session?.id).toBe('a'); view.unmount()
   })
-  it('remembers each task full view and floating mode, hides guests on conversation tab and clears on pane close', async () => {
+  it.each([
+    { surface: 'resource', floating: 'collapsed' },
+    { surface: 'resource', floating: 'expanded' },
+    { surface: 'resource', floating: 'minimized' },
+    { surface: 'conversation', floating: 'collapsed' },
+  ] as const)('resets full view after switching tasks from %j, retains resource tabs and clears on pane close', async mode => {
     const { controller } = fixture(), view = mount(controller); await view.drain()
     const tabs = () => view.props((_, element) => element.type === WorkspaceTabs) as unknown as React.ComponentProps<typeof WorkspaceTabs>
     const host = () => view.props((_, element) => element.type === MiraFullViewHost) as unknown as React.ComponentProps<typeof MiraFullViewHost>
     ;(view.props(p => p['aria-label'] === '切换面板').onClick as () => void)(); await view.drain()
     await tabs().onOpen('browser'); await view.drain(); tabs().onFullView!(); await view.drain()
+    const resourceTabs = tabs().tabs.map(tab => tab.id)
     expect(host().view).toEqual({ surface:'resource', floating:'collapsed' })
-    host().onChange({ surface:'resource', floating:'minimized' }); await view.drain()
+    host().onChange(mode); await view.drain()
     await view.sidebar().onOpenSession('b'); await view.drain(); expect(host().view).toBeUndefined()
-    await view.sidebar().onOpenSession('a'); await view.drain(); expect(host().view).toEqual({ surface:'resource', floating:'minimized' })
+    await view.sidebar().onOpenSession('a'); await view.drain(); expect(host().view).toBeUndefined()
+    expect(tabs().tabs.map(tab => tab.id)).toEqual(resourceTabs)
+    tabs().onFullView!(); await view.drain()
     tabs().onConversation!(); await view.drain(); expect(host().view?.surface).toBe('conversation')
     expect(view.props((_, element) => element.type === MiraBrowserPanel).active).toBe(false)
     tabs().onActivate(tabs().tabs[0].id); await view.drain(); expect(host().view?.surface).toBe('resource')

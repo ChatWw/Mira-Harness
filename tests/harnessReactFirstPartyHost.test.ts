@@ -538,3 +538,36 @@ describe('Git tools authorized host transport', () => {
     host.close()
   })
 })
+
+it('forwards only the complete full-view command and releases its subscription', () => {
+  const port = { onmessage: undefined as ((event: { data: unknown }) => void) | undefined, start: vi.fn(), postMessage: vi.fn(), close: vi.fn() }
+  const host = new FirstPartyHarnessHost(port as unknown as MessagePort)
+  const toggle = vi.fn(), release = host.onFullViewToggle(toggle)
+  port.onmessage?.({ data: { type: 'mira:full-view-toggle', extra: true } })
+  expect(toggle).not.toHaveBeenCalled()
+  port.onmessage?.({ data: { type: 'mira:full-view-toggle' } })
+  expect(toggle).toHaveBeenCalledOnce()
+  release()
+  port.onmessage?.({ data: { type: 'mira:full-view-toggle' } })
+  expect(toggle).toHaveBeenCalledOnce()
+  host.close()
+})
+
+
+describe('Harness titlebar control bridge', () => {
+  it('accepts only exact control messages and stops after unsubscribe or close', () => {
+    const { host, port, receive } = fixture(), listener = vi.fn(), remove = host.onHarnessControl(listener)
+    for (const data of [null, [], { type: 'mira:harness-control', action: 'other' }, { type: 'mira:harness-control', action: 'new-task', extra: true }]) receive(data)
+    expect(listener).not.toHaveBeenCalled()
+    receive({ type: 'mira:harness-control', action: 'toggle-sidebar' })
+    receive({ type: 'mira:harness-control', action: 'new-task' })
+    expect(listener.mock.calls).toEqual([['toggle-sidebar'], ['new-task']])
+    host.publishHarnessControls({ type: 'mira:harness-controls-state', sidebarOpen: false })
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:harness-controls-state', sidebarOpen: false })
+    remove(); receive({ type: 'mira:harness-control', action: 'new-task' }); expect(listener).toHaveBeenCalledTimes(2)
+    host.onHarnessControl(listener); host.close(); port.postMessage.mockClear()
+    receive({ type: 'mira:harness-control', action: 'new-task' })
+    host.publishHarnessControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(listener).toHaveBeenCalledTimes(2); expect(port.postMessage).not.toHaveBeenCalled()
+  })
+})

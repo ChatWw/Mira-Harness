@@ -60,3 +60,49 @@ describe('workspace tab drag and hover interaction', () => {
     expect(view.close).toHaveBeenCalledExactlyOnceWith('file:docs/notes.md'); expect(view.activate).not.toHaveBeenCalled()
   })
 })
+
+
+it('places the add button after tabs and shares the warm tooltip delay between panel controls', async () => {
+  const add = vi.fn(), expand = vi.fn(), dismiss = vi.fn()
+  await act(async () => root.render(<WorkspaceTabs tabs={[{ id: 'new-tab:first', label: '新标签页' }]} active="new-tab:first" changes={0} recentClosedTabs={[]} onNewTab={add} onOpen={vi.fn()} onActivate={vi.fn()} onClose={vi.fn()} onCloseOthers={vi.fn()} onCloseAll={vi.fn()} onReopen={vi.fn()} onReorder={vi.fn()} onDismiss={dismiss} onFullView={expand} />))
+  const list = container.querySelector('.pilot-side-tabs__list')!
+  expect(list.firstElementChild?.getAttribute('data-workspace-tab-id')).toBe('new-tab:first')
+  const plus = list.lastElementChild as HTMLButtonElement
+  expect(plus.getAttribute('aria-label')).toBe('新建标签页')
+  await act(async () => plus.click())
+  expect(add).toHaveBeenCalledOnce()
+  const controls = container.querySelectorAll<HTMLButtonElement>('.pilot-side-tabs__actions button')
+  expect([...controls].map(button => button.querySelector('svg')?.getAttribute('width'))).toEqual(['16', '16'])
+  const hover = async (button: HTMLButtonElement, wait: number) => act(async () => {
+    button.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' }))
+    await new Promise(resolve => setTimeout(resolve, wait))
+  })
+  await hover(controls[0], 30)
+  expect(container.querySelector('[role="tooltip"]')).toBeNull()
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 370)) })
+  expect(container.querySelector('[role="tooltip"]')?.textContent).toContain('进入完整视图')
+  await act(async () => controls[0].dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' })))
+  await hover(controls[1], 30)
+  expect(container.querySelector('[role="tooltip"]')?.textContent).toContain('切换面板')
+  await act(async () => controls[0].click())
+  expect(expand).toHaveBeenCalledOnce()
+  await act(async () => controls[1].click())
+  expect(dismiss).toHaveBeenCalledOnce()
+})
+
+
+it('keeps the tab overview before the fixed conversation tab in full view and preserves activation', async () => {
+  const activate = vi.fn(), conversation = vi.fn()
+  await act(async () => root.render(<WorkspaceTabs fullView={{ surface: 'resource', floating: 'collapsed' }} conversationTitle="当前任务" onConversation={conversation} tabs={[{ id: 'overview', label: '任务活动' }]} active="overview" changes={0} recentClosedTabs={[]} onOpen={vi.fn()} onActivate={activate} onClose={vi.fn()} onCloseOthers={vi.fn()} onCloseAll={vi.fn()} onReopen={vi.fn()} onReorder={vi.fn()} onDismiss={vi.fn()} />))
+  const nav = container.querySelector('nav')!
+  const overview = nav.firstElementChild as HTMLButtonElement
+  expect(overview.getAttribute('aria-label')).toBe('标签页')
+  expect(overview.nextElementSibling?.classList.contains('mira-conversation-tab')).toBe(true)
+  await act(async () => overview.click())
+  const resource = container.querySelector<HTMLElement>('[aria-label="切换到任务活动"]')!
+  expect(resource).not.toBeNull()
+  await act(async () => resource.click())
+  expect(activate).toHaveBeenCalledExactlyOnceWith('overview')
+  await act(async () => container.querySelector<HTMLButtonElement>('.mira-conversation-tab button')!.click())
+  expect(conversation).toHaveBeenCalledOnce()
+})

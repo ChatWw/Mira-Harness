@@ -143,7 +143,7 @@ button:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 3px; }
   border: 1px solid var(--skill-dialog-border);
   background: #fff;
   color: var(--skill-dialog-foreground);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
   font-size: 14px;
   line-height: 1.625;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1);

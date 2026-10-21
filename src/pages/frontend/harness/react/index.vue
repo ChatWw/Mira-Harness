@@ -2,7 +2,7 @@
   <main class="harness-react-host">
     <p v-if="error" class="harness-react-host__error" role="alert">{{ error }} <router-link to="/workspace/chat">使用旧版工作台</router-link></p>
     <p v-else-if="!url" class="harness-react-host__loading">正在加载 Harness…</p>
-    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :toggle-theme="toggleShellTheme" :get-appearance="getAppearance" :set-theme="setShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
+    <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :toggle-theme="toggleShellTheme" :get-appearance="getAppearance" :set-theme="setShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @controls-state="navigationOwner.receiveControls" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
     <p v-if="routeError" class="harness-react-host__route-error" role="alert">{{ routeError }}</p>
   </main>
 </template>
@@ -31,7 +31,7 @@ const routeError = ref('')
 const appFrame = ref<InstanceType<typeof FirstPartyFrame>>()
 const appNavigation = useAppNavigationStore()
 const navigationSnapshot = appNavigation.getSavedSnapshot('mira-harness')
-const navigationOwner = appNavigation.register('mira-harness', command => appFrame.value?.navigateHistory(command) ?? false)
+const navigationOwner = appNavigation.register('mira-harness', command => appFrame.value?.navigateHistory(command) ?? false, command => appFrame.value?.harnessControl(command) ?? false)
 const navigate = (path: string) => navigateHarnessHost(router, path)
 const openCommandCenter = () => appFrame.value?.openCommandCenter()
 let disposed = false

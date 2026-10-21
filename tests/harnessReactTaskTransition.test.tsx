@@ -15,8 +15,8 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); if (original) Object.defineProperty(HTMLElement.prototype, 'animate', original); else delete (HTMLElement.prototype as Partial<HTMLElement>).animate })
-async function render(draft: boolean) {
-  await act(async () => root.render(<MiraTaskTransition draft={draft}>{draft && <div className="mira-task-start"><h2>新任务</h2></div>}<div className="mira-composer-region"><textarea defaultValue="未发送草稿" /></div></MiraTaskTransition>))
+async function render(draft: boolean, ready = true) {
+  await act(async () => root.render(<MiraTaskTransition draft={draft} ready={ready}>{draft && <div className="mira-task-start"><h2>新任务</h2></div>}<div className="mira-composer-region"><textarea defaultValue="未发送草稿" /></div></MiraTaskTransition>))
 }
 it('keeps composer identity, draft and focus while retaining an inert welcome exit layer', async () => {
   await render(true); expect(animations).toHaveLength(0)
@@ -34,4 +34,18 @@ it('cancels exits on rapid reversal, resize and reduced motion without stale wel
   window.dispatchEvent(new Event('resize')); expect(animations.every(animation => animation.cancel.mock.calls.length)).toBe(true)
   motion.matches = true; await render(false)
   expect(container.querySelector('.mira-task-start')).toBeNull()
+})
+
+it.each([true, false])('restores draft=%s without exposing intermediate layout or playing entry motion', async draft => {
+  await render(true, false)
+  const input = container.querySelector('textarea')!
+  expect(container.querySelector<HTMLElement>('.mira-conversation-root')!.style.visibility).toBe('hidden')
+  await render(false, false)
+  await render(draft, true)
+  expect(animations).toHaveLength(0)
+  expect(container.querySelector('textarea')).toBe(input)
+  expect(container.querySelector<HTMLElement>('.mira-conversation-root')!.style.visibility).toBe('')
+  expect(container.querySelectorAll('[aria-hidden=true]')).toHaveLength(0)
+  await render(!draft, true)
+  expect(animations.length).toBeGreaterThan(0)
 })

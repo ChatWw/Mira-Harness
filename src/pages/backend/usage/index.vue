@@ -1,10 +1,10 @@
 <!-- ZCode UsageStatsSection / AppUsagePanel structure adapted to Mira's settings shell.
      Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. -->
 <template>
-  <SettingsPageShell title="使用统计" :show-title="false">
+  <SettingsPageShell title="用量统计" :show-title="false">
     <div class="app-usage">
-      <header class="app-usage-heading"><h1>使用统计</h1><span>应用用量</span></header>
-      <section class="usage-lifetime" aria-label="累计使用统计"><div v-for="item in summary" :key="item.label"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div></section>
+      <header class="app-usage-heading"><h1>用量统计</h1><span>应用用量</span></header>
+      <section class="usage-lifetime" aria-label="累计用量统计"><div v-for="item in summary" :key="item.label"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div></section>
       <p v-if="error" class="usage-error" role="alert">{{ error }}<button type="button" @click="load">重试</button></p>
       <template v-if="snapshot">
         <section class="usage-card usage-heatmap"><header><h2>Token 活动</h2><div class="usage-tabs" role="tablist" aria-label="Token 活动方式"><button v-for="mode in modes" :key="mode.value" type="button" role="tab" :aria-selected="activity === mode.value" @click="activity = mode.value">{{ mode.label }}</button></div></header>
@@ -46,18 +46,17 @@ function heatmapHint(cell: ReturnType<typeof usageHeatmap>[number]['cells'][numb
 async function load() {
   if (loading.value) return
   loading.value = true; error.value = ''
-  try { const api = getPlatformApi(); if (!api) throw new Error('使用统计仅支持 Mira 桌面端'); const result = await api.queryHarnessUsage(); if (!result.appUsage) throw new Error('统计服务尚未更新，请重启 Mira 后重试'); snapshot.value = result.appUsage }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : '读取使用统计失败' }
+  try { const api = getPlatformApi(); if (!api) throw new Error('用量统计仅支持 Mira 桌面端'); const result = await api.queryHarnessUsage(); if (!result.appUsage) throw new Error('统计服务尚未更新，请重启 Mira 后重试'); snapshot.value = result.appUsage }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : '读取用量统计失败' }
   finally { loading.value = false }
 }
 onMounted(load)
 </script>
 
 <style scoped>
-:deep(.settings-main__content) { width: min(896px, 100%); padding: 56px 32px; }
 .app-usage { --usage-surface: color-mix(in srgb, var(--cp-text) 3%, var(--cp-bg)); display: flex; flex-direction: column; gap: 20px; color: var(--cp-text); }
 .app-usage-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.app-usage-heading h1 { margin: 0; font-size: 30px; line-height: 36px; font-weight: 600; }
+.app-usage-heading h1 { margin: 0; font-size: 24px; line-height: 1.35; font-weight: 600; }
 .app-usage-heading > span { padding: 4px 12px; border-radius: 20px; background: var(--usage-surface); font-size: 14px; font-weight: 500; }
 .usage-lifetime { display: flex; overflow: hidden; border-radius: 12px; background: var(--usage-surface); }
 .usage-lifetime > div { flex: 1; min-width: 0; padding: 12px 8px; text-align: center; position: relative; }

@@ -9,26 +9,25 @@ import { miraBrowserFavicon } from '../../../../../src/platform/miraBrowserMetad
 import { closestCenter, DndContext, KeyboardCode, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { horizontalListSortingStrategy, sortableKeyboardCoordinates, SortableContext, useSortable } from '@dnd-kit/sortable'
 import * as ContextMenu from '@radix-ui/react-context-menu'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Activity, Maximize2, Minimize2, Menu, FileCode2, GitCompare, Globe2, MessageSquare, PanelRightClose, Plus, TerminalSquare, X } from 'lucide-react'
+import { Maximize2, Minimize2, MessageSquare, PanelRightClose, Plus, X } from 'lucide-react'
 import { miraPrimaryKeyShortcuts, miraShortcutLabel } from '../../../../../src/platform/workbenchShortcuts'
 import { SidebarActionHint } from '../session/SidebarCollectionSection'
 import { miraWorkspaceTabPresentation } from '../../lib/mira-workspace-tab-presentation'
 import { MiraWorkspaceOverview } from './MiraWorkspaceOverview'
-import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, workspaceTabLabel, type WorkspaceResourceId, type WorkspaceTab, type WorkspaceTabId } from '../../state/workspace-state'
+import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceResourceId, type WorkspaceTab, type WorkspaceTabId } from '../../state/workspace-state'
 
 type WorkspaceTabsProps = {
   fullView?: MiraFullView
   conversationTitle?: string
   onFullView?: () => void
   onConversation?: () => void
-  onSidebar?: () => void
   tabs: WorkspaceTab[]
   active: WorkspaceTabId
   changes: number
   recentClosedTabs: WorkspaceTab[]
   onOpen: (id: WorkspaceResourceId) => void
+  onNewTab?: () => void
   onActivate: (id: WorkspaceTabId) => void
   onClose: (id: WorkspaceTabId) => void
   onCloseOthers: (id: WorkspaceTabId) => void
@@ -39,11 +38,10 @@ type WorkspaceTabsProps = {
   onRestartTerminal?: (id: WorkspaceTabId) => void
 }
 
-export function WorkspaceTabs({ fullView, conversationTitle, onFullView, onConversation, onSidebar, tabs, active, changes, recentClosedTabs, onOpen, onActivate, onClose, onCloseOthers, onCloseAll, onReopen, onReorder, onDismiss, onRestartTerminal }: WorkspaceTabsProps) {
+export function WorkspaceTabs({ fullView, conversationTitle, onFullView, onConversation, tabs, active, changes, recentClosedTabs, onNewTab, onActivate, onClose, onCloseOthers, onCloseAll, onReopen, onReorder, onDismiss, onRestartTerminal }: WorkspaceTabsProps) {
   const rootRef = useRef<HTMLElement>(null)
   const focusedControl = useRef<HTMLElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates, keyboardCodes: { start: [KeyboardCode.Space], cancel: [KeyboardCode.Esc], end: [KeyboardCode.Space, KeyboardCode.Enter, KeyboardCode.Tab] } }))
-  const portal = document.getElementById('root')
   useEffect(() => {
     rootRef.current?.querySelector('.pilot-side-tab.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     if (focusedControl.current && !focusedControl.current.isConnected && document.activeElement === document.body) {
@@ -59,21 +57,17 @@ export function WorkspaceTabs({ fullView, conversationTitle, onFullView, onConve
   function finishReorder({ active: dragged, over }: DragEndEvent) {
     if (over && dragged.id !== over.id) onReorder(dragged.id as WorkspaceTabId, over.id as WorkspaceTabId)
   }
-  const choices: Array<{ id: WorkspaceResourceId; icon: typeof Activity }> = [
-    { id: 'overview', icon: Activity }, { id: 'files', icon: FileCode2 }, { id: 'changes', icon: GitCompare },
-    { id: 'side-chat', icon: MessageSquare }, { id: 'terminal', icon: TerminalSquare }, { id: 'browser', icon: Globe2 },
-  ]
-  return <nav ref={rootRef} className="pilot-side-tabs" aria-label="已打开的工作内容" onFocusCapture={event => { focusedControl.current = rootRef.current?.contains(event.target as Node) ? event.target as HTMLElement : null }}>
-    {fullView && <button type="button" className="mira-workspace-open" aria-label="会话" onClick={onSidebar}><Menu size={17} /></button>}
-    {fullView && <div className={`pilot-side-tab mira-conversation-tab${fullView.surface === 'conversation' ? ' is-active' : ''}`}><button type="button" className="pilot-side-tab__select" aria-current={fullView.surface === 'conversation' ? 'page' : undefined} onClick={onConversation}><MessageSquare size={14} /><span>{conversationTitle}</span></button></div>}
+  return <Tooltip.Provider delayDuration={350}><nav ref={rootRef} className="pilot-side-tabs" aria-label="已打开的工作内容" onFocusCapture={event => { focusedControl.current = rootRef.current?.contains(event.target as Node) ? event.target as HTMLElement : null }}>
     <MiraWorkspaceOverview tabs={tabs} active={active} recentClosedTabs={recentClosedTabs} onActivate={onActivate} onClose={onClose} onReopen={onReopen} />
+    {fullView && <div className={`pilot-side-tab mira-conversation-tab${fullView.surface === 'conversation' ? ' is-active' : ''}`}><button type="button" className="pilot-side-tab__select" aria-current={fullView.surface === 'conversation' ? 'page' : undefined} onClick={onConversation}><MessageSquare size={14} /><span>{conversationTitle}</span></button></div>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={finishReorder} accessibility={{ screenReaderInstructions: { draggable: '按空格开始拖动标签，左右方向键调整位置，再按空格确认，Escape 取消。' } }}>
-      <div className="pilot-side-tabs__list"><SortableContext items={tabs.map(tab => tab.id)} strategy={horizontalListSortingStrategy}>{tabs.map(tab => <WorkspaceResourceTab key={tab.id} tab={tab} selected={fullView?.surface !== 'conversation' && active === tab.id} changes={changes} canCloseOthers={tabs.length > 1} onActivate={onActivate} onClose={onClose} onCloseOthers={onCloseOthers} onCloseAll={onCloseAll} onRestoreFocus={restoreFocus} onRestartTerminal={onRestartTerminal} />)}</SortableContext></div>
+      <div className="pilot-side-tabs__list"><SortableContext items={tabs.map(tab => tab.id)} strategy={horizontalListSortingStrategy}>{tabs.map(tab => <WorkspaceResourceTab key={tab.id} tab={tab} selected={fullView?.surface !== 'conversation' && active === tab.id} changes={changes} canCloseOthers={tabs.length > 1} onActivate={onActivate} onClose={onClose} onCloseOthers={onCloseOthers} onCloseAll={onCloseAll} onRestoreFocus={restoreFocus} onRestartTerminal={onRestartTerminal} />)}</SortableContext><button type="button" className="mira-workspace-add" aria-label="新建标签页" onClick={onNewTab}><Plus size={16} /></button></div>
     </DndContext>
-    <DropdownMenu.Root><DropdownMenu.Trigger type="button" className="mira-workspace-add" title="打开工作内容" aria-label="打开工作内容"><Plus size={16} /></DropdownMenu.Trigger><DropdownMenu.Portal container={portal}><DropdownMenu.Content align="end" sideOffset={5} className="mira-session-menu">{choices.map(({ id, icon: Icon }) => <DropdownMenu.Item key={id} className="mira-session-menu__item" onSelect={() => onOpen(id)}><Icon size={15} />{workspaceTabLabel(id)}</DropdownMenu.Item>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
-    {onFullView && <button type="button" className="pilot-side-tabs__dismiss" aria-label={fullView ? '退出完整视图' : '进入完整视图'} title={`${fullView ? '退出完整视图' : '进入完整视图'} · ${miraShortcutLabel('Shift+F')}`} aria-keyshortcuts={miraPrimaryKeyShortcuts('Shift+F')} aria-pressed={Boolean(fullView)} onClick={onFullView}>{fullView ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
-    <Tooltip.Provider delayDuration={350}><SidebarActionHint hoverOnly side="bottom" title="切换面板" shortcut={miraShortcutLabel('Alt+B')}><button type="button" className="pilot-side-tabs__dismiss" aria-label="切换面板" aria-keyshortcuts={miraPrimaryKeyShortcuts('Alt+B')} aria-controls="pilot-workspace" aria-expanded={true} onClick={onDismiss}><PanelRightClose size={16} /></button></SidebarActionHint></Tooltip.Provider>
-  </nav>
+    <div className="pilot-side-tabs__actions">
+    {onFullView && <SidebarActionHint side="bottom" title={fullView ? '退出完整视图' : '进入完整视图'} shortcut={miraShortcutLabel('Shift+F')}><button type="button" className="pilot-side-tabs__dismiss" aria-label={fullView ? '退出完整视图' : '进入完整视图'} aria-keyshortcuts={miraPrimaryKeyShortcuts('Shift+F')} aria-pressed={Boolean(fullView)} onClick={onFullView}>{fullView ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></SidebarActionHint>}
+    <SidebarActionHint hoverOnly side="bottom" title="切换面板" shortcut={miraShortcutLabel('Alt+B')}><button type="button" className="pilot-side-tabs__dismiss" aria-label="切换面板" aria-keyshortcuts={miraPrimaryKeyShortcuts('Alt+B')} aria-controls="pilot-workspace" aria-expanded={true} onClick={onDismiss}><PanelRightClose size={16} /></button></SidebarActionHint>
+    </div>
+  </nav></Tooltip.Provider>
 }
 
 function WorkspaceResourceTab({ tab, selected, changes, canCloseOthers, onActivate, onClose, onCloseOthers, onCloseAll, onRestoreFocus, onRestartTerminal }: { tab: WorkspaceTab; selected: boolean; changes: number; canCloseOthers: boolean; onActivate: WorkspaceTabsProps['onActivate']; onClose: WorkspaceTabsProps['onClose']; onCloseOthers: WorkspaceTabsProps['onCloseOthers']; onCloseAll: WorkspaceTabsProps['onCloseAll']; onRestoreFocus: (event: Event) => void; onRestartTerminal: WorkspaceTabsProps['onRestartTerminal'] }) {

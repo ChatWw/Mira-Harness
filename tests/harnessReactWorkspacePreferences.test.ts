@@ -527,3 +527,28 @@ describe('Pilot controller preference write ordering', () => {
     controller.dispose()
   })
 })
+
+
+it('opens an empty panel with a real launcher, adds another and collapses after closing the last tab', async () => {
+  const { controller } = fixture()
+  const view = mount(controller)
+  await view.drain()
+  await view.showWorkspace()
+  const tabs = () => view.props(props => Array.isArray(props.tabs) && typeof props.onNewTab === 'function')
+  let state = tabs()
+  expect((state.tabs as Array<{ label: string }>).map(tab => tab.label)).toEqual(['新标签页'])
+  ;(state.onNewTab as () => void)()
+  await view.drain()
+  state = tabs()
+  const opened = state.tabs as Array<{ id: string }>
+  expect(opened).toHaveLength(2)
+  expect(opened[0].id).not.toBe(opened[1].id)
+  await (state.onClose as (id: string) => Promise<void>)(opened[1].id)
+  await view.drain()
+  expect(tabs().tabs).toHaveLength(1)
+  await (tabs().onClose as (id: string) => Promise<void>)(opened[0].id)
+  await view.drain()
+  const toggle = view.props(props => props['aria-label'] === '切换面板' && typeof props.onClick === 'function')
+  expect(toggle['aria-expanded']).toBe(false)
+  view.unmount()
+})

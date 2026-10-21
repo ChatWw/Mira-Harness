@@ -1,8 +1,8 @@
 <template>
-  <SettingsPageShell class="plugin-settings-shell" title="插件" :show-title="false">
+  <SettingsPageShell class="plugin-settings-shell" title="扩展" :show-title="false">
     <div class="plugin-settings">
       <nav v-if="selected" class="plugin-breadcrumb" aria-label="页面位置"><button type="button" @click="browse()">插件市场</button><AppIcon name="lucide:chevron-right" /><button type="button" @click="selectedId = undefined">插件</button><AppIcon name="lucide:chevron-right" /><span>{{ selected.listing?.displayName || selected.name }}</span></nav>
-      <h1>{{ selected ? selected.listing?.displayName || selected.name : '插件' }}</h1>
+      <h1>{{ selected ? selected.listing?.displayName || selected.name : '工具与扩展' }}</h1>
       <div v-if="!selected" class="plugin-capabilities">
         <span class="plugin-user-scope"><AppIcon name="lucide:monitor" />用户</span><span class="plugin-divider" />
         <div class="plugin-tabs" role="tablist" aria-label="插件能力" @keydown="handleTabKey">
@@ -109,16 +109,15 @@ onUnmounted(() => { disposed = true; if (grant && api) void grant.then(id => api
 </script>
 
 <style scoped>
-.plugin-settings-shell :deep(.settings-main__content) { padding-top: 56px; }
-.plugin-settings { max-width: 832px; margin: 0 auto; --plugin-surface: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); }
-.plugin-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: 12px; margin: -46px 0 22px; }
+.plugin-settings { min-width: 0; --plugin-surface: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); }
+.plugin-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: 12px; margin: 0 0 22px; }
 .plugin-breadcrumb button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-h1 { font-size: 28px; line-height: 1.3; margin: 0 0 34px; }
-.plugin-capabilities { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+h1 { font-size: var(--settings-text-title); font-weight: 600; letter-spacing: -0.02em; line-height: 1.333333; margin: 0 0 32px; }
+.plugin-capabilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; }
 .plugin-user-scope { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--cp-border-light); border-radius: 18px; padding: 5px 10px; white-space: nowrap; font-size: 12px; }
 .plugin-divider { height: 16px; width: 1px; background: var(--cp-border-light); }
 .plugin-tabs { display: flex; gap: 4px; }
-.plugin-tabs button { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border: 0; border-radius: 20px; background: none; color: var(--cp-text-secondary); cursor: pointer; font: inherit; font-size: 13px; }
+.plugin-tabs button { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border: 0; border-radius: 20px; background: none; color: var(--cp-text-secondary); cursor: pointer; font: inherit; font-size: var(--settings-text-base); }
 .plugin-tabs button[aria-selected=true] { background: var(--plugin-surface); color: var(--cp-text); font-weight: 500; }
 small { color: var(--cp-text-secondary); font-size: 12px; font-weight: 400; }
 .plugin-search { display: flex; align-items: center; gap: 8px; width: 256px; margin-left: auto; padding: 8px 11px; border: 1px solid var(--cp-border-light); border-radius: 12px; background: var(--cp-bg); color: var(--cp-text-secondary); }
@@ -133,7 +132,7 @@ h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight:
 .plugin-button-primary { background: var(--cp-text); color: var(--cp-bg); border-color: var(--cp-text); }
 .plugin-button-primary:hover { opacity: .85; background: var(--cp-text); }
 .plugin-button:disabled { opacity: .5; cursor: default; }
-.plugin-install-empty { display: grid; justify-items: center; align-content: center; min-height: 168px; border: 1px dashed var(--cp-border-light); border-radius: 12px; font-size: 13px; }
+.plugin-install-empty { display: grid; justify-items: center; align-content: center; min-height: 168px; border: 1px dashed var(--cp-border-light); border-radius: 12px; font-size: var(--settings-text-base); }
 .plugin-install-empty p { margin: 8px 0 14px; color: var(--cp-text-secondary); font-size: 12px; }
 .plugin-row-group { overflow: hidden; border-radius: 12px; background: var(--plugin-surface); }
 .plugin-provided-heading { margin: 28px 0 16px; }
@@ -145,11 +144,11 @@ h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight:
 .plugin-notice, .plugin-empty { color: var(--cp-text-secondary); font-size: 12px; }
 .plugin-detail-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; }
 .plugin-detail-actions .el-switch { margin-left: auto; }
-.plugin-detail p, .plugin-detail dd { font-size: 13px; line-height: 1.7; color: var(--cp-text-secondary); overflow-wrap: anywhere; }
+.plugin-detail p, .plugin-detail dd { font-size: var(--settings-text-base); line-height: 1.7; color: var(--cp-text-secondary); overflow-wrap: anywhere; }
 .plugin-detail-section { margin-top: 28px; border-top: 1px solid var(--cp-border-light); padding-top: 20px; }
-.plugin-component { margin-top: 18px; font-size: 13px; }
+.plugin-component { margin-top: 18px; font-size: var(--settings-text-base); }
 .plugin-component p { margin: 5px 0; }
-dl { display: grid; grid-template-columns: 80px 1fr; gap: 12px; font-size: 13px; }
+dl { display: grid; grid-template-columns: 80px 1fr; gap: 12px; font-size: var(--settings-text-base); }
 dd { margin: 0; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 3px; }
 </style>

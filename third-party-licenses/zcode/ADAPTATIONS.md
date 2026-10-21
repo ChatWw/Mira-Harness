@@ -649,3 +649,16 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 2026-10-20：React 项目编辑、创建及文件夹信任流程参考 ZCode 本地源码 `3c5b2276` 的 `project-sidebar/ProjectEditor.tsx`、`ProjectFolderTrustDialog.tsx`、`ProjectNodeContent.tsx`、`project-storage/project-repository.ts` 和 `projectEditorRoots.test.ts`。Mira 使用当前 React/Radix 工作台、自有 SQLite/授权 IPC 与目录权限模型；取消项目菜单重复重命名，至少保留一个目录。弹窗不加背景遮罩，保留阴影及明暗主题，创建前明确确认信任。主要目录用于新任务，已有任务继续使用原工作目录，回收站保留原还原位置；未移植远程项目协议或多根文件树。
 
 2026-10-20：多目录文件入口、右侧文件管理器与完整视图参考 ZCode 本地源码 `3c5b2276` 的 `project-sidebar/ProjectNodeContent.tsx`、`useProjectFileTree.ts`、`WorkspaceFileTree.tsx`、`lib/workspaceSidePane.ts`、`side-pane-full-view/ConversationHost.tsx`、`model.ts`、`useSidePaneFullView.ts` 及 `docs/ui/workspace-file-tree.md`、`docs/ui/side-pane-full-view.md`。Mira 使用自身 React/Radix 工作台、授权根目录 IPC、资源标签及同一份编辑器 DOM，改编目录选择、右侧可折叠目录布局、固定对话标签、七处吸附浮窗、运行占位及回答气泡；通过宿主浏览器裁剪区域处理 sandbox iframe 与原生 webview 的层叠关系，保留现有分屏显示与关闭，撤下新增分屏入口。未移植上游工作区 RPC、远程协议或会话存储；Apache LICENSE/NOTICE 与上游版权保持。
+2026-10-21 设置公共布局：参考 `packages/ui/src/SettingsPage.tsx`、`settings/SettingsPageParts.tsx` 的独立内容面板、48px 顶部留白和896px内容列，在 Mira Vue `SettingsPageShell.vue` 实现；侧栏采用 Mira Harness 默认280px，保留自有主题、路由与Element Plus控件，不引入上游账号、RPC或响应式图标栏。原Apache LICENSE/NOTICE保留。
+
+2026-10-21 设置字体：参考本地上游 `3c5b2276` 的 `packages/ui/src/styles.css`、`SettingsPage.tsx` 与 `settings/SettingsPageParts.tsx` 中设置标题、导航分组、标签和说明的字号及字重层级；在 Mira 设置专用 `settings-typography.scss` 和页面局部样式中统一，中文回退采用 Mira Harness 字体栈。保留自有 Vue/Element Plus、桌面布局与等宽代码字段，未引入字体资产或上游响应式标题断点；原版权、Apache LICENSE/NOTICE 保持。
+
+2026-10-21 设置整理追加：在上述布局基础上，按 Mira 现有运行链路重组导航、拆分权限页、迁移回收站，撤下旧 Git/Python 设置入口，修正保存失败和草稿保护；这些能力取舍及宿主配置实现属于 Mira 自有逻辑。具体文件和 292 项回归、隔离 macOS Electron 21 组验收证据见 `docs/MIRA_SETTINGS_VERIFICATION_2026-10-21.md`；远程服务、Windows 原生与安装包不在本次实际验收内。原版权、Apache LICENSE/NOTICE保持。
+
+2026-10-21：框架标题栏侧栏开关、新建任务入口参考 `packages/ui/src/DesktopTopOverlay.tsx` 和 `app-shell/WorkspaceShellLayout.tsx`，沿用 PanelLeftClose/Open、MessageCirclePlus 图标及收起侧栏后 300ms 宽度/透明度显隐。Mira 使用自身 Vue Shell、React 侧栏状态与授权 MessagePort，同步入口仅在 Harness 显示，不移植上游平台服务；原 Apache LICENSE/NOTICE 保留。
+
+2026-10-21：悬浮对话修正参考 `side-pane-full-view/ConversationHost.tsx` 的40px内置工具栏、裁剪视口与贴底保留内容三层结构，以及 `v4/SessionPane.tsx` 的 inline composer。Mira 修正收起态候选菜单锚点、网格按钮尺寸、附件行与统一阴影，继续使用自己的 React 编辑器、草稿和能力目录；原 Apache LICENSE/NOTICE 保留。
+
+2026-10-21 归档管理：参考 `project-sidebar/ArchiveManagement.tsx`、`ArchiveGroupCard.tsx`、`archive-view.ts` 与 `useArchiveManagement.ts`，将归档列表入口从侧边栏移到 Mira Vue 设置页；移植搜索、时间排序、项目身份分组/筛选、折叠列表与单项/分组/筛选结果批量恢复删除。沿用 Mira Electron 归档接口、删除确认与本地项目身份，不引入上游远程 Host 或自动归档服务；原 Apache LICENSE/NOTICE 保留。
+
+2026-10-21 任务列表导航：移除 Mira 分组/项目双 Tab，统一在任务视图菜单切换项目、分组、时间线；项目分区采用上游 `PurposeSections.tsx` 的 Lucide ListChevronsDownUp / ListChevronsUpDown 图标与有展开即全部折叠的行为。当前固定 lucide-react 未含此图标，使用已安装 Lucide 图标目录的原始路径经 createLucideIcon 绘制；项目标题行采用 2px 行间距与仅 hover 背景，空个人工作区默认收起。保留 Mira 自有偏好、项目与任务排序、桌面交互；原 Apache LICENSE/NOTICE 保留。

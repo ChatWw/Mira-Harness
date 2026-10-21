@@ -19,10 +19,13 @@ describe('Mira shell settings consolidation', () => {
     const settingsMenu = readSource('src/pages/backend/settings/components/SettingsSiderMenu.vue')
     const appearance = readSource('src/pages/backend/appearance/components/AppearanceSettings.vue')
 
-    expect(settingsMenu).toContain("label: '基础能力'")
-    expect(settingsMenu).toContain("label: '平台能力'")
-    expect(settingsMenu).toContain("label: '应用'")
-    for (const removedPath of ['/settings/loading-effects', '/settings/icon-library', '/settings/menu-management', '/settings/micro-apps']) {
+    expect(settingsMenu).toContain("label: '基础设置'")
+    expect(settingsMenu).toContain("label: 'Agent 能力'")
+    expect(settingsMenu).toContain("label: '底层能力'")
+    expect(settingsMenu).toContain("label: '工作区能力'")
+    expect(settingsMenu).toContain("label: '应用与支持'")
+    expect(settingsMenu).toContain("path: '/settings/permissions'")
+    for (const removedPath of ['/settings/git', '/settings/python-environment', '/settings/loading-effects', '/settings/icon-library', '/settings/menu-management', '/settings/micro-apps']) {
       expect(settingsMenu).not.toContain(removedPath)
     }
     expect(appearance).toContain("{ value: 'light', label: '浅色' }")
@@ -44,10 +47,10 @@ describe('Mira shell settings consolidation', () => {
   })
 
   it('keeps running-input preferences in the existing Vue settings and select control', () => {
-    const general = readSource('src/pages/backend/general/index.vue')
+    const general = readSource('src/pages/backend/conversation/index.vue')
     expect(general).toContain('aria-label="运行中消息处理"')
     expect(general).toContain(':model-value="followupMode"')
-    expect(general).toContain(':disabled="followupSaving"')
+    expect(general).toContain(':disabled="Boolean(saving)"')
     expect(general).toContain('@update:model-value="setFollowupMode"')
     expect(general).toContain('<el-option label="队列" value="queue" />')
     expect(general).toContain('<el-option label="引导" value="guide" />')

@@ -94,3 +94,27 @@ describe('Vue application navigation owner', () => {
     owner.receive(state()); expect(store.go('back')).toBe(false); expect(store.state).toBeNull()
   })
 })
+
+
+describe('Harness titlebar controls ownership', () => {
+  it('syncs authoritative sidebar state, dispatches actions, and rejects stale frames', () => {
+    const store = useAppNavigationStore(), send = vi.fn(() => true)
+    const first = store.register('mira-harness', () => true, send)
+    expect(store.control('toggle-sidebar')).toBe(false)
+    first.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(store.control('toggle-sidebar')).toBe(true)
+    expect(send).toHaveBeenLastCalledWith({ type: 'mira:harness-control', action: 'toggle-sidebar' })
+    first.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: false })
+    expect(store.controls?.sidebarOpen).toBe(false)
+    expect(store.control('new-task')).toBe(true)
+    expect(send).toHaveBeenLastCalledWith({ type: 'mira:harness-control', action: 'new-task' })
+    const second = store.register('mira-harness', () => true, send)
+    first.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(store.controls).toBeNull()
+    second.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: false })
+    first.release(); expect(store.controls?.sidebarOpen).toBe(false)
+    second.reset(); expect(store.controls).toBeNull(); expect(store.control('new-task')).toBe(false)
+    second.release(); second.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(store.controls).toBeNull()
+  })
+})

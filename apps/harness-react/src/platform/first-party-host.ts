@@ -11,6 +11,7 @@ import type { HarnessSkillMarketCatalog, HarnessSkillMarketDetail, HarnessSkillM
 import type { HarnessConversationSearchResult } from '../../../../src/config/harness'
 import type { AutomationOverview, AutomationRun, AutomationRunStatus, AutomationTask, AutomationTaskInput, PermissionConfig } from '../../../../src/config/harness'
 import type { HarnessGitContext, HarnessMessageQueueSnapshot, HarnessMessageSubmissionOptions, HarnessMessageSubmissionResult, HarnessMessageWithdrawal } from '../../../../src/config/harness'
+import { readMiraHarnessControlCommand, type MiraHarnessControlAction, type MiraHarnessControlsState } from '../../../../src/platform/harnessControls'
 import { readMiraAppNavigationCommand, readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '../../../../src/platform/appNavigation'
 import type { HarnessMessageAttachment } from '../../../../src/config/harness'
 import type { HarnessArchivedSnapshot, HarnessArchivedDeletionResult } from '../../../../src/config/harness'
@@ -26,6 +27,8 @@ export class FirstPartyHarnessHost implements PilotHost {
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
   private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
+  private controlListeners = new Set<(action: MiraHarnessControlAction) => void>()
+  private fullViewListeners = new Set<() => void>()
   private commandCenterListeners = new Set<(focusRequestId?: string) => void>()
   private navigationCommandListeners = new Set<(command: MiraAppNavigationCommand) => void>()
   private navigationRestoreListeners = new Set<(snapshot: MiraAppNavigationSnapshot | undefined) => void>()
@@ -62,6 +65,9 @@ export class FirstPartyHarnessHost implements PilotHost {
         this.navigationRestoreListeners.forEach(listener => listener(snapshot))
         return
       }
+      const control = readMiraHarnessControlCommand(data)
+      if (control) { this.controlListeners.forEach(listener => listener(control.action)); return }
+      if (data?.type === 'mira:full-view-toggle' && Object.keys(data).length === 1) { this.fullViewListeners.forEach(listener => listener()); return }
       if (data?.type === 'mira:command-center-open' && !Array.isArray(data) && Object.keys(data).every(key => key === 'type' || key === 'focusRequestId') && (data.focusRequestId === undefined || typeof data.focusRequestId === 'string' && data.focusRequestId.length > 0 && data.focusRequestId.length <= 128)) { this.commandCenterListeners.forEach(listener => listener(data.focusRequestId)); return }
       if (data?.type === 'mira:prepare-leave' && typeof data.id === 'string') {
         const id = data.id
@@ -167,6 +173,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   setTheme = (theme: 'system' | 'light' | 'dark') => this.request<{ theme: string; zoomFactor: number }>('appearance.set-theme', { theme })
   zoom = (action: 'zoomIn' | 'zoomOut' | 'resetZoom') => this.request<{ theme: string; zoomFactor: number }>('appearance.zoom', { action })
   toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
+  onHarnessControl = (listener: (action: MiraHarnessControlAction) => void) => { this.controlListeners.add(listener); return () => { this.controlListeners.delete(listener) } }
+  publishHarnessControls = (state: MiraHarnessControlsState) => { if (!this.closed) this.port.postMessage(state) }
+  onFullViewToggle = (listener: () => void) => { this.fullViewListeners.add(listener); return () => { this.fullViewListeners.delete(listener) } }
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
   dismissCommandCenterFocus = (focusRequestId: string) => {
     if (this.closed || !focusRequestId || focusRequestId.length > 128) return false
@@ -253,7 +262,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   readProjectImage = (projectId: string, path: string, rootPath?: string) => this.call<HarnessWorkspaceImagePreview>('files.read-image', { projectId, ...(rootPath ? { rootPath } : {}), path })
   openProjectMedia = (projectId: string, path: string, rootPath?: string) => this.call<MiraMediaPreview>('files.media-open', { projectId, ...(rootPath ? { rootPath } : {}), path })
   closeMedia = (id: string) => this.call<void>('files.media-close', { id })
-  openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string }>('terminal.open', { sessionId })
+  openTerminal = (sessionId: string) => this.call<{ terminalId: string; sessionId: string; cwd: string; shell?: string }>('terminal.open', { sessionId })
   writeTerminal = (sessionId: string, terminalId: string, data: string) => this.call<void>('terminal.write', { sessionId, terminalId, data })
   pasteTerminal = (sessionId: string, terminalId: string, bracketed: boolean) => this.call<void>('terminal.paste', { sessionId, terminalId, bracketed })
   resizeTerminal = (sessionId: string, terminalId: string, columns: number, rows: number) => this.call<void>('terminal.resize', { sessionId, terminalId, columns, rows })
@@ -322,6 +331,8 @@ export class FirstPartyHarnessHost implements PilotHost {
     this.pending.clear()
     this.listeners.clear()
     this.browserListeners.clear()
+    this.controlListeners.clear()
+    this.fullViewListeners.clear()
     this.commandCenterListeners.clear()
     this.navigationCommandListeners.clear()
     this.navigationRestoreListeners.clear()

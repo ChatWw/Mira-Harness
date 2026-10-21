@@ -88,7 +88,7 @@ export class HarnessMemoryCoordinator {
     toAgentMessage: (message: HarnessMessage, model: { api: string, provider: string, id: string }) => unknown
   }) {
     if (options.isRunning(sessionId)) throw new Error('该会话正在运行')
-    if (!this.database.memories.enabled()) throw new Error('请先在个性化设置中启用记忆')
+    if (!this.database.memories.enabled()) throw new Error('请先在指令与记忆设置中启用记忆')
     const session = this.database.harness.getSession(sessionId)
     if (!session.projectId) throw new Error('请先选择项目后再保存项目记忆')
     if (!session.messages.some(message => message.role === 'user') || !session.messages.some(message => message.role === 'assistant')) throw new Error('当前对话还没有可保存的内容')

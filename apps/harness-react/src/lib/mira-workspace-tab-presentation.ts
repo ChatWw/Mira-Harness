@@ -2,11 +2,12 @@
  * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
  * Mira changes: local resource metadata and identity, Chinese labels, optional real times.
  * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
-import { Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, Workflow, Bot, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
+import { File, Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, Workflow, Bot, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
 import { miraMediaFormat } from '../../../../src/config/miraMedia'
 import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceTab } from '../state/workspace-state'
 
 export function miraWorkspaceTabPresentation(tab: WorkspaceTab) {
+  if (tab.id.startsWith('new-tab:')) return { Icon: File, type: '新标签页', hint: '', aliases: 'new tab launcher' }
   if (tab.traceSessionId) return { Icon: Activity, type: '模型轨迹', hint: '', aliases: `model trace trajectory 请求 响应 ${tab.traceSessionId}` }
   if (tab.fullCommandOutput) return { Icon: FileText, type: '完整命令输出', hint: '', aliases: `command output log 完整输出 ${tab.runId || ''}` }
   if (tab.commandToolId) return { Icon: TerminalSquare, type: '命令输出', hint: '', aliases: `command output bash 执行输出 ${tab.runId || ''}` }
