@@ -31,8 +31,7 @@ export function MiraDraftWelcome({ active, sidebarOpen = true }: { active: boole
         if (line.x === undefined || reduced.matches || !active || document.hidden) {
           line.x = target; line.velocity = 0
         } else {
-          // Keep viewport position and velocity as the sidebar changes the real layout.
-          // Reversing direction retargets the same spring rather than replaying keyframes.
+          // Both panels retarget the same viewport spring without resetting velocity.
           line.velocity += ((target - line.x) * line.stiffness - line.velocity * line.damping) * dt
           line.x += line.velocity * dt
           if (Math.abs(target - line.x) < .1 && Math.abs(line.velocity) < .5) { line.x = target; line.velocity = 0 }
@@ -47,8 +46,15 @@ export function MiraDraftWelcome({ active, sidebarOpen = true }: { active: boole
     }
     tick(performance.now())
     wakeMotion.current = wake
-    const observer = new ResizeObserver(wake)
+    // ResizeObserver runs before paint: update the layout-relative transform now,
+    // so a new panel width cannot paint with the previous frame's offset.
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame); frame = 0
+      tick(performance.now())
+    })
     observer.observe(root)
+    const conversation = root.closest('.mira-conversation-panel')
+    if (conversation) observer.observe(conversation)
     for (const line of lines) observer.observe(line.element)
     reduced.addEventListener('change', wake)
     document.addEventListener('visibilitychange', wake)

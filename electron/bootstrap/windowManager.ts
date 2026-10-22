@@ -1,6 +1,6 @@
 import { showMiraAboutDialog } from './miraAbout'
 import { setupMiraTextContextMenu } from './miraTextContextMenu'
-import { app, BrowserWindow, Menu, nativeImage, shell, Tray, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, screen, shell, Tray, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron'
 import { isResourceManagerWindow, openResourceManager } from './resourceManager'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -10,7 +10,12 @@ import { shouldAuthorizeLegacyNovelApiRequest } from '../security/legacyNovelApi
 import { HOSTED_BROWSER_PARTITION, isAllowedHostedBrowserUrl } from '../security/hostedBrowser'
 import { alignMiraTrafficLights, applyMiraZoom, miraTrafficLightPosition, miraZoomLevel } from './miraDesktopZoom'
 
+export interface MainWindowState { bounds: { x: number; y: number; width: number; height: number }; maximized: boolean; fullScreen: boolean }
+
 export interface WindowManagerOptions {
+  getStartupWindowBehavior?: () => unknown
+  getMainWindowState?: () => MainWindowState | undefined
+  saveMainWindowState?: (state: MainWindowState) => void
   getCloseWindowBehavior: () => 'background' | 'quit'
   isQuitting: () => boolean
   legacyNovelApi: { baseUrl: string; token: string }
@@ -121,8 +126,16 @@ export function createMainWindow(options: WindowManagerOptions) {
   windowManagerOptions = options
   const isMac = process.platform === 'darwin'
   const isWindows = process.platform === 'win32'
+  const saved = options.getStartupWindowBehavior?.() === 'restore' ? options.getMainWindowState?.() : undefined
+  const bounds = saved?.bounds
+  const validBounds = bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite) && bounds.width >= 1024 && bounds.height >= 680
+  const restoredBounds = validBounds ? (() => {
+    const area = screen.getDisplayMatching(bounds).workArea
+    const width = Math.min(bounds.width, area.width), height = Math.min(bounds.height, area.height)
+    return { width, height, x: Math.max(area.x, Math.min(bounds.x, area.x + area.width - width)), y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - height)) }
+  })() : {}
   const window = new BrowserWindow({
-    width: 1440, height: 900, minWidth: 1024, minHeight: 680,
+    width: 1440, height: 900, ...restoredBounds, minWidth: 1024, minHeight: 680,
     show: false,
     backgroundColor: '#f7f7f8',
     frame: !isWindows,
@@ -132,6 +145,7 @@ export function createMainWindow(options: WindowManagerOptions) {
   })
   setupMiraTextContextMenu(window)
   window.on('close', event => {
+    if (options.saveMainWindowState) options.saveMainWindowState({ bounds: window.getNormalBounds(), maximized: window.isMaximized(), fullScreen: window.isFullScreen() })
     if (options.isQuitting() || options.getCloseWindowBehavior() === 'quit') return
     event.preventDefault()
     window.hide()
@@ -179,7 +193,11 @@ export function createMainWindow(options: WindowManagerOptions) {
     alignMiraTrafficLights(window, factor)
     window.webContents.send('window:zoom-changed', factor)
   })
-  window.once('ready-to-show', () => window.show())
+  window.once('ready-to-show', () => {
+    if (options.getStartupWindowBehavior?.() !== 'restore' || !saved || saved.maximized) window.maximize()
+    if (saved?.fullScreen) window.setFullScreen(true)
+    window.show()
+  })
   if (process.env.ELECTRON_RENDERER_URL) window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else window.loadFile(rendererPath)
   return window

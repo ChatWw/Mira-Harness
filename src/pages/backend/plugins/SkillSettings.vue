@@ -93,7 +93,7 @@ small { font-size: 12px; font-weight: 400; color: var(--cp-text-secondary); }
 .skill-primary:hover { background: var(--cp-text); opacity: .85; }
 button:disabled { opacity: .5; cursor: default; }
 .skill-list { overflow: hidden; border-radius: 12px; background: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); }
-.skill-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 16px; }
+.skill-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; }
 .skill-row + .skill-row { border-top: 1px solid color-mix(in srgb, var(--cp-border-light) 50%, transparent); }
 .skill-row:hover { background: var(--cp-bg-hover); }
 .skill-main { display: flex; flex-direction: column; align-items: stretch; min-width: 0; gap: 2px; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: default; }

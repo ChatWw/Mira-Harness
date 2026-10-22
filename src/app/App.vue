@@ -31,7 +31,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
     const target = event.target instanceof Element ? event.target : document.activeElement
     if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .xterm') || [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], .el-dialog, .el-drawer, .mira-app-switcher-popper')].some(element => element.getClientRects().length > 0)) return
     event.preventDefault()
-    themeStore.toggleThemeMode()
+    void themeStore.toggleThemeModeWithTransition(undefined, layoutStore.config.themeTransitionAnimation)
     return
   }
   const direction = miraAppNavigationShortcut(event)

@@ -15,7 +15,7 @@ describe('Mira shell settings consolidation', () => {
     expect(existsSync(resolve(repositoryRoot, 'src/stores/tabs.ts'))).toBe(false)
   })
 
-  it('keeps only the supported settings entries and light/dark appearance modes', () => {
+  it('keeps only the supported settings entries and system/light/dark theme selector', () => {
     const settingsMenu = readSource('src/pages/backend/settings/components/SettingsSiderMenu.vue')
     const appearance = readSource('src/pages/backend/appearance/components/AppearanceSettings.vue')
 
@@ -28,9 +28,15 @@ describe('Mira shell settings consolidation', () => {
     for (const removedPath of ['/settings/git', '/settings/python-environment', '/settings/loading-effects', '/settings/icon-library', '/settings/menu-management', '/settings/micro-apps']) {
       expect(settingsMenu).not.toContain(removedPath)
     }
-    expect(appearance).toContain("{ value: 'light', label: '浅色' }")
-    expect(appearance).toContain("{ value: 'dark', label: '深色' }")
-    expect(appearance).not.toContain("value: 'system'")
+    expect(appearance).toContain("value: 'light', label: '浅色'")
+    expect(appearance).toContain("value: 'dark', label: '深色'")
+    expect(appearance).toContain("value: 'system', label: '系统'")
+    expect(appearance).toContain('aria-label="界面主题"')
+    expect(settingsMenu).not.toContain("path: '/settings/appearance'")
+    const general = readSource('src/pages/backend/general/index.vue')
+    expect(general).toContain('<AppearanceSettings />')
+    expect(general).toContain('id="appearance-heading"')
+    expect(general.indexOf('保持电脑运行')).toBeLessThan(general.indexOf('<AppearanceSettings />'))
     expect(appearance).not.toContain('主题颜色')
     expect(appearance).not.toContain('多标签页')
   })
@@ -38,10 +44,13 @@ describe('Mira shell settings consolidation', () => {
   it('redirects retired settings routes to the general settings page', () => {
     const router = readSource('src/router/index.ts')
 
-    for (const legacyPath of ['/system/components/loading', '/system/components/icon-selector', '/system/menus', '/system/micro-apps']) {
+    for (const legacyPath of ['/system/components/loading', '/system/components/icon-selector', '/system/menus', '/system/micro-apps', '/system/backup-preferences']) {
       expect(router).toContain(`path: '${legacyPath}'`)
     }
-    expect(router.match(/redirect: '\/settings\/general'/g)).toHaveLength(4)
+    expect(router.match(/redirect: '\/settings\/general'/g)).toHaveLength(5)
+    expect(router).not.toContain("path: '/settings/backup-preferences'")
+    expect(readSource('src/pages/backend/settings/components/SettingsSiderMenu.vue')).not.toContain('backup-preferences')
+    expect(existsSync(resolve('src/pages/backend/backupPreferences/index.vue'))).toBe(false)
     expect(router).not.toContain("path: '/settings/menu-management'")
     expect(router).not.toContain("path: '/settings/micro-apps'")
   })

@@ -8,7 +8,7 @@ afterEach(() => {
 })
 
 describe('legacy theme preferences', () => {
-  it('converts system mode to the current dark mode and resets the old accent color', async () => {
+  it('preserves system preference, follows OS changes, and toggles only explicit light and dark', async () => {
     const values = new Map<string, string>()
     const localStorage = {
       getItem: (key: string) => values.get(key) ?? null,
@@ -17,9 +17,11 @@ describe('legacy theme preferences', () => {
     }
     const styles = new Map<string, string>()
     vi.stubGlobal('localStorage', localStorage)
+    let dark = true
+    let systemChanged: (() => void) | undefined
     vi.stubGlobal('window', {
       platform: undefined,
-      matchMedia: () => ({ matches: true, addEventListener: vi.fn() }),
+      matchMedia: () => ({ matches: dark, addEventListener: (_event: string, callback: () => void) => { systemChanged = callback } }),
     })
     vi.stubGlobal('document', {
       documentElement: {
@@ -36,15 +38,27 @@ describe('legacy theme preferences', () => {
     const theme = useThemeStore()
 
     expect(theme.themeMode).toBe('dark')
-    expect(theme.themePreference).toBe('dark')
+    expect(theme.themePreference).toBe('system')
     expect(theme.primaryPresetId).toBe('monochrome')
     expect(styles.get('--cp-primary')).toBe('#f3f3f3')
-    expect(platformPreferences.themeMode).toBe('dark')
+    expect(platformPreferences.themeMode).toBe('system')
     expect(platformPreferences.primaryPreset).toBe('monochrome')
-    expect(values.get('cp-theme-mode')).toBe('dark')
+    expect(values.get('cp-theme-mode')).toBeUndefined()
     expect(values.get('cp-primary-preset')).toBe('monochrome')
 
-    theme.setThemePreference('system')
+    dark = false; systemChanged?.()
+    expect(theme.themeMode).toBe('light')
+    expect(theme.themePreference).toBe('system')
+    theme.toggleThemeMode()
+    expect(theme.themeMode).toBe('dark')
     expect(theme.themePreference).toBe('dark')
+    theme.toggleThemeMode()
+    expect(theme.themeMode).toBe('light')
+    expect(theme.themePreference).toBe('light')
+    theme.setThemePreference('system')
+    expect(theme.themePreference).toBe('system')
+    await theme.toggleThemeModeWithTransition(undefined, false)
+    expect(theme.themePreference).toBe('dark')
+    expect(platformPreferences.themeMode).toBe('dark')
   })
 })

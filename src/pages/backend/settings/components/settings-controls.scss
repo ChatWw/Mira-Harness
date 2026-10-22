@@ -1,0 +1,112 @@
+/* Match Mira's workbench surfaces and motion; keep Element Plus behavior intact.
+ * Popper owns transform; only independent scale/translate animate its surface. */
+.settings-page,
+body:has(.settings-page) :is(.el-popper, .el-overlay, .el-message) {
+  --settings-surface: #fff;
+  --settings-menu-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+  --settings-dialog-shadow: 0 16px 48px rgb(0 0 0 / .22), 0 4px 12px rgb(0 0 0 / .1);
+  --settings-ease: cubic-bezier(.16, 1, .3, 1);
+  --cp-radius-sm: 6px;
+  --cp-radius-md: 8px;
+  --cp-radius-lg: 12px;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-bg-color-overlay: var(--settings-surface);
+  --el-border-color: var(--cp-border);
+  --el-border-color-light: var(--cp-border-light);
+  --el-text-color-primary: var(--cp-text);
+  --el-text-color-regular: var(--cp-text);
+  --el-text-color-secondary: var(--cp-text-secondary);
+  --el-transition-duration: 180ms;
+  --el-transition-duration-fast: 120ms;
+}
+
+[data-theme='dark'] .settings-page,
+[data-theme='dark'] body:has(.settings-page) :is(.el-popper, .el-overlay, .el-message) {
+  --settings-surface: #2b2b2b;
+  --settings-menu-shadow: 0 10px 24px rgb(0 0 0 / .3), 0 2px 6px rgb(0 0 0 / .2);
+  --settings-dialog-shadow: 0 16px 48px rgb(0 0 0 / .5), 0 4px 12px rgb(0 0 0 / .24);
+}
+
+/* Shared controls also apply inside teleported dialogs and confirmations. */
+:is(.settings-page, body:has(.settings-page) .el-overlay) {
+  .el-button { border-radius: 6px; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out; }
+  :is(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner) { border-radius: 8px; transition: background-color 120ms ease-out, box-shadow 120ms ease-out; }
+  :is(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner):not(.is-focused):hover { box-shadow: 0 0 0 1px var(--cp-border) inset; }
+  .el-radio-button__inner { transition: color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out; }
+  .el-radio-button:first-child .el-radio-button__inner { border-radius: 6px 0 0 6px; }
+  .el-radio-button:last-child .el-radio-button__inner { border-radius: 0 6px 6px 0; }
+  .el-switch { --el-switch-on-color: var(--cp-primary); }
+  .el-switch__core { transition: background-color 150ms ease-out, border-color 150ms ease-out; }
+  .el-switch__action { transition: left 150ms var(--settings-ease), background-color 120ms ease-out; }
+  :is(.el-button, .el-select__wrapper):focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
+}
+
+body:has(.settings-page) {
+  .el-popper.is-light { border: 1px solid var(--cp-border); border-radius: 12px; background: var(--settings-surface); color: var(--cp-text); box-shadow: var(--settings-menu-shadow); }
+  .el-popper .el-popper__arrow { display: none; }
+  :is(.el-select-dropdown__list, .el-dropdown-menu) { padding: 4px; background: transparent; }
+  :is(.el-select-dropdown__item, .el-dropdown-menu__item) { min-height: 28px; height: auto; padding: 4px 8px; border-radius: 6px; line-height: 20px; color: var(--cp-text); font-size: 13px; transition: color 120ms ease-out, background-color 120ms ease-out; }
+  :is(.el-select-dropdown__item, .el-dropdown-menu__item):is(.is-hovering, :hover, :focus):not(.is-disabled) { background: var(--cp-bg-hover); color: var(--cp-text); }
+  .el-select-dropdown__item.is-selected { color: var(--cp-text); background: var(--cp-bg-hover); font-weight: 500; }
+  :is(.el-select-dropdown__item, .el-dropdown-menu__item).is-disabled { color: var(--el-disabled-text-color); }
+  :is(.el-dialog, .el-message-box) { border: 1px solid var(--cp-border); border-radius: 12px; background: var(--settings-surface); color: var(--cp-text); box-shadow: var(--settings-dialog-shadow); padding: 20px; }
+  .el-dialog { --el-dialog-padding-primary: 20px; }
+  .el-dialog__header { margin-right: 0; padding: 0 28px 16px 0; border: 0; }
+  .el-dialog__body { padding: 0; color: var(--cp-text); }
+  .el-dialog__footer { padding: 16px 0 0; }
+  .el-message-box__header { padding: 0 28px 12px 0; }
+  .el-message-box__content { padding: 0; color: var(--cp-text-secondary); font-size: 13px; line-height: 1.6; }
+  .el-message-box__btns { padding-top: 20px; }
+  .el-message { --el-message-bg-color: var(--settings-surface); --el-message-border-color: var(--cp-border); padding: 12px 16px; border: 1px solid var(--cp-border); border-radius: 16px; background: color-mix(in srgb, var(--settings-surface) 60%, transparent); box-shadow: var(--settings-menu-shadow); backdrop-filter: blur(24px); }
+  .el-message__content { color: var(--cp-text); font-size: 13px; line-height: 20px; }
+  .el-message { transition: opacity 150ms var(--settings-ease), top 150ms var(--settings-ease), translate 150ms var(--settings-ease); }
+  :is(.el-message-fade-enter-from, .el-message-fade-leave-to) { opacity: 0; translate: 0 -4px; }
+  :is(.el-dialog__headerbtn, .el-message-box__headerbtn) { top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 6px; }
+  :is(.el-dialog__headerbtn, .el-message-box__headerbtn):hover { background: var(--cp-bg-hover); }
+  :is(.el-dialog__headerbtn .el-dialog__close, .el-message-box__headerbtn .el-message-box__close) { color: var(--cp-text-secondary); }
+
+  /* Keep the Popper wrapper still; animate only the tooltip's visible surface. */
+  .settings-tooltip.el-popper {
+    --settings-tooltip-x: 0px;
+    --settings-tooltip-y: 0px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .settings-tooltip .el-popper__arrow { display: none; }
+  .settings-tooltip__surface { display: block; padding: 6px 9px; border: 1px solid var(--cp-border); border-radius: 6px; background: var(--cp-bg-overlay); color: var(--cp-text); font-size: 12px; font-weight: 400; line-height: 1.45; box-shadow: 0 4px 16px rgb(0 0 0 / .12); transform-origin: inherit; }
+  .settings-tooltip.usage-tooltip .settings-tooltip__surface { padding: 8px 10px; background: var(--cp-bg); border-color: var(--cp-border-light); }
+  .settings-tooltip[data-popper-placement^='top'] { --settings-tooltip-y: 4px; transform-origin: bottom; }
+  .settings-tooltip[data-popper-placement^='bottom'] { --settings-tooltip-y: -4px; transform-origin: top; }
+  .settings-tooltip[data-popper-placement^='left'] { --settings-tooltip-x: 4px; transform-origin: right; }
+  .settings-tooltip[data-popper-placement^='right'] { --settings-tooltip-x: -4px; transform-origin: left; }
+  .settings-tooltip-enter-active { transition: opacity 150ms var(--settings-ease); }
+  .settings-tooltip-leave-active { transition: opacity 100ms ease-in; }
+  .settings-tooltip-enter-active .settings-tooltip__surface { animation: settings-tooltip-enter 150ms var(--settings-ease) both; }
+  .settings-tooltip-leave-active { pointer-events: none; }
+  .settings-tooltip-leave-active .settings-tooltip__surface { animation: settings-tooltip-exit 100ms ease-in both; }
+  /* Disable Element's scaleY stretch; never override inline Popper positioning. */
+  .el-popper:is(.el-zoom-in-top-enter-active, .el-zoom-in-bottom-enter-active, .el-zoom-in-top-leave-active, .el-zoom-in-bottom-leave-active) { transform: none; opacity: 1; transition: opacity 150ms var(--settings-ease); }
+  .el-popper:is(.el-zoom-in-top-enter-from, .el-zoom-in-bottom-enter-from, .el-zoom-in-top-leave-to, .el-zoom-in-bottom-leave-to) { transform: none; opacity: 0; }
+  .el-popper:is(.el-zoom-in-top-enter-active, .el-zoom-in-bottom-enter-active) > :not(.el-popper__arrow) { animation: settings-surface-enter 150ms var(--settings-ease) both; }
+  .el-popper:is(.el-zoom-in-top-leave-active, .el-zoom-in-bottom-leave-active) > :not(.el-popper__arrow) { animation: settings-surface-exit 100ms ease-in both; }
+  :is(.dialog-fade-enter-active, .dialog-fade-leave-active) .el-overlay-dialog,
+  :is(.fade-in-linear-enter-active, .fade-in-linear-leave-active) .el-overlay-message-box { animation: none; }
+  .dialog-fade-enter-active .el-dialog,
+  .fade-in-linear-enter-active .el-message-box { animation: settings-surface-enter 180ms var(--settings-ease) both; }
+  .dialog-fade-leave-active .el-dialog,
+  .fade-in-linear-leave-active .el-message-box { animation: settings-surface-exit 100ms ease-in both; }
+}
+
+@keyframes settings-tooltip-enter { from { opacity: 0; scale: .95; translate: var(--settings-tooltip-x) var(--settings-tooltip-y); } to { opacity: 1; scale: 1; translate: 0 0; } }
+@keyframes settings-tooltip-exit { from { opacity: 1; scale: 1; translate: 0 0; } to { opacity: 0; scale: .95; translate: 0 0; } }
+
+@keyframes settings-surface-enter { from { opacity: 0; scale: .95; translate: 0 -4px; } to { opacity: 1; scale: 1; translate: 0 0; } }
+@keyframes settings-surface-exit { from { opacity: 1; scale: 1; } to { opacity: 0; scale: .95; } }
+
+/* Include teleported surfaces; retain the workbench's reduced-motion policy. */
+@media (prefers-reduced-motion: reduce) {
+  .settings-page *, body:has(.settings-page) :is(.el-popper, .el-overlay, .el-message) * { animation: none !important; transition: none !important; }
+}

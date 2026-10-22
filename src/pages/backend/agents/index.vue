@@ -284,22 +284,22 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.user-agents__description { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.user-agents__description { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
 .user-agents__toolbar { display: flex; gap: 8px; margin-bottom: 20px; }
 .user-agents__toolbar .el-select { flex: 1; min-width: 0; }
 .user-agents__toolbar :deep(.el-button + .el-button), .user-agents__actions :deep(.el-button + .el-button) { margin-left: 0; }
 .user-agents__toolbar :deep(.app-icon), .user-agents__actions :deep(.app-icon) { margin-right: 6px; }
 .user-agents__row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--cp-border-light); }
 .user-agents__identity { min-width: 0; }
-.user-agents__row h2, .user-agents__row h3 { margin: 0; font-size: var(--settings-text-base); font-weight: 500; overflow-wrap: anywhere; }
-.user-agents__row p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; overflow-wrap: anywhere; }
-.user-agents__error, .user-agents__row .user-agents__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: $font-sm; line-height: 1.6; overflow-wrap: anywhere; }
+.user-agents__row h2, .user-agents__row h3 { margin: 0; font-size: var(--settings-text-base); font-weight: 450; overflow-wrap: anywhere; }
+.user-agents__row p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-base); overflow-wrap: anywhere; }
+.user-agents__error, .user-agents__row .user-agents__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; }
 .user-agents__actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
-.user-agents__editor, .user-agents__readonly { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
+.user-agents__editor, .user-agents__readonly { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
 .user-agents__editor-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.user-agents__editor-heading h2, .user-agents__readonly > h2 { margin: 0 0 12px; font-size: var(--settings-text-section); font-weight: 600; }
+.user-agents__editor-heading h2, .user-agents__readonly > h2 { margin: 0 0 12px; font-size: var(--settings-text-section); font-weight: 550; }
 .user-agents__readonly > h2:not(:first-child) { margin-top: 24px; }
-.user-agents__editor-heading span { color: var(--cp-text-secondary); font-size: $font-sm; }
+.user-agents__editor-heading span { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .user-agents__editor-mode { display: flex; gap: 8px; margin-bottom: 16px; }
 .user-agents__editor-mode :deep(.el-button[aria-pressed="true"]) { color: var(--cp-primary); background: var(--cp-bg-hover); }
 .user-agents__form-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
@@ -318,7 +318,7 @@ onMounted(async () => {
 .user-agents__override { width: min(420px, 50%); flex-shrink: 0; }
 .user-agents__override-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .user-agents__override-controls .el-select { flex: 1; min-width: 140px; }
-.user-agents__override p { margin: 6px 0 0; font-size: $font-sm; text-align: right; }
+.user-agents__override p { margin: 6px 0 0; font-size: var(--settings-text-base); text-align: right; }
 .user-agents__editor :deep(textarea) { caret-color: var(--cp-text); }
 .user-agents__editor :deep(textarea[aria-label="智能体 Markdown 指令"]) { font: 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 </style>

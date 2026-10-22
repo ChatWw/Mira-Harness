@@ -112,8 +112,8 @@ onUnmounted(() => { disposed = true; if (grant && api) void grant.then(id => api
 .plugin-settings { min-width: 0; --plugin-surface: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); }
 .plugin-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: 12px; margin: 0 0 22px; }
 .plugin-breadcrumb button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-h1 { font-size: var(--settings-text-title); font-weight: 600; letter-spacing: -0.02em; line-height: 1.333333; margin: 0 0 32px; }
-.plugin-capabilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; }
+h1 { font-size: var(--settings-text-title); font-weight: 550; letter-spacing: -0.02em; line-height: 1.333333; margin: 0 0 32px; }
+.plugin-capabilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
 .plugin-user-scope { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--cp-border-light); border-radius: 18px; padding: 5px 10px; white-space: nowrap; font-size: 12px; }
 .plugin-divider { height: 16px; width: 1px; background: var(--cp-border-light); }
 .plugin-tabs { display: flex; gap: 4px; }
@@ -122,7 +122,7 @@ h1 { font-size: var(--settings-text-title); font-weight: 600; letter-spacing: -0
 small { color: var(--cp-text-secondary); font-size: 12px; font-weight: 400; }
 .plugin-search { display: flex; align-items: center; gap: 8px; width: 256px; margin-left: auto; padding: 8px 11px; border: 1px solid var(--cp-border-light); border-radius: 12px; background: var(--cp-bg); color: var(--cp-text-secondary); }
 .plugin-search input { min-width: 0; width: 100%; border: 0; background: none; color: var(--cp-text); font: inherit; font-size: 12px; }
-.plugin-group { margin-bottom: 28px; }
+.plugin-group { margin-bottom: 20px; }
 .plugin-group-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; min-height: 28px; }
 h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight: 500; margin: 0; }
 .plugin-actions { display: flex; gap: 8px; }
@@ -142,7 +142,7 @@ h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight:
 .plugin-provided-row span { color: var(--cp-text-secondary); font-size: 12px; }
 .plugin-error { color: var(--el-color-danger); line-height: 1.6; }
 .plugin-notice, .plugin-empty { color: var(--cp-text-secondary); font-size: 12px; }
-.plugin-detail-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; }
+.plugin-detail-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
 .plugin-detail-actions .el-switch { margin-left: auto; }
 .plugin-detail p, .plugin-detail dd { font-size: var(--settings-text-base); line-height: 1.7; color: var(--cp-text-secondary); overflow-wrap: anywhere; }
 .plugin-detail-section { margin-top: 28px; border-top: 1px solid var(--cp-border-light); padding-top: 20px; }

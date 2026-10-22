@@ -78,8 +78,8 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
 .settings-main__content { box-sizing: border-box; width: min(896px, 100%); margin: 0 auto; padding: 0 32px 40px; }
 .settings-main__content.is-wide { width: min(1280px, 100%); }
 .settings-main__content.is-workspace { width: 100%; height: 100%; padding: 0; }
-.settings-page-header { margin-bottom: 32px; }
-.settings-page-header h1 { margin: 0; font-size: var(--settings-text-title); font-weight: $font-semibold; line-height: 1.333333; letter-spacing: -0.02em; }
+.settings-page-header { margin-bottom: 24px; }
+.settings-page-header h1 { margin: 0; font-size: var(--settings-text-title); font-weight: 550; line-height: 1.333333; letter-spacing: -0.02em; }
 .settings-page-header p { margin: 10px 0 0; color: var(--cp-text-secondary); }
 
 // 只统一设置表单的尺寸与状态，不改变全局控件和浮层的动画。
@@ -105,3 +105,4 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
 </style>
 
 <style lang="scss" src="./settings-typography.scss" />
+<style lang="scss" src="./settings-controls.scss" />

@@ -1,6 +1,6 @@
 // Isolated desktop verification. Never runs against the user's regular Mira profile.
 import { createRequire } from 'node:module'
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
@@ -70,7 +70,8 @@ try {
  const retention = page.getByRole('spinbutton', { name: '回收站保留天数', exact: true })
  await retention.fill('14'); await retention.press('Tab')
  await page.waitForFunction(async () => (await window.platform.getHarnessPermissionConfig()).trashRetentionDays === 14)
- await sidebar('应用配置')
+ await sidebar('常规')
+ assert.equal(await page.getByRole('button', { name: '应用配置', exact: true }).count(), 0)
  assert.equal(await page.getByText('复制布局配置', { exact: true }).count(), 0)
  record('trash moved with persisted retention and no old layout copy')
  await sidebar('指令与记忆')
@@ -172,7 +173,7 @@ try {
  await page.getByRole('tabpanel').waitFor()
  record('plugin detail, teleported menu, MCP save and skills tab remain usable')
  // Complete desktop geometry matrix; all visible routes, both themes and sizes.
- const routes = ['general','appearance','keyboard-shortcuts','model-config','permissions','personalization','plugins','agents','commands','hooks','file-search','backup-preferences','usage','about']
+ const routes = ['general','appearance','keyboard-shortcuts','model-config','permissions','personalization','plugins','agents','commands','hooks','file-search','usage','about']
  for (const [width, height] of [[1440,900],[1100,760]]) {
   await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), [width,height])
   for (const theme of ['light','dark']) {
@@ -189,7 +190,7 @@ try {
     assert.equal(geometry.width,280); assert.equal(geometry.bar,'none'); assert.equal(geometry.overflow,false,route); assert.equal(geometry.pageOverflow,false,route)
     const about = page.locator('.settings-sidebar').getByRole('button',{name:'关于Mira',exact:true}); await about.scrollIntoViewIfNeeded()
     assert.ok(await about.isVisible())
-    if(width===1100 && ['general','permissions','plugins','agents','backup-preferences'].includes(route)) {
+    if(width===1100 && ['general','permissions','plugins','agents'].includes(route)) {
       await page.evaluate(()=>document.querySelector('.settings-sidebar').scrollTop=0)
       await page.screenshot({path:join(output,`${route}-${theme}.png`)})
     }
@@ -258,54 +259,13 @@ try {
  assert.equal(await returnedEditor.innerText(), 'SETTINGS_UNSENT_DRAFT')
  assert.deepEqual(await returnedFrame.locator('.pilot-workbench').evaluateAll(elements => elements.map(e => ({ width: e.clientWidth, height: e.clientHeight }))), workspaceBefore)
  record('real workbench roundtrip preserves unsent draft and layout; background event keeps settings focus')
- // Export scope and default restore, only in isolated profile. Preserve evidence of exclusions.
- await page.evaluate(()=>location.hash='/settings/backup-preferences')
- await page.getByRole('button',{name:'导出应用配置',exact:true}).waitFor()
- const snapshot = await page.evaluate(async()=>JSON.parse(await window.platform.exportSnapshot()))
- assert.deepEqual(Object.keys(snapshot).sort(),['mainMenus','microApps','preferences'])
- // Electron owns downloads; select a destination through its session event.
- const exportPath = join(output, 'export.json')
- await app.evaluate(({ BrowserWindow }, path) => {
-   globalThis.settingsDownload = 'pending'
-   BrowserWindow.getAllWindows()[0].webContents.session.once('will-download', (_event, item) => {
-     item.setSavePath(path)
-     item.once('done', (_event, state) => { globalThis.settingsDownload = state })
-   })
- }, exportPath)
- await page.getByRole('button',{name:'导出应用配置',exact:true}).click()
- for (let attempt=0; attempt<40 && await app.evaluate(() => globalThis.settingsDownload) === 'pending'; attempt++) await page.waitForTimeout(100)
- assert.equal(await app.evaluate(() => globalThis.settingsDownload), 'completed')
- assert.deepEqual(Object.keys(JSON.parse(await readFile(exportPath, 'utf8'))).sort(), ['mainMenus','microApps','preferences'])
- await page.getByRole('button',{name:'恢复默认配置',exact:true}).click()
- await page.locator('.el-message-box').getByRole('button',{name:'取消',exact:true}).click()
- assert.equal((await page.evaluate(()=>window.platform.getSnapshot())).preferences.sendShortcut,'mod-enter')
- record('export through UI and cancelled reset leaves data unchanged')
  // Restart proves real on-disk settings, instructions, model and task persistence.
  await app.close(); app=undefined; await launch()
  const persisted = await page.evaluate(async id=>({ snapshot:await window.platform.getSnapshot(), permission:await window.platform.getHarnessPermissionConfig(), instructions:await window.platform.getGlobalInstructions(), models:await window.platform.listModelProviders(), session:await window.platform.getHarnessSession(id) }),runtime.id)
  assert.equal(persisted.snapshot.preferences.sendShortcut,'mod-enter'); assert.equal(persisted.snapshot.preferences.assistantTone,'professional')
  assert.equal(persisted.permission.trashRetentionDays,14); assert.ok(persisted.instructions.includes('SETTINGS_GLOBAL_INSTRUCTION')); assert.ok(persisted.models.some(p=>p.id===runtime.providerId)); assert.equal(persisted.session.id,runtime.id)
  record('restart persistence of preferences, permissions, instructions, model and task')
- await page.evaluate(() => location.hash='/settings/backup-preferences')
- await page.getByRole('button', { name: '导入应用配置', exact: true }).waitFor()
- const importFile = join(output, 'import.json')
- await writeFile(importFile, JSON.stringify({ ...snapshot, preferences: { ...snapshot.preferences, sendShortcut: 'enter' } }))
- await page.locator('input[type=file]').setInputFiles(importFile)
- await page.locator('.el-message-box').getByRole('button', { name: '导入', exact: true }).click()
- await page.waitForFunction(async () => (await window.platform.getSnapshot()).preferences.sendShortcut === 'enter')
- assert.equal((await page.evaluate(() => window.platform.getHarnessPermissionConfig())).trashRetentionDays, 14)
- await page.getByRole('button', { name: '恢复默认配置', exact: true }).click()
- await page.locator('.el-message-box').getByRole('button', { name: '确定', exact: true }).click()
- await page.getByText('已恢复默认配置', { exact: true }).waitFor()
- const restored = await page.evaluate(async id => ({ snapshot: await window.platform.getSnapshot(), permission: await window.platform.getHarnessPermissionConfig(), session: await window.platform.getHarnessSession(id), models: await window.platform.listModelProviders(), memory: await window.platform.listHarnessMemory('global'), instructions: await window.platform.getGlobalInstructions() }), runtime.id)
- assert.equal(restored.snapshot.preferences.sendShortcut, 'enter')
- assert.equal(restored.snapshot.preferences.miraUserName, undefined)
- assert.equal(restored.permission.trashRetentionDays, 14)
- assert.equal(restored.session.id, runtime.id)
- assert.ok(restored.models.some(p => p.id === runtime.providerId))
- assert.ok(restored.memory.some(m => m.content.includes('SETTINGS_MEMORY_FACT')))
- assert.ok(restored.instructions.includes('SETTINGS_GLOBAL_INSTRUCTION'))
- record('actual isolated import and reset preserve task, model, permission, memory and instructions')
+
  await sidebar('常规')
  await page.getByRole('radio', { name: '保持后台运行', exact: true }).locator('xpath=..').click()
  await page.waitForFunction(async () => (await window.platform.getSnapshot()).preferences.closeWindowBehavior === 'background')

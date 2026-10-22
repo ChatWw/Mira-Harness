@@ -8,7 +8,7 @@ import { createVueNodeRenderer, withVueClientRender } from './helpers/vueNodeRen
 
 const environment = vi.hoisted(() => ({ route: { path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} }, push: vi.fn(), search: vi.fn(), toggleTheme: vi.fn(), close: undefined as undefined | (() => void), removeClose: vi.fn(), windowCommand: vi.fn(async () => undefined) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: environment.route }, push: environment.push }), useRoute: () => environment.route }))
-vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ toggleThemeMode: environment.toggleTheme }) }))
+vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ toggleThemeModeWithTransition: environment.toggleTheme }) }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: () => ({ config: { componentSize: 'default' } }) }))
 vi.mock('@/stores/harness', () => ({ useHarnessStore: () => ({ applyEvent: vi.fn() }) }))
 vi.mock('@/stores/commandPalette', () => ({ useCommandPaletteStore: () => ({ open: environment.search }) }))

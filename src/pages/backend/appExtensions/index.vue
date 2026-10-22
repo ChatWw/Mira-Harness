@@ -26,13 +26,13 @@
               <p>{{ application.description }}</p>
               <span class="app-extension__category">{{ application.category }}</span>
             </div>
-            <el-tooltip content="规划中" placement="top" :trigger="['hover', 'focus']">
+            <SettingsTooltip content="规划中" placement="top" :trigger="['hover', 'focus']">
               <span class="app-extension__install-target" tabindex="0" :aria-label="`安装 ${application.name}，规划中`">
                 <button type="button" class="app-extension__install" disabled :aria-label="`安装 ${application.name}`">
                   <AppIcon name="lucide:download" :size="14" aria-hidden="true" />安装
                 </button>
               </span>
-            </el-tooltip>
+            </SettingsTooltip>
           </article>
         </div>
         <div v-else class="app-extensions__empty" role="status">
@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 
 // Planned entries only; release metadata and installation will come from the app catalog.
 const applications = [
@@ -76,7 +77,7 @@ const visibleApplications = computed(() => {
 
 <style scoped>
 .app-extensions { --app-extension-surface: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); min-width: 0; }
-.app-extensions__toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.app-extensions__toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .app-extensions__scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--cp-border-light); border-radius: 18px; font-size: var(--settings-text-small); }
 .app-extensions__divider { width: 1px; height: 16px; background: var(--cp-border-light); }
 .app-extensions__selection { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 20px; background: var(--app-extension-surface); font-weight: 500; }
@@ -87,14 +88,14 @@ const visibleApplications = computed(() => {
 .app-extensions__search input::placeholder { color: var(--cp-text-secondary); opacity: 1; }
 .app-extensions__description { max-width: 70ch; margin: 0 0 32px; color: var(--cp-text-secondary); line-height: 24px; }
 .app-extensions__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.app-extensions__heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--settings-text-base); font-weight: 500; }
+.app-extensions__heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--settings-text-base); font-weight: 450; }
 .app-extensions__heading > span { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .app-extensions__list { overflow: hidden; border-radius: 12px; background: var(--app-extension-surface); }
 .app-extension { display: flex; align-items: center; gap: 16px; padding: 20px 16px; }
 .app-extension + .app-extension { border-top: 1px solid var(--cp-border-light); }
 .app-extension__icon { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 12px; background: var(--cp-bg); color: var(--cp-text); }
 .app-extension__copy { display: grid; flex: 1; gap: 4px; min-width: 0; }
-.app-extension__copy h3 { margin: 0; font-size: var(--settings-text-base); font-weight: 500; line-height: 20px; }
+.app-extension__copy h3 { margin: 0; font-size: var(--settings-text-base); font-weight: 450; line-height: 20px; }
 .app-extension__copy p { margin: 0; color: var(--cp-text-secondary); line-height: 24px; overflow-wrap: anywhere; }
 .app-extension__category { color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 20px; }
 .app-extension__install-target { display: inline-flex; flex: 0 0 auto; border-radius: 6px; cursor: not-allowed; }

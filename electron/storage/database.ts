@@ -436,6 +436,9 @@ export class PlatformDatabase {
       const model = provider?.models.find(item => item.enabled)
       if (provider && model) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: model.id } })
     }
+    // The settings page and automation banner share one global keep-awake preference.
+    this.database.prepare("INSERT OR IGNORE INTO preferences(key, value) SELECT 'keepComputerAwake', value FROM preferences WHERE key IN ('first-party.mira-harness.keepAwakeDuringSessions', 'keepAwakeDuringSessions') ORDER BY key LIMIT 1").run()
+    this.database.prepare("DELETE FROM preferences WHERE key IN ('first-party.mira-harness.keepAwakeDuringSessions', 'keepAwakeDuringSessions')").run()
     const insertPreference = this.database.prepare('INSERT OR IGNORE INTO preferences(key, value) VALUES (?, ?)')
     Object.entries(DEFAULT_PREFERENCES).forEach(([key, value]) => insertPreference.run(key, JSON.stringify(value)))
     this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))

@@ -10,6 +10,9 @@ function router() {
 }
 
 describe('first-party Harness navigation', () => {
+  it('rejects the retired app configuration page', () => {
+    expect(() => resolveHarnessNavigationPath('/settings/backup-preferences')).toThrow('Harness 不支持打开此页面')
+  })
   it('opens command settings with the current project and return path, without arbitrary directories', () => {
     expect(resolveHarnessNavigationPath('/settings/commands?project=project-1')).toBe('/settings/commands?project=project-1&from=%2Fworkspace%2Fharness-react')
     expect(() => resolveHarnessNavigationPath('/settings/commands?directory=%2Ftmp')).toThrow('导航参数')

@@ -89,20 +89,20 @@ async function copyFeedbackEmail() {
 <style scoped lang="scss">
 .about-settings :deep(.settings-main__content) { display: flex; width: 100%; min-height: 100%; padding-bottom: 24px; }
 .about-page { container-type: inline-size; display: flex; flex-direction: column; width: 100%; padding-top: 16px; }
-.about-identity { display: flex; align-items: center; gap: 24px; padding: 8px 0 40px; border-bottom: 1px solid var(--cp-border); }
+.about-identity { display: flex; align-items: center; gap: 24px; padding: 8px 0 28px; border-bottom: 1px solid var(--cp-border); }
 .about-logo { width: 104px; height: 104px; border-radius: 24px; object-fit: cover; }
-.about-name h1 { margin: 0; color: var(--cp-text); font-size: 36px; font-weight: 600; line-height: 1.2; letter-spacing: -0.03em; }
+.about-name h1 { margin: 0; color: var(--cp-text); font-size: 36px; font-weight: 550; line-height: 1.2; letter-spacing: -0.03em; }
 .about-name p { margin: 8px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .about-version { display: flex; flex-direction: column; gap: 5px; margin-left: auto; text-align: right; font-size: var(--settings-text-caption); color: var(--cp-text-secondary); }
 .about-version span:last-child { color: var(--cp-text); font-variant-numeric: tabular-nums; }
-.about-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 64px; padding: 40px 0 48px; }
-.about-body h2, .about-footer h2 { margin: 0 0 20px; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 600; }
-.about-description > p { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: 15px; line-height: 2; }
+.about-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; padding: 28px 0 32px; }
+.about-body h2, .about-footer h2 { margin: 0 0 20px; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 550; }
+.about-description > p { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.8; }
 .about-description > .about-summary { color: var(--cp-text); }
-.about-local { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
+.about-local { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
 .about-local h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--cp-text); font-size: var(--settings-text-caption); font-weight: 500; }
 .about-local p { margin: 0; color: var(--cp-text-secondary); font-size: var(--settings-text-caption); line-height: 1.8; }
-.about-contact-row { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 88px; padding: 16px 12px; border: 0; border-bottom: 1px solid var(--cp-border-light); border-radius: 0; background: transparent; color: var(--cp-text-secondary); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: background-color 150ms ease-out; }
+.about-contact-row { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 16px 12px; border: 0; border-bottom: 1px solid var(--cp-border-light); border-radius: 0; background: transparent; color: var(--cp-text-secondary); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: background-color 150ms ease-out; }
 .about-contact-row:hover { background: var(--cp-bg-elevated); }
 .about-contact-row:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
 .about-contact-row > .app-icon { flex-shrink: 0; }
@@ -115,7 +115,7 @@ a.about-contact-row:last-of-type > .app-icon:first-child { color: #b18858; }
 .contact-value { color: var(--cp-text); font-size: var(--settings-text-caption); overflow-wrap: anywhere; }
 .contact-arrow { margin-left: auto; }
 .about-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: auto; padding: 28px 0; border-top: 1px solid var(--cp-border); }
-.about-footer h2 { margin-bottom: 6px; font-size: var(--settings-text-base); font-weight: 500; }
+.about-footer h2 { margin-bottom: 6px; font-size: var(--settings-text-base); font-weight: 450; }
 .about-footer p { margin: 0; color: var(--cp-text-secondary); font-size: var(--settings-text-caption); line-height: 1.7; }
 .support-button { flex-shrink: 0; }
 .support-button :deep(> span) { gap: 8px; }

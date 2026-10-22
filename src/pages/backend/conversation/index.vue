@@ -63,11 +63,11 @@ onBeforeRouteLeave(() => !saving.value)
 
 <style scoped lang="scss">
 .general-settings { min-width: 0; }
-.general-settings + .general-settings { margin-top: 32px; }
+.general-settings + .general-settings { margin-top: 24px; }
 
-.section-heading { margin-bottom: 18px; }
-.section-heading h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: $font-semibold; letter-spacing: -0.01em; }
-.section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.section-heading { margin-bottom: 12px; }
+.section-heading h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; letter-spacing: -0.01em; }
+.section-heading p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
 
 .settings-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-list .settings-row { padding-right: 16px; padding-left: 16px; }
@@ -77,14 +77,14 @@ onBeforeRouteLeave(() => !saving.value)
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  min-height: 66px;
-  padding: 12px 4px 12px 0;
+  min-height: 60px;
+  padding: 10px 4px 10px 0;
   border-bottom: 1px solid var(--cp-border-light);
   &:last-child { border-bottom: none; }
 }
-.settings-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.settings-row__label { color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.settings-row__hint { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 24px; }
+.settings-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.settings-row__label { color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 450; }
+.settings-row__hint { color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 18px; }
 
 @media (max-width: 640px) {
   .settings-row { align-items: flex-start; }

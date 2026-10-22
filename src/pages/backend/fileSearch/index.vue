@@ -3,9 +3,9 @@
     <section class="search-ignore" aria-labelledby="search-workspace-heading" :aria-busy="listing || busy">
       <div class="search-ignore__heading">
         <h2 id="search-workspace-heading">工作区</h2>
-        <el-tooltip content="重新加载工作区" placement="top">
+        <SettingsTooltip content="重新加载工作区" placement="top">
           <el-button class="search-ignore__icon" :disabled="busy || listing" aria-label="重新加载工作区" @click="reloadWorkspaces"><AppIcon name="lucide:refresh-cw" /></el-button>
-        </el-tooltip>
+        </SettingsTooltip>
       </div>
       <p v-if="listError" class="search-ignore__error" role="alert">{{ listError }}</p>
       <el-select class="search-ignore__selector" :model-value="selectedKey" :disabled="busy || listing || !workspaces.length" filterable aria-label="选择工作区" placeholder="选择工作区" @change="selectWorkspace">
@@ -24,7 +24,7 @@
       <div class="search-ignore__toolbar">
         <el-button :disabled="busy || !loaded" @click="transform('sync-gitignore')"><AppIcon name="lucide:git-pull-request-arrow" />从 .gitignore 同步</el-button>
         <el-button :disabled="busy || !loaded" @click="transform('reset-defaults')"><AppIcon name="lucide:rotate-ccw" />恢复默认规则</el-button>
-        <el-tooltip content="重新读取规则" placement="top"><el-button class="search-ignore__icon" :disabled="busy" aria-label="重新读取规则" @click="reloadRules"><AppIcon name="lucide:refresh-cw" /></el-button></el-tooltip>
+        <SettingsTooltip content="重新读取规则" placement="top"><el-button class="search-ignore__icon" :disabled="busy" aria-label="重新读取规则" @click="reloadRules"><AppIcon name="lucide:refresh-cw" /></el-button></SettingsTooltip>
       </div>
       <el-input v-model="draft" class="search-ignore__editor" type="textarea" :rows="16" resize="vertical" :disabled="busy || !loaded" aria-label="搜索忽略规则" spellcheck="false" />
       <p v-if="error" class="search-ignore__error" role="alert">{{ error }}</p>
@@ -44,6 +44,7 @@ import { ElMessageBox } from 'element-plus'
 import type { HarnessWorkspaceSearchIgnoreTarget } from '@/config/harness'
 import { getPlatformApi } from '@/platform'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 import { useSearchIgnoreEditor } from './useSearchIgnoreEditor'
 
 type Workspace = { key: string; label: string; directory: string; target: HarnessWorkspaceSearchIgnoreTarget }
@@ -99,21 +100,21 @@ onMounted(() => { void reloadWorkspaces() })
 </script>
 
 <style scoped lang="scss">
-.search-ignore__hint { margin: 16px 0 24px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.search-ignore__hint { margin: 16px 0 24px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
 .search-ignore { min-width: 0; }
-.search-ignore + .search-ignore { margin-top: 36px; }
+.search-ignore + .search-ignore { margin-top: 24px; }
 .search-ignore__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.search-ignore__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: $font-semibold; letter-spacing: 0; }
+.search-ignore__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 550; letter-spacing: 0; }
 .search-ignore__selector { width: min(420px, 100%); }
-.search-ignore__path { margin: 10px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.6; overflow-wrap: anywhere; }
-.search-ignore__empty, .search-ignore__status { color: var(--cp-text-secondary); font-size: $font-sm; }
+.search-ignore__path { margin: 10px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.6; overflow-wrap: anywhere; }
+.search-ignore__empty, .search-ignore__status { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .search-ignore__toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .search-ignore__toolbar :deep(.el-button + .el-button) { margin-left: 0; }
 .search-ignore__toolbar :deep(.app-icon), .search-ignore__actions :deep(.app-icon) { margin-right: 6px; }
 .search-ignore__icon { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; }
 .search-ignore__icon :deep(.app-icon) { margin: 0; }
 .search-ignore__editor :deep(textarea) { min-height: 320px; font: 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; caret-color: var(--cp-text); }
-.search-ignore__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: $font-sm; line-height: 1.6; overflow-wrap: anywhere; }
+.search-ignore__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; }
 .search-ignore__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .search-ignore__actions :deep(.el-button + .el-button) { margin-left: 0; }
 </style>

@@ -47,8 +47,8 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
   const [query, setQuery] = useState('')
   const [editorReady, setEditorReady] = useState(false)
   const [keepAwake, setKeepAwake] = useState(false), [keepAwakeBusy, setKeepAwakeBusy] = useState(false)
-  useEffect(() => { let current = true; void host.getPreference('keepAwakeDuringSessions').then(value => { if (current) setKeepAwake(value === true) }).catch(cause => { if (current) setError(message(cause)) }); return () => { current = false } }, [host])
-  async function changeKeepAwake(value: boolean) { setKeepAwakeBusy(true); try { await host.setPreference('keepAwakeDuringSessions', value, true); setKeepAwake(value) } catch (cause) { setError(message(cause)) } finally { setKeepAwakeBusy(false) } }
+  useEffect(() => { if (!active) return; let current = true; void host.getPreference('keepComputerAwake').then(value => { if (current) setKeepAwake(value === true) }).catch(cause => { if (current) setError(message(cause)) }); return () => { current = false } }, [host, active])
+  async function changeKeepAwake(value: boolean) { setKeepAwakeBusy(true); try { await host.setPreference('keepComputerAwake', value, true); setKeepAwake(value) } catch (cause) { setError(message(cause)) } finally { setKeepAwakeBusy(false) } }
   const [filter, setFilter] = useState<NonNullable<AutomationNavigationTarget['filter']>>('all')
   const [section, setSection] = useState<'tasks' | 'runs'>('tasks')
   const [pageTab, setPageTab] = useState<'automations' | 'workflows'>('automations')
@@ -312,7 +312,7 @@ export function AutomationsView({ host, projects, sessions, providers, onOpenSes
       </> : <><div className="mira-automation-page-title"><MiraAutomationTitleSwitch value={pageTab} onChange={switchPage} /><p>创建定时任务，让 Mira 按计划在后台执行。</p></div>
         {loading ? <p className="mira-automation-loading" role="status"><LoaderCircle size={17} className="mira-automation-spin" />正在加载自动化…</p> : section === 'runs' ? history() : <>
           {tasks.length > 0 && <><div className="mira-automation-list-toolbar"><span className="mira-automation-type-pill">定时任务</span><div><AutomationHint label="刷新"><button type="button" className="mira-automation-icon mira-automation-refresh" aria-label="刷新自动化" disabled={refreshing || Boolean(busyIds.length)} onClick={() => { void load() }}><RefreshCw size={14} className={refreshing ? 'mira-automation-spin' : undefined} /></button></AutomationHint>{create()}</div></div><div className="mira-automation-filters" role="group" aria-label="任务状态">{TASK_FILTERS.map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} disabled={navigationBusy} onClick={() => chooseFilter(value)}>{label}</button>)}</div></>}
-          <div className="mira-automation-keep-awake"><Info size={16} /><p>Mira 运行会话时保持电脑唤醒。</p><label className="mira-automation-switch"><input type="checkbox" role="switch" aria-label="Mira 运行会话时保持电脑唤醒" checked={keepAwake} disabled={keepAwakeBusy} onChange={event => { void changeKeepAwake(event.target.checked) }} /><span /></label></div>
+          <div className="mira-automation-keep-awake"><Info size={16} /><p>保持电脑运行，防止系统因空闲进入休眠。</p><label className="mira-automation-switch"><input type="checkbox" role="switch" aria-label="保持电脑运行" checked={keepAwake} disabled={keepAwakeBusy} onChange={event => { void changeKeepAwake(event.target.checked) }} /><span /></label></div>
           {tasks.length > 0 && <div className="mira-automation-section-title mira-automation-created-title"><h3>已创建任务</h3></div>}
           {!tasks.length ? <div className="mira-automation-empty mira-automation-list-empty"><p>还没有定时任务</p>{create()}</div> : !filtered.length ? <div className="mira-automation-empty mira-automation-history-empty">没有符合条件的任务</div> : <div className="mira-automation-grid">{filtered.map(task => {
             const status = taskState(task, runs[task.id]?.[0])

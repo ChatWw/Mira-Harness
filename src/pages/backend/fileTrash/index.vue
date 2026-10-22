@@ -36,10 +36,10 @@ onBeforeRouteLeave(() => !saving.value)
 
 <style scoped lang="scss">
 .section-heading { margin-bottom: 16px; }
-.section-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; }
+.section-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 550; }
 .section-heading p { margin-top: 6px; color: var(--cp-text-secondary); line-height: 1.6; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-row__copy { display: grid; gap: 4px; }
 .settings-row__label { font-weight: 500; }
-.settings-row__hint { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 24px; }
+.settings-row__hint { color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 18px; }
 </style>

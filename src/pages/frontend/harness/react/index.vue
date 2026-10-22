@@ -13,6 +13,7 @@ import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { firstPartyAppManifests } from '@/config/firstPartyApps'
 import { getPlatformApi } from '@/platform'
 import { navigateHarnessHost } from '@/platform/firstPartyNavigation'
+import { useLayoutStore } from '@/stores/layout'
 import { useThemeStore } from '@/stores/theme'
 import { useAppNavigationStore } from '@/stores/appNavigation'
 import FirstPartyFrame from '@/pages/frontend/microAppHost/FirstPartyFrame.vue'
@@ -20,9 +21,10 @@ import FirstPartyFrame from '@/pages/frontend/microAppHost/FirstPartyFrame.vue'
 const api = getPlatformApi()
 const router = useRouter()
 const theme = useThemeStore()
-function toggleShellTheme() { theme.toggleThemeMode(); return theme.themeMode }
+const layout = useLayoutStore()
+async function toggleShellTheme() { await theme.toggleThemeModeWithTransition(undefined, layout.config.themeTransitionAnimation); return theme.themeMode }
 const getAppearance = () => ({ theme: theme.themePreference, zoomFactor: api?.getDesktopZoomFactor?.() ?? 1 })
-const setShellTheme = (value: 'system' | 'light' | 'dark') => theme.setThemePreference(value)
+const setShellTheme = (value: 'system' | 'light' | 'dark') => theme.setThemeModeWithTransition(value, undefined, layout.config.themeTransitionAnimation)
 const manifest = firstPartyAppManifests.find(item => item.appId === 'mira-harness')!
 const context = computed(() => ({ version: 1 as const, theme: theme.themeMode, language: navigator.language, primaryColor: theme.primaryColor, onPrimary: theme.onPrimaryColor, user: { id: 'platform', name: 'Mira' } }))
 const url = ref('')

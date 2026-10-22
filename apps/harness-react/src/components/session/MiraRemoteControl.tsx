@@ -1,8 +1,9 @@
 /* Adapted from ZCode WorkspaceWebRemoteControlTrigger / WebRemoteControlDialog.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Copy, LoaderCircle, MonitorSmartphone, Smartphone, Unplug, X } from 'lucide-react'
+import { Copy, LoaderCircle, MonitorSmartphone, Smartphone, Plug, Unplug, X } from 'lucide-react'
 import QRCode from 'qrcode'
 import type { PilotController } from '../../state/pilot-state'
 import type { MiraRemoteAction, MiraRemoteStatus } from '../../../../../src/config/miraRemote'
@@ -14,16 +15,18 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [copied, setCopied] = useState(false)
   const [qr, setQr] = useState('')
   const [operation, setOperation] = useState<MiraRemoteAction>('start')
+  const [stoppedNotice, setStoppedNotice] = useState(0)
   const pending = useRef(false)
+  const revision = useRef(0)
   const url = status.urls[0]
   const state = status.device ? 'connected' : status.enabled || busy ? 'waiting' : 'idle'
   const label = state === 'connected' ? '手机已连接' : state === 'waiting' ? '等待手机连接' : '远程控制未开启'
   useEffect(() => {
     let active = true
-    const refresh = () => { if (!pending.current) void controller.remoteControl('status').then(value => { if (active && !pending.current) setStatus(value) }).catch(() => undefined) }
+    const refresh = () => { const current = revision.current; if (!pending.current) void controller.remoteControl('status').then(value => { if (active && !pending.current && current === revision.current) setStatus(value) }).catch(() => undefined) }
     refresh(); const timer = setInterval(refresh, 2000)
     return () => { active = false; clearInterval(timer) }
-  }, [controller])
+  }, [controller, open])
   useEffect(() => {
     let active = true; setQr('')
     if (url) void QRCode.toDataURL(url, { width: 256, margin: 2, errorCorrectionLevel: 'M' }).then(value => { if (active) setQr(value) }, () => { if (active) setError('二维码生成失败，请复制链接访问') })
@@ -31,12 +34,18 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
   }, [url])
   async function run(action: MiraRemoteAction) {
     if (pending.current) return
-    pending.current = true; setOperation(action); setBusy(true); setError(''); setCopied(false)
-    try { setStatus(await controller.remoteControl(action)) }
+    pending.current = true; revision.current++; setOperation(action); setBusy(true); setError(''); setCopied(false)
+    try {
+      setStatus(await controller.remoteControl(action))
+      if (action === 'stop') { setOpen(false); setStoppedNotice(value => value + 1) }
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : '操作失败，请重试') }
     finally { pending.current = false; setBusy(false) }
   }
-  const changeOpen = (value: boolean) => { setOpen(value); if (value) void run('start') }
+  const changeOpen = (value: boolean) => {
+    setOpen(value)
+    if (value) { setError(''); if (!status.enabled) void run('start') }
+  }
   return <Dialog.Root modal={false} open={open} onOpenChange={changeOpen}>
     <SidebarActionHint title={`移动端远程控制\n${label}`} hoverOnly suspended={open}>
       <Dialog.Trigger asChild><button type="button" className="mira-remote-trigger" aria-label="移动端远程控制" data-connection-state={state}><Smartphone size={16} /></button></Dialog.Trigger>
@@ -47,7 +56,7 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
       <section className="mira-remote-scan">
         <div className="mira-remote-section-heading"><Smartphone size={16} /><div><h3>手机扫码连接</h3><p>用手机相机扫码，在手机上打开 Mira。</p></div></div>
         <div className="mira-remote-connection">
-          <div className="mira-remote-status-row"><div><div className="mira-remote-status-label"><strong>{busy ? operation === 'stop' ? '正在停止服务' : '正在启动服务' : label}</strong><span className="mira-remote-status-tag" data-connection-state={state}><i />{busy ? operation === 'stop' ? '停止中' : '启动中' : status.device ? '已连接' : status.enabled ? '已就绪' : '已停止'}</span></div><p>{busy ? '请稍候…' : status.enabled ? '用手机扫码，或在手机上打开链接。' : '服务已停止，重新打开弹窗即可开启。'}</p></div><button type="button" disabled={busy || !status.enabled} onClick={() => void run('stop')}><Unplug size={14} />停止</button></div>
+          <div className="mira-remote-status-row"><div><div className="mira-remote-status-label"><strong>{busy ? operation === 'stop' ? '正在停止服务' : '正在启动服务' : label}</strong><span className="mira-remote-status-tag" data-connection-state={state}><i />{busy ? operation === 'stop' ? '停止中' : '启动中' : status.device ? '已连接' : status.enabled ? '已就绪' : '已停止'}</span></div><p>{busy ? '请稍候…' : status.enabled ? '用手机扫码，或在手机上打开链接。' : '服务未开启，点击启动后即可连接。'}</p></div><button type="button" disabled={busy} onClick={() => void run(status.enabled ? 'stop' : 'start')}>{status.enabled ? <Unplug size={14} /> : <Plug size={14} />}{status.enabled ? '停止' : '启动'}</button></div>
           <div className="mira-remote-copy-row"><span>无法扫码？可以在手机上打开链接。</span><button type="button" disabled={busy || !url} onClick={() => { if (url) void navigator.clipboard.writeText(url).then(() => setCopied(true), () => setError('复制失败，请重试')) }}><Copy size={14} />{copied ? '已复制' : '复制链接'}</button></div>
         </div>
         <div className="mira-remote-qr">{qr && status.enabled ? <img src={qr} width={256} height={256} alt="手机连接二维码" /> : <div role="status">{busy || status.enabled ? <><LoaderCircle size={20} className="animate-spin" /><span>正在生成二维码…</span></> : <span>服务已停止</span>}</div>}</div>
@@ -55,5 +64,19 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
       <p className="mira-remote-notice">仅限可信局域网，HTTP 传输未加密。持有链接即可访问项目对话。</p>
       {error && <p className="mira-remote-error" role="alert">{error}</p>}
     </Dialog.Content></Dialog.Portal>
+    {stoppedNotice > 0 && <RemoteStoppedToast key={stoppedNotice} />}
   </Dialog.Root>
+}
+
+// ZCode components/ui/toast.tsx: default top-center toast, 3s + 200ms exit.
+function RemoteStoppedToast() {
+  const [visible, setVisible] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setVisible(true))
+    const hide = setTimeout(() => setVisible(false), 3000)
+    const remove = setTimeout(() => setDismissed(true), 3200)
+    return () => { cancelAnimationFrame(frame); clearTimeout(hide); clearTimeout(remove) }
+  }, [])
+  return dismissed ? null : createPortal(<div className="mira-remote-toast-stack"><div className="mira-remote-toast" data-visible={visible} role="status">已关闭 Web 远程控制</div></div>, document.getElementById('root') ?? document.body)
 }

@@ -34,9 +34,9 @@ const props = defineProps<{
   context: PlatformContext
   route: string
   navigate: (path: string) => void | Promise<void>
-  toggleTheme?: () => 'light' | 'dark'
+  toggleTheme?: () => 'light' | 'dark' | Promise<'light' | 'dark'>
   getAppearance?: () => { theme: string; zoomFactor: number }
-  setTheme?: (theme: 'system' | 'light' | 'dark') => void
+  setTheme?: (theme: 'system' | 'light' | 'dark') => void | Promise<void>
   navigationSnapshot?: MiraAppNavigationSnapshot
 }>()
 const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: []; controlsState: [state: MiraHarnessControlsState] }>()

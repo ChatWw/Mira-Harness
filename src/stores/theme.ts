@@ -13,6 +13,8 @@ import { getPreference, savePreference } from '@/platform'
 import miraFavicon from '@/asset/mira-favicon.png'
 import { resolveWindowChromeDelay, syncWindowChrome } from '@/utils/windowChrome'
 
+type ThemeTransitionOrigin = Pick<MouseEvent, 'clientX' | 'clientY'> & { currentTarget?: EventTarget | null }
+
 type ViewTransitionController = {
   ready: Promise<void>
 }
@@ -33,27 +35,19 @@ function isThemePreference(value: unknown): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system'
 }
 
-function normalizeThemePreference(preference: ThemePreference): ThemeMode {
-  return preference === 'system' ? resolveThemeMode('system') : preference
-}
-
 export const useThemeStore = defineStore('theme', () => {
   const storedThemePreference = getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY))
   const normalizedStoredThemePreference = isThemePreference(storedThemePreference)
-    ? normalizeThemePreference(storedThemePreference)
+    ? storedThemePreference
     : DEFAULT_THEME_MODE
   const themePreference = ref<ThemePreference>(
     normalizedStoredThemePreference
   )
-  const themeMode = ref<ThemeMode>(normalizedStoredThemePreference)
+  const themeMode = ref<ThemeMode>(resolveThemeMode(normalizedStoredThemePreference))
   const presetColors = PRESET_COLORS
   localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
   const storedPresetId = getPreference('primaryPreset', localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY))
   const primaryPresetId = ref(DEFAULT_PRIMARY_PRESET_ID)
-  if (storedThemePreference === 'system') {
-    localStorage.setItem(THEME_STORAGE_KEY, normalizedStoredThemePreference)
-    savePreference('themeMode', normalizedStoredThemePreference)
-  }
   if (storedPresetId !== null && storedPresetId !== DEFAULT_PRIMARY_PRESET_ID) {
     localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, DEFAULT_PRIMARY_PRESET_ID)
     savePreference('primaryPreset', DEFAULT_PRIMARY_PRESET_ID)
@@ -91,14 +85,14 @@ export const useThemeStore = defineStore('theme', () => {
     applyTheme()
   }
 
-  async function toggleThemeModeWithTransition(event?: MouseEvent, enabled = true) {
+  async function toggleThemeModeWithTransition(event?: ThemeTransitionOrigin, enabled = true) {
     const nextMode = themeMode.value === 'light' ? 'dark' : 'light'
     await setThemeModeWithTransition(nextMode, event, enabled)
   }
 
   async function setThemeModeWithTransition(
     nextMode: ThemePreference,
-    event?: MouseEvent,
+    event?: ThemeTransitionOrigin,
     enabled = true
   ) {
     const documentWithTransition = document as DocumentWithViewTransition
@@ -180,8 +174,8 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function setThemePreference(preference: ThemePreference, syncNativeChrome = true) {
-    const normalizedPreference = normalizeThemePreference(preference)
-    const nextMode = normalizedPreference
+    const normalizedPreference = preference
+    const nextMode = resolveThemeMode(preference)
     if (themePreference.value === normalizedPreference && themeMode.value === nextMode) return
 
     themePreference.value = normalizedPreference
@@ -201,7 +195,7 @@ export const useThemeStore = defineStore('theme', () => {
     return { cssValue, milliseconds }
   }
 
-  function resolveTransitionOrigin(event?: MouseEvent) {
+  function resolveTransitionOrigin(event?: ThemeTransitionOrigin) {
     const fallback = {
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,

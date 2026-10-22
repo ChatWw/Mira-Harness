@@ -81,6 +81,20 @@ beforeEach(() => { hooks.cursor = 0; hooks.dirty = false; hooks.slots = []; hook
 afterEach(() => { hooks.slots.forEach(slot => slot.cleanup?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('shipped React automations host callbacks', () => {
+  it('shares the global keep-awake preference and refreshes it when returning to automations', async () => {
+    const api = fixture(); let enabled = true
+    api.host.getPreference.mockImplementation(async key => key === 'keepComputerAwake' ? enabled : null)
+    const view = mount(api.host); await view.drain()
+    expect(view.find(props => props['aria-label'] === '保持电脑运行').checked).toBe(true)
+    view.find(props => props['aria-label'] === '保持电脑运行').onChange({ target: { checked: false } }); await view.drain()
+    expect(api.host.setPreference).toHaveBeenCalledWith('keepComputerAwake', false, true)
+    await view.setActive(false); enabled = false; await view.setActive(true)
+    expect(view.find(props => props['aria-label'] === '保持电脑运行').checked).toBe(false)
+    await view.setActive(false); enabled = true; await view.setActive(true)
+    expect(view.find(props => props['aria-label'] === '保持电脑运行').checked).toBe(true)
+    view.unmount()
+  })
+
   it('locks local positions and form edits while global replay still loads and saves drafts and Stop stays available', async () => {
     const api = fixture(), view = mount(api.host); api.setRuns([run('running')]); await view.drain()
     await view.navigate({ kind: 'automations', taskId: task.id }); await view.change({ prompt: '导航期间保留修改' })

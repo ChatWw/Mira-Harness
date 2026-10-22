@@ -29,9 +29,9 @@
               >
                 <AppIcon class="provider-drag-indicator" name="material-symbols:drag-indicator" :size="18" aria-hidden="true" />
                 <span class="provider-mark"><img :src="providerIconUrl(provider.providerKey)" alt=""></span>
-                <el-tooltip :content="provider.name" placement="top" :show-after="500">
+                <SettingsTooltip :content="provider.name" placement="top" :show-after="500">
                   <span class="provider-name">{{ provider.name }}</span>
-                </el-tooltip>
+                </SettingsTooltip>
                 <span v-if="provider.enabled" class="provider-status" aria-label="已启用" />
               </button>
             </div>
@@ -101,9 +101,9 @@
                   <p>启用的模型会按“供应商 → 模型名称”出现在选择器中。</p>
                 </div>
                 <div class="model-actions">
-                  <el-tooltip content="从供应商获取模型列表" placement="top">
+                  <SettingsTooltip content="从供应商获取模型列表" placement="top">
                     <el-button circle :loading="loadingModels" aria-label="同步模型列表" @click="syncModels"><AppIcon name="Refresh" /></el-button>
-                  </el-tooltip>
+                  </SettingsTooltip>
                   <el-button type="primary" plain @click="openModelDialog"><AppIcon name="Plus" />添加模型</el-button>
                 </div>
               </div>
@@ -119,8 +119,8 @@
                   <span class="model-meta">{{ formatContextWindow(model.contextWindow) }} 上下文</span>
                   <span class="model-meta model-meta--pricing">{{ model.pricing ? `${model.pricing.currency} 已计价` : '未计价' }}</span>
                   <div class="model-row__actions">
-                    <el-tooltip content="编辑模型" placement="top"><el-button text circle aria-label="编辑模型" @click="editModel(index)"><AppIcon name="EditPen" /></el-button></el-tooltip>
-                    <el-tooltip content="移除模型" placement="top"><el-button text circle type="danger" aria-label="移除模型" @click="removeModel(index)"><AppIcon name="Delete" /></el-button></el-tooltip>
+                    <SettingsTooltip content="编辑模型" placement="top"><el-button text circle aria-label="编辑模型" @click="editModel(index)"><AppIcon name="EditPen" /></el-button></SettingsTooltip>
+                    <SettingsTooltip content="移除模型" placement="top"><el-button text circle type="danger" aria-label="移除模型" @click="removeModel(index)"><AppIcon name="Delete" /></el-button></SettingsTooltip>
                   </div>
                 </article>
               </div>
@@ -196,6 +196,7 @@ import deepseekIcon from '@/asset/modules_icon/deepseek.svg'
 import ollamaIcon from '@/asset/modules_icon/Ollama.svg'
 import qwenIcon from '@/asset/modules_icon/qwen.svg'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 
 const FIXED_PRESETS = MODEL_PROVIDER_PRESETS.filter(preset => preset.key !== 'custom')
 const PROVIDER_ORDER_PREFERENCE_KEY = 'modelProviderOrder'
@@ -413,8 +414,8 @@ onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible);
 .provider-page { display: grid; height: 100%; min-width: 0; min-height: 0; grid-template-columns: 260px minmax(0, 1fr); overflow: hidden; background: var(--cp-bg); }
 .provider-rail { display: flex; min-height: 0; flex-direction: column; background: var(--cp-bg); border-right: 1px solid var(--cp-border); }
 .provider-rail__header { padding: 24px 20px 18px; }
-.provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 600; line-height: 1.3; }
-.provider-rail__header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-rail__header h1 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; line-height: 1.3; }
+.provider-rail__header p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .provider-list { min-width: 0; min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 4px 10px 16px; }
 .provider-group { display: grid; min-width: 0; max-width: 100%; gap: 6px; margin-bottom: 6px; border-radius: 8px; cursor: grab; }
 .provider-group:last-child { margin-bottom: 0; }
@@ -426,35 +427,35 @@ onBeforeUnmount(() => { window.removeEventListener('focus', refreshWhenVisible);
 .provider-mark, .provider-logo { display: grid; flex: 0 0 auto; place-items: center; background: #f5f5f4; border: 1px solid #e7e5e4; }
 .provider-mark { width: 34px; height: 34px; margin-left: 0px; border-radius: 7px; }
 .provider-mark img { width: 23px; height: 23px; object-fit: contain; }
-.provider-name { min-width: 0; flex: 1; overflow: hidden; font-size: $font-sm; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.provider-name { min-width: 0; flex: 1; overflow: hidden; font-size: var(--settings-text-base); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .provider-item.active .provider-name { font-weight: 500; }
 .provider-drag-indicator { color: var(--cp-text-secondary); opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
 .provider-item:hover .provider-drag-indicator, .provider-item.active .provider-drag-indicator, .provider-item:focus-visible .provider-drag-indicator { opacity: 1; }
 .provider-status { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--cp-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-success) 16%, transparent); }
 .provider-rail__footer, .provider-panel__footer { box-sizing: border-box; height: 64px; flex: 0 0 64px; border-top: 1px solid var(--cp-border); background: var(--cp-bg); }
 .provider-rail__footer { display: flex; align-items: center; padding: 0 14px; }
-.config-link { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 6px; color: var(--cp-text-secondary); background: transparent; border: 0; font: inherit; font-size: $font-xs; cursor: pointer; }
+.config-link { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 6px; color: var(--cp-text-secondary); background: transparent; border: 0; font: inherit; font-size: var(--settings-text-small); cursor: pointer; }
 .config-link span { flex: 1; text-align: left; }.config-link:hover { color: var(--cp-text); }
 .provider-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
-.provider-panel__header { display: flex; min-height: 88px; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 30px; border-bottom: 1px solid var(--cp-border); }
+.provider-panel__header { display: flex; min-height: 76px; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 30px; border-bottom: 1px solid var(--cp-border); }
 .provider-identity { display: flex; min-width: 0; align-items: center; gap: 14px; }
 .provider-logo { width: 48px; height: 48px; border-radius: 8px; }.provider-logo img { width: 32px; height: 32px; object-fit: contain; }
-.provider-identity h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 600; line-height: 1.35; }.provider-identity p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; }
-.provider-enable { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: $font-xs; }
+.provider-identity h2 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; line-height: 1.35; }.provider-identity p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.provider-enable { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .provider-panel__body { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 30px 28px; }
-.settings-section { padding: 26px 0 30px; border-bottom: 1px solid var(--cp-border-light); }.settings-section:last-child { border-bottom: 0; }
-.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
-.section-heading h3 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 600; }.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: $font-xs; line-height: 1.5; }
+.settings-section { padding: 20px 0 24px; border-bottom: 1px solid var(--cp-border-light); }.settings-section:last-child { border-bottom: 0; }
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
+.section-heading h3 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 550; }.section-heading p { margin: 5px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.5; }
 .readiness { display: inline-flex; height: 26px; align-items: center; gap: 7px; padding: 0 10px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 13px; font-size: var(--settings-text-small); }.readiness i { width: 7px; height: 7px; border-radius: 50%; background: var(--cp-border); }.readiness.ready { color: var(--cp-success); }.readiness.ready i { background: var(--cp-success); }
-.connection-form { max-width: 700px; }.connection-form :deep(.el-form-item) { margin-bottom: 18px; }.connection-form :deep(.el-input__inner::placeholder), .model-dialog-form :deep(.el-input__inner::placeholder) { color: var(--cp-text-secondary); }.connection-form :deep(.el-input.is-disabled .el-input__inner) { -webkit-text-fill-color: var(--cp-text-secondary); }.field-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.no-auth-row { display: flex; max-width: 700px; align-items: center; gap: 12px; margin-bottom: 18px; padding: 12px 14px; background: var(--cp-bg-hover); border-radius: $radius-sm; }.no-auth-row__icon { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-success); }.no-auth-row strong { color: var(--cp-text); font-size: $font-sm; }.no-auth-row p { margin: 3px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.connection-actions, .model-actions { display: flex; align-items: center; gap: 10px; }.connection-result { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-text-secondary); font-size: $font-xs; }.connection-result.success { color: var(--cp-success); }.connection-result.error { color: var(--cp-danger); }
+.connection-form { max-width: 700px; }.connection-form :deep(.el-form-item) { margin-bottom: 12px; }.connection-form :deep(.el-input__inner::placeholder), .model-dialog-form :deep(.el-input__inner::placeholder) { color: var(--cp-text-secondary); }.connection-form :deep(.el-input.is-disabled .el-input__inner) { -webkit-text-fill-color: var(--cp-text-secondary); }.field-tip { width: 100%; margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.no-auth-row { display: flex; max-width: 700px; align-items: center; gap: 12px; margin-bottom: 12px; padding: 12px 14px; background: var(--cp-bg-hover); border-radius: $radius-sm; }.no-auth-row__icon { display: grid; width: 30px; height: 30px; place-items: center; color: var(--cp-success); }.no-auth-row strong { color: var(--cp-text); font-size: var(--settings-text-base); }.no-auth-row p { margin: 3px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.connection-actions, .model-actions { display: flex; align-items: center; gap: 10px; }.connection-result { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }.connection-result.success { color: var(--cp-success); }.connection-result.error { color: var(--cp-danger); }
 .model-list { border-top: 1px solid var(--cp-border-light); }.model-row { display: grid; min-height: 62px; align-items: center; column-gap: 14px; grid-template-columns: auto minmax(180px, 1fr) 112px 92px auto; border-bottom: 1px solid var(--cp-border-light); }
-.model-row__identity { display: flex; min-width: 0; align-items: center; gap: 7px; }.model-row__identity strong { overflow: hidden; color: var(--cp-text); font-size: $font-sm; text-overflow: ellipsis; white-space: nowrap; }
+.model-row__identity { display: flex; min-width: 0; align-items: center; gap: 7px; }.model-row__identity strong { overflow: hidden; color: var(--cp-text); font-size: var(--settings-text-base); text-overflow: ellipsis; white-space: nowrap; }
 .model-badge { padding: 2px 6px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 3px; font-size: 10px; white-space: nowrap; }.model-meta { color: var(--cp-text-secondary); font-size: var(--settings-text-small); white-space: nowrap; }.model-row__actions { display: flex; gap: 2px; }.model-row__actions :deep(.el-button) { margin: 0; }
-.model-empty { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; color: var(--cp-text-secondary); background: transparent; border: 1px dashed var(--cp-border); border-radius: $radius-sm; font: inherit; cursor: pointer; }.model-empty:hover { border-color: var(--cp-primary); }.model-empty > span { display: grid; width: 32px; height: 32px; place-items: center; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: 50%; }.model-empty strong { color: var(--cp-text); font-size: $font-sm; }.model-empty small { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
+.model-empty { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; color: var(--cp-text-secondary); background: transparent; border: 1px dashed var(--cp-border); border-radius: $radius-sm; font: inherit; cursor: pointer; }.model-empty:hover { border-color: var(--cp-primary); }.model-empty > span { display: grid; width: 32px; height: 32px; place-items: center; color: var(--cp-primary); background: var(--cp-primary-lighter); border-radius: 50%; }.model-empty strong { color: var(--cp-text); font-size: var(--settings-text-base); }.model-empty small { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .provider-panel__footer { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 10px 30px; }.provider-panel__footer span { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.model-dialog-form :deep(.el-select) { width: 100%; }.model-dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.input-suffix { margin-left: 8px; color: var(--cp-text-secondary); font-size: $font-xs; }.pricing-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; padding-top: 16px; border-top: 1px solid var(--cp-border-light); }.pricing-heading strong { color: var(--cp-text); font-size: $font-sm; }.pricing-heading p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }.pricing-grid :deep(.el-input-number), .pricing-grid :deep(.el-input) { width: 100%; }
+.model-dialog-form :deep(.el-select) { width: 100%; }.model-dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.input-suffix { margin-left: 8px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }.pricing-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; padding-top: 16px; border-top: 1px solid var(--cp-border-light); }.pricing-heading strong { color: var(--cp-text); font-size: var(--settings-text-base); }.pricing-heading p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }.pricing-grid :deep(.el-input-number), .pricing-grid :deep(.el-input) { width: 100%; }
 @media (max-width: 1180px) {
   .provider-page { grid-template-columns: 220px minmax(0, 1fr); }
   .provider-panel__header, .provider-panel__footer { padding-right: 20px; padding-left: 20px; }

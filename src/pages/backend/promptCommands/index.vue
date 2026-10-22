@@ -132,20 +132,20 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.prompt-commands__description, .prompt-commands__empty { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.prompt-commands__description, .prompt-commands__empty { margin: 0 0 20px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
 .prompt-commands__toolbar { display: flex; gap: 8px; margin-bottom: 20px; }
 .prompt-commands__toolbar .el-select { flex: 1; min-width: 0; }
 .prompt-commands__toolbar :deep(.el-button + .el-button), .prompt-commands__actions :deep(.el-button + .el-button) { margin-left: 0; }
 .prompt-commands__toolbar :deep(.app-icon), .prompt-commands__actions :deep(.app-icon) { margin-right: 6px; }
 .prompt-commands__row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--cp-border-light); }
 .prompt-commands__identity { min-width: 0; }
-.prompt-commands__row h2 { margin: 0; font-size: var(--settings-text-base); font-weight: 500; overflow-wrap: anywhere; }
-.prompt-commands__row p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: $font-sm; overflow-wrap: anywhere; }
-.prompt-commands__error, .prompt-commands__row .prompt-commands__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: $font-sm; line-height: 1.6; overflow-wrap: anywhere; }
+.prompt-commands__row h2 { margin: 0; font-size: var(--settings-text-base); font-weight: 450; overflow-wrap: anywhere; }
+.prompt-commands__row p { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-base); overflow-wrap: anywhere; }
+.prompt-commands__error, .prompt-commands__row .prompt-commands__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; }
 .prompt-commands__actions { display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
-.prompt-commands__editor { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
+.prompt-commands__editor { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--cp-border-light); }
 .prompt-commands__editor-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.prompt-commands__editor-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; }
-.prompt-commands__editor-heading span { color: var(--cp-text-secondary); font-size: $font-sm; }
+.prompt-commands__editor-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 550; }
+.prompt-commands__editor-heading span { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .prompt-commands__editor :deep(textarea) { font: 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; caret-color: var(--cp-text); }
 </style>

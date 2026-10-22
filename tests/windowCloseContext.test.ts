@@ -14,6 +14,12 @@ vi.mock('electron', () => ({
     constructor(public options: any) {}
     on = vi.fn()
     once = vi.fn()
+    maximize = vi.fn()
+    show = vi.fn()
+    setFullScreen = vi.fn()
+    getNormalBounds = vi.fn(() => ({ x: 100, y: 100, width: 1200, height: 800 }))
+    isMaximized = vi.fn(() => false)
+    isFullScreen = vi.fn(() => false)
     setWindowButtonPosition = vi.fn()
     loadURL = vi.fn()
     loadFile = vi.fn()
@@ -23,6 +29,7 @@ vi.mock('electron', () => ({
     }
   },
   Menu: { buildFromTemplate: (template: any[]) => template, setApplicationMenu: (template: any[]) => { electron.menu = template } },
+  screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
   nativeImage: {}, shell: {}, Tray: class {}, webUtils: {}, webFrame: { getZoomFactor: () => 1.1 },
   ipcRenderer: { on: electron.on, removeListener: electron.off },
 }))
@@ -148,4 +155,18 @@ it('shares the About dialog across native menu and command while retaining the s
   expect(about).toHaveBeenCalledTimes(2)
   expect(about).toHaveBeenLastCalledWith(owner)
   expect(owner.webContents.send).not.toHaveBeenCalled()
+})
+
+it('maximizes by default and restores saved normal bounds only when selected', () => {
+  const options = { getCloseWindowBehavior: () => 'quit' as const, isQuitting: () => false, legacyNovelApi: { baseUrl: 'http://127.0.0.1/', token: 'test' } }
+  const first = createMainWindow(options)
+  ;(first.once as any).mock.calls.find(([event]: any[]) => event === 'ready-to-show')[1]()
+  expect(first.maximize).toHaveBeenCalledOnce()
+  const save = vi.fn()
+  const restored = createMainWindow({ ...options, getStartupWindowBehavior: () => 'restore', getMainWindowState: () => ({ bounds: { x: 9000, y: 9000, width: 1200, height: 800 }, maximized: false, fullScreen: false }), saveMainWindowState: save })
+  expect((restored as any).options).toMatchObject({ x: 720, y: 280, width: 1200, height: 800 })
+  ;(restored.once as any).mock.calls.find(([event]: any[]) => event === 'ready-to-show')[1]()
+  expect(restored.maximize).not.toHaveBeenCalled()
+  ;(restored.on as any).mock.calls.find(([event]: any[]) => event === 'close')[1]({ preventDefault: vi.fn() })
+  expect(save).toHaveBeenCalledWith({ bounds: { x: 100, y: 100, width: 1200, height: 800 }, maximized: false, fullScreen: false })
 })

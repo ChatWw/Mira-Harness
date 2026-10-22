@@ -98,8 +98,7 @@ const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/appearance',
     name: 'SettingsAppearance',
-    component: () => import('@/pages/backend/appearance/index.vue'),
-    meta: { title: '外观' },
+    redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
     path: '/settings/personalization',
@@ -132,12 +131,6 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '关于Mira' },
   },
   {
-    path: '/settings/backup-preferences',
-    name: 'SettingsBackupPreferences',
-    component: () => import('@/pages/backend/backupPreferences/index.vue'),
-    meta: { title: '应用配置' },
-  },
-  {
     path: '/settings/ai-novel',
     name: 'SettingsAiNovel',
     redirect: '/settings/model-config',
@@ -161,7 +154,7 @@ const staticRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/system/backup-preferences',
-    redirect: '/settings/backup-preferences',
+    redirect: '/settings/general',
   },
   {
     // 未知设置项回退到默认设置页，兼容旧链接

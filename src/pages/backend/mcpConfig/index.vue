@@ -275,15 +275,15 @@ onUnmounted(() => { disposed = true; invalidateLoad() })
 </script>
 
 <style scoped lang="scss">
-.mcp-page__title { margin: 0 0 4px; font-size: var(--settings-text-section); font-weight: 600; }
-.mcp-page__desc { margin: 0 0 $spacing-lg; color: var(--cp-text-secondary); font-size: $font-sm; }
+.mcp-page__title { margin: 0 0 4px; font-size: var(--settings-text-section); font-weight: 550; }
+.mcp-page__desc { margin: 0 0 $spacing-lg; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mcp-toolbar { display: flex; justify-content: flex-end; gap: $spacing-sm; margin-bottom: $spacing-md; }
-.mcp-scope-label { display: flex; align-items: center; gap: $spacing-sm; margin-right: auto; color: var(--cp-text-secondary); font-size: $font-sm; }
+.mcp-scope-label { display: flex; align-items: center; gap: $spacing-sm; margin-right: auto; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mcp-scope-label :deep(.el-select) { width: 240px; }
-.mcp-scope-hint { margin: 0 0 $spacing-md; color: var(--cp-text-secondary); font-size: $font-sm; overflow-wrap: anywhere; }
+.mcp-scope-hint { margin: 0 0 $spacing-md; color: var(--cp-text-secondary); font-size: var(--settings-text-base); overflow-wrap: anywhere; }
 .mcp-loading { min-height: 120px; padding: $spacing-md; }
 .mcp-editor { padding: $spacing-lg; margin-bottom: $spacing-lg; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }
-.mcp-editor h3 { margin: 0 0 $spacing-md; font-size: var(--settings-text-base); font-weight: 500; }
+.mcp-editor h3 { margin: 0 0 $spacing-md; font-size: var(--settings-text-base); font-weight: 450; }
 .mcp-editor__actions { display: flex; gap: $spacing-sm; }
 .mcp-editor :deep(.el-select) { width: 240px; }
 .mcp-list { display: flex; flex-direction: column; gap: $spacing-sm; }
@@ -296,16 +296,16 @@ onUnmounted(() => { disposed = true; invalidateLoad() })
 .mcp-row__dot--authorized { background: var(--el-color-success); }
 .mcp-row__dot--failed { background: var(--el-color-danger); }
 .mcp-row__details { min-width: 0; }
-.mcp-row__identity h3 { display: flex; align-items: center; flex-wrap: wrap; gap: $spacing-sm; margin: 0 0 2px; font-size: var(--settings-text-base); font-weight: 500; }
-.mcp-row__identity p { margin: 0; overflow: hidden; color: var(--cp-text-tertiary); font-size: $font-xs; text-overflow: ellipsis; white-space: nowrap; }
-.mcp-row__count { color: var(--cp-text-secondary); font-size: $font-xs; font-weight: normal; }
+.mcp-row__identity h3 { display: flex; align-items: center; flex-wrap: wrap; gap: $spacing-sm; margin: 0 0 2px; font-size: var(--settings-text-base); font-weight: 450; }
+.mcp-row__identity p { margin: 0; overflow: hidden; color: var(--cp-text-tertiary); font-size: var(--settings-text-small); text-overflow: ellipsis; white-space: nowrap; }
+.mcp-row__count { color: var(--cp-text-secondary); font-size: var(--settings-text-small); font-weight: normal; }
 .mcp-row__actions { display: flex; flex: 0 0 auto; gap: 4px; }
-.mcp-error { display: flex; align-items: center; gap: $spacing-sm; margin: $spacing-sm 0; color: var(--el-color-danger); font-size: $font-sm; overflow-wrap: anywhere; }
+.mcp-error { display: flex; align-items: center; gap: $spacing-sm; margin: $spacing-sm 0; color: var(--el-color-danger); font-size: var(--settings-text-base); overflow-wrap: anywhere; }
 .mcp-row__identity .mcp-error { color: var(--el-color-danger); white-space: normal; }
-.mcp-notice { color: var(--cp-text-secondary); font-size: $font-sm; }
+.mcp-notice { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mcp-empty { padding: $spacing-2xl; text-align: center; border: 1px dashed var(--cp-border-light); border-radius: $radius-md; }
 .mcp-empty strong { color: var(--cp-text); }
-.mcp-empty p { margin: $spacing-sm 0 0; color: var(--cp-text-tertiary); font-size: $font-sm; }
+.mcp-empty p { margin: $spacing-sm 0 0; color: var(--cp-text-tertiary); font-size: var(--settings-text-base); }
 
 .mcp-page--embedded { font-size: var(--settings-text-base); }
 .mcp-page--embedded .mcp-toolbar { gap: 8px; margin-bottom: 16px; }

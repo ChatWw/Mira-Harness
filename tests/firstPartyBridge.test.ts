@@ -312,6 +312,17 @@ describe('first-party capability bridge', () => {
     expect(entry.api.saveFirstPartyNovelProject).toHaveBeenCalledWith('grant-for-novel', expect.objectContaining({ id: 'project-1' }))
   })
 
+  it('shares only Harness keep-awake with desktop settings', async () => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    entry.api.getSnapshot.mockResolvedValueOnce({ preferences: { keepComputerAwake: true } })
+    await expect(entry.request('preferences.get', { key: 'keepComputerAwake' })).resolves.toBe(true)
+    await entry.request('preferences.set', { key: 'keepComputerAwake', value: false })
+    expect(entry.api.savePreference).toHaveBeenCalledWith('keepComputerAwake', false)
+    const other = bridge()
+    await other.request('preferences.set', { key: 'keepComputerAwake', value: true })
+    expect(other.api.savePreference).toHaveBeenCalledWith('first-party.mira-novel-studio.keepComputerAwake', true)
+  })
+
   it('namespaces app preferences away from shell preference keys', async () => {
     const entry = bridge()
     await expect(entry.request('preferences.get', { key: 'draft' })).resolves.toEqual({ text: 'hi' })

@@ -1,5 +1,5 @@
 <template>
-  <SettingsPageShell title="键盘快捷键">
+  <SettingsPageShell title="键盘快捷键" class="keyboard-shortcuts-page">
     <div class="keyboard-shortcuts">
       <p class="page-description">查看 Mira 和 Harness 工作台已支持的快捷键。导航快捷键为固定预设；发送快捷键可在对话设置中调整。</p>
 
@@ -76,23 +76,19 @@ const harnessShortcuts = computed(() => [
 </script>
 
 <style scoped lang="scss">
+.keyboard-shortcuts-page :deep(.settings-page-header) { margin-bottom: 12px; }
+.keyboard-shortcuts-page :deep(.settings-page-header h1) { font-size: 22px; font-weight: 550; line-height: 30px; }
 .keyboard-shortcuts { max-width: 760px; }
-.page-description { margin: -24px 0 38px; color: var(--cp-text-secondary); }
-.section-heading { margin-bottom: 14px; }
-.section-heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; line-height: 1.5; }
-.shortcut-section + .shortcut-section { margin-top: 32px; }
-.section-description { margin: -4px 0 14px; color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.5; }
+.page-description { margin: 0 0 24px; color: var(--cp-text-secondary); font-size: 13px; line-height: 1.6; }
+.section-heading { margin-bottom: 10px; }
+.section-heading h2 { margin: 0; font-size: 15px; font-weight: 550; line-height: 22px; }
+.shortcut-section + .shortcut-section { margin-top: 24px; }
+.section-description { margin: -4px 0 12px; color: var(--cp-text-secondary); font-size: 12px; line-height: 1.6; }
 .shortcut-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
-.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg; min-height: 76px; padding: 0 16px; border-bottom: 1px solid var(--cp-border-light); &:last-child { border-bottom: none; } }
-.shortcut-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.shortcut-row__label { color: var(--cp-text); font-weight: 500; }
-.shortcut-row__hint { color: var(--cp-text-secondary); font-size: 12px; }
-.shortcut-keys { display: inline-flex; flex: 0 0 auto; gap: 4px; }
-kbd { min-width: 28px; padding: 3px 7px; color: var(--cp-text-secondary); font: inherit; font-size: $font-sm; line-height: 20px; text-align: center; background: var(--cp-bg-hover); border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-sm); }
-
-@media (max-width: 768px) {
-  .page-description { margin-top: -20px; }
-  .shortcut-row { align-items: flex-start; padding: $spacing-md 16px; }
-  .shortcut-row__hint { line-height: 1.5; }
-}
+.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 60px; padding: 10px 14px; border-bottom: 1px solid var(--cp-border-light); &:last-child { border-bottom: none; } }
+.shortcut-row__copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.shortcut-row__label { color: var(--cp-text); font-size: 13px; font-weight: 450; line-height: 20px; }
+.shortcut-row__hint { color: var(--cp-text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.shortcut-keys { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+kbd { min-width: 24px; padding: 1px 6px; color: var(--cp-text-secondary); font-family: inherit; font-size: 12px; font-weight: 400; line-height: 20px; text-align: center; background: var(--cp-bg-hover); border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-sm); }
 </style>

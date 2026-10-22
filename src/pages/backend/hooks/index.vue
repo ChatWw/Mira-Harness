@@ -220,22 +220,22 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
-.mira-hooks__description, .mira-hooks__help, .mira-hooks__empty { color: var(--cp-text-secondary); font-size: $font-sm; line-height: 1.6; }
+.mira-hooks__description, .mira-hooks__help, .mira-hooks__empty { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
 .mira-hooks__description { margin: 0 0 20px; max-width: 75ch; }
-.mira-hooks__toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
+.mira-hooks__toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
 .mira-hooks__toolbar .el-select { flex: 0 1 240px; min-width: 160px; }
 .mira-hooks__toolbar .el-input { flex: 1; min-width: 120px; }
 .mira-hooks__toolbar :deep(.el-button + .el-button), .mira-hooks__actions :deep(.el-button + .el-button) { margin-left: 0; }
 .mira-hooks__toolbar :deep(.app-icon) { margin-right: 4px; }
-.mira-hooks__editor { margin-bottom: 24px; padding: 20px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }
+.mira-hooks__editor { margin-bottom: 20px; padding: 20px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }
 .mira-hooks__heading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.mira-hooks__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 600; }
-.mira-hooks__heading span { color: var(--cp-text-secondary); font-size: $font-sm; }
+.mira-hooks__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 550; }
+.mira-hooks__heading span { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mira-hooks__fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .mira-hooks__fields :deep(.el-select) { width: 100%; }
 .mira-hooks__help { margin: 6px 0 0; width: 100%; }
 .mira-hooks__advanced { margin-bottom: 20px; padding-top: 14px; border-top: 1px solid var(--cp-border-light); }
-.mira-hooks__advanced summary { cursor: pointer; font-size: $font-sm; margin-bottom: 12px; }
+.mira-hooks__advanced summary { cursor: pointer; font-size: var(--settings-text-base); margin-bottom: 12px; }
 .mira-hooks__advanced summary:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: 3px; }
 .mira-hooks__editor :deep(textarea), .mira-hooks__command { font: 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; caret-color: var(--cp-text); }
 .mira-hooks__list { overflow: hidden; border-radius: $radius-md; background: var(--cp-bg-elevated); }
@@ -243,15 +243,15 @@ onMounted(load)
 .mira-hooks__row + .mira-hooks__row { border-top: 1px solid var(--cp-border-light); }
 .mira-hooks__mark { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: $radius-sm; background: var(--cp-bg); color: var(--cp-text-secondary); }
 .mira-hooks__identity { flex: 1; min-width: 0; }
-.mira-hooks__identity h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: var(--settings-text-base); font-weight: 500; overflow-wrap: anywhere; }
+.mira-hooks__identity h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: var(--settings-text-base); font-weight: 450; overflow-wrap: anywhere; }
 .mira-hooks__identity h2 span { font-weight: 400; }
-.mira-hooks__identity h2 span, .mira-hooks__identity p { color: var(--cp-text-secondary); font-size: $font-sm; }
+.mira-hooks__identity h2 span, .mira-hooks__identity p { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mira-hooks__identity p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .mira-hooks__identity .mira-hooks__command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-hooks__row[data-hook-scope='plugin'] .mira-hooks__command { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-hooks__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.mira-hooks__error, .mira-hooks__identity .mira-hooks__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: $font-sm; line-height: 1.6; overflow-wrap: anywhere; }
-.mira-hooks__feedback { font-size: $font-sm; }
+.mira-hooks__error, .mira-hooks__identity .mira-hooks__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; }
+.mira-hooks__feedback { font-size: var(--settings-text-base); }
 .mira-hooks__loading { padding: 20px; min-height: 120px; }
 :global(.mira-hook-review) { width: min(640px, calc(100vw - 32px)); }
 :global(.mira-hook-review .el-message-box__message) { max-height: 50vh; overflow: auto; }

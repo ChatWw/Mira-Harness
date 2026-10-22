@@ -51,9 +51,9 @@ export async function handleFirstPartyRequest(options: {
   context: PlatformContext
   route: string
   navigate: (path: string) => void | Promise<void>
-  toggleTheme?: () => 'light' | 'dark'
+  toggleTheme?: () => 'light' | 'dark' | Promise<'light' | 'dark'>
   getAppearance?: () => { theme: string; zoomFactor: number }
-  setTheme?: (theme: 'system' | 'light' | 'dark') => void
+  setTheme?: (theme: 'system' | 'light' | 'dark') => void | Promise<void>
 }, request: FirstPartyRequest): Promise<unknown> {
   const { manifest, grantId, api, context, route, navigate } = options
   if (!manifest.enabled) throw new FirstPartyBridgeError('CAPABILITY_DENIED', '应用已停用')
@@ -264,7 +264,7 @@ export async function handleFirstPartyRequest(options: {
         const theme = record(request.params).theme
         if (theme !== 'system' && theme !== 'light' && theme !== 'dark') throw new FirstPartyBridgeError('INVALID_REQUEST', '主题无效')
         if (!options.setTheme) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持主题设置')
-        options.setTheme(theme)
+        await options.setTheme(theme)
       } else if (request.method === 'appearance.zoom') {
         const action = record(request.params).action
         if (action !== 'zoomIn' && action !== 'zoomOut' && action !== 'resetZoom') throw new FirstPartyBridgeError('INVALID_REQUEST', '缩放操作无效')
@@ -275,7 +275,7 @@ export async function handleFirstPartyRequest(options: {
     case 'appearance.toggle-theme': {
       if (request.params !== undefined && Object.keys(record(request.params)).length) throw new FirstPartyBridgeError('INVALID_REQUEST', '主题切换不接受自定义参数')
       if (!options.toggleTheme) throw new FirstPartyBridgeError('UNSUPPORTED_METHOD', '当前宿主不支持主题切换')
-      try { return options.toggleTheme() }
+      try { return await options.toggleTheme() }
       catch { throw new FirstPartyBridgeError('THEME_SWITCH_FAILED', '主题切换失败，请重试') }
     }
     case 'context.get':
@@ -328,7 +328,8 @@ export async function handleFirstPartyRequest(options: {
     case 'preferences.get': {
       const key = nonEmptyString(record(request.params).key, '偏好键名')
       const snapshot = await api.getSnapshot()
-      const value = snapshot.preferences[`first-party.${manifest.appId}.${key}`]
+      const preferenceKey = manifest.appId === 'mira-harness' && key === 'keepComputerAwake' ? key : `first-party.${manifest.appId}.${key}`
+      const value = snapshot.preferences[preferenceKey]
       return value === undefined ? null : value
     }
     case 'preferences.set': {
@@ -339,7 +340,8 @@ export async function handleFirstPartyRequest(options: {
       let serialized: string
       try { serialized = JSON.stringify(value) } catch { throw new FirstPartyBridgeError('INVALID_REQUEST', '偏好值无法序列化') }
       if (serialized.length > 262_144) throw new FirstPartyBridgeError('INVALID_REQUEST', '偏好值过大')
-      await api.savePreference(`first-party.${manifest.appId}.${key}`, JSON.parse(serialized))
+      const preferenceKey = manifest.appId === 'mira-harness' && key === 'keepComputerAwake' ? key : `first-party.${manifest.appId}.${key}`
+      await api.savePreference(preferenceKey, JSON.parse(serialized))
       return null
     }
     default:

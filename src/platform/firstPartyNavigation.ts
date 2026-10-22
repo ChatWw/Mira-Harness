@@ -33,7 +33,7 @@ const harnessQueryKeys: Record<string, readonly string[]> = {
     '/settings', '/settings/conversation', '/settings/file-trash', '/settings/archives', '/settings/general', '/settings/permissions', '/settings/appearance', '/settings/personalization',
     '/settings/keyboard-shortcuts', '/settings/app-extensions', '/settings/model-config', '/settings/mcp', '/settings/plugins',
     '/settings/python-environment', '/settings/git', '/settings/file-search',
-    '/settings/backup-preferences', '/settings/about', '/settings/usage',
+    '/settings/about', '/settings/usage',
   ].map(path => [path, ['from']])),
 }
 

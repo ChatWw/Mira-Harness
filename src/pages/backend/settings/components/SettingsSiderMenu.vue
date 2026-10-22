@@ -49,9 +49,7 @@ type SettingsNavItem = {
 
 const iconPaths: Record<string, string> = {
   'general': 'M3 5h18v14H3z M3 9h18',
-  'appearance': 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1',
   'shortcuts': 'M3 6h18v12H3z M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h10',
-  'backup-preferences': 'M3 6c0-4 18-4 18 0s-18 4-18 0v12c0 4 18 4 18 0V6M3 12c0 4 18 4 18 0',
   'model-config': 'M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l3-3M11 8l3-3a3 3 0 0 1 4 4l-2 2',
   'conversation': 'M3 4h15v11H8l-5 4zM18 8h3v13l-5-3h-4',
   'personalization': 'M12 3a9 9 0 1 0 9 9 M12 7a5 5 0 1 0 5 5 M12 11a1 1 0 1 0 1 1',
@@ -72,11 +70,9 @@ const settingsNavLayers = [
   { label: '底层能力', groups: [
     { label: '基础设置', items: [
       { key: 'general', label: '常规', path: '/settings/general' },
-      { key: 'appearance', label: '外观', path: '/settings/appearance' },
       { key: 'shortcuts', label: '键盘快捷键', path: '/settings/keyboard-shortcuts' },
     ] },
     { label: '数据与维护', items: [
-      { key: 'backup-preferences', label: '应用配置', path: '/settings/backup-preferences' },
     ] },
   ] },
   { label: 'Agent 能力', groups: [
