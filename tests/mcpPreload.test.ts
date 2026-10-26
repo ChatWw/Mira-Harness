@@ -4,6 +4,10 @@ const ipc = vi.hoisted(() => ({ invoke: vi.fn() }))
 vi.mock('electron', () => ({ ipcRenderer: ipc }))
 beforeEach(() => ipc.invoke.mockClear())
 describe('MCP settings preload scope', () => {
+  it('exposes global discovery and imports only selected server identities', () => {
+    mcpApi.discoverExternalMcpServers(); mcpApi.importExternalMcpServers(['selected-id'])
+    expect(ipc.invoke.mock.calls).toEqual([['mcp:discover-external'], ['mcp:import-external', ['selected-id']]])
+  })
   it('passes only the stored service identity and optional project scope for browser authorization', () => {
     mcpApi.authorizeMcpServer('global'); mcpApi.authorizeMcpServer('project:owned:service', { projectId: 'registered' })
     expect(ipc.invoke.mock.calls).toEqual([['mcp:authorize-server', 'global'], ['mcp:authorize-server', 'project:owned:service', { projectId: 'registered' }]])

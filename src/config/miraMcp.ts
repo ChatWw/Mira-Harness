@@ -19,6 +19,9 @@ export interface MiraMcpServerConfig {
 }
 export interface MiraMcpConnection { state: MiraMcpConnectionState; toolCount: number; error?: string; authorization?: { startedAt: number; expiresAt: number } }
 export interface MiraMcpServerRecord extends MiraMcpServerConfig { connection?: MiraMcpConnection; scope?: 'global' | 'project' }
+export interface MiraExternalMcpServer { id: string; name: string; type?: MiraMcpTransport; importable: boolean; reason?: string }
+export interface MiraExternalMcpSource { id: string; name: string; path: string; servers: MiraExternalMcpServer[]; error?: string }
+export interface MiraMcpImportResult { id: string; name: string; status: 'imported' | 'skipped' | 'failed'; message?: string }
 export interface MiraMcpItem {
   id: string
   name: string

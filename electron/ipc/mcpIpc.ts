@@ -4,6 +4,7 @@ import type { McpManager } from '../adapters/mcpManager'
 import type { PlatformDatabase } from '../storage/database'
 import type { MiraMcpAuthorization } from '../services/miraMcpAuthorization'
 import type { MiraMcpConnection } from '../../src/config/miraMcp'
+import { discoverExternalMcpServers, importExternalMcpServers } from '../services/externalMcpImport'
 
 export interface McpIpcDependencies {
   mcpConfigStore: McpConfigStore
@@ -16,6 +17,7 @@ export function registerMcpIpcHandlers({ mcpConfigStore, mcpManager, database, m
   const safeErrors = new Set<string>([...MIRA_MCP_CONFIG_ERRORS, '只能重连已配置且启用的 MCP 服务', 'MCP 服务 ID 无效', 'MCP 配置仅可在平台设置中管理', '项目 MCP 在任务启动时连接', '只能授权已配置且启用的 OAuth MCP 服务', 'MCP 浏览器授权服务不可用', 'MCP 授权入口已失效，请重新授权', 'MCP 授权浏览器无法打开，请重试'])
   const projectAuthorizations = new Map<string, { config: string; manager?: McpManager; connection?: MiraMcpConnection }>()
   safeErrors.add('系统安全存储不可用，MCP 授权凭据未写入')
+  safeErrors.add('MCP 导入选择无效，请刷新后重试')
   function projectRecord(server: ReturnType<McpConfigStore['save']>) {
     const probe = projectAuthorizations.get(server.id)
     if (probe && probe.config !== JSON.stringify(server)) { void probe.manager?.closeAll(); projectAuthorizations.delete(server.id) }
@@ -53,6 +55,18 @@ export function registerMcpIpcHandlers({ mcpConfigStore, mcpManager, database, m
   function record(server: ReturnType<McpConfigStore['save']>) {
     return { ...server, connection: mcpManager.getStatus(server.id) }
   }
+  ipcMain.handle('mcp:discover-external', async event => {
+    assertOwner(event)
+    try { const sources = await discoverExternalMcpServers(mcpConfigStore); assertOwner(event); return sources } catch (error) { fail(error) }
+  })
+  ipcMain.handle('mcp:import-external', async (event, ids: unknown) => {
+    assertOwner(event)
+    try {
+      const results = await importExternalMcpServers(mcpConfigStore, ids, undefined, () => assertOwner(event))
+      if (results.some(result => result.status === 'imported')) void mcpManager.refresh(mcpConfigStore.list())
+      return results
+    } catch (error) { fail(error) }
+  })
   ipcMain.handle('mcp:list-servers', (event, scope: unknown) => {
     assertOwner(event)
     try { const store = storeForScope(scope); return store === mcpConfigStore ? store.list().map(record) : store.list().map(projectRecord) } catch (error) { fail(error) }

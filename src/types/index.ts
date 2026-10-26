@@ -264,6 +264,8 @@ export interface PlatformApi {
   rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
   editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection, references?: import('@/config/harness').HarnessFileReference[]): Promise<void>
   listMcpServers(scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord[]>
+  discoverExternalMcpServers(): Promise<import('@/config/miraMcp').MiraExternalMcpSource[]>
+  importExternalMcpServers(ids: string[]): Promise<import('@/config/miraMcp').MiraMcpImportResult[]>
   saveMcpServer(config: Partial<import('@/config/miraMcp').MiraMcpServerConfig>, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord>
   deleteMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<void>
   reconnectMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection>

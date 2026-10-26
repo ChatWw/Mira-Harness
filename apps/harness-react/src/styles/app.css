@@ -18,6 +18,7 @@
 @import "react-pdf/dist/Page/TextLayer.css";
 @import "./workspace-editors.css";
 @import "./mira-subtasks.css";
+@import "../../../../src/styles/mira-agent-colors.css";
 @import "./background-tasks.css";
 @import "./mira-tool-files.css";
 @import "../components/extensions/skill-market.css";

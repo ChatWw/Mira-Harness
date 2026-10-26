@@ -56,9 +56,10 @@ describe('real subtask DTO side panels', () => {
     expect(document.querySelector('.mira-subtask-stop')).toBeNull()
   })
   it('shows a user Agent scope and actual child model without relabeling it as a plugin', async () => {
-    const task = { ...child('child-a', 'completed'), agentName: 'security-check', agentScope: 'project' as const, agentModelSelection: { providerId: 'other-provider', modelId: 'child-model' } }
+    const task = { ...child('child-a', 'completed'), agentName: 'security-check', agentColor: 'pink' as const, agentScope: 'project' as const, agentModelSelection: { providerId: 'other-provider', modelId: 'child-model' } }
     await render(<MiraSubtaskPanel {...props({ session: session(task) })} />)
     expect(document.querySelector('.mira-subtask-heading h2')?.textContent).toBe('security-check')
+    expect(document.querySelector('.mira-subtask-heading h2')?.getAttribute('data-mira-agent-color')).toBe('pink')
     expect(text()).toContain('智能体来源当前项目'); expect(text()).toContain('执行角色审查'); expect(text()).toContain('执行模型other-provider / child-model')
     expect(text()).not.toContain('来源插件')
   })

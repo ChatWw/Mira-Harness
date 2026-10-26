@@ -139,7 +139,7 @@ export function MiraSubtaskRecord({ subtask, onOpen, onStop }: { subtask: Harnes
   const error = stopError ?? subtask.error?.message
   return <div className="mira-subtask-record" data-subtask-id={subtask.id}>
     <Bot size={16} aria-hidden="true" />
-    <button type="button" className="mira-subtask-open" onClick={onOpen} aria-label={`打开${ROLE_LABELS[subtask.role]}子任务活动`} title={subtask.task}><strong>{ROLE_LABELS[subtask.role]}智能体</strong><span>{subtask.task}</span><ArrowUpRight size={13} aria-hidden="true" /></button>
+    <button type="button" className="mira-subtask-open" onClick={onOpen} aria-label={`打开${ROLE_LABELS[subtask.role]}子任务活动`} title={subtask.task}><strong className="mira-agent-name" data-mira-agent-color={subtask.agentColor} title={subtask.agentName}>{subtask.agentName || `${ROLE_LABELS[subtask.role]}智能体`}</strong><span>{subtask.task}</span><ArrowUpRight size={13} aria-hidden="true" /></button>
     <small>{error ? <MiraToolFailure error={error} /> : SUBTASK_STATUS[subtask.status] || subtask.status}</small>
     {stoppable && onStop && <button type="button" className="mira-tool-record-action" disabled={stopping} aria-busy={stopping} aria-label="停止子任务" title="停止子任务" onClick={() => void stop()}>{stopping ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : <Square size={12} aria-hidden="true" />}</button>}
   </div>

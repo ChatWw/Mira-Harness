@@ -664,3 +664,5 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 2026-10-21 任务列表导航：移除 Mira 分组/项目双 Tab，统一在任务视图菜单切换项目、分组、时间线；项目分区采用上游 `PurposeSections.tsx` 的 Lucide ListChevronsDownUp / ListChevronsUpDown 图标与有展开即全部折叠的行为。当前固定 lucide-react 未含此图标，使用已安装 Lucide 图标目录的原始路径经 createLucideIcon 绘制；项目标题行采用 2px 行间距与仅 hover 背景，空个人工作区默认收起。保留 Mira 自有偏好、项目与任务排序、桌面交互；原 Apache LICENSE/NOTICE 保留。
 
 2026-10-26 设置范围选择器：参考 `packages/ui/src/settings/PluginScopeMenu.tsx`、`components/ui/dropdown-menu.tsx` 和 `button.tsx` 的胶囊触发器、256px 菜单、当前项右侧勾选与工作区分组，改编为 Mira Vue `SettingsScopeSelect.vue`。沿用 Element Plus 的弹层定位、键盘导航和关闭交互；用户本机范围命名为“全局”，工作区显示 Mira 传入的名称，工具与扩展仅提供全局。未移植上游远程主机、RPC 或工作区目录读取；原 Apache LICENSE/NOTICE 保持。
+
+2026-10-27 MCP 外部导入：参考 ZCode 的 McpSettingsSection、PluginInstallEmptyState、SettingsResourceHeaderActions、ExternalAgentImportDialog 及 settingsSyncService，补齐空状态的新建与导入按钮、更多菜单及来源分组/逐项选择/导入结果。改编为 Mira Vue 与受控 Electron IPC，只合并到 Mira 全局配置，保留同名项，不写回来源文件；TOML 沿用 smol-toml 解析，原 Apache LICENSE/NOTICE 保持。

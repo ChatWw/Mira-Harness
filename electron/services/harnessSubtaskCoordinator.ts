@@ -108,6 +108,7 @@ export class HarnessSubtaskCoordinator {
             parentToolCallId: options.resolveParentToolCallId?.(toolCallId, params) ?? toolCallId, role: params.role, task: params.task.trim(),
             ...(profile ? { agentName: profile.name, ...('scope' in profile ? { agentScope: profile.scope } : { agentPluginId: profile.pluginId }) } : {}),
             ...(selectedModel ? { agentModelSelection: selectedModel } : {}),
+            ...(profile && 'scope' in profile && profile.color ? { agentColor: profile.color } : {}),
             prompt: `${params.task.trim()}${attachments.length ? `\n\n已附带文件：\n${attachments.map(file => `[${file.path}]\n${file.content}`).join('\n\n')}` : ''}`,
             files: references, systemPrompt: childPrompt(params.role, !(profile && 'scope' in profile && profile.injectAgentsMd === false))
               + (profile ? `\n\n<${'scope' in profile ? 'mira_user_agent' : 'installed_plugin_agent'} name="${profile.name}">\n${profile.body}\n</${'scope' in profile ? 'mira_user_agent' : 'installed_plugin_agent'}>` : ''),

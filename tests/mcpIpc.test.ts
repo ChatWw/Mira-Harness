@@ -83,7 +83,7 @@ describe('MCP settings IPC', () => {
     if (caller === 'foreign-frame') view.event.senderFrame = { parent: null }
     if (caller === 'destroyed') view.sender.isDestroyed.mockReturnValue(true)
     if (caller === 'ownerless') electron.owner = false
-    for (const operation of ['list-servers', 'save-server', 'delete-server', 'reconnect-server']) await expect(view.invoke(operation, remote)).rejects.toThrow('仅可在平台设置')
+    for (const operation of ['list-servers', 'save-server', 'delete-server', 'reconnect-server', 'discover-external', 'import-external']) await expect(view.invoke(operation, remote)).rejects.toThrow('仅可在平台设置')
     expect(readFileSync(view.store.path(), 'utf8')).toBe(before)
     expect(view.manager.refresh).not.toHaveBeenCalled(); expect(view.manager.reconnect).not.toHaveBeenCalled()
   })

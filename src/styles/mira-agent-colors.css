@@ -1,0 +1,18 @@
+/* Shared identity palette for settings and recorded child conversations. */
+[data-mira-agent-color="red"] { --mira-agent-mark: #ef4444; --mira-agent-ink: #be123c; }
+[data-mira-agent-color="blue"] { --mira-agent-mark: #3b82f6; --mira-agent-ink: #0369a1; }
+[data-mira-agent-color="green"] { --mira-agent-mark: #22c55e; --mira-agent-ink: #047857; }
+[data-mira-agent-color="yellow"] { --mira-agent-mark: #eab308; --mira-agent-ink: #a16207; }
+[data-mira-agent-color="purple"] { --mira-agent-mark: #a855f7; --mira-agent-ink: #6d28d9; }
+[data-mira-agent-color="orange"] { --mira-agent-mark: #f97316; --mira-agent-ink: #c2410c; }
+[data-mira-agent-color="pink"] { --mira-agent-mark: #ec4899; --mira-agent-ink: #be185d; }
+[data-mira-agent-color="cyan"] { --mira-agent-mark: #06b6d4; --mira-agent-ink: #0e7490; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="red"] { --mira-agent-ink: #fda4af; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="blue"] { --mira-agent-ink: #7dd3fc; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="green"] { --mira-agent-ink: #6ee7b7; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="yellow"] { --mira-agent-ink: #fcd34d; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="purple"] { --mira-agent-ink: #c4b5fd; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="orange"] { --mira-agent-ink: #fdba74; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="pink"] { --mira-agent-ink: #f9a8d4; }
+:is(.dark, [data-theme="dark"]) [data-mira-agent-color="cyan"] { --mira-agent-ink: #67e8f9; }
+.mira-agent-name[data-mira-agent-color] { color: var(--mira-agent-ink); }

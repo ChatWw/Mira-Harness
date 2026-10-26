@@ -292,7 +292,7 @@
 .mira-subtask-record { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; color: var(--color-foreground-subtle); font-size: var(--text-ui-base); }
 .mira-subtask-record > svg { flex: none; }
 .mira-subtask-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 7px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: start; cursor: pointer; }
-.mira-subtask-open > strong { flex: none; font-weight: 500; }
+.mira-subtask-open > strong { flex: 0 1 auto; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .mira-subtask-open > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-subtask-open > svg { flex: none; }
 .mira-subtask-record > small { flex: none; font-size: 11px; }

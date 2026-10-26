@@ -152,19 +152,27 @@ describe('real child Agent public conversation', () => {
   it('uses the project custom profile in a real child, limits tools and keeps private instructions out of public records', async () => {
     const contexts: any[] = []
     const fixture = setup((_model: any, context: any) => { contexts.push(context); return response([text(`Custom review ${secret}`)]) }, undefined, undefined, {
-      global: customProfile('', 'GLOBAL_PROFILE_MUST_NOT_RUN'),
-      project: customProfile('tools: [Read, Write, Bash]\ndisallowedTools: [Bash]\n', `MIRA_CUSTOM_PROFILE_BODY ${secret}`),
+      global: customProfile('color: red\n', 'GLOBAL_PROFILE_MUST_NOT_RUN'),
+      project: customProfile('color: purple\ntools: [Read, Write, Bash]\ndisallowedTools: [Bash]\n', `MIRA_CUSTOM_PROFILE_BODY ${secret}`),
     })
     const result: any = await fixture.tools.find(tool => tool.name === 'delegate_task')!.execute('custom-profile', { role: 'reviewer', agent: 'code-review', task: 'Review local changes' })
     await fixture.children.wait()
     const child = fixture.children.list().find(task => task.id === result.details.id)!
-    expect(child).toMatchObject({ status: 'completed', agentName: 'code-review', agentScope: 'project', role: 'reviewer', report: 'Custom review [已隐藏]' })
+    expect(child).toMatchObject({ status: 'completed', agentName: 'code-review', agentScope: 'project', agentColor: 'purple', role: 'reviewer', report: 'Custom review [已隐藏]' })
     expect(contexts[0].systemPrompt).toContain('MIRA_CUSTOM_PROFILE_BODY')
     expect(contexts[0].systemPrompt).not.toContain('GLOBAL_PROFILE_MUST_NOT_RUN')
     expect(contexts[0].tools.map((tool: any) => tool.name)).toEqual(['read'])
     expect(JSON.stringify([fixture.session(), fixture.events])).not.toContain('MIRA_CUSTOM_PROFILE_BODY')
     expect(JSON.stringify([fixture.session(), fixture.events])).not.toContain(secret)
     expect(fixture.tools.find(tool => tool.name === 'delegate_task')!.description).toContain('code-review')
+    expect(fixture.events.some(event => event.type === 'run-activity' && (event.payload as any).subtasks?.some((task: HarnessSubtask) => task.id === child.id && task.agentColor === 'purple'))).toBe(true)
+    const current = fixture.database.userAgents.read('project', 'code-review', fixture.directory).agent
+    fixture.database.userAgents.save({ scope: 'project', name: 'code-review', source: customProfile('color: blue\n'), expectedRevision: current.revision }, fixture.directory)
+    // Reopening the store reads the recorded color, independent of the current profile.
+    const reopened = new PlatformDatabase(fixture.home)
+    try { expect(reopened.harness.getSession(fixture.sessionId).activeRun?.subtasks[0].agentColor).toBe('purple') }
+    finally { reopened.close() }
+
   })
 
   it.each(['tools: []', 'tools: [Write]\ndisallowedTools: [Read]'])('cannot grant tools outside the role or restore explicit empty custom limits (%s)', async fields => {

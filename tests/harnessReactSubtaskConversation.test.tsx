@@ -53,8 +53,9 @@ describe('public child conversation in its own pane', () => {
   })
   it('shows actual user Agent source and overridden model in the conversation summary', async () => {
     const session = source(); session.id += ++sequence
-    Object.assign(session.activeRun!.subtasks![0], { agentName: 'security-check', agentScope: 'global', agentModelSelection: { providerId: 'alternate', modelId: 'real-child-model' } })
+    Object.assign(session.activeRun!.subtasks![0], { agentName: 'security-check', agentColor: 'cyan', agentScope: 'global', agentModelSelection: { providerId: 'alternate', modelId: 'real-child-model' } })
     await render(session); expect(viewport().getAttribute('aria-label')).toBe('security-check对话')
+    expect(document.querySelector('.mira-subtask-heading h2')?.getAttribute('data-mira-agent-color')).toBe('cyan')
     await toggle(document.querySelector('.mira-subtask-summary')!, true)
     expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('智能体来源全局')
     expect(document.querySelector('.mira-subtask-summary-content')?.textContent).toContain('执行模型alternate / real-child-model')

@@ -119,6 +119,18 @@ describe('Mira lightweight read and exploration interactions', () => {
 })
 
 describe('Mira plan and delegated tool summaries', () => {
+  it('uses the recorded custom Agent name and color in the parent call while keeping legacy records neutral', () => {
+    const child: HarnessSubtask = { id: 'colored', parentToolCallId: 'delegate', role: 'reviewer', agentName: 'security-check', agentColor: 'purple', task: 'Inspect changes', status: 'completed', createdAt: 1, activities: [] }
+    const container = document.createElement('div')
+    container.innerHTML = renderToStaticMarkup(<MiraSubtaskRecord subtask={JSON.parse(JSON.stringify(child))} onOpen={vi.fn()} />)
+    expect(container.querySelector('.mira-agent-name')?.textContent).toBe('security-check')
+    expect(container.querySelector('.mira-agent-name')?.getAttribute('data-mira-agent-color')).toBe('purple')
+    expect(container.textContent).toContain('已完成')
+    container.innerHTML = renderToStaticMarkup(<MiraSubtaskRecord subtask={{ ...child, agentName: undefined, agentColor: undefined }} onOpen={vi.fn()} />)
+    expect(container.querySelector('.mira-agent-name')?.textContent).toBe('审查智能体')
+    expect(container.querySelector('[data-mira-agent-color]')).toBeNull()
+  })
+
   it('prevents duplicate stops, exposes current failures and ignores an old child rejection', async () => {
     const child: HarnessSubtask = { id: 'child-A', parentToolCallId: 'delegate-A', role: 'explorer', task: 'read the project', status: 'running', createdAt: 1, activities: [] }
     let reject!: (failure: Error) => void

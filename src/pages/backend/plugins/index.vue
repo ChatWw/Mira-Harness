@@ -1,9 +1,10 @@
 <template>
   <SettingsPageShell class="plugin-settings-shell" title="扩展" :show-title="false">
+    <template v-if="mcpEditor" #titlebar><nav class="plugin-breadcrumb plugin-breadcrumb--titlebar" aria-label="页面位置"><button type="button" @click="mcpSettings?.cancelEdit()">工具与扩展</button><AppIcon name="lucide:chevron-right" /><span>{{ mcpEditor }}</span></nav></template>
     <div class="plugin-settings">
       <nav v-if="selected" class="plugin-breadcrumb" aria-label="页面位置"><button type="button" @click="browse()">插件市场</button><AppIcon name="lucide:chevron-right" /><button type="button" @click="selectedId = undefined">插件</button><AppIcon name="lucide:chevron-right" /><span>{{ selected.listing?.displayName || selected.name }}</span></nav>
-      <h1>{{ selected ? selected.listing?.displayName || selected.name : '工具与扩展' }}</h1>
-      <div v-if="!selected" class="plugin-capabilities">
+      <h1 v-if="!mcpEditor">{{ selected ? selected.listing?.displayName || selected.name : '工具与扩展' }}</h1>
+      <div v-if="!selected && !mcpEditor" class="plugin-capabilities">
         <SettingsScopeSelect model-value="global" /><span class="plugin-divider" />
         <div class="plugin-tabs" role="tablist" aria-label="插件能力" @keydown="handleTabKey">
           <button v-for="entry in [{ id: 'plugins', label: '插件', count: items.length }, { id: 'mcp', label: 'MCP', count: mcpCount }, { id: 'skills', label: '技能', count: skillCount }]" :key="entry.id" type="button" role="tab" :aria-selected="tab === entry.id" :tabindex="tab === entry.id ? 0 : -1" :aria-controls="`plugin-panel-${entry.id}`" @click="selectTab(entry.id)"><span>{{ entry.label }}</span><small>{{ entry.count }}</small></button>
@@ -26,7 +27,7 @@
           <div v-else-if="group.items.length" class="plugin-row-group"><PluginRow v-for="item in group.items" :key="item.id" :item="item" :busy="busy" @open="selectedId = $event.id" @toggle="toggle" @remove="remove" /></div>
         </section>
       </section>
-      <section v-show="!selected && tab === 'mcp'" id="plugin-panel-mcp" role="tabpanel"><McpSettings ref="mcpSettings" embedded :search-query="queries.mcp" @count-change="mcps = $event" /><section v-if="pluginMcps.length" class="plugin-group"><h2 class="plugin-provided-heading">插件提供 <small>{{ pluginMcps.length }}</small></h2><div class="plugin-row-group"><div v-for="entry in pluginMcps" :key="entry.server.id" class="plugin-provided-row"><button type="button" @click="selectedId = entry.plugin.id"><strong>{{ entry.server.name }}</strong><span>{{ entry.plugin.listing?.displayName || entry.plugin.name }} · {{ entry.server.unavailableReason || (entry.plugin.enabled && entry.server.enabled ? '已启用' : '已停用') }}</span></button><button class="plugin-button" type="button" @click="selectedId = entry.plugin.id">管理插件</button></div></div></section></section>
+      <section v-show="!selected && tab === 'mcp'" id="plugin-panel-mcp" role="tabpanel"><McpSettings ref="mcpSettings" embedded :search-query="queries.mcp" @count-change="mcps = $event" @editor-change="mcpEditor = $event" /><section v-if="!mcpEditor && pluginMcps.length" class="plugin-group"><h2 class="plugin-provided-heading">插件提供 <small>{{ pluginMcps.length }}</small></h2><div class="plugin-row-group"><div v-for="entry in pluginMcps" :key="entry.server.id" class="plugin-provided-row"><button type="button" @click="selectedId = entry.plugin.id"><strong>{{ entry.server.name }}</strong><span>{{ entry.plugin.listing?.displayName || entry.plugin.name }} · {{ entry.server.unavailableReason || (entry.plugin.enabled && entry.server.enabled ? '已启用' : '已停用') }}</span></button><button class="plugin-button" type="button" @click="selectedId = entry.plugin.id">管理插件</button></div></div></section></section>
       <section v-if="!selected && tab === 'skills'" id="plugin-panel-skills" role="tabpanel"><SkillSettings :query="queries.skills" :plugins="items" @items-change="skills = $event" @open-plugin="selectedId = $event" /></section>
     </div>
   </SettingsPageShell>
@@ -54,6 +55,7 @@ const selectedId = ref<string>()
 const selected = computed(() => items.value.find(item => item.id === selectedId.value))
 const skills = ref<HarnessSkill[]>([]), mcps = ref<MiraMcpServerRecord[]>([])
 const mcpSettings = ref<InstanceType<typeof McpSettings>>()
+const mcpEditor = ref('')
 async function handleTabKey(event: KeyboardEvent) {
   const tabs = ['plugins', 'mcp', 'skills']
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -113,6 +115,8 @@ onUnmounted(() => { disposed = true; if (grant && api) void grant.then(id => api
 .plugin-settings { min-width: 0; --plugin-surface: color-mix(in srgb, var(--cp-text) 4%, var(--cp-bg)); }
 .plugin-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--cp-text-secondary); font-size: 12px; margin: 0 0 22px; }
 .plugin-breadcrumb button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.plugin-breadcrumb--titlebar { margin: 0; }
+.plugin-breadcrumb--titlebar :deep(.app-icon) { width: 12px; height: 12px; }
 h1 { font-size: var(--settings-text-title); font-weight: 550; letter-spacing: -0.02em; line-height: 1.333333; margin: 0 0 32px; }
 .plugin-capabilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
 .plugin-divider { height: 16px; width: 1px; background: var(--cp-border-light); }

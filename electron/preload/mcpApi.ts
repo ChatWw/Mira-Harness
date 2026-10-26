@@ -2,6 +2,8 @@ import { ipcRenderer } from 'electron'
 import type { MiraMcpScope } from '../../src/config/miraMcp'
 
 export const mcpApi = {
+  discoverExternalMcpServers: () => ipcRenderer.invoke('mcp:discover-external'),
+  importExternalMcpServers: (ids: string[]) => ipcRenderer.invoke('mcp:import-external', ids),
   listMcpServers: (scope?: MiraMcpScope) => ipcRenderer.invoke('mcp:list-servers', ...(scope === undefined ? [] : [scope])),
   saveMcpServer: (config: unknown, scope?: MiraMcpScope) => ipcRenderer.invoke('mcp:save-server', config, ...(scope === undefined ? [] : [scope])),
   deleteMcpServer: (id: string, scope?: MiraMcpScope) => ipcRenderer.invoke('mcp:delete-server', id, ...(scope === undefined ? [] : [scope])),

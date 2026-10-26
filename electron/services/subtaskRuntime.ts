@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import type { HarnessMessagePart, HarnessRunActivity, HarnessSubtask, HarnessSubtaskRole, HarnessSubtaskStatus, HarnessTokenUsage, ModelSelection } from '../../src/config/harness'
 import { publicHarnessText, redactHarnessText } from './agentTools'
 import { MIRA_SUBTASK_AGENTS } from '../../src/config/miraAgents'
+import type { MiraUserAgentColor } from '../../src/config/miraUserAgents'
 
 export const MAX_SUBTASKS_PER_RUN = 5
 export const MAX_SUBTASK_DURATION_MS = 15 * 60 * 1000
@@ -60,6 +61,7 @@ export type SubtaskRuntimeOptions = {
   agentPluginId?: string
   agentScope?: 'global' | 'project'
   agentModelSelection?: ModelSelection
+  agentColor?: MiraUserAgentColor
   task: string
   /** Prompt may include ephemeral attachment contents; only task is persisted. */
   prompt?: string
@@ -102,6 +104,7 @@ export class SubtaskRuntime {
     if (opts.agentName) { task.agentName = opts.agentName; task.agentPluginId = opts.agentPluginId }
     if (opts.agentScope) task.agentScope = opts.agentScope
     if (opts.agentModelSelection) task.agentModelSelection = { ...opts.agentModelSelection }
+    if (opts.agentColor) task.agentColor = opts.agentColor
     if (!task.task) throw new Error('子任务说明不能为空')
     this.entries.set(id, { task, controller: new AbortController(), opts })
     opts.onChanged(task)

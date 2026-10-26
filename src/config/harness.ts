@@ -2,6 +2,7 @@ import type { MiraPluginCommandInput, MiraPluginSnapshot } from './miraPlugins'
 import type { MiraPromptCommandInput } from './miraPromptCommands'
 import type { MiraFlowReview } from './miraFlowReview'
 import type { MiraModelError } from './miraModelErrors'
+import type { MiraUserAgentColor } from './miraUserAgents'
 
 export type PermissionMode = 'default' | 'auto-approve' | 'full'
 
@@ -276,6 +277,8 @@ export interface HarnessSubtask {
   agentPluginId?: string
   agentScope?: 'global' | 'project'
   agentModelSelection?: ModelSelection
+  /** Identity color captured at delegation, retained with historical records. */
+  agentColor?: MiraUserAgentColor
   task: string
   files?: HarnessFileReference[]
   status: HarnessSubtaskStatus

@@ -75,7 +75,7 @@ const staticRoutes: RouteRecordRaw[] = [
     path: '/settings/agents',
     name: 'SettingsUserAgents',
     component: () => import('@/pages/backend/agents/index.vue'),
-    meta: { title: '智能体' },
+    meta: { title: '子智能体' },
   },
   {
     path: '/settings',

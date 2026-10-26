@@ -82,7 +82,7 @@ const settingsNavLayers = [
     ] },
     { label: '能力扩展', items: [
       { key: 'plugins', label: '工具与扩展', path: '/settings/plugins' },
-      { key: 'agents', label: '智能体', path: '/settings/agents' },
+      { key: 'agents', label: '子智能体', path: '/settings/agents' },
       { key: 'commands', label: '自定义命令', path: '/settings/commands' },
       { key: 'hooks', label: '事件钩子（Hooks）', path: '/settings/hooks' },
     ] },
