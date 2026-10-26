@@ -662,3 +662,5 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 2026-10-21 归档管理：参考 `project-sidebar/ArchiveManagement.tsx`、`ArchiveGroupCard.tsx`、`archive-view.ts` 与 `useArchiveManagement.ts`，将归档列表入口从侧边栏移到 Mira Vue 设置页；移植搜索、时间排序、项目身份分组/筛选、折叠列表与单项/分组/筛选结果批量恢复删除。沿用 Mira Electron 归档接口、删除确认与本地项目身份，不引入上游远程 Host 或自动归档服务；原 Apache LICENSE/NOTICE 保留。
 
 2026-10-21 任务列表导航：移除 Mira 分组/项目双 Tab，统一在任务视图菜单切换项目、分组、时间线；项目分区采用上游 `PurposeSections.tsx` 的 Lucide ListChevronsDownUp / ListChevronsUpDown 图标与有展开即全部折叠的行为。当前固定 lucide-react 未含此图标，使用已安装 Lucide 图标目录的原始路径经 createLucideIcon 绘制；项目标题行采用 2px 行间距与仅 hover 背景，空个人工作区默认收起。保留 Mira 自有偏好、项目与任务排序、桌面交互；原 Apache LICENSE/NOTICE 保留。
+
+2026-10-26 设置范围选择器：参考 `packages/ui/src/settings/PluginScopeMenu.tsx`、`components/ui/dropdown-menu.tsx` 和 `button.tsx` 的胶囊触发器、256px 菜单、当前项右侧勾选与工作区分组，改编为 Mira Vue `SettingsScopeSelect.vue`。沿用 Element Plus 的弹层定位、键盘导航和关闭交互；用户本机范围命名为“全局”，工作区显示 Mira 传入的名称，工具与扩展仅提供全局。未移植上游远程主机、RPC 或工作区目录读取；原 Apache LICENSE/NOTICE 保持。

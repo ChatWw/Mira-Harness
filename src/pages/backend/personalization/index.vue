@@ -6,29 +6,14 @@
       <div class="settings-list">
         <div class="settings-row">
           <div class="settings-row__copy"><span class="settings-row__label">启用记忆</span><span class="settings-row__hint">自动提炼长期事实，并在每次对话时从本地记忆文件载入相关内容</span></div>
-          <el-switch v-model="memoryEnabled" :disabled="loading || Boolean(loadError)" :loading="memorySaving" aria-label="启用记忆" @change="setMemoryEnabled" />
+          <el-switch v-model="memoryEnabled" :disabled="loading || Boolean(loadError) || memoryResetting" :loading="memorySaving" aria-label="启用记忆" @change="setMemoryEnabled" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row__copy"><span class="settings-row__label">删除 Mira 记忆</span><span class="settings-row__hint">删除本地保存的全部全局记忆</span></div>
+          <el-button class="delete-memory-action" type="danger" plain :disabled="loading || Boolean(loadError) || memorySaving" :loading="memoryResetting" @click="deleteMiraMemory">删除</el-button>
         </div>
       </div>
-      <div class="memory-manager">
-        <div class="memory-manager__header"><h3>全局记忆<span v-if="memoryEntries.length" class="memory-count">{{ memoryEntries.length }}</span></h3><el-button class="quiet-action" :disabled="loading || Boolean(loadError) || memoryManaging || memoryResetting" @click="addMemory"><AppIcon name="lucide:plus" />新增记忆</el-button></div>
-        <p v-if="loading" class="memory-empty" role="status">正在读取记忆…</p>
-        <div v-else-if="!memoryEntries.length" class="memory-empty"><AppIcon name="lucide:brain" /><span>还没有全局记忆</span></div>
-        <div v-for="entry in memoryEntries" :key="entry.id" class="memory-entry">
-          <div class="memory-entry__content"><p>{{ entry.content }}</p><small>{{ memorySourceLabel(entry.source) }} · {{ formatMemoryTime(entry.updatedAt) }}<template v-if="entry.sourceSessionId"> · 会话 {{ entry.sourceSessionId.slice(0, 8) }}</template></small></div>
-          <div class="memory-entry__actions"><el-button text size="small" :disabled="memoryManaging || memoryResetting" @click="editMemory(entry)">编辑</el-button><el-button text size="small" class="delete-action" :disabled="memoryManaging || memoryResetting" @click="deleteMemory(entry)">删除</el-button></div>
-        </div>
-      </div>
-      <div v-if="pendingMemory.length" class="memory-manager">
-        <div class="memory-manager__header"><h3>待处理记忆<span class="memory-count">{{ pendingMemory.length }}</span></h3></div>
-        <div v-for="candidate in pendingMemory" :key="candidate.id" class="memory-entry">
-          <div class="memory-entry__content"><p>{{ candidate.redactedContent || '需要回到来源会话重新提炼' }}</p><small>{{ candidate.error || '保存未完成' }}</small></div>
-          <div class="memory-entry__actions"><el-button text size="small" :disabled="memoryManaging || memoryResetting" @click="retryMemory(candidate.id)">重试</el-button><el-button text size="small" class="delete-action" :disabled="memoryManaging || memoryResetting" @click="discardMemory(candidate.id)">放弃</el-button></div>
-        </div>
-      </div>
-      <div class="memory-footer">
-        <details class="storage-detail"><summary><AppIcon name="lucide:info" />记忆与存储<AppIcon class="storage-detail__chevron" name="lucide:chevron-right" /></summary><p>关闭记忆不会删除本地数据，只会暂停对话中的读取和自动写入。</p><p v-if="memoryPath">全局记忆文件：<button type="button" class="storage-path" aria-label="在文件管理器中显示全局记忆文件" @click="revealSettingsFile('memory')">{{ memoryPath }}</button></p></details>
-        <el-button class="reset-action" text :disabled="loading || Boolean(loadError) || memoryManaging || !memoryEntries.length" :loading="memoryResetting" @click="resetMemory">重置记忆</el-button>
-      </div>
+      <details v-if="memoryPath" class="storage-detail"><summary><AppIcon name="lucide:folder" />存储位置<AppIcon name="lucide:chevron-right" /></summary><p><button type="button" class="storage-path" aria-label="在文件管理器中显示全局记忆文件" @click="revealMemoryFile">{{ memoryPath }}</button></p></details>
     </section>
 
     <section class="personalization-section" aria-labelledby="instructions-heading">
@@ -81,7 +66,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type MemoryCandidate, type MemorySource } from '@/config/harness'
+import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone } from '@/config/harness'
 import { getPlatformApi, getPreference } from '@/platform'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useSettingsPreference } from '../settings/useSettingsPreference'
@@ -96,9 +81,6 @@ const memoryEnabled = ref(false)
 const memoryPath = ref('')
 const memorySaving = ref(false)
 const memoryResetting = ref(false)
-const memoryEntries = ref<HarnessMemoryEntry[]>([])
-const pendingMemory = ref<MemoryCandidate[]>([])
-const memoryManaging = ref(false)
 const assistantTone = computed<AssistantTone>(() => normalizeAssistantTone(getPreference<unknown>('assistantTone', DEFAULT_ASSISTANT_TONE)))
 const savedMiraUserName = ref(normalizeMiraIdentityName(getPreference<unknown>('miraUserName', '')))
 const miraUserName = ref(savedMiraUserName.value)
@@ -113,76 +95,24 @@ async function load() {
   loadError.value = ''
   try {
     if (!api) throw new Error('指令与记忆仅在桌面端中可用')
-    const [enabled, savedMemoryPath, entries, pending] = await Promise.all([
-      api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
-      api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
-    ])
+    const [enabled, path] = await Promise.all([api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath()])
     memoryEnabled.value = enabled
-    memoryPath.value = savedMemoryPath
-    memoryEntries.value = entries
-    pendingMemory.value = pending
+    memoryPath.value = path
   } catch (error) { loadError.value = error instanceof Error ? error.message : '读取失败，请重试' }
   finally { loading.value = false }
 }
 
-async function refreshMemory() {
-  const api = getPlatformApi(); if (!api) return
-  const [entries, pending] = await Promise.all([api.listHarnessMemory('global'), api.listPendingHarnessMemory()])
-  memoryEntries.value = entries; pendingMemory.value = pending
-}
-
-function memorySourceLabel(source: MemorySource) {
-  return ({ auto: '自动提炼', explicit: '用户请求', manual: '手动新增', legacy: '已有记忆' } as Record<MemorySource, string>)[source]
-}
-
-function formatMemoryTime(value: number) { return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value) }
-
-async function revealSettingsFile(kind: 'memory') {
+async function revealMemoryFile() {
   try {
     const api = getPlatformApi()
     if (!api) throw new Error('文件位置仅在桌面端中可用')
-    await api.revealHarnessSettingsFile(kind)
+    await api.revealHarnessSettingsFile('memory')
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '打开文件位置失败') }
-}
-
-async function addMemory() {
-  const api = getPlatformApi(); if (!api || memoryManaging.value) return
-  try {
-    const { value } = await ElMessageBox.prompt('输入长期有效的偏好或事实。高风险秘密不会保存。', '新增全局记忆', { inputPattern: /\S+/, inputErrorMessage: '记忆内容不能为空', confirmButtonText: '保存', cancelButtonText: '取消' })
-    memoryManaging.value = true; await api.rememberHarnessMemory(value); await refreshMemory(); ElMessage.success('已保存记忆')
-  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '保存记忆失败') } finally { memoryManaging.value = false }
-}
-
-async function editMemory(entry: HarnessMemoryEntry) {
-  const api = getPlatformApi(); if (!api || memoryManaging.value) return
-  try {
-    const { value } = await ElMessageBox.prompt('编辑后的内容会立即用于后续对话。', '编辑全局记忆', { inputValue: entry.content, inputPattern: /\S+/, inputErrorMessage: '记忆内容不能为空', confirmButtonText: '保存', cancelButtonText: '取消' })
-    memoryManaging.value = true; await api.updateHarnessMemory('global', entry.id, value); await refreshMemory(); ElMessage.success('记忆已更新')
-  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '更新记忆失败') } finally { memoryManaging.value = false }
-}
-
-async function deleteMemory(entry: HarnessMemoryEntry) {
-  const api = getPlatformApi(); if (!api || memoryManaging.value) return
-  try { await ElMessageBox.confirm('删除后不会再注入未来对话，且无法恢复。', '删除记忆', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }) } catch { return }
-  memoryManaging.value = true
-  try { await api.deleteHarnessMemory('global', entry.id); await refreshMemory(); ElMessage.success('记忆已删除') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '删除记忆失败') } finally { memoryManaging.value = false }
-}
-
-async function retryMemory(id: string) {
-  const api = getPlatformApi(); if (!api || memoryManaging.value) return
-  memoryManaging.value = true
-  try { await api.retryHarnessMemory(id); await refreshMemory(); ElMessage.success('记忆已保存') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重试保存失败') } finally { memoryManaging.value = false }
-}
-
-async function discardMemory(id: string) {
-  const api = getPlatformApi(); if (!api || memoryManaging.value) return
-  memoryManaging.value = true
-  try { await api.discardHarnessMemory(id); await refreshMemory() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '放弃记忆失败') } finally { memoryManaging.value = false }
 }
 
 async function setMemoryEnabled(value: boolean) {
   const api = getPlatformApi()
-  if (!api || memorySaving.value) return
+  if (!api || loading.value || loadError.value || memorySaving.value || memoryResetting.value) return
   memorySaving.value = true
   try {
     memoryEnabled.value = await api.setHarnessMemoryEnabled(value)
@@ -194,21 +124,20 @@ async function setMemoryEnabled(value: boolean) {
   }
 }
 
-async function resetMemory() {
+async function deleteMiraMemory() {
   const api = getPlatformApi()
-  if (!api || memoryResetting.value) return
+  if (!api || loading.value || loadError.value || memorySaving.value || memoryResetting.value) return
   try {
-    await ElMessageBox.confirm('将清空全局记忆文件中的所有内容，且无法恢复。', '重置记忆', { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' })
+    await ElMessageBox.confirm('将删除本地保存的全部全局记忆，且无法恢复。', '删除 Mira 记忆', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch {
     return
   }
   memoryResetting.value = true
   try {
     await api.resetHarnessMemory()
-    await refreshMemory()
-    ElMessage.success('记忆已重置')
+    ElMessage.success('Mira 记忆已删除')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '记忆重置失败')
+    ElMessage.error(error instanceof Error ? error.message : '删除记忆失败')
   } finally {
     memoryResetting.value = false
   }
@@ -255,7 +184,7 @@ function cancelMiraAssistantName() {
 }
 
 onBeforeRouteLeave(async () => {
-  if (preferenceSaving.value || memorySaving.value || memoryResetting.value || memoryManaging.value) return false
+  if (preferenceSaving.value || memorySaving.value || memoryResetting.value) return false
   if ((!editingMiraUserName.value || miraUserName.value === savedMiraUserName.value) && (!editingMiraAssistantName.value || miraAssistantName.value === savedMiraAssistantName.value)) return true
   try { await ElMessageBox.confirm('当前修改尚未保存，离开后将丢失。', '未保存的修改', { confirmButtonText: '放弃修改', cancelButtonText: '继续编辑', type: 'warning' }); return true } catch { return false }
 })
@@ -288,36 +217,18 @@ onMounted(() => { void load() })
 .personalization-section :deep(.el-button.is-text) { color: var(--cp-text-secondary); }
 .personalization-section :deep(.el-button.is-text:not(:disabled):hover) { color: var(--cp-text); background: var(--cp-bg-hover); }
 .personalization-section :deep(.save-action) { min-width: 56px; }
-.personalization-section :deep(.quiet-action) { background: transparent; border-color: var(--cp-border); color: var(--cp-text); }
-.personalization-section :deep(.quiet-action:not(:disabled):hover) { background: var(--cp-bg-hover); border-color: var(--cp-border); }
-.personalization-section :deep(.delete-action:not(:disabled):hover), .personalization-section :deep(.reset-action:not(:disabled):hover) { color: var(--cp-danger); }
+.personalization-section :deep(.delete-memory-action) { flex: none; }
 .personalization-section :deep(.app-icon) { flex: none; width: 14px; height: 14px; }
 .storage-detail { min-width: 0; margin-top: 8px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .storage-detail summary { display: flex; width: fit-content; min-height: 28px; align-items: center; gap: 6px; border-radius: var(--cp-radius-sm); list-style: none; cursor: pointer; }
 .storage-detail summary::-webkit-details-marker { display: none; }
 .storage-detail summary:hover { color: var(--cp-text); }
-.storage-detail summary:focus-visible, .assistant-tone-picker button:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
-.storage-detail__chevron { transition: transform 150ms ease-out; }
-.storage-detail[open] .storage-detail__chevron { transform: rotate(90deg); }
-.storage-detail p { margin: 4px 0 8px; line-height: 1.6; overflow-wrap: anywhere; user-select: text; }
+.storage-detail[open] summary :deep(.app-icon:last-child) { transform: rotate(90deg); }
+.storage-detail p { margin: 4px 0 8px; line-height: 1.6; overflow-wrap: anywhere; }
 .storage-path { max-width: 100%; padding: 0; border: 0; border-radius: var(--cp-radius-sm); background: transparent; color: inherit; font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; user-select: text; }
 .storage-path:hover, .storage-path:focus-visible { color: var(--cp-text); text-decoration: underline; text-underline-offset: 3px; }
-.storage-path:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
-.memory-manager { margin-top: 16px; }
-.memory-manager__header { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--cp-border-light); }
-.memory-manager__header h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.memory-count { color: var(--cp-text-secondary); font-size: var(--settings-text-small); font-weight: 400; font-variant-numeric: tabular-nums; }
-.memory-empty { display: flex; min-height: 76px; align-items: center; gap: 10px; margin: 0; padding: 16px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
-.memory-empty :deep(.app-icon) { width: 18px; height: 18px; }
-.memory-entry { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--cp-border-light); }
-.memory-entry:last-child { border-bottom: 0; }
-.memory-entry__content { min-width: 0; flex: 1; }
-.memory-entry__content p { margin: 0; color: var(--cp-text); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
-.memory-entry__content small { display: block; margin-top: 4px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.5; overflow-wrap: anywhere; }
-.memory-entry__actions { display: flex; flex: none; gap: 2px; }
-.memory-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-top: 8px; border-top: 1px solid var(--cp-border-light); }
-.memory-footer .storage-detail { flex: 1; margin-top: 0; }
-.memory-footer :deep(.reset-action) { flex: none; }
+.storage-path:focus-visible, .storage-detail summary:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
+.assistant-tone-picker button:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
 .identity-row { min-height: 64px; }
 .identity-control { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 8px; }
 .identity-control :deep(.el-input) { width: 192px; }
@@ -331,5 +242,5 @@ onMounted(() => { void load() })
 .assistant-tone-picker button:disabled { cursor: default; opacity: .5; }
 .tone-note { display: flex; align-items: flex-start; gap: 6px; margin: 10px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.6; }
 .tone-note :deep(.app-icon) { margin-top: 2px; }
-@media (prefers-reduced-motion: reduce) { .storage-detail__chevron, .assistant-tone-picker button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-tone-picker button { transition: none; } }
 </style>

@@ -4,7 +4,7 @@
       <nav v-if="selected" class="plugin-breadcrumb" aria-label="页面位置"><button type="button" @click="browse()">插件市场</button><AppIcon name="lucide:chevron-right" /><button type="button" @click="selectedId = undefined">插件</button><AppIcon name="lucide:chevron-right" /><span>{{ selected.listing?.displayName || selected.name }}</span></nav>
       <h1>{{ selected ? selected.listing?.displayName || selected.name : '工具与扩展' }}</h1>
       <div v-if="!selected" class="plugin-capabilities">
-        <span class="plugin-user-scope"><AppIcon name="lucide:monitor" />用户</span><span class="plugin-divider" />
+        <SettingsScopeSelect model-value="global" /><span class="plugin-divider" />
         <div class="plugin-tabs" role="tablist" aria-label="插件能力" @keydown="handleTabKey">
           <button v-for="entry in [{ id: 'plugins', label: '插件', count: items.length }, { id: 'mcp', label: 'MCP', count: mcpCount }, { id: 'skills', label: '技能', count: skillCount }]" :key="entry.id" type="button" role="tab" :aria-selected="tab === entry.id" :tabindex="tab === entry.id ? 0 : -1" :aria-controls="`plugin-panel-${entry.id}`" @click="selectTab(entry.id)"><span>{{ entry.label }}</span><small>{{ entry.count }}</small></button>
         </div>
@@ -39,6 +39,7 @@ import { ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
 import type { MiraPluginItem } from '@/config/miraPlugins'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import SettingsScopeSelect from '../settings/components/SettingsScopeSelect.vue'
 import McpSettings from '../mcpConfig/index.vue'
 import SkillSettings from './SkillSettings.vue'
 import PluginRow from './PluginRow.vue'
@@ -114,14 +115,14 @@ onUnmounted(() => { disposed = true; if (grant && api) void grant.then(id => api
 .plugin-breadcrumb button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 h1 { font-size: var(--settings-text-title); font-weight: 550; letter-spacing: -0.02em; line-height: 1.333333; margin: 0 0 32px; }
 .plugin-capabilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
-.plugin-user-scope { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--cp-border-light); border-radius: 18px; padding: 5px 10px; white-space: nowrap; font-size: 12px; }
 .plugin-divider { height: 16px; width: 1px; background: var(--cp-border-light); }
 .plugin-tabs { display: flex; gap: 4px; }
 .plugin-tabs button { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border: 0; border-radius: 20px; background: none; color: var(--cp-text-secondary); cursor: pointer; font: inherit; font-size: var(--settings-text-base); }
 .plugin-tabs button[aria-selected=true] { background: var(--plugin-surface); color: var(--cp-text); font-weight: 500; }
 small { color: var(--cp-text-secondary); font-size: 12px; font-weight: 400; }
 .plugin-search { display: flex; align-items: center; gap: 8px; width: 256px; margin-left: auto; padding: 8px 11px; border: 1px solid var(--cp-border-light); border-radius: 12px; background: var(--cp-bg); color: var(--cp-text-secondary); }
-.plugin-search input { min-width: 0; width: 100%; border: 0; background: none; color: var(--cp-text); font: inherit; font-size: 12px; }
+.plugin-search:focus-within { border-color: var(--cp-border); }
+.plugin-search input { min-width: 0; width: 100%; border: 0; outline: none; background: none; color: var(--cp-text); font: inherit; font-size: 12px; }
 .plugin-group { margin-bottom: 20px; }
 .plugin-group-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; min-height: 28px; }
 h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight: 500; margin: 0; }
@@ -150,5 +151,5 @@ h2 { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight:
 .plugin-component p { margin: 5px 0; }
 dl { display: grid; grid-template-columns: 80px 1fr; gap: 12px; font-size: var(--settings-text-base); }
 dd { margin: 0; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 3px; }
+button:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 3px; }
 </style>
