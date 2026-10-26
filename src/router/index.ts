@@ -100,6 +100,12 @@ const staticRoutes: RouteRecordRaw[] = [
     redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
+    path: '/settings/personalization/instructions',
+    name: 'settings-personalization-instructions',
+    component: () => import('@/pages/backend/personalization/Instructions.vue'),
+    meta: { title: 'Mira 指令' },
+  },
+  {
     path: '/settings/personalization',
     name: 'SettingsPersonalization',
     component: () => import('@/pages/backend/personalization/index.vue'),

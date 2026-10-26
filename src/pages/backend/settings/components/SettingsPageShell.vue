@@ -10,7 +10,7 @@
     <SettingsSiderMenu />
 
     <section class="settings-main">
-      <div class="settings-main__titlebar" aria-hidden="true" />
+      <div class="settings-main__titlebar" :class="{ 'has-actions': $slots.titlebar }" :aria-hidden="$slots.titlebar ? undefined : true"><slot name="titlebar" /></div>
       <div class="settings-main__scroll" :class="{ 'is-workspace': workspace }">
         <div class="settings-main__content" :class="{ 'is-wide': wide, 'is-workspace': workspace }">
           <header v-if="showTitle !== false" class="settings-page-header">
@@ -73,6 +73,8 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
 // See third-party-licenses/zcode/.
 .settings-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; margin: 4px 4px 4px 0; overflow: hidden; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg); }
 .settings-main__titlebar { flex: 0 0 48px; -webkit-app-region: drag; }
+.settings-main__titlebar.has-actions { display: flex; flex-basis: 76px; align-items: center; padding: 28px 24px 8px; }
+.settings-main__titlebar :deep(button) { -webkit-app-region: no-drag; }
 .settings-main__scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .settings-main__scroll.is-workspace { overflow: hidden; }
 .settings-main__content { box-sizing: border-box; width: min(896px, 100%); margin: 0 auto; padding: 0 32px 40px; }

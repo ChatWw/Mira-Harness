@@ -109,7 +109,7 @@ const settingsNavLayers = [
   ] },
 ] satisfies Array<{ label: string; groups: Array<{ label: string; items: SettingsNavItem[] }> }>
 // 设置项已拆分为独立路由，按当前路径判断激活项
-const activeSection = computed(() => settingsNavLayers.flatMap(layer => layer.groups.flatMap(group => group.items)).find(item => route.path === item.path || item.key === 'plugins' && route.path === '/settings/mcp')?.key ?? '')
+const activeSection = computed(() => settingsNavLayers.flatMap(layer => layer.groups.flatMap(group => group.items)).find(item => route.path === item.path || route.path.startsWith(`${item.path}/`) || item.key === 'plugins' && route.path === '/settings/mcp')?.key ?? '')
 
 const menuScroll = ref<HTMLElement>()
 onMounted(() => {

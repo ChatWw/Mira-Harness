@@ -1,20 +1,6 @@
 <template>
   <SettingsPageShell title="指令与记忆">
     <p v-if="loadError" class="settings-error" role="alert">{{ loadError }} <el-button text @click="load">重试</el-button></p>
-    <section class="personalization-section" aria-labelledby="instructions-heading">
-      <div class="section-heading">
-        <div class="section-heading__title"><h2 id="instructions-heading">自定义指令</h2><SettingsTooltip content="为所有 Mira 对话提供持续有效的行为和语气说明。当前用户消息可以针对单次任务提出明确例外。" placement="right" :trigger="['hover', 'focus']" :show-after="200" :popper-style="{ maxWidth: '320px' }"><button type="button" class="section-info" aria-label="查看自定义指令说明"><AppIcon name="lucide:info" /></button></SettingsTooltip></div>
-      </div>
-      <div class="instruction-editor">
-        <el-input v-model="instructions" :disabled="loading || Boolean(loadError)" type="textarea" :autosize="{ minRows: 5, maxRows: 14 }" resize="vertical" placeholder="输入适用于所有对话的自定义指令…" aria-label="自定义指令" />
-        <div class="instruction-editor__footer">
-          <span class="editor-status" role="status">{{ loading ? '正在读取…' : instructions !== savedInstructions ? '有未保存的修改' : '修改后保存，应用于后续对话' }}</span>
-          <el-button class="save-action" type="primary" :disabled="loading || Boolean(loadError) || instructions === savedInstructions" :loading="instructionsSaving" @click="saveInstructions">保存</el-button>
-        </div>
-      </div>
-      <details v-if="instructionsPath" class="storage-detail"><summary><AppIcon name="lucide:folder" />存储位置<AppIcon class="storage-detail__chevron" name="lucide:chevron-right" /></summary><p><button type="button" class="storage-path" aria-label="在文件管理器中显示自定义指令文件" @click="revealSettingsFile('instructions')">{{ instructionsPath }}</button></p></details>
-    </section>
-
     <section class="personalization-section" aria-labelledby="memory-heading">
       <div class="section-heading"><div class="section-heading__title"><h2 id="memory-heading">记忆</h2><SettingsTooltip content="配置 Mira 如何收集、保留和整合你的全局偏好与长期上下文。" placement="right" :trigger="['hover', 'focus']" :show-after="200" :popper-style="{ maxWidth: '320px' }"><button type="button" class="section-info" aria-label="查看记忆说明"><AppIcon name="lucide:info" /></button></SettingsTooltip></div></div>
       <div class="settings-list">
@@ -43,6 +29,14 @@
         <details class="storage-detail"><summary><AppIcon name="lucide:info" />记忆与存储<AppIcon class="storage-detail__chevron" name="lucide:chevron-right" /></summary><p>关闭记忆不会删除本地数据，只会暂停对话中的读取和自动写入。</p><p v-if="memoryPath">全局记忆文件：<button type="button" class="storage-path" aria-label="在文件管理器中显示全局记忆文件" @click="revealSettingsFile('memory')">{{ memoryPath }}</button></p></details>
         <el-button class="reset-action" text :disabled="loading || Boolean(loadError) || memoryManaging || !memoryEntries.length" :loading="memoryResetting" @click="resetMemory">重置记忆</el-button>
       </div>
+    </section>
+
+    <section class="personalization-section" aria-labelledby="instructions-heading">
+      <div class="section-heading"><div class="section-heading__title"><h2 id="instructions-heading">自定义指令</h2><SettingsTooltip content="为所有 Mira 对话提供持续有效的行为和语气说明。当前用户消息可以针对单次任务提出明确例外。" placement="right" :trigger="['hover', 'focus']" :show-after="200" :popper-style="{ maxWidth: '320px' }"><button type="button" class="section-info" aria-label="查看自定义指令说明"><AppIcon name="lucide:info" /></button></SettingsTooltip></div></div>
+      <button type="button" class="instructions-entry" @click="openInstructions">
+        <span class="settings-row__copy"><span class="settings-row__label">Mira 指令</span><span class="settings-row__hint">编辑全局 AGENTS.md 文件</span></span>
+        <AppIcon name="lucide:chevron-right" />
+      </button>
     </section>
 
     <section class="personalization-section" aria-labelledby="identity-heading">
@@ -89,17 +83,15 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DEFAULT_ASSISTANT_TONE, normalizeAssistantTone, normalizeMiraIdentityName, type AssistantTone, type HarnessMemoryEntry, type MemoryCandidate, type MemorySource } from '@/config/harness'
 import { getPlatformApi, getPreference } from '@/platform'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useSettingsPreference } from '../settings/useSettingsPreference'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 
-const instructions = ref('')
-const savedInstructions = ref('')
+const route = useRoute(), router = useRouter()
+function openInstructions() { void router.push({ path: '/settings/personalization/instructions', query: route.query }) }
 const loading = ref(true), loadError = ref('')
 const { saving: preferenceSaving, save: savePreference } = useSettingsPreference()
-const instructionsPath = ref('')
-const instructionsSaving = ref(false)
 const memoryEnabled = ref(false)
 const memoryPath = ref('')
 const memorySaving = ref(false)
@@ -121,13 +113,10 @@ async function load() {
   loadError.value = ''
   try {
     if (!api) throw new Error('指令与记忆仅在桌面端中可用')
-    const [content, path, enabled, savedMemoryPath, entries, pending] = await Promise.all([
-      api.getGlobalInstructions(), api.getGlobalInstructionsPath(), api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
+    const [enabled, savedMemoryPath, entries, pending] = await Promise.all([
+      api.getHarnessMemoryEnabled(), api.getHarnessMemoryPath(),
       api.listHarnessMemory('global'), api.listPendingHarnessMemory(),
     ])
-    instructions.value = content
-    savedInstructions.value = content
-    instructionsPath.value = path
     memoryEnabled.value = enabled
     memoryPath.value = savedMemoryPath
     memoryEntries.value = entries
@@ -148,7 +137,7 @@ function memorySourceLabel(source: MemorySource) {
 
 function formatMemoryTime(value: number) { return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value) }
 
-async function revealSettingsFile(kind: 'instructions' | 'memory') {
+async function revealSettingsFile(kind: 'memory') {
   try {
     const api = getPlatformApi()
     if (!api) throw new Error('文件位置仅在桌面端中可用')
@@ -189,22 +178,6 @@ async function discardMemory(id: string) {
   const api = getPlatformApi(); if (!api || memoryManaging.value) return
   memoryManaging.value = true
   try { await api.discardHarnessMemory(id); await refreshMemory() } catch (error) { ElMessage.error(error instanceof Error ? error.message : '放弃记忆失败') } finally { memoryManaging.value = false }
-}
-
-async function saveInstructions() {
-  const api = getPlatformApi()
-  if (!api || instructionsSaving.value) return
-  instructionsSaving.value = true
-  try {
-    const value = instructions.value
-    await api.saveGlobalInstructions(value)
-    savedInstructions.value = value
-    ElMessage.success('自定义指令已保存')
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '自定义指令保存失败')
-  } finally {
-    instructionsSaving.value = false
-  }
 }
 
 async function setMemoryEnabled(value: boolean) {
@@ -282,8 +255,8 @@ function cancelMiraAssistantName() {
 }
 
 onBeforeRouteLeave(async () => {
-  if (instructionsSaving.value || preferenceSaving.value || memorySaving.value || memoryResetting.value || memoryManaging.value) return false
-  if (instructions.value === savedInstructions.value && (!editingMiraUserName.value || miraUserName.value === savedMiraUserName.value) && (!editingMiraAssistantName.value || miraAssistantName.value === savedMiraAssistantName.value)) return true
+  if (preferenceSaving.value || memorySaving.value || memoryResetting.value || memoryManaging.value) return false
+  if ((!editingMiraUserName.value || miraUserName.value === savedMiraUserName.value) && (!editingMiraAssistantName.value || miraAssistantName.value === savedMiraAssistantName.value)) return true
   try { await ElMessageBox.confirm('当前修改尚未保存，离开后将丢失。', '未保存的修改', { confirmButtonText: '放弃修改', cancelButtonText: '继续编辑', type: 'warning' }); return true } catch { return false }
 })
 onMounted(() => { void load() })
@@ -300,6 +273,10 @@ onMounted(() => { void load() })
 .section-info :deep(.app-icon) { width: 15px; height: 15px; }
 .section-info:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
 .settings-error { color: var(--cp-danger); }
+.instructions-entry { display: flex; width: 100%; min-height: 68px; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 16px; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); background: transparent; color: var(--cp-text); font: inherit; text-align: left; cursor: pointer; }
+.instructions-entry:hover { background: var(--cp-bg-hover); }
+.instructions-entry:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
+.instructions-entry :deep(.app-icon) { color: var(--cp-text-secondary); }
 .settings-list { overflow: hidden; border: 1px solid var(--cp-border-light); border-radius: var(--cp-radius-md); }
 .settings-row { display: flex; min-width: 0; min-height: 64px; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 16px; }
 .settings-row + .settings-row { border-top: 1px solid var(--cp-border-light); }
@@ -315,12 +292,6 @@ onMounted(() => { void load() })
 .personalization-section :deep(.quiet-action:not(:disabled):hover) { background: var(--cp-bg-hover); border-color: var(--cp-border); }
 .personalization-section :deep(.delete-action:not(:disabled):hover), .personalization-section :deep(.reset-action:not(:disabled):hover) { color: var(--cp-danger); }
 .personalization-section :deep(.app-icon) { flex: none; width: 14px; height: 14px; }
-.instruction-editor { overflow: hidden; border: 1px solid var(--cp-border); border-radius: var(--cp-radius-md); transition: border-color 120ms ease-out; }
-.instruction-editor:focus-within { border-color: var(--cp-primary); }
-.instruction-editor :deep(.el-textarea__inner) { min-height: 144px !important; padding: 12px 14px; border: 0; border-radius: 0; background: var(--cp-bg); color: var(--cp-text); box-shadow: none !important; font-size: var(--settings-text-base); line-height: 1.7; }
-.instruction-editor :deep(.el-textarea__inner::placeholder) { color: var(--cp-text-secondary); }
-.instruction-editor__footer { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 12px; border-top: 1px solid var(--cp-border-light); background: var(--cp-bg-elevated); }
-.editor-status { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .storage-detail { min-width: 0; margin-top: 8px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .storage-detail summary { display: flex; width: fit-content; min-height: 28px; align-items: center; gap: 6px; border-radius: var(--cp-radius-sm); list-style: none; cursor: pointer; }
 .storage-detail summary::-webkit-details-marker { display: none; }
@@ -360,5 +331,5 @@ onMounted(() => { void load() })
 .assistant-tone-picker button:disabled { cursor: default; opacity: .5; }
 .tone-note { display: flex; align-items: flex-start; gap: 6px; margin: 10px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.6; }
 .tone-note :deep(.app-icon) { margin-top: 2px; }
-@media (prefers-reduced-motion: reduce) { .instruction-editor, .storage-detail__chevron, .assistant-tone-picker button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .storage-detail__chevron, .assistant-tone-picker button { transition: none; } }
 </style>
