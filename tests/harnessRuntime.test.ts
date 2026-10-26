@@ -143,6 +143,28 @@ describe('HarnessRuntime tool approval', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
+  it.each([true, false])('retains write approval and reports the actual recycling outcome (enabled: %s)', async trashEnabled => {
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const deleteProjectFile = vi.fn(() => ({ path: 'notes.txt', trashed: trashEnabled }))
+    const database = { memories: { enabled: () => false }, harness: {
+      getSession: () => ({ permissionMode: 'default' }),
+      getPermissionConfig: () => ({ globalDefaultMode: 'default', dangerousCommands: [], trashEnabled }),
+      recordTool: vi.fn(), updateTool: vi.fn(), beginFileCheckpoint: vi.fn(), recordTaskFileChange: vi.fn(), deleteProjectFile,
+    } }
+    const runtime = new HarnessRuntime(database as any, { getTools: () => [] } as any)
+    const registered = (runtime as any).tools(sender, 'session-1')
+    const pending = (runtime as any).preflightToolCall(sender, 'session-1', registered.descriptors, 'delete_file', { path: 'notes.txt' })
+    const request = sender.send.mock.calls.at(-1)?.[1].payload
+    expect(request.title).toBe('允许 Mira 删除这个文件？')
+    expect(request.detail).toContain(trashEnabled ? '文件会移入 Mira 回收站' : '文件将直接删除')
+    expect(deleteProjectFile).not.toHaveBeenCalled()
+    ;(runtime as any).resolvePermission(request.requestId, true)
+    await expect(pending).resolves.toBeUndefined()
+    const result = await registered.tools.find((tool: any) => tool.name === 'delete_file').execute('delete', { path: 'notes.txt' })
+    expect(deleteProjectFile).toHaveBeenCalledExactlyOnceWith('session-1', 'notes.txt')
+    expect(result.content[0].text).toContain(trashEnabled ? '可在回收站还原' : '未移入回收站')
+  })
+
   it('uses the global permission mode for interactive conversations', async () => {
     const { runtime, sender, registered } = setup('default', 'full')
 

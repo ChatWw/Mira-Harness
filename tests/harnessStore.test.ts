@@ -1018,11 +1018,18 @@ describe('HarnessStore', () => {
     expect(store.getPermissionConfig()).toMatchObject({ globalDefaultMode: 'full', autoApproveEnabled: true, fullAccessEnabled: true })
     expect(store.createSession().permissionMode).toBe('full')
 
-    store.savePermissionConfig({ ...store.getPermissionConfig(), autoApproveEnabled: false, fullAccessEnabled: false })
+    store.savePermissionConfig({ ...store.getPermissionConfig(), fullAccessEnabled: false })
+    expect(store.getPermissionConfig().globalDefaultMode).toBe('auto-approve')
+    expect(store.createSession().permissionMode).toBe('auto-approve')
+
+    store.savePermissionConfig({ ...store.getPermissionConfig(), autoApproveEnabled: false })
     expect(store.getPermissionConfig().globalDefaultMode).toBe('default')
     const session = store.createSession()
     expect(() => store.setPermission(session.id, 'auto-approve')).toThrow('自动审核权限未启用')
     expect(() => store.setPermission(session.id, 'full')).toThrow('完全访问权限未启用')
+
+    store.savePermissionConfig({ ...store.getPermissionConfig(), autoApproveEnabled: true, fullAccessEnabled: true })
+    expect(store.getPermissionConfig().globalDefaultMode).toBe('default')
 
     database.close()
     rmSync(root, { recursive: true, force: true })

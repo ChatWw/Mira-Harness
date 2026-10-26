@@ -965,6 +965,7 @@ export class PilotController {
   retryAutomationRun(id: string) { return this.require('retryAutomationRun')(id) }
   abortAutomationRun(id: string) { return this.require('abortAutomationRun')(id) }
   getHarnessPermissionConfig() { return this.require('getHarnessPermissionConfig')() }
+  get supportsPermissionConfig() { return Boolean(this.host.getHarnessPermissionConfig) }
   async restoreSession(id: string) {
     await this.require('restoreSession')(id)
     await this.refreshList()

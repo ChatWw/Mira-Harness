@@ -85,6 +85,15 @@ export function registerHarnessProjectIpcHandlers({ database, harnessRuntime, au
   ipcMain.handle('harness:get-global-instructions', () => database.instructions.readGlobal())
   ipcMain.handle('harness:save-global-instructions', (_event, content: string) => database.instructions.saveGlobal(content))
   ipcMain.handle('harness:get-global-instructions-path', () => miraPaths.globalAgents())
+  ipcMain.handle('harness:reveal-settings-file', async (_event, kind: unknown) => {
+    if (kind !== 'instructions' && kind !== 'memory') throw new Error('设置文件类型无效')
+    const path = kind === 'instructions' ? miraPaths.globalAgents() : database.memories.path('global')
+    if (existsSync(path)) shell.showItemInFolder(path)
+    else {
+      const error = await shell.openPath(dirname(path))
+      if (error) throw new Error(error)
+    }
+  })
   ipcMain.handle('harness:get-memory-enabled', () => database.memories.enabled())
   ipcMain.handle('harness:set-memory-enabled', (_event, enabled: boolean) => database.memories.setEnabled(enabled))
   ipcMain.handle('harness:get-memory-path', () => database.memories.path('global'))

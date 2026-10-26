@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Window } from 'happy-dom'
 import { HarnessComposer, type HarnessComposerHandle } from '../apps/harness-react/src/components/composer/HarnessComposer'
 import { ComposerSuggestionPanel, type ComposerSuggestion, type ComposerSuggestionSection } from '../apps/harness-react/src/components/composer/ComposerSuggestionPanel'
+import { ComposerPermissionOptions } from '../apps/harness-react/src/components/composer/ComposerConfigurationOptions'
 import { HarnessMessageQueue } from '../apps/harness-react/src/components/composer/HarnessMessageQueue'
 import { MiraComposerAttachments } from '../apps/harness-react/src/components/composer/MiraComposerAttachments'
 import { MiraPromptEditor, type MiraPromptEditorHandle } from '../apps/harness-react/src/components/composer/MiraPromptEditor'
@@ -17,7 +18,7 @@ import { MiraContextUsage } from '../apps/harness-react/src/components/composer/
 import { miraBrowserPrompt } from '../apps/harness-react/src/lib/mira-browser-reference'
 import type { PilotController, PilotState } from '../apps/harness-react/src/state/pilot-state'
 import type { MiraMcpItem } from '../src/config/miraMcp'
-import type { HarnessQueuedMessage, HarnessSideConversationInput, HarnessWorkspaceFileSearchResult } from '../src/config/harness'
+import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig, type HarnessQueuedMessage, HarnessSideConversationInput, HarnessWorkspaceFileSearchResult } from '../src/config/harness'
 import type { ComposerTaskDraft } from '../apps/harness-react/src/lib/composer-drafts'
 import type { MiraPromptCommandItem } from '../src/config/miraPromptCommands'
 import type { MiraUserAgentItem } from '../src/config/miraUserAgents'
@@ -58,11 +59,13 @@ const emptyFiles = { entries: [], truncated: false } as HarnessWorkspaceFileSear
 const event = (key: string, modifiers: Record<string, unknown> = {}) => ({ key, keyCode: 0, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...modifiers })
 const listeners = new Map<string, Set<(event: ReturnType<typeof event>) => void>>()
 
-function fixture(options: { history?: string[] | Promise<string[]>; search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; keyboardActive?: boolean; interactionSlot?: React.ReactNode; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean; attachments?: boolean; editorElement?: HTMLDivElement; navigationSaveFailed?: boolean; goals?: boolean; sideConversation?: boolean } = {}) {
+function fixture(options: { permissionConfig?: Promise<PermissionConfig>; history?: string[] | Promise<string[]>; search?: (id: string, query: string) => Promise<HarnessWorkspaceFileSearchResult>; files?: Promise<HarnessWorkspaceFileSearchResult>; preference?: 'enter' | 'mod-enter'; followupMode?: 'queue' | 'guide'; draftPreference?: Promise<unknown>; active?: boolean; keyboardActive?: boolean; interactionSlot?: React.ReactNode; queue?: boolean; queueActions?: boolean; submissionOptions?: boolean; attachments?: boolean; editorElement?: HTMLDivElement; navigationSaveFailed?: boolean; goals?: boolean; sideConversation?: boolean } = {}) {
   let savedPreference: unknown, hasSavedPreference = false
   const session = { version: 1 as const, id: 'current', title: 'Current', projectId: 'project', workingDirectory: '/project', permissionMode: 'default' as const, messages: [], toolCalls: [], createdAt: 1, updatedAt: 1, status: 'active' as const, pinned: false }
   const state: PilotState = { session, sessions: [session, { ...session, id: 'reference', title: '研究记录' }], projects: [{ id: 'project', name: 'Project', directory: '/project', directoryExists: true, createdAt: 1, updatedAt: 1 }], providers: [{ id: 'provider', providerKey: 'custom', name: 'Provider', endpoint: 'http://localhost', enabled: true, authMode: 'api-key', hasApiKey: true, createdAt: 1, updatedAt: 1, models: [{ id: 'model', enabled: true, reasoning: true, contextWindow: 1000 }] }], selection: { providerId: 'provider', modelId: 'model', thinkingLevel: 'medium' }, messages: [], running: false, runningSessionIds: [], unreadSessionIds: [], pendingPermissions: {} }
   const api = {
+    supportsPermissionConfig: Boolean(options.permissionConfig),
+    getHarnessPermissionConfig: vi.fn(async () => options.permissionConfig ? await options.permissionConfig : { ...DEFAULT_PERMISSION_CONFIG }),
     supportsPromptHistory: options.history !== undefined,
     listPromptHistory: vi.fn(async () => await options.history ?? []),
     supportsContextCompaction: true,
@@ -1401,6 +1404,82 @@ describe('group draft lifecycle in the shipped Composer', () => {
     await (view.queueProps().onEdit as (id: string) => Promise<void>)(item.id); await view.drain()
     expect((view.inputProps().document as MiraPromptDocument).parts.filter(part => part.type === 'reference').map(part => part.type === 'reference' && part.reference.value)).toEqual(['research'])
     await view.key('Enter'); expect(view.api.send.mock.calls[0]?.[5]).toMatchObject({ skillIds: ['research'] })
+  })
+
+  it('applies the configured default to a new task without inheriting the previous task selection', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, globalDefaultMode: 'auto-approve' }) }); await view.drain()
+    view.state.session!.permissionMode = 'full'; view.render(); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain()
+    await view.type('新任务'); await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledWith('新任务', false, [], expect.any(String), view.state.selection, { permissionMode: 'auto-approve' })
+  })
+
+  it('preserves existing task and restored draft overrides when the default changes', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, globalDefaultMode: 'full' }), draftPreference: Promise.resolve({ permissions: { current: 'auto-approve' } }) }); await view.drain()
+    await view.type('继续'); await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledWith('继续', false, [], expect.any(String), view.state.selection, { permissionMode: 'auto-approve' })
+  })
+
+  it('keeps an existing session permission when the new-task default differs', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, globalDefaultMode: 'full' }) }); await view.drain()
+    await view.type('已有任务'); await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledWith('已有任务', false, [], expect.any(String), view.state.selection, { permissionMode: 'default' })
+  })
+
+  it('disables unavailable choices, rejects direct selection and skips them with the shortcut', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, autoApproveEnabled: false }) }); await view.drain()
+    const group = () => view.props((props, element) => element.type === DropdownMenu.RadioGroup && props.value === 'default')
+    ;(group().onValueChange as (value: string) => void)('auto-approve'); await view.drain()
+    expect(group().value).toBe('default')
+    const options = view.props((_, element) => element.type === ComposerPermissionOptions)
+    expect(options.disabled).toEqual(['auto-approve'])
+    await view.dispatch('m', { metaKey: true, shiftKey: true })
+    expect(view.props((props, element) => element.type === DropdownMenu.RadioGroup && props.value === 'full').value).toBe('full')
+  })
+
+  it.each([
+    { selected: 'full', fullAccessEnabled: false, autoApproveEnabled: true, expected: 'auto-approve' },
+    { selected: 'full', fullAccessEnabled: false, autoApproveEnabled: false, expected: 'default' },
+    { selected: 'auto-approve', fullAccessEnabled: true, autoApproveEnabled: false, expected: 'default' },
+    { selected: 'full', fullAccessEnabled: true, autoApproveEnabled: false, expected: 'full' },
+  ] as const)('silently resolves $selected to $expected with full=$fullAccessEnabled and auto=$autoApproveEnabled', async ({ selected, fullAccessEnabled, autoApproveEnabled, expected }) => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, fullAccessEnabled, autoApproveEnabled }), draftPreference: Promise.resolve({ permissions: { current: selected } }) }); await view.drain()
+    await view.type('保留输入')
+    expect(view.text()).toBe('保留输入')
+    expect(view.props((props, element) => element.type === DropdownMenu.RadioGroup && props.value === expected).value).toBe(expected)
+    expect(() => view.props(props => typeof props.children === 'string' && props.children.includes('已在设置中关闭'))).toThrow('Composer control not found')
+    await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledWith('保留输入', false, [], expect.any(String), view.state.selection, { permissionMode: expected })
+  })
+
+  it('restores a legacy unsent draft permission without applying it to unrelated new tasks', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG, globalDefaultMode: 'auto-approve' }), draftPreference: Promise.resolve({ drafts: { draft: '旧草稿' }, config: { permission: 'full' } }) }); await view.drain()
+    view.state.session = undefined; view.render(); await view.drain(); await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledWith('旧草稿', false, [], expect.any(String), view.state.selection, { permissionMode: 'full' })
+    view.state.session = undefined; view.render(); await view.drain(); await view.type('下一任务'); await view.formSubmit()
+    expect(view.api.send).toHaveBeenLastCalledWith('下一任务', false, [], expect.any(String), view.state.selection, { permissionMode: 'auto-approve' })
+  })
+
+  it('downgrades on focus and keeps the saved lower permission after reactivation and re-enabling', async () => {
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: Promise.resolve({ ...DEFAULT_PERMISSION_CONFIG }) }); await view.drain()
+    view.state.session!.permissionMode = 'full'; view.render(); await view.drain()
+    view.api.getHarnessPermissionConfig.mockResolvedValue({ ...DEFAULT_PERMISSION_CONFIG, fullAccessEnabled: false })
+    listeners.get('focus')?.forEach(listener => listener(event('focus'))); await view.drain()
+    await view.type('保留选择')
+    await view.api.registerBeforeNavigation.mock.calls[0][0]()
+    expect(view.api.setPreference).toHaveBeenCalledWith('harness-react-composer-drafts', expect.objectContaining({ permissions: { current: 'auto-approve' } }), true)
+    await view.setActive(false); view.api.getHarnessPermissionConfig.mockResolvedValue({ ...DEFAULT_PERMISSION_CONFIG }); await view.setActive(true)
+    await view.formSubmit(); expect(view.api.send).toHaveBeenCalledWith('保留选择', false, [], expect.any(String), view.state.selection, { permissionMode: 'auto-approve' })
+  })
+
+  it('blocks sending while permission settings load, preserves input on failure and permits retry', async () => {
+    const read = deferred<PermissionConfig>()
+    const view = fixture({ queue: true, submissionOptions: true, permissionConfig: read.promise }); await view.drain()
+    await view.type('等待权限'); await view.formSubmit(); expect(view.api.send).not.toHaveBeenCalled()
+    read.reject(new Error('read failed')); await view.drain(); expect(view.text()).toBe('等待权限')
+    view.api.getHarnessPermissionConfig.mockResolvedValue({ ...DEFAULT_PERMISSION_CONFIG })
+    ;(view.props(props => props.children === '重试读取权限').onClick as () => void)(); await view.drain(); await view.formSubmit()
+    expect(view.api.send).toHaveBeenCalledOnce()
   })
 
   it('opens next-message permission through slash while the current task is running', async () => {

@@ -1424,20 +1424,20 @@ export class HarnessRuntime {
       })
     })
     const listFilesTool = register({ name: 'list_files', label: '列出文件', description: '列出目录内文件；外部目录按当前权限请求访问', parameters: Type.Object({ path: Type.Optional(Type.String()) }), executionMode: 'sequential', execute: async (_id: string, params: { path?: string }) => { const target = params.path || '.'; const id = record('list_files', target); try { if (!env) throw new Error('请先选择工作目录'); const checked = await env.absolutePath(target); if (!checked.ok) throw checked.error; const dir = checked.value; const entries = await readdir(dir, { withFileTypes: true }); const text = entries.map(entry => `${entry.isDirectory() ? 'dir' : 'file'} ${entry.name}`).join('\n'); finish(id, 'ok'); return { content: [{ type: 'text', text }], details: { path: target } } } catch (error) { finish(id, 'failed'); throw error } } }, externalReadDescriptor)
-    const deleteTool = register({ name: 'delete_file', label: '删除文件', description: '将项目内文件移动至 Mira 回收站', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => {
+    const deleteTool = register({ name: 'delete_file', label: '删除文件', description: '删除项目内文件；启用回收站时移入回收站，关闭时直接删除', parameters: Type.Object({ path: Type.String() }), executionMode: 'sequential', execute: async (_id: string, params: { path: string }) => {
       const id = record('delete', params.path)
       let began = false
       try {
         const before = env ? await readMiraCheckpointFile(env, params.path) : undefined
         this.database.harness.beginFileCheckpoint(sessionId, id, params.path, before); began = true
-        const result = this.database.harness.moveToTrash(sessionId, params.path)
-        snapshot(id, params.path, before, null); finish(id, 'ok', '- 删除 ' + result.path + '（可还原）')
-        return { content: [{ type: 'text', text: '已删除 ' + result.path + '，可在回收站还原。' }], details: result }
+        const result = this.database.harness.deleteProjectFile(sessionId, params.path)
+        snapshot(id, params.path, before, null); finish(id, 'ok', '- 删除 ' + result.path + (result.trashed ? '（可还原）' : '（未移入回收站）'))
+        return { content: [{ type: 'text', text: '已删除 ' + result.path + (result.trashed ? '，可在回收站还原。' : '，未移入回收站。') }], details: result }
       } catch (error) {
         if (began) this.database.harness.finishFileCheckpoint(sessionId, id, env ? await readMiraCheckpointFile(env, params.path) : undefined)
         finish(id, 'failed'); throw error
       }
-    } }, { risk: 'write', title: () => '允许 Mira 删除这个文件？', detail: args => String(args.path ?? '') + '\n文件会移入 Mira 回收站。' })
+    } }, { risk: 'write', title: () => '允许 Mira 删除这个文件？', detail: args => String(args.path ?? '') + (this.database.harness.getPermissionConfig().trashEnabled ? '\n文件会移入 Mira 回收站。' : '\n回收站已关闭，文件将直接删除。') })
     const memoryTools = this.memoryCoordinator.createTools(sender, sessionId, { register, record, finish, session })
     const planTool = register({
       name: 'set_plan',

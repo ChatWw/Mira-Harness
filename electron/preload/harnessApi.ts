@@ -20,6 +20,7 @@ export const harnessApi = {
   getGlobalInstructions: () => ipcRenderer.invoke('harness:get-global-instructions'),
   saveGlobalInstructions: (content: string) => ipcRenderer.invoke('harness:save-global-instructions', content),
   getGlobalInstructionsPath: () => ipcRenderer.invoke('harness:get-global-instructions-path'),
+  revealHarnessSettingsFile: (kind: 'instructions' | 'memory') => ipcRenderer.invoke('harness:reveal-settings-file', kind),
   getHarnessMemoryEnabled: () => ipcRenderer.invoke('harness:get-memory-enabled'),
   setHarnessMemoryEnabled: (enabled: boolean) => ipcRenderer.invoke('harness:set-memory-enabled', enabled),
   getHarnessMemoryPath: () => ipcRenderer.invoke('harness:get-memory-path'),

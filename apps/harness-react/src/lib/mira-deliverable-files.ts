@@ -34,8 +34,8 @@ export function miraDeliverablePaths(content: string, changes: HarnessFileChange
     return [path]
   }
   const changedPaths = new Set(changed.flatMap(change => normalize(change.path)))
-  // Like ZCode, Markdown/HTML mentions are previewable only when this reply changed them.
+  // Result cards require an actual change in this reply; mentioning an existing file is not an output.
   return [...new Set(candidates.flatMap(normalize))]
-    .filter(path => !/\.(?:md|html?)$/i.test(path) || changedPaths.has(path))
+    .filter(path => changedPaths.has(path))
     .slice(0, 12)
 }

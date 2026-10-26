@@ -1,13 +1,10 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Check, Folder, Hand, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { HarnessProject, PermissionMode } from '../../../../../src/config/harness'
+import { HARNESS_PERMISSION_OPTIONS } from '../../../../../src/config/harnessPermissions'
 import { COMPOSER_REASONING_CHOICES } from '../../lib/model-reasoning'
 
-export const COMPOSER_PERMISSIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
-  { value: 'default', label: '逐次确认', description: '工具执行前由你确认' },
-  { value: 'auto-approve', label: '自动审核', description: '常规自动审核，危险操作拦截' },
-  { value: 'full', label: '完全访问', description: '免确认，危险命令仍拦截' },
-]
+export const COMPOSER_PERMISSIONS = HARNESS_PERMISSION_OPTIONS
 export const composerPermissionIcon = (value: PermissionMode) => value === 'default' ? Hand : value === 'auto-approve' ? ShieldCheck : ShieldAlert
 
 export function ComposerPermissionOptions({ disabled = [] }: { disabled?: PermissionMode[] }) {

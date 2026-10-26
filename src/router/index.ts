@@ -92,8 +92,7 @@ const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/permissions',
     name: 'SettingsPermissions',
-    component: () => import('@/pages/backend/permissions/index.vue'),
-    meta: { title: '权限与审批' },
+    redirect: to => ({ path: '/settings/conversation', query: to.query }),
   },
   {
     path: '/settings/appearance',

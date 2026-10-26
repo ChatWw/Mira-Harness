@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -87,6 +87,37 @@ describe('project source folders', () => {
     store.restoreTrash(f.project.id, next.token)
     expect(readFileSync(join(f.a, 'after.txt'), 'utf8')).toBe('after switch')
     expect(existsSync(join(f.b, 'after.txt'))).toBe(false)
+  })
+
+  it('defaults recycling on and persists direct deletion without losing existing trash', () => {
+    const f = fixture(), store = f.db.harness, task = store.createSession(f.project.id)
+    expect(store.getPermissionConfig().trashEnabled).toBe(true)
+    store.addMessage(task.id, 'user', '验证回收站')
+    writeFileSync(join(f.a, 'retained.txt'), 'retained')
+    const retained = store.deleteProjectFile(task.id, 'retained.txt')
+    expect(retained).toMatchObject({ trashed: true, path: 'retained.txt' })
+    store.savePermissionConfig({ ...store.getPermissionConfig(), trashEnabled: false })
+    const reopened = f.reopen().harness
+    expect(reopened.getPermissionConfig().trashEnabled).toBe(false)
+    mkdirSync(join(f.a, 'deleted')); writeFileSync(join(f.a, 'deleted', 'file.txt'), 'delete')
+    expect(reopened.deleteProjectFile(task.id, 'deleted')).toEqual({ path: 'deleted', trashed: false })
+    expect(existsSync(join(f.a, 'deleted'))).toBe(false)
+    expect(reopened.listTrash(f.project.id)).toHaveLength(1)
+    reopened.restoreTrash(f.project.id, reopened.listTrash(f.project.id)[0].token)
+    expect(readFileSync(join(f.a, 'retained.txt'), 'utf8')).toBe('retained')
+    reopened.savePermissionConfig({ ...reopened.getPermissionConfig(), trashEnabled: true })
+    expect(reopened.deleteProjectFile(task.id, 'retained.txt').trashed).toBe(true)
+  })
+
+  it('rejects direct deletion of the project root and paths outside the project', () => {
+    const f = fixture(), store = f.db.harness, task = store.createSession(f.project.id)
+    store.savePermissionConfig({ ...store.getPermissionConfig(), trashEnabled: false })
+    writeFileSync(join(f.b, 'keep.txt'), 'keep')
+    symlinkSync(f.b, join(f.a, 'external'), 'dir')
+    expect(() => store.deleteProjectFile(task.id, '.')).toThrow('不能删除项目根目录')
+    expect(() => store.deleteProjectFile(task.id, '../b/keep.txt')).toThrow('路径不在项目目录内')
+    expect(() => store.deleteProjectFile(task.id, 'external/keep.txt')).toThrow('路径不在项目目录内')
+    expect(readFileSync(join(f.b, 'keep.txt'), 'utf8')).toBe('keep')
   })
 
   it('retains an offline existing source folder while allowing another folder to become primary', () => {

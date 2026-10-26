@@ -53,7 +53,6 @@ const iconPaths: Record<string, string> = {
   'model-config': 'M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l3-3M11 8l3-3a3 3 0 0 1 4 4l-2 2',
   'conversation': 'M3 4h15v11H8l-5 4zM18 8h3v13l-5-3h-4',
   'personalization': 'M12 3a9 9 0 1 0 9 9 M12 7a5 5 0 1 0 5 5 M12 11a1 1 0 1 0 1 1',
-  'permissions': 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6',
   'plugins': 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
   'agents': 'M5 7h14v13H5zM12 3v4M2 11v5m20-5v5M8 12h.01M16 12h.01M9 17h6',
   'commands': 'M4 5l7 7-7 7M13 19h7',
@@ -80,7 +79,6 @@ const settingsNavLayers = [
       { key: 'model-config', label: '模型服务', path: '/settings/model-config' },
       { key: 'conversation', label: '对话设置', path: '/settings/conversation' },
       { key: 'personalization', label: '指令与记忆', path: '/settings/personalization' },
-      { key: 'permissions', label: '权限与审批', path: '/settings/permissions' },
     ] },
     { label: '能力扩展', items: [
       { key: 'plugins', label: '工具与扩展', path: '/settings/plugins' },

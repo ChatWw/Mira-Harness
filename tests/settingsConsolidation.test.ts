@@ -24,7 +24,8 @@ describe('Mira shell settings consolidation', () => {
     expect(settingsMenu).toContain("label: '底层能力'")
     expect(settingsMenu).toContain("label: '工作区能力'")
     expect(settingsMenu).toContain("label: '应用与支持'")
-    expect(settingsMenu).toContain("path: '/settings/permissions'")
+    expect(settingsMenu).toContain("path: '/settings/conversation'")
+    expect(settingsMenu).not.toContain("path: '/settings/permissions'")
     for (const removedPath of ['/settings/git', '/settings/python-environment', '/settings/loading-effects', '/settings/icon-library', '/settings/menu-management', '/settings/micro-apps']) {
       expect(settingsMenu).not.toContain(removedPath)
     }
@@ -57,6 +58,12 @@ describe('Mira shell settings consolidation', () => {
 
   it('keeps running-input preferences in the existing Vue settings and select control', () => {
     const general = readSource('src/pages/backend/conversation/index.vue')
+    expect(general).not.toContain('控制对话输入和上下文信息的显示方式。')
+    expect(general).toContain('id="permission-heading">权限</h2>')
+    expect(general).toContain('aria-label="新任务默认权限"')
+    expect(general).toContain('aria-label="启用自动审核"')
+    expect(general).toContain('aria-label="启用完全访问权限"')
+    expect(general).toContain('!saving.value && !permissionSaving.value')
     expect(general).toContain('aria-label="运行中消息处理"')
     expect(general).toContain(':model-value="followupMode"')
     expect(general).toContain(':disabled="Boolean(saving)"')

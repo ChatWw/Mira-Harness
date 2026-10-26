@@ -1,3 +1,4 @@
+import { resolveAvailablePermission } from '../../src/config/harnessPermissions'
 import { buildHarnessAppUsage } from '../../src/config/harnessUsage'
 import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
@@ -1597,6 +1598,7 @@ export class HarnessStore {
         ...stored,
         autoApproveEnabled: typeof stored.autoApproveEnabled === 'boolean' ? stored.autoApproveEnabled : DEFAULT_PERMISSION_CONFIG.autoApproveEnabled,
         fullAccessEnabled: typeof stored.fullAccessEnabled === 'boolean' ? stored.fullAccessEnabled : DEFAULT_PERMISSION_CONFIG.fullAccessEnabled,
+        trashEnabled: typeof stored.trashEnabled === 'boolean' ? stored.trashEnabled : DEFAULT_PERMISSION_CONFIG.trashEnabled,
         globalDefaultMode,
       }
     } catch { return clone(DEFAULT_PERMISSION_CONFIG) }
@@ -1608,6 +1610,7 @@ export class HarnessStore {
       ...current,
       autoApproveEnabled: typeof config.autoApproveEnabled === 'boolean' ? config.autoApproveEnabled : current.autoApproveEnabled,
       fullAccessEnabled: typeof config.fullAccessEnabled === 'boolean' ? config.fullAccessEnabled : current.fullAccessEnabled,
+      trashEnabled: typeof config.trashEnabled === 'boolean' ? config.trashEnabled : current.trashEnabled,
       trashRetentionDays: Number.isInteger(config.trashRetentionDays) && config.trashRetentionDays >= 1 && config.trashRetentionDays <= 30
         ? config.trashRetentionDays
         : current.trashRetentionDays,
@@ -1615,7 +1618,7 @@ export class HarnessStore {
         ? config.globalDefaultMode
         : current.globalDefaultMode,
     }
-    if ((next.globalDefaultMode === 'auto-approve' && !next.autoApproveEnabled) || (next.globalDefaultMode === 'full' && !next.fullAccessEnabled)) next.globalDefaultMode = 'default'
+    next.globalDefaultMode = resolveAvailablePermission(next.globalDefaultMode, next)
     this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run('permission', JSON.stringify(next))
     return this.getPermissionConfig()
   }
@@ -1651,16 +1654,48 @@ export class HarnessStore {
     return this.getGitConfig()
   }
 
+  deleteProjectFile(sessionId: string, relativePath: string) {
+    const session = this.getSession(sessionId)
+    if (!session.projectId || !session.workingDirectory) throw new Error('请先选择项目目录')
+    const source = this.ensureInside(session.workingDirectory, resolve(session.workingDirectory, relativePath))
+    if (source === resolve(session.workingDirectory)) throw new Error('不能删除项目根目录')
+    this.ensureInside(realpathSync(session.workingDirectory), join(realpathSync(dirname(source)), basename(source)))
+    if (!existsSync(source)) throw new Error('文件不存在')
+    if (this.getPermissionConfig().trashEnabled) return { ...this.moveToTrash(sessionId, relativePath), trashed: true }
+    rmSync(source, { recursive: true })
+    return { path: relative(session.workingDirectory, source), trashed: false }
+  }
+
   moveToTrash(sessionId: string, relativePath: string) {
     const session = this.getSession(sessionId)
     if (!session.projectId || !session.workingDirectory) throw new Error('请先选择项目目录')
     const project = this.getProject(session.projectId)
-    const source = this.ensureInside(session.workingDirectory, join(session.workingDirectory, relativePath))
+    const source = this.ensureInside(session.workingDirectory, resolve(session.workingDirectory, relativePath))
+    if (source === resolve(session.workingDirectory)) throw new Error('不能删除项目根目录')
     if (!existsSync(source)) throw new Error('文件不存在')
+    relativePath = relative(session.workingDirectory, source)
     const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
-    const destination = join(this.paths.projectTrash(project.id), stamp, relativePath)
-    mkdirSync(dirname(destination), { recursive: true }); renameSync(source, destination)
+    const root = join(this.paths.projectTrash(project.id), stamp)
+    const staging = `${root}.pending`
+    const destination = join(staging, relativePath)
+    let copied = false
+    mkdirSync(dirname(destination), { recursive: true })
+    try {
+      try { renameSync(source, destination) }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+        cpSync(source, destination, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true, force: false, errorOnExist: true })
+        copied = true
+      }
+      renameSync(staging, root)
+    } catch (error) {
+      // A failed copy must not publish a partial entry or remove the original.
+      if (!copied && !existsSync(source) && existsSync(destination)) renameSync(destination, source)
+      if (existsSync(source)) rmSync(staging, { recursive: true, force: true })
+      throw error
+    }
     this.database.prepare('INSERT OR REPLACE INTO harness_settings(key, value) VALUES (?, ?)').run(`trash-directory:${project.id}:${stamp}`, session.workingDirectory)
+    if (copied) rmSync(source, { recursive: true })
     return { token: stamp, path: relativePath }
   }
 
@@ -1669,10 +1704,11 @@ export class HarnessStore {
     return projects.flatMap(project => {
       const root = this.paths.projectTrash(project.id)
       if (!existsSync(root)) return []
-      return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).flatMap(entry => {
+      return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.endsWith('.pending')).flatMap(entry => {
         const directory = join(root, entry.name)
         try {
-          return [{ token: entry.name, projectId: project.id, projectName: project.name, deletedAt: trashTime(entry.name, directory), paths: trashPaths(directory) }]
+          const paths = trashPaths(directory)
+          return paths.length ? [{ token: entry.name, projectId: project.id, projectName: project.name, deletedAt: trashTime(entry.name, directory), paths }] : []
         } catch (error) {
           console.warn(`[Mira] 无法读取回收站记录：${directory}`, error)
           return []
@@ -1692,7 +1728,7 @@ export class HarnessStore {
     const paths = trashPaths(root)
     const conflict = paths.find(path => existsSync(this.ensureInside(directory, join(directory, path))))
     if (conflict) throw new Error(`目标路径已存在，无法还原：${conflict}`)
-    for (const entry of readdirSync(root)) cpSync(join(root, entry), join(directory, entry), { recursive: true, force: false })
+    for (const entry of readdirSync(root)) cpSync(join(root, entry), join(directory, entry), { recursive: true, force: false, verbatimSymlinks: true })
     rmSync(root, { recursive: true, force: true })
     this.database.prepare('DELETE FROM harness_settings WHERE key = ?').run(key)
   }

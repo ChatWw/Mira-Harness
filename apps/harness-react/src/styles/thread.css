@@ -640,7 +640,8 @@
 .mira-task-change-history { margin-top: 16px; }
 .mira-task-change-history > summary { color: var(--color-foreground-subtle); font-size: var(--text-ui-sm); cursor: pointer; }
 
-.mira-reply-changes__header > .mira-message-action { display: inline-flex; flex: none; width: auto; align-items: center; gap: 5px; padding: 4px 6px; color: var(--color-foreground); }
+.mira-reply-changes__header .mira-message-action { display: inline-flex; flex: none; width: auto; align-items: center; gap: 5px; padding: 4px 6px; color: var(--color-foreground); white-space: nowrap; }
+.mira-reply-changes__header .mira-message-action svg { flex: none; }
 
 /* Match ZCode ControlHintTooltip sizing in the history editor. */
 .mira-history-edit-hint { padding: 4px 10px; font-size: 12px; font-weight: 500; line-height: 18px; box-shadow: none; }

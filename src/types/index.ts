@@ -199,6 +199,7 @@ export interface PlatformApi {
   getGlobalInstructions(): Promise<string>
   saveGlobalInstructions(content: string): Promise<string>
   getGlobalInstructionsPath(): Promise<string>
+  revealHarnessSettingsFile(kind: 'instructions' | 'memory'): Promise<void>
   getHarnessMemoryEnabled(): Promise<boolean>
   setHarnessMemoryEnabled(enabled: boolean): Promise<boolean>
   getHarnessMemoryPath(): Promise<string>

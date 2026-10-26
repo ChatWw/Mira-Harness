@@ -10,8 +10,9 @@ import * as Popover from '@radix-ui/react-popover'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Dialog from '@radix-ui/react-dialog'
 import { ArrowUp, Blocks, Bot, Brain, Check, ChevronDown, Circle, CircleAlert, FileText, Folder, Hand, Lightbulb, LoaderCircle, MessageSquare, Minimize2, Package, Paperclip, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Square, Goal, Workflow, WandSparkles, Wrench, X } from 'lucide-react'
-import { isModelProviderAvailable, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type HarnessSideConversationInput, type HarnessSubtaskRole, type ModelSelection, type PermissionMode, type SendShortcut } from '../../../../../src/config/harness'
+import { DEFAULT_PERMISSION_CONFIG, isModelProviderAvailable, shouldSendWithShortcut, type HarnessContextUsage, type HarnessFileReference, type HarnessMessageSubmissionOptions, type HarnessQueuedMessage, type HarnessSideConversationInput, type HarnessSubtaskRole, type ModelSelection, type PermissionConfig, type PermissionMode, type SendShortcut } from '../../../../../src/config/harness'
 import { MIRA_SUBTASK_AGENTS } from '../../../../../src/config/miraAgents'
+import { resolveAvailablePermission } from '../../../../../src/config/harnessPermissions'
 import { parseMiraGoalCommand } from '../../../../../src/config/miraGoals'
 import type { PilotController } from '../../state/pilot-state'
 import { cn } from '../../lib/utils'
@@ -99,6 +100,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const [fileDrafts, setFileDrafts] = useState<Record<string, HarnessFileReference[]>>({})
   const [documents, setDocuments] = useState<Record<string, MiraPromptDocument | undefined>>({})
   const [draftPermission, setDraftPermission] = useState<PermissionMode>('default')
+  const [permissionConfig, setPermissionConfig] = useState<PermissionConfig>(DEFAULT_PERMISSION_CONFIG)
+  const [permissionConfigLoaded, setPermissionConfigLoaded] = useState(!controller.supportsPermissionConfig)
+  const [permissionConfigError, setPermissionConfigError] = useState('')
+  const [permissionConfigRetry, setPermissionConfigRetry] = useState(0)
   const [draftSkillIds, setDraftSkillIds] = useState<string[]>([])
   const [draftMcpIds, setDraftMcpIds] = useState<string[]>([])
   const [draftDelegation, setDraftDelegation] = useState(true)
@@ -227,7 +232,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   // 会话配置是宿主快照的事实来源；切换任务时不能用本地空数组覆盖已持久化选择。
   const activeSkillIds = state.session?.activeSkillIds ?? (sessionId ? [] : draftSkillIds)
   const activeMcpIds = state.session?.activeMcpServerIds ?? (sessionId ? [] : draftMcpIds)
-  const permission = permissions[draftKey] ?? state.session?.permissionMode ?? draftPermission
+  const selectedPermission = permissions[draftKey] ?? state.session?.permissionMode ?? (controller.supportsPermissionConfig ? permissionConfig.globalDefaultMode : draftPermission)
+  const permission = resolveAvailablePermission(selectedPermission, permissionConfig)
+  const disabledPermissions: PermissionMode[] = [...(!permissionConfig.autoApproveEnabled ? ['auto-approve' as const] : []), ...(!permissionConfig.fullAccessEnabled ? ['full' as const] : [])]
+  const availablePermissions = PERMISSIONS.filter(item => !disabledPermissions.includes(item.value))
   const selectedProject = state.projects.find(project => project.id === (state.session ? state.session.projectId : draftProjectId))
   const availableModels = choices(state)
   const selectedModel = availableModels.find(model => model.providerId === state.selection?.providerId && model.modelId === state.selection?.modelId)
@@ -243,7 +251,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const compactRunning = state.session?.activeRun?.kind === 'context-compaction'
   const compactBlocked = Boolean(!active || !preferencesLoaded || busy || submitting.includes(draftKey) || state.sessionLoading || compactionOperation.current || compactQueued || compactRunning)
   const nextConfigBlocked = interactionBlocked || !active || !preferencesLoaded || busy || state.sessionLoading || !queueSupported && (state.running || confirmationPending)
-  const permissionBlocked = submissionOptionsSupported ? nextConfigBlocked : configBlocked
+  const permissionBlocked = !permissionConfigLoaded || (submissionOptionsSupported ? nextConfigBlocked : configBlocked)
   const contextBlocked = nextConfigBlocked
   const inputBlocked = interactionBlocked || !active || state.sessionLoading || busy
   const menuFocus = { ownerKey: draftKey, active: active && !interactionBlocked && !state.sessionLoading, ready: !inputBlocked, onReturnFocus: () => editorRef.current?.focus() }
@@ -279,7 +287,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const sideCatalogReady = (!controller.supportsPromptCommands || catalogs.commands.status === 'ready') && (!controller.supportsPlugins || catalogs.plugins.status === 'ready')
   const sideCommandOverridden = (name: string) => catalogs.commands.items.some(command => command.name.toLowerCase() === name && !command.shadowed) || catalogs.plugins.items.some(plugin => (plugin.commands || []).some(command => `${plugin.name}:${command.name}`.toLowerCase() === name))
   const builtinSideInput = Boolean(sideCommand && (retryingSideInput || sideCatalogReady && !sideCommandOverridden(sideCommand[1].toLowerCase())))
-  const sendingBlocked = interactionBlocked || !active || !preferencesLoaded || busy || submitting.includes(draftKey) || recoveryWrites.includes(draftKey) || Boolean(recoverySaveErrors[draftKey]) || state.sessionLoading || !state.selection && !retryingSideInput && !localPlanControl && (!localGoalControl || nativeGoalCommand.action === 'resume') || !builtinSideInput && !localGoalControl && !queueSupported && (state.running || confirmationPending)
+  const sendingBlocked = interactionBlocked || !active || !permissionConfigLoaded || !preferencesLoaded || busy || submitting.includes(draftKey) || recoveryWrites.includes(draftKey) || Boolean(recoverySaveErrors[draftKey]) || state.sessionLoading || !state.selection && !retryingSideInput && !localPlanControl && (!localGoalControl || nativeGoalCommand.action === 'resume') || !builtinSideInput && !localGoalControl && !queueSupported && (state.running || confirmationPending)
   useEffect(() => {
     if (catalogs.userAgents.status !== 'ready') return
     const names = catalogs.userAgents.items.filter(agent => agent.enabled && !agent.shadowed && !agent.unavailableReason).map(agent => agent.name)
@@ -515,6 +523,34 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
 
   useEffect(() => { if (preferencesLoaded) onReady?.() }, [preferencesLoaded, onReady])
 
+  useEffect(() => {
+    if (!controller.supportsPermissionConfig || !active) return
+    let disposed = false, revision = 0
+    const load = async () => {
+      const current = ++revision
+      setPermissionConfigLoaded(false); setPermissionConfigError('')
+      try {
+        const config = await controller.getHarnessPermissionConfig()
+        if (!disposed && current === revision) { setPermissionConfig(config); setPermissionConfigLoaded(true) }
+      } catch {
+        if (!disposed && current === revision) setPermissionConfigError('权限设置读取失败，请重试；当前输入已保留。')
+      }
+    }
+    void load()
+    window.addEventListener('focus', load)
+    return () => { disposed = true; window.removeEventListener('focus', load) }
+  }, [controller, active, permissionConfigRetry])
+
+  useEffect(() => {
+    if (!preferencesLoaded || !permissionConfigLoaded || !active) return
+    const current = latestDraftSnapshot.current.permissions ?? {}
+    const values = Object.fromEntries(Object.entries(current).map(([owner, mode]) => [owner, resolveAvailablePermission(mode, permissionConfig)]))
+    if (permission !== selectedPermission) values[draftKey] = permission
+    if (JSON.stringify(current) === JSON.stringify(values)) return
+    latestDraftSnapshot.current = { ...latestDraftSnapshot.current, permissions: values }
+    setPermissions(values)
+  }, [preferencesLoaded, permissionConfigLoaded, active, permissionConfig, draftKey, permission, selectedPermission])
+
   useEffect(() => { onDraftChange?.(taskDraft) }, [taskDraft, onDraftChange])
 
   useEffect(() => {
@@ -526,6 +562,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     preferencesLoad.current = draftWriter.load().then(value => {
       if (cycle !== preferencesCycle.current) return
       const restored = withoutComposerDraftOwners(mergeComposerDrafts(readComposerDrafts(value), latestDraftSnapshot.current, editedConfig.current), removedDraftOwners.current)
+      // 旧草稿只保存 config.permission；只迁移实际草稿，不把旧任务的最后一次选择当作新任务默认值。
+      if (controller.supportsPermissionConfig && value && typeof value === 'object' && !('permissions' in value) && 'config' in value && !restored.permissions?.draft && (restored.drafts.draft || restored.fileDrafts.draft?.length || restored.draft && !restored.draft.sessionId)) {
+        restored.permissions = { ...restored.permissions, draft: restored.config.permission }
+      }
       const ownerId = restored.draft?.sessionId
       // Input entered before hydration joins the recovered owner instead of becoming an inaccessible anonymous draft.
       if (ownerId && (ownerTextRevisions.current.get('draft') ?? 0) > 0 && latestDraftSnapshot.current.drafts.draft) {
@@ -684,7 +724,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
             if (selection) controller.select(selection)
           } else if (event.key.toLowerCase() === 'm') {
             closeSuggestions()
-            if (event.shiftKey) { if (!permissionBlocked) selectPermission(PERMISSIONS[(PERMISSIONS.findIndex(item => item.value === permission) + 1) % PERMISSIONS.length].value) }
+            if (event.shiftKey) { if (!permissionBlocked) selectPermission(availablePermissions[(availablePermissions.findIndex(item => item.value === permission) + 1) % availablePermissions.length].value) }
             else { setModeOpen(false); setReasoningOpen(false); setModelOpen(open => !open) }
           }
         }
@@ -692,7 +732,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [active, keyboardActive, interactionBlocked, permissionBlocked, nextConfigBlocked, controller, sessionId, permission, selectedModel, reasoningLevel, state.running, suggestionsOpen, modeOpen, modelOpen, reasoningOpen, queueConfirmation])
+  }, [active, keyboardActive, interactionBlocked, permissionBlocked, nextConfigBlocked, controller, sessionId, permission, permissionConfig, selectedModel, reasoningLevel, state.running, suggestionsOpen, modeOpen, modelOpen, reasoningOpen, queueConfirmation])
   useEffect(() => {
     if (!active || !keyboardActive || !state.running || state.sessionLoading) return
     const stopFocusedTask = (event: globalThis.KeyboardEvent) => {
@@ -832,10 +872,10 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     try { await change() } finally { busyRef.current = false; setBusy(false) }
   }
   function selectPermission(next: PermissionMode) {
-    if (permissionBlocked) return
+    if (permissionBlocked || disabledPermissions.includes(next)) return
     editedConfig.current.add('permission')
     setDraftPermission(next)
-    if (submissionOptionsSupported) {
+    if (submissionOptionsSupported || !sessionId) {
       const values = { ...latestDraftSnapshot.current.permissions, [draftKey]: next }
       latestDraftSnapshot.current = { ...latestDraftSnapshot.current, permissions: values }
       setPermissions(values)
@@ -876,7 +916,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     setDraft('', 'draft')
     setReferences([], 'draft')
     const configurationWrites = [
-      ...(!submissionOptionsSupported && draftPermission !== 'default' ? [() => controller.setSessionPermission(createdId, draftPermission)] : []),
+      ...(!submissionOptionsSupported && permission !== created.session?.permissionMode ? [() => controller.setSessionPermission(createdId, permission)] : []),
       ...(draftSkillIds.length ? [() => controller.setSessionSkills(createdId, draftSkillIds)] : []),
       ...(draftMcpIds.length ? [() => controller.setSessionMcpServers(createdId, draftMcpIds)] : []),
       ...(!draftDelegation ? [() => controller.setSessionDelegation(createdId, false)] : []),
@@ -1533,6 +1573,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
     <Popover.Portal container={portalContainer}><Popover.Content ref={suggestionContentRef} tabIndex={-1} className="mira-composer-panel-popover" side="top" align="start" sideOffset={4} avoidCollisions={presentation.floating} collisionPadding={12} onOpenAutoFocus={event => { event.preventDefault(); focusSuggestionMenu() }} onCloseAutoFocus={event => event.preventDefault()} onInteractOutside={event => { const target = event.target as Node | null; if (target && (editorRef.current?.getElement()?.contains(target) || contextTriggerRef.current?.contains(target))) event.preventDefault() }} onEscapeKeyDown={escapeSuggestionMenu} onKeyDown={onSuggestionKeyDown}>
       <ComposerSuggestionPanel listId={suggestionListId} hasQuery={Boolean(suggestionQuery.trim())} sections={visibleSuggestionSections} selectedIndex={suggestionIndex} onHighlight={index => setHighlightedSuggestionId(suggestionItems[index]?.id)} onSelect={item => void selectSuggestion(item)} onTrigger={openPromptTrigger} />
     </Popover.Content></Popover.Portal>
+    {permissionConfigError && <div className="harness-composer__error" role="alert"><CircleAlert size={15} /><span>{permissionConfigError}</span><button type="button" onClick={() => setPermissionConfigRetry(value => value + 1)}>重试读取权限</button></div>}
     {interactionSlot && <div className="mira-interaction-dock">{interactionSlot}</div>}
     <div className="harness-composer__surface" hidden={interactionBlocked} inert={interactionBlocked} aria-hidden={interactionBlocked || undefined}>
       {(!sessionId || state.session?.draftState === 'prepared') && <div className="harness-composer__project-strip" style={{ visibility: suggestionsOpen ? 'hidden' : undefined }} inert={suggestionsOpen} aria-hidden={suggestionsOpen || undefined}>
@@ -1578,7 +1619,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               <DropdownMenu.Portal container={portalContainer}><DropdownMenu.Content align="start" side="top" sideOffset={4} className="harness-composer__menu harness-composer__mode-menu" {...permissionMenuFocus.contentProps} onEscapeKeyDown={escapeConfigurationMenu}>
                 <DropdownMenu.CheckboxItem className="harness-composer__menu-item harness-composer__mode-option" checked={planning} disabled={nextConfigBlocked} onCheckedChange={selectPlanning}><Lightbulb size={16} /><span><strong>计划模式</strong><small>先制定计划，确认后再执行</small></span><DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator></DropdownMenu.CheckboxItem>
                 <DropdownMenu.Separator className="harness-composer__menu-separator" />
-                <DropdownMenu.RadioGroup value={permission} onValueChange={value => selectPermission(value as PermissionMode)}><ComposerPermissionOptions /></DropdownMenu.RadioGroup>
+                <DropdownMenu.RadioGroup value={permission} onValueChange={value => selectPermission(value as PermissionMode)}><ComposerPermissionOptions disabled={disabledPermissions} /></DropdownMenu.RadioGroup>
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
             {planning && <><span className="mira-composer-plan-separator" /><ComposerControlHint title="关闭计划模式"><button type="button" data-mira-toolbar-priority="2" className="harness-composer__menu-trigger mira-composer-plan-marker" aria-label="关闭计划模式" disabled={nextConfigBlocked} onClick={() => { if (nextConfigBlocked) return; selectPlanning(false); editorRef.current?.focus() }}><Lightbulb size={16} className="mira-composer-plan-marker__bulb" /><X size={16} className="mira-composer-plan-marker__remove" /><span>计划</span></button></ComposerControlHint></>}

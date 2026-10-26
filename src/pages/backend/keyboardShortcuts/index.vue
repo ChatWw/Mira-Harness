@@ -1,8 +1,6 @@
 <template>
   <SettingsPageShell title="键盘快捷键" class="keyboard-shortcuts-page">
     <div class="keyboard-shortcuts">
-      <p class="page-description">查看 Mira 和 Harness 工作台已支持的快捷键。导航快捷键为固定预设；发送快捷键可在对话设置中调整。</p>
-
       <section class="shortcut-section" aria-labelledby="global-shortcuts-heading">
         <div class="section-heading">
           <h2 id="global-shortcuts-heading">Mira 全局快捷键</h2>
@@ -79,7 +77,6 @@ const harnessShortcuts = computed(() => [
 .keyboard-shortcuts-page :deep(.settings-page-header) { margin-bottom: 12px; }
 .keyboard-shortcuts-page :deep(.settings-page-header h1) { font-size: 22px; font-weight: 550; line-height: 30px; }
 .keyboard-shortcuts { max-width: 760px; }
-.page-description { margin: 0 0 24px; color: var(--cp-text-secondary); font-size: 13px; line-height: 1.6; }
 .section-heading { margin-bottom: 10px; }
 .section-heading h2 { margin: 0; font-size: 15px; font-weight: 550; line-height: 22px; }
 .shortcut-section + .shortcut-section { margin-top: 24px; }

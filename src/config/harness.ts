@@ -1008,6 +1008,7 @@ export interface PermissionConfig {
   autoApproveEnabled: boolean
   fullAccessEnabled: boolean
   dangerousCommands: string[]
+  trashEnabled: boolean
   trashRetentionDays: number
   trashDirName: string
 }
@@ -1017,6 +1018,7 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
   autoApproveEnabled: true,
   fullAccessEnabled: true,
   dangerousCommands: ['rm -rf /', 'rm -rf ~', 'sudo', 'mkfs', ' dd ', 'shutdown', 'reboot'],
+  trashEnabled: true,
   trashRetentionDays: 7,
   trashDirName: 'trash',
 }
