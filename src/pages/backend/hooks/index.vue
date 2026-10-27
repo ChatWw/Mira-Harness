@@ -1,50 +1,49 @@
 <template>
-  <SettingsPageShell title="事件钩子（Hooks）" wide>
+  <SettingsPageShell title="事件钩子（Hooks）" :show-title="false">
+    <template v-if="draft" #titlebar><nav class="mira-hooks__breadcrumb" aria-label="页面位置"><button type="button" :disabled="locked" aria-label="返回钩子列表" @click="close">事件钩子</button><AppIcon name="lucide:chevron-right" /><span>{{ draft.id ? items.find(item => item.id === draft?.id)?.name || '编辑钩子' : '新建钩子' }}</span></nav></template>
     <section class="mira-hooks" :aria-busy="loading">
-      <p class="mira-hooks__description">在会话、输入和工具执行的关键时机运行本地脚本。全局 Hook 用于所有项目，项目 Hook 仅用于所属项目；插件 Hook 需要单独审阅并授权。</p>
-      <div class="mira-hooks__toolbar">
-        <el-select :model-value="workspace" :disabled="locked" aria-label="Hook 作用范围" @change="selectWorkspace">
-          <el-option label="全局 · 所有项目" value="global" />
-          <el-option label="插件 · 已安装" value="plugins" />
-          <el-option v-for="project in projects" :key="project.id" :label="`项目 · ${project.name}`" :value="project.id" />
-        </el-select>
-        <el-input v-model="query" clearable aria-label="搜索 Hook" placeholder="搜索名称、事件或命令" />
-        <el-button :loading="loading" :disabled="locked" aria-label="刷新 Hooks" title="刷新 Hooks" @click="refresh"><AppIcon name="lucide:refresh-cw" /></el-button>
-        <el-button type="primary" :disabled="locked || !api?.hooks || workspace === 'plugins'" aria-label="新建 Hook" @click="create"><AppIcon name="Plus" />新建 Hook</el-button>
+      <template v-if="!draft">
+      <h1 class="mira-hooks__title">事件钩子（Hooks）</h1>
+      <div ref="directoryHeading" class="mira-hooks__toolbar" tabindex="-1">
+        <SettingsScopeSelect :model-value="workspace" :workspaces="projects" :extra-scopes="[{ id: 'plugins', name: '插件', icon: 'lucide:blocks' }]" :disabled="locked" aria-label="Hook 作用范围" @update:model-value="selectWorkspace" />
+        <span class="mira-hooks__divider" aria-hidden="true" /><span class="mira-hooks__count">钩子 <small>{{ filtered.length }}</small></span>
+        <label class="mira-hooks__search"><AppIcon name="lucide:search" /><input :value="query" @input="query = ($event.target as HTMLInputElement).value" type="search" aria-label="搜索 Hook" placeholder="搜索钩子…" /></label>
       </div>
+      <div class="mira-hooks__group-heading"><h2>{{ workspace === 'plugins' ? '插件提供' : '已安装' }} <small>{{ filtered.length }}</small></h2><div class="mira-hooks__actions"><el-button :loading="loading" :disabled="locked" aria-label="刷新 Hooks" title="刷新 Hooks" @click="refresh"><AppIcon name="lucide:refresh-cw" /></el-button><el-button type="primary" :disabled="locked || !api?.hooks || workspace === 'plugins'" aria-label="新建 Hook" @click="create"><AppIcon name="lucide:plus" />新建</el-button></div></div>
       <p v-if="workspace === 'plugins' && pluginFilter" class="mira-hooks__help">当前插件：{{ pluginFilter }} <el-button text :disabled="locked" aria-label="查看全部插件 Hooks" @click="pluginFilter = ''">查看全部插件 Hooks</el-button></p>
       <p v-if="loadError" class="mira-hooks__error" role="alert">{{ loadError }} <el-button text :disabled="locked" aria-label="重试加载 Hooks" @click="refresh">重试</el-button></p>
       <p v-if="feedback" class="mira-hooks__feedback" role="status">{{ feedback }}</p>
-
+      </template>
+      <header v-if="draft" class="mira-hooks__editor-heading"><h1 ref="editorHeading" tabindex="-1">{{ draft.id ? '编辑钩子' : '新建钩子' }}</h1></header>
       <section v-if="draft" class="mira-hooks__editor" aria-label="Hook 编辑器">
-        <div class="mira-hooks__heading"><h2>{{ draft.id ? '编辑 Hook' : '新建 Hook' }} · {{ draft.scope === 'project' ? '当前项目' : '全局' }}</h2><span v-if="dirty">未保存</span></div>
         <el-form label-position="top" :disabled="locked" @submit.prevent="save">
-          <el-form-item label="名称"><el-input v-model="draft.name" maxlength="120" aria-label="Hook 名称" placeholder="例如：检查文件写入" /></el-form-item>
+          <div class="mira-hooks__form-top"><el-form-item label="名称"><el-input v-model="draft.name" maxlength="120" aria-label="Hook 名称" placeholder="例如：检查文件写入" /></el-form-item><div class="mira-hooks__scope"><span>作用域</span><SettingsScopeSelect :model-value="draft.projectId || 'global'" :workspaces="projects" :disabled="locked || Boolean(draft.id)" aria-label="Hook 作用范围" @update:model-value="selectDraftWorkspace" /></div></div>
           <div class="mira-hooks__fields">
             <el-form-item label="事件"><el-select v-model="draft.event" aria-label="Hook 事件"><el-option v-for="event in MIRA_HOOK_EVENTS" :key="event" :label="event" :value="event" /></el-select></el-form-item>
             <el-form-item label="执行方式"><el-select v-model="draft.type" aria-label="Hook 执行方式"><el-option label="直接启动进程" value="process" /><el-option label="Shell 命令" value="command" /></el-select></el-form-item>
           </div>
-          <el-form-item label="匹配条件（可选）"><el-input v-model="draft.matcher" aria-label="Hook 匹配条件" placeholder="例如 write|edit" /><p class="mira-hooks__help">工具事件按工具名称匹配，留空匹配全部；会话事件不需要匹配条件。</p></el-form-item>
+          <el-form-item><template #label>匹配条件（可选）<SettingsTooltip content="工具事件按工具名称匹配，留空匹配全部；会话事件不需要匹配条件。" placement="top"><button type="button" class="mira-hooks__help-button" aria-label="匹配条件说明"><AppIcon name="lucide:circle-help" /></button></SettingsTooltip></template><el-input v-model="draft.matcher" aria-label="Hook 匹配条件" placeholder="例如 write|edit" /></el-form-item>
           <el-form-item :label="draft.type === 'process' ? '启动命令' : 'Shell 命令'"><el-input v-model="draft.command" aria-label="Hook 命令" :placeholder="draft.type === 'process' ? '例如 node 或 /usr/bin/python3' : '例如 ./scripts/check.sh'" /></el-form-item>
-          <el-form-item v-if="draft.type === 'process'" label="参数（每行一个）"><el-input v-model="draft.argsText" type="textarea" :rows="3" aria-label="Hook 参数" placeholder="scripts/check.mjs&#10;--strict" /><p class="mira-hooks__help">每行作为一个完整参数传入，包含空格的参数无需加引号。</p></el-form-item>
+          <el-form-item v-if="draft.type === 'process'" label="参数（每行一个）"><el-input v-model="draft.argsText" type="textarea" :rows="3" aria-label="Hook 参数" placeholder="scripts/check.mjs&#10;--strict" /></el-form-item>
           <template v-else>
             <el-form-item label="Shell（可选）"><el-input v-model="draft.shell" aria-label="Hook Shell" placeholder="留空使用系统默认 Shell" /></el-form-item>
-            <el-form-item label="异步执行"><el-switch v-model="draft.async" aria-label="异步执行 Hook" /><p class="mira-hooks__help">异步命令不会阻塞当前任务；返回结果不能阻止操作或更改权限决定。</p></el-form-item>
+            <div class="mira-hooks__switch-row"><span>异步执行<SettingsTooltip content="异步命令不会阻塞当前任务；返回结果不能阻止操作或更改权限决定。" placement="top"><button type="button" class="mira-hooks__help-button" aria-label="异步执行说明"><AppIcon name="lucide:circle-help" /></button></SettingsTooltip></span><el-switch v-model="draft.async" aria-label="异步执行 Hook" /></div>
           </template>
           <details class="mira-hooks__advanced">
-            <summary>高级配置</summary>
+            <summary><AppIcon name="lucide:chevron-right" />高级配置</summary>
             <div class="mira-hooks__fields">
-              <el-form-item label="超时（秒）"><el-input v-model="draft.timeoutText" type="number" min="1" max="600" aria-label="Hook 超时秒数" /><p class="mira-hooks__help">默认 60 秒，可填写 1–600 的整数。</p></el-form-item>
+              <el-form-item label="超时（秒）"><el-input v-model="draft.timeoutText" type="number" min="1" max="600" aria-label="Hook 超时秒数" placeholder="60" /></el-form-item>
               <el-form-item label="运行状态说明（可选）"><el-input v-model="draft.statusMessage" aria-label="Hook 运行状态说明" placeholder="例如：正在检查文件…" /></el-form-item>
             </div>
             <el-form-item label="自定义数据（可选，JSON 对象）"><el-input v-model="draft.customText" type="textarea" :rows="4" aria-label="Hook 自定义 JSON" spellcheck="false" placeholder='{"team": "writing"}' /></el-form-item>
           </details>
-          <el-form-item label="启用"><el-switch v-model="draft.enabled" aria-label="启用 Hook" /><p class="mira-hooks__help">启用后，事件发生时自动执行已确认的命令。</p></el-form-item>
+          <div class="mira-hooks__switch-row"><span>启用<SettingsTooltip content="事件发生时自动执行；新建或修改脚本后仍需审阅并信任。" placement="top"><button type="button" class="mira-hooks__help-button" aria-label="启用钩子说明"><AppIcon name="lucide:circle-help" /></button></SettingsTooltip></span><el-switch v-model="draft.enabled" aria-label="启用 Hook" /></div>
         </el-form>
         <p v-if="editorError" class="mira-hooks__error" role="alert">{{ editorError }}</p>
-        <div class="mira-hooks__actions"><el-button type="primary" :loading="saving" :disabled="locked" aria-label="保存 Hook" @click="save">保存</el-button><el-button :disabled="locked" aria-label="取消 Hook 编辑" @click="close">取消</el-button></div>
+        <div class="mira-hooks__actions mira-hooks__editor-actions"><span v-if="dirty" class="mira-hooks__unsaved" role="status">未保存</span><el-button type="primary" :loading="saving" :disabled="locked || !dirty || !draft.name.trim() || !draft.command.trim()" aria-label="保存 Hook" @click="save">保存</el-button><el-button text :disabled="locked" aria-label="取消 Hook 编辑" @click="close">取消</el-button></div>
       </section>
 
+      <template v-if="!draft">
       <div v-if="loading && !items.length" class="mira-hooks__loading" aria-label="正在加载 Hooks"><el-skeleton :rows="3" animated /></div>
       <div v-else-if="filtered.length" class="mira-hooks__list">
         <article v-for="item in filtered" :key="item.id" class="mira-hooks__row" :data-hook-id="item.id" :data-hook-event="item.event" :data-hook-status="status(item)" :data-hook-scope="item.scope">
@@ -64,7 +63,8 @@
           </div>
         </article>
       </div>
-      <p v-else-if="!loadError" class="mira-hooks__empty">{{ query.trim() ? '没有匹配的 Hook，试试其他名称或事件。' : workspace === 'plugins' ? '当前没有插件 Hook。可在插件市场添加含 Hook 的插件，或查看其他已安装插件。' : '还没有配置 Hook。新建一个 Hook，选择事件和要运行的本地脚本。' }}</p>
+      <div v-else-if="!loadError" class="mira-hooks__empty"><h3>{{ query.trim() ? '没有匹配的 Hook' : workspace === 'plugins' ? '尚无插件钩子' : '尚未安装钩子' }}</h3><p>{{ query.trim() ? '尝试其他名称、事件或命令。' : workspace === 'plugins' ? '在插件市场添加含钩子的插件后，可在这里审阅并授权。' : '新建钩子，以在任务生命周期事件中运行命令。' }}</p><el-button v-if="!query.trim() && workspace !== 'plugins'" type="primary" :disabled="!api?.hooks" aria-label="新建 Hook" @click="create"><AppIcon name="lucide:plus" />新建钩子</el-button></div>
+      </template>
     </section>
   </SettingsPageShell>
 </template>
@@ -72,13 +72,15 @@
 <script setup lang="ts">
 /* Hook settings semantics adapted from ZCode; Copyright 2026 Z.AI Co., Ltd.
  * Apache-2.0; see third-party-licenses/zcode. */
-import { computed, h, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'
 import type { HarnessProject } from '@/config/harness'
 import { MIRA_HOOK_EVENTS, type MiraHookItem, type MiraHookWrite, type MiraHookEvent, type MiraHookScope, type MiraHookEditableScope } from '@/config/miraHooks'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import SettingsScopeSelect from '../settings/components/SettingsScopeSelect.vue'
+import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 
 const api = getPlatformApi(), route = useRoute()
 const projects = shallowRef<HarnessProject[]>([]), items = shallowRef<MiraHookItem[]>([])
@@ -86,8 +88,9 @@ const pluginFilter = ref(typeof route.query.plugin === 'string' ? route.query.pl
 const workspace = ref(pluginFilter.value ? 'plugins' : typeof route.query.project === 'string' ? route.query.project : 'global'), query = ref('')
 const loading = ref(false), saving = ref(false), loadError = ref(''), editorError = ref(''), feedback = ref('')
 const rowPending = ref<Record<string, 'delete' | 'toggle' | 'trust' | 'revoke'>>({}), rowErrors = ref<Record<string, string>>({})
-type Draft = { id?: string; scope: MiraHookEditableScope; revision?: string; name: string; event: MiraHookEvent; type: 'command' | 'process'; matcher: string; command: string; argsText: string; shell: string; async: boolean; timeoutText: string; statusMessage: string; customText: string; enabled: boolean }
+type Draft = { id?: string; scope: MiraHookEditableScope; projectId?: string; revision?: string; name: string; event: MiraHookEvent; type: 'command' | 'process'; matcher: string; command: string; argsText: string; shell: string; async: boolean; timeoutText: string; statusMessage: string; customText: string; enabled: boolean }
 const draft = ref<Draft>()
+const editorHeading = ref<HTMLHeadingElement>(), directoryHeading = ref<HTMLDivElement>()
 let original = '', disposed = false, sequence = 0
 const locked = computed(() => loading.value || saving.value || Object.keys(rowPending.value).length > 0)
 const dirty = computed(() => Boolean(draft.value && JSON.stringify(draft.value) !== original))
@@ -132,14 +135,20 @@ async function selectWorkspace(value: string) {
 async function create() {
   if (workspace.value === 'plugins') return
   if (!await mayDiscard()) return
-  setDraft({ scope: workspace.value === 'global' ? 'global' : 'project', name: '', event: 'PreToolUse', type: 'process', matcher: '', command: '', argsText: '', shell: '', async: false, timeoutText: '60', statusMessage: '', customText: '', enabled: true }); feedback.value = ''
+  setDraft({ scope: workspace.value === 'global' ? 'global' : 'project', ...(workspace.value !== 'global' ? { projectId: workspace.value } : {}), name: '', event: 'PreToolUse', type: 'process', matcher: '', command: '', argsText: '', shell: '', async: false, timeoutText: '60', statusMessage: '', customText: '', enabled: true }); feedback.value = ''
+  await nextTick(); editorHeading.value?.focus?.()
+}
+function selectDraftWorkspace(value: string) {
+  if (!draft.value || draft.value.id || locked.value || value !== 'global' && !projects.value.some(project => project.id === value)) return
+  draft.value.scope = value === 'global' ? 'global' : 'project'; draft.value.projectId = value === 'global' ? undefined : value
 }
 async function edit(item: MiraHookItem) {
   if (item.scope === 'plugin') return
   if (!await mayDiscard()) return
-  setDraft({ id: item.id, revision: item.revision, scope: item.scope, name: item.name, event: item.event, type: item.type, matcher: item.matcher || '', command: item.command, argsText: (item.args || []).join('\n'), shell: typeof item.shell === 'string' ? item.shell : '', async: item.async || false, timeoutText: String(item.timeout ?? 60), statusMessage: item.statusMessage || '', customText: item.custom && Object.keys(item.custom).length ? JSON.stringify(item.custom, null, 2) : '', enabled: item.enabled }); feedback.value = ''
+  setDraft({ id: item.id, revision: item.revision, scope: item.scope, ...(item.scope === 'project' ? { projectId: workspace.value } : {}), name: item.name, event: item.event, type: item.type, matcher: item.matcher || '', command: item.command, argsText: (item.args || []).join('\n'), shell: typeof item.shell === 'string' ? item.shell : '', async: item.async || false, timeoutText: String(item.timeout ?? 60), statusMessage: item.statusMessage || '', customText: item.custom && Object.keys(item.custom).length ? JSON.stringify(item.custom, null, 2) : '', enabled: item.enabled }); feedback.value = ''
+  await nextTick(); editorHeading.value?.focus?.()
 }
-async function close() { if (await mayDiscard()) setDraft() }
+async function close() { if (await mayDiscard()) { setDraft(); await nextTick(); directoryHeading.value?.focus?.() } }
 function replace(item: MiraHookItem) { sequence++; const exists = items.value.some(value => value.id === item.id); items.value = exists ? items.value.map(value => value.id === item.id ? item : value) : [...items.value, item] }
 function payload(value: Draft): MiraHookWrite {
   if (!value.name.trim()) throw new Error('请填写 Hook 名称')
@@ -160,9 +169,12 @@ async function save() {
   editorError.value = ''; feedback.value = ''
   try {
     const value = payload(draft.value); saving.value = true
-    const result = await hooksApi().save({ ...value, ...request(value.scope) })
+    const targetWorkspace = draft.value.projectId || 'global'
+    const result = await hooksApi().save({ ...value, ...(value.scope === 'project' ? { projectId: draft.value.projectId } : {}) })
     if (disposed) return
     replace(result); setDraft(); feedback.value = result.trusted ? 'Hook 已保存。' : 'Hook 已保存，信任并启用后才会运行。'
+    if (workspace.value !== targetWorkspace) { workspace.value = targetWorkspace; await load() }
+    await nextTick(); directoryHeading.value?.focus?.()
   } catch (failure) { if (!disposed) editorError.value = `未保存：${safeError(failure)} 编辑内容已保留，可重试。` }
   finally { if (!disposed) saving.value = false }
 }
@@ -220,22 +232,43 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
-.mira-hooks__description, .mira-hooks__help, .mira-hooks__empty { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
-.mira-hooks__description { margin: 0 0 20px; max-width: 75ch; }
-.mira-hooks__toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
-.mira-hooks__toolbar .el-select { flex: 0 1 240px; min-width: 160px; }
-.mira-hooks__toolbar .el-input { flex: 1; min-width: 120px; }
+.mira-hooks__help { color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
+.mira-hooks__title { margin: 0 0 32px; font-size: var(--settings-text-title); font-weight: 550; letter-spacing: -0.02em; line-height: 1.333333; }
+.mira-hooks__toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.mira-hooks__toolbar:focus, .mira-hooks__editor-heading h1:focus { outline: none; }
+.mira-hooks__divider { width: 1px; height: 16px; background: var(--cp-border-light); }
+.mira-hooks__count, .mira-hooks__group-heading h2 { font-size: var(--settings-text-base); font-weight: 500; }
+.mira-hooks small { margin-left: 6px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); font-weight: 400; }
+.mira-hooks__search { display: flex; align-items: center; gap: 8px; width: 256px; box-sizing: border-box; margin-left: auto; padding: 8px 11px; border: 1px solid var(--cp-border-light); border-radius: 12px; color: var(--cp-text-secondary); }
+.mira-hooks__search:focus-within { border-color: var(--cp-border); }
+.mira-hooks__search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: none; color: var(--cp-text); font: inherit; font-size: 12px; }
+.mira-hooks__search :deep(.app-icon) { flex: none; width: 12px; height: 12px; }
+.mira-hooks__group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.mira-hooks__group-heading h2 { margin: 0; }
 .mira-hooks__toolbar :deep(.el-button + .el-button), .mira-hooks__actions :deep(.el-button + .el-button) { margin-left: 0; }
-.mira-hooks__toolbar :deep(.app-icon) { margin-right: 4px; }
-.mira-hooks__editor { margin-bottom: 20px; padding: 20px; border: 1px solid var(--cp-border-light); border-radius: $radius-md; }
-.mira-hooks__heading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.mira-hooks__heading h2 { margin: 0; font-size: var(--settings-text-section); font-weight: 550; }
-.mira-hooks__heading span { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
-.mira-hooks__fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.mira-hooks__group-heading :deep(.el-button--primary .app-icon), .mira-hooks__empty :deep(.app-icon) { margin-right: 4px; }
+.mira-hooks__editor { padding: 16px; border: 1px solid var(--cp-border-light); border-radius: 12px; }
+.mira-hooks__editor-heading { margin-bottom: 16px; }
+.mira-hooks__editor-heading h1 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; }
+.mira-hooks__form-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.mira-hooks__form-top > :deep(.el-form-item) { width: 224px; }
+.mira-hooks__scope { display: flex; align-items: center; gap: 8px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
+.mira-hooks__fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .mira-hooks__fields :deep(.el-select) { width: 100%; }
+.mira-hooks__editor :deep(.el-form-item) { margin-bottom: 12px; }
+.mira-hooks__editor :deep(.el-form-item__label) { margin-bottom: 6px; line-height: 20px; font-size: var(--settings-text-base); }
+.mira-hooks__editor :deep(input::placeholder), .mira-hooks__editor :deep(textarea::placeholder), .mira-hooks__search input::placeholder { color: var(--cp-text-secondary); opacity: 1; }
+.mira-hooks__switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: var(--cp-bg-elevated); font-size: var(--settings-text-base); }
+.mira-hooks__help-button { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 20px; height: 20px; margin-left: 4px; padding: 3px; border: 0; border-radius: 6px; background: transparent; color: var(--cp-text-tertiary); cursor: help; }
+.mira-hooks__help-button:hover { background: var(--cp-bg-hover); color: var(--cp-text); }
+.mira-hooks__help-button :deep(.app-icon) { width: 14px; height: 14px; }
+.mira-hooks__help-button:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: 2px; }
 .mira-hooks__help { margin: 6px 0 0; width: 100%; }
-.mira-hooks__advanced { margin-bottom: 20px; padding-top: 14px; border-top: 1px solid var(--cp-border-light); }
-.mira-hooks__advanced summary { cursor: pointer; font-size: var(--settings-text-base); margin-bottom: 12px; }
+.mira-hooks__advanced { margin-bottom: 12px; padding-top: 12px; border-top: 1px solid var(--cp-border-light); }
+.mira-hooks__advanced summary { display: flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; font-size: var(--settings-text-base); margin-bottom: 12px; }
+.mira-hooks__advanced summary::-webkit-details-marker { display: none; }
+.mira-hooks__advanced summary :deep(.app-icon) { width: 14px; height: 14px; color: var(--cp-text-secondary); }
+.mira-hooks__advanced[open] summary :deep(.app-icon) { transform: rotate(90deg); }
 .mira-hooks__advanced summary:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: 3px; }
 .mira-hooks__editor :deep(textarea), .mira-hooks__command { font: 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; caret-color: var(--cp-text); }
 .mira-hooks__list { overflow: hidden; border-radius: $radius-md; background: var(--cp-bg-elevated); }
@@ -250,9 +283,24 @@ onMounted(load)
 .mira-hooks__identity .mira-hooks__command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mira-hooks__row[data-hook-scope='plugin'] .mira-hooks__command { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mira-hooks__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mira-hooks__editor-actions { justify-content: flex-end; }
+.mira-hooks__unsaved { color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
+.mira-hooks__empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 168px; box-sizing: border-box; gap: 10px; padding: 24px; border: 1px dashed var(--cp-border); border-radius: 12px; text-align: center; }
+.mira-hooks__empty h3 { margin: 0; font-size: var(--settings-text-base); font-weight: 500; }
+.mira-hooks__empty p { margin: 0 0 4px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6; }
+.mira-hooks__breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--cp-text); font-size: var(--settings-text-base); }
+.mira-hooks__breadcrumb button { padding: 0; border: 0; background: transparent; color: var(--cp-text-secondary); font: inherit; cursor: pointer; }
+.mira-hooks__breadcrumb button:hover { color: var(--cp-text); }
+.mira-hooks__breadcrumb :deep(.app-icon) { width: 14px; color: var(--cp-text-tertiary); }
 .mira-hooks__error, .mira-hooks__identity .mira-hooks__error { color: color-mix(in srgb, var(--cp-danger) 75%, var(--cp-text)); font-size: var(--settings-text-base); line-height: 1.6; overflow-wrap: anywhere; }
 .mira-hooks__feedback { font-size: var(--settings-text-base); }
 .mira-hooks__loading { padding: 20px; min-height: 120px; }
+@media (max-width: 900px) {
+  .mira-hooks__search { width: 100%; margin-left: 0; }
+  .mira-hooks__row { flex-wrap: wrap; }
+  .mira-hooks__fields { grid-template-columns: minmax(0, 1fr); }
+  .mira-hooks__form-top > :deep(.el-form-item) { width: 100%; }
+}
 :global(.mira-hook-review) { width: min(640px, calc(100vw - 32px)); }
 :global(.mira-hook-review .el-message-box__message) { max-height: 50vh; overflow: auto; }
 :global(.mira-hook-review__content p) { margin: 0; overflow-wrap: anywhere; }

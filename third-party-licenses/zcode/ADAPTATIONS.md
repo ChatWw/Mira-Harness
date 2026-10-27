@@ -666,3 +666,5 @@ Mira 在 `miraPluginHooks.ts`、`HarnessHookCatalog` 和既有 Hook runner 中�
 2026-10-26 设置范围选择器：参考 `packages/ui/src/settings/PluginScopeMenu.tsx`、`components/ui/dropdown-menu.tsx` 和 `button.tsx` 的胶囊触发器、256px 菜单、当前项右侧勾选与工作区分组，改编为 Mira Vue `SettingsScopeSelect.vue`。沿用 Element Plus 的弹层定位、键盘导航和关闭交互；用户本机范围命名为“全局”，工作区显示 Mira 传入的名称，工具与扩展仅提供全局。未移植上游远程主机、RPC 或工作区目录读取；原 Apache LICENSE/NOTICE 保持。
 
 2026-10-27 MCP 外部导入：参考 ZCode 的 McpSettingsSection、PluginInstallEmptyState、SettingsResourceHeaderActions、ExternalAgentImportDialog 及 settingsSyncService，补齐空状态的新建与导入按钮、更多菜单及来源分组/逐项选择/导入结果。改编为 Mira Vue 与受控 Electron IPC，只合并到 Mira 全局配置，保留同名项，不写回来源文件；TOML 沿用 smol-toml 解析，原 Apache LICENSE/NOTICE 保持。
+
+2026-10-27 命令与钩子设置：参考 `CommandsSection.tsx`、`CommandForm.tsx`、`HooksSection.tsx`、`HookForm.tsx`、`SettingsFormActions` 及空状态的目录工具栏、分组、表单与二级面包屑布局。Mira 使用 Vue/Element Plus、共享作用域选择器，新增和编辑统一进入二级页；命令支持结构化字段、保留原文的 Markdown 编辑和用户选择的 Markdown 文件导入草稿。保留 Mira 的名称规则、项目身份、版本冲突与钩子逐内容授权；未移植上游 RPC 和外部 Agent 扫描服务。原 Apache LICENSE/NOTICE 保持。

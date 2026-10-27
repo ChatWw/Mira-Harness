@@ -1,11 +1,12 @@
 <template>
   <el-dropdown ref="dropdown" trigger="click" placement="bottom-start" :disabled="disabled" :show-arrow="false" :offset="2" popper-class="settings-scope-menu" @command="select" @visible-change="open = $event">
     <button ref="trigger" type="button" class="settings-scope-trigger" :disabled="disabled" :aria-label="`设置范围：${selected?.name || '全局'}`" :aria-expanded="open" @keydown.esc.stop.prevent="close">
-      <AppIcon :name="selected ? 'lucide:folder' : 'lucide:monitor'" /><span>{{ selected?.name || '全局' }}</span><AppIcon class="settings-scope-chevron" name="lucide:chevron-down" />
+      <AppIcon :name="extraScopes.find(scope => scope.id === modelValue)?.icon || (selected ? 'lucide:folder' : 'lucide:monitor')" /><span>{{ selected?.name || '全局' }}</span><AppIcon class="settings-scope-chevron" name="lucide:chevron-down" />
     </button>
     <template #dropdown>
       <el-dropdown-menu aria-label="设置范围" @keydown.esc.stop.prevent="close">
         <el-dropdown-item command="global" :aria-current="modelValue === 'global' ? 'true' : undefined"><AppIcon name="lucide:monitor" /><span>全局</span><AppIcon v-if="modelValue === 'global'" class="settings-scope-check" name="lucide:check" /></el-dropdown-item>
+        <el-dropdown-item v-for="scope in extraScopes" :key="scope.id" :command="scope.id" :aria-current="modelValue === scope.id ? 'true' : undefined"><AppIcon :name="scope.icon" /><span>{{ scope.name }}</span><AppIcon v-if="modelValue === scope.id" class="settings-scope-check" name="lucide:check" /></el-dropdown-item>
         <template v-if="workspaces.length">
           <li class="settings-scope-separator" role="separator" />
           <li class="settings-scope-heading" role="presentation">工作区</li>
@@ -26,15 +27,16 @@ import type { DropdownInstance } from 'element-plus'
 const props = withDefaults(defineProps<{
   modelValue: string
   workspaces?: Array<{ id: string; name: string }>
+  extraScopes?: Array<{ id: string; name: string; icon: string }>
   disabled?: boolean
-}>(), { workspaces: () => [], disabled: false })
+}>(), { workspaces: () => [], extraScopes: () => [], disabled: false })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const open = ref(false), trigger = ref<HTMLButtonElement>()
 const dropdown = ref<DropdownInstance>()
-const selected = computed(() => props.workspaces.find(workspace => workspace.id === props.modelValue))
+const selected = computed(() => [...props.workspaces, ...props.extraScopes].find(workspace => workspace.id === props.modelValue))
 function close() { dropdown.value?.handleClose(); trigger.value?.focus() }
 function select(value: string) {
-  if (props.disabled || value !== 'global' && !props.workspaces.some(workspace => workspace.id === value)) return
+  if (props.disabled || value !== 'global' && ![...props.workspaces, ...props.extraScopes].some(workspace => workspace.id === value)) return
   if (value !== props.modelValue) emit('update:modelValue', value)
   trigger.value?.focus()
 }

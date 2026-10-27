@@ -8,7 +8,9 @@ const host = vi.hoisted(() => ({ api: undefined as any, route: { query: {} as Re
 vi.mock('@/platform', () => ({ getPlatformApi: () => host.api }))
 vi.mock('vue-router', () => ({ useRoute: () => host.route, onBeforeRouteLeave: (guard: () => Promise<boolean>) => { host.leave = guard } }))
 vi.mock('element-plus', () => ({ ElMessageBox: { confirm: host.confirm } }))
-vi.mock('../src/pages/backend/settings/components/SettingsPageShell.vue', () => ({ default: { setup: (_: unknown, { slots }: any) => () => h('main', slots.default?.()) } }))
+vi.mock('../src/pages/backend/settings/components/SettingsPageShell.vue', () => ({ default: { setup: (_: unknown, { slots }: any) => () => h('main', [slots.titlebar?.(), slots.default?.()]) } }))
+vi.mock('../src/pages/backend/settings/components/SettingsScopeSelect.vue', () => ({ default: { props: ['modelValue', 'workspaces', 'disabled'], emits: ['update:modelValue'], setup: (props: any, { emit }: any) => () => h('ElSelect', { 'aria-label': 'Hook 作用范围', 'model-value': props.modelValue, disabled: props.disabled, onChange: (value: string) => emit('update:modelValue', value) }) } }))
+vi.mock('../src/pages/backend/settings/components/SettingsTooltip.vue', () => ({ default: { props: ['content'], setup: (props: any, { slots }: any) => () => h('span', { 'data-help': props.content }, slots.default?.()) } }))
 const ActualPage = withVueClientRender(Page, new URL('../src/pages/backend/hooks/index.vue', import.meta.url))
 const passthrough = (tag: string) => defineComponent({ inheritAttrs: false, setup: (_props, { attrs, slots }) => () => h(tag, attrs, slots.default?.()) })
 const components = Object.fromEntries(['ElSelect', 'ElOption', 'ElButton', 'ElSwitch', 'ElTag', 'ElForm', 'ElFormItem', 'ElInput', 'ElSkeleton', 'AppIcon'].map(name => [name, passthrough(name)]))
@@ -25,8 +27,8 @@ function setup() {
   const renderer = createVueNodeRenderer(), { app } = renderer.mount(ActualPage, {}, components); mounted.push(app)
   const find = (predicate: (node: VueTestNode) => boolean) => { const value = renderer.all().find(predicate); if (!value) throw new Error('Missing Hook settings control'); return value }
   const text = (node: VueTestNode): string => node.text + node.children.map(text).join('')
-  const click = async (label: string) => { await (find(node => node.type === 'ElButton' && node.props['aria-label'] === label).props.onClick as () => Promise<void>)(); await drain() }
-  const input = async (label: string, value: unknown) => { (find(node => node.props['aria-label'] === label).props['onUpdate:modelValue'] as (value: unknown) => void)(value); await drain() }
+  const click = async (label: string) => { await (find(node => ['ElButton', 'button'].includes(node.type) && node.props['aria-label'] === label).props.onClick as () => Promise<void>)(); await drain() }
+  const input = async (label: string, value: unknown) => { const node = find(node => node.props['aria-label'] === label); if (node.type === 'input') (node.props.onInput as any)({ target: { value } }); else (node.props['onUpdate:modelValue'] as (value: unknown) => void)(value); await drain() }
   const change = async (label: string, value: unknown) => { await (find(node => node.props['aria-label'] === label).props.onChange as (value: unknown) => Promise<void>)(value); await drain() }
   return { renderer, click, input, change, find, text: () => text(renderer.root) }
 }
@@ -40,6 +42,45 @@ beforeEach(() => {
 afterEach(() => { mounted.splice(0).forEach(app => app.unmount()) })
 
 describe('real Vue Hook settings event forms and revision-bound operations', () => {
+  it.each(['create', 'edit'])('uses a secondary page for %s and restores the directory on cancel', async mode => {
+    const view = setup(); await drain(); await view.click(mode === 'create' ? '新建 Hook' : '编辑 检查文件')
+    expect(view.text()).toContain(mode === 'create' ? '新建钩子' : '编辑钩子')
+    expect(view.renderer.all().some(node => node.props.class === 'mira-hooks__toolbar' || node.props.class === 'mira-hooks__list' || node.props['aria-label'] === '搜索 Hook')).toBe(false)
+    expect(view.renderer.all().some(node => node.props['data-hook-id'] || node.props['aria-label'] === '刷新 Hooks')).toBe(false)
+    expect(view.find(node => node.props['aria-label'] === '页面位置').children.map(node => node.text).join('')).toContain(mode === 'create' ? '新建钩子' : '检查文件')
+    expect(view.find(node => node.props['aria-label'] === 'Hook 作用范围').props.disabled).toBe(mode === 'edit')
+    await view.click('取消 Hook 编辑')
+    expect(view.renderer.all().some(node => node.props['aria-label'] === '搜索 Hook')).toBe(true)
+    expect(view.find(node => node.props['data-hook-id'] === 'hook-a')).toBeTruthy()
+    expect(host.api.hooks.save).not.toHaveBeenCalled()
+  })
+  it('shows the empty state with its own create action', async () => {
+    host.api.hooks.list.mockResolvedValue([])
+    const view = setup(); await drain(); expect(view.text()).toContain('尚未安装钩子')
+    expect(view.renderer.all().filter(node => node.props['aria-label'] === '新建 Hook')).toHaveLength(2)
+    await view.click('新建 Hook'); expect(view.text()).toContain('新建钩子')
+    expect(view.find(node => node.props['aria-label'] === '保存 Hook').props.disabled).toBe(true)
+  })
+  it('changes the destination of a new draft without losing fields or changing the directory scope before save', async () => {
+    const view = setup(); await drain(); await view.click('新建 Hook')
+    await view.input('Hook 名称', 'project-check'); await view.input('Hook 命令', 'node')
+    await view.change('Hook 作用范围', 'project-a')
+    expect(host.api.hooks.list).toHaveBeenCalledOnce()
+    expect(view.find(node => node.props['aria-label'] === 'Hook 名称').props.modelValue).toBe('project-check')
+    await view.click('保存 Hook')
+    expect(host.api.hooks.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ scope: 'project', projectId: 'project-a', name: 'project-check', command: 'node' }))
+    expect(host.api.hooks.list).toHaveBeenLastCalledWith({ projectId: 'project-a' })
+    expect(view.renderer.all().some(node => node.props['aria-label'] === '搜索 Hook')).toBe(true)
+  })
+  it('keeps the original project and revision when saving an existing hook', async () => {
+    host.route.query = { project: 'project-a' }; host.api.hooks.list.mockResolvedValue([hook({ scope: 'project' })])
+    const view = setup(); await drain(); await view.click('编辑 检查文件')
+    await view.change('Hook 作用范围', 'global')
+    expect(view.find(node => node.props['aria-label'] === 'Hook 作用范围').props['model-value']).toBe('project-a')
+    await view.input('Hook 名称', '更新检查'); await view.click('保存 Hook')
+    expect(host.api.hooks.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'hook-a', expectedRevision: 'revision-1', scope: 'project', projectId: 'project-a', name: '更新检查' }))
+    expect(view.renderer.all().some(node => node.props['aria-label'] === 'Hook 编辑器')).toBe(false)
+  })
   it('reviews exact plugin source and revision, trusts and revokes through the host without editing plugin files', async () => {
     const item = hook({ id: 'plugin-hook', scope: 'plugin', pluginId: 'mira-check@local', pluginName: 'Mira Check', trusted: false, sourceRoot: '/plugins/check', sourcePath: '/plugins/check/hooks/hooks.json' })
     host.route.query = { plugin: 'mira-check@local' }
@@ -91,7 +132,7 @@ describe('real Vue Hook settings event forms and revision-bound operations', () 
     await view.input('Hook 参数', 'new.mjs'); await view.input('Hook 执行方式', 'command')
     expect(view.find(node => node.props['aria-label'] === 'Hook Shell').props.modelValue).toBe('/bin/bash')
     expect(view.find(node => node.props['aria-label'] === '异步执行 Hook').props.modelValue).toBe(true)
-    expect(view.text()).toContain('不会阻塞当前任务'); expect(view.text()).toContain('不能阻止操作或更改权限决定')
+    expect(view.find(node => String(node.props['data-help']).includes('不会阻塞当前任务')).props['data-help']).toContain('不能阻止操作或更改权限决定')
     await view.click('保存 Hook')
     const saved = host.api.hooks.save.mock.calls[0][0]
     expect(saved).toMatchObject({ id: 'hook-a', scope: 'global', expectedRevision: 'revision-1', type: 'command', shell: '/bin/bash', async: true })
@@ -113,12 +154,12 @@ describe('real Vue Hook settings event forms and revision-bound operations', () 
     expect(host.api.hooks.save.mock.calls[0][0]).toMatchObject({ scope: 'project', projectId: 'project-a' })
   })
 
-  it('searches real name/event/command/matcher without replacing an open draft', async () => {
+  it('searches real name/event/command/matcher in the directory', async () => {
     host.api.hooks.list.mockResolvedValue([hook(), hook({ id: 'hook-b', name: '保存后', event: 'PostToolUse', command: 'python', matcher: 'read_file' })])
-    const view = setup(); await drain(); await view.click('编辑 检查文件'); await view.input('Hook 名称', '正在编辑')
+    const view = setup(); await drain()
     await view.input('搜索 Hook', 'python'); expect(view.text()).toContain('保存后'); expect(view.text()).not.toContain('node')
     await view.input('搜索 Hook', 'read_file'); expect(view.text()).toContain('保存后')
-    await view.input('搜索 Hook', 'unknown'); expect(view.text()).toContain('没有匹配的 Hook'); expect(view.find(node => node.props['aria-label'] === 'Hook 名称').props.modelValue).toBe('正在编辑')
+    await view.input('搜索 Hook', 'unknown'); expect(view.text()).toContain('没有匹配的 Hook')
   })
 
   it('validates incomplete names/command, integer timeout and JSON while preserving drafts', async () => {
@@ -140,10 +181,11 @@ describe('real Vue Hook settings event forms and revision-bound operations', () 
     await view.click('保存 Hook'); expect(host.api.hooks.save.mock.calls[2][0].expectedRevision).toBe('revision-1')
   })
 
-  it('guards dirty cancel, refresh, scope change, editor replacement and route leaving', async () => {
+  it('guards dirty cancel, breadcrumb and route leaving while hiding directory actions', async () => {
     const view = setup(); await drain(); await view.click('编辑 检查文件'); await view.input('Hook 名称', '保留草稿')
-    for (const label of ['取消 Hook 编辑', '刷新 Hooks', '新建 Hook']) { host.confirm.mockRejectedValueOnce(new Error('cancel')); await view.click(label); expect(view.find(node => node.props['aria-label'] === 'Hook 名称').props.modelValue).toBe('保留草稿') }
-    host.confirm.mockRejectedValueOnce(new Error('cancel')); await view.change('Hook 作用范围', 'project-a'); expect(host.api.hooks.list).toHaveBeenCalledOnce()
+    for (const label of ['取消 Hook 编辑', '返回钩子列表']) { host.confirm.mockRejectedValueOnce(new Error('cancel')); await view.click(label); expect(view.find(node => node.props['aria-label'] === 'Hook 名称').props.modelValue).toBe('保留草稿') }
+    expect(view.renderer.all().some(node => node.props['aria-label'] === '刷新 Hooks' || node.props['aria-label'] === '新建 Hook')).toBe(false)
+    expect(view.find(node => node.props['aria-label'] === 'Hook 作用范围').props.disabled).toBe(true)
     host.confirm.mockRejectedValueOnce(new Error('cancel')); expect(await host.leave?.()).toBe(false)
     await view.click('取消 Hook 编辑'); expect(view.renderer.all().some(node => node.props['aria-label'] === 'Hook 名称')).toBe(false)
   })
@@ -181,11 +223,11 @@ describe('real Vue Hook settings event forms and revision-bound operations', () 
     expect(view.text()).toContain('Hook 已信任并启用')
   })
 
-  it('retains rows and same editor on delete failure and guards a dirty deletion', async () => {
-    const view = setup(); await drain(); await view.click('编辑 检查文件'); await view.input('Hook 名称', '保留草稿')
+  it('retains rows on delete failure and deletes only the displayed revision', async () => {
+    const view = setup(); await drain()
     host.confirm.mockRejectedValueOnce(new Error('cancel')); await view.click('删除 检查文件'); expect(host.api.hooks.delete).not.toHaveBeenCalled()
     host.api.hooks.delete.mockRejectedValueOnce(new Error('Hook 已移除或已被修改，请刷新后重试')); await view.click('删除 检查文件')
-    expect(view.find(node => node.props['aria-label'] === 'Hook 名称').props.modelValue).toBe('保留草稿'); expect(view.find(node => node.props['data-hook-id'] === 'hook-a')).toBeTruthy()
+    expect(view.find(node => node.props['data-hook-id'] === 'hook-a')).toBeTruthy()
     await view.click('删除 检查文件'); expect(host.api.hooks.delete).toHaveBeenLastCalledWith({ id: 'hook-a', scope: 'global', expectedRevision: 'revision-1' }); expect(view.text()).toContain('Hook 已删除')
   })
 
