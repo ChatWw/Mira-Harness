@@ -58,7 +58,7 @@ export class SkillMarketplaceService {
 
   readonly pluginMarkets: MiraPluginMarketplace
 
-  constructor(private readonly paths: MiraPaths, private readonly skills: SkillStore, private readonly fetcher: typeof fetch = fetch, private readonly source: { commit: string; tree: TreeEntry[] } = curatedSource, builtinRoot?: string) { this.pluginMarkets = new MiraPluginMarketplace(paths, fetcher, builtinRoot) }
+  constructor(private readonly paths: MiraPaths, private readonly skills: SkillStore, private readonly fetcher: typeof fetch = fetch, private readonly source: { commit: string; tree: TreeEntry[] } = curatedSource, builtinRoot?: string, resolveProxy?: (url: string) => Promise<string>) { this.pluginMarkets = new MiraPluginMarketplace(paths, fetcher, builtinRoot, resolveProxy) }
 
   private async download(url: string, maxBytes: number): Promise<Buffer> {
     const abort = new AbortController()

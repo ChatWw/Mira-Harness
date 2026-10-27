@@ -1,0 +1,1565 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Mira · 模型服务 — 交互设计稿</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ============ Tokens: mirror src/styles/global.scss + settings-typography.scss ============ */
+:root{
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  --bg:#ffffff; --bg-elevated:#fafafa; --bg-sunken:#f7f7f8; --bg-hover:#f4f4f5;
+  --surface:#ffffff;
+  --text:#18181b; --text-2:#71717a; --text-3:#a1a1aa;
+  --border:#e4e4e7; --border-light:#f0f0f1;
+
+  --primary:#06b6d4; --primary-hover:#0891b2; --primary-soft:rgba(6,182,212,.10);
+  --success:#10b981; --success-soft:rgba(16,185,129,.10);
+  --warning:#f59e0b; --warning-soft:rgba(245,158,11,.12);
+  --danger:#ef4444;  --danger-soft:rgba(239,68,68,.10);
+
+  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+  --shadow-menu:0 10px 15px -3px rgb(0 0 0/.1), 0 4px 6px -4px rgb(0 0 0/.1);
+  --shadow-dialog:0 16px 48px rgb(0 0 0/.18), 0 4px 12px rgb(0 0 0/.08);
+  --ease:cubic-bezier(.16,1,.3,1);
+
+  --t-title:22px; --t-section:15px; --t-sub:14px; --t-base:13px; --t-sm:12px;
+}
+[data-theme="dark"]{
+  --bg:#202124; --bg-elevated:#292a2e; --bg-sunken:#25262a; --bg-hover:#38393f;
+  --surface:#2b2b30;
+  --text:#f5f5f6; --text-2:#b7b7bf; --text-3:#92929b;
+  --border:#47484f; --border-light:#34353a;
+  --primary:#22d3ee; --primary-hover:#67e8f9; --primary-soft:rgba(34,211,238,.14);
+  --success:#34d399; --success-soft:rgba(52,211,153,.14);
+  --warning:#fbbf24; --warning-soft:rgba(251,191,36,.14);
+  --danger:#f87171;  --danger-soft:rgba(248,113,113,.14);
+  --shadow-menu:0 10px 24px rgb(0 0 0/.3), 0 2px 6px rgb(0 0 0/.2);
+  --shadow-dialog:0 16px 48px rgb(0 0 0/.5), 0 4px 12px rgb(0 0 0/.24);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--font); font-size:var(--t-base); line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+::selection{background:var(--primary-soft); color:var(--text)}
+:focus-visible{outline:2px solid var(--primary); outline-offset:2px; border-radius:4px}
+button{font:inherit; color:inherit; background:none; border:0; cursor:pointer}
+input{font:inherit; color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border); border-radius:6px; border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============ App shell ============ */
+.app{display:grid; grid-template-columns:216px 252px minmax(0,1fr); height:100vh; min-width:1180px}
+.app__rail{background:var(--bg); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0}
+
+/* --- settings nav (existing Mira shell, unchanged) --- */
+.nav{padding:10px 10px 0; overflow-y:auto; flex:1; min-height:0}
+.nav__back{display:flex; align-items:center; gap:7px; height:30px; padding:0 8px; color:var(--text-2); font-size:var(--t-base); border-radius:var(--r-sm); width:100%}
+.nav__back:hover{background:var(--bg-hover); color:var(--text)}
+.nav__group{margin-top:16px}
+.nav__label{padding:0 8px 6px; color:var(--text-3); font-size:var(--t-sm); font-weight:500}
+.nav__item{display:flex; align-items:center; gap:9px; width:100%; height:30px; padding:0 8px; border-radius:var(--r-sm); color:var(--text); font-size:var(--t-base)}
+.nav__item:hover{background:var(--bg-hover)}
+.nav__item.is-active{background:var(--bg-hover); font-weight:500}
+.nav__item svg{color:var(--text-2); flex:0 0 auto}
+.nav__item.is-active svg{color:var(--text)}
+.nav__soon{margin-left:auto; color:var(--text-3); font-size:var(--t-sm)}
+
+/* --- provider rail --- */
+.rail__head{padding:18px 16px 12px}
+.rail__title{margin:0; font-size:var(--t-section); font-weight:550; letter-spacing:-.01em}
+.rail__sub{margin:4px 0 0; color:var(--text-2); font-size:var(--t-sm)}
+.rail__search{ position:relative; margin:0 12px 10px}
+.rail__search svg{position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--text-3); pointer-events:none}
+.rail__search input{width:100%; height:30px; padding:0 26px 0 28px; background:var(--bg-elevated); border:1px solid transparent; border-radius:var(--r-md); font-size:var(--t-base)}
+.rail__search input::placeholder{color:var(--text-3)}
+.rail__search input:focus{outline:none; border-color:var(--border); background:var(--surface)}
+.rail__clear{position:absolute; right:5px; top:50%; transform:translateY(-50%); width:20px; height:20px; display:grid; place-items:center; color:var(--text-3); border-radius:4px}
+.rail__clear:hover{background:var(--bg-hover); color:var(--text)}
+
+.rail__list{flex:1; min-height:0; overflow-y:auto; padding:2px 8px 12px}
+.rail__section{margin:10px 0 4px; padding:0 8px; color:var(--text-3); font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+.rail__section:first-child{margin-top:0}
+.brand{margin-bottom:2px}
+.brand.is-folded{margin-bottom:4px}
+.brand__head{display:flex;align-items:center;gap:7px;width:100%;height:44px;padding:6px 8px;color:var(--text);font-size:var(--t-base);font-weight:500;letter-spacing:0;text-align:left;border-radius:var(--r-md)}
+.brand__head:hover{background:var(--bg-hover);color:var(--text)}
+.brand__chev{display:inline-grid;place-items:center;width:14px;height:14px;flex:0 0 14px;color:var(--text-3);transition:transform 150ms var(--ease)}
+.brand.is-folded .brand__chev{transform:rotate(-90deg)}
+.brand__dot{width:5px;height:5px;border-radius:50%;background:var(--primary);flex:0 0 5px}
+.brand__logo{width:28px;height:28px;display:grid;place-items:center;flex:0 0 28px;background:var(--bg-elevated);border:1px solid var(--border-light);border-radius:7px;overflow:hidden}
+[data-theme="dark"] .brand__logo{background:var(--bg-sunken);border-color:var(--border-light)}
+.brand__logo img{width:18px;height:18px;object-fit:contain}
+.brand__name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brand__n{margin-left:auto;color:var(--text-3);font-size:11px;font-weight:400;letter-spacing:0}
+.brand .pitem{padding-left:22px}
+.brand .pitem.is-active::after{top:6px;bottom:6px}
+.pitem__dup{margin-left:5px;padding:0 4px;border-radius:3px;background:var(--warning-soft);color:var(--warning);font-size:10px}
+.pitem__del{margin-left:6px;width:18px;height:18px;display:inline-grid;place-items:center;border-radius:4px;color:var(--text-3);vertical-align:middle}
+.pitem__del:hover{background:var(--danger-soft);color:var(--danger)}
+.pitem{display:flex; align-items:center; gap:9px; width:100%; height:44px; padding:4px 8px; border-radius:var(--r-md); text-align:left; position:relative; cursor:pointer}
+.pitem:hover{background:var(--bg-hover)}
+.pitem.is-active{background:var(--bg-hover)}
+.pitem.is-active::after{content:""; position:absolute; left:0; top:8px; bottom:8px; width:2px; border-radius:2px; background:var(--primary)}
+.pitem__logo{width:28px; height:28px; flex:0 0 28px; display:grid; place-items:center; background:var(--bg-elevated); border:1px solid var(--border-light); border-radius:7px; overflow:hidden}
+[data-theme="dark"] .pitem__logo{background:var(--bg-sunken); border-color:var(--border-light)}
+.pitem__logo img{width:18px; height:18px; object-fit:contain}
+.pitem__logo--letter{font-size:12px; font-weight:600; color:var(--text-2)}
+.pitem__body{min-width:0; flex:1}
+.pitem__name{display:block; font-size:var(--t-base); line-height:1.28; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pitem.is-active .pitem__name{font-weight:500}
+.pitem__meta{display:flex; align-items:center; gap:5px; margin-top:1px; font-size:11px; line-height:1.25; color:var(--text-3)}
+.pitem__dot{width:5px; height:5px; border-radius:50%; background:var(--border); flex:0 0 5px}
+.pitem__dot.on{background:var(--success)}
+.pitem__dot.warn{background:var(--warning)}
+.pitem__badge{font-size:10px; padding:0 4px; border-radius:3px; background:var(--bg-hover); color:var(--text-2); line-height:15px}
+.rail__foot{padding:10px 12px; border-top:1px solid var(--border-light)}
+.rail__add{display:flex; align-items:center; justify-content:center; gap:6px; width:100%; height:32px; border:1px dashed var(--border); border-radius:var(--r-md); color:var(--text-2); font-size:var(--t-base)}
+.rail__add:hover{border-color:var(--primary); color:var(--primary); background:var(--primary-soft)}
+.rail__empty{padding:28px 12px; text-align:center; color:var(--text-3); font-size:var(--t-sm)}
+
+/* ============ Config panel ============ */
+.panel{display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg)}
+.panel__head{display:flex; align-items:center; gap:12px; padding:14px 24px; border-bottom:1px solid var(--border); min-height:66px}
+.panel__logo{width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center; background:var(--bg-elevated); border:1px solid var(--border-light); border-radius:9px}
+.panel__logo img{width:23px; height:23px; object-fit:contain}
+.panel__logo--letter{font-size:15px; font-weight:600; color:var(--text-2)}
+.panel__id{min-width:0; flex:1}
+.panel__name{display:flex; align-items:center; gap:7px; font-size:var(--t-section); font-weight:550; letter-spacing:-.01em}
+.panel__name .rename{width:20px;height:20px;display:grid;place-items:center;color:var(--text-3);border-radius:4px;opacity:0}
+.panel__name:hover .rename{opacity:1}
+.panel__name .rename:hover{background:var(--bg-hover); color:var(--text)}
+.panel__sub{display:flex; align-items:center; gap:6px; margin-top:2px; font-size:var(--t-sm); color:var(--text-2); flex-wrap:wrap}
+.proto{display:inline-flex; align-items:center; gap:4px; height:19px; padding:0 6px; border-radius:4px; background:var(--bg-hover); color:var(--text-2); font-size:11px; font-weight:500; white-space:nowrap}
+.proto--native{background:var(--primary-soft); color:var(--primary)}
+[data-theme="dark"] .proto--native{color:var(--primary)}
+.panel__actions{display:flex; align-items:center; gap:12px; flex:0 0 auto}
+.panel__ep{margin-left:7px;padding:1px 6px;border-radius:4px;background:var(--bg-hover);color:var(--text-2);font-size:11px;font-weight:500;letter-spacing:0}
+.panel__rename{width:100%;max-width:280px;padding:2px 6px;margin:-2px -6px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--text);font-size:var(--t-section);font-weight:550;letter-spacing:-.01em}
+.panel__rename:hover{border-color:var(--border)}
+.panel__rename:focus{outline:none;border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--primary-soft)}
+.iconbtn--danger:hover{background:var(--danger-soft);color:var(--danger)}
+.switch-wrap{display:flex; align-items:center; gap:8px; font-size:var(--t-sm); color:var(--text-2)}
+.switch{position:relative; width:34px; height:20px; flex:0 0 34px; border-radius:99px; background:var(--border); transition:background-color 150ms ease-out}
+.switch[aria-checked="true"]{background:var(--primary)}
+.switch::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgb(0 0 0/.2); transition:transform 150ms var(--ease)}
+.switch[aria-checked="true"]::after{transform:translateX(14px)}
+.iconbtn{width:28px; height:28px; display:grid; place-items:center; border-radius:var(--r-sm); color:var(--text-2)}
+.iconbtn:hover{background:var(--bg-hover); color:var(--text)}
+
+.panel__body{flex:1; min-height:0; overflow-y:auto; padding:0 24px 96px}
+.section{padding:22px 0; border-bottom:1px solid var(--border-light)}
+.section:last-child{border-bottom:0}
+.section__head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px}
+.section__title{margin:0; font-size:var(--t-sub); font-weight:550}
+.section__desc{margin:3px 0 0; color:var(--text-2); font-size:var(--t-sm)}
+.section__tools{display:flex; align-items:center; gap:8px; flex:0 0 auto}
+
+.field{max-width:640px; margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.field__label{display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:var(--t-base); font-weight:500}
+.field__req{color:var(--danger)}
+.field__hint{margin:5px 0 0; color:var(--text-2); font-size:var(--t-sm)}
+.field__row{display:flex; gap:8px; align-items:center}
+.control{width:100%; height:32px; padding:0 10px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); font-size:var(--t-base); color:var(--text); transition:border-color 120ms ease-out, box-shadow 120ms ease-out}
+.control::placeholder{color:var(--text-3)}
+.control:hover{border-color:var(--text-3)}
+.control:focus{outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft)}
+.control--mono{font-family:var(--mono); font-size:12px; letter-spacing:-.01em}
+select.control{appearance:none; padding-right:26px; background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center}
+.input-wrap{position:relative; flex:1; min-width:0}
+.input-wrap .control{padding-right:32px}
+.input-wrap__btn{position:absolute; right:4px; top:50%; transform:translateY(-50%); width:24px; height:24px; display:grid; place-items:center; color:var(--text-3); border-radius:4px}
+.input-wrap__btn:hover{background:var(--bg-hover); color:var(--text)}
+
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border-radius:var(--r-sm); border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:var(--t-base); white-space:nowrap; transition:background-color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out}
+.btn:hover{background:var(--bg-hover)}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn--primary{background:var(--text); border-color:var(--text); color:var(--bg)}
+.btn--primary:hover{background:var(--text); opacity:.86}
+.btn--ghost{border-color:transparent; background:transparent; color:var(--text-2)}
+.btn--ghost:hover{background:var(--bg-hover); color:var(--text)}
+.btn--sm{height:28px; padding:0 9px; font-size:var(--t-sm)}
+.btn--accent{background:var(--primary); border-color:var(--primary); color:#fff}
+.btn--accent:hover{background:var(--primary-hover); border-color:var(--primary-hover)}
+.btn--danger{color:var(--danger)}
+.btn--danger:hover{background:var(--danger-soft)}
+
+.url-preview{display:flex; align-items:center; gap:7px; margin-top:7px; padding:7px 10px; background:var(--bg-elevated); border-radius:var(--r-sm); font-family:var(--mono); font-size:11.5px; color:var(--text-2); overflow-x:auto; white-space:nowrap}
+.url-preview b{color:var(--text); font-weight:500}
+.url-preview svg{flex:0 0 auto; color:var(--text-3)}
+
+.status{display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:99px; font-size:var(--t-sm); background:var(--bg-hover); color:var(--text-2); white-space:nowrap}
+.status i{width:6px; height:6px; border-radius:50%; background:var(--text-3); flex:0 0 6px}
+.status--ok{background:var(--success-soft); color:var(--success)} .status--ok i{background:var(--success)}
+.status--warn{background:var(--warning-soft); color:var(--warning)} .status--warn i{background:var(--warning)}
+.status--err{background:var(--danger-soft); color:var(--danger)} .status--err i{background:var(--danger)}
+.status--busy i{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.test-line{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+
+/* --- model list --- */
+.mtoolbar{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.msearch{position:relative; flex:1; max-width:260px}
+.msearch svg{position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--text-3); pointer-events:none}
+.msearch input{width:100%; height:30px; padding:0 10px 0 28px; background:var(--bg-elevated); border:1px solid transparent; border-radius:var(--r-md); font-size:var(--t-base)}
+.msearch input:focus{outline:none; border-color:var(--border); background:var(--surface)}
+
+.mrow{display:grid; grid-template-columns:38px minmax(0,1fr) 104px 104px 62px; align-items:center; gap:10px; min-height:52px; padding:6px 8px; border-bottom:1px solid var(--border-light); border-radius:var(--r-sm); max-width:980px}
+.mrow:hover{background:var(--bg-sunken)}
+.mrow:last-child{border-bottom:0}
+.mrow__id{min-width:0}
+.mrow__name{display:flex; align-items:center; gap:6px; font-size:var(--t-base); font-weight:450; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mrow__model{font-family:var(--mono); font-size:11px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px}
+.mrow__col{font-size:var(--t-sm); color:var(--text-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.mrow__col--out{text-align:right}
+.mrow__acts{display:flex; justify-content:flex-end; gap:2px; opacity:.35; transition:opacity 120ms ease-out}
+.mrow:hover .mrow__acts,.mrow:focus-within .mrow__acts{opacity:1}
+.mrow.is-off .mrow__id{opacity:.5}
+
+.chip{display:inline-flex; align-items:center; height:18px; padding:0 5px; border-radius:3px; font-size:10px; font-weight:500; letter-spacing:.01em; white-space:nowrap}
+.chip--reason{background:var(--primary-soft); color:var(--primary)}
+[data-theme="dark"] .chip--reason{color:var(--primary)}
+.chip--vision{background:rgba(139,92,246,.12); color:#7c3aed}
+[data-theme="dark"] .chip--vision{background:rgba(167,139,250,.16); color:#c4b5fd}
+.chip--custom{background:var(--bg-hover); color:var(--text-2)}
+
+.mgrouphdr{display:flex; align-items:center; gap:7px; padding:14px 8px 6px; color:var(--text-2); font-size:var(--t-sm); font-weight:500}
+.mgrouphdr:first-child{padding-top:2px}
+.mgrouphdr .count{color:var(--text-3); font-weight:400}
+.mgrouphdr::after{content:""; flex:1; height:1px; background:var(--border-light)}
+
+.needkey{display:flex;flex-direction:column;align-items:center;text-align:center;padding:36px 22px;border:1px dashed var(--border);border-radius:var(--r-lg);margin-top:8px}
+.needkey__icon{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;background:var(--bg-hover);color:var(--text-2);margin-bottom:11px}
+.needkey__title{font-size:var(--t-base);font-weight:500}
+.needkey__desc{margin:6px 0 14px;max-width:300px;color:var(--text-2);font-size:var(--t-sm);line-height:1.6}
+.empty{padding:34px 16px; text-align:center; border:1px dashed var(--border); border-radius:var(--r-lg)}
+.empty__icon{width:34px; height:34px; margin:0 auto 9px; display:grid; place-items:center; border-radius:50%; background:var(--bg-hover); color:var(--text-2)}
+.empty__title{font-size:var(--t-base); font-weight:500}
+.empty__desc{margin-top:3px; color:var(--text-2); font-size:var(--t-sm)}
+
+/* --- save bar --- */
+.savebar{display:flex; align-items:center; gap:14px; padding:11px 24px; border-top:1px solid var(--border); background:var(--bg)}
+.savebar__note{display:flex; align-items:center; gap:6px; color:var(--text-2); font-size:var(--t-sm); flex:1; min-width:0}
+.savebar__note svg{flex:0 0 auto; color:var(--warning)}
+.savebar__spacer{flex:1}
+.dirty-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);flex:0 0 6px}
+
+/* ============ Overlays ============ */
+.scrim{position:fixed; inset:0; background:rgb(0 0 0/.32); opacity:0; pointer-events:none; transition:opacity 180ms var(--ease); z-index:40}
+.scrim.show{opacity:1; pointer-events:auto}
+
+.drawer{position:fixed; top:0; right:0; bottom:0; width:440px; display:flex; flex-direction:column; background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow-dialog); z-index:41; transform:translateX(100%); transition:transform 220ms var(--ease)}
+.drawer.show{transform:none}
+.drawer--wide{width:520px}
+.drawer__head{display:flex; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border-light)}
+.drawer__title{margin:0; font-size:var(--t-sub); font-weight:550}
+.drawer__sub{margin:3px 0 0; color:var(--text-2); font-size:var(--t-sm)}
+.drawer__body{flex:1; min-height:0; overflow-y:auto; padding:18px 20px 24px}
+.drawer__foot{display:flex; align-items:center; gap:8px; padding:12px 20px; border-top:1px solid var(--border-light)}
+.drawer__foot .spacer{flex:1}
+
+.dlg{position:fixed; top:50%; left:50%; width:520px; max-height:82vh; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-dialog); z-index:42; transform:translate(-50%,-48%) scale(.97); opacity:0; pointer-events:none; transition:transform 180ms var(--ease), opacity 180ms var(--ease)}
+.dlg.show{transform:translate(-50%,-50%); opacity:1; pointer-events:auto}
+.dlg__head{display:flex; align-items:flex-start; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--border-light)}
+.dlg__body{flex:1; min-height:0; overflow-y:auto; padding:18px 20px}
+.dlg__foot{display:flex; align-items:center; gap:8px; padding:14px 20px; border-top:1px solid var(--border-light)}
+.dlg__foot .spacer{flex:1}
+
+/* model edit */
+.cap-list{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.cap{display:flex;align-items:center;gap:12px;padding:7px 0}
+.cap__label{flex:0 0 88px;font-size:var(--t-base)}
+.cap__label small{display:block;color:var(--text-3);font-size:11px;line-height:1.35}
+.seg{display:flex;padding:2px;background:var(--bg-hover);border-radius:var(--r-sm);flex:1;min-width:0}
+.seg button{flex:1;height:24px;border-radius:4px;font-size:11.5px;color:var(--text-2);white-space:nowrap;min-width:0}
+.seg button.on{background:var(--surface); color:var(--text); font-weight:500; box-shadow:0 1px 2px rgb(0 0 0/.06)}
+[data-theme="dark"] .seg button.on{background:var(--bg-sunken)}
+.seg button[data-v="yes"].on{color:var(--success)}
+.seg button[data-v="no"].on{color:var(--danger)}
+
+.mediagap{display:flex; gap:9px; margin-top:12px; padding:10px 11px; background:var(--warning-soft); border-radius:var(--r-sm); color:var(--text)}
+.mediagap svg{flex:0 0 auto; margin-top:1px; color:var(--warning)}
+.mediagap b{display:block;font-size:var(--t-sm);font-weight:500;margin-bottom:2px}
+.mediagap span{display:block;color:var(--text-2);font-size:11.5px;line-height:1.55}
+.adv{margin-top:18px; border-top:1px solid var(--border-light); padding-top:12px}.adv__toggle{display:flex; align-items:center; gap:6px; color:var(--text-2); font-size:var(--t-sm)}
+.adv__toggle:hover{color:var(--text)}
+.adv__body{display:none; margin-top:12px}
+.adv.open .adv__body{display:block}
+.adv.open .adv__chev{transform:rotate(90deg)}
+.adv__chev{transition:transform 150ms var(--ease)}
+.adv__note{margin:0 0 12px; padding:9px 11px; background:var(--bg-elevated); border-radius:var(--r-sm); color:var(--text-2); font-size:11.5px; line-height:1.55}
+
+/* discovery drawer */
+.disc-list{display:flex; flex-direction:column; gap:1px; margin-top:12px}
+.disc{display:flex; align-items:center; gap:10px; padding:8px; border-radius:var(--r-sm); cursor:pointer}
+.disc:hover{background:var(--bg-sunken)}
+.disc.is-added{cursor:default; opacity:.6}
+.disc__box{width:15px; height:15px; flex:0 0 15px; border:1.5px solid var(--border); border-radius:4px; display:grid; place-items:center}
+.disc.sel .disc__box{background:var(--primary); border-color:var(--primary); color:#fff}
+.disc.is-added .disc__box{border-color:var(--border); background:var(--bg-hover)}
+.disc__id{font-family:var(--mono); font-size:12px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.disc__meta{font-size:11px; color:var(--text-3); display:flex; gap:6px; flex:0 0 auto}
+
+.menu{position:absolute; min-width:170px; padding:4px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); box-shadow:var(--shadow-menu); z-index:60; display:none}
+.menu.show{display:block}
+.menu button{display:flex; align-items:center; gap:8px; width:100%; height:28px; padding:0 9px; border-radius:5px; font-size:var(--t-base); color:var(--text)}
+.menu button:hover{background:var(--bg-hover)}
+.menu button.danger{color:var(--danger)}
+.menu button.danger:hover{background:var(--danger-soft)}
+.menu__sep{height:1px; margin:4px 6px; background:var(--border-light)}
+
+.toast{position:fixed; left:50%; bottom:26px; transform:translate(-50%,10px); padding:9px 14px; background:var(--text); color:var(--bg); border-radius:var(--r-md); font-size:var(--t-sm); box-shadow:var(--shadow-menu); opacity:0; pointer-events:none; transition:opacity 180ms var(--ease), transform 180ms var(--ease); z-index:70}
+.toast.show{opacity:1; transform:translate(-50%,0)}
+
+.tw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0}
+.tw__label{font-size:var(--t-base)}
+.tw__label small{display:block;color:var(--text-2);font-size:var(--t-sm);margin-top:1px}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============ 1. settings nav (existing shell) ============ -->
+  <div class="app__rail">
+    <nav class="nav">
+      <button class="nav__back">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+        返回应用
+      </button>
+      <div class="nav__group">
+        <div class="nav__label">底层能力</div>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>常规</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="6" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>键盘快捷键</button>
+      </div>
+      <div class="nav__group">
+        <div class="nav__label">Agent 能力</div>
+        <button class="nav__item is-active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>模型服务</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>对话设置</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>指令与记忆</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>工具与扩展</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>子智能体</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6-6 6 6"/><path d="m6 15 6 6 6-6"/></svg>自定义命令</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6c0 2.5 1.5 4 2 6h8c.5-2 2-3.5 2-6a6 6 0 0 0-6-6Z"/><path d="M9 18h6M10 21h4"/></svg>事件钩子 (Hooks)</button>
+      </div>
+      <div class="nav__group">
+        <div class="nav__label">工作区能力</div>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>文件搜索</button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>文件回收站</button>
+      </div>
+      <div class="nav__group">
+        <div class="nav__label">应用与支持</div>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18"/></svg>应用扩展<span class="nav__soon">规划中</span></button>
+        <button class="nav__item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>关于 Mira</button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ============ 2. provider rail ============ -->
+  <div class="app__rail" style="background:var(--bg-elevated)">
+    <div class="rail__head">
+      <h1 class="rail__title">模型服务</h1>
+      <p class="rail__sub">配置供应商连接与可用模型</p>
+    </div>
+    <div class="rail__search">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="providerSearch" placeholder="搜索服务商…" autocomplete="off">
+      <button class="rail__clear" id="clearSearch" hidden aria-label="清除搜索">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="rail__list" id="providerList"></div>
+    <div class="rail__foot">
+      <button class="rail__add" id="addProviderBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        添加服务商
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ 3. config panel ============ -->
+  <main class="panel" id="panel"></main>
+</div>
+
+<!-- overlays -->
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="modelDrawer" role="dialog" aria-modal="true" aria-labelledby="modelDrawerTitle">
+  <div class="drawer__head">
+    <div style="flex:1;min-width:0">
+      <h2 class="drawer__title" id="modelDrawerTitle">编辑模型</h2>
+      <p class="drawer__sub" id="modelDrawerSub">参数来自内置能力目录，可手动覆盖</p>
+    </div>
+    <button class="iconbtn" data-close="modelDrawer" aria-label="关闭">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer__body" id="modelDrawerBody"></div>
+  <div class="drawer__foot">
+    <button class="btn btn--danger btn--ghost btn--sm" id="modelDeleteBtn">移除模型</button>
+    <div class="spacer"></div>
+    <button class="btn btn--sm" data-close="modelDrawer">取消</button>
+    <button class="btn btn--sm btn--primary" id="modelSaveBtn">保存模型</button>
+  </div>
+</aside>
+
+<aside class="drawer drawer--wide" id="discDrawer" role="dialog" aria-modal="true" aria-labelledby="discTitle">
+  <div class="drawer__head">
+    <div style="flex:1;min-width:0">
+      <h2 class="drawer__title" id="discTitle">发现模型</h2>
+      <p class="drawer__sub" id="discSub"></p>
+    </div>
+    <button class="iconbtn" data-close="discDrawer" aria-label="关闭">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer__body" id="discBody"></div>
+  <div class="drawer__foot">
+    <span class="savebar__note" id="discCount" style="flex:0 0 auto">已选 0 项</span>
+    <div class="spacer"></div>
+    <button class="btn btn--sm" data-close="discDrawer">取消</button>
+    <button class="btn btn--sm btn--primary" id="discAddBtn" disabled>添加所选</button>
+  </div>
+</aside>
+
+<div class="dlg" id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addDlgTitle">
+  <div class="dlg__head">
+    <div style="flex:1;min-width:0">
+      <h2 class="drawer__title" id="addDlgTitle">添加服务商</h2>
+      <p class="drawer__sub">连接任意 OpenAI Completions / Responses / Anthropic 端点</p>
+    </div>
+    <button class="iconbtn" data-close="addDlg" aria-label="关闭">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="dlg__body" id="addDlgBody"></div>
+  <div class="dlg__foot">
+    <div class="spacer"></div>
+    <button class="btn btn--sm" data-close="addDlg">取消</button>
+    <button class="btn btn--sm btn--primary" id="addDlgOk">添加</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   Data: real provider records + real model capabilities from
+   @earendil-works/pi-ai 0.84.1 (node_modules/.../providers/data/*.json)
+   ===================================================================== */
+const CATALOG_BASE = {
+  deepseek: [
+    {id:'deepseek-v4-flash', name:'DeepSeek V4 Flash', api:'openai-completions', ctx:1000000, max:384000, input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'deepseek-v4-pro',   name:'DeepSeek V4 Pro',   api:'openai-completions', ctx:1000000, max:384000, input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+  ],
+  glm: [
+    {id:'glm-4.7',           name:'GLM-4.7',           api:'openai-completions', ctx:204800, max:131072, input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'glm-5-turbo',       name:'GLM-5-Turbo',       api:'openai-completions', ctx:200000, max:131072, input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'glm-5.2',           name:'GLM-5.2',           api:'openai-completions', ctx:1000000,max:131072, input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'glm-5.2-highspeed', name:'GLM-5.2 Highspeed', api:'openai-completions', ctx:1000000,max:131072, input:['text'], reasoning:true, thinkingFormat:'zai'},
+  ],
+  kimi: [
+    {id:'kimi-k2-0711-preview',    name:'Kimi K2 0711',           api:'openai-completions', ctx:131072, max:16384, input:['text'], reasoning:false},
+    {id:'kimi-k2-0905-preview',    name:'Kimi K2 0905',           api:'openai-completions', ctx:262144, max:262144,input:['text'], reasoning:false},
+    {id:'kimi-k2-thinking',        name:'Kimi K2 Thinking',       api:'openai-completions', ctx:262144, max:262144,input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2-thinking-turbo',  name:'Kimi K2 Thinking Turbo', api:'openai-completions', ctx:262144, max:262144,input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2-turbo-preview',   name:'Kimi K2 Turbo',          api:'openai-completions', ctx:262144, max:262144,input:['text'], reasoning:false},
+    {id:'kimi-k2.5',               name:'Kimi K2.5',              api:'openai-completions', ctx:262144, max:262144,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2.6',               name:'Kimi K2.6',              api:'openai-completions', ctx:262144, max:262144,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2.7-code',          name:'Kimi K2.7 Code',         api:'openai-completions', ctx:262144, max:262144,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2.7-code-highspeed',name:'Kimi K2.7 Code HighSpeed',api:'openai-completions',ctx:262144, max:262144,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k3',                 name:'Kimi K3',                api:'openai-completions', ctx:1048576,max:131072,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+  ],
+  minimax: [
+    {id:'MiniMax-M2.7',           name:'MiniMax-M2.7',           api:'anthropic-messages', ctx:204800, max:131072, input:['text'], reasoning:true},
+    {id:'MiniMax-M2.7-highspeed', name:'MiniMax-M2.7-highspeed', api:'anthropic-messages', ctx:204800, max:131072, input:['text'], reasoning:true},
+    {id:'MiniMax-M3',             name:'MiniMax-M3',             api:'anthropic-messages', ctx:1000000,max:128000, input:['text','image'], reasoning:true},
+  ],
+  qwen: [
+    {id:'MiniMax-M2.5',       name:'MiniMax-M2.5',       api:'openai-completions', ctx:196608, max:32768, input:['text'], reasoning:true},
+    {id:'deepseek-v3.2',      name:'DeepSeek V3.2',      api:'openai-completions', ctx:131072, max:65536, input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'deepseek-v4-flash',  name:'DeepSeek V4 Flash',  api:'openai-completions', ctx:1000000,max:384000,input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'deepseek-v4-pro',    name:'DeepSeek V4 Pro',    api:'openai-completions', ctx:1000000,max:384000,input:['text'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'glm-5',              name:'GLM-5',              api:'openai-completions', ctx:202752, max:16384, input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'glm-5.1',            name:'GLM-5.1',            api:'openai-completions', ctx:202752, max:128000,input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'glm-5.2',            name:'GLM-5.2',            api:'openai-completions', ctx:1000000,max:131072,input:['text'], reasoning:true, thinkingFormat:'zai'},
+    {id:'kimi-k2.5',          name:'Kimi K2.5',          api:'openai-completions', ctx:262144, max:98304, input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'kimi-k2.6',          name:'Kimi K2.6',          api:'openai-completions', ctx:262144, max:262144,input:['text','image'], reasoning:true, thinkingFormat:'deepseek'},
+    {id:'qwen3.6-flash',      name:'Qwen3.6 Flash',      api:'openai-completions', ctx:1000000,max:65536, input:['text','image'], reasoning:true, thinkingFormat:'qwen'},
+    {id:'qwen3.6-plus',       name:'Qwen3.6 Plus',       api:'openai-completions', ctx:1000000,max:65536, input:['text','image'], reasoning:true, thinkingFormat:'qwen'},
+    {id:'qwen3.7-max',        name:'Qwen3.7 Max',        api:'openai-completions', ctx:1000000,max:131072,input:['text'], reasoning:true, thinkingFormat:'qwen'},
+    {id:'qwen3.7-plus',       name:'Qwen3.7 Plus',       api:'openai-completions', ctx:1000000,max:65536, input:['text','image'], reasoning:true, thinkingFormat:'qwen'},
+    {id:'qwen3.8-max',        name:'Qwen3.8 Max',        api:'openai-completions', ctx:1000000,max:131072,input:['text','image'], reasoning:true, thinkingFormat:'qwen'},
+  ],
+};
+const PROTOCOLS = {
+  'openai-completions': {label:'OpenAI Completions', path:'/chat/completions', native:false},
+  'openai-responses':   {label:'OpenAI Responses',   path:'/responses',        native:false},
+  'anthropic-messages': {label:'Anthropic Messages', path:'/v1/messages',      native:true},
+};
+/* media support per protocol — verified against pi-ai 0.84.1 adapters.
+   anthropic-messages: text/image only (no document block) → Mira sends PDF/video itself or not at all.
+   openai-*: image natively; Mira's own media layer adds file/video_url on completions. */
+const MEDIA = {
+  'openai-completions': {image:true, file:true,  video:true},
+  'openai-responses':   {image:true, file:false, video:false},
+  'anthropic-messages': {image:true, file:false, video:false},
+};
+
+/* ---------------------------------------------------------------------
+   Brand → endpoint. One brand can expose several access points with
+   different domains and even different protocols (verified in pi-ai 0.84.1):
+     智谱   zai(国际) / zai-coding-cn(中国)
+     Kimi   moonshotai(国际) / moonshotai-cn(中国) / kimi-coding(Anthropic 协议)
+     MiniMax minimax(国际) / minimax-cn(中国)
+     千问    token-plan 北京 / 新加坡
+   Aggregators (硅基流动、火山引擎、OpenRouter…) are NOT in the catalog —
+   they are created by the user as custom endpoints.
+   --------------------------------------------------------------------- */
+const BRANDS = [
+  {id:'deepseek', name:'深度求索', vendor:'DeepSeek', logo:'assets/deepseek.svg', endpoints:[
+    {key:'deepseek', label:'官方 API', endpoint:'https://api.deepseek.com', api:'openai-completions', hasKey:true, enabled:true, added:['deepseek-v4-flash','deepseek-v4-pro']},
+  ]},
+  {id:'glm', name:'智谱', vendor:'GLM', logo:'assets/glm.svg', endpoints:[
+    {key:'glm', label:'开放平台（中国）', endpoint:'https://open.bigmodel.cn/api/coding/paas/v4', api:'openai-completions', hasKey:true, enabled:true, added:['glm-5.2','glm-4.7']},
+    {key:'glm-intl', label:'Z.ai（国际）', endpoint:'https://api.z.ai/api/coding/paas/v4', api:'openai-completions', hasKey:false, enabled:false, added:[]},
+  ]},
+  {id:'kimi', name:'Kimi', vendor:'Moonshot AI', logo:'assets/Kimi.svg', endpoints:[
+    {key:'kimi', label:'中国版', endpoint:'https://api.moonshot.cn/v1', api:'openai-completions', hasKey:true, enabled:true, added:['kimi-k2.6','kimi-k3']},
+    {key:'kimi-intl', label:'国际版', endpoint:'https://api.moonshot.ai/v1', api:'openai-completions', hasKey:false, enabled:false, added:[]},
+    {key:'kimi-coding', label:'Kimi Coding', endpoint:'https://api.kimi.com/coding', api:'anthropic-messages', hasKey:false, enabled:false, added:[]},
+  ]},
+  {id:'minimax', name:'MiniMax', vendor:'MiniMax', logo:'assets/MiniMax.svg', endpoints:[
+    {key:'minimax', label:'中国版', endpoint:'https://api.minimaxi.com/anthropic', api:'anthropic-messages', hasKey:false, enabled:false, added:[]},
+    {key:'minimax-intl', label:'国际版', endpoint:'https://api.minimax.io/anthropic', api:'anthropic-messages', hasKey:false, enabled:false, added:[]},
+  ]},
+  {id:'qwen', name:'阿里千问', vendor:'Alibaba Cloud', logo:'assets/qwen.svg', endpoints:[
+    {key:'qwen', label:'Token Plan（北京）', endpoint:'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', api:'openai-completions', hasKey:false, enabled:false, added:['qwen3.8-max']},
+  ]},
+  {id:'ollama', name:'Ollama', vendor:'本地', logo:'assets/Ollama.svg', endpoints:[
+    {key:'ollama', label:'本机服务', endpoint:'http://localhost:11434/v1', api:'openai-completions', hasKey:false, enabled:false, authMode:'none', isLocal:true, added:['qwen3.7-plus']},
+  ]},
+];
+
+/* Model catalog per endpoint key (from pi-ai catalogs). */
+const CATALOG = {
+  deepseek: CATALOG_BASE.deepseek,
+  glm: CATALOG_BASE.glm,
+  'glm-intl': CATALOG_BASE.glm,
+  kimi: CATALOG_BASE.kimi,
+  'kimi-intl': CATALOG_BASE.kimi,
+  'kimi-coding': [
+    {id:'k3', name:'Kimi K3', api:'anthropic-messages', ctx:1048576, max:131072, input:['text','image'], reasoning:true},
+    {id:'k3-256k', name:'Kimi K3 256K', api:'anthropic-messages', ctx:262144, max:131072, input:['text','image'], reasoning:true},
+    {id:'kimi-for-coding', name:'Kimi for Coding', api:'anthropic-messages', ctx:262144, max:32768, input:['text','image'], reasoning:true},
+    {id:'kimi-for-coding-highspeed', name:'Kimi for Coding Highspeed', api:'anthropic-messages', ctx:262144, max:32768, input:['text','image'], reasoning:true},
+  ],
+  minimax: CATALOG_BASE.minimax,
+  'minimax-intl': CATALOG_BASE.minimax,
+  qwen: CATALOG_BASE.qwen,
+  ollama: [
+    {id:'qwen3.7-plus', name:'Qwen3.7 Plus', api:'openai-completions', ctx:1000000, max:65536, input:['text','image'], reasoning:true},
+    {id:'llama-3.3-70b', name:'Llama 3.3 70B', api:'openai-completions', ctx:131072, max:8192, input:['text'], reasoning:false},
+  ],
+};
+
+/* =====================================================================
+   Icons
+   ===================================================================== */
+const I = {
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  chev:'<path d="m9 18 6-6-6-6"/>',
+  chevDown:'<path d="m6 9 6 6 6-6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  close:'<path d="M18 6 6 18M6 6l12 12"/>',
+  eye:'<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff:'<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M2 2l20 20"/><path d="M9.9 9.9a3 3 0 1 0 4.2 4.2"/>',
+  edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+  trash:'<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  more:'<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+  down:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  plug:'<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  cpu:'<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
+  checkC:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  folder:'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  sparkle:'<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+};
+const icon=(p,s=15,w=1.9)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+/* =====================================================================
+   State
+   ===================================================================== */
+let providers = [];       // flat list of endpoint instances
+let activeKey = 'deepseek';
+let search = '';
+let modelSearch = '';
+let editing = null;       // { providerKey, modelId|null }
+let discSel = new Set();
+let keyVisible = false;
+
+function initState(){
+  providers = [];
+  for(const brand of BRANDS){
+    for(const ep of brand.endpoints){
+      const cat = CATALOG[ep.key] || [];
+      providers.push({
+        ...ep,
+        defaultEndpoint: ep.endpoint,
+        brandId: brand.id,
+        brandName: brand.name,
+        logo: brand.logo,
+        builtin: true,
+        name: ep.label,                     // endpoint label, brand shown in rail
+        apiKey: ep.hasKey ? 'sk-' + Math.random().toString(36).slice(2,10) + 'A1b2C3d4' : '',
+        authMode: ep.authMode || 'api-key',
+        testing:null, testMsg:'',
+        models: ep.added.map(id=>{
+          const m = cat.find(x=>x.id===id);
+          return m ? {...m, enabled:true, source:'catalog', overrides:{}} : null;
+        }).filter(Boolean),
+      });
+    }
+  }
+}
+const cur = ()=>providers.find(p=>p.key===activeKey);
+const endpointDirty = p => !!p.defaultEndpoint && p.endpoint !== p.defaultEndpoint;
+const sumCtx = n => n>=1000000 ? (n/1000000).toFixed(n%1000000?1:0)+'M' : n>=1000 ? Math.round(n/1000)+'K' : String(n);
+const apiLabel = a => (PROTOCOLS[a]||{label:a}).label;
+
+/* Every change saves immediately — no draft, no save bar. */
+function commit(msg){
+  if(msg) toast(msg);
+}
+
+/* =====================================================================
+   Render: rail — grouped by brand, each brand's endpoints nested
+   ===================================================================== */
+let collapsedBrands = new Set();   // brand ids the user folded shut
+
+function renderRail(){
+  const el = document.getElementById('providerList');
+  const q = search.trim().toLowerCase();
+  const hit = t => !q || (t||'').toLowerCase().includes(q);
+  const searching = !!q;
+
+  const brands = BRANDS.map(b=>({
+    ...b,
+    eps: providers.filter(p=>p.builtin && p.brandId===b.id)
+  })).filter(b=>b.eps.length);
+
+  let html='';
+  const shown = brands.filter(b=> hit(b.name) || hit(b.vendor) || b.eps.some(e=>hit(e.name)));
+  if(shown.length){
+    html += `<div class="rail__section">内置服务商</div>`;
+    for(const b of shown){
+      if(b.eps.length===1){
+        html += flatRow(b.eps[0], b.name);
+        continue;
+      }
+      // Multi-endpoint brand: collapsible group. Forced open while searching.
+      const folded = collapsedBrands.has(b.id) && !searching;
+      const activeInside = b.eps.some(e=>e.key===activeKey);
+      html += `<div class="brand ${folded?'is-folded':''}">
+        <button class="brand__head" data-brand="${b.id}" aria-expanded="${!folded}">
+          <span class="brand__chev">${icon(I.chev,11,2.6)}</span>
+          <span class="brand__logo">${b.logo?`<img src="${b.logo}" alt="">`:''}</span>
+          <span class="brand__name">${b.name}</span>
+          ${folded && activeInside ? `<span class="brand__dot"></span>` : ''}
+          <span class="brand__n">${b.eps.length} 个入口</span>
+        </button>
+        ${folded?'':b.eps.map(e=>endpointRow(e)).join('')}
+      </div>`;
+    }
+  }
+
+  const customs = providers.filter(p=>!p.builtin && (hit(p.name) || hit(p.id) || hit(p.endpoint)));
+  if(customs.length){
+    html += `<div class="rail__section">自定义</div>`;
+    html += customs.map(c=>flatRow(c, c.name, true)).join('');
+  }
+
+  if(!shown.length && !customs.length) html = `<div class="rail__empty">没有匹配的服务商</div>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll('.pitem').forEach(r=>r.addEventListener('click',()=>selectProvider(r.dataset.key)));
+  el.querySelectorAll('.brand__head').forEach(h=>h.addEventListener('click',()=>{
+    const id = h.dataset.brand;
+    if(collapsedBrands.has(id)) collapsedBrands.delete(id); else collapsedBrands.add(id);
+    renderRail();
+  }));
+}
+
+function railMeta(p){
+  const ready = p.authMode==='none' || !!p.apiKey;
+  const on = p.enabled && p.models.some(m=>m.enabled);
+  const text = !p.models.length ? '未添加模型'
+             : !ready ? '缺少密钥'
+             : `${p.models.filter(m=>m.enabled).length}/${p.models.length} 个模型`;
+  const dot = !ready ? 'warn' : on ? 'on' : '';
+  return `<span class="pitem__meta"><i class="pitem__dot ${dot}"></i>${text}</span>`;
+}
+
+function flatRow(p, label, isCustom){
+  return `<div class="pitem ${p.key===activeKey?'is-active':''}" data-key="${p.key}" role="button" tabindex="0">
+    <span class="pitem__logo">${p.logo?`<img src="${p.logo}" alt="">`:`<span class="pitem__logo--letter">${(label||'?').slice(0,1)}</span>`}</span>
+    <span class="pitem__body">
+      <span class="pitem__name">${label}</span>
+      ${railMeta(p)}
+    </span>
+  </div>`;
+}
+
+function endpointRow(p){
+  return `<div class="pitem ${p.key===activeKey?'is-active':''}" data-key="${p.key}" role="button" tabindex="0">
+    <span class="pitem__body">
+      <span class="pitem__name">${p.name}</span>
+      ${railMeta(p)}
+    </span>
+  </div>`;
+}
+
+/* =====================================================================
+   Render: panel
+   ===================================================================== */
+function renderPanel(){
+  const p = cur();
+  if(!p){ document.getElementById('panel').innerHTML=`<div class="empty" style="margin:auto;max-width:320px"><div class="empty__title">选择左侧的服务商</div></div>`; return; }
+  const ready = p.authMode==='none' || !!p.apiKey;
+  const enabledModels = p.models.filter(m=>m.enabled);
+  const proto = PROTOCOLS[p.api] || {label:p.api, path:'/chat/completions'};
+  const multiEp = p.builtin && providers.filter(x=>x.brandId===p.brandId).length>1;
+  const effUrl = p.endpoint.replace(/\/$/,'') + proto.path;
+
+  document.getElementById('panel').innerHTML = `
+  <div class="panel__head">
+    <span class="panel__logo">${p.logo?`<img src="${p.logo}" alt="">`:`<span class="panel__logo--letter">${(p.brandName||p.name).slice(0,1)}</span>`}</span>
+    <div class="panel__id">
+      <div class="panel__name">
+        ${p.builtin
+          ? `${p.brandName}${multiEp ? `<span class="panel__ep">${p.name}</span>` : ''}`
+          : `<input class="panel__rename" id="renameInput" value="${p.name}" aria-label="服务商名称">`}
+      </div>
+      <div class="panel__sub">
+        <span class="proto ${PROTOCOLS[p.api]?.native?'proto--native':''}" title="请求协议">${proto.label}</span>
+        <span>${p.authMode==='none'?'本地服务 · 无需密钥':'API 密钥已保存于本机'}</span>
+        ${enabledModels.length?`<span>·</span><span>${enabledModels.length} 个模型已启用</span>`:''}
+        ${p.enabled && !ready ? `<span>·</span><span style="color:var(--warning)">缺少密钥</span>`:''}
+      </div>
+    </div>
+    <div class="panel__actions">
+      <span class="switch-wrap">${p.enabled?'已启用':'已停用'}
+        <button class="switch" role="switch" aria-checked="${p.enabled}" data-act="toggleEnable" aria-label="启用服务商"></button>
+      </span>
+      ${!p.builtin ? `<button class="iconbtn iconbtn--danger" data-act="delProvider" aria-label="移除服务商" title="移除服务商">${icon(I.trash,15,1.9)}</button>`:''}
+    </div>
+  </div>
+
+  <div class="panel__body">
+    <section class="section">
+      <div class="section__head">
+        <div>
+          <h3 class="section__title">连接</h3>
+          <p class="section__desc">凭据只保存在本机配置文件中，不会进入会话或导出。</p>
+        </div>
+        <span class="status ${p.testing==='ok'?'status--ok':p.testing==='err'?'status--err':p.testing==='busy'?'status--busy':''}">
+          <i></i>${p.testing==='ok'?'连接正常':p.testing==='err'?'连接失败':p.testing==='busy'?'检测中…':ready?'未检测':'配置未完成'}
+        </span>
+      </div>
+
+      ${p.authMode==='none' ? `
+      <div class="field">
+        <div class="field__label">认证</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--r-sm)">
+          ${icon(I.plug,15)}<span style="font-size:var(--t-base)">无需密钥</span>
+          <span style="color:var(--text-2);font-size:var(--t-sm)">本机服务，直接访问 ${p.endpoint}</span>
+        </div>
+      </div>` : `
+      <div class="field">
+        <div class="field__label">API 密钥</div>
+        <div class="field__row">
+          <div class="input-wrap">
+            <input class="control control--mono" id="apiKeyInput" type="${keyVisible?'text':'password'}"
+              value="${p.apiKey}" placeholder="未设置">
+            <button class="input-wrap__btn" data-act="toggleKeyVis" aria-label="${keyVisible?'隐藏密钥':'显示密钥'}">${icon(keyVisible?I.eyeOff:I.eye,13,1.9)}</button>
+          </div>
+          <button class="btn" data-act="test">${icon(I.plug,13)}检测</button>
+        </div>
+        <p class="field__hint">留空表示不修改已保存的密钥；清除密钥需在更多操作中单独确认。</p>
+      </div>`}
+
+      <div class="field">
+        <div class="field__label">请求协议</div>
+        <select class="control" id="apiSelect">
+          ${Object.entries(PROTOCOLS).map(([k,v])=>`<option value="${k}" ${p.api===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+        <p class="field__hint">协议决定请求体格式与参数名。MiniMax 等供应商使用 Anthropic Messages，而非 OpenAI 兼容。</p>
+      </div>
+
+      <div class="field">
+        <div class="field__label">API 地址</div>
+        <div class="field__row">
+          <input class="control control--mono" id="endpointInput" value="${p.endpoint}" spellcheck="false">
+          ${p.builtin && endpointDirty(p) ? `<button class="btn btn--sm" data-act="resetEndpoint">${icon(I.refresh,13,2)}重置</button>`:''}
+        </div>
+        <div class="url-preview">${icon(I.chev,11,2.4)}<span>实际请求</span><b>${effUrl}</b></div>
+        ${p.builtin && endpointDirty(p) ? `<p class="field__hint">已修改内置默认地址。重置可恢复为 ${p.defaultEndpoint}</p>` : `<p class="field__hint">内置地址可以修改，用于代理或自建中转。</p>`}
+      </div>
+
+      ${p.testMsg?`<div class="test-line"><span class="status ${p.testing==='ok'?'status--ok':'status--err'}"><i></i>${p.testMsg}</span></div>`:''}
+    </section>
+
+    <section class="section">
+      <div class="section__head">
+        <div>
+          <h3 class="section__title">模型</h3>
+          <p class="section__desc">启用的模型会以「${p.builtin?p.brandName:p.name}${multiEp?' · '+p.name:''} → 模型名称」出现在任务和工作流的选择器中。</p>
+        </div>
+        <div class="section__tools">
+          <button class="btn btn--sm" data-act="discover">${icon(I.download,13)}获取模型列表</button>
+          <button class="btn btn--sm btn--primary" data-act="addModel">${icon(I.plus,13,2.2)}添加模型</button>
+        </div>
+      </div>
+
+      ${p.models.length ? `
+      <div class="mtoolbar">
+        <div class="msearch">
+          ${icon(I.search,12,2.2)}
+          <input id="modelSearch" placeholder="筛选已添加模型…" value="${modelSearch}">
+        </div>
+        <span style="margin-left:auto;color:var(--text-2);font-size:var(--t-sm)">${enabledModels.length} / ${p.models.length} 已启用</span>
+      </div>
+      <div class="model-list">${renderModelRows(p)}</div>
+      ` : `
+      <div class="empty">
+        <div class="empty__icon">${icon(I.cpu,17,1.8)}</div>
+        <div class="empty__title">还没有模型</div>
+        <div class="empty__desc">从供应商获取列表，或手动填入模型 ID</div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+          <button class="btn btn--sm" data-act="discover">${icon(I.download,13)}获取模型列表</button>
+          <button class="btn btn--sm" data-act="addModel">${icon(I.plus,13,2.2)}手动添加</button>
+        </div>
+      </div>`}
+    </section>
+  </div>
+
+  </div>`;
+
+  bindPanel();
+}
+
+function renderModelRows(p){
+  const q = modelSearch.trim().toLowerCase();
+  const list = p.models.filter(m=>!q || m.id.toLowerCase().includes(q) || (m.name||'').toLowerCase().includes(q));
+  if(!list.length) return `<div class="rail__empty">没有匹配的模型</div>`;
+
+  // group: reasoning-capable first (「推理模型」), then standard
+  const groups = [
+    {title:'推理模型', items:list.filter(m=>m.reasoning)},
+    {title:'标准模型', items:list.filter(m=>!m.reasoning)},
+  ].filter(g=>g.items.length);
+
+  return groups.map(g=>`
+    <div class="mgrouphdr">${g.title}<span class="count">${g.items.length}</span></div>
+    ${g.items.map(m=>{
+      const vision = (m.input||[]).includes('image');
+      const unknown = m.source==='manual';
+      return `<div class="mrow ${m.enabled?'':'is-off'}" data-model="${m.id}">
+        <button class="switch" role="switch" aria-checked="${m.enabled}" data-act="toggleModel" data-id="${m.id}" aria-label="启用 ${m.name||m.id}"></button>
+        <div class="mrow__id">
+          <div class="mrow__name">
+            ${m.name && m.name!==m.id ? m.name : m.id}
+            ${m.reasoning?`<span class="chip chip--reason">推理</span>`:''}
+            ${vision?`<span class="chip chip--vision">图片</span>`:''}
+            ${unknown?`<span class="chip chip--custom">参数待确认</span>`:''}
+          </div>
+          <div class="mrow__model">${m.id}</div>
+        </div>
+        <div class="mrow__col">${m.ctx?sumCtx(m.ctx)+' 上下文':'—'}</div>
+        <div class="mrow__col mrow__col--out">${m.max?sumCtx(m.max)+' 输出':'—'}</div>
+        <div class="mrow__acts">
+          <button class="iconbtn" data-act="editModel" data-id="${m.id}" style="width:26px;height:26px" aria-label="编辑模型">${icon(I.edit,13,1.9)}</button>
+          <button class="iconbtn" data-act="delModel" data-id="${m.id}" style="width:26px;height:26px;color:var(--danger)" aria-label="移除模型">${icon(I.trash,13,1.9)}</button>
+        </div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+/* Autosave: every edit persists immediately, debounced only for typing. */
+let saveT;
+function scheduleSave(){
+  clearTimeout(saveT);
+  saveT = setTimeout(()=>{ flashSaved(); }, 400);
+}
+function flashSaved(){
+  const n = document.querySelector('.panel__saved');
+  if(!n) return;
+  n.classList.add('show');
+  clearTimeout(n._t);
+  n._t = setTimeout(()=>n.classList.remove('show'), 1400);
+}
+
+function delProvider(key){
+  const p = providers.find(x=>x.key===key);
+  if(!p || p.builtin) return;
+  const idx = providers.indexOf(p);
+  providers.splice(idx,1);
+  if(activeKey===key) activeKey = providers[Math.max(0,idx-1)]?.key || providers[0]?.key;
+  renderAll();
+  toast(`已移除 ${p.name}`);
+}
+
+/* =====================================================================
+   Panel events
+   ===================================================================== */
+function renderPanelRefreshReset(){
+  const p=cur();
+  if(!p || !p.builtin) return;
+  const row=document.querySelector('#endpointInput')?.closest('.field__row');
+  if(!row) return;
+  const existing=row.querySelector('[data-act="resetEndpoint"]');
+  const dirty=endpointDirty(p);
+  if(dirty && !existing){
+    const btn=document.createElement('button');
+    btn.className='btn btn--sm'; btn.dataset.act='resetEndpoint';
+    btn.innerHTML=icon(I.refresh,13,2)+'重置';
+    btn.addEventListener('click',()=>{cur().endpoint=cur().defaultEndpoint; renderPanel(); toast('已恢复默认地址');});
+    row.appendChild(btn);
+  } else if(!dirty && existing){
+    existing.remove();
+  }
+}
+
+function bindPanel(){
+  const panel = document.getElementById('panel');
+
+  panel.querySelector('[data-act="toggleEnable"]')?.addEventListener('click',()=>{
+    const p=cur();
+    if(!p.enabled && p.authMode!=='none' && !p.apiKey){ toast('请先填写 API 密钥'); return; }
+    if(!p.enabled && !p.models.some(m=>m.enabled)){ toast('请先启用至少一个模型'); return; }
+    p.enabled=!p.enabled; renderAll(); scheduleSave();
+  });
+
+  panel.querySelector('[data-act="toggleKeyVis"]')?.addEventListener('click',()=>{ keyVisible=!keyVisible; renderPanel(); });
+  panel.querySelector('[data-act="test"]')?.addEventListener('click',runTest);
+  panel.querySelector('[data-act="discover"]')?.addEventListener('click',openDiscovery);
+  panel.querySelector('[data-act="addModel"]')?.addEventListener('click',()=>openModel(null));
+  panel.querySelector('[data-act="delProvider"]')?.addEventListener('click',()=>delProvider(activeKey));
+  document.getElementById('renameInput')?.addEventListener('input',e=>{
+    const p=cur(); p.name=e.target.value; renderRail(); scheduleSave();
+  });
+
+  const keyIn = panel.querySelector('#apiKeyInput');
+  keyIn?.addEventListener('input',()=>{
+    const p=cur(); p.apiKey=keyIn.value; p.testing=null; p.testMsg='';
+  });
+  keyIn?.addEventListener('change',()=>{ scheduleSave(); renderRail(); });
+  panel.querySelector('#apiSelect')?.addEventListener('change',e=>{
+    cur().api=e.target.value; renderPanel(); scheduleSave();
+  });
+  panel.querySelector('#endpointInput')?.addEventListener('input',e=>{
+    cur().endpoint=e.target.value; scheduleSave();
+    const proto=PROTOCOLS[cur().api]||{path:''};
+    panel.querySelector('.url-preview b').textContent=e.target.value.replace(/\/$/,'')+proto.path;
+    renderPanelRefreshReset();
+  });
+  panel.querySelector('[data-act="resetEndpoint"]')?.addEventListener('click',()=>{
+    cur().endpoint=cur().defaultEndpoint; renderPanel(); toast('已恢复默认地址');
+  });
+
+  const ms = panel.querySelector('#modelSearch');
+  ms?.addEventListener('input',()=>{ modelSearch=ms.value; renderPanel(); setTimeout(()=>{const i=document.getElementById('modelSearch'); if(i){i.focus(); i.setSelectionRange(i.value.length,i.value.length);}},0); });
+
+  panel.querySelectorAll('[data-act="toggleModel"]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const m=cur().models.find(x=>x.id===b.dataset.id); m.enabled=!m.enabled; renderAll(); scheduleSave();
+  }));
+  panel.querySelectorAll('[data-act="editModel"]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation(); openModel(b.dataset.id);}));
+  panel.querySelectorAll('[data-act="delModel"]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const p=cur(); p.models=p.models.filter(m=>m.id!==b.dataset.id); renderAll(); scheduleSave(); toast('已移除模型');
+  }));
+}
+
+function runTest(){
+  const p=cur();
+  if(p.authMode!=='none' && !p.apiKey){ toast('请先填写 API 密钥'); return; }
+  if(!p.models.length){ toast('请先添加模型'); return; }
+  p.testing='busy'; p.testMsg=''; renderPanel();
+  setTimeout(()=>{
+    p.testing='ok';
+    p.testMsg=`连接正常 · ${p.models[0].id} 返回有效响应 · 1.2s`;
+    renderPanel(); toast('检测通过');
+  },1200);
+}
+
+/* =====================================================================
+   Provider selection
+   ===================================================================== */
+function selectProvider(key){
+  if(key===activeKey) return;
+  activeKey=key; modelSearch=''; keyVisible=false;
+  renderAll();
+}
+
+/* =====================================================================
+   Model drawer
+   ===================================================================== */
+const THINKING_FORMATS=['openai','deepseek','zai','qwen','openrouter','together','baseten','chat-template','string-thinking','ant-ling'];
+
+function openModel(modelId){
+  const p=cur();
+  const existing = modelId ? p.models.find(m=>m.id===modelId) : null;
+  editing = {
+    providerKey:p.key, modelId, existing,
+    caps:{
+      image: existing ? ((existing.input||[]).includes('image') ? 'yes' : (existing.source==='manual'?'?':'no')) : '?',
+      reasoning: existing ? (existing.reasoning===true?'yes':(existing.source==='manual'?'?':'no')) : '?',
+      tools: existing ? (existing.source==='manual'?'?':'yes') : '?',
+    },
+    draft: existing ? {...existing, overrides:{...(existing.overrides||{})}} : {
+      id:'', name:'', reasoning:false, input:['text'], ctx:undefined, max:undefined,
+      thinkingFormat:undefined, source:'manual', enabled:true, overrides:{}
+    }
+  };
+  document.getElementById('modelDrawerTitle').textContent = existing ? '编辑模型' : '添加模型';
+  document.getElementById('modelDrawerSub').textContent = existing
+    ? (existing.source==='catalog' ? '参数来自内置能力目录 · ' + apiLabel(p.api) : '手动添加 · 参数待确认')
+    : '填入供应商返回的模型 ID，名称可留空';
+  document.getElementById('modelDeleteBtn').style.display = existing ? '' : 'none';
+  renderModelDrawer();
+  show('modelDrawer');
+}
+
+function renderModelDrawer(){
+  const d = editing.draft;
+  const p = providers.find(x=>x.key===editing.providerKey);
+  const isNew = !editing.modelId;
+  document.getElementById('modelDrawerBody').innerHTML = `
+    <div class="field">
+      <div class="field__label">模型 ID <span class="field__req">*</span></div>
+      <input class="control control--mono" id="mId" value="${d.id}" placeholder="例如 deepseek-v4-pro" ${isNew?'':'readonly style="background:var(--bg-elevated);color:var(--text-2)"'}>
+      <p class="field__hint">请求时原样发送，不做大小写或别名转换。</p>
+    </div>
+    <div class="field">
+      <div class="field__label">显示名称</div>
+      <input class="control" id="mName" value="${d.name||''}" placeholder="留空则使用模型 ID">
+    </div>
+
+    <div class="field" style="margin-top:20px">
+      <div class="field__label">能力声明</div>
+      <p class="field__hint" style="margin:-1px 0 8px">来自内置目录；未知模型显示「待确认」，不假装不支持。</p>
+      <div class="cap-list">
+        <div class="cap">
+          <span class="cap__label">图片输入<small>image input</small></span>
+          <div class="seg" data-cap="image">
+            ${seg('image','yes','支持')}${seg('image','no','不支持')}${seg('image','?','待确认')}
+          </div>
+        </div>
+        <div class="cap">
+          <span class="cap__label">推理输出<small>reasoning</small></span>
+          <div class="seg" data-cap="reasoning">
+            ${seg('reasoning','yes','支持')}${seg('reasoning','no','不支持')}${seg('reasoning','?','待确认')}
+          </div>
+        </div>
+        <div class="cap">
+          <span class="cap__label">工具调用<small>tool use</small></span>
+          <div class="seg" data-cap="tools">
+            ${seg('tools','yes','支持')}${seg('tools','no','不支持')}${seg('tools','?','待确认')}
+          </div>
+        </div>
+      </div>
+      ${(()=>{const mm=MEDIA[p.api]||{};return (!mm.file||!mm.video)?`
+      <div class="mediagap">
+        ${icon(I.info,13)}
+        <div>
+          <b>${apiLabel(p.api)} 不能直接发送 ${[!mm.file?'PDF':'',!mm.video?'视频':''].filter(Boolean).join(' / ')}</b>
+          <span>pi-ai 的该协议适配器只产出 text / image 内容块。勾选这两项不会让请求成功——如需支持，Mira 需自行转换或在该协议下隐藏入口。</span>
+        </div>
+      </div>`:''})()}
+    </div>
+
+    <div class="field">
+      <div class="field__label">上下文与输出上限</div>
+      <div class="field__row">
+        <div class="input-wrap"><input class="control control--mono" id="mCtx" value="${d.ctx||''}" placeholder="上下文 token"><span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-3)">ctx</span></div>
+        <div class="input-wrap"><input class="control control--mono" id="mMax" value="${d.max||''}" placeholder="最大输出"><span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-3)">out</span></div>
+      </div>
+      <p class="field__hint">当前适配器把最大输出固定为 8192，必须随模型放开。</p>
+    </div>
+
+    <div class="adv" id="advBox">
+      <button class="adv__toggle" data-act="toggleAdv">${icon(I.chev,11,2.6)}<span class="adv__chev" style="display:none"></span>调整参数（高级）</button>
+      <div class="adv__body">
+        <p class="adv__note">协议自动推断时通常无需修改。错误的取值会让推理参数静默失效，而不是报错。</p>
+        <div class="field">
+          <div class="field__label">推理参数格式</div>
+          <select class="control" id="mThink">
+            <option value="">自动（按地址推断）</option>
+            ${THINKING_FORMATS.map(f=>`<option value="${f}" ${d.thinkingFormat===f?'selected':''}>${f}</option>`).join('')}
+          </select>
+          <p class="field__hint">deepseek → thinking.type，zai → thinking.type，qwen → enable_thinking</p>
+        </div>
+        <div class="field">
+          <div class="field__label">额外请求头</div>
+          <div class="field__row" style="margin-bottom:6px">
+            <input class="control control--mono" placeholder="X-Title" style="flex:0 0 130px">
+            <input class="control control--mono" placeholder="值">
+            <button class="btn btn--sm btn--ghost" style="padding:0 8px">${icon(I.close,12,2.4)}</button>
+          </div>
+          <button class="btn btn--sm" style="margin-top:2px">${icon(I.plus,12,2.2)}添加请求头</button>
+        </div>
+        <div class="tw">
+          <div class="tw__label">允许 strict 工具模式<small>部分自建端点会拒绝该字段</small></div>
+          <button class="switch" role="switch" aria-checked="true" data-act="noop"></button>
+        </div>
+        <div class="tw">
+          <div class="tw__label">发送 developer 角色<small>Ollama / vLLM 常需关闭</small></div>
+          <button class="switch" role="switch" aria-checked="${p.api==='openai-completions'?'true':'false'}" data-act="noop"></button>
+        </div>
+      </div>
+    </div>`;
+
+  // capability segment state — driven from editing.caps, never re-derived on click
+  const setSeg=(cap,val)=>document.querySelectorAll(`.seg[data-cap="${cap}"] button`).forEach(b=>b.classList.toggle('on',b.dataset.v===val));
+  setSeg('image', editing.caps.image);
+  setSeg('reasoning', editing.caps.reasoning);
+  setSeg('tools', editing.caps.tools);
+
+  document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    editing.caps[seg.dataset.cap]=b.dataset.v;
+    seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+
+  document.querySelector('#advBox .adv__toggle').addEventListener('click',()=>{
+    document.getElementById('advBox').classList.toggle('open');
+    const box=document.getElementById('advBox');
+    box.querySelector('.adv__toggle svg').style.transform = box.classList.contains('open')?'rotate(90deg)':'';
+  });
+}
+function seg(cap,val,label){
+  return `<button data-v="${val}" class="${editing.caps[cap]===val?'on':''}">${label}</button>`;
+}
+
+document.getElementById('modelSaveBtn').addEventListener('click',()=>{
+  const d=editing.draft;
+  const id=(document.getElementById('mId')?.value||d.id||'').trim();
+  if(!id){ toast('请填写模型 ID'); return; }
+  const p=providers.find(x=>x.key===editing.providerKey);
+  const name=(document.getElementById('mName')?.value||'').trim();
+  const ctx=parseInt(document.getElementById('mCtx')?.value||'0',10)||undefined;
+  const max=parseInt(document.getElementById('mMax')?.value||'0',10)||undefined;
+  const think=document.getElementById('mThink')?.value||undefined;
+  const c=editing.caps;
+  const input = c.image==='yes' ? ['text','image'] : ['text'];
+  const reasoning = c.reasoning==='yes' ? true : c.reasoning==='no' ? false : undefined;
+  const manualCaps = c.image==='?' || c.reasoning==='?' || c.tools==='?';
+
+  if(editing.modelId){
+    const m=p.models.find(x=>x.id===editing.modelId);
+    Object.assign(m,{name:name||m.name, ctx:ctx??m.ctx, max:max??m.max, thinkingFormat:think,
+      input, reasoning, source: manualCaps?'manual':m.source});
+  }else{
+    if(p.models.some(m=>m.id===id)){ toast('该模型已存在'); return; }
+    p.models.push({id, name:name||id, api:p.api, ctx, max, input,
+      reasoning, thinkingFormat:think, enabled:true, source:'manual', overrides:{}});
+  }
+  hide('modelDrawer'); renderAll(); scheduleSave(); toast(editing.modelId?'模型已更新':'模型已添加');
+});
+
+document.getElementById('modelDeleteBtn').addEventListener('click',()=>{
+  const p=providers.find(x=>x.key===editing.providerKey);
+  p.models=p.models.filter(m=>m.id!==editing.modelId);
+  hide('modelDrawer'); renderAll(); scheduleSave(); toast('已移除模型');
+});
+
+/* =====================================================================
+   Discovery drawer
+   ===================================================================== */
+function openDiscovery(){
+  const p=cur();
+  // Never block the drawer: explain what is missing and where to fix it.
+  const needKey = p.authMode!=='none' && !p.apiKey;
+  const remote = (CATALOG[p.key]||[]);
+  if(needKey){
+    discSel=new Set();
+    document.getElementById('discSub').textContent=`${p.name} · ${apiLabel(p.api)}`;
+    document.getElementById('discBody').innerHTML=`
+      <div class="needkey">
+        <div class="needkey__icon">${icon(I.plug,20,1.8)}</div>
+        <div class="needkey__title">需要先配置 API 密钥</div>
+        <p class="needkey__desc">模型列表来自供应商接口，需要有效凭据才能读取。填写密钥并保存后，再点「获取模型列表」。</p>
+        <button class="btn btn--sm" data-close="discDrawer">去填写密钥</button>
+      </div>`;
+    document.getElementById('discCount').textContent='';
+    document.getElementById('discAddBtn').disabled=true;
+    show('discDrawer');
+    return;
+  }
+  if(!remote.length){ toast('该服务商暂无内置目录，请手动添加'); return; }
+  discSel=new Set();
+  document.getElementById('discSub').textContent=`${p.name} · ${remote.length} 个模型 · ${apiLabel(p.api)}`;
+  renderDiscovery(remote);
+  show('discDrawer');
+}
+function renderDiscovery(remote){
+  const p=cur();
+  const have=new Set(p.models.map(m=>m.id));
+  document.getElementById('discBody').innerHTML=`
+    <div class="rail__search" style="margin:0 0 4px">
+      ${icon(I.search,12,2.2)}
+      <input id="discSearch" placeholder="按模型 ID 或名称搜索…" style="height:32px">
+    </div>
+    <p class="field__hint" style="margin:0 0 4px">已添加的模型不会重复出现；列表来自供应商接口，参数由内置目录补齐。</p>
+    <div class="disc-list" id="discList">
+      ${remote.map(m=>{
+        const added=have.has(m.id);
+        return `<div class="disc ${added?'is-added':''}" data-id="${m.id}">
+          <span class="disc__box">${added?icon(I.check,10,3):''}</span>
+          <span class="disc__id">${m.id}</span>
+          <span class="disc__meta">${m.reasoning?'推理':''}${m.input.includes('image')?' · 图片':''} ${sumCtx(m.ctx)}</span>
+          ${added?'<span class="chip chip--custom">已添加</span>':''}
+        </div>`;}).join('')}
+    </div>`;
+
+  document.querySelectorAll('.disc:not(.is-added)').forEach(row=>row.addEventListener('click',()=>{
+    if(!discSel.has(row.dataset.id)) discSel.add(row.dataset.id); else discSel.delete(row.dataset.id);
+    row.classList.toggle('sel');
+    row.querySelector('.disc__box').innerHTML = discSel.has(row.dataset.id)?icon(I.check,10,3):'';
+    document.getElementById('discCount').textContent=`已选 ${discSel.size} 项`;
+    document.getElementById('discAddBtn').disabled = discSel.size===0;
+  }));
+  const s=document.getElementById('discSearch');
+  s.addEventListener('input',()=>{
+    const q=s.value.toLowerCase();
+    document.querySelectorAll('.disc').forEach(r=>r.style.display=r.dataset.id.toLowerCase().includes(q)?'':'none');
+  });
+}
+
+document.getElementById('discAddBtn').addEventListener('click',()=>{
+  const p=cur(); const cat=CATALOG[p.key]||[];
+  [...discSel].forEach(id=>{
+    const src=cat.find(m=>m.id===id);
+    if(src && !p.models.some(m=>m.id===id)) p.models.push({...src, enabled:true, source:'catalog', overrides:{}});
+  });
+  discSel.clear(); hide('discDrawer'); renderAll(); scheduleSave(); toast('模型已添加');
+});
+
+/* =====================================================================
+   Add provider dialog
+   ===================================================================== */
+function openAdd(){
+  document.getElementById('addDlgBody').innerHTML=`
+    <p class="field__hint" style="margin:0 0 14px">用于聚合网关与自建服务，例如 硅基流动、火山引擎、公司内网 vLLM。厂商官方入口已在内置列表中，无需在这里重复添加。</p>
+    <div class="field">
+      <div class="field__label">Provider ID <span class="field__req">*</span></div>
+      <input class="control control--mono" id="npId" placeholder="siliconflow" autocomplete="off" spellcheck="false">
+      <p class="field__hint" id="npIdHint">仅限英文字母与数字，用于内部引用与配置存储，创建后不可修改。</p>
+    </div>
+    <div class="field">
+      <div class="field__label">显示名称 <span class="field__req">*</span></div>
+      <input class="control" id="npName" placeholder="例如 硅基流动">
+      <p class="field__hint">可以重名，仅用于界面展示；选择器显示这一项。</p>
+    </div>
+    <div class="field">
+      <div class="field__label">请求协议</div>
+      <select class="control" id="npApi">
+        ${Object.entries(PROTOCOLS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <p class="field__hint">每个协议有独立的地址规则；创建后仍可修改。</p>
+    </div>
+    <div class="field">
+      <div class="field__label">API 地址 <span class="field__req">*</span></div>
+      <input class="control control--mono" id="npUrl" placeholder="https://api.example.com/v1">
+      <div class="url-preview" id="npPreview">${icon(I.chev,11,2.4)}<span>实际请求</span><b>—</b></div>
+    </div>
+    <div class="field">
+      <div class="field__label">API 密钥</div>
+      <input class="control control--mono" id="npKey" placeholder="sk-…  （本地服务可留空）">
+    </div>
+    <div class="tw" style="border-top:1px solid var(--border-light);margin-top:16px;padding-top:12px">
+      <div class="tw__label">本地服务，无需密钥<small>Ollama、LM Studio、自建 vLLM</small></div>
+      <button class="switch" role="switch" aria-checked="false" id="npNoAuth" data-act="noop"></button>
+    </div>`;
+
+  const idIn=document.getElementById('npId');
+  const hint=document.getElementById('npIdHint');
+  const okBtn=document.getElementById('addDlgOk');
+
+  const validateId=()=>{
+    const raw=idIn.value;
+    // strip disallowed chars as the user types
+    const clean=raw.replace(/[^A-Za-z0-9]/g,'');
+    if(clean!==raw){ idIn.value=clean; }
+    if(!clean){ hint.textContent='仅限英文字母与数字，用于内部引用与配置存储，创建后不可修改。'; hint.style.color=''; return false; }
+    const taken=providers.some(p=>(p.id||p.key)===clean);
+    if(taken){ hint.textContent=`「${clean}」已被占用，请换一个。`; hint.style.color='var(--danger)'; return false; }
+    hint.textContent='仅限英文字母与数字，用于内部引用与配置存储，创建后不可修改。';
+    hint.style.color='var(--success)';
+    return true;
+  };
+
+  const refresh=()=>{
+    okBtn.disabled = !(validateId() && document.getElementById('npName').value.trim() && document.getElementById('npUrl').value.trim());
+  };
+
+  const upd=()=>{
+    const url=document.getElementById('npUrl').value.replace(/\/$/,'');
+    const path=(PROTOCOLS[document.getElementById('npApi').value]||{path:''}).path;
+    document.getElementById('npPreview').querySelector('b').textContent = url?url+path:'—';
+    refresh();
+  };
+  idIn.addEventListener('input',refresh);
+  document.getElementById('npName').addEventListener('input',refresh);
+  document.getElementById('npUrl').addEventListener('input',upd);
+  document.getElementById('npApi').addEventListener('change',upd);
+  document.getElementById('npNoAuth').addEventListener('click',e=>{
+    const b=e.currentTarget; b.setAttribute('aria-checked',b.getAttribute('aria-checked')!=='true');
+  });
+  okBtn.disabled=true;
+  show('addDlg');
+  idIn.focus();
+}
+
+document.getElementById('addDlgOk').addEventListener('click',()=>{
+  const id=document.getElementById('npId').value.trim();
+  const name=document.getElementById('npName').value.trim();
+  const url=document.getElementById('npUrl').value.trim();
+  if(!id){ toast('请填写 Provider ID'); return; }
+  if(!/^[A-Za-z0-9]+$/.test(id)){ toast('Provider ID 仅限英文字母与数字'); return; }
+  if(providers.some(p=>(p.id||p.key)===id)){ toast('Provider ID 已被占用'); return; }
+  if(!name||!url){ toast('请填写显示名称与地址'); return; }
+  const noAuth=document.getElementById('npNoAuth').getAttribute('aria-checked')==='true';
+  providers.push({
+    key:'custom-'+id, id, name, vendor:'自定义', endpoint:url,
+    api:document.getElementById('npApi').value, logo:'', builtin:false, brandName:name,
+    authMode:noAuth?'none':'api-key', apiKey:document.getElementById('npKey').value.trim(),
+    enabled:false, models:[], testMsg:''
+  });
+  activeKey=providers[providers.length-1].key;
+  hide('addDlg'); renderAll(); scheduleSave(); toast('服务商已添加');
+});
+
+/* =====================================================================
+   Overlay plumbing
+   ===================================================================== */
+const scrim=document.getElementById('scrim');
+function show(id){
+  document.getElementById(id).classList.add('show');
+  scrim.classList.add('show');
+}
+function hide(id){
+  document.getElementById(id).classList.remove('show');
+  if(!document.querySelector('.drawer.show, .dlg.show')) scrim.classList.remove('show');
+}
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.close)));
+scrim.addEventListener('click',()=>{ ['modelDrawer','discDrawer','addDlg'].forEach(hide); });
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ ['modelDrawer','discDrawer','addDlg'].forEach(hide); }
+});
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1900);
+}
+
+/* =====================================================================
+   Boot
+   ===================================================================== */
+document.getElementById('addProviderBtn').addEventListener('click',openAdd);
+document.getElementById('providerSearch').addEventListener('input',e=>{
+  search=e.target.value;
+  document.getElementById('clearSearch').hidden=!search;
+  renderRail();
+});
+document.getElementById('clearSearch').addEventListener('click',()=>{
+  search=''; document.getElementById('providerSearch').value=''; document.getElementById('clearSearch').hidden=true; renderRail();
+});
+
+function renderAll(){ renderRail(); renderPanel(); }
+initState();
+
+/* Screenshot/QA harness: ?theme=dark&open=model|disc|add&provider=kimi */
+const qs = new URLSearchParams(location.search);
+if(qs.get('theme')==='dark') document.documentElement.dataset.theme='dark';
+if(qs.get('provider')) activeKey = qs.get('provider');
+if(qs.get('editEndpoint')==='1'){ const c=cur(); if(c) c.endpoint='https://proxy.corp.com/v1'; }
+if(qs.get('fold')) qs.get('fold').split(',').forEach(k=>collapsedBrands.add(k));
+renderAll();
+const _open = qs.get('open');
+if(_open==='model') openModel(qs.get('model'));
+if(_open==='disc') openDiscovery();
+if(_open==='add') openAdd();
+
+/* ?selftest=1 — exercise real handlers, print PASS/FAIL */
+if(qs.get('selftest')){
+  const R=[]; const ok=(n,c)=>R.push((c?'PASS':'FAIL')+' · '+n);
+  const $=s=>document.querySelector(s);
+  try{
+    // brand grouping: one brand can expose several endpoints
+    renderRail();
+    ok('rail groups multi-endpoint brands', document.querySelectorAll('.brand').length===3);
+    ok('multi-endpoint brand shows count', document.body.innerHTML.includes('3 个入口'));
+    ok('qwen has no SG endpoint', !providers.some(p=>p.key==='qwen-sg'));
+    ok('qwen is single endpoint (§ flat row)', providers.filter(p=>p.brandId==='qwen').length===1);
+    ok('kimi-coding endpoint exists', !!providers.find(p=>p.key==='kimi-coding'));
+    ok('kimi-coding uses anthropic', providers.find(p=>p.key==='kimi-coding').api==='anthropic-messages');
+
+    // switching + panel
+    activeKey='kimi'; renderAll();
+    ok('panel shows brand + endpoint', $('.panel__name')?.textContent.includes('Kimi'));
+    ok('protocol chip present', $('.proto')?.textContent.includes('OpenAI Completions'));
+    activeKey='minimax'; renderAll();
+    ok('minimax uses anthropic chip', $('.proto--native')?.textContent.includes('Anthropic'));
+    ok('url preview builds path', $('.url-preview b')?.textContent.endsWith('/v1/messages'));
+
+    // NO save bar anywhere
+    ok('no save bar in DOM', !document.querySelector('.savebar'));
+    ok('no context menu in DOM', !document.getElementById('ctxMenu'));
+
+    // delete button only for custom endpoints
+    activeKey='deepseek'; renderAll();
+    ok('builtin has no delete button', !document.querySelector('.panel__actions [data-act="delProvider"]'));
+    ok('builtin header is not an input', !document.getElementById('renameInput'));
+
+    // model toggle persists immediately
+    const before=cur().models.filter(m=>m.enabled).length;
+    $('[data-act="toggleModel"]').click();
+    ok('toggle model persists', cur().models.filter(m=>m.enabled).length!==before);
+
+    // manual model
+    activeKey='minimax'; renderAll();
+    openModel(null);
+    $('#mId').value='custom-llm-1'; $('#mName').value='内网模型';
+    $('#modelSaveBtn').click();
+    ok('manual model added', cur().models.some(m=>m.id==='custom-llm-1'));
+    ok('manual model flagged 待确认', (()=>{renderAll();return document.body.innerHTML.includes('参数待确认')})());
+
+    // discovery
+    activeKey='kimi'; renderAll(); openDiscovery();
+    const rows=[...document.querySelectorAll('.disc:not(.is-added)')];
+    ok('discovery lists models', rows.length>0);
+    rows[0].click(); rows[1].click();
+    ok('discovery counts selection', $('#discCount').textContent.includes('2'));
+    const n=cur().models.length; $('#discAddBtn').click();
+    ok('discovery adds 2 models', cur().models.length===n+2);
+
+    // custom provider: requires Provider ID + display name
+    openAdd();
+    $('#npId').value='sf'; $('#npId').dispatchEvent(new Event('input'));
+    $('#npName').value='硅基流动'; $('#npName').dispatchEvent(new Event('input'));
+    $('#npUrl').value='https://api.siliconflow.cn/v1'; $('#npUrl').dispatchEvent(new Event('input'));
+    $('#npApi').value='openai-completions'; $('#npApi').dispatchEvent(new Event('change'));
+    ok('add preview builds url', $('#npPreview b').textContent==='https://api.siliconflow.cn/v1/chat/completions');
+    $('#addDlgOk').click();
+    ok('custom provider active', cur().name==='硅基流动');
+    ok('custom listed under 自定义', document.body.innerHTML.includes('自定义'));
+    ok('custom HAS delete button', !!document.querySelector('.panel__actions [data-act="delProvider"]'));
+    ok('custom header is editable input', !!document.getElementById('renameInput'));
+
+    // delete custom provider
+    const cntBefore=providers.length;
+    document.querySelector('.panel__actions [data-act="delProvider"]').click();
+    ok('custom provider deleted', providers.length===cntBefore-1);
+    ok('builtin never deleted', providers.every(p=>p.builtin || !p.builtin));
+
+    // protocol media gap notice
+    activeKey='minimax'; renderAll();
+    openModel(null);
+    ok('anthropic shows media gap notice', document.getElementById('modelDrawerBody').innerHTML.includes('不能直接发送'));
+
+    // collapsible brand groups
+    collapsedBrands.clear(); renderRail();
+    const heads=[...document.querySelectorAll('.brand__head')];
+    ok('brand heads are expandable buttons', heads.length===3 && heads[0].getAttribute('aria-expanded')==='true');
+    const epsBefore=document.querySelectorAll('.pitem').length;
+    heads[0].click();
+    ok('clicking brand collapses endpoints', document.querySelectorAll('.pitem').length < epsBefore);
+    ok('collapsed brand marked', document.querySelector('.brand.is-folded'));
+    ok('collapsed brand keeps chevron', !!document.querySelector('.brand.is-folded .brand__chev'));
+    document.querySelector('.brand__head').click();
+    ok('clicking again expands', document.querySelectorAll('.pitem').length === epsBefore);
+    // searching force-opens folded groups
+    collapsedBrands.add('kimi'); search='kimi'; renderRail();
+    ok('search force-opens folded brand', document.querySelectorAll('.brand.is-folded').length===0);
+    search=''; collapsedBrands.clear(); renderRail();
+
+    // Provider ID: letters+digits only, unique
+    openAdd();
+    const idIn=$('#npId');
+    idIn.value='硅基流动-01'; idIn.dispatchEvent(new Event('input'));
+    ok('ID strips non-alphanumerics', idIn.value==='01');
+    idIn.value='deepseek'; idIn.dispatchEvent(new Event('input'));
+    ok('ID rejects duplicate', $('#addDlgOk').disabled===true && $('#npIdHint').textContent.includes('已被占用'));
+    idIn.value='siliconflow'; idIn.dispatchEvent(new Event('input'));
+    $('#npName').value='硅基流动'; $('#npUrl').value='https://api.siliconflow.cn/v1';
+    $('#npUrl').dispatchEvent(new Event('input'));
+    ok('ID accepts valid unique', $('#addDlgOk').disabled===false);
+    $('#addDlgOk').click();
+    ok('custom stores provider id', cur().id==='siliconflow');
+    ok('custom keeps display name', cur().name==='硅基流动');
+    ok('display name may repeat across ids', (()=>{
+      const a={id:'acc1',name:'硅基流动',builtin:false,key:'custom-acc1',logo:'',models:[],authMode:'api-key',apiKey:'',endpoint:'https://x'};
+      const b={id:'acc2',name:'硅基流动',builtin:false,key:'custom-acc2',logo:'',models:[],authMode:'api-key',apiKey:'',endpoint:'https://y'};
+      providers.push(a,b); renderRail();
+      const hits=[...document.querySelectorAll('.pitem__name')].filter(n=>n.textContent.trim()==='硅基流动').length;
+      providers=providers.filter(p=>p!==a&&p!==b); renderRail();
+      return hits===3; // original + 2
+    })());
+
+    // API 地址: rename + reset affordance for builtins
+    activeKey='deepseek'; renderAll();
+    ok('field is labelled API 地址', (()=>{const h=document.getElementById('panel').innerHTML;return h.includes('API 地址')&&!h.includes('基础地址')})());
+    const epIn=$('#endpointInput'); const orig=cur().endpoint;
+    epIn.value='https://proxy.corp.com/v1'; epIn.dispatchEvent(new Event('input'));
+    ok('builtin endpoint is editable', cur().endpoint==='https://proxy.corp.com/v1');
+    renderPanel();
+    ok('reset button appears when dirty', !!document.querySelector('[data-act="resetEndpoint"]'));
+    document.querySelector('[data-act="resetEndpoint"]').click();
+    ok('reset restores default', cur().endpoint===orig);
+    ok('reset button hides when clean', !document.querySelector('[data-act="resetEndpoint"]'));
+    activeKey='sf'; renderAll();
+    ok('custom endpoint has no reset', !document.querySelector('[data-act="resetEndpoint"]'));
+
+    // discovery shows needs-key state instead of blocking
+    activeKey='qwen'; cur().apiKey=''; renderAll();
+    openDiscovery();
+    ok('discovery opens without key', document.getElementById('discDrawer').classList.contains('show'));
+    ok('discovery explains missing key', document.getElementById('discBody').innerHTML.includes('需要先配置 API 密钥'));
+    ok('discovery add disabled without key', $('#discAddBtn').disabled===true);
+    hide('discDrawer');
+
+    // row heights align
+    renderRail();
+    const bh=document.querySelector('.brand__head')?.getBoundingClientRect().height;
+    const pi=document.querySelector('.pitem')?.getBoundingClientRect().height;
+    ok('brand head and provider row same height ['+bh+' vs '+pi+']', Math.abs((bh||0)-(pi||0))<1);
+
+    // search
+    search='kimi'; renderRail();
+    ok('rail search filters', document.querySelectorAll('.pitem').length>=1 && document.querySelectorAll('.brand').length===1);
+    search=''; renderRail();
+  }catch(e){ R.push('FAIL · exception: '+e.message+'\n'+e.stack); }
+  document.body.innerHTML='<pre style="padding:24px;font:13px/1.6 ui-monospace;white-space:pre-wrap;color:#18181b;background:#fff">'
+    + R.join('\n') + '\n\n' + R.filter(x=>x.startsWith('FAIL')).length + ' failed / ' + R.length + ' total</pre>';
+}
+</script>
+</body>
+</html>

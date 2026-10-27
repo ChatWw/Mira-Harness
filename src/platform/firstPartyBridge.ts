@@ -122,6 +122,20 @@ export async function handleFirstPartyRequest(options: {
       if (method.startsWith('marketplace.') || method.startsWith('plugin-marketplace.')) {
         const failure = (error instanceof Error ? error.message : '').replace(/^Error invoking remote method 'platform:first-party-harness': Error: /, '')
         const recovery: Record<string, string> = {
+          '市场目录超过大小限制': '市场目录超过 32 MiB 上限，暂时无法加载。',
+          '市场文件超过大小限制': '插件文件超过 4 MiB 上限，无法下载。',
+          '市场清单不是有效的 JSON': '市场清单不是有效的 JSON，请检查来源地址。',
+          '暂不支持 DSH/npm 插件目录，请使用兼容的 marketplace.json': '暂不支持 DSH/npm 插件目录，请使用兼容的 marketplace.json。',
+          '市场需要有效的 name 和 plugins 列表': '市场清单格式不兼容：需要有效的 name 和 plugins 列表。',
+          '市场插件名称或来源无效、重复': '市场清单中的插件名称或来源无效，或存在重复插件。',
+          '插件 Git 来源无效': '插件 Git 来源格式无效。',
+          '插件 Git 来源需要不含凭据的 HTTPS 地址': '插件仓库需要使用不含凭据的 HTTPS 地址。',
+          '插件仓库子目录无效': '插件仓库子目录无效，请检查市场清单。',
+          '插件 Git 版本无效': '插件 Git 版本无效，请检查市场清单。',
+          '无法下载插件仓库，请检查 Git、网络和清单指定的版本': '无法下载插件仓库，请检查 Git、网络和清单指定的版本。',
+          '插件名称与市场清单不一致': '插件名称与市场清单不一致，已取消安装。',
+          '插件市场读取超时，请检查网络后重试': '插件市场读取超时，请检查网络后重试。',
+          '无法连接插件市场，请检查网络后重试': '无法连接插件市场，请检查网络后重试。',
           'Skill 市场读取超时，请检查网络后重试': '插件市场读取超时，请检查网络后重试。',
           '无法连接 Skill 市场，请检查网络后刷新重试': '无法连接插件市场，请检查网络后刷新重试。',
           'GitHub 公开请求额度暂时用完，请稍后刷新重试': 'GitHub 公开请求额度暂时用完，请稍后刷新重试。',
@@ -130,7 +144,8 @@ export async function handleFirstPartyRequest(options: {
           '此插件已安装，请到已安装页面管理': '此插件已安装，请到已安装页面管理。',
           '此插件正在安装，请稍后查看结果': '此插件正在安装，请稍后查看结果。',
         }
-        throw new FirstPartyBridgeError('MARKETPLACE_FAILED', recovery[failure] ?? (method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查网络后重试。'))
+        const httpError = /^市场下载失败（HTTP [1-5]\d{2}）$/.test(failure) ? `${failure}，请检查来源地址或稍后重试。` : undefined
+        throw new FirstPartyBridgeError('MARKETPLACE_FAILED', recovery[failure] ?? httpError ?? (method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查来源地址、清单格式或网络后重试。'))
       }
       // 只映射已知文件失败，避免把主进程异常、堆栈或模型凭据透出到应用。
       if (method.startsWith('attachments.') || method.startsWith('queue.') || method === 'message.run' || method === 'message.submit' || method === 'plan.continue' || method === 'files.select') {

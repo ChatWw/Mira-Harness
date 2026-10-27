@@ -223,7 +223,23 @@ describe('first-party capability bridge', () => {
     vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error("Error invoking remote method 'platform:first-party-harness': Error: Skill 市场读取超时，请检查网络后重试"))
     await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message: '插件市场读取超时，请检查网络后重试。' })
     vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error('/private/client/token=secret'))
-    await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message: method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查网络后重试。' })
+    await expect(entry.request(`harness.${method}`, params)).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message: method.endsWith('.install') ? '安装失败，请重试或检查已有安装目录。' : '无法读取插件市场，请检查来源地址、清单格式或网络后重试。' })
+  })
+
+  it.each([
+    ['市场目录超过大小限制', '市场目录超过 32 MiB 上限，暂时无法加载。'],
+    ['暂不支持 DSH/npm 插件目录，请使用兼容的 marketplace.json', '暂不支持 DSH/npm 插件目录，请使用兼容的 marketplace.json。'],
+    ['市场需要有效的 name 和 plugins 列表', '市场清单格式不兼容：需要有效的 name 和 plugins 列表。'],
+    ['无法下载插件仓库，请检查 Git、网络和清单指定的版本', '无法下载插件仓库，请检查 Git、网络和清单指定的版本。'],
+    ['插件名称与市场清单不一致', '插件名称与市场清单不一致，已取消安装。'],
+    ['市场下载失败（HTTP 404）', '市场下载失败（HTTP 404），请检查来源地址或稍后重试。'],
+    ['市场清单不是有效的 JSON', '市场清单不是有效的 JSON，请检查来源地址。'],
+    ['插件市场读取超时，请检查网络后重试', '插件市场读取超时，请检查网络后重试。'],
+    ['无法连接插件市场，请检查网络后重试', '无法连接插件市场，请检查网络后重试。'],
+  ])('reports the actual source failure: %s', async (failure, message) => {
+    const entry = bridge({ appId: 'mira-harness', capabilities: ['harness:workbench'] })
+    vi.mocked(entry.api.invokeFirstPartyHarness).mockRejectedValueOnce(new Error(`Error invoking remote method 'platform:first-party-harness': Error: ${failure}`))
+    await expect(entry.request('harness.plugin-marketplace.add-source', { source: 'https://example.com/index.json' })).rejects.toMatchObject({ code: 'MARKETPLACE_FAILED', message })
   })
 
   it('preserves explicit browser resource and hidden creation through the double parse, while rejecting malformed identities', async () => {

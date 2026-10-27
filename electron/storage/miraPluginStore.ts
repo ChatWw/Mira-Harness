@@ -167,13 +167,14 @@ export class MiraPluginStore {
     for (const record of this.registrations()) if (!items.some(item => item.id === record.id)) items.push({ id: record.id, name: record.id.split('@')[0], description: '', enabled: record.enabled, skills: [], unsupported: [], conflicts: [], error: '插件目录已移动、内容无效或不可读取；请停用后重新添加' })
     return items
   }
-  register(directory: string, marketplace = 'local') {
+  register(directory: string, marketplace = 'local', expectedName?: string) {
     const root = realpathSync(directory)
     if (lstatSync(directory).isSymbolicLink()) throw new Error('插件目录不能是符号链接')
     const path = ['.mira-plugin/plugin.json', '.zcode-plugin/plugin.json', '.claude-plugin/plugin.json', '.codex-plugin/plugin.json'].find(path => exists(join(root, path)))
     if (!path) throw new Error('没有找到插件 plugin.json')
     const manifest = JSON.parse(readBounded(inside(root, path)))
     if (typeof manifest?.name !== 'string' || !NAME.test(manifest.name)) throw new Error('插件名称无效')
+    if (expectedName !== undefined && manifest.name !== expectedName) throw new Error('插件名称与市场清单不一致')
     const record = { id: `${manifest.name}@${marketplace}`, root, enabled: true }
     if (!isMiraPluginId(record.id)) throw new Error('插件来源无效')
     const plugin = this.load(record)

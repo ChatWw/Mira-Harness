@@ -14,7 +14,7 @@ import { SkillMarketplaceService } from './skillMarketplace'
 import type { MiraPaths } from '../storage/miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from '../storage/miraDataMigration'
 import type { HarnessEvent } from '../../src/config/harness'
-import { app, net, safeStorage } from 'electron'
+import { app, net, safeStorage, session } from 'electron'
 import { MiraMcpCredentialStore } from '../storage/miraMcpCredentialStore'
 import { MiraMcpAuthorization } from './miraMcpAuthorization'
 import { join, resolve } from 'node:path'
@@ -77,7 +77,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     resourceRoot: app.isPackaged ? join(process.resourcesPath, 'mira-flow-host') : resolve(app.getAppPath(), 'dist/mira-flow-host') })
   const automationScheduler = new AutomationScheduler(database, harnessRuntime)
   harnessRuntime.setAutomationAuthoringHost(input => saveAutomationTask(database, automationScheduler, input))
-  const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init), undefined, app.isPackaged ? join(process.resourcesPath, 'plugins') : join(app.getAppPath(), 'resources/plugins'))
+  const skillMarketplace = new SkillMarketplaceService(miraPaths, database.skills, (input, init) => net.fetch(input, init), undefined, app.isPackaged ? join(process.resourcesPath, 'plugins') : join(app.getAppPath(), 'resources/plugins'), url => session.defaultSession.resolveProxy(url))
   await skillMarketplace.pluginMarkets.seed()
   try { void mcpManager.refresh(mcpConfigStore.list()) }
   catch { console.error('[mcp] MCP 配置读取失败；请在设置中检查配置文件后重试') }
