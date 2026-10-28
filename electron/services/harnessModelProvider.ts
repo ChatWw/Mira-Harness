@@ -13,7 +13,9 @@ export function createHarnessModelProvider(provider: ModelProviderSummary, confi
   const model = {
     id: configuredModel.id, name: configuredModel.id, api: 'openai-completions', provider: 'mira-openai', baseUrl: provider.endpoint,
     reasoning: configuredModel.reasoning, compat: configuredModel.reasoning ? { supportsReasoningEffort: true } : undefined,
-    input: supportsHarnessImages(configuredModel) ? ['text', 'image'] : ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: configuredModel.contextWindow || DEFAULT_CONTEXT_WINDOW, maxTokens: 8192,
+    input: supportsHarnessImages(configuredModel) ? ['text', 'image'] : ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: configuredModel.contextWindow || DEFAULT_CONTEXT_WINDOW,
+    // 未显式配置时沿用旧默认值；配置后按模型实际上限发送。
+    maxTokens: configuredModel.maxTokens && configuredModel.maxTokens > 0 ? configuredModel.maxTokens : 8192,
   } as any
   const models = createModels()
   const api = openAICompletionsApi()

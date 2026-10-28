@@ -24,6 +24,7 @@ type JsonProviderRecord = {
   id: string
   legacyIds?: string[]
   providerKey: ModelProviderKey
+  slug?: string
   name: string
   endpoint: string
   apiKey: string
@@ -59,6 +60,12 @@ function normalizeEndpoint(value: string) {
   return value.trim().replace(/\/+$/, '')
 }
 
+/** 服务商标识：仅保留英文字母与数字，用于区分同名服务商。 */
+function normalizeSlug(value?: string) {
+  const text = (value || '').replace(/[^A-Za-z0-9]/g, '')
+  return text || undefined
+}
+
 function contextWindow(value: unknown) {
   const tokens = Number(value)
   return Number.isInteger(tokens) && tokens >= 16384 ? tokens : DEFAULT_CONTEXT_WINDOW
@@ -78,6 +85,8 @@ function normalizeModel(value: unknown): ProviderModelConfig | undefined {
     ...(typeof model.pdfInput === 'boolean' ? { pdfInput: model.pdfInput } : {}),
     ...(typeof model.videoInput === 'boolean' ? { videoInput: model.videoInput } : {}),
     contextWindow: contextWindow(model.contextWindow),
+    ...(typeof model.maxTokens === 'number' && Number.isFinite(model.maxTokens) && model.maxTokens > 0
+      ? { maxTokens: Math.floor(model.maxTokens) } : {}),
     ...(pricing ? { pricing } : {}),
   }
 }
@@ -92,6 +101,7 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
     id: item.id,
     ...(Array.isArray(item.legacyIds) ? { legacyIds: item.legacyIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())) } : {}),
     providerKey: key,
+    ...(normalizeSlug(item.slug) ? { slug: normalizeSlug(item.slug) } : {}),
     name: item.name.trim(),
     endpoint: normalizeEndpoint(item.endpoint),
     apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
@@ -201,6 +211,7 @@ export class ModelConfigStore {
     return {
       id: record.id,
       providerKey: record.providerKey,
+      ...(record.slug ? { slug: record.slug } : {}),
       name: record.name,
       endpoint: record.endpoint,
       authMode: record.authMode,
@@ -233,6 +244,7 @@ export class ModelConfigStore {
       id: existing?.id || input.id || randomUUID(),
       ...(existing?.legacyIds?.length ? { legacyIds: existing.legacyIds } : {}),
       providerKey: key,
+      ...(normalizeSlug(input.slug) || existing?.slug ? { slug: normalizeSlug(input.slug) || existing?.slug } : {}),
       name: input.name.trim(),
       endpoint: normalizeEndpoint(input.endpoint),
       apiKey: input.apiKey?.trim() || existing?.apiKey || '',

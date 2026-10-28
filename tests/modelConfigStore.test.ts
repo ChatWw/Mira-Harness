@@ -45,6 +45,28 @@ describe('ModelConfigStore', () => {
     expect(saved.models[1].pdfInput).toBeUndefined(); expect(saved.models[1].videoInput).toBeUndefined()
     database.close()
   })
+  it('persists a custom provider slug and per-model maxTokens', () => {
+    const { database, store, directory } = createStore()
+    const saved = store.save({ providerKey: 'custom', slug: 'siliconflow', name: '硅基流动', endpoint: 'https://api.siliconflow.cn/v1', apiKey: 'k', authMode: 'api-key', models: [{ id: 'Qwen3-8B', enabled: true, reasoning: false, contextWindow: 32768, maxTokens: 4096 }], enabled: true })
+
+    expect(saved.slug).toBe('siliconflow')
+    expect(saved.models[0].maxTokens).toBe(4096)
+    // 重启后仍可读，说明落盘而不是只在内存
+    const reopened = new ModelConfigStore(database, new MiraPaths(directory)).list()[0]
+    expect(reopened.slug).toBe('siliconflow')
+    expect(reopened.models[0].maxTokens).toBe(4096)
+    database.close()
+  })
+
+  it('strips non-alphanumeric characters from a slug and keeps it on later saves', () => {
+    const { database, store } = createStore()
+    const saved = store.save({ providerKey: 'custom', slug: 'sili-con_flow 01', name: 'X', endpoint: 'https://x.test/v1', models: [], enabled: false })
+    expect(saved.slug).toBe('siliconflow01')
+    const edited = store.save({ id: saved.id, providerKey: 'custom', name: 'X2', endpoint: 'https://x.test/v1', models: [], enabled: false })
+    expect(edited.slug).toBe('siliconflow01')
+    database.close()
+  })
+
   it('initializes models.json and stores multiple models per provider', () => {
     const { database, store, directory } = createStore()
     expect(store.list()).toEqual([])

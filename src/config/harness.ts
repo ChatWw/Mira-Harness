@@ -842,6 +842,8 @@ export interface HarnessPermissionRequest {
 export interface ModelProviderInput {
   id?: string
   providerKey?: ModelProviderKey
+  /** 用户定义的服务商标识（仅英文字母与数字）；未设置时回退到 providerKey。 */
+  slug?: string
   name: string
   endpoint: string
   apiKey?: string
@@ -860,12 +862,16 @@ export interface ProviderModelConfig {
   pdfInput?: boolean
   videoInput?: boolean
   contextWindow: number
+  /** 最大输出 token；未设置时适配器沿用 8192。 */
+  maxTokens?: number
   pricing?: ModelPricing
 }
 
 export interface ModelProviderSummary {
   id: string
   providerKey: ModelProviderKey
+  /** 用户定义的服务商标识；内置预设为其 providerKey。 */
+  slug?: string
   name: string
   endpoint: string
   authMode: ModelProviderAuthMode
