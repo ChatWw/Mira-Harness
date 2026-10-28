@@ -1,3 +1,4 @@
+import type { ModelProtocol } from './modelProtocol'
 import type { MiraPluginCommandInput, MiraPluginSnapshot } from './miraPlugins'
 import type { MiraPromptCommandInput } from './miraPromptCommands'
 import type { MiraFlowReview } from './miraFlowReview'
@@ -841,18 +842,37 @@ export interface HarnessPermissionRequest {
 
 export interface ModelProviderInput {
   id?: string
+  /** 原始默认连接标记；默认实例不提供编辑和删除菜单。 */
+  builtin?: boolean
   providerKey?: ModelProviderKey
   /** 用户定义的服务商标识（仅英文字母与数字）；未设置时回退到 providerKey。 */
   slug?: string
+  /** 新建服务商的名称；添加实例时沿用父服务商信息。 */
+  serviceName?: string
+  serviceLogo?: string
+  asInstance?: boolean
   name: string
   endpoint: string
   apiKey?: string
   authMode?: ModelProviderAuthMode
+  protocol?: ModelProtocol
   models: ProviderModelConfig[]
   enabled: boolean
 }
 
 export type ModelProviderAuthMode = 'api-key' | 'none'
+
+/** 一级服务商；id 为用户填写的 Provider ID，连接记录的 id 则标识独立实例。 */
+export interface ModelServiceSummary {
+  id: string
+  providerKey: ModelProviderKey
+  name: string
+  logo?: string
+  endpoint: string
+  authMode: ModelProviderAuthMode
+  protocol: ModelProtocol
+  hasInstances: boolean
+}
 
 export interface ProviderModelConfig {
   id: string
@@ -869,12 +889,14 @@ export interface ProviderModelConfig {
 
 export interface ModelProviderSummary {
   id: string
+  builtin?: boolean
   providerKey: ModelProviderKey
   /** 用户定义的服务商标识；内置预设为其 providerKey。 */
   slug?: string
   name: string
   endpoint: string
   authMode: ModelProviderAuthMode
+  protocol?: ModelProtocol
   models: ProviderModelConfig[]
   enabled: boolean
   hasApiKey: boolean

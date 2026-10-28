@@ -37,6 +37,113 @@ afterEach(() => {
 })
 
 describe('ModelConfigStore', () => {
+  it.each([false, true])('deletes a manual service with children=%s, its connections and role bindings', expanded => {
+    const { database, store, directory } = createStore()
+    const root = store.save({ providerKey: 'custom', slug: 'myProvider', builtin: true, serviceName: '我的服务商', name: '我的服务商', endpoint: 'https://example.com', apiKey: 'root-key', models: [model('root-model')], enabled: true })
+    const child = expanded ? store.save({ providerKey: 'custom', slug: 'myProvider', asInstance: true, name: '项目实例', endpoint: root.endpoint, apiKey: 'child-key', models: [model('child-model')], enabled: true }) : root
+    const other = store.save({ providerKey: 'custom', slug: 'other', builtin: true, serviceName: '其他服务商', name: '其他服务商', endpoint: root.endpoint, apiKey: 'other-key', models: [model('other-model')], enabled: true })
+    store.saveBindings({ agentDefault: { providerId: root.id, modelId: 'root-model' }, novelAuthoring: { providerId: child.id, modelId: 'child-model' }, novelAutomation: { providerId: other.id, modelId: 'other-model' } })
+    database.prepare('INSERT INTO model_role_bindings VALUES (?, ?, ?)').run('agentDefault', root.id, 'root-model')
+    database.prepare('INSERT INTO model_role_bindings VALUES (?, ?, ?)').run('novelAuthoring', child.id, 'child-model')
+    database.prepare('INSERT INTO model_role_bindings VALUES (?, ?, ?)').run('novelAutomation', other.id, 'other-model')
+    store.deleteService('myProvider')
+    const reopened = new ModelConfigStore(database, new MiraPaths(directory))
+    expect(reopened.list()).toEqual([other])
+    expect(reopened.services().map(item => item.id)).toEqual(['other'])
+    expect(reopened.getSecret(root.id)).toBe('')
+    expect(reopened.getSecret(child.id)).toBe('')
+    expect(reopened.getSecret(other.id)).toBe('other-key')
+    expect(reopened.bindings()).toEqual({ novelAutomation: { providerId: other.id, modelId: 'other-model' } })
+    expect(database.prepare('SELECT provider_id FROM model_role_bindings').all()).toEqual([{ provider_id: other.id }])
+    expect(JSON.parse(readFileSync(reopened.path(), 'utf8')).bindings).toEqual(reopened.bindings())
+    database.close()
+  })
+
+  it('rejects deletion of built-in services before and after configuring them', () => {
+    const { database, store } = createStore()
+    expect(() => store.deleteService('deepseek')).toThrow('内置服务商不能删除')
+    const root = store.save({ providerKey: 'deepseek', builtin: true, name: '深度求索', endpoint: 'https://api.deepseek.com', models: [], enabled: false })
+    const child = store.save({ providerKey: 'deepseek', slug: 'deepseek', asInstance: true, name: '项目实例', endpoint: root.endpoint, models: [], enabled: false })
+    expect(() => store.deleteService('deepseek')).toThrow('内置服务商不能删除')
+    expect(new Set(store.list().map(item => item.id))).toEqual(new Set([root.id, child.id]))
+    database.close()
+  })
+
+  it('retains instance identity when the default endpoint is edited or reused by a custom instance', () => {
+    const { database, store, directory } = createStore()
+    const builtin = store.save({ providerKey: 'deepseek', builtin: true, name: 'Default', endpoint: 'https://api.deepseek.com/v1', models: [], enabled: false })
+    const custom = store.save({ providerKey: 'deepseek', builtin: false, name: '深度求索1', endpoint: 'https://api.deepseek.com/v1', models: [], enabled: false })
+    store.save({ ...builtin, endpoint: 'https://proxy.example/v1' })
+    const reopened = new ModelConfigStore(database, new MiraPaths(directory))
+    expect(reopened.get(builtin.id)?.builtin).toBe(true)
+    expect(reopened.get(custom.id)?.builtin).toBe(false)
+    expect(() => reopened.delete(builtin.id)).toThrow('默认实例不能删除')
+    expect(reopened.get(builtin.id)?.builtin).toBe(true)
+    reopened.delete(custom.id)
+    expect(reopened.list().map(item => item.id)).toEqual([builtin.id])
+    expect(reopened.services().map(item => item.id)).toEqual(['deepseek'])
+    database.close()
+  })
+
+  it('gives instances a shared Provider ID and independent connection IDs while retaining the original configuration', () => {
+    const { database, store, directory } = createStore()
+    const original = store.save({ providerKey: 'custom', slug: 'siliconflow', serviceName: '硅基流动', builtin: true, name: '硅基流动', endpoint: 'https://proxy.example/v1', apiKey: 'original-key', protocol: 'openai-responses', models: [model('original')], enabled: true })
+    const added = store.save({ providerKey: 'custom', slug: 'siliconflow', asInstance: true, name: '项目1', endpoint: 'https://other.example', apiKey: 'instance-key', protocol: 'anthropic-messages', models: [model('other')], enabled: false })
+    expect(added.id).not.toBe(original.id)
+    expect(added.slug).toBe(original.slug)
+    const reopened = new ModelConfigStore(database, new MiraPaths(directory))
+    expect(reopened.get(original.id)).toEqual(original)
+    expect(reopened.getSecret(original.id)).toBe('original-key')
+    expect(reopened.getSecret(added.id)).toBe('instance-key')
+    expect(reopened.services()).toEqual([expect.objectContaining({ id: 'siliconflow', name: '硅基流动', hasInstances: true })])
+    reopened.save({ ...added, name: '改名', slug: 'other' })
+    expect(reopened.get(added.id)?.slug).toBe('siliconflow')
+    expect(() => reopened.delete(original.id)).toThrow('默认实例不能删除')
+    expect(reopened.services()[0].name).toBe('硅基流动')
+    expect(reopened.services()[0].hasInstances).toBe(true)
+    expect(reopened.get(added.id)?.name).toBe('改名')
+    database.close()
+  })
+
+  it('creates the default connection when adding the first instance to an untouched built-in provider', () => {
+    const { database, store } = createStore()
+    const added = store.save({ providerKey: 'deepseek', slug: 'deepseek', serviceName: '深度求索', asInstance: true, name: '123', endpoint: 'https://proxy.example/v1', models: [], enabled: false })
+    const original = store.list().find(item => item.id !== added.id)!
+    expect(original).toMatchObject({ name: '深度求索', slug: 'deepseek', endpoint: 'https://api.deepseek.com/v1', enabled: false, builtin: true })
+    expect(store.services()[0].hasInstances).toBe(true)
+    database.close()
+  })
+
+  it('rejects duplicate and reserved Provider IDs without adding a connection', () => {
+    const { database, store } = createStore()
+    const input = { providerKey: 'custom' as const, slug: 'siliconflow', serviceName: '硅基流动', name: '硅基流动', endpoint: 'https://proxy.example/v1', models: [], enabled: false }
+    store.save(input)
+    expect(() => store.save({ ...input, slug: 'SiliconFlow' })).toThrow('Provider ID 已存在')
+    expect(() => store.save({ ...input, slug: 'deepseek' })).toThrow('Provider ID 已存在')
+    expect(store.list()).toHaveLength(1)
+    database.close()
+  })
+
+  it('recognizes the oldest legacy instance as the default without relying on its endpoint', () => {
+    const { database, store } = createStore({ version: 2, providers: [
+      { id: 'custom', providerKey: 'deepseek', name: '深度求索1', endpoint: 'https://api.deepseek.com', createdAt: 20 },
+      { id: 'default', providerKey: 'deepseek', name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', createdAt: 10 },
+    ] })
+    expect(store.get('default')?.builtin).toBe(true)
+    expect(store.get('custom')?.builtin).toBe(false)
+    store.save({ ...store.get('default')!, endpoint: 'https://proxy.example/v1' })
+    expect(store.get('custom')?.builtin).toBe(false)
+    database.close()
+  })
+  it('persists protocol changes across reloads and preserves them on unrelated saves', () => {
+    const { database, store, directory } = createStore()
+    const saved = store.save({ name: 'Protocol', endpoint: 'https://example.com', protocol: 'anthropic-messages', models: [model('test')], enabled: true })
+    expect(new ModelConfigStore(database, new MiraPaths(directory)).list()[0].protocol).toBe('anthropic-messages')
+    const { protocol: _protocol, ...input } = saved
+    expect(store.save(input).protocol).toBe('anthropic-messages')
+    expect(store.save({ ...saved, protocol: 'openai-responses' }).protocol).toBe('openai-responses')
+    database.close()
+  })
   it('persists PDF/video independently of image support and never infers them for a legacy model', () => {
     const { database, store, directory } = createStore()
     const saved = store.save({ providerKey: 'custom', name: 'Media', endpoint: 'http://127.0.0.1:12345/v1', authMode: 'none', models: [{ ...model('native-media'), multimodal: false, pdfInput: true, videoInput: true }, model('legacy-model')], enabled: true })

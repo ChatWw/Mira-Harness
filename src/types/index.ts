@@ -172,12 +172,14 @@ export interface PlatformApi {
   onWindowNavigate(listener: (path: string) => void): () => void
   onWindowCloseContext?(listener: () => void): () => void
   listModelProviders(): Promise<import('@/config/harness').ModelProviderSummary[]>
+  listModelServices(): Promise<import('@/config/harness').ModelServiceSummary[]>
   getModelConfigPath(): Promise<string>
   getModelProviderApiKey(id: string): Promise<string>
   openModelConfigFile(): Promise<string>
   listModelProviderModels(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelListResult>
   saveModelProvider(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelProviderSummary>
   deleteModelProvider(id: string): Promise<void>
+  deleteModelService(id: string): Promise<void>
   getModelRoleBindings(): Promise<import('@/config/harness').ModelRoleBinding>
   saveModelRoleBindings(bindings: import('@/config/harness').ModelRoleBinding): Promise<import('@/config/harness').ModelRoleBinding>
   listHarnessSkills(): Promise<import('@/config/harness').HarnessSkill[]>

@@ -30,7 +30,8 @@ body:has(.settings-page) :is(.el-popper, .el-overlay, .el-message) {
 
 /* Shared controls also apply inside teleported dialogs and confirmations. */
 :is(.settings-page, body:has(.settings-page) .el-overlay) {
-  .el-button { border-radius: 6px; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out; }
+  .el-button { transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out; }
+  .el-button:not(.el-button-group > .el-button) { border-radius: 6px; }
   :is(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner) { border-radius: 8px; transition: background-color 120ms ease-out, box-shadow 120ms ease-out; }
   :is(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner):not(.is-focused):hover { box-shadow: 0 0 0 1px var(--cp-border) inset; }
   .el-radio-button__inner { transition: color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out; }

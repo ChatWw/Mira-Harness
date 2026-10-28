@@ -12,7 +12,7 @@
           <div v-for="group in visibleGroups" :key="group.id" class="prov" role="treeitem" :aria-expanded="groupExpandable(group) ? expanded.includes(group.id) : undefined">
             <div
               class="row row--provider"
-              :class="{ 'is-active': isProviderActive(group) && !(group.instances.length && expanded.includes(group.id)) }"
+              :class="{ 'is-active': !groupExpandable(group) && isProviderActive(group) }"
               draggable="true"
               @click="onProviderClick(group)"
               @contextmenu="onProviderContext(group, $event)"
@@ -29,7 +29,7 @@
               </span>
               <span class="row__name">{{ group.name }}</span>
               <span class="row__slot">
-                <i v-if="groupEnabled(group)" class="dot" />
+                <i v-if="!groupExpandable(group) && groupEnabled(group)" class="dot" />
                 <button
                   v-if="groupExpandable(group)"
                   class="slot-btn slot-btn--chevron"
@@ -44,10 +44,10 @@
                   v-else
                   class="slot-btn"
                   type="button"
-                  :aria-label="`${group.name} 添加实例`"
-                  @click.stop="openAddInstance(group)"
+                  :aria-label="`${group.name} 操作`"
+                  @click.stop="onProviderMenu(group, $event)"
                 >
-                  <AppIcon name="MoreFilled" />
+                  <AppIcon name="lucide:ellipsis-vertical" />
                 </button>
               </span>
             </div>
@@ -58,6 +58,8 @@
                   v-for="instance in group.instances"
                   :key="instance.id"
                   class="row row--instance"
+                  role="treeitem"
+                  :aria-selected="instance.id === selectedId"
                   :class="{ 'is-active': instance.id === selectedId }"
                   draggable="true"
                   @click="selectInstance(instance.id)"
@@ -77,13 +79,13 @@
                   <span class="row__slot">
                     <i v-if="instanceEnabled(instance)" class="dot" />
                     <button
-                      v-if="isCustomInstance(instance)"
+                      v-if="!instance.builtin"
                       class="slot-btn"
                       type="button"
                       :aria-label="`${instance.name} 操作`"
-                      @click.stop="openInstanceMenu(instance)"
+                      @click.stop="openInstanceMenu(instance, $event)"
                     >
-                      <AppIcon name="MoreFilled" />
+                      <AppIcon name="lucide:ellipsis-vertical" />
                     </button>
                   </span>
                 </div>
@@ -121,7 +123,7 @@
                 <span v-if="activeGroupHasMany" class="panel__ep">{{ activeInstance.name }}</span>
               </div>
               <div class="panel__sub">
-                <span class="proto">OpenAI Completions</span>
+                <span class="proto">{{ MODEL_PROTOCOLS[modelProtocol(form.protocol)].label }}</span>
                 <span>{{ form.authMode === 'none' ? '本地服务 · 无需密钥' : 'API 密钥已保存于本机' }}</span>
                 <span v-if="enabledModels.length">·</span>
                 <span v-if="enabledModels.length">{{ enabledModels.length }} 个模型已启用</span>
@@ -138,7 +140,6 @@
               <div class="section__head">
                 <div>
                   <h3>连接</h3>
-                  <p>凭据只保存在本机配置文件中，不会进入会话或导出。</p>
                 </div>
                 <span class="status" :class="statusClass"><i />{{ statusText }}</span>
               </div>
@@ -151,14 +152,20 @@
                     <AppIcon name="Connection" /><span>检测</span>
                   </el-button>
                 </div>
-                <p class="field__hint">留空表示不修改已保存的密钥。</p>
               </div>
               <div v-else class="field">
                 <span class="field__label">认证</span>
                 <div class="no-auth">
                   <AppIcon name="Monitor" />
-                  <span>无需密钥，直接访问 {{ form.endpoint }}</span>
+                  <span>无需密钥</span>
                 </div>
+              </div>
+
+              <div class="field">
+                <span class="field__label">请求协议</span>
+                <el-select v-model="form.protocol" aria-label="请求协议" @change="saveActive()">
+                  <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" />
+                </el-select>
               </div>
 
               <div class="field">
@@ -172,9 +179,6 @@
                 <div class="url-preview">
                   <AppIcon name="ArrowRight" /><span>实际请求</span><b>{{ effectiveUrl }}</b>
                 </div>
-                <p class="field__hint">
-                  {{ endpointDirty ? `已修改默认地址，重置可恢复为 ${defaultEndpoint}` : '内置地址可以修改，用于代理或自建中转。' }}
-                </p>
               </div>
 
               <div v-if="testMessage" class="field">
@@ -186,16 +190,15 @@
               <div class="section__head">
                 <div>
                   <h3>模型</h3>
-                  <p>启用的模型会以「{{ selectorPrefix }} → 模型名称」出现在任务和工作流的选择器中。</p>
                 </div>
-                <div class="section__tools">
+                <el-button-group role="group" aria-label="模型操作">
                   <el-button :loading="loadingModels" @click="syncModels">
-                    <AppIcon name="Download" /><span>获取模型列表</span>
+                    <AppIcon v-if="!loadingModels" name="Refresh" /><span>同步模型</span>
                   </el-button>
-                  <el-button type="primary" @click="openModelDialog()">
-                    <AppIcon name="Plus" /><span>添加模型</span>
+                  <el-button aria-label="添加模型" title="添加模型" @click="openModelDialog()">
+                    <AppIcon name="Plus" />
                   </el-button>
-                </div>
+                </el-button-group>
               </div>
 
               <template v-if="form.models.length">
@@ -237,9 +240,8 @@
               <div v-else class="empty">
                 <span class="empty__icon"><AppIcon name="Cpu" /></span>
                 <strong>还没有模型</strong>
-                <small>从供应商获取列表，或手动填入模型 ID</small>
                 <div class="empty__actions">
-                  <el-button @click="syncModels"><AppIcon name="Download" /><span>获取模型列表</span></el-button>
+                  <el-button :loading="loadingModels" @click="syncModels"><AppIcon v-if="!loadingModels" name="Refresh" /><span>同步模型</span></el-button>
                 </div>
               </div>
             </section>
@@ -250,13 +252,27 @@
       </main>
     </div>
 
+    <el-dropdown ref="instanceMenu" :virtual-ref="instanceMenuAnchor" virtual-triggering trigger="contextmenu" @command="onInstanceCommand">
+      <template #dropdown>
+        <el-dropdown-menu>
+          <template v-if="providerMenuGroup">
+            <el-dropdown-item command="add"><AppIcon name="Plus" />添加实例</el-dropdown-item>
+            <el-dropdown-item v-if="!isBuiltinProvider(providerMenuGroup)" class="model-menu__delete" command="delete"><AppIcon name="Delete" />删除</el-dropdown-item>
+          </template>
+          <template v-else-if="instanceMenuId">
+            <el-dropdown-item command="edit"><AppIcon name="EditPen" />编辑</el-dropdown-item>
+            <el-dropdown-item class="model-menu__delete" command="delete"><AppIcon name="Delete" />删除</el-dropdown-item>
+          </template>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
     <!-- ================= 模型：右侧抽屉 ================= -->
     <el-drawer v-model="modelDrawer" :title="modelForm.editing ? '编辑模型' : '添加模型'" size="440px">
       <div class="drawer-body">
         <div class="field">
           <span class="field__label">模型 ID <span class="req">*</span></span>
           <el-input v-model="modelForm.id" :class="{ 'field__mono': true }" :disabled="modelForm.editing" placeholder="例如 deepseek-v4-pro" />
-          <p class="field__hint">请求时原样发送，不做大小写转换或别名映射。</p>
         </div>
         <div class="field">
           <span class="field__label">显示名称</span>
@@ -265,7 +281,6 @@
         <div class="field">
           <span class="field__label">上下文窗口</span>
           <el-input v-model.number="modelForm.contextWindow" :class="{ 'field__mono': true }" placeholder="例如 128000" />
-          <p class="field__hint">用于计算上下文占用比例。供应商接口不返回该值，需要按官方文档填写。</p>
         </div>
         <div class="field">
           <span class="field__label">最大输出 token</span>
@@ -295,14 +310,12 @@
         <div v-if="discoverNeedsKey" class="needkey">
           <span class="needkey__icon"><AppIcon name="Connection" /></span>
           <strong>需要先配置 API 密钥</strong>
-          <p>模型列表来自供应商接口，需要有效凭据才能读取。填写密钥后再点「获取模型列表」。</p>
         </div>
         <template v-else>
           <div class="msearch msearch--wide">
             <AppIcon name="Search" />
             <input v-model="discoverSearch" type="text" placeholder="按模型 ID 搜索…">
           </div>
-          <p class="field__hint">已添加的模型不会重复出现。</p>
           <div class="disc-list">
             <label v-for="item in filteredRemote" :key="item" class="disc" :class="{ 'is-added': isAdded(item) }">
               <input v-model="discoverPicked" type="checkbox" :value="item" :disabled="isAdded(item)">
@@ -326,7 +339,7 @@
     <!-- ================= 添加服务商 / 实例 ================= -->
     <el-dialog
       v-model="providerDialog"
-      :title="providerForm.mode === 'instance' ? `添加 ${providerForm.parentName} 实例` : '添加服务商'"
+      :title="providerForm.mode === 'edit' ? '编辑实例' : providerForm.mode === 'instance' ? `添加 ${providerForm.parentName} 实例` : '添加服务商'"
       width="520px"
       align-center
     >
@@ -348,16 +361,20 @@
         <div v-if="providerForm.mode === 'new'" class="field">
           <span class="field__label">Provider ID <span class="req">*</span></span>
           <el-input v-model="providerForm.slug" :class="{ 'field__mono': true }" placeholder="siliconflow" spellcheck="false" @input="validateSlug" />
-          <p class="field__hint" :class="{ 'is-err': slugError }">
-            {{ slugError || '仅限英文字母与数字，用于内部引用与配置存储，创建后不可修改。' }}
-          </p>
+          <p v-if="slugError" class="field__hint is-err">{{ slugError }}</p>
         </div>
 
         <div class="field">
-          <span class="field__label">服务商名称 <span class="req">*</span></span>
-          <el-input v-model="providerForm.name" placeholder="例如 硅基流动" />
+          <span class="field__label">{{ providerForm.mode === 'new' ? '服务商名称' : '实例名称' }} <span class="req">*</span></span>
+          <el-input v-model="providerForm.name" :aria-label="providerForm.mode === 'new' ? '服务商名称' : '实例名称'" placeholder="例如 硅基流动" />
         </div>
 
+        <div class="field">
+          <span class="field__label">请求协议</span>
+          <el-select v-model="providerForm.protocol" aria-label="新服务商请求协议">
+            <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" />
+          </el-select>
+        </div>
         <div class="field">
           <span class="field__label">API 地址 <span class="req">*</span></span>
           <el-input v-model="providerForm.endpoint" :class="{ 'field__mono': true }" placeholder="https://api.example.com/v1" />
@@ -372,7 +389,7 @@
         </div>
 
         <div class="tw">
-          <div class="tw__label">本地服务，无需密钥<small>Ollama、LM Studio、自建 vLLM</small></div>
+          <div class="tw__label">本地服务，无需密钥</div>
           <el-switch v-model="providerForm.noAuth" />
         </div>
 
@@ -382,7 +399,6 @@
           </button>
           <div v-if="providerForm.moreOpen" class="adv__body">
             <span class="field__label">从预设中创建（可选）</span>
-            <p class="field__hint">适用于 Coding Plan、多账号管理或项目隔离；协议、地址与密钥仍可独立调整。</p>
             <el-select v-model="providerForm.presetKey" placeholder="从 Provider 预设创建…" clearable @change="applyPreset">
               <el-option v-for="item in presetChoices" :key="item.key" :label="item.label" :value="item.key" />
             </el-select>
@@ -392,7 +408,7 @@
       <template #footer>
         <el-button @click="providerDialog = false">取消</el-button>
         <el-button type="primary" :disabled="!providerValid" @click="confirmProvider">
-          {{ providerForm.mode === 'instance' ? '添加实例' : '添加' }}
+          {{ providerForm.mode === 'edit' ? '保存实例' : providerForm.mode === 'instance' ? '添加实例' : '添加' }}
         </el-button>
       </template>
     </el-dialog>
@@ -400,8 +416,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRaw, watch } from 'vue'
+import { ElMessage, ElMessageBox, type DropdownInstance } from 'element-plus'
+import { MODEL_PROTOCOLS, modelProtocol, modelRequestUrl, type ModelProtocol } from '@/config/modelProtocol'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import {
   DEFAULT_CONTEXT_WINDOW,
@@ -410,6 +427,7 @@ import {
   type ModelProviderInput,
   type ModelProviderKey,
   type ModelProviderSummary,
+  type ModelServiceSummary,
   type ProviderModelConfig,
 } from '@/config/harness'
 import glmIcon from '@/asset/modules_icon/glm.svg'
@@ -421,15 +439,19 @@ import qwenIcon from '@/asset/modules_icon/qwen.svg'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 
 /* =====================================================================
-   存储层是「一条记录 = 一个服务商实例」。这里按 providerKey 聚成
-   服务商 → 实例 两级：内置预设是根，用户自建的也是根。
+   服务商是固定一级节点；连接记录按共享的 Provider ID（slug）归到该服务商。
+   尚未分出实例时，原始连接直接显示在服务商上。
    ===================================================================== */
-interface Instance extends ModelProviderSummary { custom: boolean }
+type Instance = ModelProviderSummary
 interface ProviderGroup {
   id: string
   name: string
   logo: string
   providerKey: ModelProviderKey | ''
+  hasInstances: boolean
+  endpoint: string
+  authMode: 'api-key' | 'none'
+  protocol: ModelProtocol
   instances: Instance[]
 }
 
@@ -447,6 +469,7 @@ const ORDER_KEY = 'modelProviderOrder'
 
 const api = getPlatformApi()
 const records = ref<ModelProviderSummary[]>([])
+const services = ref<ModelServiceSummary[]>([])
 const loading = ref(false)
 const loadingModels = ref(false)
 const testing = ref(false)
@@ -463,7 +486,7 @@ const expanded = ref<string[]>(getPreference<string[]>(EXPANDED_KEY, []))
 const order = ref<string[]>(getPreference<string[]>(ORDER_KEY, []))
 
 const blankForm = (): ModelProviderInput => ({
-  providerKey: 'deepseek', name: '', endpoint: '', authMode: 'api-key', apiKey: '', models: [], enabled: false,
+  providerKey: 'deepseek', protocol: 'openai-completions', name: '', endpoint: '', authMode: 'api-key', apiKey: '', models: [], enabled: false,
 })
 const form = reactive<ModelProviderInput>(blankForm())
 
@@ -473,36 +496,23 @@ let saveTimer: number | undefined
 
 /* ---------- 分组 ---------- */
 const groups = computed<ProviderGroup[]>(() => {
-  const buckets = new Map<string, Instance[]>()
-  for (const record of records.value) {
-    const id = record.providerKey || 'custom'
-    if (!buckets.has(id)) buckets.set(id, [])
-    buckets.get(id)!.push({ ...record, custom: !isBuiltinRecord(record) })
+  const definitions = new Map<string, Omit<ProviderGroup, 'instances'>>(PROVIDERS.map(preset => [preset.key, {
+    ...preset, id: preset.key, providerKey: preset.key, hasInstances: false, protocol: 'openai-completions',
+  }]))
+  for (const service of services.value) {
+    const preset = BUILTIN_BY_KEY.get(service.id as ModelProviderKey)
+    definitions.set(service.id, { ...service, name: preset?.name || service.name, logo: preset?.logo || service.logo || '' })
   }
-
-
-  const result: ProviderGroup[] = []
-  for (const preset of PROVIDERS) {
-    result.push({
-      id: preset.key, name: preset.name, logo: preset.logo,
-      providerKey: preset.key, instances: buckets.get(preset.key) || [],
-    })
-    buckets.delete(preset.key)
-  }
-  // 自定义服务商按 slug 分桶：providerKey 统一是 custom，不能作为身份。
-  const customGroups = new Map<string, ModelProviderSummary[]>()
-  for (const [, list] of buckets) {
-    for (const record of list) {
-      const identity = record.providerKey === 'custom' ? (record.slug || record.id) : record.providerKey
-      if (!customGroups.has(identity)) customGroups.set(identity, [])
-      customGroups.get(identity)!.push(record)
-    }
-  }
-  for (const [identity, list] of customGroups) {
-    result.push({
-      id: identity, name: list[0]!.name, logo: '',
-      providerKey: list[0]!.providerKey, instances: list.map(record => ({ ...record, custom: true })),
-    })
+  const result: ProviderGroup[] = [...definitions.values()].map(service => ({
+    ...service,
+    instances: records.value.filter(record => (record.slug || (record.providerKey === 'custom' ? record.id.replace(/[^A-Za-z0-9]/g, '') : record.providerKey)) === service.id),
+  }))
+  for (const group of result) {
+    group.instances = group.instances.map(instance => instance.builtin ? { ...instance, name: group.name } : instance)
+    const ids = getPreference<string[]>(`modelInstanceOrder:${group.id}`, [])
+    const rank = new Map(ids.map((id, index) => [id, index]))
+    group.instances.sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999)
+      || Number(a.builtin === true) - Number(b.builtin === true) || b.createdAt - a.createdAt)
   }
   if (order.value.length) {
     const rank = new Map(order.value.map((id, index) => [id, index]))
@@ -511,39 +521,29 @@ const groups = computed<ProviderGroup[]>(() => {
   return result
 })
 
-/** 地址与内置默认一致 → 内置实例（不可删除）。 */
-function isBuiltinRecord(record: ModelProviderSummary) {
-  const preset = BUILTIN_BY_KEY.get(record.providerKey)
-  return Boolean(preset && preset.endpoint.replace(/\/+$/, '') === record.endpoint.replace(/\/+$/, ''))
-}
-
 const visibleGroups = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
   if (!keyword) return groups.value
   return groups.value.filter(group =>
     group.name.toLocaleLowerCase().includes(keyword)
-    || group.instances.some(instance => instance.name.toLocaleLowerCase().includes(keyword)))
+    || group.instances.some(instance => instance.name.toLocaleLowerCase().includes(keyword) || instance.endpoint.toLocaleLowerCase().includes(keyword)))
 })
 
-const activeInstance = computed(() => records.value.find(record => record.id === selectedId.value))
 const activeGroup = computed(() => groups.value.find(group => group.instances.some(instance => instance.id === selectedId.value)))
-const activeGroupHasMany = computed(() => (activeGroup.value?.instances.length || 0) > 1)
-const selectorPrefix = computed(() => {
-  const name = activeGroup.value?.name || form.name
-  return activeGroupHasMany.value && activeInstance.value ? `${name} · ${activeInstance.value.name}` : name
-})
+const activeInstance = computed(() => activeGroup.value?.instances.find(instance => instance.id === selectedId.value))
+const activeGroupHasMany = computed(() => Boolean(activeGroup.value && groupExpandable(activeGroup.value)))
 
-/** 单实例时服务商行本身就是该实例；只有第二个实例出现后才成为可折叠的父级。 */
-const groupExpandable = (group: ProviderGroup) => group.instances.length > 1
+/** 只有手动新增的实例需要展示子集；仅剩默认实例时，由一级服务商承载原始连接。 */
+const groupExpandable = (group: ProviderGroup) => group.hasInstances && group.instances.some(instance => !instance.builtin)
+const isBuiltinProvider = (group: ProviderGroup) => BUILTIN_BY_KEY.has(group.id as ModelProviderKey)
 const groupEnabled = (group: ProviderGroup) => group.instances.some(instanceEnabled)
 const instanceEnabled = (instance: Instance) => instance.enabled && instance.models.some(model => model.enabled)
-const isCustomInstance = (instance: Instance) => instance.custom
 const isProviderActive = (group: ProviderGroup) => group.instances.some(instance => instance.id === selectedId.value)
 
 /* ---------- 面板 ---------- */
 const enabledModels = computed(() => form.models.filter(model => model.enabled))
 const endpointDirty = computed(() => Boolean(defaultEndpoint.value) && form.endpoint.replace(/\/+$/, '') !== defaultEndpoint.value)
-const effectiveUrl = computed(() => `${form.endpoint.replace(/\/+$/, '')}/chat/completions`)
+const effectiveUrl = computed(() => modelRequestUrl(form.endpoint, form.protocol))
 const statusText = computed(() => {
   if (testing.value) return '检测中…'
   if (testOk.value) return '连接正常'
@@ -567,7 +567,9 @@ async function load(preferId?: string) {
   if (!api) return
   loading.value = true
   try {
-    records.value = await api.listModelProviders()
+    const [loadedRecords, loadedServices] = await Promise.all([api.listModelProviders(), api.listModelServices()])
+    records.value = loadedRecords
+    services.value = loadedServices
     const next = records.value.find(item => item.id === (preferId || selectedId.value))?.id
       || records.value.find(item => isModelProviderAvailable(item))?.id
       || records.value[0]?.id
@@ -585,7 +587,7 @@ async function selectInstance(id: string) {
   testMessage.value = ''
   testOk.value = false
   const preset = BUILTIN_BY_KEY.get(record.providerKey)
-  defaultEndpoint.value = preset && preset.endpoint.replace(/\/+$/, '') === record.endpoint.replace(/\/+$/, '')
+  defaultEndpoint.value = preset && record.builtin
     ? preset.endpoint.replace(/\/+$/, '')
     : ''
   Object.assign(form, {
@@ -594,6 +596,7 @@ async function selectInstance(id: string) {
     name: record.name,
     endpoint: record.endpoint,
     authMode: record.authMode,
+    protocol: modelProtocol(record.protocol),
     apiKey: '',
     enabled: record.enabled,
     models: record.models.map(model => ({ ...model })),
@@ -612,14 +615,18 @@ function plainInput(): ModelProviderInput {
     name: form.name,
     endpoint: form.endpoint.trim(),
     authMode: form.authMode,
+    protocol: form.protocol,
     ...(apiKeyDraft.value.trim() ? { apiKey: apiKeyDraft.value.trim() } : {}),
     enabled: form.enabled,
-    // IPC 走结构化克隆，必须剥掉 Vue 的响应式代理。
-    models: form.models.map(model => ({ ...toRaw(model) })),
+    // IPC 走结构化克隆，模型及嵌套价格都必须剥掉 Vue 的响应式代理。
+    models: form.models.map(model => ({
+      ...toRaw(model),
+      ...(model.pricing ? { pricing: { ...toRaw(model.pricing) } } : {}),
+    })),
   }
 }
 
-function saveActive(message?: string) {
+function saveActive() {
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(async () => {
     if (!api || !form.id) return
@@ -627,7 +634,6 @@ function saveActive(message?: string) {
       const saved = await api.saveModelProvider(plainInput())
       const index = records.value.findIndex(item => item.id === saved.id)
       if (index >= 0) records.value.splice(index, 1, saved)
-      if (message) ElMessage.success(message)
     } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : '保存失败')
     }
@@ -637,7 +643,7 @@ function saveActive(message?: string) {
 async function resetEndpoint() {
   if (!defaultEndpoint.value) return
   form.endpoint = defaultEndpoint.value
-  saveActive('已恢复默认地址')
+  saveActive()
 }
 
 /* ---------- 树 ---------- */
@@ -646,31 +652,86 @@ function toggleExpand(id: string) {
     expanded.value = expanded.value.filter(item => item !== id)
   } else {
     expanded.value = [...expanded.value, id]
-    const group = groups.value.find(item => item.id === id)
-    if (group?.instances[0]) void selectInstance(group.instances[0].id)
   }
   savePreference(EXPANDED_KEY, expanded.value)
 }
 
-function onProviderClick(group: ProviderGroup) {
-  if (!group.instances.length) return
+async function onProviderClick(group: ProviderGroup) {
+  if (groupExpandable(group)) { toggleExpand(group.id); return }
+  if (!group.instances.length) {
+    if (!api || loading.value) return
+    loading.value = true
+    try {
+      const saved = await api.saveModelProvider({
+        providerKey: group.providerKey as ModelProviderKey, slug: group.id, builtin: true, name: group.name, endpoint: group.endpoint,
+        authMode: group.authMode, protocol: group.protocol, models: [], enabled: false,
+      })
+      records.value.push(saved)
+      services.value = await api.listModelServices()
+      await selectInstance(saved.id)
+    } catch (error) { ElMessage.error(error instanceof Error ? error.message : '打开服务商失败') }
+    finally { loading.value = false }
+    return
+  }
   if (group.instances.length === 1) { void selectInstance(group.instances[0].id); return }
-  toggleExpand(group.id)
 }
 
 function onProviderContext(group: ProviderGroup, event: MouseEvent) {
-  if (group.instances.length) return
   event.preventDefault()
-  openAddInstance(group)
+  void onProviderMenu(group, event)
+}
+
+async function onProviderMenu(group: ProviderGroup, event: MouseEvent) {
+  providerMenuGroup.value = group
+  instanceMenuId.value = ''
+  instanceMenuAnchor.value = event.currentTarget as HTMLElement
+  await nextTick()
+  instanceMenu.value?.handleOpen()
 }
 
 function onInstanceContext(instance: Instance, event: MouseEvent) {
-  if (!instance.custom) return
   event.preventDefault()
-  void openInstanceMenu(instance)
+  void openInstanceMenu(instance, event)
 }
 
-async function openInstanceMenu(instance: Instance) {
+const instanceMenu = ref<DropdownInstance>()
+const instanceMenuAnchor = shallowRef<HTMLElement>()
+const instanceMenuId = ref('')
+const providerMenuGroup = ref<ProviderGroup>()
+
+async function openInstanceMenu(instance: Instance, event: MouseEvent) {
+  providerMenuGroup.value = undefined
+  if (instance.builtin) {
+    instanceMenuId.value = ''
+    instanceMenu.value?.handleClose()
+    return
+  }
+  instanceMenuId.value = instance.id
+  instanceMenuAnchor.value = event.currentTarget as HTMLElement
+  await nextTick()
+  instanceMenu.value?.handleOpen()
+}
+
+function onInstanceCommand(command: string) {
+  if (providerMenuGroup.value) {
+    if (command === 'add') openAddInstance(providerMenuGroup.value)
+    else if (command === 'delete') void deleteProvider(providerMenuGroup.value)
+    return
+  }
+  const instance = records.value.find(record => record.id === instanceMenuId.value)
+  if (!instance || instance.builtin || providerMenuGroup.value) return
+  if (command === 'edit') {
+    resetProviderForm()
+    Object.assign(providerForm, {
+      mode: 'edit', editingId: instance.id, name: instance.name, endpoint: instance.endpoint,
+      parentSlug: instance.slug || instance.providerKey,
+      protocol: modelProtocol(instance.protocol), noAuth: instance.authMode === 'none',
+    })
+    providerDialog.value = true
+  } else if (command === 'delete') void deleteInstance(instance)
+}
+
+async function deleteInstance(instance: ModelProviderSummary) {
   try {
     await ElMessageBox.confirm(`删除实例「${instance.name}」？该操作不可撤销。`, instance.name, {
       confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
@@ -679,7 +740,21 @@ async function openInstanceMenu(instance: Instance) {
   if (!api) return
   await api.deleteModelProvider(instance.id)
   await load()
-  ElMessage.success('实例已删除')
+}
+
+async function deleteProvider(group: ProviderGroup) {
+  if (!api || isBuiltinProvider(group)) return
+  try {
+    await ElMessageBox.confirm(`删除服务商「${group.name}」及其全部实例？该操作不可撤销。`, '删除服务商', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    })
+  } catch { return }
+  try {
+    if (activeGroup.value?.id === group.id) window.clearTimeout(saveTimer)
+    await api.deleteModelService(group.id)
+    providerMenuGroup.value = undefined
+    await load()
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '删除服务商失败') }
 }
 
 /* ---------- 拖拽 ---------- */
@@ -715,9 +790,12 @@ function onInstanceDrop(groupId: string, instanceId: string, event: DragEvent) {
   if (from < 0 || to < 0) return
   ids.splice(to, 0, ...ids.splice(from, 1))
   // 实例顺序保存在本地偏好中，与服务商顺序同机制。
+  const source = records.value.filter(record => ids.includes(record.id))
+  const sorted = ids.map(id => source.find(record => record.id === id)!)
+  let index = 0
+  records.value = records.value.map(record => ids.includes(record.id) ? sorted[index++]! : record)
   savePreference(`modelInstanceOrder:${groupId}`, ids)
   draggedInstance = null
-  ElMessage.success('已调整实例顺序')
 }
 
 /* ---------- 模型 ---------- */
@@ -756,7 +834,7 @@ function confirmModel() {
   if (modelForm.editing && index >= 0) form.models.splice(index, 1, { ...next, enabled: form.models[index].enabled })
   else form.models.push(next)
   modelDrawer.value = false
-  saveActive('模型已保存')
+  saveActive()
 }
 
 async function confirmRemoveModel() {
@@ -765,12 +843,12 @@ async function confirmRemoveModel() {
   } catch { return }
   form.models = form.models.filter(model => model.id !== modelForm.originalId)
   modelDrawer.value = false
-  saveActive('已移除模型')
+  saveActive()
 }
 
 function removeModel(model: ProviderModelConfig) {
   form.models = form.models.filter(item => item.id !== model.id)
-  saveActive('已移除模型')
+  saveActive()
 }
 
 /* ---------- 发现模型 ---------- */
@@ -805,7 +883,7 @@ function addDiscovered() {
     form.models.push({ id, enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW })
   }
   discoverDrawer.value = false
-  saveActive(`已添加 ${discoverPicked.value.length} 个模型`)
+  saveActive()
 }
 
 /* ---------- 连接检测 ---------- */
@@ -832,9 +910,12 @@ const presetChoices = MODEL_PROVIDER_PRESETS
   .filter(item => item.key !== 'custom')
   .map(item => ({ key: item.key, label: BUILTIN_BY_KEY.get(item.key)?.name || item.name }))
 const providerForm = reactive({
-  mode: 'new' as 'new' | 'instance',
+  mode: 'new' as 'new' | 'instance' | 'edit',
+  editingId: '',
   parentName: '',
   parentKey: '' as ModelProviderKey | '',
+  parentSlug: '',
+  protocol: 'openai-completions' as ModelProtocol,
   slug: '', name: '', endpoint: '', apiKey: '', noAuth: false,
   avatar: '', moreOpen: false, presetKey: '' as ModelProviderKey | '',
 })
@@ -846,13 +927,13 @@ const providerValid = computed(() => {
 })
 const providerPreviewUrl = computed(() => {
   const url = providerForm.endpoint.trim().replace(/\/+$/, '')
-  return url ? `${url}/chat/completions` : '—'
+  return url ? modelRequestUrl(url, providerForm.protocol) : '—'
 })
 
 function resetProviderForm() {
   Object.assign(providerForm, {
-    mode: 'new', parentName: '', parentKey: '', slug: '', name: '', endpoint: '',
-    apiKey: '', noAuth: false, avatar: '', moreOpen: false, presetKey: '',
+    mode: 'new', editingId: '', parentName: '', parentKey: '', parentSlug: '', slug: '', name: '', endpoint: '',
+    apiKey: '', noAuth: false, protocol: 'openai-completions', avatar: '', moreOpen: false, presetKey: '',
   })
   slugError.value = ''
 }
@@ -867,16 +948,17 @@ function openAddInstance(group: ProviderGroup) {
   providerForm.mode = 'instance'
   providerForm.parentName = group.name
   providerForm.parentKey = (group.providerKey || '') as ModelProviderKey
+  providerForm.parentSlug = group.id
   providerForm.name = group.name
-  const preset = group.providerKey ? BUILTIN_BY_KEY.get(group.providerKey) : undefined
-  providerForm.endpoint = preset?.endpoint || ''
-  providerForm.noAuth = preset?.authMode === 'none'
+  providerForm.endpoint = group.endpoint
+  providerForm.protocol = group.protocol
+  providerForm.noAuth = group.authMode === 'none'
   providerDialog.value = true
 }
 
 function validateSlug(value: string) {
   providerForm.slug = value.replace(/[^A-Za-z0-9]/g, '')
-  const taken = records.value.some(record => (record.slug || record.providerKey) === providerForm.slug)
+  const taken = groups.value.some(group => group.id.toLocaleLowerCase() === providerForm.slug.toLocaleLowerCase())
   slugError.value = taken && providerForm.slug ? `「${providerForm.slug}」已被占用，请换一个。` : ''
 }
 
@@ -884,9 +966,6 @@ function applyPreset(key: ModelProviderKey | '') {
   if (!key) return
   const preset = BUILTIN_BY_KEY.get(key)
   if (!preset) return
-  providerForm.mode = 'instance'
-  providerForm.parentName = preset.name
-  providerForm.parentKey = key
   providerForm.name = preset.name
   providerForm.endpoint = preset.endpoint
   providerForm.noAuth = preset.authMode === 'none'
@@ -903,24 +982,34 @@ function onAvatarPicked(event: Event) {
 async function confirmProvider() {
   if (!api || !providerValid.value) return
   try {
+    const editing = records.value.find(record => record.id === providerForm.editingId)
+    if (providerForm.mode === 'edit' && (!editing || editing.builtin)) return
     const saved = await api.saveModelProvider({
-      providerKey: (providerForm.mode === 'instance' ? providerForm.parentKey : providerForm.slug) as ModelProviderKey,
-      ...(providerForm.mode === 'new' && providerForm.slug ? { slug: providerForm.slug } : {}),
+      ...(editing ? { id: editing.id } : {}),
+      builtin: editing?.builtin ?? providerForm.mode === 'new',
+      providerKey: editing?.providerKey || (providerForm.mode === 'instance' ? providerForm.parentKey : 'custom') as ModelProviderKey,
+      slug: editing?.slug || (providerForm.mode === 'instance' ? providerForm.parentSlug : providerForm.slug),
+      ...(providerForm.mode === 'new' ? { serviceName: providerForm.name.trim(), serviceLogo: providerForm.avatar } : {}),
+      ...(providerForm.mode === 'instance' ? { asInstance: true, serviceName: providerForm.parentName } : {}),
       name: providerForm.name.trim(),
       endpoint: providerForm.endpoint.trim(),
+      protocol: providerForm.protocol,
       authMode: providerForm.noAuth ? 'none' : 'api-key',
       ...(providerForm.apiKey.trim() ? { apiKey: providerForm.apiKey.trim() } : {}),
-      models: [],
-      enabled: false,
+      models: editing ? JSON.parse(JSON.stringify(editing.models)) : [],
+      enabled: editing?.enabled ?? false,
     })
     providerDialog.value = false
-    const groupId = saved.providerKey || saved.slug || ''
+    const groupId = saved.slug || saved.providerKey
+    if (!editing) {
+      const ids = groups.value.find(group => group.id === groupId)?.instances.map(instance => instance.id) || []
+      savePreference(`modelInstanceOrder:${groupId}`, [saved.id, ...ids])
+    }
     if (groupId && !expanded.value.includes(groupId)) {
       expanded.value = [...expanded.value, groupId]
       savePreference(EXPANDED_KEY, expanded.value)
     }
     await load(saved.id)
-    ElMessage.success(providerForm.mode === 'instance' ? '实例已添加' : '服务商已添加')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '添加失败')
   }
@@ -934,9 +1023,17 @@ onMounted(() => { void load() })
 </script>
 
 <style scoped lang="scss">
+:global(body:has(.settings-page) .el-dropdown-menu__item.model-menu__delete) {
+  color: var(--cp-danger);
+}
+:global(body:has(.settings-page) .el-dropdown-menu__item.model-menu__delete:is(:hover, :focus, .is-hovering):not(.is-disabled)) {
+  color: var(--cp-danger);
+  background: var(--el-color-danger-light-9);
+}
+
 .provider-page {
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -970,7 +1067,8 @@ onMounted(() => { void load() })
   &:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
 }
 
-.prov { margin-bottom: 1px; }
+.prov { margin-bottom: 2px; }
+.kids { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
 .row {
   position: relative;
   display: flex; align-items: center; gap: 8px;
@@ -1020,10 +1118,10 @@ onMounted(() => { void load() })
 }
 .slot-btn--chevron { transition: opacity 120ms ease-out, transform 150ms cubic-bezier(.16, 1, .3, 1); }
 .slot-btn--chevron.is-open { transform: translate(-50%, -50%) rotate(90deg); }
-/* 未启用（无绿点）的行常驻图标，保证可发现 */
-.row:not(:has(.dot)) .slot-btn { opacity: 1; }
-.row:hover .dot { opacity: 0; }
-.row:hover .slot-btn { opacity: 1; }
+/* 可展开行常驻箭头；更多按钮在悬停或键盘聚焦时替换状态点。 */
+.row:not(:has(.dot)) .slot-btn--chevron { opacity: 1; }
+.row:has(.slot-btn):hover .dot, .row:has(.slot-btn):focus-within .dot { opacity: 0; }
+.row:hover .slot-btn, .row:focus-within .slot-btn { opacity: 1; }
 
 .add-instance {
   display: flex; align-items: center; gap: 6px;
@@ -1058,7 +1156,11 @@ onMounted(() => { void load() })
 .proto { padding: 1px 6px; color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 4px; font-size: 11px; font-weight: 500; }
 .panel__actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .enable-label { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.panel__body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 80px; }
+.panel__body {
+  flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 80px;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
 
 .section {
   padding: 24px 0;
@@ -1070,8 +1172,6 @@ onMounted(() => { void load() })
 }
 .section__head > div:first-child { min-width: 0; flex: 1 1 320px; }
 .section__head h3 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 550; }
-.section__head p { margin: 4px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.5; }
-.section__tools { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .field {
   max-width: 640px; margin-bottom: 16px;
   &:last-child { margin-bottom: 0; }
@@ -1153,7 +1253,6 @@ onMounted(() => { void load() })
   color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 50%;
 }
 .empty strong { display: block; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.empty small { display: block; margin-top: 3px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 .empty__actions { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
 
 /* ===================== 抽屉 / 弹窗 ===================== */
@@ -1178,7 +1277,6 @@ onMounted(() => { void load() })
   color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 50%;
 }
 .needkey strong { display: block; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.needkey p { max-width: 320px; margin: 6px auto 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.6; }
 .disc-list { display: flex; flex-direction: column; gap: 1px; }
 .disc {
   display: flex; align-items: center; gap: 10px;
@@ -1205,7 +1303,6 @@ onMounted(() => { void load() })
 .tw { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; }
 .tw__label {
   color: var(--cp-text); font-size: var(--settings-text-base);
-  small { display: block; margin-top: 1px; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
 }
 .adv { margin-top: 6px; }
 .adv__toggle {

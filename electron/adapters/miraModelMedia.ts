@@ -19,6 +19,7 @@ export function miraCompatibleMediaApi(api: ProviderStreams, configured: Provide
     const users = context.messages.filter((message): message is MiraMediaMessage => message.role === 'user' && (typeof message.content === 'string' || message.content.length > 0))
     if (!users.some(message => message.miraMedia?.length)) return options
     return { ...options, onPayload: async (raw: unknown, model: Parameters<ProviderStreams['stream']>[0]) => {
+      if (model.api !== 'openai-completions') throw new Error('当前请求协议不支持 PDF 或视频附件，请使用 OpenAI Completions 协议')
       const changed = await options?.onPayload?.(raw, model)
       const payload = (changed ?? raw) as { messages?: Array<{ role: string; content?: unknown }> }
       if (!payload || !Array.isArray(payload.messages)) throw new Error('模型附件请求格式无效')

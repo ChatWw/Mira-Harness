@@ -7,6 +7,36 @@ const configuredModel: ProviderModelConfig = { id: 'local-model', enabled: true,
 const provider = { id: 'local', providerKey: 'ollama', name: 'Local', endpoint: 'http://127.0.0.1:12345/v1', models: [configuredModel], enabled: true, hasApiKey: false, createdAt: 0, updatedAt: 0 } as ModelProviderSummary
 
 describe('createHarnessModelProvider', () => {
+  it.each(['openai-completions', 'openai-responses', 'anthropic-messages'] as const)('selects the configured %s adapter', protocol => {
+    const { model } = createHarnessModelProvider({ ...provider, protocol }, configuredModel, '')
+    expect(model.api).toBe(protocol)
+  })
+  it.each(['openai-responses', 'anthropic-messages'] as const)('sends a real SDK request with %s', async protocol => {
+    let received: { path?: string; body: any; headers: any } | undefined
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      received = { path: request.url, body: JSON.parse(Buffer.concat(chunks).toString()), headers: request.headers }
+      response.writeHead(400, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: { type: 'invalid_request_error', message: 'test response' } }))
+    })
+    await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+    try {
+      const port = (server.address() as { port: number }).port
+      const { model, models } = createHarnessModelProvider({ ...provider, protocol, endpoint: `http://127.0.0.1:${port}/v1` }, configuredModel, 'test-key')
+      await models.streamSimple(model, { messages: [{ role: 'user', content: 'hello', timestamp: Date.now() }] } as any).result()
+      expect(received?.path).toBe(protocol === 'anthropic-messages' ? '/v1/messages' : '/v1/responses')
+      expect(received?.body.model).toBe(configuredModel.id)
+      expect(received?.body[protocol === 'anthropic-messages' ? 'messages' : 'input']).toBeTruthy()
+      expect(received?.headers[protocol === 'anthropic-messages' ? 'x-api-key' : 'authorization']).toBe(protocol === 'anthropic-messages' ? 'test-key' : 'Bearer test-key')
+    } finally { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())) }
+  })
+  it.each(['openai-responses', 'anthropic-messages'] as const)('rejects unsupported file payloads before sending through %s', async protocol => {
+    const { model, models } = createHarnessModelProvider({ ...provider, protocol }, { ...configuredModel, pdfInput: true }, 'test-key')
+    const response = await models.streamSimple(model, { messages: [{ role: 'user', content: 'read', timestamp: Date.now(), miraMedia: [{ name: 'a.pdf', mediaType: 'application/pdf', content: 'YQ==' }] }] } as any).result()
+    expect(response.stopReason).toBe('error')
+    expect(response.errorMessage).toContain('当前请求协议不支持 PDF 或视频附件')
+  })
   it('uses a non-secret SDK placeholder for a keyless endpoint', async () => {
     const { model, models } = createHarnessModelProvider({ ...provider, authMode: 'none' }, configuredModel, '')
     const auth = await models.getProvider('mira-openai')!.auth.apiKey!.resolve({} as any)

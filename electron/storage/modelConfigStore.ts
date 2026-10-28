@@ -1,9 +1,11 @@
+import { modelProtocol, type ModelProtocol } from '../../src/config/modelProtocol'
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import type Database from 'better-sqlite3'
 import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelPricing, type ModelProviderAuthMode, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding, type ProviderModelConfig } from '../../src/config/harness'
 import { MiraPaths } from './miraPaths'
 import { normalizePricing } from '../services/usageCost'
+import type { ModelServiceSummary } from '../../src/config/harness'
 
 type LegacyJsonModelRecord = {
   id: string
@@ -22,6 +24,7 @@ type LegacyJsonModelRecord = {
 
 type JsonProviderRecord = {
   id: string
+  builtin?: boolean
   legacyIds?: string[]
   providerKey: ModelProviderKey
   slug?: string
@@ -29,13 +32,16 @@ type JsonProviderRecord = {
   endpoint: string
   apiKey: string
   authMode: ModelProviderAuthMode
+  protocol?: ModelProtocol
   models: ProviderModelConfig[]
   enabled: boolean
   createdAt: number
   updatedAt: number
 }
 
-type ModelConfigDocument = { version: 2, providers: JsonProviderRecord[], bindings: ModelRoleBinding }
+type ModelConfigDocument = { version: 2, providers: JsonProviderRecord[], bindings: ModelRoleBinding, services?: ModelServiceSummary[] }
+
+const serviceId = (record: JsonProviderRecord) => record.slug || (record.providerKey === 'custom' ? record.id.replace(/[^A-Za-z0-9]/g, '') : record.providerKey)
 
 function inferProviderKey(name: string, endpoint: string): ModelProviderKey {
   const text = `${name} ${endpoint}`.toLocaleLowerCase()
@@ -99,6 +105,7 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
   const models = Array.isArray(item.models) ? item.models.map(normalizeModel).filter((model): model is ProviderModelConfig => Boolean(model)) : []
   return {
     id: item.id,
+    ...(typeof item.builtin === 'boolean' ? { builtin: item.builtin } : {}),
     ...(Array.isArray(item.legacyIds) ? { legacyIds: item.legacyIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())) } : {}),
     providerKey: key,
     ...(normalizeSlug(item.slug) ? { slug: normalizeSlug(item.slug) } : {}),
@@ -106,6 +113,7 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
     endpoint: normalizeEndpoint(item.endpoint),
     apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
     authMode: item.authMode === 'none' ? 'none' : defaultAuthMode(key),
+    protocol: modelProtocol(item.protocol),
     models,
     enabled: item.enabled !== false,
     createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
@@ -187,7 +195,26 @@ export class ModelConfigStore {
     try {
       const parsed = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<ModelConfigDocument>
       const providers = Array.isArray(parsed.providers) ? parsed.providers.map(normalizeProvider).filter((provider): provider is JsonProviderRecord => Boolean(provider)) : []
-      return { version: 2, providers, bindings: parsed.bindings && typeof parsed.bindings === 'object' ? parsed.bindings : {} }
+      // 旧配置没有实例身份：每个内置服务商最早创建的一条为默认实例。
+      for (const preset of MODEL_PROVIDER_PRESETS.filter(item => item.key !== 'custom')) {
+        const instances = providers.filter(item => item.providerKey === preset.key)
+        const builtin = instances.find(item => item.builtin === true)
+          || instances.filter(item => item.builtin === undefined).sort((a, b) => a.createdAt - b.createdAt)[0]
+        for (const item of instances) item.builtin ??= item === builtin
+      }
+      const services = Array.isArray(parsed.services) ? parsed.services.map(service => ({ ...service })) : []
+      // 兼容旧配置：连接 ID 与会话引用不变，仅补齐父服务商信息。
+      for (const record of [...providers].sort((a, b) => a.createdAt - b.createdAt)) {
+        const id = serviceId(record)
+        let service = services.find(item => item.id === id)
+        if (!service) {
+          service = { id, providerKey: record.providerKey, name: record.name, endpoint: record.endpoint,
+            authMode: record.authMode, protocol: modelProtocol(record.protocol), hasInstances: false }
+          services.push(service)
+        }
+        if (providers.filter(item => serviceId(item) === id).length > 1) service.hasInstances = true
+      }
+      return { version: 2, providers, services, bindings: parsed.bindings && typeof parsed.bindings === 'object' ? parsed.bindings : {} }
     } catch {
       return { version: 2, providers: [], bindings: {} }
     }
@@ -201,8 +228,6 @@ export class ModelConfigStore {
     try { renameSync(temporaryPath, this.configPath) } catch (error) { try { unlinkSync(temporaryPath) } catch {} ; throw error }
   }
 
-  private writeRecords(records: JsonProviderRecord[]) { this.writeDocument({ ...this.readDocument(), providers: records }) }
-
   private recordById(id: string) {
     return this.readRecords().find(record => record.id === id || record.legacyIds?.includes(id))
   }
@@ -210,11 +235,13 @@ export class ModelConfigStore {
   private asSummary(record: JsonProviderRecord): ModelProviderSummary {
     return {
       id: record.id,
+      builtin: record.builtin === true,
       providerKey: record.providerKey,
-      ...(record.slug ? { slug: record.slug } : {}),
+      slug: serviceId(record),
       name: record.name,
       endpoint: record.endpoint,
       authMode: record.authMode,
+      protocol: modelProtocol(record.protocol),
       models: record.models,
       enabled: record.enabled,
       hasApiKey: Boolean(record.apiKey),
@@ -225,6 +252,8 @@ export class ModelConfigStore {
 
   list(): ModelProviderSummary[] { return this.readRecords().sort((a, b) => b.updatedAt - a.updatedAt).map(record => this.asSummary(record)) }
 
+  services(): ModelServiceSummary[] { return this.readDocument().services || [] }
+
   getSecret(id: string) { return this.recordById(id)?.apiKey || '' }
 
   get(id: string) {
@@ -234,36 +263,85 @@ export class ModelConfigStore {
 
   save(input: ModelProviderInput) {
     if (!input.name.trim() || !input.endpoint.trim()) throw new Error('请填写供应商名称和 Endpoint')
-    const records = this.readRecords()
+    const document = this.readDocument()
+    const records = document.providers
     const existing = input.id ? records.find(record => record.id === input.id || record.legacyIds?.includes(input.id!)) : undefined
     const now = Date.now()
-    const key = providerKey(input.providerKey, input.name, input.endpoint)
+    const key = existing?.providerKey || providerKey(input.providerKey, input.name, input.endpoint)
+    const slug = existing ? serviceId(existing) : normalizeSlug(input.slug) || (key === 'custom' ? normalizeSlug(input.id || randomUUID())! : key)
+    const services = document.services || []
+    let service = services.find(item => item.id === slug)
+    if (!existing && !input.asInstance && input.serviceName && (
+      services.some(item => item.id.toLocaleLowerCase() === slug.toLocaleLowerCase())
+      || key === 'custom' && MODEL_PROVIDER_PRESETS.some(item => item.key.toLocaleLowerCase() === slug.toLocaleLowerCase())
+    )) throw new Error('Provider ID 已存在')
+    if (!service) {
+      const preset = MODEL_PROVIDER_PRESETS.find(item => item.key === key && key !== 'custom')
+      service = { id: slug, providerKey: key, name: input.serviceName?.trim() || input.name.trim(),
+        ...(input.serviceLogo ? { logo: input.serviceLogo } : {}),
+        endpoint: input.asInstance && preset ? preset.endpoint : normalizeEndpoint(input.endpoint),
+        authMode: input.asInstance && preset ? preset.authMode : input.authMode || defaultAuthMode(key),
+        protocol: modelProtocol(input.protocol), hasInstances: false }
+      services.push(service)
+    }
+    if (input.asInstance) {
+      // 首次添加实例时，把服务商当前连接保留为默认实例。
+      if (!records.some(item => serviceId(item) === slug)) records.push({
+        id: randomUUID(), builtin: true, providerKey: key, slug, name: service.name,
+        endpoint: service.endpoint, authMode: service.authMode, protocol: service.protocol,
+        apiKey: '', models: [], enabled: false, createdAt: now, updatedAt: now,
+      })
+      service.hasInstances = true
+    }
     const models = input.models.map(normalizeModel).filter((model): model is ProviderModelConfig => Boolean(model))
       .filter((model, index, source) => source.findIndex(candidate => candidate.id === model.id) === index)
     const record: JsonProviderRecord = {
       id: existing?.id || input.id || randomUUID(),
+      builtin: existing?.builtin ?? input.builtin === true,
       ...(existing?.legacyIds?.length ? { legacyIds: existing.legacyIds } : {}),
       providerKey: key,
-      ...(normalizeSlug(input.slug) || existing?.slug ? { slug: normalizeSlug(input.slug) || existing?.slug } : {}),
+      slug,
       name: input.name.trim(),
       endpoint: normalizeEndpoint(input.endpoint),
       apiKey: input.apiKey?.trim() || existing?.apiKey || '',
       authMode: input.authMode || existing?.authMode || defaultAuthMode(key),
+      protocol: modelProtocol(input.protocol || existing?.protocol),
       models,
       enabled: Boolean(input.enabled),
       createdAt: existing?.createdAt || now,
       updatedAt: now,
     }
     const next = existing ? records.map(item => item.id === existing.id ? record : item) : [record, ...records]
-    this.writeRecords(next)
+    this.writeDocument({ ...document, providers: next, services })
     return this.asSummary(record)
   }
 
   delete(id: string) {
     const record = this.recordById(id)
     if (!record) return
-    this.writeRecords(this.readRecords().filter(candidate => candidate.id !== record.id))
+    if (record.builtin) throw new Error('默认实例不能删除')
+    const document = this.readDocument()
+    document.providers = document.providers.filter(candidate => candidate.id !== record.id)
+    if (!document.providers.some(item => serviceId(item) === serviceId(record))) {
+      const service = document.services?.find(item => item.id === serviceId(record))
+      if (service) service.hasInstances = false
+    }
+    this.writeDocument(document)
     ;[record.id, ...(record.legacyIds || [])].forEach(providerId => this.database.prepare('DELETE FROM model_role_bindings WHERE provider_id = ?').run(providerId))
+  }
+
+  deleteService(id: string) {
+    if (MODEL_PROVIDER_PRESETS.some(preset => preset.key !== 'custom' && preset.key === id)) throw new Error('内置服务商不能删除')
+    const document = this.readDocument()
+    const removed = document.providers.filter(record => serviceId(record) === id)
+    const removedIds = new Set(removed.flatMap(record => [record.id, ...(record.legacyIds || [])]))
+    document.providers = document.providers.filter(record => serviceId(record) !== id)
+    document.services = document.services?.filter(service => service.id !== id)
+    document.bindings = Object.fromEntries(Object.entries(document.bindings).filter(([, selection]) => !removedIds.has(selection.providerId)))
+    this.writeDocument(document)
+    this.database.transaction(() => {
+      for (const providerId of removedIds) this.database.prepare('DELETE FROM model_role_bindings WHERE provider_id = ?').run(providerId)
+    })()
   }
 
   bindings(): ModelRoleBinding {

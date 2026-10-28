@@ -1,3 +1,4 @@
+import { modelProtocol, modelRequestUrl } from '../../src/config/modelProtocol'
 import { ipcMain, shell } from 'electron'
 import { type ModelProviderInput } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
@@ -8,6 +9,7 @@ export interface ModelIpcDependencies {
 
 export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
   ipcMain.handle('harness:list-model-providers', () => database.models.list())
+  ipcMain.handle('harness:list-model-services', () => database.models.services())
   ipcMain.handle('harness:get-model-config-path', () => database.models.path())
   ipcMain.handle('harness:get-model-provider-api-key', (_event, id: string) => database.models.getSecret(id))
   ipcMain.handle('harness:open-model-config-file', () => shell.openPath(database.models.path()))
@@ -17,7 +19,10 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
     const url = /\/models$/i.test(endpoint) ? endpoint : `${endpoint}/models`
     const apiKey = provider.apiKey?.trim() || database.models.getSecret(provider.id || '')
     const headers: Record<string, string> = { Accept: 'application/json' }
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+    if (modelProtocol(provider.protocol) === 'anthropic-messages') {
+      headers['anthropic-version'] = '2023-06-01'
+      if (apiKey) headers['x-api-key'] = apiKey
+    } else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
     try {
@@ -39,16 +44,24 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
   })
   ipcMain.handle('harness:save-model-provider', (_event, provider: ModelProviderInput) => database.models.save(provider))
   ipcMain.handle('harness:delete-model-provider', (_event, id: string) => database.models.delete(id))
+  ipcMain.handle('harness:delete-model-service', (_event, id: string) => database.models.deleteService(id))
   ipcMain.handle('harness:get-model-role-bindings', () => database.models.bindings())
   ipcMain.handle('harness:save-model-role-bindings', (_event, bindings) => database.models.saveBindings(bindings))
   ipcMain.handle('harness:test-model-provider', async (_event, provider: ModelProviderInput, modelId: string) => {
     try {
       const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
-      const url = /\/chat\/completions$/i.test(endpoint) ? endpoint : `${endpoint}/chat/completions`
+      const protocol = modelProtocol(provider.protocol)
+      const url = modelRequestUrl(endpoint, protocol)
       const apiKey = provider.apiKey || database.models.getSecret(provider.id || '')
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (apiKey) headers.Authorization = `Bearer ${apiKey}`
-      const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: '请用一个词回复“已连接”。' }], stream: false }) })
+      if (protocol === 'anthropic-messages') {
+        headers['anthropic-version'] = '2023-06-01'
+        if (apiKey) headers['x-api-key'] = apiKey
+      } else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+      const body = protocol === 'openai-responses'
+        ? { model: modelId, input: '请回复已连接', stream: false }
+        : { model: modelId, messages: [{ role: 'user', content: '请回复已连接' }], stream: false, ...(protocol === 'anthropic-messages' ? { max_tokens: 64 } : {}) }
+      const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
       if (!response.ok) return { ok: false, text: `请求失败：${response.status} ${(await response.text()).slice(0, 240)}` }
       return { ok: true, text: '连接成功' }
     } catch (error) { return { ok: false, text: error instanceof Error ? error.message : String(error) }

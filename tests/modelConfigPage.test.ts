@@ -1,0 +1,285 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import Database from 'better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+import Page from '../src/pages/backend/modelConfig/index.vue'
+import { ModelConfigStore } from '../electron/storage/modelConfigStore'
+import { createVueNodeRenderer, withVueClientRender, type VueTestNode } from './helpers/vueNodeRenderer'
+import type { ModelProviderInput } from '../src/config/harness'
+
+const host = vi.hoisted(() => ({ api: undefined as any, preferences: {} as Record<string, any>, confirm: vi.fn(async () => undefined), openMenu: vi.fn() }))
+vi.mock('vue', async importOriginal => ({ ...await importOriginal<typeof import('vue')>(), vModelText: {}, vModelCheckbox: {} }))
+vi.mock('@/platform', () => ({ getPlatformApi: () => host.api, getPreference: (key: string, fallback: unknown) => host.preferences[key] ?? fallback, savePreference: (key: string, value: unknown) => { host.preferences[key] = value } }))
+vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() }, ElMessageBox: { confirm: host.confirm } }))
+vi.mock('../src/pages/backend/settings/components/SettingsPageShell.vue', () => ({ default: { setup: (_: unknown, { slots }: any) => () => h('main', slots.default?.()) } }))
+const ActualPage = withVueClientRender(Page, new URL('../src/pages/backend/modelConfig/index.vue', import.meta.url))
+Object.assign(ActualPage, { directives: { loading: {} } })
+const passthrough = (tag: string) => defineComponent({ inheritAttrs: false, setup: (_, { attrs, slots }) => () => h(tag, attrs, [slots.default?.(), slots.footer?.()]) })
+const components = Object.fromEntries(['ElButton', 'ElButtonGroup', 'ElInput', 'ElSwitch', 'ElSelect', 'ElOption', 'ElDropdownMenu', 'ElDropdownItem', 'AppIcon'].map(name => [name, passthrough(name)]))
+Object.assign(components, {
+  ElDialog: defineComponent({ props: ['modelValue', 'title'], setup: (props, { slots }) => () => props.modelValue ? h('dialog', { title: props.title }, [slots.default?.(), slots.footer?.()]) : null }),
+  ElDrawer: defineComponent({ setup: () => () => null }),
+  ElDropdown: defineComponent({ setup: (_, { attrs, slots, expose }) => { expose({ handleOpen: host.openMenu, handleClose: vi.fn() }); return () => h('ElDropdown', attrs, slots.dropdown?.()) } }),
+})
+const mounted: Array<{ unmount(): void }> = []
+let database: Database.Database, directory: string, store: ModelConfigStore
+const text = (node: VueTestNode): string => node.text + node.children.map(text).join('')
+const model = { id: 'test', enabled: true, reasoning: true, contextWindow: 128000 }
+const original: ModelProviderInput = { id: 'default', providerKey: 'deepseek', slug: 'deepseek', builtin: true, name: '深度求索', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key', protocol: 'openai-completions', apiKey: 'original-key', enabled: true, models: [model] }
+const addInstance = (patch: Partial<ModelProviderInput> = {}) => store.save({ providerKey: 'deepseek', slug: 'deepseek', asInstance: true, id: 'custom', name: '深度求索1', endpoint: 'https://api.deepseek.com', enabled: false, models: [], ...patch })
+async function drain() { for (let i = 0; i < 10; i++) { await Promise.resolve(); await nextTick() } }
+function setup() {
+  const renderer = createVueNodeRenderer(), { app } = renderer.mount(ActualPage, {}, components)
+  mounted.push(app)
+  const find = (predicate: (node: VueTestNode) => boolean) => { const node = renderer.all().find(predicate); if (!node) throw new Error('Missing model settings control'); return node }
+  const click = async (node: VueTestNode) => { await (node.props.onClick as Function)({ currentTarget: {}, stopPropagation() {}, preventDefault() {} }); await drain() }
+  const row = (name: string, level = 'provider') => find(node => String(node.props.class).includes(`row--${level}`) && node.children.some(child => child.props.class === 'row__name' && text(child) === name))
+  const command = async (value: string) => { await (find(node => node.type === 'ElDropdown').props.onCommand as Function)(value); await drain() }
+  const context = async (node: VueTestNode) => { await (node.props.onContextmenu as Function)({ currentTarget: {}, preventDefault() {} }); await drain() }
+  const change = async (label: string, value: string) => { (find(node => node.props['aria-label'] === label).props['onUpdate:modelValue'] as Function)(value); await drain() }
+  return { all: renderer.all, find, click, row, command, context, change, menuItems: () => renderer.all().filter(node => node.type === 'ElDropdownItem').map(text), children: () => renderer.all().filter(node => String(node.props.class).includes('row--instance')).map(node => text(node.children.find(child => child.props.class === 'row__name')!)) }
+}
+beforeEach(() => {
+  vi.stubGlobal('window', { setTimeout, clearTimeout })
+  directory = mkdtempSync(join(tmpdir(), 'mira-model-tree-'))
+  database = new Database(':memory:')
+  database.exec('CREATE TABLE model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT, model_id TEXT)')
+  store = new ModelConfigStore(database, directory)
+  store.save(original)
+  host.preferences = { modelProviderExpanded: ['deepseek'] }
+  host.confirm.mockClear(); host.openMenu.mockClear()
+  vi.mocked(ElMessage.success).mockClear()
+  host.api = {
+    listModelProviders: vi.fn(async () => store.list()), listModelServices: vi.fn(async () => store.services()),
+    getModelProviderApiKey: vi.fn(async (id: string) => store.getSecret(id)),
+    saveModelProvider: vi.fn(async (input: ModelProviderInput) => store.save(structuredClone(input))),
+    deleteModelProvider: vi.fn(async (id: string) => store.delete(id)),
+    deleteModelService: vi.fn(async (id: string) => store.deleteService(id)),
+  }
+})
+afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); database.close(); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
+
+describe('two-level model service tree', () => {
+  it('displays the provider name for a default instance with a legacy name', async () => {
+    store.save({ ...original, name: '深度求索 / DeepSeek' })
+    addInstance()
+    const view = setup(); await drain()
+    expect(view.children()).toEqual(['深度求索1', '深度求索'])
+    await view.click(view.row('深度求索', 'instance'))
+    expect(text(view.find(node => node.props.class === 'panel__ep'))).toBe('深度求索')
+    expect(store.get('default')?.name).toBe('深度求索 / DeepSeek')
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(store.get('default')?.models).toEqual([model])
+  })
+
+  it.each(['empty', 'flat', 'expanded'])('shows only add-instance on the %s provider menu', async kind => {
+    if (kind === 'expanded') addInstance()
+    const view = setup(); await drain()
+    const name = kind === 'empty' ? '智谱' : '深度求索'
+    await view.context(view.row(name))
+    expect(host.openMenu).toHaveBeenCalled()
+    expect(view.menuItems()).toEqual(['添加实例'])
+    expect(view.all().some(node => node.type === 'dialog')).toBe(false)
+    expect(host.api.saveModelProvider).not.toHaveBeenCalled()
+    await view.command('delete')
+    expect(host.confirm).not.toHaveBeenCalled()
+    expect(host.api.deleteModelService).not.toHaveBeenCalled()
+    await view.command('add')
+    expect(view.find(node => node.type === 'dialog').props.title).toBe(`添加 ${name} 实例`)
+  })
+
+  it('uses vertical more buttons only on providers with no children', async () => {
+    addInstance()
+    const view = setup(); await drain()
+    expect(view.row('深度求索').children.some(node => node.props['aria-label'] === '深度求索 操作')).toBe(false)
+    expect(view.all().some(node => node.props['aria-label'] === '收起 深度求索')).toBe(true)
+    const slot = view.row('深度求索').children.find(node => node.props.class === 'row__slot')!
+    expect(slot.children.some(node => node.props.class === 'dot')).toBe(false)
+    await view.click(view.find(node => node.props['aria-label'] === '智谱 操作'))
+    expect(view.menuItems()).toEqual(['添加实例'])
+    expect(view.all().filter(node => node.type === 'AppIcon' && node.props.name === 'lucide:ellipsis-vertical').length).toBeGreaterThan(0)
+  })
+
+  it('opens a flat provider but only toggles an expanded provider without changing the right panel', async () => {
+    addInstance()
+    const view = setup(); await drain()
+    await view.click(view.row('智谱'))
+    const title = text(view.find(node => node.props.class === 'panel__name'))
+    await view.click(view.row('深度求索'))
+    expect(view.children()).toEqual([])
+    expect(text(view.find(node => node.props.class === 'panel__name'))).toBe(title)
+    await view.click(view.row('深度求索'))
+    expect(view.children()).toEqual(['深度求索1', '深度求索'])
+    expect(text(view.find(node => node.props.class === 'panel__name'))).toBe(title)
+    await view.click(view.row('深度求索1', 'instance'))
+    expect(text(view.find(node => node.props.class === 'panel__name'))).toContain('深度求索1')
+  })
+
+  it('gives manual instances exactly edit/delete and preserves configuration on edit', async () => {
+    const id = 'custom'
+    addInstance()
+    const before = store.get(id)!
+    const view = setup(); await drain()
+    await view.context(view.row(before.name, 'instance'))
+    expect(view.menuItems()).toEqual(['编辑', '删除'])
+    expect(host.confirm).not.toHaveBeenCalled()
+    await view.command('edit')
+    await view.change('实例名称', '改名')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '保存实例'))
+    expect(store.get(id)).toEqual({ ...before, name: '改名', updatedAt: expect.any(Number) })
+    expect(store.services()[0].name).toBe('深度求索')
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('hides default instance operations and ignores edit/delete commands from its context menu', async () => {
+    addInstance()
+    const view = setup(); await drain()
+    const before = store.get('default')
+    expect(view.all().some(node => node.props['aria-label'] === '深度求索 操作')).toBe(false)
+    await view.context(view.row('深度求索1', 'instance'))
+    expect(view.menuItems()).toEqual(['编辑', '删除'])
+    host.openMenu.mockClear()
+    await view.context(view.row('深度求索', 'instance'))
+    expect(host.openMenu).not.toHaveBeenCalled()
+    expect(view.menuItems()).toEqual([])
+    await view.command('edit'); await view.command('delete')
+    expect(view.all().some(node => node.type === 'dialog')).toBe(false)
+    expect(host.confirm).not.toHaveBeenCalled()
+    expect(host.api.deleteModelProvider).not.toHaveBeenCalled()
+    expect(store.get('default')).toEqual(before)
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('returns to a flat provider after deleting all manual instances and restores the tree when adding again', async () => {
+    addInstance()
+    addInstance({ id: 'custom-2', name: '深度求索2' })
+    const view = setup(); await drain()
+    await view.context(view.row('深度求索2', 'instance'))
+    await view.command('delete')
+    expect(view.children()).toEqual(['深度求索1', '深度求索'])
+    await view.context(view.row('深度求索1', 'instance'))
+    await view.command('delete')
+    expect(host.api.deleteModelProvider).toHaveBeenLastCalledWith('custom')
+    expect(view.children()).toEqual([])
+    expect(view.all().some(node => node.props['aria-label'] === '收起 深度求索')).toBe(false)
+    expect(view.all().some(node => node.props['aria-label'] === '深度求索 操作')).toBe(true)
+    await view.click(view.row('深度求索'))
+    expect(view.row('深度求索').props.class).toContain('is-active')
+    const title = view.find(node => node.props.class === 'panel__name')
+    expect(text(title.children[0])).toBe('深度求索')
+    expect(title.children.some(node => node.props.class === 'panel__ep')).toBe(false)
+    expect(store.list().map(item => item.id)).toEqual(['default'])
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(store.get('default')?.models).toEqual([model])
+    store = new ModelConfigStore(database, directory)
+    const reopened = setup(); await drain()
+    expect(reopened.children()).toEqual([])
+    await reopened.context(reopened.row('深度求索'))
+    expect(reopened.menuItems()).toEqual(['添加实例'])
+    await reopened.command('add')
+    await reopened.change('实例名称', '重新添加')
+    await reopened.click(reopened.find(node => node.type === 'ElButton' && text(node) === '添加实例'))
+    expect(reopened.children()).toEqual(['重新添加', '深度求索'])
+    expect(store.list()).toHaveLength(2)
+    expect(store.getSecret('default')).toBe('original-key')
+  })
+
+  it('prepends the first and subsequent instances while retaining the original connection and saved order', async () => {
+    const view = setup(); await drain()
+    for (const name of ['123', '456']) {
+      await view.context(view.row('深度求索'))
+      await view.command('add')
+      await view.change('实例名称', name)
+      await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加实例'))
+    }
+    expect(view.children()).toEqual(['456', '123', '深度求索'])
+    expect(store.get('default')?.models).toEqual([model])
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(new Set(store.list().map(item => item.slug))).toEqual(new Set(['deepseek']))
+    const reopened = setup(); await drain()
+    expect(reopened.children()).toEqual(['456', '123', '深度求索'])
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('creates a default instance when the first addition comes from an untouched provider', async () => {
+    const view = setup(); await drain()
+    await view.context(view.row('智谱'))
+    await view.command('add')
+    await view.change('实例名称', '智谱1')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加实例'))
+    expect(view.children()).toEqual(['智谱1', '智谱'])
+    expect(store.list().filter(item => item.slug === 'glm')).toHaveLength(2)
+  })
+
+  it('keeps custom service identity independent of preset addresses and instance names', async () => {
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.type === 'button' && text(node) === '添加服务商'))
+    const slug = view.find(node => node.type === 'ElInput' && node.props.placeholder === 'siliconflow')
+    ;(slug.props['onUpdate:modelValue'] as Function)('myProvider'); (slug.props.onInput as Function)('myProvider')
+    await view.change('服务商名称', '我的服务商')
+    const endpoint = view.find(node => node.type === 'ElInput' && node.props.placeholder === 'https://api.example.com/v1')
+    ;(endpoint.props['onUpdate:modelValue'] as Function)('https://api.deepseek.com/v1'); await drain()
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加'))
+    expect(view.all().some(node => String(node.props.class).includes('row--instance'))).toBe(false)
+    await view.context(view.row('我的服务商'))
+    expect(view.menuItems()).toEqual(['添加实例', '删除'])
+    await view.command('add')
+    await view.change('实例名称', '独立实例')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加实例'))
+    expect(view.children()).toEqual(['独立实例', '我的服务商'])
+    expect(store.list().filter(item => item.slug === 'myProvider').map(item => item.providerKey)).toEqual(['custom', 'custom'])
+    await view.context(view.row('我的服务商', 'instance'))
+    expect(view.menuItems()).toEqual([])
+    await view.context(view.row('独立实例', 'instance'))
+    expect(view.menuItems()).toEqual(['编辑', '删除'])
+    await view.command('delete')
+    expect(view.row('我的服务商')).toBeTruthy()
+    expect(view.children()).toEqual([])
+    expect(store.list().filter(item => item.slug === 'myProvider')).toHaveLength(1)
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('deletes a manual provider with expanded=%s only after confirmation', async expanded => {
+    const root = store.save({ providerKey: 'custom', slug: 'myProvider', builtin: true, serviceName: '我的服务商', name: '我的服务商', endpoint: 'https://example.com', models: [], enabled: false })
+    if (expanded) store.save({ providerKey: 'custom', slug: 'myProvider', asInstance: true, name: '项目实例', endpoint: root.endpoint, models: [], enabled: false })
+    host.preferences.modelProviderExpanded.push('myProvider')
+    const view = setup(); await drain()
+    await view.click(view.row(expanded ? '项目实例' : '我的服务商', expanded ? 'instance' : 'provider'))
+    await view.context(view.row('我的服务商'))
+    expect(view.menuItems()).toEqual(['添加实例', '删除'])
+    host.confirm.mockRejectedValueOnce(new Error('cancel'))
+    await view.command('delete')
+    expect(host.api.deleteModelService).not.toHaveBeenCalled()
+    expect(store.get(root.id)).toBeDefined()
+    await view.command('delete')
+    expect(host.confirm).toHaveBeenLastCalledWith(expect.stringContaining('及其全部实例'), '删除服务商', expect.any(Object))
+    expect(host.api.deleteModelService).toHaveBeenCalledExactlyOnceWith('myProvider')
+    expect(view.all().some(node => node.props.class === 'row__name' && text(node) === '我的服务商')).toBe(false)
+    expect(store.list().some(item => item.slug === 'myProvider')).toBe(false)
+    expect(store.services().some(item => item.id === 'myProvider')).toBe(false)
+    expect(store.get('default')).toBeDefined()
+    expect(ElMessage.success).not.toHaveBeenCalled()
+    store = new ModelConfigStore(database, directory)
+    expect(store.services().some(item => item.id === 'myProvider')).toBe(false)
+  })
+
+  it('persists provider and instance drag ordering without success notifications', async () => {
+    addInstance(); addInstance({ id: 'custom-2', name: '深度求索2' })
+    const view = setup(); await drain()
+    const event = { dataTransfer: { setData() {} }, preventDefault() {}, stopPropagation() {} }
+    ;(view.row('深度求索').props.onDragstart as Function)(event)
+    ;(view.row('智谱').props.onDrop as Function)(event)
+    await drain()
+    expect(host.preferences.modelProviderOrder.slice(0, 2)).toEqual(['glm', 'deepseek'])
+    ;(view.row('深度求索1', 'instance').props.onDragstart as Function)(event)
+    ;(view.row('深度求索2', 'instance').props.onDrop as Function)(event)
+    await drain()
+    expect(view.children()).toEqual(['深度求索1', '深度求索2', '深度求索'])
+    expect(host.preferences['modelInstanceOrder:deepseek']).toEqual(['custom', 'custom-2', 'default'])
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+})
