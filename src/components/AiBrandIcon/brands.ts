@@ -14,9 +14,20 @@ const aliases: Record<string, string> = {
   google: 'gemini', llama: 'meta', mistral: 'mistral', 硅基流动: 'siliconcloud', siliconflow: 'siliconcloud',
   字节跳动: 'doubao', 豆包: 'doubao', 腾讯混元: 'hunyuan', 混元: 'hunyuan', 百川智能: 'baichuan',
   百度云: 'baiducloud', 文心: 'wenxin', 阿里云百炼: 'alibabacloud', dashscope: 'alibabacloud',
+  bailian: 'alibabacloud', 百川: 'baichuan', 火山引擎豆包: 'volcengine',
+  modelscope魔搭: 'modelscope', tokenhub: 'tencentcloud', 腾讯云tokenhub: 'tencentcloud',
+  qianfan: 'baiducloud', 百度云千帆: 'baiducloud',
 }
 const symbols = [...new Set([...icons.keys()].map(name => name.replace(/-color$/, '')))].sort((a, b) => b.length - a.length)
 const candidates = [...Object.keys(aliases), ...symbols].sort((a, b) => b.length - a.length)
+
+export const AI_BRAND_OPTIONS = [...symbols].sort((a, b) => a.localeCompare(b))
+
+export function providerLetterAvatar(name: string) {
+  const letter = [...name.trim()][0]?.toLocaleUpperCase() || '服'
+  const colors = ['#446b9e', '#487d76', '#83609b', '#a05c50', '#887136', '#486d86']
+  return { letter, background: colors[letter.codePointAt(0)! % colors.length] }
+}
 
 function findBrand(value: string) {
   const normalized = normalize(value)
@@ -33,10 +44,14 @@ function findBrand(value: string) {
   }
 }
 
-export function resolveAiBrandIcon({ model = '', provider = '', name = '' }: { model?: string; provider?: string; name?: string }) {
-  const brand = findBrand(model) || findBrand(name) || findBrand(provider)
-  if (!brand) return undefined
+export function aiBrandIcon(brand: string) {
+  if (!icons.has(brand) && !icons.has(`${brand}-color`)) return undefined
   // Kimi's colored SVG has a black body; use its monochrome symbol in both themes.
   const color = brand === 'kimi' ? undefined : icons.get(`${brand}-color`)
   return { brand, url: color || icons.get(brand)!, monochrome: !color }
+}
+
+export function resolveAiBrandIcon({ model = '', provider = '', name = '' }: { model?: string; provider?: string; name?: string }) {
+  const brand = findBrand(model) || findBrand(name) || findBrand(provider)
+  return brand ? aiBrandIcon(brand) : undefined
 }

@@ -1,4 +1,4 @@
-import { modelApiBaseUrl, modelProtocol, modelRequestUrl } from '../../src/config/modelProtocol'
+import { builtinProtocolProvider, modelApiBaseUrl, modelProtocol, modelRequestUrl, modelUsesBearerAuth } from '../../src/config/modelProtocol'
 import { ipcMain, net, shell } from 'electron'
 import { type ModelProviderInput } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
@@ -21,12 +21,12 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
   ipcMain.handle('harness:get-model-provider-api-keys', (_event, id: string) => database.models.getApiKeys(id))
   ipcMain.handle('harness:open-model-config-file', () => shell.openPath(database.models.path()))
   ipcMain.handle('harness:list-model-provider-models', async (_event, provider: ModelProviderInput) => {
-    const endpoint = modelApiBaseUrl(provider.endpoint)
+    const endpoint = modelApiBaseUrl(provider.endpoint, 'openai-completions', provider)
     if (!endpoint) return { models: [], error: '未填写 Endpoint' }
     const url = /\/models$/i.test(endpoint) ? endpoint : `${endpoint}/models`
     const apiKey = provider.apiKey?.trim() || database.models.getSecret(provider.id || '')
     const headers: Record<string, string> = { Accept: 'application/json' }
-    if (modelProtocol(provider.protocol) === 'anthropic-messages') {
+    if (!builtinProtocolProvider(provider) && modelProtocol(provider.protocol) === 'anthropic-messages') {
       headers['anthropic-version'] = '2023-06-01'
       if (apiKey) headers['x-api-key'] = apiKey
     } else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
@@ -58,13 +58,14 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
     try {
       const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
       const protocol = modelProtocol(provider.protocol)
-      const url = modelRequestUrl(endpoint, protocol)
+      const url = modelRequestUrl(endpoint, protocol, provider)
       const apiKey = provider.apiKey || database.models.getSecret(provider.id || '')
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (protocol === 'anthropic-messages') {
         headers['anthropic-version'] = '2023-06-01'
-        if (apiKey) headers['x-api-key'] = apiKey
-      } else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+        if (apiKey && !modelUsesBearerAuth(provider, protocol)) headers['x-api-key'] = apiKey
+      }
+      if (apiKey && modelUsesBearerAuth(provider, protocol)) headers.Authorization = `Bearer ${apiKey}`
       const body = protocol === 'openai-responses'
         ? { model: modelId, input: '请回复已连接', stream: false }
         : { model: modelId, messages: [{ role: 'user', content: '请回复已连接' }], stream: false, ...(protocol === 'anthropic-messages' ? { max_tokens: 64 } : {}) }

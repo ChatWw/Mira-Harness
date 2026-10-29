@@ -24,7 +24,7 @@
                 <AppIcon name="material-symbols:drag-indicator" />
               </span>
               <span class="row__logo">
-                <AiBrandIcon :provider="group.id" :name="group.name" :custom-logo="group.logo" />
+                <AiBrandIcon :provider="group.id" :name="group.name" :custom-logo="group.logo" :letter-avatar="!isBuiltinProvider(group)" />
               </span>
               <span class="row__name">{{ group.name }}</span>
               <span class="row__slot">
@@ -71,7 +71,7 @@
                     <AppIcon name="material-symbols:drag-indicator" />
                   </span>
                   <span class="row__logo row__logo--sm">
-                    <AiBrandIcon :provider="group.id" :name="instance.builtin ? instance.name : group.name" :custom-logo="group.logo" />
+                    <AiBrandIcon :provider="group.id" :name="instance.builtin ? instance.name : group.name" :custom-logo="group.logo" :letter-avatar="!isBuiltinProvider(group)" />
                   </span>
                   <span class="row__name">{{ instance.name }}</span>
                   <span class="row__slot">
@@ -112,7 +112,7 @@
         <div v-if="activeInstance" class="panel__inner">
           <header class="panel__head">
             <span class="panel__logo">
-              <AiBrandIcon :provider="activeGroup?.id" :name="activeInstance.builtin ? activeInstance.name : activeGroup?.name" :custom-logo="activeGroup?.logo" />
+              <AiBrandIcon :provider="activeGroup?.id" :name="activeInstance.builtin ? activeInstance.name : activeGroup?.name" :custom-logo="activeGroup?.logo" :letter-avatar="activeGroup && !isBuiltinProvider(activeGroup)" />
             </span>
             <div class="panel__id">
               <div class="panel__name">
@@ -165,8 +165,8 @@
 
               <div class="field">
                 <span class="field__label">请求协议</span>
-                <el-select v-model="form.protocol" aria-label="请求协议" @change="saveActive()">
-                  <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" />
+                <el-select v-model="form.protocol" aria-label="请求协议" @change="changeProtocol">
+                  <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" :disabled="!supportsModelProtocol(activeProtocolProvider, key)" />
                 </el-select>
               </div>
 
@@ -315,17 +315,29 @@
       :title="providerForm.mode === 'edit' ? '编辑实例' : providerForm.mode === 'instance' ? `添加 ${providerForm.parentName} 实例` : '添加服务商'"
       width="520px"
       align-center
+      @closed="avatarPickerOpen = false"
     >
       <div class="drawer-body">
         <div v-if="providerForm.mode === 'new'" class="avatar-row">
-          <span class="avatar" :style="providerForm.avatar ? undefined : { background: '#0ea5e9' }">
-            <img v-if="providerForm.avatar" :src="providerForm.avatar" alt="">
-            <span v-else>{{ (providerForm.name || '服').slice(0, 1) }}</span>
+          <span class="avatar" :class="{ 'avatar--builtin': providerForm.avatar.startsWith('lobehub:') }" aria-label="服务商头像预览">
+            <AiBrandIcon :name="providerForm.name" :custom-logo="providerForm.avatar" letter-avatar />
           </span>
           <div class="avatar-actions">
             <el-button size="small" @click="avatarInput?.click()">
               <AppIcon name="Picture" /><span>图片上传</span>
             </el-button>
+            <el-popover v-model:visible="avatarPickerOpen" trigger="click" placement="bottom-start" :width="340" @after-leave="avatarSearch = ''">
+              <template #reference><el-button size="small" aria-label="选择内置头像">内置头像</el-button></template>
+              <div class="avatar-picker">
+                <el-input v-model="avatarSearch" placeholder="搜索图标…" aria-label="搜索内置头像" clearable><template #prefix><AppIcon name="Search" /></template></el-input>
+                <div class="avatar-picker__grid" aria-label="内置 AI 服务商图标">
+                  <button v-for="brand in filteredAvatarBrands" :key="brand" type="button" class="avatar-picker__option" :aria-label="`选择 ${brand} 头像`" :title="brand" :aria-pressed="providerForm.avatar === `lobehub:${brand}`" @click="selectBuiltinAvatar(brand)">
+                    <AiBrandIcon :custom-logo="`lobehub:${brand}`" />
+                  </button>
+                </div>
+                <p v-if="!filteredAvatarBrands.length" class="avatar-picker__empty">没有匹配的图标</p>
+              </div>
+            </el-popover>
             <el-button size="small" :disabled="!providerForm.avatar" @click="providerForm.avatar = ''">重置头像</el-button>
           </div>
           <input ref="avatarInput" type="file" accept="image/*" hidden @change="onAvatarPicked">
@@ -344,8 +356,8 @@
 
         <div class="field">
           <span class="field__label">请求协议</span>
-          <el-select v-model="providerForm.protocol" aria-label="新服务商请求协议">
-            <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" />
+          <el-select v-model="providerForm.protocol" aria-label="新服务商请求协议" @change="changeProviderProtocol">
+            <el-option v-for="(protocol, key) in MODEL_PROTOCOLS" :key="key" :label="protocol.label" :value="key" :disabled="!supportsModelProtocol(dialogProtocolProvider, key)" />
           </el-select>
         </div>
         <div class="field">
@@ -392,7 +404,8 @@
 import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRaw, watch } from 'vue'
 import { ElMessage, ElMessageBox, type DropdownInstance } from 'element-plus'
-import { MODEL_PROTOCOLS, modelProtocol, modelRequestUrl, type ModelProtocol } from '@/config/modelProtocol'
+import { MODEL_PROTOCOLS, modelEndpointForProtocol, modelProtocol, modelRequestUrl, supportsModelProtocol, type ModelProtocol } from '@/config/modelProtocol'
+import { AI_BRAND_OPTIONS } from '@/components/AiBrandIcon/brands'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import {
   DEFAULT_CONTEXT_WINDOW,
@@ -435,6 +448,7 @@ const PROVIDERS: { key: ModelProviderKey, name: string, endpoint: string, authMo
   { key: 'kimi', name: '月之暗面', endpoint: 'https://api.moonshot.cn', authMode: 'api-key' },
   { key: 'minimax', name: 'MiniMax', endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' },
   { key: 'qwen', name: '阿里千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' },
+  ...MODEL_PROVIDER_PRESETS.filter(item => ['siliconcloud', 'baichuan', 'bailian', 'volcengine', 'modelscope', 'tokenhub', 'qianfan', 'xiaomimimo'].includes(item.key)),
   { key: 'ollama', name: 'Ollama', endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' },
 ]
 const BUILTIN_BY_KEY = new Map(PROVIDERS.map(item => [item.key, item]))
@@ -492,7 +506,14 @@ const groups = computed<ProviderGroup[]>(() => {
       || Number(a.builtin === true) - Number(b.builtin === true) || b.createdAt - a.createdAt)
   }
   if (order.value.length) {
-    const rank = new Map(order.value.map((id, index) => [id, index]))
+    // 升级后把新增内置项插到下一个已有预设之前，保留用户已有的拖拽顺序。
+    const ids = [...order.value]
+    for (const [index, preset] of PROVIDERS.entries()) {
+      if (ids.includes(preset.key)) continue
+      const next = PROVIDERS.slice(index + 1).find(item => ids.includes(item.key))
+      ids.splice(next ? ids.indexOf(next.key) : ids.length, 0, preset.key)
+    }
+    const rank = new Map(ids.map((id, index) => [id, index]))
     result.sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999))
   }
   return result
@@ -518,8 +539,10 @@ const instanceEnabled = (instance: Instance) => instance.enabled && instance.mod
 const isProviderActive = (group: ProviderGroup) => group.instances.some(instance => instance.id === selectedId.value)
 
 /* ---------- 面板 ---------- */
-const endpointDirty = computed(() => Boolean(defaultEndpoint.value) && form.endpoint.replace(/\/+$/, '') !== defaultEndpoint.value)
-const effectiveUrl = computed(() => modelRequestUrl(form.endpoint, form.protocol))
+const activeProtocolProvider = computed(() => ({ slug: activeGroup.value?.id, providerKey: form.providerKey }))
+const endpointDirty = computed(() => Boolean(defaultEndpoint.value) && form.endpoint.replace(/\/+$/, '') !== modelEndpointForProtocol(defaultEndpoint.value, modelProtocol(form.protocol), activeProtocolProvider.value))
+const effectiveUrl = computed(() => supportsModelProtocol(activeProtocolProvider.value, modelProtocol(form.protocol))
+  ? modelRequestUrl(form.endpoint, form.protocol, activeProtocolProvider.value) : '该服务商不支持此协议，请切换请求协议')
 const activeBuiltinPreset = computed(() => MODEL_PROVIDER_BUILTIN_INSTANCES.find(preset => activeInstance.value?.builtin && preset.providerKey === form.providerKey && preset.name === activeInstance.value.name))
 const modelDocsUrl = computed(() => {
   if (activeBuiltinPreset.value) return activeBuiltinPreset.value.docs
@@ -529,13 +552,22 @@ const modelDocsUrl = computed(() => {
     kimi: 'https://platform.kimi.com/docs/get-api-key',
     minimax: 'https://platform.minimax.io/document/Models',
     qwen: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/introduction',
+    siliconcloud: 'https://cloud.siliconflow.cn/me/models',
+    baichuan: 'https://platform.baichuan-ai.com/prices',
+    bailian: 'https://bailian.console.aliyun.com/cn-beijing/model/market',
+    volcengine: 'https://console.volcengine.com/ark/region:cn-beijing/model?view=CARD_VIEW',
+    modelscope: 'https://modelscope.cn/models',
+    tokenhub: 'https://cloud.tencent.com/document/product/1823/130079',
+    qianfan: 'https://cloud.baidu.com/doc/qianfan/index.html',
+    xiaomimimo: 'https://mimo.mi.com/docs/zh-CN/quick-start/summary/model',
     ollama: 'https://ollama.com/library',
   }
   let hostname = ''
   try { hostname = new URL(form.endpoint).hostname } catch { /* 地址编辑中仍显示服务商默认文档。 */ }
   if (form.providerKey === 'glm' && (hostname === 'z.ai' || hostname.endsWith('.z.ai'))) return 'https://docs.z.ai/api-reference/introduction'
   if (form.providerKey === 'kimi' && (hostname === 'moonshot.ai' || hostname.endsWith('.moonshot.ai'))) return 'https://platform.moonshot.ai/docs/'
-  return form.providerKey ? docs[form.providerKey] : undefined
+  // 旧主进程可能将新预设存成 custom；文档仍按所属内置服务商匹配。
+  return docs[activeGroup.value?.id as ModelProviderKey] || (form.providerKey ? docs[form.providerKey] : undefined)
 })
 const filteredModels = computed(() => {
   const keywords = modelSearch.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
@@ -638,9 +670,15 @@ function saveActive() {
   }, 260)
 }
 
+function changeProtocol() {
+  if (!supportsModelProtocol(activeProtocolProvider.value, modelProtocol(form.protocol))) return
+  form.endpoint = modelEndpointForProtocol(form.endpoint, modelProtocol(form.protocol), activeProtocolProvider.value)
+  saveActive()
+}
+
 async function resetEndpoint() {
   if (!defaultEndpoint.value) return
-  form.endpoint = defaultEndpoint.value
+  form.endpoint = modelEndpointForProtocol(defaultEndpoint.value, modelProtocol(form.protocol), activeProtocolProvider.value)
   saveActive()
 }
 
@@ -905,18 +943,31 @@ const providerForm = reactive({
   slug: '', name: '', endpoint: '', apiKey: '', noAuth: false,
   avatar: '', moreOpen: false, presetKey: '' as ModelProviderKey | '',
 })
+const avatarPickerOpen = ref(false)
+const avatarSearch = ref('')
+const filteredAvatarBrands = computed(() => AI_BRAND_OPTIONS.filter(brand => brand.includes(avatarSearch.value.trim().toLocaleLowerCase())))
+function selectBuiltinAvatar(brand: string) {
+  providerForm.avatar = `lobehub:${brand}`
+  avatarPickerOpen.value = false
+}
+const dialogProtocolProvider = computed(() => ({ slug: providerForm.mode === 'new' ? '' : providerForm.parentSlug }))
+function changeProviderProtocol() {
+  providerForm.endpoint = modelEndpointForProtocol(providerForm.endpoint, providerForm.protocol, dialogProtocolProvider.value)
+}
 const slugError = ref('')
 const providerValid = computed(() => {
-  if (!providerForm.name.trim() || !providerForm.endpoint.trim()) return false
+  if (!providerForm.name.trim() || !providerForm.endpoint.trim() || !supportsModelProtocol(dialogProtocolProvider.value, providerForm.protocol)) return false
   if (providerForm.mode === 'new') return /^[A-Za-z0-9]+$/.test(providerForm.slug) && !slugError.value
   return true
 })
 const providerPreviewUrl = computed(() => {
   const url = providerForm.endpoint.trim().replace(/\/+$/, '')
-  return url ? modelRequestUrl(url, providerForm.protocol) : '—'
+  return url && supportsModelProtocol(dialogProtocolProvider.value, providerForm.protocol) ? modelRequestUrl(url, providerForm.protocol, dialogProtocolProvider.value) : '—'
 })
 
 function resetProviderForm() {
+  avatarPickerOpen.value = false
+  avatarSearch.value = ''
   Object.assign(providerForm, {
     mode: 'new', editingId: '', parentName: '', parentKey: '', parentSlug: '', slug: '', name: '', endpoint: '',
     apiKey: '', noAuth: false, protocol: 'openai-completions', avatar: '', moreOpen: false, presetKey: '',
@@ -1288,15 +1339,24 @@ onMounted(() => { void load() })
 :global(.model-discovery .el-drawer__header) { gap: 12px; margin-bottom: 0; padding: 24px 24px 20px; }
 :global(.model-discovery .el-drawer__body) { overflow: hidden; padding: 0 24px 24px; }
 
-.avatar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.avatar-row { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px; }
 .avatar {
-  width: 56px; height: 56px; flex: 0 0 56px;
+  width: 64px; height: 64px; flex: 0 0 64px;
   display: grid; place-items: center;
-  color: #fff; border-radius: 50%; font-size: 20px; font-weight: 550;
+  color: var(--cp-text); border-radius: 50%; font-size: 20px; font-weight: 550;
   overflow: hidden;
-  img { width: 100%; height: 100%; object-fit: cover; }
+  :deep(img) { object-fit: cover; }
+  &--builtin { padding: 12px; border: 1px solid var(--cp-border); :deep(img) { object-fit: contain; } }
 }
-.avatar-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.avatar-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; :deep(.el-button + .el-button) { margin-left: 0; } }
+.avatar-picker { color: var(--cp-text); }
+.avatar-picker__grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; max-height: 246px; overflow-y: auto; margin-top: 12px; padding: 2px; }
+.avatar-picker__option {
+  display: grid; place-items: center; width: 48px; height: 48px; padding: 10px; border: 1px solid var(--cp-border); border-radius: 50%; background: var(--cp-bg); color: var(--cp-text); cursor: pointer;
+  &:hover, &[aria-pressed='true'] { border-color: var(--cp-text); background: var(--cp-bg-hover); }
+  &:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 2px; }
+}
+.avatar-picker__empty { margin: 20px 0 8px; text-align: center; color: var(--cp-text-secondary); }
 .tw { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; }
 .tw__label {
   color: var(--cp-text); font-size: var(--settings-text-base);

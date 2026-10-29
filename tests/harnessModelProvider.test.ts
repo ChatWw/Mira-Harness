@@ -20,7 +20,16 @@ describe('createHarnessModelProvider', () => {
     const { model } = createHarnessModelProvider({ ...provider, protocol }, configuredModel, '')
     expect(model.api).toBe(protocol)
   })
-  it.each(['openai-responses', 'anthropic-messages'] as const)('sends a real SDK request with %s', async protocol => {
+  it.each([
+    ['ollama', 'openai-responses', '/v1', '/v1/responses'],
+    ['ollama', 'anthropic-messages', '/v1', '/v1/messages'],
+    ['deepseek', 'openai-responses', '/v1', '/responses'],
+    ['glm', 'openai-responses', '/api/paas/v4', '/api/v1/responses'],
+    ['bailian', 'anthropic-messages', '/compatible-mode/v1', '/apps/anthropic/v1/messages'],
+    ['volcengine', 'anthropic-messages', '/api/v3', '/api/compatible/v1/messages'],
+    ['qianfan', 'anthropic-messages', '/v2', '/anthropic/v1/messages'],
+    ['siliconcloud', 'anthropic-messages', '/v1', '/v1/messages'],
+  ] as const)('sends a real %s SDK request with %s', async (providerKey, protocol, endpointPath, requestPath) => {
     let received: { path?: string; body: any; headers: any } | undefined
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = []
@@ -32,12 +41,13 @@ describe('createHarnessModelProvider', () => {
     await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
     try {
       const port = (server.address() as { port: number }).port
-      const { model, models } = createHarnessModelProvider({ ...provider, protocol, endpoint: `http://127.0.0.1:${port}/v1` }, configuredModel, 'test-key')
+      const { model, models } = createHarnessModelProvider({ ...provider, providerKey, protocol, endpoint: `http://127.0.0.1:${port}${endpointPath}` }, configuredModel, 'test-key')
       await models.streamSimple(model, { messages: [{ role: 'user', content: 'hello', timestamp: Date.now() }] } as any).result()
-      expect(received?.path).toBe(protocol === 'anthropic-messages' ? '/v1/messages' : '/v1/responses')
+      expect(received?.path).toBe(requestPath)
       expect(received?.body.model).toBe(configuredModel.id)
       expect(received?.body[protocol === 'anthropic-messages' ? 'messages' : 'input']).toBeTruthy()
       expect(received?.headers[protocol === 'anthropic-messages' ? 'x-api-key' : 'authorization']).toBe(protocol === 'anthropic-messages' ? 'test-key' : 'Bearer test-key')
+      if (providerKey === 'siliconcloud') expect(received?.headers.authorization).toBe('Bearer test-key')
     } finally { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())) }
   })
   it.each(['openai-responses', 'anthropic-messages'] as const)('rejects unsupported file payloads before sending through %s', async protocol => {

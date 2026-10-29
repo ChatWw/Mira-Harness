@@ -959,7 +959,7 @@ export interface HarnessUsageStats {
   sessions: HarnessUsageBucket[]
 }
 
-export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'qwen' | 'ollama' | 'custom'
+export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'qwen' | 'siliconcloud' | 'baichuan' | 'bailian' | 'volcengine' | 'modelscope' | 'tokenhub' | 'qianfan' | 'xiaomimimo' | 'ollama' | 'custom'
 
 export const MODEL_PROVIDER_BUILTIN_INSTANCES = [
   { id: 'glm-cn', providerKey: 'glm', name: '智谱开放平台', endpoint: 'https://open.bigmodel.cn/api/paas/v4', docs: 'https://open.bigmodel.cn/console/modelcenter/square' },
@@ -1083,6 +1083,14 @@ export const MODEL_PROVIDER_PRESETS = [
   { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' as const, models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
   { key: 'deepseek' as const, name: '深度求索', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key' as const, models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
   { key: 'qwen' as const, name: '阿里千问 / Qwen', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' as const, models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-flash'] },
+  { key: 'siliconcloud' as const, name: '硅基流动', endpoint: 'https://api.siliconflow.cn/v1', authMode: 'api-key' as const, models: [] },
+  { key: 'baichuan' as const, name: '百川', endpoint: 'https://api.baichuan-ai.com/v1', authMode: 'api-key' as const, models: [] },
+  { key: 'bailian' as const, name: '阿里云百炼', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' as const, models: [] },
+  { key: 'volcengine' as const, name: '火山引擎(豆包)', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', authMode: 'api-key' as const, models: [] },
+  { key: 'modelscope' as const, name: 'modelscope魔搭', endpoint: 'https://api-inference.modelscope.cn/v1', authMode: 'api-key' as const, models: [] },
+  { key: 'tokenhub' as const, name: '腾讯云TokenHub', endpoint: 'https://tokenhub.tencentmaas.com/v1', authMode: 'api-key' as const, models: [] },
+  { key: 'qianfan' as const, name: '百度云千帆', endpoint: 'https://qianfan.baidubce.com/v2', authMode: 'api-key' as const, models: [] },
+  { key: 'xiaomimimo' as const, name: 'Xiaomi Mimo', endpoint: 'https://api.xiaomimimo.com/v1', authMode: 'api-key' as const, models: [] },
   { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' as const, models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
   { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', authMode: 'api-key' as const, models: [''] },
 ]

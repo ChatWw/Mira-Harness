@@ -28,6 +28,7 @@ Object.assign(ActualPage, { directives: { loading: {} } })
 const passthrough = (tag: string) => defineComponent({ inheritAttrs: false, setup: (_, { attrs, slots }) => () => h(tag, attrs, [slots.default?.(), slots.footer?.()]) })
 const components = Object.fromEntries(['ElButton', 'ElButtonGroup', 'ElInput', 'ElSwitch', 'ElSelect', 'ElOption', 'ElDropdownMenu', 'ElDropdownItem', 'ElTooltip', 'AppIcon'].map(name => [name, passthrough(name)]))
 Object.assign(components, {
+  ElPopover: defineComponent({ props: ['visible'], emits: ['update:visible'], setup: (props, { slots, emit }) => () => h('popover', {}, [h('button', { 'aria-label': '打开头像选择器', onClick: () => emit('update:visible', !props.visible) }, slots.reference?.()), props.visible ? slots.default?.() : null]) }),
   ElDialog: defineComponent({ props: ['modelValue', 'title'], setup: (props, { slots }) => () => props.modelValue ? h('dialog', { title: props.title }, [slots.default?.(), slots.footer?.()]) : null }),
   ElDrawer: defineComponent({ props: ['modelValue', 'title'], emits: ['update:modelValue'], setup: (props, { slots, emit }) => () => props.modelValue ? h('drawer', { title: props.title }, [h('button', { 'aria-label': '关闭同步抽屉', onClick: () => emit('update:modelValue', false) }), slots.header?.({ titleId: 'drawer-title' }), slots.default?.(), slots.footer?.()]) : null }),
   ElDropdown: defineComponent({ setup: (_, { attrs, slots, expose }) => { expose({ handleOpen: host.openMenu, handleClose: vi.fn() }); return () => h('ElDropdown', attrs, slots.dropdown?.()) } }),
@@ -73,6 +74,141 @@ beforeEach(() => {
 afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); database.close(); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
 
 describe('two-level model service tree', () => {
+  it('searches and persists a library avatar independently of the custom provider name', async () => {
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.props.class === 'rail__add'))
+    await view.change('服务商名称', '我的聚合平台')
+    const slug = view.find(node => node.type === 'ElInput' && node.props.placeholder === 'siliconflow')
+    ;(slug.props['onUpdate:modelValue'] as Function)('myicons')
+    const endpoint = view.find(node => node.type === 'ElInput' && node.props.placeholder === 'https://api.example.com/v1')
+    ;(endpoint.props['onUpdate:modelValue'] as Function)('https://proxy.example/v1')
+    await view.click(view.find(node => node.props['aria-label'] === '打开头像选择器'))
+    await view.change('搜索内置头像', 'DEEPSEEK')
+    expect(view.all().filter(node => node.props.class === 'avatar-picker__option')).toHaveLength(1)
+    await view.click(view.find(node => node.props['aria-label'] === '选择 deepseek 头像'))
+    expect(view.all().some(node => node.props.class === 'avatar-picker__option')).toBe(false)
+    const preview = view.find(node => node.props['aria-label'] === '服务商头像预览')
+    expect(preview.children[0].props['data-brand']).toBe('deepseek')
+    expect(preview.children[0].children.some(node => node.type === 'img' && String(node.props.src).includes('deepseek'))).toBe(true)
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加'))
+    expect(store.services().find(service => service.id === 'myicons')?.logo).toBe('lobehub:deepseek')
+    const row = view.row('我的聚合平台')
+    expect(row.children.find(node => node.props.class === 'row__logo')?.children[0].props['data-brand']).toBe('deepseek')
+    expect(new ModelConfigStore(database, directory).services().find(service => service.id === 'myicons')?.logo).toBe('lobehub:deepseek')
+  })
+
+  it('resets selected and uploaded avatars to the name initial and provides an empty search state', async () => {
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.props.class === 'rail__add'))
+    await view.change('服务商名称', 'Alpha')
+    const preview = () => view.find(node => node.props['aria-label'] === '服务商头像预览')
+    expect(text(preview())).toBe('A')
+    const background = view.find(node => node.props.class === 'ai-brand-icon__avatar').props.style
+    await view.change('服务商名称', 'Beta')
+    expect(view.find(node => node.props.class === 'ai-brand-icon__avatar').props.style).not.toEqual(background)
+    await view.click(view.find(node => node.props['aria-label'] === '打开头像选择器'))
+    await view.change('搜索内置头像', 'no-such-brand-123')
+    expect(text(view.find(node => node.props.class === 'avatar-picker__empty'))).toBe('没有匹配的图标')
+    await view.change('搜索内置头像', 'ollama')
+    await view.click(view.find(node => node.props['aria-label'] === '选择 ollama 头像'))
+    expect(preview().children[0].props['data-brand']).toBe('ollama')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '重置头像'))
+    expect(text(preview())).toBe('B')
+    vi.stubGlobal('FileReader', class { result = 'data:image/png;base64,AQID'; onload?: () => void; readAsDataURL() { this.onload?.() } })
+    await (view.find(node => node.type === 'input' && node.props.type === 'file').props.onChange as Function)({ target: { files: [{}] } })
+    await drain()
+    expect(preview().children[0].children[0].props.src).toBe('data:image/png;base64,AQID')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '重置头像'))
+    expect(text(preview())).toBe('B')
+  })
+
+  it('changes only the built-in endpoint path on protocol selection and preserves instance credentials and models', async () => {
+    const view = setup(); await drain()
+    const changeProtocol = async (protocol: string) => {
+      await view.change('请求协议', protocol)
+      await (view.find(node => node.props['aria-label'] === '请求协议').props.onChange as Function)()
+      await new Promise(done => setTimeout(done, 300)); await drain()
+    }
+    await changeProtocol('anthropic-messages')
+    expect(store.get('default')).toMatchObject({ endpoint: 'https://api.deepseek.com/anthropic', protocol: 'anthropic-messages', models: [model] })
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(text(view.find(node => node.props.class === 'url-preview'))).toContain('https://api.deepseek.com/anthropic/v1/messages')
+    await changeProtocol('openai-responses')
+    expect(store.get('default')?.endpoint).toBe('https://api.deepseek.com')
+    await changeProtocol('openai-completions')
+    expect(text(view.find(node => node.props.class === 'url-preview'))).toContain('https://api.deepseek.com/chat/completions')
+  })
+
+  it.each([
+    ['硅基流动', 'openai-responses'],
+    ['百川', 'anthropic-messages'],
+  ])('disables unsupported %s protocols in both the configuration panel and instance dialog', async (name, disabled) => {
+    const view = setup(); await drain()
+    await view.click(view.row(name))
+    const options = () => view.all().filter(node => node.type === 'ElOption' && node.props.value === disabled)
+    expect(options().every(node => node.props.disabled)).toBe(true)
+    await view.context(view.row(name)); await view.command('add')
+    expect(options()).toHaveLength(2)
+    expect(options().every(node => node.props.disabled)).toBe(true)
+  })
+
+  it('keeps all protocols selectable and addresses unchanged for custom services', async () => {
+    store.save({ providerKey: 'custom', slug: 'mine', builtin: true, name: '自建代理', endpoint: 'https://proxy.example/v1', models: [], enabled: false })
+    const view = setup(); await drain()
+    await view.click(view.row('自建代理'))
+    expect(view.all().filter(node => node.type === 'ElOption' && ['openai-completions', 'openai-responses', 'anthropic-messages'].includes(node.props.value)).every(node => node.props.disabled === false)).toBe(true)
+    await view.change('请求协议', 'anthropic-messages')
+    await (view.find(node => node.props['aria-label'] === '请求协议').props.onChange as Function)()
+    expect(text(view.find(node => node.props.class === 'url-preview'))).toContain('https://proxy.example/v1/messages')
+  })
+
+  it.each([false, true])('places the added providers before Ollama with a saved order: %s', async savedOrder => {
+    if (savedOrder) host.preferences.modelProviderOrder = ['kimi', 'deepseek', 'glm', 'minimax', 'qwen', 'ollama']
+    const view = setup(); await drain()
+    const names = view.all().filter(node => String(node.props.class).includes('row--provider')).map(node => text(node.children.find(child => child.props.class === 'row__name')!))
+    const added = ['硅基流动', '百川', '阿里云百炼', '火山引擎(豆包)', 'modelscope魔搭', '腾讯云TokenHub', '百度云千帆', 'Xiaomi Mimo']
+    expect(names.slice(names.indexOf('Ollama') - added.length, names.indexOf('Ollama'))).toEqual(added)
+    expect(names.slice(0, 5)).toEqual(savedOrder ? ['月之暗面', '深度求索', '智谱', 'MiniMax', '阿里千问'] : ['深度求索', '智谱', '月之暗面', 'MiniMax', '阿里千问'])
+  })
+
+  it.each([
+    ['siliconcloud', '硅基流动', 'https://api.siliconflow.cn/v1', 'https://cloud.siliconflow.cn/me/models'],
+    ['baichuan', '百川', 'https://api.baichuan-ai.com/v1', 'https://platform.baichuan-ai.com/prices'],
+    ['bailian', '阿里云百炼', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'https://bailian.console.aliyun.com/cn-beijing/model/market'],
+    ['volcengine', '火山引擎(豆包)', 'https://ark.cn-beijing.volces.com/api/v3', 'https://console.volcengine.com/ark/region:cn-beijing/model?view=CARD_VIEW'],
+    ['modelscope', 'modelscope魔搭', 'https://api-inference.modelscope.cn/v1', 'https://modelscope.cn/models'],
+    ['tokenhub', '腾讯云TokenHub', 'https://tokenhub.tencentmaas.com/v1', 'https://cloud.tencent.com/document/product/1823/130079'],
+    ['qianfan', '百度云千帆', 'https://qianfan.baidubce.com/v2', 'https://cloud.baidu.com/doc/qianfan/index.html'],
+    ['xiaomimimo', 'Xiaomi Mimo', 'https://api.xiaomimimo.com/v1', 'https://mimo.mi.com/docs/zh-CN/quick-start/summary/model'],
+  ])('opens and persists the built-in %s with its verified endpoint and documentation', async (providerKey, name, endpoint, docs) => {
+    const view = setup(); await drain()
+    await view.click(view.row(name))
+    const saved = store.list().find(item => item.providerKey === providerKey)!
+    expect(saved).toMatchObject({ name, slug: providerKey, endpoint, builtin: true, authMode: 'api-key', protocol: 'openai-completions', enabled: false, hasApiKey: false, models: [] })
+    expect(text(view.find(node => node.props.class === 'url-preview'))).toContain(`${endpoint}/chat/completions`)
+    const docsLink = view.find(node => node.type === 'a' && node.props['aria-label'] === '模型文档')
+    expect(docsLink.props.href).toBe(docs)
+    expect(text(docsLink)).toBe('')
+    expect(new ModelConfigStore(database, directory).get(saved.id)).toEqual(saved)
+    expect(() => store.deleteService(providerKey)).toThrow('内置服务商不能删除')
+    expect(() => store.delete(saved.id)).toThrow('默认实例不能删除')
+    await view.click(view.row(name))
+    expect(store.list().filter(item => item.providerKey === providerKey)).toHaveLength(1)
+  })
+
+  it.each([
+    ['baichuan', '百川', 'custom', 'https://platform.baichuan-ai.com/prices'],
+    ['bailian', '阿里云百炼', 'qwen', 'https://bailian.console.aliyun.com/cn-beijing/model/market'],
+    ['xiaomimimo', 'Xiaomi Mimo', 'custom', 'https://mimo.mi.com/docs/zh-CN/quick-start/summary/model'],
+  ] as const)('keeps %s documentation available for connections normalized by an older host', async (slug, name, providerKey, docs) => {
+    store.save({ id: `legacy-${slug}`, providerKey, slug, builtin: true, name, endpoint: 'https://proxy.example/v1', models: [], enabled: false })
+    const view = setup(); await drain()
+    await view.click(view.row(name))
+    const docsLink = view.find(node => node.type === 'a' && node.props['aria-label'] === '模型文档')
+    expect(docsLink.props.href).toBe(docs)
+    expect(text(docsLink)).toBe('')
+  })
+
   it('opens discovery immediately and shows loading until a slow model list arrives', async () => {
     let resolve!: (result: { models: string[] }) => void
     host.api.listModelProviderModels.mockReturnValue(new Promise(done => { resolve = done }))
