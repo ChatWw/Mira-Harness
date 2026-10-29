@@ -156,6 +156,18 @@
 .harness-composer__menu-trigger svg { flex: none; }
 .harness-composer__menu-trigger:hover, .harness-composer__menu-trigger[data-state='open'] { background: var(--color-hover); }
 .harness-composer__menu-trigger--full { color: var(--color-warning); }
+.mira-composer-permission-trigger { transition: color 160ms ease-out; }
+.mira-permission-roll { position: relative; display: inline-block; height: 20px; line-height: 20px; vertical-align: middle; }
+.mira-permission-roll__current { display: block; }
+.mira-permission-roll__previous { position: absolute; inset: 0; pointer-events: none; }
+.mira-permission-roll[data-rolling] > .mira-permission-roll__current { animation: mira-permission-roll-in 200ms cubic-bezier(.16, 1, .3, 1) both; }
+.mira-permission-roll__previous { animation: mira-permission-roll-out 150ms ease-out both; }
+@keyframes mira-permission-roll-in { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes mira-permission-roll-out { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-100%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mira-permission-roll[data-rolling] > .mira-permission-roll__current { animation: none; }
+  .mira-permission-roll__previous { display: none; }
+}
 .harness-composer__model-trigger { max-width: 192px; flex: none; }
 .mira-composer-leading-content > button { flex: none; }
 .mira-composer-model-icon, .mira-composer-reasoning-meter { display: none; }

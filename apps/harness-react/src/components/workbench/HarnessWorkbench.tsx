@@ -986,9 +986,12 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   useEffect(() => { controller.publishHarnessControls({ type: 'mira:harness-controls-state', sidebarOpen: sessionsOpen }) }, [controller, sessionsOpen])
   const shellNewTask = useRef(newConversation)
   shellNewTask.current = newConversation
+  const shellOpenExtensions = useRef(() => showView('extensions'))
+  shellOpenExtensions.current = () => showView('extensions')
   useEffect(() => controller.onHarnessControl(action => {
     if (action === 'toggle-sidebar') setSessionsOpen(value => !value)
-    else void shellNewTask.current()
+    else if (action === 'new-task') void shellNewTask.current()
+    else if (action === 'open-extensions') void shellOpenExtensions.current().catch(error => controller.reportError(error))
   }), [controller])
 
   function openSessions() {

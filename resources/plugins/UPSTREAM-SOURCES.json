@@ -41,11 +41,19 @@
   },
   {
     "plugin": "computer-use",
-    "repository": "https://github.com/CursorTouch/Windows-MCP",
+    "repository": "https://github.com/Yu-tao-Li/dsh-computer-use-win",
+    "revision": "6fb642129595a6357588c70812974951db304662",
     "license": "MIT",
-    "licenseBlob": "a3077dae7e3dcd61e31a775f24678f338bda7a6e",
-    "version": "0.8.8",
-    "adaptations": "Mira Skill adapter; upstream library/server is a declared runtime dependency, not vendored"
+    "path": "mcp/, scripts/, docs/wiki/, LICENSE, THIRD_PARTY.md",
+    "adaptations": "Vendored standalone MCP and Windows native backend in computer-use/windows; Mira badges, in-memory screenshots, temporary OCR cleanup and run-scoped shutdown. No DSH host runtime required."
+  },
+  {
+    "plugin": "computer-use",
+    "repository": "https://github.com/OrderG-X/dsh-mac-computer-use",
+    "revision": "0c38a4dd3635f785e6d04429bd8a4f7cf09195d6",
+    "license": "MIT",
+    "path": "plugin/index.js, tools/dsh-cu.swift, cursor/cursor-overlay.swift, LICENSE",
+    "adaptations": "Vendored native engine, overlay and desktop tool logic in computer-use/macos; standalone MCP bridge, Mira-owned bundled paths, in-memory attachments, private per-run FIFO and temporary files, tracked child shutdown. DSH settings UI omitted. Native tools compiled during macOS builds."
   },
   {
     "plugin": "browser-use",

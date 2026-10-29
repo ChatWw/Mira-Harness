@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { chmod, cp, mkdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildCuaDriver } from './build-cua-driver.mjs'
+import { buildComputerUse } from './build-computer-use.mjs'
 
 const require = createRequire(import.meta.url)
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -31,10 +31,10 @@ export async function buildMiraTools({ platform = process.platform, arch = proce
 export default async function beforePack(context) {
   const { Arch } = require('builder-util')
   await buildMiraTools({ platform: context.electronPlatformName, arch: Arch[context.arch] })
-  await buildCuaDriver({ platform: context.electronPlatformName, arch: Arch[context.arch] })
+  await buildComputerUse({ platform: context.electronPlatformName, arch: Arch[context.arch] })
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   await buildMiraTools()
-  await buildCuaDriver()
+  await buildComputerUse()
 }

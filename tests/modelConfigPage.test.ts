@@ -74,6 +74,39 @@ beforeEach(() => {
 afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); database.close(); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
 
 describe('two-level model service tree', () => {
+  it('updates the more-settings arrow and expanded state in both directions', async () => {
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.props.class === 'rail__add'))
+    const toggle = () => view.find(node => node.props.class === 'adv__toggle')
+    expect(toggle().props['aria-expanded']).toBe(false)
+    expect(toggle().children[0].props.name).toBe('ArrowRight')
+    await view.click(toggle())
+    expect(toggle().props['aria-expanded']).toBe(true)
+    expect(toggle().children[0].props.name).toBe('ArrowDown')
+    expect(view.all().some(node => node.props.class === 'adv__body')).toBe(true)
+    await view.click(toggle())
+    expect(toggle().props['aria-expanded']).toBe(false)
+    expect(toggle().children[0].props.name).toBe('ArrowRight')
+    expect(view.all().some(node => node.props.class === 'adv__body')).toBe(false)
+  })
+
+  it.each([['deepseek', 'deepseek'], ['kimi', 'moonshot'], ['bailian', 'alibabacloud']])('applies and saves the %s preset avatar independently of the new provider name', async (key, brand) => {
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.props.class === 'rail__add'))
+    await view.click(view.find(node => node.props.class === 'adv__toggle'))
+    const select = view.find(node => node.type === 'ElSelect' && node.props.placeholder === '从 Provider 预设创建…')
+    ;(select.props['onUpdate:modelValue'] as Function)(key)
+    ;(select.props.onChange as Function)(key); await drain()
+    expect(view.find(node => node.props['aria-label'] === '服务商头像预览').children[0].props['data-brand']).toBe(brand)
+    const slug = view.find(node => node.type === 'ElInput' && node.props.placeholder === 'siliconflow')
+    ;(slug.props['onUpdate:modelValue'] as Function)('presetAvatar')
+    ;(slug.props.onInput as Function)('presetAvatar')
+    await view.change('服务商名称', '预设创建的服务商')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加'))
+    expect(store.services().find(service => service.id === 'presetAvatar')?.logo).toBe(`lobehub:${brand}`)
+    expect(view.row('预设创建的服务商').children.find(node => node.props.class === 'row__logo')?.children[0].props['data-brand']).toBe(brand)
+  })
+
   it('searches and persists a library avatar independently of the custom provider name', async () => {
     const view = setup(); await drain()
     await view.click(view.find(node => node.props.class === 'rail__add'))

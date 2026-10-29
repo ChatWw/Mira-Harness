@@ -1,4 +1,4 @@
-import { ArrowUpRight, Bot, Check, ChevronDown, ChevronRight, CircleAlert, Ellipsis, FilePlus2, FileText, FolderOpen, Globe2, LoaderCircle, Pencil, Search, Square, TerminalSquare, Wrench } from 'lucide-react'
+import { ArrowUpRight, Bot, Check, ChevronDown, ChevronRight, CircleAlert, Ellipsis, FilePlus2, FileText, FolderOpen, Globe2, LoaderCircle, Monitor, Pencil, Search, Square, TerminalSquare, Wrench } from 'lucide-react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HarnessRunActivity, HarnessRunSummary, HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'
@@ -160,11 +160,11 @@ export function ToolRecord({ tool, onOpenFile, onOpenCommand, hideIcon = false }
   const skipped = tool.tool === 'hook' && tool.status === 'cancelled' && Boolean(tool.skipReason)
   const label = skipped ? '已跳过' : status === 'running' ? '执行中' : status === 'ok' ? '已完成' : status === 'failed' ? '失败' : status === 'cancelled' ? '已取消' : '等待确认'
   const presentation = TOOL_PRESENTATION[tool.tool as keyof typeof TOOL_PRESENTATION]
-  const toolLabel = presentation?.label ?? tool.label ?? tool.tool
-  const Icon = presentation?.icon ?? Wrench
+  const toolLabel = tool.computerUse?.action ?? presentation?.label ?? tool.label ?? tool.tool
+  const Icon = tool.computerUse ? Monitor : presentation?.icon ?? Wrench
   const lightweight = tool.tool !== 'bash' && isMiraExplorationTool(tool)
   const kindLabel = tool.tool === 'bash' && status === 'running' ? tool.commandJob?.mode === 'background' ? '后台运行中' : '正在执行' : status === 'running' && lightweight ? ({ read: '读取中', list_files: '查询目录', web_search: '搜索中', web_fetch: '抓取中' }[tool.tool] ?? toolLabel) : toolLabel
-  const displayTarget = tool.tool === 'bash' ? miraRecordedCommand(tool) : tool.target
+  const displayTarget = tool.computerUse?.target ?? (tool.tool === 'bash' ? miraRecordedCommand(tool) : tool.target)
   const filePath = useMiraToolFilePath(tool.target)
   const file = ['read', 'edit', 'write'].includes(tool.tool) && tool.target
   const fileDiff = ['edit', 'write'].includes(tool.tool) ? tool.diff : undefined
@@ -187,6 +187,7 @@ export function ToolRecord({ tool, onOpenFile, onOpenCommand, hideIcon = false }
   return <Collapsible.Root className="mira-tool-record" open={expanded} onOpenChange={setExpanded} data-tool-call-id={tool.id} data-tool-status={status}>
     {lightweight ? summary : <Collapsible.Trigger asChild>{summary}</Collapsible.Trigger>}
     {expanded && <Collapsible.Content className="mira-tool-content">{tool.tool === 'bash' ? <MiraToolCommand key={JSON.stringify([tool.runId, tool.id])} tool={tool} /> : <>
+      {tool.computerUse?.steps?.length ? <section className="mira-tool-payload" aria-label="电脑操作步骤"><strong>操作步骤（计划顺序，执行结果见输出）</strong><ol className="list-decimal pl-5">{tool.computerUse.steps.map((step, index) => <li key={index}>{step}</li>)}</ol></section> : null}
       {fileDiff ? <><MiraToolDiff diff={fileDiff} path={filePath ?? tool.target} identity={JSON.stringify([tool.runId, tool.id])} />{(tool.input || tool.output) && <details className="mira-command-parameters mt-2"><summary>查看调用记录</summary>{payload}</details>}</> : <>{tool.target && <p className="mira-tool-target">{tool.target}</p>}{payload}</>}
       {tool.error && <p role={tool.status === 'cancelled' ? undefined : 'alert'} className={tool.status === 'cancelled' ? 'text-foreground-subtle' : 'mira-tool-error'}>{tool.error}</p>}
       {skipped && <p role="status" className="text-foreground-subtle">{tool.skipReason}</p>}

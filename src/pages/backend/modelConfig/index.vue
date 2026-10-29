@@ -312,6 +312,8 @@
     <!-- ================= 添加服务商 / 实例 ================= -->
     <el-dialog
       v-model="providerDialog"
+      class="provider-dialog"
+      :class="{ 'provider-dialog--new': providerForm.mode === 'new' }"
       :title="providerForm.mode === 'edit' ? '编辑实例' : providerForm.mode === 'instance' ? `添加 ${providerForm.parentName} 实例` : '添加服务商'"
       width="520px"
       align-center
@@ -379,8 +381,8 @@
         </div>
 
         <div v-if="providerForm.mode === 'new'" class="adv">
-          <button class="adv__toggle" type="button" @click="providerForm.moreOpen = !providerForm.moreOpen">
-            <AppIcon name="ArrowRight" /><span>更多设置</span>
+          <button class="adv__toggle" type="button" :aria-expanded="providerForm.moreOpen" @click="providerForm.moreOpen = !providerForm.moreOpen">
+            <AppIcon :name="providerForm.moreOpen ? 'ArrowDown' : 'ArrowRight'" /><span>更多设置</span>
           </button>
           <div v-if="providerForm.moreOpen" class="adv__body">
             <span class="field__label">从预设中创建（可选）</span>
@@ -405,7 +407,7 @@ import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRaw, watch } from 'vue'
 import { ElMessage, ElMessageBox, type DropdownInstance } from 'element-plus'
 import { MODEL_PROTOCOLS, modelEndpointForProtocol, modelProtocol, modelRequestUrl, supportsModelProtocol, type ModelProtocol } from '@/config/modelProtocol'
-import { AI_BRAND_OPTIONS } from '@/components/AiBrandIcon/brands'
+import { AI_BRAND_OPTIONS, resolveAiBrandIcon } from '@/components/AiBrandIcon/brands'
 import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import {
   DEFAULT_CONTEXT_WINDOW,
@@ -1006,6 +1008,8 @@ function applyPreset(key: ModelProviderKey | '') {
   providerForm.name = preset.name
   providerForm.endpoint = preset.endpoint
   providerForm.noAuth = preset.authMode === 'none'
+  const brand = resolveAiBrandIcon({ provider: key, name: preset.name })?.brand
+  providerForm.avatar = brand ? `lobehub:${brand}` : ''
 }
 
 function onAvatarPicked(event: Event) {
@@ -1316,6 +1320,12 @@ onMounted(() => { void load() })
 .empty p + p { margin-top: 6px; }
 
 /* ===================== 抽屉 / 弹窗 ===================== */
+:global(.provider-dialog.el-dialog) { display: flex; flex-direction: column; max-height: calc(100dvh - 48px); }
+:global(.provider-dialog--new.el-dialog) { height: min(760px, calc(100dvh - 48px)); }
+:global(.provider-dialog .el-dialog__header),
+:global(.provider-dialog .el-dialog__footer) { flex-shrink: 0; }
+:global(.provider-dialog .el-dialog__body) { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+:global(.provider-dialog .el-dialog__body::-webkit-scrollbar) { display: none; }
 .drawer-body { padding-bottom: 4px; }
 .disc-header { display: flex; align-items: center; gap: 16px; min-width: 0; width: 100%; h2 { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; overflow-wrap: anywhere; } }
 .disc-count { flex-shrink: 0; padding: 2px 7px; border-radius: 7px; background: var(--cp-bg-hover); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }

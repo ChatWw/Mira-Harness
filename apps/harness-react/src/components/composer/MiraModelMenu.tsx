@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Brain, Check, ChevronRight, Image, Search, Settings2 } from 'lucide-react'
+import { ArrowLeft, Brain, Check, ChevronRight, Image, Search, Settings2 } from 'lucide-react'
 
 export interface MiraModelOption {
   providerId: string
@@ -18,6 +18,7 @@ type MiraModelMenuProps = {
   selected?: MiraModelOption
   container?: HTMLElement | null
   disabled: boolean
+  drilldown?: boolean
   onSelect: (model: MiraModelOption) => void
   onManage?: () => void
   onReturnFocus: () => void
@@ -27,7 +28,7 @@ type MiraModelMenuProps = {
 const modelKey = (model: MiraModelOption) => JSON.stringify([model.providerId, model.modelId])
 
 // Provider submenus adapted from ZCode ModelConfigSelect; see third-party-licenses/zcode.
-export function MiraModelMenu({ open, ownerKey, models, selected, container, disabled, onSelect, onManage, onReturnFocus, onEscapeKeyDown }: MiraModelMenuProps) {
+export function MiraModelMenu({ open, ownerKey, models, selected, container, disabled, drilldown = false, onSelect, onManage, onReturnFocus, onEscapeKeyDown }: MiraModelMenuProps) {
   const [query, setQuery] = useState('')
   const [openProvider, setOpenProvider] = useState<string>()
   const input = useRef<HTMLInputElement>(null)
@@ -47,7 +48,11 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
     else groups.set(model.providerId, [model])
   }
   const search = query.trim().toLocaleLowerCase()
-  const matches = models.filter(model => `${model.providerName} ${model.modelName || ''} ${model.modelId}`.toLocaleLowerCase().includes(search))
+  const providerModels = drilldown && openProvider ? groups.get(openProvider) : undefined
+  const matches = (providerModels ?? models).filter(model => `${model.providerName} ${model.modelName || ''} ${model.modelId}`.toLocaleLowerCase().includes(search))
+  function enterProvider(providerId?: string) {
+    setOpenProvider(providerId); setQuery(''); input.current?.focus()
+  }
   function searchKey(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return }
     if (event.key === 'Escape' || event.key === 'Tab') return
@@ -69,13 +74,18 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
       <DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator>
     </DropdownMenu.RadioItem>)}</DropdownMenu.RadioGroup>
   }
-  return <DropdownMenu.Portal container={container}><DropdownMenu.Content ref={content} align="end" side="top" sideOffset={4} className="harness-composer__menu harness-composer__model-menu" onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); else onEscapeKeyDown?.(event) }} onInteractOutside={() => { returnFocus.current = false }} onCloseAutoFocus={event => {
+  return <DropdownMenu.Portal container={container}><DropdownMenu.Content ref={content} align={drilldown ? 'start' : 'end'} side="top" sideOffset={4} collisionPadding={drilldown ? 12 : undefined} className={`harness-composer__menu harness-composer__model-menu${drilldown ? ' mira-model-menu--drilldown' : ''}`} onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => {
+    if (event.isComposing || event.keyCode === 229) event.preventDefault()
+    else if (drilldown && openProvider) { event.preventDefault(); enterProvider() }
+    else onEscapeKeyDown?.(event)
+  }} onInteractOutside={() => { returnFocus.current = false }} onCloseAutoFocus={event => {
     event.preventDefault()
     if (returnFocus.current && !disabled) onReturnFocus()
   }}>
+    {providerModels && <div className="mira-model-menu__navigation"><button type="button" aria-label="返回服务商" onClick={() => enterProvider()}><ArrowLeft size={18} /></button><strong>{providerModels[0].providerName}</strong></div>}
     <div className="harness-composer__search"><Search size={16} /><input ref={input} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={searchKey} placeholder="搜索模型" aria-label="搜索模型" /></div>
     <div className="mira-model-menu__list">
-      {search ? renderModels(matches, true) : Array.from(groups, ([providerId, options]) => <DropdownMenu.Sub key={providerId} open={openProvider === providerId} onOpenChange={open => setOpenProvider(open ? providerId : undefined)}>
+      {search ? renderModels(matches, !providerModels) : providerModels ? renderModels(providerModels) : Array.from(groups, ([providerId, options]) => drilldown ? <DropdownMenu.Item key={providerId} disabled={disabled} data-mira-model-row className="harness-composer__menu-item mira-model-menu__provider" onSelect={event => { event.preventDefault(); enterProvider(providerId) }}><span title={options[0].providerName}>{options[0].providerName}</span>{selected?.providerId === providerId && <Check size={16} aria-label="当前供应商" />}<ChevronRight size={14} /></DropdownMenu.Item> : <DropdownMenu.Sub key={providerId} open={openProvider === providerId} onOpenChange={open => setOpenProvider(open ? providerId : undefined)}>
         <DropdownMenu.SubTrigger disabled={disabled} data-mira-model-row className="harness-composer__menu-item mira-model-menu__provider"><span title={options[0].providerName}>{options[0].providerName}</span>{selected?.providerId === providerId && <Check size={16} aria-label="当前供应商" />}<ChevronRight size={14} /></DropdownMenu.SubTrigger>
         <DropdownMenu.Portal container={container}><DropdownMenu.SubContent className="harness-composer__menu mira-model-menu__submenu" sideOffset={4} onKeyDownCapture={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) event.stopPropagation() }} onEscapeKeyDown={event => {
           event.preventDefault()

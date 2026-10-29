@@ -12,7 +12,8 @@ export function isLanAddress(address: string) {
 type Device = { token: string; name: string; expiresAt: number; connectedAt: number; lastSeen: number }
 type RemoteDependencies = {
   root: string
-  invoke: (method: string, params: unknown) => Promise<unknown>
+  invoke: (method: string, params: unknown, connectionId: string) => Promise<unknown>
+  release?: (connectionId: string) => void
   subscribe: (listener: (event: unknown) => void) => () => void
   addresses?: () => string[]
 }
@@ -26,18 +27,19 @@ export class MiraLanRemote {
   private urls: string[] = []
   private accessKey = ''
   private starting?: Promise<MiraRemoteStatus>
-  private device?: Device
-  private streams = new Set<ServerResponse>()
+  private devices = new Map<string, Device>()
+  private streams = new Map<ServerResponse, string>()
   private unsubscribe?: () => void
   private heartbeat?: ReturnType<typeof setInterval>
   private attempts: number[] = []
   constructor(private readonly dependencies: RemoteDependencies) {}
   status(): MiraRemoteStatus {
     this.expire()
-    return { enabled: Boolean(this.server), urls: this.urls, ...(this.device && this.device.lastSeen > Date.now() - 15000 ? { device: { name: this.device.name, connectedAt: this.device.connectedAt } } : {}) }
+    const devices = [...this.devices.values()].filter(device => device.lastSeen > Date.now() - 15000).map(({ name, connectedAt }) => ({ name, connectedAt }))
+    return { enabled: Boolean(this.server), urls: this.urls, ...(devices.length ? { devices } : {}) }
   }
   private expire() {
-    if (this.device && this.device.expiresAt <= Date.now()) this.revoke()
+    for (const [token, device] of this.devices) if (device.expiresAt <= Date.now()) this.revoke(token)
   }
   async start() {
     if (this.starting) return this.starting
@@ -59,19 +61,22 @@ export class MiraLanRemote {
     this.urls = addresses.map(address => `http://${address}:${port}/#${this.accessKey}`)
     this.unsubscribe = this.dependencies.subscribe(event => {
       this.expire()
-      if (!this.device) return
-      for (const stream of this.streams) {
+      for (const stream of this.streams.keys()) {
         // Slow/disconnected subscribers must reconnect from a snapshot, never buffer indefinitely.
         if (!stream.write(`data: ${JSON.stringify(event)}\n\n`)) { stream.destroy(); this.streams.delete(stream) }
       }
     })
-    this.heartbeat = setInterval(() => { this.expire(); for (const stream of this.streams) stream.write(': heartbeat\n\n') }, 15000)
+    this.heartbeat = setInterval(() => { this.expire(); for (const stream of this.streams.keys()) stream.write(': heartbeat\n\n') }, 15000)
     return this.status()
   }
-  private revoke() { this.device = undefined; for (const stream of this.streams) stream.end(); this.streams.clear() }
+  private revoke(token: string) {
+    this.devices.delete(token); this.dependencies.release?.(token)
+    for (const [stream, owner] of this.streams) if (owner === token) { stream.end(); this.streams.delete(stream) }
+  }
   async stop() {
     if (this.starting) await this.starting
-    this.revoke(); this.unsubscribe?.(); this.unsubscribe = undefined
+    for (const token of this.devices.keys()) this.revoke(token)
+    this.unsubscribe?.(); this.unsubscribe = undefined
     if (this.heartbeat) clearInterval(this.heartbeat)
     this.heartbeat = undefined
     const server = this.server; this.server = undefined; this.urls = []; this.hosts.clear(); this.accessKey = ''; this.attempts = []
@@ -103,31 +108,35 @@ export class MiraLanRemote {
         this.attempts.push(Date.now())
         const body = await this.body(request)
         if (!this.accessKey || typeof body.key !== 'string' || !equal(body.key, this.accessKey)) return this.json(response, 403, { error: '连接链接已失效，请重新扫码' })
-        if (this.device && equal(cookie, this.device.token)) { this.device.lastSeen = Date.now(); return this.json(response, 200, { state: 'connected' }) }
-        if (this.device && this.device.lastSeen > Date.now() - 15000) return this.json(response, 409, { error: '已有设备连接，请先在电脑停止服务后重新开启' })
-        this.revoke()
+        const existing = this.devices.get(cookie)
+        if (existing) { existing.lastSeen = Date.now(); return this.json(response, 200, { state: 'connected' }) }
         const now = Date.now()
-        this.device = { token: secret(), name: typeof body.name === 'string' ? body.name.trim().slice(0, 60) || '移动设备' : '移动设备', connectedAt: now, lastSeen: now, expiresAt: now + 12 * 60 * 60000 }
-        response.setHeader('Set-Cookie', `mira_remote=${this.device.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`)
+        const device = { token: secret(), name: typeof body.name === 'string' ? body.name.trim().slice(0, 60) || '移动设备' : '移动设备', connectedAt: now, lastSeen: now, expiresAt: now + 12 * 60 * 60000 }
+        this.devices.set(device.token, device)
+        response.setHeader('Set-Cookie', `mira_remote=${device.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`)
         return this.json(response, 200, { state: 'connected' })
       }
       if (url.pathname === '/connection' && request.method === 'GET') {
-        if (this.device && equal(cookie, this.device.token)) { this.device.lastSeen = Date.now(); return this.json(response, 200, { state: 'connected' }) }
+        const device = this.devices.get(cookie)
+        if (device) { device.lastSeen = Date.now(); return this.json(response, 200, { state: 'connected' }) }
         return this.json(response, 401, { error: '未连接或服务已停止' })
       }
       if (url.pathname === '/rpc' || url.pathname === '/events') {
-        if (!this.device || !equal(cookie, this.device.token)) return this.json(response, 401, { error: '连接已失效，请重新扫码' })
+        const device = this.devices.get(cookie)
+        if (!device) return this.json(response, 401, { error: '连接已失效，请重新扫码' })
+        device.lastSeen = Date.now()
         if (url.pathname === '/events' && request.method === 'GET') {
           response.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive' }); response.write(': connected\n\n')
-          this.streams.add(response); request.on('close', () => this.streams.delete(response)); return
+          this.streams.set(response, device.token); request.on('close', () => this.streams.delete(response)); return
         }
         if (request.method !== 'POST') return this.json(response, 405, { error: '请求方式无效' })
-        const token = this.device.token
         const body = await this.body(request)
-        if (!this.device || !equal(cookie, this.device.token) || this.device.token !== token) return this.json(response, 401, { error: '连接已撤销' })
+        this.expire()
+        if (this.devices.get(cookie) !== device) return this.json(response, 401, { error: '连接已撤销' })
         if (typeof body.method !== 'string') throw new Error('请求无效')
-        const result = await this.dependencies.invoke(body.method, body.params)
-        if (!this.device || this.device.token !== token) return this.json(response, 401, { error: '连接已撤销' })
+        const result = await this.dependencies.invoke(body.method, body.params, device.token)
+        this.expire()
+        if (this.devices.get(cookie) !== device) return this.json(response, 401, { error: '连接已撤销' })
         return this.json(response, 200, { result })
       }
       if (request.method !== 'GET') return this.json(response, 405, { error: '请求方式无效' })

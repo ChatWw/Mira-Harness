@@ -75,3 +75,12 @@ it('disables the stop button while pending and keeps the dialog open on failure'
   expect(document.querySelector('.mira-remote-toast')).toBeNull()
   expect(stop.disabled).toBe(false)
 })
+
+it('shows the number of simultaneously connected devices', async () => {
+  const remoteControl = vi.fn(async () => ({ enabled: true, urls: ['http://192.168.1.2:1234/#key'], devices: [{ name: '手机', connectedAt: 1 }, { name: '平板', connectedAt: 2 }] }))
+  await act(async () => root.render(<Tooltip.Provider><MiraRemoteControl controller={{ remoteControl } as unknown as PilotController} /></Tooltip.Provider>))
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="移动端远程控制"]')!.click())
+  expect(document.querySelector('.mira-remote-status-label strong')?.textContent).toBe('已连接 2 台设备')
+  expect(document.querySelector('[aria-label="移动端远程控制"]')?.getAttribute('data-connection-state')).toBe('connected')
+  expect(document.body.textContent).toContain('支持多台设备同时扫码')
+})

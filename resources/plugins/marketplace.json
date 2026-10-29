@@ -94,13 +94,13 @@
     {
       "name": "computer-use",
       "source": "computer-use",
-      "version": "0.2.0",
+      "version": "0.4.0",
       "description": "通过桌面应用界面完成操作。",
       "listing": {
         "displayName": "电脑控制",
         "category": "效率工具",
         "icon": "computer-use",
-        "author": "Cua AI / Mira",
+        "author": "Yu-tao-Li / OrderG-X / Mira",
         "examplePrompts": [
           "帮我操作一个桌面应用。"
         ]

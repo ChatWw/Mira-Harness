@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
 import { readMiraAppNavigationSnapshot, readMiraAppNavigationState, type MiraAppNavigationCommand, type MiraAppNavigationDirection, type MiraAppNavigationSnapshot, type MiraAppNavigationState } from '@/platform/appNavigation'
 
-/** The active frame owns navigation; only its last snapshot survives a settings visit. */
+/** The active frame owns navigation; its last snapshot also survives frame teardown. */
 export const useAppNavigationStore = defineStore('appNavigation', () => {
   const state = shallowRef<MiraAppNavigationState | null>(null)
   const controls = shallowRef<MiraHarnessControlsState | null>(null)
@@ -39,6 +39,7 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
   }
 
   function openExtensions() {
+    if (sendControl?.({ type: 'mira:harness-control', action: 'open-extensions' })) return
     const previous = savedSnapshot
     const entries = [...(previous?.entries.slice(0, previous.cursor + 1) ?? []), { kind: 'extensions' as const }].slice(-50)
     savedSnapshot = { entries, cursor: entries.length - 1, detached: false }

@@ -34,6 +34,17 @@ async function mount() {
 }
 
 describe('conversation details survive actual virtual-message unmounts', () => {
+  it('shows computer actions and preserves the distinction between planned steps and recorded results', async () => {
+    const view = await mount()
+    await view.render({ record: { ...tool, tool: 'mira_mcp_desktop_run_steps', label: 'run_steps', target: '', computerUse: { action: '执行电脑操作步骤', target: '窗口 42', steps: ['点击 · 搜索', '输入文字 · 5 个字符'] }, status: 'failed', error: '第二步失败', output: { text: 'step 1: ok; step 2: failed', truncated: false } } })
+    expect(view.container.querySelector('.mira-tool-summary strong')?.textContent).toBe('执行电脑操作步骤')
+    expect(view.container.querySelector('.mira-tool-summary')?.textContent).toContain('窗口 42')
+    await view.toggle('.mira-tool-record', true)
+    expect(view.container.textContent).toContain('计划顺序，执行结果见输出')
+    expect(Array.from(view.container.querySelectorAll('ol li'), node => node.textContent)).toEqual(['点击 · 搜索', '输入文字 · 5 个字符'])
+    expect(view.container.textContent).toContain('step 2: failed')
+    expect(view.container.textContent).toContain('第二步失败')
+  })
   it('labels an unreviewed Hook as skipped and retains its reason without a failure alert', async () => {
     const view = await mount()
     await view.render({ record: { ...tool, tool: 'hook', status: 'cancelled', skipReason: 'Hook 未授权，已跳过', output: undefined } })

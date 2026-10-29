@@ -19,6 +19,7 @@ window.addEventListener('message', event => {
   host.onPrepareLeave(() => controller.flushBeforeNavigation())
   event.ports[0].addEventListener('message', message => {
     if (message.data?.type === 'mira:context') applyHostTheme(container, (message.data.context ?? {}) as HostThemeContext)
+    if (message.data?.type === 'mira:resume') void controller.refreshRemoteCatalog().catch(error => controller.reportError(error))
   })
   root.render(<React.StrictMode><HarnessWorkbench controller={controller} /></React.StrictMode>)
   void controller.start()

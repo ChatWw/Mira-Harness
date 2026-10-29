@@ -18,9 +18,10 @@ vi.mock('@/config/runtime', () => ({ applications: [{ code: 'main', name: 'Mira 
 vi.mock('@/config/navigation', () => ({ getAppCodeFromPath: () => 'main', getApplicationEntryPath: () => '/workspace/harness-react', navigateToPath: vi.fn() }))
 vi.mock('@/components/AppErrorBoundary.vue', async () => { const { h } = await import('vue'); return { default: { setup: (_props: unknown, { slots }: { slots: { default?: () => unknown } }) => () => h('div', slots.default?.() as never) } } })
 vi.mock('@/components/AppLoadingOverlay.vue', () => ({ default: { render: () => null } }))
+vi.mock('../src/app/AppRouterView.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/layouts/components/AppMain.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/layouts/components/WindowsTitlebar.vue', () => ({ default: { render: () => null } }))
-vi.mock('@/components/SearchBar/index.vue', () => ({ default: { render: () => null } }))
+vi.mock('@/components/SearchBar/index.vue', async () => { const { h } = await import('vue'); return { default: { render: () => h('div', { 'data-search-bar': true }) } } })
 
 const ActualApp = withVueClientRender(App, new URL('../src/app/App.vue', import.meta.url))
 const ActualLayout = withVueClientRender(Layout, new URL('../src/layouts/index.vue', import.meta.url))
@@ -156,6 +157,25 @@ describe('Shell navigation shortcuts', () => {
 })
 
 describe('Shell navigation controls', () => {
+  it('unmounts global search while settings cover the retained shell', async () => {
+    const renderer = mount(ActualLayout)
+    const search = () => renderer.all().filter(node => node.props['data-search-bar'])
+    expect(search()).toHaveLength(1)
+    environment.route.path = '/settings/general'; await nextTick()
+    expect(search()).toHaveLength(0)
+    environment.route.path = '/workspace/harness-react'; await nextTick()
+    expect(search()).toHaveLength(1)
+  })
+  it('opens the extension market in a retained workbench and keeps snapshot fallback after teardown', () => {
+    const store = useAppNavigationStore(), send = vi.fn(() => true)
+    const owner = store.register('mira-harness', vi.fn(() => true), send)
+    owner.receive(navigationState())
+    store.openExtensions()
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'mira:harness-control', action: 'open-extensions' })
+    owner.release(); store.openExtensions()
+    const snapshot = store.getSavedSnapshot('mira-harness')!
+    expect(snapshot.entries[snapshot.cursor]).toEqual({ kind: 'extensions' })
+  })
   it('waits for the current frame state, then disables both arrows during a pending replay', async () => {
     const renderer = mount(ActualLayout)
     const arrows = () => renderer.all().filter(node => node.type === 'button' && ['后退', '前进'].includes(node.props['aria-label'] as string))

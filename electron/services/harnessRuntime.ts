@@ -1,4 +1,5 @@
 import { harnessFileIdentity, harnessPathInside } from './harnessFileAccess'
+import { miraComputerUseStep } from '../../src/config/miraComputerUse'
 import type { AutomationTaskInput, AutomationTask } from '../../src/config/harness'
 import type { MiraGitAction } from '../../src/config/miraGit'
 import { Agent, createBashTool, createEditTool, createReadTool, createWriteTool, estimateContextTokens, estimateTokens, generateSummaryWithUsage } from '@earendil-works/pi-agent-core'
@@ -1214,15 +1215,17 @@ export class HarnessRuntime {
       const identity = `${options.subtaskId ? `child-${options.subtaskId}:` : ''}response-${options.toolScope?.() || 0}:${options.subtaskId ? `call-${options.toolCallIndex?.() || 0}:` : ''}${providerCallId}`
       const existing = publicIds.get(identity)
       const input = publicHarnessToolInput(name === 'remember_memory' && args && typeof args === 'object' ? { ...args, content: '[记忆原文不记录]', redactedContent: '[记忆原文不记录]' } : args, secrets)
-      if (existing) { if (args !== undefined) updatePublic(existing, { input }); return existing }
+      const pluginTool = publicTools.find((item: any) => item.name === name)
+      const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
+      const summary = pluginTool?.miraComputerUse === true ? miraComputerUseStep(pluginTool.miraMcpToolName, values) : undefined
+      const computerUse = summary ? { action: publicHarnessText(summary.action, secrets).text, target: publicHarnessText(summary.target, secrets).text, ...(summary.steps ? { steps: summary.steps.map(step => publicHarnessText(step, secrets).text) } : {}) } : undefined
+      if (existing) { if (args !== undefined) updatePublic(existing, { input, ...(computerUse ? { computerUse } : {}) }); return existing }
       const id = `${options.runId}:${identity}`
       const tool = name === 'delete_file' ? 'delete' : name
-      const pluginTool = publicTools.find((item: any) => item.name === name)
       const label = typeof pluginTool?.miraMcpToolName === 'string' ? publicHarnessText(pluginTool.miraMcpToolName, secrets).text : ['create_automation', 'create_workflow', 'save_workflow', 'read_workflow_contract'].includes(name) ? TOOL_LABELS[name] : undefined
-      const values = args && typeof args === 'object' ? args as Record<string, unknown> : {}
       const target = publicHarnessText(String(values.path ?? values.command ?? values.url ?? values.query ?? ''), secrets).text
       const createdAt = Date.now()
-      const record: ToolCallRecord = { id, tool, ...(label ? { label } : {}), target, status: 'running', createdAt, runId: options.runId, providerCallId, input, ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}) }
+      const record: ToolCallRecord = { id, tool, ...(computerUse ? { computerUse } : {}), ...(label ? { label } : {}), target, status: 'running', createdAt, runId: options.runId, providerCallId, input, ...(options.subtaskId ? { subtaskId: options.subtaskId } : {}) }
       publicIds.set(identity, id)
       publicStates.set(id, { status: record.status })
       recordedTools.set(id, { tool, target, startedAt: createdAt })
@@ -1584,7 +1587,8 @@ export class HarnessRuntime {
             const state = publicStates.get(id)
             const deniedWorkflow = ['create_workflow', 'save_workflow'].includes(tool.name) && state?.status === 'cancelled' && state.approvalRequestId
             const commandStopped = tool.name === 'bash' && this.database.harness.getSession(sessionId).toolCalls.find(tool => tool.id === id)?.commandJob?.status === 'cancelled'
-            if (!deniedWorkflow) updatePublic(id, { status: signal?.aborted || commandStopped ? 'cancelled' : 'failed', error: publicHarnessText(error instanceof Error ? error.message : String(error), secrets).text, completedAt: Date.now() })
+            const computerStopped = tool.miraComputerUse === true && error instanceof Error && error.name === 'AbortError'
+            if (!deniedWorkflow) updatePublic(id, { status: signal?.aborted || commandStopped || computerStopped ? 'cancelled' : 'failed', error: publicHarnessText(error instanceof Error ? error.message : String(error), secrets).text, completedAt: Date.now() })
             throw error
           } finally { recordedTools.delete(id); externalFiles.delete(id) }
         })
@@ -2689,7 +2693,8 @@ export class HarnessRuntime {
           advancePlan('running')
           const tool = registeredTools?.tools.find((item: any) => item.name === event.toolName)
           const activityName = typeof tool?.miraMcpToolName === 'string' ? publicHarnessText(tool.miraMcpToolName, [apiKey]).text : event.toolName
-          startActivity(`tool-${event.toolCallId}`, toolActivityLabel(activityName, event.args), activityDetail(event.toolName, event.args))
+          const computerStep = tool?.miraComputerUse === true ? miraComputerUseStep(activityName, event.args) : undefined
+          startActivity(`tool-${event.toolCallId}`, computerStep?.action ?? toolActivityLabel(activityName, event.args), computerStep ? publicHarnessText(computerStep.target, [apiKey]).text : activityDetail(event.toolName, event.args))
           publishActivities()
         }
       }
@@ -2701,10 +2706,10 @@ export class HarnessRuntime {
             if (!sources.some(item => item.index === source.index)) sources.push(source)
           }
         }
-        const cancelledWorkflow = ['create_workflow', 'save_workflow'].includes(event.toolName) && toolStatus === 'cancelled'
-        const status = controller.signal.aborted || cancelledWorkflow ? 'stopped' : event.isError ? 'failed' : 'completed'
+        const cancelledTool = (['create_workflow', 'save_workflow'].includes(event.toolName) || registeredTools?.tools.find((item: any) => item.name === event.toolName)?.miraComputerUse === true) && toolStatus === 'cancelled'
+        const status = controller.signal.aborted || cancelledTool ? 'stopped' : event.isError ? 'failed' : 'completed'
         advancePlan(status)
-        const suffix = cancelledWorkflow ? '用户已取消' : status === 'stopped' ? '执行已停止' : status === 'failed' ? '执行失败' : '执行完成'
+        const suffix = cancelledTool ? '用户已取消' : status === 'stopped' ? '执行已停止' : status === 'failed' ? '执行失败' : '执行完成'
         const activity = activities.find(item => item.id === `tool-${event.toolCallId}`)
         finishActivity(`tool-${event.toolCallId}`, status, `${activity?.detail || '工具调用'}\n${suffix}`)
         publishActivities()

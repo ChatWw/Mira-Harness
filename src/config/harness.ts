@@ -565,6 +565,8 @@ export interface HarnessMessageWithdrawal {
 }
 
 export interface ToolCallRecord {
+  /** Human-readable facts for the built-in computer control tool. */
+  computerUse?: import('./miraComputerUse').MiraComputerUseStep
   id: string
   /** Canonical input that owned this operation; stable across later guided input. */
   messageId?: string

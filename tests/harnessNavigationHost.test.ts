@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { nextTick } from 'vue'
+import { nextTick, reactive } from 'vue'
 import HarnessHost from '../src/pages/frontend/harness/react/index.vue'
 import { useAppNavigationStore } from '../src/stores/appNavigation'
 import { createVueNodeRenderer, withVueClientRender } from './helpers/vueNodeRenderer'
@@ -9,23 +9,25 @@ import type { MiraAppNavigationSnapshot } from '../src/platform/appNavigation'
 const bridge = vi.hoisted(() => ({
   send: vi.fn(() => true), prepareLeave: vi.fn(async () => undefined), resolveUrl: vi.fn(async () => 'https://mira.test/apps/'),
   state: undefined as undefined | ((value: unknown) => void), reset: undefined as undefined | (() => void),
-  frameProps: undefined as undefined | { navigationSnapshot?: MiraAppNavigationSnapshot; toggleTheme?: () => 'light' | 'dark'; context?: { theme: 'light' | 'dark' } },
+  frameProps: undefined as undefined | { active?: boolean; navigationSnapshot?: MiraAppNavigationSnapshot; toggleTheme?: () => Promise<'light' | 'dark'>; context?: { theme: 'light' | 'dark' } },
   themeToggle: vi.fn(), themeStore: undefined as undefined | { themeMode: 'light' | 'dark' },
   closeContext: vi.fn<() => Promise<boolean>>(async () => true), windowCommand: vi.fn(async (_action: string) => undefined),
   leave: undefined as undefined | (() => Promise<boolean>),
+  route: { name: 'HarnessReact' },
 }))
-vi.mock('vue-router', () => ({ useRouter: () => ({}), onBeforeRouteLeave: (callback: () => Promise<boolean>) => { bridge.leave = callback } }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: bridge.route } }), onBeforeRouteLeave: (callback: () => Promise<boolean>) => { bridge.leave = callback } }))
 vi.mock('@/platform', () => ({ getPlatformApi: () => ({ resolveLocalMicroAppUrl: bridge.resolveUrl, windowCommand: bridge.windowCommand }) }))
 vi.mock('@/platform/firstPartyNavigation', () => ({ navigateHarnessHost: vi.fn() }))
+vi.mock('@/stores/layout', () => ({ useLayoutStore: () => ({ config: { themeTransitionAnimation: false } }) }))
 vi.mock('@/stores/theme', async () => {
   const { reactive } = await import('vue')
-  const theme = reactive({ themeMode: 'light' as 'light' | 'dark', primaryColor: '#000', onPrimaryColor: '#fff', toggleThemeMode: () => { bridge.themeToggle(); theme.themeMode = theme.themeMode === 'light' ? 'dark' : 'light' } })
+  const theme = reactive({ themeMode: 'light' as 'light' | 'dark', primaryColor: '#000', onPrimaryColor: '#fff', toggleThemeModeWithTransition: async () => { bridge.themeToggle(); theme.themeMode = theme.themeMode === 'light' ? 'dark' : 'light' } })
   bridge.themeStore = theme
   return { useThemeStore: () => theme }
 })
 vi.mock('@/pages/frontend/microAppHost/FirstPartyFrame.vue', async () => {
   const { defineComponent, h } = await import('vue')
-  return { default: defineComponent({ props: ['navigationSnapshot', 'url', 'toggleTheme', 'context'], emits: ['navigationState', 'navigationReset', 'error'], setup: (props, { emit, expose }) => {
+  return { default: defineComponent({ props: ['navigationSnapshot', 'url', 'toggleTheme', 'context', 'active'], emits: ['navigationState', 'navigationReset', 'error'], setup: (props, { emit, expose }) => {
     bridge.frameProps = props; bridge.state = value => emit('navigationState', value); bridge.reset = () => emit('navigationReset')
     expose({ navigateHistory: bridge.send, prepareLeave: bridge.prepareLeave, openCommandCenter: vi.fn(), closeContext: bridge.closeContext })
     return () => h('div', { 'data-frame': true })
@@ -44,6 +46,7 @@ async function mount() {
 beforeEach(() => {
   setActivePinia(createPinia()); bridge.send.mockReset().mockReturnValue(true); bridge.prepareLeave.mockReset().mockResolvedValue(undefined); bridge.resolveUrl.mockClear()
   bridge.frameProps = undefined; bridge.state = undefined; bridge.reset = undefined; bridge.leave = undefined
+  bridge.route = reactive({ name: 'HarnessReact' })
   bridge.themeStore!.themeMode = 'light'; bridge.themeToggle.mockClear()
   bridge.closeContext.mockReset().mockResolvedValue(true); bridge.windowCommand.mockClear()
   vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('navigator', { language: 'zh-CN' })
@@ -51,6 +54,14 @@ beforeEach(() => {
 afterEach(() => { for (const app of mounts.splice(0)) app.unmount(); vi.unstubAllGlobals() })
 
 describe('Harness navigation across the Vue settings boundary', () => {
+  it('leaves native close to the settings window while the workbench is retained', async () => {
+    await mount(); bridge.route.name = 'SettingsGeneral'; await nextTick()
+    expect(bridge.frameProps?.active).toBe(false)
+    const event = new Event('mira:close-active-context', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(bridge.closeContext).not.toHaveBeenCalled()
+  })
   it('claims native close and deduplicates it while the active resource is saving', async () => {
     await mount()
     let done!: (value: boolean) => void
@@ -77,9 +88,9 @@ describe('Harness navigation across the Vue settings boundary', () => {
   it('wires the actual Harness route to the Shell theme owner and republishes its context', async () => {
     await mount()
     expect(bridge.frameProps?.context?.theme).toBe('light')
-    expect(bridge.frameProps?.toggleTheme?.()).toBe('dark'); await nextTick()
+    expect(await bridge.frameProps?.toggleTheme?.()).toBe('dark'); await nextTick()
     expect(bridge.themeToggle).toHaveBeenCalledOnce(); expect(bridge.frameProps?.context?.theme).toBe('dark')
-    expect(bridge.frameProps?.toggleTheme?.()).toBe('light'); await nextTick()
+    expect(await bridge.frameProps?.toggleTheme?.()).toBe('light'); await nextTick()
     expect(bridge.frameProps?.context?.theme).toBe('light')
     expect(bridge.prepareLeave).not.toHaveBeenCalled(); expect(bridge.send).not.toHaveBeenCalled()
   })

@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { McpManager } from '../electron/adapters/mcpManager'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import type { McpServerConfig } from '../electron/storage/mcpConfigStore'
 
-const sdk = vi.hoisted(() => ({ clients: [] as any[], next: undefined as { connectGate?: Promise<void>; listGate?: Promise<void>; failList?: boolean } | undefined }))
+const sdk = vi.hoisted(() => ({ clients: [] as any[], kills: [] as Array<() => void>, next: undefined as { connectGate?: Promise<void>; listGate?: Promise<void>; failList?: boolean } | undefined }))
+vi.mock('node:child_process', () => ({ execFile: vi.fn((_command, _args, _options, done) => { sdk.kills.push(done) }) }))
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: class {
   onclose?: () => void
   connect = vi.fn(async () => undefined)
@@ -19,27 +17,47 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: class {
     sdk.clients.push(this)
   }
 } }))
-vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({ getDefaultEnvironment: () => ({ PATH: '/owned/bin' }), StdioClientTransport: class { constructor(public config: unknown) {} } }))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({ getDefaultEnvironment: () => ({ PATH: '/owned/bin' }), StdioClientTransport: class { pid = 4242; constructor(public config: unknown) {} } }))
 const config: McpServerConfig = { id: 'review', name: 'Review', command: 'test-owned-server', args: [], enabled: true, createdAt: 1, updatedAt: 1 }
 const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(yes => { resolve = yes }); return { promise, resolve } }
 let manager: McpManager
-beforeEach(() => { sdk.clients = []; sdk.next = undefined; manager = new McpManager(); vi.spyOn(console, 'error').mockImplementation(() => undefined) })
+beforeEach(() => { sdk.clients = []; sdk.kills = []; sdk.next = undefined; manager = new McpManager(); vi.spyOn(console, 'error').mockImplementation(() => undefined) })
 afterEach(async () => { await manager.closeAll(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('Mira MCP connection state', () => {
-  it('routes only the builtin computer plugin to the bundled executable, including run-owned siblings', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'mira-cua-path-')), binary = join(root, 'cua-driver')
-    writeFileSync(binary, 'fixture')
-    const owned = new McpManager(undefined, undefined, binary), sibling = owned.createSibling()
-    const desktop = { ...config, id: 'plugin:computer-use@mira-builtin:desktop', command: 'cua-driver' }
+  it('uses the owned platform connection only for the builtin plugin and propagates it to run siblings', async () => {
+    const close = vi.fn(async () => undefined)
+    const execute = vi.fn(async (_name, _args, signal, call) => call(signal))
+    const transport = { fixture: true } as any
+    const factory = vi.fn(() => ({ transport, feedback: { execute, close } }))
+    const owned = new McpManager(undefined, undefined, factory), sibling = owned.createSibling()
+    const desktop = { ...config, id: 'plugin:computer-use@mira-builtin:desktop', command: 'mira:computer-use' }
     try {
-      await sibling.refresh([desktop, { ...desktop, id: 'plugin:computer-use@local:desktop' }])
-      expect(sdk.clients[0].connect.mock.calls[0][0].config.command).toBe(binary)
-      expect(sdk.clients[1].connect.mock.calls[0][0].config.command).toBe('cua-driver')
-      rmSync(binary); await owned.refresh([desktop])
-      expect(owned.getStatus(desktop.id)).toMatchObject({ state: 'failed', error: expect.stringContaining('电脑控制组件缺失') })
-    } finally { await sibling.closeAll(); await owned.closeAll(); rmSync(root, { recursive: true, force: true }) }
+      await sibling.refresh([desktop, config, { ...desktop, id: 'plugin:computer-use@local:desktop' }])
+      expect(sdk.clients[0].connect).toHaveBeenCalledWith(transport, expect.anything())
+      expect(sibling.getStatus('plugin:computer-use@local:desktop').state).toBe('failed')
+      const [computer, ordinary] = sibling.getTools()
+      expect(computer.miraComputerUse).toBe(true)
+      expect(ordinary.miraComputerUse).toBe(false)
+      await computer.execute('one', {})
+      await ordinary.execute('two', {})
+      expect(execute).toHaveBeenCalledOnce()
+      expect(factory).toHaveBeenCalledOnce()
+      await sibling.closeAll()
+      expect(close).toHaveBeenCalledOnce()
+    } finally { await sibling.closeAll(); await owned.closeAll() }
+  })
+  it('waits for native cleanup before closing the MCP client on refresh', async () => {
+    const gate = deferred(), close = vi.fn(() => gate.promise)
+    const owned = new McpManager(undefined, undefined, () => ({ transport: {} as any, feedback: { execute: vi.fn(), close } }))
+    await owned.refresh([{ ...config, id: 'plugin:computer-use@mira-builtin:desktop', command: 'mira:computer-use' }])
+    const pending = owned.refresh([]); await tick()
+    expect(close).toHaveBeenCalledOnce()
+    expect(sdk.clients[0].close).not.toHaveBeenCalled()
+    gate.resolve(); await pending
+    expect(sdk.clients[0].close).toHaveBeenCalledOnce()
+    await owned.closeAll()
   })
 
   it('retains image blocks while redacting credentials in text and errors', async () => {

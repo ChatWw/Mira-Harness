@@ -21,11 +21,11 @@ const settle = async () => { await act(async () => { await new Promise(resolve =
 async function key(element: HTMLElement, key: string, options: KeyboardEventInit = {}) {
   await act(async () => element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options }))); await settle()
 }
-async function fixture(options = models) {
+async function fixture(options = models, drilldown = false) {
   const selected = vi.fn(), manage = vi.fn(), focus = vi.fn(() => container.querySelector<HTMLElement>('[aria-label="旁路任务内容"]')?.focus())
   function View() {
     const [open, setOpen] = useState(false), [selection, setSelection] = useState(options[0])
-    return <><div contentEditable suppressContentEditableWarning role="textbox" aria-label="任务内容">主草稿</div><div contentEditable suppressContentEditableWarning role="textbox" aria-label="旁路任务内容">旁草稿</div><DropdownMenu.Root modal={false} open={open} onOpenChange={setOpen}><DropdownMenu.Trigger aria-label="模型">模型</DropdownMenu.Trigger><MiraModelMenu open={open} ownerKey="side" models={options} selected={selection} disabled={false} onSelect={model => { selected(model); setSelection(model) }} onManage={manage} onReturnFocus={focus} /></DropdownMenu.Root><button aria-label="外部操作">外部</button></>
+    return <><div contentEditable suppressContentEditableWarning role="textbox" aria-label="任务内容">主草稿</div><div contentEditable suppressContentEditableWarning role="textbox" aria-label="旁路任务内容">旁草稿</div><DropdownMenu.Root modal={false} open={open} onOpenChange={setOpen}><DropdownMenu.Trigger aria-label="模型">模型</DropdownMenu.Trigger><MiraModelMenu open={open} ownerKey="side" models={options} selected={selection} disabled={false} drilldown={drilldown} onSelect={model => { selected(model); setSelection(model) }} onManage={manage} onReturnFocus={focus} /></DropdownMenu.Root><button aria-label="外部操作">外部</button></>
   }
   await act(async () => root.render(<View />))
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="模型"]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false, pointerType: 'mouse' }))); await settle()
@@ -37,6 +37,31 @@ async function fixture(options = models) {
 }
 
 describe('Mira provider model menu', () => {
+  it('replaces providers with models in the same mobile popup and returns without selecting', async () => {
+    const view = await fixture(models, true)
+    await act(async () => (document.querySelectorAll('.mira-model-menu__provider')[1] as HTMLElement).click()); await settle()
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
+    expect(document.querySelector('.mira-model-menu__submenu')).toBeNull()
+    expect(document.querySelectorAll('.mira-model-menu__provider')).toHaveLength(0)
+    expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(2)
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="返回服务商"]')!.click()); await settle()
+    expect(document.querySelectorAll('.mira-model-menu__provider')).toHaveLength(2)
+    expect(view.selected).not.toHaveBeenCalled()
+    await key(view.input, 'ArrowDown'); await key(document.activeElement as HTMLElement, 'Enter')
+    await key(view.input, 'ArrowDown'); await key(document.activeElement as HTMLElement, 'Enter')
+    expect(view.selected).toHaveBeenCalledExactlyOnceWith(models[0])
+  })
+
+  it('returns to providers on mobile Escape before dismissing the menu', async () => {
+    const view = await fixture(models, true)
+    await key(view.input, 'ArrowDown'); await key(document.activeElement as HTMLElement, 'Enter')
+    await key(view.input, 'Escape')
+    expect(document.querySelectorAll('.mira-model-menu__provider')).toHaveLength(2)
+    expect(document.querySelector('.harness-composer__model-menu')).not.toBeNull()
+    await key(view.input, 'Escape')
+    expect(document.querySelector('.harness-composer__model-menu')).toBeNull()
+  })
+
   it('searches the display name while retaining the exact request model ID on selection', async () => {
     const option = { ...models[0], modelName: '手动模型名称' }
     const view = await fixture([option]); await view.search('手动模型')

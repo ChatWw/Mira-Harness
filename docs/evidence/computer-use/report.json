@@ -1,0 +1,15 @@
+{
+  "boundary": "Real Windows helper, real Electron React/CSS rendering with fixture records, and bundled DSH Windows input only into an owned test window. Esc is verified through the native helper test seam. No user applications, hardware key injection, external model task or installer acceptance.",
+  "checks": [
+    "Native helper compiles; overlays pass clicks and retain focus; injected Esc ignored; physical-Esc test seam cancels and removes overlays",
+    "Electron renders real ToolRecord in light/dark: Chinese actions, planned sequence, actual output and Esc cancellation, no horizontal overflow",
+    "Selected DSH Windows backend through real McpManager returns screenshot/OCR images, clicks and types Unicode in an isolated Electron window; task cancellation, close and refresh discard queued input"
+  ],
+  "native": {
+    "windows": 1,
+    "pointerVisible": true,
+    "overlayClickThrough": true,
+    "pointerClickThrough": true,
+    "foregroundUnchanged": true
+  }
+}

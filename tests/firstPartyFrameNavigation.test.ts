@@ -28,7 +28,7 @@ function mountFrame(options: { appId?: string; capabilities?: string[]; restore?
     url: 'https://mira.test/harness', title: 'Mira Harness', api,
     manifest: { appId: options.appId || 'mira-harness', capabilities: options.capabilities || ['harness:workbench'] },
     context: { version: 1, theme: 'light', language: 'zh-CN', user: { id: 'platform', name: 'Mira' } },
-    route: '/', navigate: vi.fn(), navigationSnapshot: options.restore,
+    route: '/', navigate: vi.fn(), navigationSnapshot: options.restore, active: true,
     toggleTheme: vi.fn(() => { props.context.theme = props.context.theme === 'light' ? 'dark' : 'light'; return props.context.theme }),
   })
   const exposed = ref<{ navigateHistory(command: MiraAppNavigationCommand): boolean; harnessControl(command: { type: 'mira:harness-control'; action: 'toggle-sidebar' | 'new-task' }): boolean; closeContext(): Promise<boolean> }>()
@@ -52,6 +52,17 @@ beforeEach(() => {
 afterEach(() => { for (const app of mounts.splice(0)) app.unmount(); vi.unstubAllGlobals() })
 
 describe('authorized first-party navigation messages', () => {
+  it('refreshes on return from settings without reconnecting or restoring navigation again', async () => {
+    const frame = mountFrame(); await frame.connect(); const port = channels[0].port1
+    port.postMessage.mockClear()
+    frame.props.active = false; await nextTick()
+    expect(port.postMessage).not.toHaveBeenCalled()
+    frame.props.active = true; await nextTick()
+    expect(port.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'mira:resume' })
+    expect(frame.api.createFirstPartyGrant).toHaveBeenCalledOnce()
+    expect(frame.api.revokeFirstPartyGrant).not.toHaveBeenCalled()
+    expect(port.close).not.toHaveBeenCalled()
+  })
   it('waits for its active port close acknowledgement and rejects on grant replacement', async () => {
     const frame = mountFrame(); await frame.connect(); const active = channels[0].port1
     const closing = frame.exposed.value!.closeContext(), id = active.postMessage.mock.lastCall![0].id
@@ -170,7 +181,13 @@ it('forwards full-view shortcuts from the Shell without focusing the iframe and 
   const first = event(); window.dispatchEvent(first)
   expect(first.defaultPrevented).toBe(true)
   expect(channels[0].port1.postMessage).toHaveBeenLastCalledWith({ type: 'mira:full-view-toggle' })
-  const count = channels[0].port1.postMessage.mock.calls.length
+  let count = channels[0].port1.postMessage.mock.calls.length
+  frame.props.active = false; await nextTick()
+  const hidden = event(); window.dispatchEvent(hidden)
+  expect(hidden.defaultPrevented).toBe(false)
+  expect(channels[0].port1.postMessage).toHaveBeenCalledTimes(count)
+  frame.props.active = true; await nextTick()
+  count = channels[0].port1.postMessage.mock.calls.length
   window.dispatchEvent(Object.assign(event(), { repeat: true }))
   expect(channels[0].port1.postMessage).toHaveBeenCalledTimes(count)
   vi.stubGlobal('document', { querySelectorAll: () => [{ getClientRects: () => [{}] }] })

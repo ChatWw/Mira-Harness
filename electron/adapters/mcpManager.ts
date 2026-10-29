@@ -10,8 +10,9 @@ import type { McpServerConfig } from '../storage/mcpConfigStore'
 import type { MiraMcpConnection } from '../../src/config/miraMcp'
 import type { MiraMcpAuthorization } from '../services/miraMcpAuthorization'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
-import { resolveMiraCuaDriverPath } from '../services/miraRuntimeTools'
-import { existsSync } from 'node:fs'
+import { MIRA_COMPUTER_SERVER_ID } from '../../src/config/miraComputerUse'
+import { createMiraComputerConnection, type MiraComputerConnection, type MiraComputerFeedback } from '../services/miraComputerUse'
+import { join } from 'node:path'
 
 /**
  * MCP 连接管理器：连接已配置的 MCP server，把工具转成 Agent 可调用的 AgentTool。
@@ -22,7 +23,8 @@ export class McpManager {
   private readonly connections = new Map<string, MiraMcpConnection>()
   private revision = 0
   private readonly configs = new Map<string, McpServerConfig>()
-  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization, private readonly cuaDriverPath = resolveMiraCuaDriverPath({ appPath: process.cwd() }), private readonly browserTransport?: () => Promise<Transport>) {
+  private readonly computerFeedback = new Map<Client, MiraComputerFeedback>()
+  constructor(private readonly authorization?: MiraMcpAuthorization, private readonly authorizationRoot = authorization, private readonly computerConnection: () => MiraComputerConnection = () => createMiraComputerConnection({ resourceRoot: join(process.cwd(), 'resources/plugins/computer-use') }), private readonly browserTransport?: () => Promise<Transport>) {
     authorization?.subscribe(event => {
       const config = this.configs.get(event.configId)
       if (!config?.enabled || config.authentication !== 'oauth' || new URL(config.url!).href !== event.serverUrl) return
@@ -34,17 +36,20 @@ export class McpManager {
       else this.connections.set(config.id, { state: 'failed', toolCount: 0, error: event.error || 'MCP 授权已取消，请重新连接' })
     })
   }
-  createSibling(browserTransport?: () => Promise<Transport>) { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot, this.cuaDriverPath, browserTransport) }
+  createSibling(browserTransport?: () => Promise<Transport>) { return new McpManager(this.authorizationRoot?.fork(), this.authorizationRoot, this.computerConnection, browserTransport) }
 
   async refresh(configs: McpServerConfig[], signal?: AbortSignal) {
     signal?.throwIfAborted()
     const revision = ++this.revision
     const previous = [...this.clients.values()]
+    const feedback = [...this.computerFeedback.values()]
+    this.computerFeedback.clear()
     this.clients.clear()
     this.toolsByServer.clear()
     this.connections.clear()
     this.configs.clear()
     for (const config of configs) if (config.enabled) this.connections.set(config.id, { state: 'connecting', toolCount: 0 })
+    await Promise.allSettled(feedback.map(item => item.close()))
     await Promise.all([this.authorization?.closeAll(), Promise.allSettled(previous.map(client => client.close()))])
     if (revision !== this.revision) return
     for (const config of configs) this.configs.set(config.id, { ...config })
@@ -77,6 +82,9 @@ export class McpManager {
     let initialized = false
     let cancelConnect: (() => void) | undefined
     client.onclose = () => {
+      const feedback = this.computerFeedback.get(client)
+      this.computerFeedback.delete(client)
+      void feedback?.close()
       closed = true
       cancelConnect?.()
       if (this.clients.get(config.id) !== client) return
@@ -96,14 +104,16 @@ export class McpManager {
         ? 'MCP 服务拒绝访问，请在设置中检查凭据或服务权限后重连'
         : remote ? 'MCP 远程连接失败，请检查服务地址、网络和服务状态后重连' : 'MCP 连接失败，请检查启动命令、参数和环境变量后重连'
     let provider: OAuthClientProvider | undefined
-    const bundledComputer = config.id === 'plugin:computer-use@mira-builtin:desktop' && config.command === 'cua-driver'
+    const bundledComputer = config.id === MIRA_COMPUTER_SERVER_ID && config.command === 'mira:computer-use'
     const remoteFetch: typeof fetch = async (url, init) => {
       const response = provider && this.authorization ? await this.authorization.fetch(provider, url, init) : await fetch(url, { ...init, redirect: 'error' })
       authStatus = response.status === 401 || response.status === 403 ? response.status : undefined
       return response
     }
     try {
-      if (bundledComputer && !existsSync(this.cuaDriverPath)) throw new Error('Mira 电脑控制组件缺失，请修复安装；开发环境请运行 npm run tools:build')
+      if (config.command === 'mira:computer-use' && !bundledComputer) throw new Error('内置电脑控制仅可由 Mira 插件使用')
+      const computer = bundledComputer ? this.computerConnection() : undefined
+      if (computer) this.computerFeedback.set(client, computer.feedback)
       if (remote && config.authentication === 'oauth') {
         if (!this.authorization) throw new Error('MCP 浏览器授权服务不可用')
         provider = await this.authorization.createProvider(config.id, config.url!)
@@ -112,11 +122,11 @@ export class McpManager {
       const options = { requestInit: { headers: config.headers }, fetch: remoteFetch, ...(provider ? { authProvider: provider } : {}) }
       const embeddedBrowser = config.id === 'plugin:browser-use@mira-builtin:browser' && config.command === 'mira:embedded-browser'
       if (config.command === 'mira:embedded-browser' && (!embeddedBrowser || !this.browserTransport)) throw new Error('内置浏览器仅可由桌面任务使用')
-      const connection = embeddedBrowser ? await this.browserTransport!() : config.type === 'streamableHttp'
+      const connection = computer ? computer.transport : embeddedBrowser ? await this.browserTransport!() : config.type === 'streamableHttp'
         ? new StreamableHTTPClientTransport(new URL(config.url || ''), options)
         : config.type === 'sse'
           ? new SSEClientTransport(new URL(config.url || ''), options)
-          : new StdioClientTransport({ command: bundledComputer ? this.cuaDriverPath : config.command, args: config.args, ...(config.cwd && { cwd: config.cwd }), ...(config.env && { env: { ...getDefaultEnvironment(), ...config.env } }), stderr: 'ignore' })
+          : new StdioClientTransport({ command: config.command, args: config.args, ...(config.cwd && { cwd: config.cwd }), ...(config.env && { env: { ...getDefaultEnvironment(), ...config.env } }), stderr: 'ignore' })
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         await Promise.race([
@@ -144,7 +154,8 @@ export class McpManager {
         if (information && !('then' in information) && 'client_secret' in information) oauth.push(information.client_secret)
         return [...redactions, ...oauth.filter((secret): secret is string => typeof secret === 'string' && !!secret)].sort((a, b) => b.length - a.length).reduce((text, secret) => text.split(secret).join('[REDACTED]'), value)
       }
-      this.toolsByServer.set(config.id, tools.map(tool => this.toAgentTool(tool, client, config.name, config.id, remote ? safeError : undefined, redact)))
+      const feedback = computer?.feedback
+      this.toolsByServer.set(config.id, tools.map(tool => this.toAgentTool(tool, client, config.name, config.id, remote ? safeError : undefined, redact, feedback)))
       this.connections.set(config.id, { state: 'connected', toolCount: tools.length })
     } catch (error) {
       const current = revision === this.revision && this.clients.get(config.id) === client
@@ -171,13 +182,14 @@ export class McpManager {
 
   /* MCP tool namespace adapted from ZCode. Copyright 2026 Z.AI Co., Ltd.
    * Apache-2.0; see third-party-licenses/zcode. */
-  private toAgentTool(tool: any, client: Client, serverName: string, serverId: string, connectionError?: () => string, redact: (text: string) => string = text => text): any {
+  private toAgentTool(tool: any, client: Client, serverName: string, serverId: string, connectionError?: () => string, redact: (text: string) => string = text => text, feedback?: MiraComputerFeedback): any {
     return {
       name: `mira_mcp_${createHash('sha256').update(serverId).digest('hex').slice(0, 10)}_${tool.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28)}_${createHash('sha256').update(tool.name).digest('hex').slice(0, 8)}`,
       label: tool.name,
       miraMcpServerId: serverId,
       miraMcpServerName: serverName,
       miraMcpToolName: tool.name,
+      miraComputerUse: serverId === MIRA_COMPUTER_SERVER_ID,
       description: `MCP 服务“${serverName}”的工具“${tool.name}”：${tool.description || `MCP 工具 ${tool.name}`}`,
       parameters: tool.inputSchema ? Type.Unsafe(tool.inputSchema) : Type.Object({}, { additionalProperties: true }),
       executionMode: 'sequential',
@@ -185,7 +197,8 @@ export class McpManager {
         const cancelled = () => new DOMException('运行已停止', 'AbortError')
         if (signal?.aborted) throw cancelled()
         if (this.clients.get(serverId) !== client || this.getStatus(serverId).state !== 'connected') throw new Error('MCP 连接已变更，请重新发送任务')
-        const result = await client.callTool({ name: tool.name, arguments: params }, undefined, { signal }).catch(error => {
+        const call = (callSignal?: AbortSignal) => client.callTool({ name: tool.name, arguments: params }, undefined, { signal: callSignal })
+        const result = await (feedback ? feedback.execute(tool.name, params, signal, call) : call(signal)).catch(error => {
           // The SDK currently wraps an in-flight abort as RequestTimeout; the task signal distinguishes it.
           if (signal?.aborted) throw cancelled()
           if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) throw new Error('MCP 工具调用超时，请重试；如果持续超时，请检查服务状态')
@@ -207,10 +220,13 @@ export class McpManager {
   async closeAll() {
     this.revision++
     const clients = [...this.clients.values()]
+    const feedback = [...this.computerFeedback.values()]
+    this.computerFeedback.clear()
     this.clients.clear()
     this.toolsByServer.clear()
     this.connections.clear()
     this.configs.clear()
+    await Promise.allSettled(feedback.map(item => item.close()))
     await Promise.allSettled(clients.map(client => client.close()))
     await this.authorization?.closeAll()
   }

@@ -1,4 +1,4 @@
-export type MiraHarnessControlAction = 'toggle-sidebar' | 'new-task'
+export type MiraHarnessControlAction = 'toggle-sidebar' | 'new-task' | 'open-extensions'
 export interface MiraHarnessControlsState { type: 'mira:harness-controls-state'; sidebarOpen: boolean }
 export interface MiraHarnessControlCommand { type: 'mira:harness-control'; action: MiraHarnessControlAction }
 
@@ -10,5 +10,5 @@ export function readMiraHarnessControlsState(value: unknown): MiraHarnessControl
 export function readMiraHarnessControlCommand(value: unknown): MiraHarnessControlCommand | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return
   const data = value as Record<string, unknown>
-  if (Object.keys(data).length === 2 && data.type === 'mira:harness-control' && (data.action === 'toggle-sidebar' || data.action === 'new-task')) return data as unknown as MiraHarnessControlCommand
+  if (Object.keys(data).length === 2 && data.type === 'mira:harness-control' && (data.action === 'toggle-sidebar' || data.action === 'new-task' || data.action === 'open-extensions')) return data as unknown as MiraHarnessControlCommand
 }

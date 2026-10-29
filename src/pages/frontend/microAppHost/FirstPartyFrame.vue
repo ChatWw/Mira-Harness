@@ -26,7 +26,7 @@ import { readMiraAppNavigationCommand, readMiraAppNavigationState, type MiraAppN
 import type { PlatformApi, PlatformContext } from '@/types'
 
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   url: string
   title: string
   manifest: FirstPartyAppManifest
@@ -38,7 +38,8 @@ const props = defineProps<{
   getAppearance?: () => { theme: string; zoomFactor: number }
   setTheme?: (theme: 'system' | 'light' | 'dark') => void | Promise<void>
   navigationSnapshot?: MiraAppNavigationSnapshot
-}>()
+  active?: boolean
+}>(), { active: true })
 const emit = defineEmits<{ error: [message: string]; navigationState: [state: MiraAppNavigationState]; navigationReset: []; controlsState: [state: MiraHarnessControlsState] }>()
 const stage = ref<HTMLDivElement>()
 const frame = ref<HTMLIFrameElement>()
@@ -51,7 +52,7 @@ let commandFocus: { id: string; port: MessagePort; target?: HTMLElement } | unde
 const session = new FirstPartyConnectionSession(id => props.api.revokeFirstPartyGrant(id))
 
 function fullViewShortcut(event: KeyboardEvent) {
-  if (!port || disposed || !hasHarnessNavigation() || !isMiraFullViewShortcut(event)) return
+  if (props.active === false || !port || disposed || !hasHarnessNavigation() || !isMiraFullViewShortcut(event)) return
   const overlays = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], [role="menu"][data-state="open"]')
   if ([...overlays].some(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')) return
   event.preventDefault()
@@ -75,7 +76,7 @@ function visibleFocusTarget(target: HTMLElement) {
   return true
 }
 function openCommandCenter() {
-  if (disposed || !port || !hasHarnessNavigation()) return
+  if (props.active === false || disposed || !port || !hasHarnessNavigation()) return
   const active = document.activeElement
   const target = active instanceof HTMLElement && active !== frame.value && active !== document.body && active !== document.documentElement && !stage.value?.contains(active) && visibleFocusTarget(active) ? active : undefined
   const request = { id: crypto.randomUUID(), port, target }
@@ -215,6 +216,7 @@ watch(() => props.url, () => { invalidateConnection(); connectedOnce = false })
 watch(() => `${props.manifest.appId}:${props.manifest.capabilities.includes('harness:workbench')}`, invalidateConnection)
 watch(() => props.route, route => { commandFocus = undefined; send({ type: 'mira:route', route }) })
 watch(() => props.context, context => send({ type: 'mira:context', context }), { deep: true })
+watch(() => props.active, (active, previous) => { if (active && previous === false && hasHarnessNavigation()) send({ type: 'mira:resume' }) })
 onBeforeUnmount(() => { disposed = true; invalidateConnection() })
 </script>
 

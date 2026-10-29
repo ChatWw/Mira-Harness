@@ -58,7 +58,7 @@
     <div class="mira-shell__stage">
       <div class="mira-shell__canvas"><AppMain /></div>
     </div>
-    <SearchBar />
+    <SearchBar v-if="!settingsOpen" />
   </div>
 </template>
 
@@ -77,6 +77,7 @@ import miraMark from '@/asset/mira-mark.png'
 
 const route = useRoute()
 const router = useRouter()
+const settingsOpen = computed(() => router.currentRoute.value.path === '/settings' || router.currentRoute.value.path.startsWith('/settings/'))
 const commandPaletteStore = useCommandPaletteStore()
 const appNavigation = useAppNavigationStore()
 const windowChrome = window.platform?.windowChrome ?? 'standard'

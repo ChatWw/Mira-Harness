@@ -1,0 +1,105 @@
+{
+  "name": "dsh-computer-use-win",
+  "version": "0.5.3",
+  "description": "Windows computer use for DeepSeek Harness: an MCP stdio server + PowerShell UIA backend, bridged into DSH via @deepseek-ai/dsh-mcp-client. Read/act on real Windows desktop apps (UI Automation tree, screenshots, typed input, OCR, window management).",
+  "type": "module",
+  "bin": {
+    "wcu-mcp": "mcp/server.mjs"
+  },
+  "main": "mcp/dsh-plugin.mjs",
+  "files": [
+    "mcp/server.mjs",
+    "mcp/dsh-plugin.mjs",
+    "mcp/client.js",
+    "mcp/settings.mjs",
+    "mcp/takeover.mjs",
+    "mcp/activity.mjs",
+    "mcp/browser.mjs",
+    "mcp/browser-bidi.mjs",
+    "mcp/browser-bidi-dom.mjs",
+    "scripts/windows-uia.ps1",
+    "scripts/windows-takeover.ps1",
+    "scripts/windows-takeover.cs",
+    "docs/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD_PARTY.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "exports": {
+    ".": "./mcp/dsh-plugin.mjs",
+    "./client": "./mcp/client.js",
+    "./mcp/server.mjs": "./mcp/server.mjs",
+    "./mcp/dsh-plugin.mjs": "./mcp/dsh-plugin.mjs",
+    "./package.json": "./package.json",
+    "./*": "./*"
+  },
+  "scripts": {
+    "selftest": "node mcp/server.mjs --self-test",
+    "mcp-test": "node test/mcp-test.mjs",
+    "profile-resolution": "node test/profile-resolution.mjs",
+    "test": "node test/run-tests.mjs",
+    "e2e": "node test/notepad-e2e.mjs"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "mcp",
+    "computer-use",
+    "windows",
+    "uia",
+    "desktop-automation"
+  ],
+  "author": "Yu-tao-Li",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yu-tao-Li/dsh-computer-use-win.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yu-tao-Li/dsh-computer-use-win/issues"
+  },
+  "homepage": "https://github.com/Yu-tao-Li/dsh-computer-use-win#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "win32"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@deepseek-ai/cosmokit": "^1.8.6",
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@modelcontextprotocol/client": "2.3.1",
+    "electron": "44.0.0",
+    "js-yaml": "4.3.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-mcp-client": ">=0.1.0-rc.2 || >=0.2.0-rc.2",
+    "@deepseek-ai/schemastery": ">=3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-mcp-client": {
+      "optional": true
+    }
+  }
+}

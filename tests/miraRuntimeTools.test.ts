@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { resolveMiraCuaDriverPath, resolveMiraRipgrepPath } from '../electron/services/miraRuntimeTools'
+import { resolveMiraRipgrepPath } from '../electron/services/miraRuntimeTools'
 import { createMiraFlowWorld } from '../electron/services/flows/miraFlowWorld'
 import { WORLD_READ_CAPS } from '../packages/mira-flow-kit/src/mira-index'
 
@@ -20,9 +20,6 @@ afterAll(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('Mira app-owned search runtime', () => {
   it('resolves development, packaged and Windows paths without consulting PATH', () => {
-    expect(resolveMiraCuaDriverPath({ appPath, platform: 'darwin' })).toBe(join(appPath, 'dist/mira-tools/cua-driver/cua-driver'))
-    expect(resolveMiraCuaDriverPath({ appPath, isPackaged: true, resourcesPath, platform: 'win32' })).toBe(join(resourcesPath, 'tools/cua-driver/cua-driver.exe'))
-    expect(() => resolveMiraCuaDriverPath({ appPath, isPackaged: true })).toThrow('resources path')
     expect(resolveMiraRipgrepPath({ appPath, platform: 'darwin' })).toBe(join(appPath, 'dist/mira-tools/ripgrep/rg'))
     expect(resolveMiraRipgrepPath({ appPath, isPackaged: true, resourcesPath, platform: 'win32' })).toBe(join(resourcesPath, 'tools/ripgrep/rg.exe'))
     expect(() => resolveMiraRipgrepPath({ appPath, isPackaged: true })).toThrow('resources path')

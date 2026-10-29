@@ -1,6 +1,6 @@
 <template>
   <el-config-provider :size="layoutStore.config.componentSize">
-    <AppErrorBoundary><router-view /></AppErrorBoundary>
+    <AppErrorBoundary><AppRouterView /></AppErrorBoundary>
     <AppLoadingOverlay :active="globalLoading.active.value" :text="globalLoading.text.value" global />
   </el-config-provider>
 </template>
@@ -17,6 +17,7 @@ import { isMiraPrimaryModifier, miraWorkbenchShortcut } from '@/platform/workben
 import { getPlatformApi } from '@/platform'
 import AppLoadingOverlay from '@/components/AppLoadingOverlay.vue'
 import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
+import AppRouterView from './AppRouterView.vue'
 import { useLoading } from '@/hooks/useLoading'
 
 const themeStore = useThemeStore()

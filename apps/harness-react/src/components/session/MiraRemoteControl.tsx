@@ -19,8 +19,9 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
   const pending = useRef(false)
   const revision = useRef(0)
   const url = status.urls[0]
-  const state = status.device ? 'connected' : status.enabled || busy ? 'waiting' : 'idle'
-  const label = state === 'connected' ? '手机已连接' : state === 'waiting' ? '等待手机连接' : '远程控制未开启'
+  const deviceCount = status.devices?.length ?? 0
+  const state = deviceCount ? 'connected' : status.enabled || busy ? 'waiting' : 'idle'
+  const label = state === 'connected' ? `已连接 ${deviceCount} 台设备` : state === 'waiting' ? '等待手机连接' : '远程控制未开启'
   useEffect(() => {
     let active = true
     const refresh = () => { const current = revision.current; if (!pending.current) void controller.remoteControl('status').then(value => { if (active && !pending.current && current === revision.current) setStatus(value) }).catch(() => undefined) }
@@ -56,7 +57,7 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
       <section className="mira-remote-scan">
         <div className="mira-remote-section-heading"><Smartphone size={16} /><div><h3>手机扫码连接</h3><p>用手机相机扫码，在手机上打开 Mira。</p></div></div>
         <div className="mira-remote-connection">
-          <div className="mira-remote-status-row"><div><div className="mira-remote-status-label"><strong>{busy ? operation === 'stop' ? '正在停止服务' : '正在启动服务' : label}</strong><span className="mira-remote-status-tag" data-connection-state={state}><i />{busy ? operation === 'stop' ? '停止中' : '启动中' : status.device ? '已连接' : status.enabled ? '已就绪' : '已停止'}</span></div><p>{busy ? '请稍候…' : status.enabled ? '用手机扫码，或在手机上打开链接。' : '服务未开启，点击启动后即可连接。'}</p></div><button type="button" disabled={busy} onClick={() => void run(status.enabled ? 'stop' : 'start')}>{status.enabled ? <Unplug size={14} /> : <Plug size={14} />}{status.enabled ? '停止' : '启动'}</button></div>
+          <div className="mira-remote-status-row"><div><div className="mira-remote-status-label"><strong>{busy ? operation === 'stop' ? '正在停止服务' : '正在启动服务' : label}</strong><span className="mira-remote-status-tag" data-connection-state={state}><i />{busy ? operation === 'stop' ? '停止中' : '启动中' : deviceCount ? '已连接' : status.enabled ? '已就绪' : '已停止'}</span></div><p>{busy ? '请稍候…' : status.enabled ? '支持多台设备同时扫码，或打开链接连接。' : '服务未开启，点击启动后即可连接。'}</p></div><button type="button" disabled={busy} onClick={() => void run(status.enabled ? 'stop' : 'start')}>{status.enabled ? <Unplug size={14} /> : <Plug size={14} />}{status.enabled ? '停止' : '启动'}</button></div>
           <div className="mira-remote-copy-row"><span>无法扫码？可以在手机上打开链接。</span><button type="button" disabled={busy || !url} onClick={() => { if (url) void navigator.clipboard.writeText(url).then(() => setCopied(true), () => setError('复制失败，请重试')) }}><Copy size={14} />{copied ? '已复制' : '复制链接'}</button></div>
         </div>
         <div className="mira-remote-qr">{qr && status.enabled ? <img src={qr} width={256} height={256} alt="手机连接二维码" /> : <div role="status">{busy || status.enabled ? <><LoaderCircle size={20} className="animate-spin" /><span>正在生成二维码…</span></> : <span>服务已停止</span>}</div>}</div>

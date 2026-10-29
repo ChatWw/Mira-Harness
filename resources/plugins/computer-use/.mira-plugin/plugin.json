@@ -1,6 +1,6 @@
 {
   "name": "computer-use",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "通过桌面应用界面完成操作。",
   "license": "MIT",
   "skills": "skills",
@@ -8,24 +8,18 @@
     "displayName": "电脑控制",
     "category": "效率工具",
     "icon": "computer-use",
-    "author": "Cua AI / Mira",
+    "author": "Yu-tao-Li / OrderG-X / Mira",
     "examplePrompts": [
       "帮我操作一个桌面应用。"
     ]
   },
   "author": {
-    "name": "Cua AI / Mira"
+    "name": "Yu-tao-Li / OrderG-X / Mira"
   },
   "mcpServers": {
     "desktop": {
-      "command": "cua-driver",
-      "args": [
-        "mcp",
-        "--direct"
-      ],
-      "env": {
-        "CUA_DRIVER_PERMISSION_MODE": "standard"
-      }
+      "command": "mira:computer-use",
+      "args": []
     }
   }
 }

@@ -43,6 +43,22 @@ function fixture() {
 
 const goal = (revision = 1, id = 'goal'): HarnessGoal => ({ id, objective: '完成目标', revision, status: 'active', tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, iteration: 1, createdAt: 1, updatedAt: revision })
 
+it('refreshes settings catalogs without reopening or clearing the retained conversation', async () => {
+  const { controller, host } = fixture()
+  await controller.start()
+  const before = controller.getSnapshot(), calls = vi.mocked(host.getSession).mock.calls.length
+  const provider = (await host.listProviders())[0]
+  vi.mocked(host.listProviders).mockResolvedValue([{ ...provider, name: 'Updated provider', models: [{ ...provider.models[0], id: 'updated-model' }] }])
+  await controller.refreshRemoteCatalog()
+  expect(controller.getSnapshot().providers[0].name).toBe('Updated provider')
+  expect(controller.getSnapshot().providers[0].models[0].id).toBe('updated-model')
+  expect(controller.getSnapshot().selection).toBeUndefined()
+  expect(controller.getSnapshot().session).toBe(before.session)
+  expect(controller.getSnapshot().messages).toBe(before.messages)
+  expect(host.getSession).toHaveBeenCalledTimes(calls)
+  controller.dispose()
+})
+
 describe('automatic session title synchronization', () => {
   it('updates the open conversation title and sidebar together without reloading the conversation', async () => {
     const { controller, host, emit } = fixture()
