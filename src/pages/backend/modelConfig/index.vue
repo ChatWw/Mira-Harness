@@ -24,12 +24,11 @@
                 <AppIcon name="material-symbols:drag-indicator" />
               </span>
               <span class="row__logo">
-                <img v-if="group.logo" :src="group.logo" alt="">
-                <span v-else class="row__letter">{{ group.name.slice(0, 1) }}</span>
+                <AiBrandIcon :provider="group.id" :name="group.name" :custom-logo="group.logo" />
               </span>
               <span class="row__name">{{ group.name }}</span>
               <span class="row__slot">
-                <i v-if="!groupExpandable(group) && groupEnabled(group)" class="dot" />
+                <i v-if="groupEnabled(group)" class="dot" />
                 <button
                   v-if="groupExpandable(group)"
                   class="slot-btn slot-btn--chevron"
@@ -72,8 +71,7 @@
                     <AppIcon name="material-symbols:drag-indicator" />
                   </span>
                   <span class="row__logo row__logo--sm">
-                    <img v-if="group.logo" :src="group.logo" alt="">
-                    <span v-else class="row__letter">{{ instance.name.slice(0, 1) }}</span>
+                    <AiBrandIcon :provider="group.id" :name="instance.builtin ? instance.name : group.name" :custom-logo="group.logo" />
                   </span>
                   <span class="row__name">{{ instance.name }}</span>
                   <span class="row__slot">
@@ -114,8 +112,7 @@
         <div v-if="activeInstance" class="panel__inner">
           <header class="panel__head">
             <span class="panel__logo">
-              <img v-if="activeGroup?.logo" :src="activeGroup.logo" alt="">
-              <span v-else class="row__letter">{{ (activeGroup?.name || '?').slice(0, 1) }}</span>
+              <AiBrandIcon :provider="activeGroup?.id" :name="activeInstance.builtin ? activeInstance.name : activeGroup?.name" :custom-logo="activeGroup?.logo" />
             </span>
             <div class="panel__id">
               <div class="panel__name">
@@ -124,31 +121,35 @@
               </div>
               <div class="panel__sub">
                 <span class="proto">{{ MODEL_PROTOCOLS[modelProtocol(form.protocol)].label }}</span>
-                <span>{{ form.authMode === 'none' ? '本地服务 · 无需密钥' : 'API 密钥已保存于本机' }}</span>
-                <span v-if="enabledModels.length">·</span>
-                <span v-if="enabledModels.length">{{ enabledModels.length }} 个模型已启用</span>
               </div>
             </div>
             <div class="panel__actions">
               <span class="enable-label">{{ form.enabled ? '已启用' : '已停用' }}</span>
-              <el-switch v-model="form.enabled" aria-label="启用服务商" />
+              <el-switch v-model="form.enabled" aria-label="启用服务商" style="--el-switch-on-color: var(--cp-success)" />
             </div>
           </header>
 
           <div class="panel__body">
             <section class="section">
-              <div class="section__head">
-                <div>
-                  <h3>连接</h3>
-                </div>
-                <span class="status" :class="statusClass"><i />{{ statusText }}</span>
-              </div>
-
               <div v-if="form.authMode === 'api-key'" class="field">
                 <span class="field__label">API 密钥</span>
                 <div class="field__row">
-                  <el-input v-model="apiKeyDraft" type="password" show-password autocomplete="off" placeholder="未设置" />
-                  <el-button :loading="testing" @click="testConnection">
+                  <div v-if="apiKeyDraft" class="key-display">
+                    <input :type="keyVisible ? 'text' : 'password'" :value="apiKeyDraft" readonly aria-label="已配置的 API 密钥">
+                    <div class="key-display__actions">
+                      <SettingsTooltip content="复制密钥" placement="top"><button type="button" aria-label="复制密钥" @click="copyApiKey"><AppIcon name="CopyDocument" /></button></SettingsTooltip>
+                      <SettingsTooltip content="编辑密钥" placement="top"><button type="button" aria-label="编辑密钥" @click="credentials?.openKey()"><AppIcon name="EditPen" /></button></SettingsTooltip>
+                      <SettingsTooltip content="删除密钥" placement="top"><button class="key-display__delete" type="button" aria-label="删除密钥" @click="credentials?.removeKey()"><AppIcon name="Delete" /></button></SettingsTooltip>
+                    </div>
+                    <SettingsTooltip :content="keyVisible ? '隐藏密钥' : '显示密钥'" placement="top">
+                      <button type="button" :aria-label="keyVisible ? '隐藏密钥' : '显示密钥'" :aria-pressed="keyVisible" @click="keyVisible = !keyVisible"><AppIcon :name="keyVisible ? 'Hide' : 'View'" /></button>
+                    </SettingsTooltip>
+                  </div>
+                  <el-button v-else class="key-add" @click="credentials?.openKey()"><AppIcon name="Key" /><span>添加 API 密钥</span></el-button>
+                  <SettingsTooltip content="API 密钥管理" placement="top">
+                    <el-button class="key-manage" aria-label="API 密钥管理" @click="credentials?.openManager()"><AppIcon name="Key" /></el-button>
+                  </SettingsTooltip>
+                  <el-button v-if="apiKeyDraft" @click="credentials?.openTest()">
                     <AppIcon name="Connection" /><span>检测</span>
                   </el-button>
                 </div>
@@ -158,6 +159,7 @@
                 <div class="no-auth">
                   <AppIcon name="Monitor" />
                   <span>无需密钥</span>
+                  <el-button text @click="credentials?.openTest()">检测</el-button>
                 </div>
               </div>
 
@@ -181,68 +183,77 @@
                 </div>
               </div>
 
-              <div v-if="testMessage" class="field">
-                <span class="status" :class="testOk ? 'status--ok' : 'status--err'"><i />{{ testMessage }}</span>
-              </div>
             </section>
 
             <section class="section">
-              <div class="section__head">
-                <div>
+              <div class="section__head section__head--models">
+                <div class="models-heading">
                   <h3>模型</h3>
+                  <SettingsTooltip :content="modelDocsUrl ? '模型文档' : '暂无模型文档'" placement="top">
+                    <a v-if="modelDocsUrl" class="model-tool" :href="modelDocsUrl" target="_blank" rel="noopener noreferrer" aria-label="模型文档">
+                      <AppIcon name="Document" />
+                    </a>
+                    <button v-else class="model-tool" type="button" disabled aria-label="模型文档"><AppIcon name="Document" /></button>
+                  </SettingsTooltip>
+                  <div v-if="modelSearchOpen" class="model-search">
+                    <AppIcon name="Search" />
+                    <input ref="modelSearchInput" v-model="modelSearch" aria-label="搜索模型" placeholder="搜索模型…" @keydown.esc.stop="closeModelSearch">
+                    <button type="button" aria-label="关闭模型搜索" @click="closeModelSearch"><AppIcon name="Close" /></button>
+                  </div>
+                  <SettingsTooltip v-else content="搜索" placement="top">
+                    <button ref="modelSearchTrigger" class="model-tool" type="button" aria-label="搜索模型" :aria-expanded="false" @click="openModelSearch"><AppIcon name="Search" /></button>
+                  </SettingsTooltip>
                 </div>
-                <el-button-group role="group" aria-label="模型操作">
+                <el-button-group class="model-actions" role="group" aria-label="模型操作">
                   <el-button :loading="loadingModels" @click="syncModels">
                     <AppIcon v-if="!loadingModels" name="Refresh" /><span>同步模型</span>
                   </el-button>
-                  <el-button aria-label="添加模型" title="添加模型" @click="openModelDialog()">
-                    <AppIcon name="Plus" />
-                  </el-button>
+                  <SettingsTooltip content="手动添加模型" placement="top" :show-after="300">
+                    <el-button class="model-actions__add" aria-label="添加模型" @click="openModelDialog()">
+                      <AppIcon name="Plus" />
+                    </el-button>
+                  </SettingsTooltip>
                 </el-button-group>
               </div>
 
               <template v-if="form.models.length">
-                <div class="mtoolbar">
-                  <div class="msearch">
-                    <AppIcon name="Search" />
-                    <input v-model="modelSearch" type="text" placeholder="筛选已添加模型…">
-                  </div>
-                  <span class="mtoolbar__count">{{ enabledModels.length }} / {{ form.models.length }} 已启用</span>
-                </div>
-
                 <div class="model-list">
-                  <div v-for="model in filteredModels" :key="model.id" class="mrow" :class="{ 'is-off': !model.enabled }">
-                    <el-switch
-                      :model-value="model.enabled"
-                      :aria-label="`${model.enabled ? '停用' : '启用'} ${model.id}`"
-                      @update:model-value="form.models.find(item => item.id === model.id)!.enabled = !model.enabled"
-                    />
+                  <div v-for="model in filteredModels" :key="model.id" class="mrow">
+                    <span class="mrow__logo">
+                      <AiBrandIcon :model="model.id" :provider="activeGroup?.id" :name="activeGroup?.name" :custom-logo="activeGroup?.logo" />
+                    </span>
                     <div class="mrow__id">
                       <div class="mrow__name">
-                        <span>{{ model.id }}</span>
-                        <span v-if="model.reasoning" class="chip chip--reason">推理</span>
-                        <span v-if="model.multimodal" class="chip chip--vision">图片</span>
+                        <span class="mrow__label" :title="model.id">{{ model.name || model.id }}</span>
                       </div>
-                      <div class="mrow__model">{{ formatWindow(model.contextWindow) }} 上下文</div>
                     </div>
+                    <ModelCapabilities :model="model" />
                     <div class="mrow__actions">
-                      <el-button text circle aria-label="编辑模型" @click="openModelDialog(model)">
-                        <AppIcon name="EditPen" />
-                      </el-button>
-                      <el-button text circle type="danger" aria-label="移除模型" @click="removeModel(model)">
-                        <AppIcon name="Delete" />
-                      </el-button>
+                      <SettingsTooltip content="编辑模型" placement="top">
+                        <el-button text circle aria-label="编辑模型" @click="openModelDialog(model)">
+                          <AppIcon name="lucide:bolt" :size="16" />
+                        </el-button>
+                      </SettingsTooltip>
+                      <SettingsTooltip content="移除模型" placement="top">
+                        <el-button text circle aria-label="移除模型" @click="removeModel(model)">
+                          <AppIcon name="lucide:minus" :size="16" />
+                        </el-button>
+                      </SettingsTooltip>
                     </div>
                   </div>
+                  <p v-if="!filteredModels.length" class="model-list__empty">没有匹配的模型</p>
                 </div>
               </template>
 
               <div v-else class="empty">
-                <span class="empty__icon"><AppIcon name="Cpu" /></span>
-                <strong>还没有模型</strong>
-                <div class="empty__actions">
-                  <el-button :loading="loadingModels" @click="syncModels"><AppIcon v-if="!loadingModels" name="Refresh" /><span>同步模型</span></el-button>
-                </div>
+                <svg class="empty__image" viewBox="0 0 64 41" fill="none" aria-hidden="true">
+                  <ellipse cx="32" cy="34" rx="32" ry="7" fill="var(--cp-bg-hover)" />
+                  <path d="M9 14 20 1h24l11 13v19c0 2-2 3-4 3H13c-2 0-4-1-4-3V14Z" fill="var(--cp-bg)" stroke="var(--cp-text-placeholder)" />
+                  <path d="M9 14h11c1 0 2 1 2 2l1 3c0 1 1 1 2 1h14c1 0 2 0 2-1l1-3c0-1 1-2 2-2h11v19c0 2-2 3-4 3H13c-2 0-4-1-4-3V14Z" fill="var(--cp-bg-elevated)" stroke="var(--cp-text-placeholder)" />
+                  <path d="M9 24h46" stroke="var(--cp-text-placeholder)" />
+                </svg>
+                <p>请选择模型</p>
+                <p>点击上方的“同步模型”添加模型</p>
               </div>
             </section>
           </div>
@@ -267,73 +278,35 @@
       </template>
     </el-dropdown>
 
-    <!-- ================= 模型：右侧抽屉 ================= -->
-    <el-drawer v-model="modelDrawer" :title="modelForm.editing ? '编辑模型' : '添加模型'" size="440px">
-      <div class="drawer-body">
-        <div class="field">
-          <span class="field__label">模型 ID <span class="req">*</span></span>
-          <el-input v-model="modelForm.id" :class="{ 'field__mono': true }" :disabled="modelForm.editing" placeholder="例如 deepseek-v4-pro" />
-        </div>
-        <div class="field">
-          <span class="field__label">显示名称</span>
-          <el-input v-model="modelForm.name" placeholder="留空则使用模型 ID" />
-        </div>
-        <div class="field">
-          <span class="field__label">上下文窗口</span>
-          <el-input v-model.number="modelForm.contextWindow" :class="{ 'field__mono': true }" placeholder="例如 128000" />
-        </div>
-        <div class="field">
-          <span class="field__label">最大输出 token</span>
-          <el-input v-model.number="modelForm.maxTokens" :class="{ 'field__mono': true }" placeholder="留空则使用 8192" />
-        </div>
-        <div class="field">
-          <span class="field__label">输入类型</span>
-          <div class="checkrow">
-            <label class="chk chk--locked"><input type="checkbox" checked @click.prevent><span>文本</span></label>
-            <label class="chk"><input v-model="modelForm.multimodal" type="checkbox"><span>图片</span></label>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <div class="drawer-foot">
-          <el-button v-if="modelForm.editing" text type="danger" @click="confirmRemoveModel">移除模型</el-button>
-          <span class="spacer" />
-          <el-button @click="modelDrawer = false">取消</el-button>
-          <el-button type="primary" @click="confirmModel">保存模型</el-button>
-        </div>
-      </template>
-    </el-drawer>
+    <ModelCredentials v-if="activeInstance" ref="credentials" :provider="credentialProvider" :saved-key="apiKeyDraft" @saved="onCredentialSaved" />
+
+    <ModelEditorDialog v-if="modelDialog" :key="form.id" :model="editingModel" @close="modelDialog = false" @save="confirmModel" />
 
     <!-- ================= 发现模型 ================= -->
-    <el-drawer v-model="discoverDrawer" title="发现模型" size="520px">
-      <div class="drawer-body">
-        <div v-if="discoverNeedsKey" class="needkey">
-          <span class="needkey__icon"><AppIcon name="Connection" /></span>
-          <strong>需要先配置 API 密钥</strong>
-        </div>
-        <template v-else>
-          <div class="msearch msearch--wide">
-            <AppIcon name="Search" />
-            <input v-model="discoverSearch" type="text" placeholder="按模型 ID 搜索…">
-          </div>
-          <div class="disc-list">
-            <label v-for="item in filteredRemote" :key="item" class="disc" :class="{ 'is-added': isAdded(item) }">
-              <input v-model="discoverPicked" type="checkbox" :value="item" :disabled="isAdded(item)">
-              <span class="disc__id">{{ item }}</span>
-              <span v-if="isAdded(item)" class="chip chip--flat">已添加</span>
-            </label>
-            <p v-if="!filteredRemote.length" class="rail__empty">没有匹配的模型</p>
-          </div>
-        </template>
-      </div>
-      <template #footer>
-        <div class="drawer-foot">
-          <span class="muted">已选 {{ discoverPicked.length }} 项</span>
-          <span class="spacer" />
-          <el-button @click="discoverDrawer = false">取消</el-button>
-          <el-button type="primary" :disabled="!discoverPicked.length" @click="addDiscovered">添加所选</el-button>
+    <el-drawer v-model="discoverDrawer" :title="`${form.name} 模型`" size="600px" class="model-discovery">
+      <template #header="{ titleId }">
+        <div class="disc-header">
+          <h2 :id="titleId">{{ form.name }} 模型 <span v-if="!loadingModels" class="disc-count">{{ remoteModels.length }}</span></h2>
+          <button class="disc-clear" type="button" :disabled="loadingModels || !form.models.length" @click="removeAllModels"><AppIcon name="lucide:list-minus" :size="16" />移除全部</button>
         </div>
       </template>
+      <div class="disc-body">
+        <div class="disc-search">
+          <AppIcon name="Search" :size="16" />
+          <input v-model="discoverSearch" type="search" aria-label="搜索同步模型" placeholder="搜索模型…" :disabled="loadingModels">
+        </div>
+        <div v-if="loadingModels" class="disc-state" role="status" aria-live="polite"><AppIcon name="Loading" :size="24" class="is-loading" /><span>正在同步模型…</span></div>
+        <div v-else-if="discoverError" class="disc-state" role="alert"><span>{{ discoverError }}</span><el-button @click="syncModels">重试</el-button></div>
+        <div v-else class="disc-list">
+          <button v-for="item in filteredRemote" :key="item" type="button" class="disc" :class="{ 'is-added': isAdded(item) }" :aria-label="`${isAdded(item) ? '移除' : '添加'} ${item}`" :aria-pressed="isAdded(item)" @click="toggleDiscovered(item)">
+            <span class="disc__logo"><AiBrandIcon :model="item" :provider="activeGroup?.id" :name="activeGroup?.name" :custom-logo="activeGroup?.logo" /></span>
+            <span class="disc__id">{{ item }}</span>
+            <ModelCapabilities :model="form.models.find(model => model.id === item) || remoteMetadata[item]" />
+            <AppIcon :name="isAdded(item) ? 'lucide:minus' : 'lucide:plus'" :size="18" />
+          </button>
+          <p v-if="!filteredRemote.length" class="rail__empty">{{ remoteModels.length ? '没有匹配的模型' : '未获取到模型' }}</p>
+        </div>
+      </div>
     </el-drawer>
 
     <!-- ================= 添加服务商 / 实例 ================= -->
@@ -416,6 +389,7 @@
 </template>
 
 <script setup lang="ts">
+import SettingsTooltip from '../settings/components/SettingsTooltip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, toRaw, watch } from 'vue'
 import { ElMessage, ElMessageBox, type DropdownInstance } from 'element-plus'
 import { MODEL_PROTOCOLS, modelProtocol, modelRequestUrl, type ModelProtocol } from '@/config/modelProtocol'
@@ -423,20 +397,20 @@ import { getPlatformApi, getPreference, savePreference } from '@/platform'
 import {
   DEFAULT_CONTEXT_WINDOW,
   MODEL_PROVIDER_PRESETS,
+  MODEL_PROVIDER_BUILTIN_INSTANCES,
   isModelProviderAvailable,
   type ModelProviderInput,
   type ModelProviderKey,
   type ModelProviderSummary,
+  type ModelMetadata,
   type ModelServiceSummary,
   type ProviderModelConfig,
 } from '@/config/harness'
-import glmIcon from '@/asset/modules_icon/glm.svg'
-import kimiIcon from '@/asset/modules_icon/Kimi.svg'
-import minimaxIcon from '@/asset/modules_icon/MiniMax.svg'
-import deepseekIcon from '@/asset/modules_icon/deepseek.svg'
-import ollamaIcon from '@/asset/modules_icon/Ollama.svg'
-import qwenIcon from '@/asset/modules_icon/qwen.svg'
+import AiBrandIcon from '@/components/AiBrandIcon/index.vue'
 import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
+import ModelCredentials from './components/ModelCredentials.vue'
+import ModelEditorDialog from './components/ModelEditorDialog.vue'
+import ModelCapabilities from './components/ModelCapabilities.vue'
 
 /* =====================================================================
    服务商是固定一级节点；连接记录按共享的 Provider ID（slug）归到该服务商。
@@ -455,13 +429,13 @@ interface ProviderGroup {
   instances: Instance[]
 }
 
-const PROVIDERS: { key: ModelProviderKey, name: string, logo: string, endpoint: string, authMode: 'api-key' | 'none' }[] = [
-  { key: 'deepseek', name: '深度求索', logo: deepseekIcon, endpoint: 'https://api.deepseek.com', authMode: 'api-key' },
-  { key: 'glm', name: '智谱', logo: glmIcon, endpoint: 'https://open.bigmodel.cn/api/paas/v4', authMode: 'api-key' },
-  { key: 'kimi', name: 'Kimi', logo: kimiIcon, endpoint: 'https://api.moonshot.cn/v1', authMode: 'api-key' },
-  { key: 'minimax', name: 'MiniMax', logo: minimaxIcon, endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' },
-  { key: 'qwen', name: '阿里千问', logo: qwenIcon, endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' },
-  { key: 'ollama', name: 'Ollama', logo: ollamaIcon, endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' },
+const PROVIDERS: { key: ModelProviderKey, name: string, endpoint: string, authMode: 'api-key' | 'none' }[] = [
+  { key: 'deepseek', name: '深度求索', endpoint: 'https://api.deepseek.com', authMode: 'api-key' },
+  { key: 'glm', name: '智谱', endpoint: 'https://open.bigmodel.cn/api/paas/v4', authMode: 'api-key' },
+  { key: 'kimi', name: '月之暗面', endpoint: 'https://api.moonshot.cn', authMode: 'api-key' },
+  { key: 'minimax', name: 'MiniMax', endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' },
+  { key: 'qwen', name: '阿里千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' },
+  { key: 'ollama', name: 'Ollama', endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' },
 ]
 const BUILTIN_BY_KEY = new Map(PROVIDERS.map(item => [item.key, item]))
 const EXPANDED_KEY = 'modelProviderExpanded'
@@ -472,13 +446,16 @@ const records = ref<ModelProviderSummary[]>([])
 const services = ref<ModelServiceSummary[]>([])
 const loading = ref(false)
 const loadingModels = ref(false)
-const testing = ref(false)
-const testMessage = ref('')
-const testOk = ref(false)
 const search = ref('')
 const modelSearch = ref('')
+const modelSearchOpen = ref(false)
+const modelSearchInput = ref<HTMLInputElement>()
+const modelSearchTrigger = ref<HTMLButtonElement>()
 const selectedId = ref('')
 const apiKeyDraft = ref('')
+const keyVisible = ref(false)
+const credentials = ref<InstanceType<typeof ModelCredentials>>()
+const credentialProvider = computed(() => plainInput())
 const defaultEndpoint = ref('')
 const avatarInput = ref<HTMLInputElement>()
 
@@ -497,18 +474,18 @@ let saveTimer: number | undefined
 /* ---------- 分组 ---------- */
 const groups = computed<ProviderGroup[]>(() => {
   const definitions = new Map<string, Omit<ProviderGroup, 'instances'>>(PROVIDERS.map(preset => [preset.key, {
-    ...preset, id: preset.key, providerKey: preset.key, hasInstances: false, protocol: 'openai-completions',
+    ...preset, id: preset.key, providerKey: preset.key, logo: '', hasInstances: false, protocol: 'openai-completions',
   }]))
   for (const service of services.value) {
     const preset = BUILTIN_BY_KEY.get(service.id as ModelProviderKey)
-    definitions.set(service.id, { ...service, name: preset?.name || service.name, logo: preset?.logo || service.logo || '' })
+    definitions.set(service.id, { ...service, name: preset?.name || service.name, logo: service.logo || '' })
   }
   const result: ProviderGroup[] = [...definitions.values()].map(service => ({
     ...service,
     instances: records.value.filter(record => (record.slug || (record.providerKey === 'custom' ? record.id.replace(/[^A-Za-z0-9]/g, '') : record.providerKey)) === service.id),
   }))
   for (const group of result) {
-    group.instances = group.instances.map(instance => instance.builtin ? { ...instance, name: group.name } : instance)
+    group.instances = group.instances.map(instance => instance.builtin && !['glm', 'kimi'].includes(group.providerKey) ? { ...instance, name: group.name } : instance)
     const ids = getPreference<string[]>(`modelInstanceOrder:${group.id}`, [])
     const rank = new Map(ids.map((id, index) => [id, index]))
     group.instances.sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999)
@@ -533,33 +510,48 @@ const activeGroup = computed(() => groups.value.find(group => group.instances.so
 const activeInstance = computed(() => activeGroup.value?.instances.find(instance => instance.id === selectedId.value))
 const activeGroupHasMany = computed(() => Boolean(activeGroup.value && groupExpandable(activeGroup.value)))
 
-/** 只有手动新增的实例需要展示子集；仅剩默认实例时，由一级服务商承载原始连接。 */
-const groupExpandable = (group: ProviderGroup) => group.hasInstances && group.instances.some(instance => !instance.builtin)
+/** 多个内置实例或手动实例展示为子级；单个默认实例由一级服务商承载。 */
+const groupExpandable = (group: ProviderGroup) => group.hasInstances && (group.instances.length > 1 || group.instances.some(instance => !instance.builtin))
 const isBuiltinProvider = (group: ProviderGroup) => BUILTIN_BY_KEY.has(group.id as ModelProviderKey)
 const groupEnabled = (group: ProviderGroup) => group.instances.some(instanceEnabled)
 const instanceEnabled = (instance: Instance) => instance.enabled && instance.models.some(model => model.enabled)
 const isProviderActive = (group: ProviderGroup) => group.instances.some(instance => instance.id === selectedId.value)
 
 /* ---------- 面板 ---------- */
-const enabledModels = computed(() => form.models.filter(model => model.enabled))
 const endpointDirty = computed(() => Boolean(defaultEndpoint.value) && form.endpoint.replace(/\/+$/, '') !== defaultEndpoint.value)
 const effectiveUrl = computed(() => modelRequestUrl(form.endpoint, form.protocol))
-const statusText = computed(() => {
-  if (testing.value) return '检测中…'
-  if (testOk.value) return '连接正常'
-  return form.enabled ? '未检测' : '已停用'
+const activeBuiltinPreset = computed(() => MODEL_PROVIDER_BUILTIN_INSTANCES.find(preset => activeInstance.value?.builtin && preset.providerKey === form.providerKey && preset.name === activeInstance.value.name))
+const modelDocsUrl = computed(() => {
+  if (activeBuiltinPreset.value) return activeBuiltinPreset.value.docs
+  const docs: Partial<Record<ModelProviderKey, string>> = {
+    deepseek: 'https://api-docs.deepseek.com/zh-cn/',
+    glm: 'https://open.bigmodel.cn/console/modelcenter/square',
+    kimi: 'https://platform.kimi.com/docs/get-api-key',
+    minimax: 'https://platform.minimax.io/document/Models',
+    qwen: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/introduction',
+    ollama: 'https://ollama.com/library',
+  }
+  let hostname = ''
+  try { hostname = new URL(form.endpoint).hostname } catch { /* 地址编辑中仍显示服务商默认文档。 */ }
+  if (form.providerKey === 'glm' && (hostname === 'z.ai' || hostname.endsWith('.z.ai'))) return 'https://docs.z.ai/api-reference/introduction'
+  if (form.providerKey === 'kimi' && (hostname === 'moonshot.ai' || hostname.endsWith('.moonshot.ai'))) return 'https://platform.moonshot.ai/docs/'
+  return form.providerKey ? docs[form.providerKey] : undefined
 })
-const statusClass = computed(() => (testOk.value ? 'status--ok' : form.enabled ? '' : 'status--warn'))
 const filteredModels = computed(() => {
-  const keyword = modelSearch.value.trim().toLocaleLowerCase()
-  return form.models.filter(model => !keyword || model.id.toLocaleLowerCase().includes(keyword))
+  const keywords = modelSearch.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  return form.models.filter(model => keywords.every(keyword => `${model.id} ${model.name || ''}`.toLocaleLowerCase().includes(keyword)))
 })
 
-function formatWindow(tokens: number) {
-  if (!tokens) return '未设置'
-  if (tokens >= 1_000_000) return `${Number((tokens / 1_000_000).toFixed(1))}M`
-  if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`
-  return String(tokens)
+async function openModelSearch() {
+  modelSearchOpen.value = true
+  await nextTick()
+  modelSearchInput.value?.focus()
+}
+async function closeModelSearch() {
+  modelSearch.value = ''
+  modelSearchOpen.value = false
+  await nextTick()
+  modelSearchTrigger.value?.focus()
 }
 
 /* ---------- 加载 ---------- */
@@ -582,13 +574,18 @@ async function load(preferId?: string) {
 async function selectInstance(id: string) {
   const record = records.value.find(item => item.id === id)
   if (!record) return
+  window.clearTimeout(saveTimer)
   selectedId.value = id
+  modelDialog.value = false
+  discoverDrawer.value = false
+  apiKeyDraft.value = ''
+  keyVisible.value = false
   modelSearch.value = ''
-  testMessage.value = ''
-  testOk.value = false
+  modelSearchOpen.value = false
   const preset = BUILTIN_BY_KEY.get(record.providerKey)
+  const instancePreset = MODEL_PROVIDER_BUILTIN_INSTANCES.find(item => item.providerKey === record.providerKey && item.name === record.name)
   defaultEndpoint.value = preset && record.builtin
-    ? preset.endpoint.replace(/\/+$/, '')
+    ? (instancePreset?.endpoint || preset.endpoint).replace(/\/+$/, '')
     : ''
   Object.assign(form, {
     id: record.id,
@@ -599,11 +596,13 @@ async function selectInstance(id: string) {
     protocol: modelProtocol(record.protocol),
     apiKey: '',
     enabled: record.enabled,
-    models: record.models.map(model => ({ ...model })),
+    models: record.models.map(model => ({ ...model, enabled: true })),
   })
-  apiKeyDraft.value = record.hasApiKey && record.authMode === 'api-key'
-    ? await api?.getModelProviderApiKey(record.id) || ''
-    : ''
+  const secret = record.hasApiKey && record.authMode === 'api-key' ? await api?.getModelProviderApiKey(record.id) || '' : ''
+  if (selectedId.value === id) {
+    apiKeyDraft.value = secret
+    if (record.models.some(model => !model.enabled)) saveActive()
+  }
 }
 
 /* ---------- 保存 ---------- */
@@ -616,7 +615,6 @@ function plainInput(): ModelProviderInput {
     endpoint: form.endpoint.trim(),
     authMode: form.authMode,
     protocol: form.protocol,
-    ...(apiKeyDraft.value.trim() ? { apiKey: apiKeyDraft.value.trim() } : {}),
     enabled: form.enabled,
     // IPC 走结构化克隆，模型及嵌套价格都必须剥掉 Vue 的响应式代理。
     models: form.models.map(model => ({
@@ -799,50 +797,20 @@ function onInstanceDrop(groupId: string, instanceId: string, event: DragEvent) {
 }
 
 /* ---------- 模型 ---------- */
-const modelDrawer = ref(false)
-const modelForm = reactive({
-  editing: false, originalId: '', id: '', name: '',
-  contextWindow: undefined as number | undefined,
-  maxTokens: undefined as number | undefined,
-  multimodal: false,
-})
+const modelDialog = ref(false)
+const editingModel = shallowRef<ProviderModelConfig>()
 
 function openModelDialog(model?: ProviderModelConfig) {
-  modelForm.editing = Boolean(model)
-  modelForm.originalId = model?.id || ''
-  modelForm.id = model?.id || ''
-  modelForm.name = model?.id || ''
-  modelForm.contextWindow = model?.contextWindow || DEFAULT_CONTEXT_WINDOW
-  modelForm.maxTokens = model?.maxTokens
-  modelForm.multimodal = model?.multimodal === true
-  modelDrawer.value = true
+  editingModel.value = model
+  modelDialog.value = true
 }
 
-function confirmModel() {
-  const id = modelForm.id.trim()
-  if (!id) return ElMessage.warning('请填写模型 ID')
-  if (!modelForm.editing && form.models.some(model => model.id === id)) return ElMessage.warning('该模型已存在')
-  const next: ProviderModelConfig = {
-    id,
-    enabled: true,
-    reasoning: false,
-    contextWindow: modelForm.contextWindow || DEFAULT_CONTEXT_WINDOW,
-    ...(modelForm.maxTokens && modelForm.maxTokens > 0 ? { maxTokens: modelForm.maxTokens } : {}),
-    ...(modelForm.multimodal ? { multimodal: true } : {}),
-  }
-  const index = form.models.findIndex(model => model.id === modelForm.originalId)
-  if (modelForm.editing && index >= 0) form.models.splice(index, 1, { ...next, enabled: form.models[index].enabled })
+function confirmModel(next: ProviderModelConfig) {
+  if (!editingModel.value && form.models.some(model => model.id === next.id)) return ElMessage.warning('该模型已存在')
+  const index = form.models.findIndex(model => model.id === editingModel.value?.id)
+  if (editingModel.value && index >= 0) form.models.splice(index, 1, next)
   else form.models.push(next)
-  modelDrawer.value = false
-  saveActive()
-}
-
-async function confirmRemoveModel() {
-  try {
-    await ElMessageBox.confirm(`移除模型「${modelForm.id}」？`, '移除模型', { type: 'warning' })
-  } catch { return }
-  form.models = form.models.filter(model => model.id !== modelForm.originalId)
-  modelDrawer.value = false
+  modelDialog.value = false
   saveActive()
 }
 
@@ -854,8 +822,13 @@ function removeModel(model: ProviderModelConfig) {
 /* ---------- 发现模型 ---------- */
 const discoverDrawer = ref(false)
 const discoverSearch = ref('')
+const discoverError = ref('')
 const remoteModels = ref<string[]>([])
-const discoverPicked = ref<string[]>([])
+const remoteMetadata = ref<Record<string, ModelMetadata>>({})
+let discoverRevision = 0
+watch(discoverDrawer, open => {
+  if (!open) { discoverRevision += 1; loadingModels.value = false }
+}, { flush: 'sync' })
 const discoverNeedsKey = computed(() => form.authMode === 'api-key' && !apiKeyDraft.value && !activeInstance.value?.hasApiKey)
 const filteredRemote = computed(() => {
   const keyword = discoverSearch.value.trim().toLocaleLowerCase()
@@ -864,44 +837,57 @@ const filteredRemote = computed(() => {
 const isAdded = (id: string) => form.models.some(model => model.id === id)
 
 async function syncModels() {
-  if (!api) return
+  if (!api || loadingModels.value) return
   if (!form.endpoint.trim()) return ElMessage.warning('请先填写 API 地址')
+  if (discoverNeedsKey.value) { credentials.value?.openKey(); return }
+  const revision = ++discoverRevision
+  const instanceId = form.id
+  discoverError.value = ''; discoverSearch.value = ''
+  remoteModels.value = []; remoteMetadata.value = {}
+  discoverDrawer.value = true
   loadingModels.value = true
   try {
     const result = await api.listModelProviderModels(plainInput())
+    if (revision !== discoverRevision || form.id !== instanceId) return
     remoteModels.value = result.models || []
-    discoverSearch.value = ''
-    discoverPicked.value = []
-    discoverDrawer.value = true
-    if (result.error && !remoteModels.value.length) ElMessage.warning(result.error)
-  } finally { loadingModels.value = false }
+    remoteMetadata.value = result.metadata || {}
+    discoverError.value = result.error || ''
+    if (!result.error && form.models.some(model => remoteMetadata.value[model.id])) {
+      form.models = form.models.map(model => ({ ...remoteMetadata.value[model.id], ...model }))
+      saveActive()
+    }
+  } catch (cause) {
+    if (revision === discoverRevision) discoverError.value = cause instanceof Error ? cause.message : '同步失败，请重试'
+  } finally { if (revision === discoverRevision) loadingModels.value = false }
 }
 
-function addDiscovered() {
-  for (const id of discoverPicked.value) {
-    if (isAdded(id)) continue
-    form.models.push({ id, enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW })
-  }
-  discoverDrawer.value = false
+function toggleDiscovered(id: string) {
+  if (isAdded(id)) form.models = form.models.filter(model => model.id !== id)
+  else form.models.push({ id, enabled: true, reasoning: false, contextWindow: DEFAULT_CONTEXT_WINDOW, ...remoteMetadata.value[id] })
   saveActive()
 }
 
-/* ---------- 连接检测 ---------- */
-async function testConnection() {
-  if (!api) return
-  const model = enabledModels.value[0] || form.models[0]
-  if (!model) return ElMessage.warning('请先添加模型')
-  testing.value = true
-  testMessage.value = ''
-  testOk.value = false
+function removeAllModels() {
+  form.models = []
+  saveActive()
+}
+
+/* ---------- 密钥配置 ---------- */
+async function copyApiKey() {
   try {
-    const result = await api.testModelProvider({ ...plainInput(), apiKey: apiKeyDraft.value.trim() || undefined }, model.id)
-    testOk.value = result.ok
-    testMessage.value = result.text
-  } catch (error) {
-    testOk.value = false
-    testMessage.value = error instanceof Error ? error.message : '连接失败'
-  } finally { testing.value = false }
+    await navigator.clipboard.writeText(apiKeyDraft.value)
+    ElMessage.success('已复制密钥')
+  } catch { ElMessage.error('复制失败，请重试') }
+}
+
+function onCredentialSaved(saved: ModelProviderSummary, key?: string) {
+  window.clearTimeout(saveTimer)
+  const index = records.value.findIndex(item => item.id === saved.id)
+  if (index >= 0) records.value.splice(index, 1, saved)
+  if (selectedId.value !== saved.id) return
+  form.models = saved.models.map(model => ({ ...model }))
+  form.enabled = saved.enabled
+  if (key !== undefined) { apiKeyDraft.value = key; keyVisible.value = false }
 }
 
 /* ---------- 添加服务商 / 实例 ---------- */
@@ -1018,7 +1004,7 @@ async function confirmProvider() {
 /* ---------- 生命周期 ---------- */
 watch(() => form.enabled, () => { if (form.id) saveActive() })
 watch(() => form.endpoint, () => { if (form.id) saveActive() })
-onBeforeUnmount(() => window.clearTimeout(saveTimer))
+onBeforeUnmount(() => { discoverRevision += 1; window.clearTimeout(saveTimer) })
 onMounted(() => { void load() })
 </script>
 
@@ -1055,7 +1041,11 @@ onMounted(() => { void load() })
     &:focus { outline: none; border-color: var(--cp-primary); }
   }
 }
-.rail__list { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 8px 8px; }
+.rail__list {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 8px 8px;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
 .rail__empty { padding: 28px 12px; color: var(--cp-text-tertiary); font-size: var(--settings-text-small); text-align: center; }
 .rail__foot { padding: 8px 12px 12px; }
 .rail__add {
@@ -1093,9 +1083,9 @@ onMounted(() => { void load() })
   display: grid; place-items: center;
   background: var(--cp-bg); border: 1px solid var(--cp-border-light); border-radius: 7px;
   overflow: hidden;
-  img { width: 17px; height: 17px; object-fit: contain; }
+  .ai-brand-icon { width: 17px; height: 17px; }
 }
-.row__logo--sm { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 6px; img { width: 14px; height: 14px; } }
+.row__logo--sm { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 6px; .ai-brand-icon { width: 14px; height: 14px; } }
 .row__letter { color: var(--cp-text-secondary); font-size: 11px; font-weight: 600; }
 .row__name {
   flex: 1; min-width: 0;
@@ -1118,7 +1108,7 @@ onMounted(() => { void load() })
 }
 .slot-btn--chevron { transition: opacity 120ms ease-out, transform 150ms cubic-bezier(.16, 1, .3, 1); }
 .slot-btn--chevron.is-open { transform: translate(-50%, -50%) rotate(90deg); }
-/* 可展开行常驻箭头；更多按钮在悬停或键盘聚焦时替换状态点。 */
+/* 启用时常驻状态点；悬停或键盘聚焦时切换为箭头或更多按钮。 */
 .row:not(:has(.dot)) .slot-btn--chevron { opacity: 1; }
 .row:has(.slot-btn):hover .dot, .row:has(.slot-btn):focus-within .dot { opacity: 0; }
 .row:hover .slot-btn, .row:focus-within .slot-btn { opacity: 1; }
@@ -1142,7 +1132,7 @@ onMounted(() => { void load() })
   width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center;
   background: var(--cp-bg-elevated); border: 1px solid var(--cp-border-light); border-radius: 9px;
   overflow: hidden;
-  img { width: 23px; height: 23px; object-fit: contain; }
+  .ai-brand-icon { width: 23px; height: 23px; }
 }
 .panel__id { min-width: 0; flex: 1; }
 .panel__name { display: flex; align-items: center; gap: 7px; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; }
@@ -1172,12 +1162,49 @@ onMounted(() => { void load() })
 }
 .section__head > div:first-child { min-width: 0; flex: 1 1 320px; }
 .section__head h3 { margin: 0; color: var(--cp-text); font-size: var(--settings-text-subheading); font-weight: 550; }
+.section__head--models { align-items: center; flex-wrap: nowrap; }
+.section__head--models > div:first-child { flex: 1 1 auto; }
+.models-heading { display: flex; align-items: center; gap: 8px; }
+.models-heading h3 { flex: 0 0 auto; white-space: nowrap; }
+.model-tool {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--cp-text-secondary); cursor: pointer;
+  &:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
+  &:disabled { color: var(--cp-text-placeholder); cursor: default; background: transparent; }
+  &:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 2px; }
+}
+.model-search {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 180px; min-width: 0; max-width: 240px;
+  height: 32px; padding: 0 8px; border: 1px solid var(--cp-border); border-radius: 8px; color: var(--cp-text-secondary);
+  input { min-width: 0; width: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--cp-text); font: inherit; font-size: var(--settings-text-base); }
+  input::placeholder { color: var(--cp-text-secondary); }
+  button { display: grid; place-items: center; flex: 0 0 20px; width: 20px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+  button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
+}
+.model-actions { display: inline-flex; flex: 0 0 auto; white-space: nowrap; }
+.model-actions :deep(.model-actions__add) { width: 32px; min-width: 32px; padding: 0; }
 .field {
   max-width: 640px; margin-bottom: 16px;
   &:last-child { margin-bottom: 0; }
 }
 .field__label { display: block; margin-bottom: 6px; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
 .field__row { display: flex; align-items: center; gap: 8px; }
+.key-add { flex: 1; margin: 0; }
+.key-display {
+  display: flex; align-items: center; flex: 1; min-width: 0; height: 32px; padding: 0 6px 0 11px;
+  border: 1px solid var(--cp-border); border-radius: 8px; background: var(--cp-bg);
+  &:hover, &:focus-within { border-color: var(--cp-text-placeholder); }
+  input { flex: 1; min-width: 0; width: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--cp-text); font: inherit; font-size: var(--settings-text-base); }
+  button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--cp-text-secondary); cursor: pointer; }
+  button:hover { color: var(--cp-text); background: var(--cp-bg-hover); }
+  button:focus-visible { outline: 2px solid var(--cp-primary); outline-offset: 1px; }
+  button.key-display__delete:hover { color: var(--cp-danger); }
+}
+.key-display__actions { display: flex; visibility: hidden; }
+.key-display:hover .key-display__actions, .key-display:focus-within .key-display__actions { visibility: visible; }
+.key-manage { flex: 0 0 32px; width: 32px; padding: 0; }
+.field__row > .el-button + .el-button { margin-left: 0; }
 .field__hint { margin: 6px 0 0; color: var(--cp-text-secondary); font-size: var(--settings-text-small); line-height: 1.5; &.is-err { color: var(--cp-danger); } }
 .field__mono :deep(input) { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; }
 .req { color: var(--cp-danger); }
@@ -1190,15 +1217,6 @@ onMounted(() => { void load() })
   b { color: var(--cp-text); font-weight: 500; }
   :deep(.app-icon) { flex: 0 0 auto; color: var(--cp-text-tertiary); font-size: 11px; }
 }
-.status {
-  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px;
-  color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 12px;
-  font-size: var(--settings-text-small); white-space: nowrap;
-  i { width: 6px; height: 6px; border-radius: 50%; background: var(--cp-text-tertiary); }
-  &.status--ok { color: var(--cp-success); background: rgba(16, 185, 129, .12); i { background: var(--cp-success); } }
-  &.status--err { color: var(--cp-danger); background: rgba(239, 68, 68, .12); i { background: var(--cp-danger); } }
-  &.status--warn { color: var(--cp-warning); background: rgba(245, 158, 11, .12); i { background: var(--cp-warning); } }
-}
 .no-auth {
   display: flex; align-items: center; gap: 9px;
   padding: 10px 12px;
@@ -1207,7 +1225,6 @@ onMounted(() => { void load() })
   :deep(.app-icon) { color: var(--cp-success); }
 }
 
-.mtoolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .msearch {
   position: relative; flex: 0 1 260px;
   :deep(.app-icon) { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--cp-text-tertiary); pointer-events: none; }
@@ -1221,75 +1238,55 @@ onMounted(() => { void load() })
   }
   &--wide { flex: 1 1 auto; margin-bottom: 6px; }
 }
-.mtoolbar__count { margin-left: auto; color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.model-list { max-width: 760px; }
+.model-list { max-width: 760px; border: 1px solid var(--cp-border); border-radius: 12px; overflow: hidden; }
+.model-list__empty { padding: 24px 0; margin: 0; text-align: center; color: var(--cp-text-secondary); font-size: var(--settings-text-base); }
 .mrow {
   display: flex; align-items: center; gap: 12px;
-  min-height: 52px; padding: 6px 8px; border-radius: 6px;
+  min-height: 52px; padding: 6px 12px;
+  & + & { border-top: 1px solid var(--cp-border-light); }
   &:hover { background: var(--cp-bg-elevated); }
-  &.is-off .mrow__id { opacity: .55; }
 }
+.mrow__logo { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid var(--cp-border-light); border-radius: 50%; background: var(--cp-bg); color: var(--cp-text-secondary); .ai-brand-icon { width: 20px; height: 20px; } }
 .mrow__id { min-width: 0; flex: 1; }
 .mrow__name {
   display: flex; align-items: center; gap: 6px;
   color: var(--cp-text); font-size: var(--settings-text-base);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.mrow__model { margin-top: 1px; color: var(--cp-text-tertiary); font-size: 11px; }
-.mrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
-.chip { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 3px; font-size: 10px; font-weight: 500; white-space: nowrap; }
-.chip--reason { color: var(--cp-primary); background: var(--cp-primary-lighter); }
-.chip--vision { color: #7c3aed; background: rgba(139, 92, 246, .12); }
-.chip--flat { color: var(--cp-text-secondary); background: var(--cp-bg-hover); }
+.mrow__actions { display: flex; gap: 2px; flex: 0 0 auto; .el-button { color: var(--cp-text-secondary); margin-left: 0; } }
+.mrow__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .empty {
-  padding: 40px 16px; text-align: center;
-  background: var(--cp-bg-elevated);
-  border: 1px dashed var(--cp-border-light); border-radius: 12px;
+  padding: 56px 16px; text-align: center;
+  color: var(--cp-text-secondary); font-size: var(--settings-text-base); line-height: 1.6;
 }
-.empty__icon {
-  width: 34px; height: 34px; margin: 0 auto 10px;
-  display: grid; place-items: center;
-  color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 50%;
-}
-.empty strong { display: block; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.empty__actions { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+.empty__image { display: block; width: 64px; height: 41px; margin: 0 auto 16px; }
+.empty p { margin: 0; }
+.empty p + p { margin-top: 6px; }
 
 /* ===================== 抽屉 / 弹窗 ===================== */
 .drawer-body { padding-bottom: 4px; }
-.drawer-foot { display: flex; align-items: center; gap: 8px; width: 100%; }
-.spacer { flex: 1; }
-.muted { color: var(--cp-text-secondary); font-size: var(--settings-text-small); }
-.checkrow { display: flex; align-items: center; gap: 18px; height: 34px; }
-.chk {
-  display: inline-flex; align-items: center; gap: 7px;
-  color: var(--cp-text); font-size: var(--settings-text-base); cursor: pointer;
-  input { width: 15px; height: 15px; margin: 0; accent-color: var(--cp-primary); cursor: pointer; }
-}
-.chk--locked { color: var(--cp-text-secondary); cursor: default; }
-.needkey {
-  padding: 30px 20px; text-align: center;
-  border: 1px dashed var(--cp-border-light); border-radius: 12px;
-}
-.needkey__icon {
-  width: 42px; height: 42px; margin: 0 auto 10px;
-  display: grid; place-items: center;
-  color: var(--cp-text-secondary); background: var(--cp-bg-hover); border-radius: 50%;
-}
-.needkey strong { display: block; color: var(--cp-text); font-size: var(--settings-text-base); font-weight: 500; }
-.disc-list { display: flex; flex-direction: column; gap: 1px; }
+.disc-header { display: flex; align-items: center; gap: 16px; min-width: 0; width: 100%; h2 { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; color: var(--cp-text); font-size: var(--settings-text-section); font-weight: 550; overflow-wrap: anywhere; } }
+.disc-count { flex-shrink: 0; padding: 2px 7px; border-radius: 7px; background: var(--cp-bg-hover); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.disc-clear { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: var(--cp-text-secondary); font: inherit; font-size: var(--settings-text-small); cursor: pointer; &:hover:not(:disabled) { background: var(--cp-bg-hover); color: var(--cp-text); } &:disabled { opacity: .4; cursor: default; } }
+.disc-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.disc-state { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 160px; padding: 24px; color: var(--cp-text-secondary); font-size: var(--settings-text-base); text-align: center; overflow-wrap: anywhere; }
+.disc-search { display: flex; align-items: center; flex-shrink: 0; gap: 10px; padding: 10px 12px; margin-bottom: 20px; border: 1px solid var(--cp-border); border-radius: 10px; color: var(--cp-text-secondary); input { min-width: 0; flex: 1; padding: 0; border: 0; outline: none; background: transparent; color: var(--cp-text); font: inherit; font-size: var(--settings-text-base); &::placeholder { color: var(--cp-text-placeholder); } &::-webkit-search-cancel-button { display: none; } } &:focus-within { border-color: var(--cp-text-secondary); } }
+.disc-list { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; scrollbar-width: none; &::-webkit-scrollbar { display: none; } }
 .disc {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px; border-radius: 6px; cursor: pointer;
-  &:hover { background: var(--cp-bg-elevated); }
-  &.is-added { cursor: default; opacity: .6; }
-  input { width: 15px; height: 15px; margin: 0; accent-color: var(--cp-primary); }
+  display: flex; align-items: center; flex-shrink: 0; gap: 12px; width: 100%; min-height: 44px;
+  padding: 8px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--cp-text); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color 150ms ease-out;
+  > .app-icon { color: var(--cp-text-secondary); }
+  &:hover { background: var(--cp-bg-hover); }
+  &.is-added { background: color-mix(in srgb, var(--cp-success) 9%, var(--cp-bg)); &:hover { background: color-mix(in srgb, var(--cp-success) 15%, var(--cp-bg)); } }
+  &:focus-visible { outline: 2px solid var(--cp-text-secondary); outline-offset: -2px; }
 }
-.disc__id {
-  flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px;
-}
+.disc__logo { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border: 1px solid var(--cp-border-light); border-radius: 50%; background: var(--cp-bg); .ai-brand-icon { width: 19px; height: 19px; } }
+.disc__id { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--settings-text-base); }
+:global(.model-discovery.el-drawer) { top: 12px; right: 12px; max-width: calc(100vw - 24px); height: calc(100% - 24px); border-radius: 16px; background: var(--cp-bg); }
+:global(.model-discovery .el-drawer__header) { gap: 12px; margin-bottom: 0; padding: 24px 24px 20px; }
+:global(.model-discovery .el-drawer__body) { overflow: hidden; padding: 0 24px 24px; }
 
 .avatar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .avatar {

@@ -1,20 +1,27 @@
-import { modelProtocol, modelRequestUrl } from '../../src/config/modelProtocol'
-import { ipcMain, shell } from 'electron'
+import { modelApiBaseUrl, modelProtocol, modelRequestUrl } from '../../src/config/modelProtocol'
+import { ipcMain, net, shell } from 'electron'
 import { type ModelProviderInput } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
+import { ModelsDevCatalog } from '../services/modelsDev'
 
 export interface ModelIpcDependencies {
   database: PlatformDatabase
 }
 
 export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
+  const modelsDev = new ModelsDevCatalog((...args) => net.fetch(...args))
+  ipcMain.handle('harness:lookup-model-metadata', (_event, modelId: string) => {
+    if (typeof modelId !== 'string' || modelId.length > 512) return {}
+    return modelsDev.lookup(modelId)
+  })
   ipcMain.handle('harness:list-model-providers', () => database.models.list())
   ipcMain.handle('harness:list-model-services', () => database.models.services())
   ipcMain.handle('harness:get-model-config-path', () => database.models.path())
   ipcMain.handle('harness:get-model-provider-api-key', (_event, id: string) => database.models.getSecret(id))
+  ipcMain.handle('harness:get-model-provider-api-keys', (_event, id: string) => database.models.getApiKeys(id))
   ipcMain.handle('harness:open-model-config-file', () => shell.openPath(database.models.path()))
   ipcMain.handle('harness:list-model-provider-models', async (_event, provider: ModelProviderInput) => {
-    const endpoint = provider.endpoint.trim().replace(/\/+$/, '')
+    const endpoint = modelApiBaseUrl(provider.endpoint)
     if (!endpoint) return { models: [], error: '未填写 Endpoint' }
     const url = /\/models$/i.test(endpoint) ? endpoint : `${endpoint}/models`
     const apiKey = provider.apiKey?.trim() || database.models.getSecret(provider.id || '')
@@ -24,7 +31,7 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
       if (apiKey) headers['x-api-key'] = apiKey
     } else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
+    const timeout = setTimeout(() => controller.abort(), 60_000)
     try {
       const response = await fetch(url, { headers, signal: controller.signal })
       if (!response.ok) return { models: [], error: `请求失败（HTTP ${response.status}）${!apiKey && provider.authMode !== 'none' ? '，请确认已填写 API Key' : ''}` }
@@ -35,9 +42,9 @@ export function registerModelIpcHandlers({ database }: ModelIpcDependencies) {
       })
       const models = [...new Set(ids.filter(Boolean))]
       if (!models.length) return { models: [], error: '接口已响应，但未返回模型列表' }
-      return { models }
+      return { models, metadata: await modelsDev.lookupMany(models) }
     } catch (error) {
-      return { models: [], error: error instanceof Error && error.name === 'AbortError' ? '查询超时（8 秒）' : `查询失败：${error instanceof Error ? error.message : String(error)}` }
+      return { models: [], error: error instanceof Error && error.name === 'AbortError' ? '查询超时（60 秒）' : `查询失败：${error instanceof Error ? error.message : String(error)}` }
     } finally {
       clearTimeout(timeout)
     }

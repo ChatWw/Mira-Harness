@@ -1,11 +1,29 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MODEL_PROTOCOLS, modelProtocol, modelRequestUrl } from '../src/config/modelProtocol'
+import { MODEL_PROTOCOLS, modelApiBaseUrl, modelProtocol, modelRequestUrl } from '../src/config/modelProtocol'
 
 const handlers = new Map<string, Function>()
 vi.mock('electron', () => ({ ipcMain: { handle: (name: string, handler: Function) => handlers.set(name, handler) }, shell: {} }))
 import { registerModelIpcHandlers } from '../electron/ipc/modelIpc'
 
 describe('model request protocols', () => {
+  it.each(['cn', 'ai'])('uses the versioned Moonshot %s API for discovery and connection tests', async region => {
+    const endpoint = `https://api.moonshot.${region}`
+    expect(modelApiBaseUrl(endpoint)).toBe(`${endpoint}/v1`)
+    expect(modelApiBaseUrl(`${endpoint}/v1/`)).toBe(`${endpoint}/v1`)
+    expect(modelApiBaseUrl('https://proxy.example')).toBe('https://proxy.example')
+    expect(modelRequestUrl(endpoint)).toBe(`${endpoint}/v1/chat/completions`)
+    const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ data: [{ id: 'kimi-test' }] }) }))
+    vi.stubGlobal('fetch', fetch)
+    try {
+      registerModelIpcHandlers({ database: { models: { getSecret: () => 'saved-key' } } } as any)
+      const discovery = await handlers.get('harness:list-model-provider-models')!({}, { endpoint })
+      expect(discovery.models).toEqual(['kimi-test'])
+      expect(fetch.mock.calls[0][0]).toBe(`${endpoint}/v1/models`)
+      await handlers.get('harness:test-model-provider')!({}, { endpoint }, 'kimi-test')
+      expect(fetch.mock.calls[1][0]).toBe(`${endpoint}/v1/chat/completions`)
+    } finally { vi.unstubAllGlobals() }
+  })
+
   it('keeps legacy records on completions and avoids duplicate Anthropic versions', () => {
     expect(modelProtocol()).toBe('openai-completions')
     expect(modelProtocol('invalid')).toBe('openai-completions')

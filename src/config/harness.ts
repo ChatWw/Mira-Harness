@@ -179,6 +179,7 @@ export const DEFAULT_MODEL_PRICING: ModelPricing = {
 
 export interface ModelListResult {
   models: string[]
+  metadata?: Record<string, ModelMetadata>
   error?: string
 }
 
@@ -840,6 +841,12 @@ export interface HarnessPermissionRequest {
   workflowReview?: MiraFlowReview
 }
 
+export interface ModelApiKey {
+  id: string
+  label: string
+  value: string
+}
+
 export interface ModelProviderInput {
   id?: string
   /** 原始默认连接标记；默认实例不提供编辑和删除菜单。 */
@@ -854,6 +861,8 @@ export interface ModelProviderInput {
   name: string
   endpoint: string
   apiKey?: string
+  apiKeys?: ModelApiKey[]
+  clearApiKey?: boolean
   authMode?: ModelProviderAuthMode
   protocol?: ModelProtocol
   models: ProviderModelConfig[]
@@ -876,9 +885,13 @@ export interface ModelServiceSummary {
 
 export interface ProviderModelConfig {
   id: string
+  name?: string
   enabled: boolean
+  modelType?: 'chat' | 'image' | 'embedding' | 'reranking'
   reasoning: boolean
+  toolCall?: boolean
   multimodal?: boolean
+  audioInput?: boolean
   pdfInput?: boolean
   videoInput?: boolean
   contextWindow: number
@@ -886,6 +899,9 @@ export interface ProviderModelConfig {
   maxTokens?: number
   pricing?: ModelPricing
 }
+
+export type ModelMetadata = Partial<Pick<ProviderModelConfig, 'name' | 'modelType' | 'reasoning' | 'toolCall' | 'multimodal' | 'audioInput' | 'videoInput' | 'contextWindow' | 'maxTokens'>>
+export interface ModelMetadataResult { model?: ModelMetadata, error?: string }
 
 export interface ModelProviderSummary {
   id: string
@@ -944,6 +960,13 @@ export interface HarnessUsageStats {
 }
 
 export type ModelProviderKey = 'glm' | 'kimi' | 'minimax' | 'deepseek' | 'qwen' | 'ollama' | 'custom'
+
+export const MODEL_PROVIDER_BUILTIN_INSTANCES = [
+  { id: 'glm-cn', providerKey: 'glm', name: '智谱开放平台', endpoint: 'https://open.bigmodel.cn/api/paas/v4', docs: 'https://open.bigmodel.cn/console/modelcenter/square' },
+  { id: 'glm-intl', providerKey: 'glm', name: 'z.ai', endpoint: 'https://api.z.ai/api/paas/v4', docs: 'https://docs.z.ai/api-reference/introduction' },
+  { id: 'kimi-cn', providerKey: 'kimi', name: '月之暗面', endpoint: 'https://api.moonshot.cn', docs: 'https://platform.kimi.com/docs/get-api-key' },
+  { id: 'kimi-intl', providerKey: 'kimi', name: 'Moonshot', endpoint: 'https://api.moonshot.ai', docs: 'https://platform.moonshot.ai/docs/' },
+] as const
 
 export function inferModelReasoning(modelId: string) {
   const value = modelId.toLocaleLowerCase()
@@ -1056,9 +1079,9 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
 
 export const MODEL_PROVIDER_PRESETS = [
   { key: 'glm' as const, name: '智谱开放平台 / GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', authMode: 'api-key' as const, models: ['glm-5.3', 'glm-5.2', 'glm-5.1', 'glm-4.7', 'glm-4.6'] },
-  { key: 'kimi' as const, name: 'Kimi 中国版', endpoint: 'https://api.moonshot.cn/v1', authMode: 'api-key' as const, models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6', 'kimi-k2.5'] },
+  { key: 'kimi' as const, name: '月之暗面', endpoint: 'https://api.moonshot.cn', authMode: 'api-key' as const, models: ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed', 'kimi-k2.6', 'kimi-k2.5'] },
   { key: 'minimax' as const, name: 'MiniMax 中国版', endpoint: 'https://api.minimaxi.com/v1', authMode: 'api-key' as const, models: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'] },
-  { key: 'deepseek' as const, name: '深度求索 / DeepSeek', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key' as const, models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
+  { key: 'deepseek' as const, name: '深度求索', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key' as const, models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'] },
   { key: 'qwen' as const, name: '阿里千问 / Qwen', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', authMode: 'api-key' as const, models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-flash'] },
   { key: 'ollama' as const, name: 'Ollama 本地', endpoint: 'http://127.0.0.1:11434/v1', authMode: 'none' as const, models: ['qwen3', 'llama3.3', 'deepseek-r1', 'gemma3', 'mistral-small3.1'] },
   { key: 'custom' as const, name: '自定义 / Custom', endpoint: '', authMode: 'api-key' as const, models: [''] },

@@ -47,6 +47,7 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
 }): Promise<PlatformServices> {
   prepareMiraDataMigration(miraPaths, legacyUserDataPath)
   const database = new PlatformDatabase(miraPaths)
+  database.models.ensureBuiltinInstances()
   database.harness.migrateLegacyStorage()
   completeMiraDataMigration(miraPaths, legacyUserDataPath)
   if (legacyUserDataPath !== miraPaths.root) removeLegacyUserDataFiles(legacyUserDataPath)

@@ -2,10 +2,10 @@ import { modelProtocol, type ModelProtocol } from '../../src/config/modelProtoco
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import type Database from 'better-sqlite3'
-import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, type ModelPricing, type ModelProviderAuthMode, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding, type ProviderModelConfig } from '../../src/config/harness'
+import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, MODEL_PROVIDER_BUILTIN_INSTANCES, type ModelPricing, type ModelProviderAuthMode, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding, type ProviderModelConfig } from '../../src/config/harness'
 import { MiraPaths } from './miraPaths'
 import { normalizePricing } from '../services/usageCost'
-import type { ModelServiceSummary } from '../../src/config/harness'
+import type { ModelApiKey, ModelServiceSummary } from '../../src/config/harness'
 
 type LegacyJsonModelRecord = {
   id: string
@@ -31,6 +31,7 @@ type JsonProviderRecord = {
   name: string
   endpoint: string
   apiKey: string
+  apiKeys?: ModelApiKey[]
   authMode: ModelProviderAuthMode
   protocol?: ModelProtocol
   models: ProviderModelConfig[]
@@ -74,7 +75,7 @@ function normalizeSlug(value?: string) {
 
 function contextWindow(value: unknown) {
   const tokens = Number(value)
-  return Number.isInteger(tokens) && tokens >= 16384 ? tokens : DEFAULT_CONTEXT_WINDOW
+  return Number.isSafeInteger(tokens) && tokens > 0 ? tokens : DEFAULT_CONTEXT_WINDOW
 }
 
 function normalizeModel(value: unknown): ProviderModelConfig | undefined {
@@ -85,9 +86,13 @@ function normalizeModel(value: unknown): ProviderModelConfig | undefined {
   const pricing = normalizePricing(model.pricing)
   return {
     id,
+    ...(typeof model.name === 'string' && model.name.trim() ? { name: model.name.trim() } : {}),
     enabled: model.enabled !== false,
+    ...(['chat', 'image', 'embedding', 'reranking'].includes(model.modelType || '') ? { modelType: model.modelType } : {}),
     reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : inferModelReasoning(id),
+    ...(typeof model.toolCall === 'boolean' ? { toolCall: model.toolCall } : {}),
     ...(typeof model.multimodal === 'boolean' ? { multimodal: model.multimodal } : {}),
+    ...(typeof model.audioInput === 'boolean' ? { audioInput: model.audioInput } : {}),
     ...(typeof model.pdfInput === 'boolean' ? { pdfInput: model.pdfInput } : {}),
     ...(typeof model.videoInput === 'boolean' ? { videoInput: model.videoInput } : {}),
     contextWindow: contextWindow(model.contextWindow),
@@ -95,6 +100,18 @@ function normalizeModel(value: unknown): ProviderModelConfig | undefined {
       ? { maxTokens: Math.floor(model.maxTokens) } : {}),
     ...(pricing ? { pricing } : {}),
   }
+}
+
+function normalizeApiKeys(values: ModelApiKey[]) {
+  const keys = values.filter(item => typeof item?.value === 'string' && item.value.trim()).map(item => ({
+    id: item.id || randomUUID(), label: typeof item.label === 'string' ? item.label.trim() : '', value: item.value.trim(),
+  }))
+  if (new Set(keys.map(item => item.id)).size !== keys.length || new Set(keys.map(item => item.value)).size !== keys.length) throw new Error('不能添加重复的 API 密钥')
+  return keys
+}
+
+function recordApiKeys(record: JsonProviderRecord): ModelApiKey[] {
+  return record.apiKeys ?? (record.apiKey ? [{ id: `${record.id}-default`, label: '', value: record.apiKey }] : [])
 }
 
 function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
@@ -112,6 +129,7 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
     name: item.name.trim(),
     endpoint: normalizeEndpoint(item.endpoint),
     apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
+    ...(Array.isArray(item.apiKeys) ? { apiKeys: normalizeApiKeys(item.apiKeys) } : {}),
     authMode: item.authMode === 'none' ? 'none' : defaultAuthMode(key),
     protocol: modelProtocol(item.protocol),
     models,
@@ -139,6 +157,29 @@ export class ModelConfigStore {
   }
 
   path() { return this.configPath }
+
+  ensureBuiltinInstances() {
+    const document = this.readDocument(), now = Date.now()
+    const matched = new Set<string>()
+    const hostname = (endpoint: string) => { try { return new URL(endpoint).hostname } catch { return '' } }
+    for (const preset of MODEL_PROVIDER_BUILTIN_INSTANCES) {
+      const instances = document.providers.filter(item => serviceId(item) === preset.providerKey && item.builtin && !matched.has(item.id))
+      let record = instances.find(item => item.name === preset.name)
+        || instances.find(item => hostname(item.endpoint) === hostname(preset.endpoint))
+      // 旧默认连接可能使用代理地址；国内实例承接它，保持 ID、密钥、模型和会话引用。
+      if (!record && preset.id.endsWith('-cn')) record = instances.find(item => !MODEL_PROVIDER_BUILTIN_INSTANCES.some(other => other.providerKey === preset.providerKey && other.id.endsWith('-intl') && (item.id === other.id || item.name === other.name || hostname(item.endpoint) === hostname(other.endpoint))))
+      if (record) { record.name = preset.name; matched.add(record.id) }
+      else document.providers.push({ id: randomUUID(), builtin: true, providerKey: preset.providerKey, slug: preset.providerKey, name: preset.name, endpoint: preset.endpoint, apiKey: '', authMode: 'api-key', protocol: 'openai-completions', models: [], enabled: false, createdAt: now, updatedAt: now })
+    }
+    for (const key of ['glm', 'kimi'] as const) {
+      const preset = MODEL_PROVIDER_BUILTIN_INSTANCES.find(item => item.providerKey === key)!
+      const services = document.services ??= []
+      const service = services.find(item => item.id === key)
+      if (service) { service.name = key === 'glm' ? '智谱' : '月之暗面'; service.hasInstances = true }
+      else services.push({ id: key, providerKey: key, name: key === 'glm' ? '智谱' : '月之暗面', endpoint: preset.endpoint, authMode: 'api-key', protocol: 'openai-completions', hasInstances: true })
+    }
+    this.writeDocument(document)
+  }
 
   private migrateV1Document() {
     let parsed: unknown
@@ -195,14 +236,21 @@ export class ModelConfigStore {
     try {
       const parsed = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<ModelConfigDocument>
       const providers = Array.isArray(parsed.providers) ? parsed.providers.map(normalizeProvider).filter((provider): provider is JsonProviderRecord => Boolean(provider)) : []
+      const services = Array.isArray(parsed.services) ? parsed.services.map(service => ({ ...service })) : []
       // 旧配置没有实例身份：每个内置服务商最早创建的一条为默认实例。
       for (const preset of MODEL_PROVIDER_PRESETS.filter(item => item.key !== 'custom')) {
         const instances = providers.filter(item => item.providerKey === preset.key)
         const builtin = instances.find(item => item.builtin === true)
           || instances.filter(item => item.builtin === undefined).sort((a, b) => a.createdAt - b.createdAt)[0]
         for (const item of instances) item.builtin ??= item === builtin
+        // 兼容旧版内置名称，手动实例和自定义服务商保留原名。
+        if (preset.key === 'deepseek') {
+          const legacyName = '深度求索 / DeepSeek'
+          if (builtin && serviceId(builtin) === preset.key && builtin.name === legacyName) builtin.name = preset.name
+          const service = services.find(item => item.id === preset.key && item.providerKey === preset.key)
+          if (service?.name === legacyName) service.name = preset.name
+        }
       }
-      const services = Array.isArray(parsed.services) ? parsed.services.map(service => ({ ...service })) : []
       // 兼容旧配置：连接 ID 与会话引用不变，仅补齐父服务商信息。
       for (const record of [...providers].sort((a, b) => a.createdAt - b.createdAt)) {
         const id = serviceId(record)
@@ -254,6 +302,8 @@ export class ModelConfigStore {
 
   services(): ModelServiceSummary[] { return this.readDocument().services || [] }
 
+  getApiKeys(id: string) { const record = this.recordById(id); return record ? recordApiKeys(record) : [] }
+
   getSecret(id: string) { return this.recordById(id)?.apiKey || '' }
 
   get(id: string) {
@@ -295,6 +345,8 @@ export class ModelConfigStore {
     }
     const models = input.models.map(normalizeModel).filter((model): model is ProviderModelConfig => Boolean(model))
       .filter((model, index, source) => source.findIndex(candidate => candidate.id === model.id) === index)
+    let apiKeys = existing ? recordApiKeys(existing) : []
+    if (input.apiKeys !== undefined) apiKeys = normalizeApiKeys(input.apiKeys)
     const record: JsonProviderRecord = {
       id: existing?.id || input.id || randomUUID(),
       builtin: existing?.builtin ?? input.builtin === true,
@@ -303,7 +355,8 @@ export class ModelConfigStore {
       slug,
       name: input.name.trim(),
       endpoint: normalizeEndpoint(input.endpoint),
-      apiKey: input.apiKey?.trim() || existing?.apiKey || '',
+      apiKey: input.clearApiKey ? '' : input.apiKey?.trim() || existing?.apiKey || '',
+      ...(input.apiKeys !== undefined || existing?.apiKey || existing?.apiKeys !== undefined ? { apiKeys } : {}),
       authMode: input.authMode || existing?.authMode || defaultAuthMode(key),
       protocol: modelProtocol(input.protocol || existing?.protocol),
       models,

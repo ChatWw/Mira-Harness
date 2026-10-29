@@ -5,6 +5,7 @@ import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ModelConfigStore } from '../electron/storage/modelConfigStore'
 import { MiraPaths } from '../electron/storage/miraPaths'
+import { MODEL_PROVIDER_PRESETS, MODEL_PROVIDER_BUILTIN_INSTANCES } from '../src/config/harness'
 
 const tempDirectories: string[] = []
 const model = (id: string, reasoning = false) => ({ id, enabled: true, reasoning, contextWindow: 64000 })
@@ -37,6 +38,160 @@ afterEach(() => {
 })
 
 describe('ModelConfigStore', () => {
+  it('persists model display names and independent token limits without replacing custom values', () => {
+    const { database, store, directory } = createStore()
+    const configured = { ...model('custom-model'), name: '我的模型', contextWindow: 8192, maxInputTokens: 7000, maxTokens: 1234, multimodal: false }
+    const saved = store.save({ providerKey: 'custom', name: 'Local', endpoint: 'http://localhost:1234/v1', enabled: true, models: [configured] })
+    const { maxInputTokens: _retired, ...expected } = configured
+    expect(new ModelConfigStore(database, directory).get(saved.id)?.models).toEqual([expected])
+    database.close()
+  })
+  it('stores multiple labelled keys independently of the active credential and keeps them out of summaries', () => {
+    const { database, store, directory } = createStore()
+    const saved = store.save({ name: 'Example', endpoint: 'https://example.com/v1', apiKey: 'active-key', models: [model('test')], enabled: true })
+    const keys = [
+      { id: 'one', label: '个人', value: 'stored-key-one' },
+      { id: 'two', label: '工作', value: 'stored-key-two' },
+    ]
+    const updated = store.save({ ...saved, apiKeys: keys })
+    expect(store.getApiKeys(saved.id)).toEqual(keys)
+    expect(store.getSecret(saved.id)).toBe('active-key')
+    expect(updated).toEqual({ ...saved, updatedAt: expect.any(Number) })
+    expect(JSON.stringify(store.list())).not.toContain('stored-key')
+    store.save({ ...updated, endpoint: 'https://proxy.example/v1' })
+    const reopened = new ModelConfigStore(database, directory)
+    expect(reopened.getApiKeys(saved.id)).toEqual(keys)
+    expect(() => reopened.save({ ...updated, apiKeys: [...keys, { id: 'three', label: '', value: 'stored-key-one' }] })).toThrow('不能添加重复')
+    expect(reopened.getApiKeys(saved.id)).toEqual(keys)
+    reopened.save({ ...updated, apiKeys: [{ ...keys[1], label: '工作备用', value: 'edited-key' }] })
+    expect(reopened.getSecret(saved.id)).toBe('active-key')
+    reopened.save({ ...updated, apiKeys: [] })
+    expect(reopened.getSecret(saved.id)).toBe('active-key')
+    expect(reopened.getApiKeys(saved.id)).toEqual([])
+    database.close()
+  })
+
+  it('exposes an old single key in the storage list without changing its ID, bindings or active value', () => {
+    const { database, store } = createStore({ version: 2, providers: [{ id: 'old', providerKey: 'deepseek', name: 'Old', endpoint: 'https://example.com/v1', apiKey: 'legacy-key', models: [model('test')], enabled: true }], bindings: { agentDefault: { providerId: 'old', modelId: 'test' } } })
+    expect(store.getApiKeys('old')).toEqual([{ id: 'old-default', label: '', value: 'legacy-key' }])
+    expect(store.getSecret('old')).toBe('legacy-key')
+    expect(store.bindings().agentDefault?.providerId).toBe('old')
+    store.save({ ...store.get('old')!, apiKey: 'replacement-key' })
+    expect(store.getSecret('old')).toBe('replacement-key')
+    expect(store.getApiKeys('old')).toEqual([{ id: 'old-default', label: '', value: 'legacy-key' }])
+    database.close()
+  })
+  it('clears a key only on explicit deletion and retains models and instance identity', () => {
+    const { database, store } = createStore()
+    const saved = store.save({ name: 'Example', endpoint: 'https://example.com/v1', apiKey: 'old-key', models: [model('test')], enabled: true })
+    store.save({ ...saved, apiKey: '' })
+    expect(store.getSecret(saved.id)).toBe('old-key')
+    const cleared = store.save({ ...saved, clearApiKey: true, enabled: false })
+    expect(store.getSecret(saved.id)).toBe('')
+    expect(store.getApiKeys(saved.id)).toEqual([{ id: `${saved.id}-default`, label: '', value: 'old-key' }])
+    expect(cleared).toMatchObject({ id: saved.id, hasApiKey: false, enabled: false, models: saved.models })
+    store.save({ ...cleared, apiKey: 'replacement' })
+    expect(store.getSecret(saved.id)).toBe('replacement')
+    database.close()
+  })
+  it('seeds both regions once, without enabling unconfigured providers', () => {
+    const { database, store, directory } = createStore()
+    store.ensureBuiltinInstances()
+    const seeded = store.list()
+    expect(seeded).toHaveLength(4)
+    for (const preset of MODEL_PROVIDER_BUILTIN_INSTANCES) {
+      const record = seeded.find(item => item.name === preset.name)!
+      expect(record).toMatchObject({ providerKey: preset.providerKey, slug: preset.providerKey, endpoint: preset.endpoint, builtin: true, enabled: false, hasApiKey: false, models: [] })
+      expect(() => store.delete(record.id)).toThrow('默认实例不能删除')
+    }
+    expect(store.services().map(item => [item.id, item.name, item.hasInstances])).toEqual([
+      ['glm', '智谱', true], ['kimi', '月之暗面', true],
+    ])
+    const reopened = new ModelConfigStore(database, directory)
+    reopened.ensureBuiltinInstances()
+    expect(reopened.list()).toEqual(seeded)
+    database.close()
+  })
+
+  it.each([
+    ['glm', 'https://proxy.example/v4', '智谱开放平台'],
+    ['glm', 'https://api.z.ai/api/paas/v4', 'z.ai'],
+    ['kimi', 'https://api.moonshot.cn/v1', '月之暗面'],
+    ['kimi', 'https://api.moonshot.ai/v1', 'Moonshot'],
+  ])('retains the old %s connection at %s and its references when adding built-ins', (providerKey, endpoint, name) => {
+    const models = [model('saved-model')]
+    const bindings = { agentDefault: { providerId: 'old', modelId: 'saved-model' } }
+    const { database, store, directory } = createStore({ version: 2, providers: [
+      { id: 'old', providerKey, name: 'Legacy default', endpoint, apiKey: 'saved-key', models, enabled: true, createdAt: 10, updatedAt: 20 },
+      { id: 'manual', providerKey, builtin: false, name: 'My instance', endpoint, apiKey: 'manual-key', models, enabled: true, createdAt: 30 },
+    ], bindings })
+    database.prepare('INSERT INTO harness_sessions VALUES (?, ?)').run('session', 'old')
+    database.prepare('INSERT INTO model_role_bindings VALUES (?, ?, ?)').run('agentDefault', 'old', 'saved-model')
+    const manual = store.get('manual')
+    store.ensureBuiltinInstances()
+    expect(store.get('old')).toMatchObject({ id: 'old', name, endpoint, models, enabled: true, createdAt: 10, updatedAt: 20 })
+    expect(store.getSecret('old')).toBe('saved-key')
+    expect(store.get('manual')).toEqual(manual)
+    expect(store.getSecret('manual')).toBe('manual-key')
+    expect(store.bindings()).toEqual(bindings)
+    expect(database.prepare('SELECT model_provider_id FROM harness_sessions').get()).toEqual({ model_provider_id: 'old' })
+    expect(database.prepare('SELECT provider_id FROM model_role_bindings').get()).toEqual({ provider_id: 'old' })
+    expect(store.list().filter(item => item.providerKey === providerKey && item.builtin)).toHaveLength(2)
+    const reopened = new ModelConfigStore(database, directory)
+    const before = reopened.list()
+    reopened.ensureBuiltinInstances()
+    expect(reopened.list()).toEqual(before)
+    database.close()
+  })
+
+  it('keeps both instance identities when their endpoints are edited or reused', () => {
+    const { database, store } = createStore()
+    store.ensureBuiltinInstances()
+    const domestic = store.list().find(item => item.name === '智谱开放平台')!
+    const international = store.list().find(item => item.name === 'z.ai')!
+    store.save({ ...domestic, endpoint: international.endpoint, apiKey: 'domestic-key' })
+    store.save({ ...international, endpoint: 'https://proxy.example/v4', apiKey: 'international-key' })
+    const before = store.list()
+    store.ensureBuiltinInstances()
+    store.ensureBuiltinInstances()
+    expect(store.list()).toEqual(before)
+    expect(store.getSecret(domestic.id)).toBe('domestic-key')
+    expect(store.getSecret(international.id)).toBe('international-key')
+    database.close()
+  })
+
+  it.each([false, true])('uses the settings name for legacy DeepSeek defaults with persisted service=%s', persistedService => {
+    const legacyName = '深度求索 / DeepSeek'
+    const endpoint = 'https://api.deepseek.com/v1'
+    const models = [model('deepseek-flash')]
+    const bindings = { agentDefault: { providerId: 'default', modelId: models[0].id } }
+    const { database, store, directory } = createStore({ version: 2, providers: [
+      { id: 'default', providerKey: 'deepseek', name: legacyName, endpoint, apiKey: 'saved-key', models, enabled: true, createdAt: 10, updatedAt: 20, ...(persistedService ? { builtin: true, slug: 'deepseek' } : {}) },
+      { id: 'manual', providerKey: 'deepseek', builtin: false, name: legacyName, endpoint, models: [], createdAt: 30 },
+      { id: 'proxy', providerKey: 'custom', builtin: true, slug: 'proxy', name: legacyName, endpoint, models: [], createdAt: 40 },
+    ], bindings, ...(persistedService ? { services: [
+      { id: 'deepseek', providerKey: 'deepseek', name: legacyName, endpoint, authMode: 'api-key', protocol: 'openai-completions', hasInstances: true },
+    ] } : {}) })
+
+    expect(store.list().find(item => item.id === 'default')).toMatchObject({ name: '深度求索', endpoint, models, enabled: true, createdAt: 10, updatedAt: 20 })
+    expect(store.services().find(item => item.id === 'deepseek')?.name).toBe('深度求索')
+    expect(MODEL_PROVIDER_PRESETS.find(item => item.key === 'deepseek')?.name).toBe('深度求索')
+    expect(store.get('manual')?.name).toBe(legacyName)
+    expect(store.get('proxy')?.name).toBe(legacyName)
+    expect(store.services().find(item => item.id === 'proxy')?.name).toBe(legacyName)
+    expect(store.getSecret('default')).toBe('saved-key')
+    expect(store.bindings()).toEqual(bindings)
+
+    store.save({ ...store.get('default')!, endpoint: 'https://proxy.example/v1' })
+    const reopened = new ModelConfigStore(database, directory)
+    expect(reopened.get('default')?.name).toBe('深度求索')
+    expect(reopened.getSecret('default')).toBe('saved-key')
+    expect(reopened.bindings()).toEqual(bindings)
+    expect(reopened.get('manual')?.name).toBe(legacyName)
+    expect(reopened.get('proxy')?.name).toBe(legacyName)
+    database.close()
+  })
+
   it.each([false, true])('deletes a manual service with children=%s, its connections and role bindings', expanded => {
     const { database, store, directory } = createStore()
     const root = store.save({ providerKey: 'custom', slug: 'myProvider', builtin: true, serviceName: '我的服务商', name: '我的服务商', endpoint: 'https://example.com', apiKey: 'root-key', models: [model('root-model')], enabled: true })
@@ -150,6 +305,14 @@ describe('ModelConfigStore', () => {
     expect(saved.models[0]).toMatchObject({ multimodal: false, pdfInput: true, videoInput: true })
     expect(new ModelConfigStore(database, new MiraPaths(directory)).list()[0].models).toEqual(saved.models)
     expect(saved.models[1].pdfInput).toBeUndefined(); expect(saved.models[1].videoInput).toBeUndefined()
+    database.close()
+  })
+  it('round trips model types and explicit tool/audio flags while leaving old records unspecified', () => {
+    const { database, store, directory } = createStore()
+    const types = ['chat', 'image', 'embedding', 'reranking'] as const
+    const models = types.map((modelType, i) => ({ ...model(`type-${i}`), modelType, toolCall: i === 0, audioInput: i === 0, videoInput: i === 0 }))
+    const saved = store.save({ providerKey: 'custom', name: 'Catalog', endpoint: 'http://localhost:1234/v1', models: [...models, model('legacy-model')], enabled: true })
+    expect(new ModelConfigStore(database, directory).get(saved.id)?.models).toEqual([...models, model('legacy-model')])
     database.close()
   })
   it('persists a custom provider slug and per-model maxTokens', () => {

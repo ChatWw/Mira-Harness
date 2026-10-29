@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-20T09:49:58.679Z",
         "reason": "Agent reviewed: ZCode 3c5b2276 ConversationHost.tsx lines 427 and 469 intentionally use 150ms height transitions; docs/ui/side-pane-full-view.md specifies the drawer height motion. Mira preserves this requested source behavior, uses a fixed-height inner conversation, disables transitions during dragging/minimizing, and respects reduced motion."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "sf mono",
+        "files": [
+          "src/pages/backend/modelConfig/index.vue"
+        ],
+        "createdAt": "2026-10-29T08:56:30.836Z",
+        "reason": "Agent: existing API URL fields use a monospace fallback for technical data, consistent with DESIGN.md Typography; capability icons do not introduce this font."
       }
     ]
   }

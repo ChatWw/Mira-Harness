@@ -6,6 +6,7 @@ export interface MiraModelOption {
   providerId: string
   providerName: string
   modelId: string
+  modelName?: string
   reasoning: boolean
   multimodal?: boolean
 }
@@ -46,7 +47,7 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
     else groups.set(model.providerId, [model])
   }
   const search = query.trim().toLocaleLowerCase()
-  const matches = models.filter(model => `${model.providerName} ${model.modelId}`.toLocaleLowerCase().includes(search))
+  const matches = models.filter(model => `${model.providerName} ${model.modelName || ''} ${model.modelId}`.toLocaleLowerCase().includes(search))
   function searchKey(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return }
     if (event.key === 'Escape' || event.key === 'Tab') return
@@ -62,7 +63,7 @@ export function MiraModelMenu({ open, ownerKey, models, selected, container, dis
       const model = models.find(item => modelKey(item) === value)
       if (model) onSelect(model)
     }}>{options.map(model => <DropdownMenu.RadioItem key={modelKey(model)} value={modelKey(model)} disabled={disabled} data-mira-model-row className="harness-composer__menu-item mira-model-menu__option">
-      <span title={model.modelId}><strong>{model.modelId}</strong>{showProvider && <small>{model.providerName}</small>}</span>
+      <span title={model.modelId}><strong>{model.modelName || model.modelId}</strong>{showProvider && <small>{model.providerName}</small>}</span>
       {model.multimodal && <Image size={14} aria-label="支持图片输入" className="mira-model-menu__capability" />}
       {model.reasoning && <Brain size={14} aria-label="支持推理" className="mira-model-menu__capability" />}
       <DropdownMenu.ItemIndicator className="harness-composer__check"><Check size={16} /></DropdownMenu.ItemIndicator>

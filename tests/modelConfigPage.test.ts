@@ -9,19 +9,27 @@ import Page from '../src/pages/backend/modelConfig/index.vue'
 import { ModelConfigStore } from '../electron/storage/modelConfigStore'
 import { createVueNodeRenderer, withVueClientRender, type VueTestNode } from './helpers/vueNodeRenderer'
 import type { ModelProviderInput } from '../src/config/harness'
+import ModelEditorDialog from '../src/pages/backend/modelConfig/components/ModelEditorDialog.vue'
+import ModelCapabilities from '../src/pages/backend/modelConfig/components/ModelCapabilities.vue'
+import AiBrandIcon from '../src/components/AiBrandIcon/index.vue'
 
 const host = vi.hoisted(() => ({ api: undefined as any, preferences: {} as Record<string, any>, confirm: vi.fn(async () => undefined), openMenu: vi.fn() }))
 vi.mock('vue', async importOriginal => ({ ...await importOriginal<typeof import('vue')>(), vModelText: {}, vModelCheckbox: {} }))
 vi.mock('@/platform', () => ({ getPlatformApi: () => host.api, getPreference: (key: string, fallback: unknown) => host.preferences[key] ?? fallback, savePreference: (key: string, value: unknown) => { host.preferences[key] = value } }))
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() }, ElMessageBox: { confirm: host.confirm } }))
 vi.mock('../src/pages/backend/settings/components/SettingsPageShell.vue', () => ({ default: { setup: (_: unknown, { slots }: any) => () => h('main', slots.default?.()) } }))
+vi.mock('../src/pages/backend/settings/components/SettingsTooltip.vue', () => ({ default: { setup: (_: unknown, { slots }: any) => () => h('tooltip', slots.default?.()) } }))
+vi.mock('../src/pages/backend/modelConfig/components/ModelCredentials.vue', () => ({ default: { render: () => null } }))
+Object.assign(ModelEditorDialog, withVueClientRender(ModelEditorDialog, new URL('../src/pages/backend/modelConfig/components/ModelEditorDialog.vue', import.meta.url)))
+Object.assign(ModelCapabilities, withVueClientRender(ModelCapabilities, new URL('../src/pages/backend/modelConfig/components/ModelCapabilities.vue', import.meta.url)))
+Object.assign(AiBrandIcon, withVueClientRender(AiBrandIcon, new URL('../src/components/AiBrandIcon/index.vue', import.meta.url)))
 const ActualPage = withVueClientRender(Page, new URL('../src/pages/backend/modelConfig/index.vue', import.meta.url))
 Object.assign(ActualPage, { directives: { loading: {} } })
 const passthrough = (tag: string) => defineComponent({ inheritAttrs: false, setup: (_, { attrs, slots }) => () => h(tag, attrs, [slots.default?.(), slots.footer?.()]) })
-const components = Object.fromEntries(['ElButton', 'ElButtonGroup', 'ElInput', 'ElSwitch', 'ElSelect', 'ElOption', 'ElDropdownMenu', 'ElDropdownItem', 'AppIcon'].map(name => [name, passthrough(name)]))
+const components = Object.fromEntries(['ElButton', 'ElButtonGroup', 'ElInput', 'ElSwitch', 'ElSelect', 'ElOption', 'ElDropdownMenu', 'ElDropdownItem', 'ElTooltip', 'AppIcon'].map(name => [name, passthrough(name)]))
 Object.assign(components, {
   ElDialog: defineComponent({ props: ['modelValue', 'title'], setup: (props, { slots }) => () => props.modelValue ? h('dialog', { title: props.title }, [slots.default?.(), slots.footer?.()]) : null }),
-  ElDrawer: defineComponent({ setup: () => () => null }),
+  ElDrawer: defineComponent({ props: ['modelValue', 'title'], emits: ['update:modelValue'], setup: (props, { slots, emit }) => () => props.modelValue ? h('drawer', { title: props.title }, [h('button', { 'aria-label': '关闭同步抽屉', onClick: () => emit('update:modelValue', false) }), slots.header?.({ titleId: 'drawer-title' }), slots.default?.(), slots.footer?.()]) : null }),
   ElDropdown: defineComponent({ setup: (_, { attrs, slots, expose }) => { expose({ handleOpen: host.openMenu, handleClose: vi.fn() }); return () => h('ElDropdown', attrs, slots.dropdown?.()) } }),
 })
 const mounted: Array<{ unmount(): void }> = []
@@ -52,9 +60,11 @@ beforeEach(() => {
   host.preferences = { modelProviderExpanded: ['deepseek'] }
   host.confirm.mockClear(); host.openMenu.mockClear()
   vi.mocked(ElMessage.success).mockClear()
+  vi.mocked(ElMessage.warning).mockClear(); vi.mocked(ElMessage.error).mockClear()
   host.api = {
     listModelProviders: vi.fn(async () => store.list()), listModelServices: vi.fn(async () => store.services()),
     getModelProviderApiKey: vi.fn(async (id: string) => store.getSecret(id)),
+    listModelProviderModels: vi.fn(async () => ({ models: ['test', 'new-model'] })),
     saveModelProvider: vi.fn(async (input: ModelProviderInput) => store.save(structuredClone(input))),
     deleteModelProvider: vi.fn(async (id: string) => store.delete(id)),
     deleteModelService: vi.fn(async (id: string) => store.deleteService(id)),
@@ -63,6 +73,150 @@ beforeEach(() => {
 afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); database.close(); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
 
 describe('two-level model service tree', () => {
+  it('opens discovery immediately and shows loading until a slow model list arrives', async () => {
+    let resolve!: (result: { models: string[] }) => void
+    host.api.listModelProviderModels.mockReturnValue(new Promise(done => { resolve = done }))
+    const view = setup(); await drain()
+    const pending = view.click(view.find(node => node.type === 'ElButton' && text(node).includes('同步模型')))
+    await drain()
+    expect(view.find(node => node.type === 'drawer').props.title).toBe('深度求索 模型')
+    expect(text(view.find(node => node.props.role === 'status'))).toContain('正在同步模型')
+    expect(view.all().some(node => text(node) === '未获取到模型')).toBe(false)
+    resolve({ models: ['slow-model'] }); await pending
+    expect(view.all().some(node => node.props.role === 'status')).toBe(false)
+    expect(view.find(node => node.props['aria-label'] === '添加 slow-model')).toBeDefined()
+  })
+  it.each(['result', 'rejection'])('shows a synchronization %s inline and supports retry without error popups', async failure => {
+    if (failure === 'result') host.api.listModelProviderModels.mockResolvedValueOnce({ models: [], error: '查询超时（60 秒）' })
+    else host.api.listModelProviderModels.mockRejectedValueOnce(new Error('网络连接失败'))
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.type === 'ElButton' && text(node).includes('同步模型')))
+    expect(view.find(node => node.type === 'drawer')).toBeDefined()
+    expect(text(view.find(node => node.props.role === 'alert'))).toContain(failure === 'result' ? '查询超时（60 秒）' : '网络连接失败')
+    expect(ElMessage.warning).not.toHaveBeenCalled(); expect(ElMessage.error).not.toHaveBeenCalled()
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '重试'))
+    expect(view.all().some(node => node.props.role === 'alert')).toBe(false)
+    expect(view.find(node => node.props['aria-label'] === '添加 new-model')).toBeDefined()
+  })
+  it('ignores a closed discovery request when a newer synchronization is still loading', async () => {
+    const resolves: Array<(result: { models: string[] }) => void> = []
+    host.api.listModelProviderModels.mockImplementation(() => new Promise(done => resolves.push(done)))
+    const view = setup(); await drain()
+    const button = () => view.find(node => node.type === 'ElButton' && text(node).includes('同步模型'))
+    const first = view.click(button()); await drain()
+    await view.click(view.find(node => node.props['aria-label'] === '关闭同步抽屉'))
+    const second = view.click(button()); await drain()
+    resolves[0]({ models: ['stale-model'] }); await first
+    expect(view.find(node => node.props.role === 'status')).toBeDefined()
+    expect(view.all().some(node => text(node).includes('stale-model'))).toBe(false)
+    resolves[1]({ models: ['current-model'] }); await second
+    expect(view.find(node => node.props['aria-label'] === '添加 current-model')).toBeDefined()
+  })
+  it('closes discovery when switching instances and discards the previous instance response', async () => {
+    addInstance()
+    let resolve!: (result: { models: string[] }) => void
+    host.api.listModelProviderModels.mockReturnValue(new Promise(done => { resolve = done }))
+    const view = setup(); await drain()
+    const pending = view.click(view.find(node => node.type === 'ElButton' && text(node).includes('同步模型'))); await drain()
+    await view.click(view.row('深度求索1', 'instance'))
+    resolve({ models: ['stale-model'] }); await pending
+    expect(view.all().some(node => node.type === 'drawer')).toBe(false)
+    expect(view.all().some(node => node.props.role === 'status')).toBe(false)
+  })
+  it('saves models from the centered editor and displays their names while preserving request IDs', async () => {
+    host.api.lookupModelMetadata = vi.fn(async () => ({}))
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.type === 'ElButton' && node.props['aria-label'] === '添加模型'))
+    const dialog = view.find(node => node.type === 'dialog')
+    expect(dialog.props.title).toBe('添加模型')
+    const id = view.find(node => node.type === 'ElInput' && node.props['aria-label'] === '模型 ID')
+    ;(id.props['onUpdate:modelValue'] as Function)('manual-model'); await drain()
+    await view.change('模型名称', '手动模型')
+    await view.click(view.find(node => node.type === 'ElButton' && text(node) === '添加模型'))
+    await new Promise(resolve => setTimeout(resolve, 300)); await drain()
+    expect(store.get('default')?.models).toContainEqual(expect.objectContaining({ id: 'manual-model', name: '手动模型' }))
+    expect(view.all().some(node => node.type === 'span' && text(node) === '手动模型' && node.props.title === 'manual-model')).toBe(true)
+    expect(host.api.lookupModelMetadata).not.toHaveBeenCalled()
+  })
+  it('enables previously disabled models while keeping the instance switch independent and preserving model settings', async () => {
+    store.save({ ...original, enabled: false, models: [{ ...model, enabled: false }] })
+    const view = setup(); await drain()
+    expect(view.all().filter(node => node.type === 'ElSwitch')).toHaveLength(1)
+    expect(view.find(node => node.type === 'ElSwitch').props['aria-label']).toBe('启用服务商')
+    expect(view.all().some(node => node.props.class === 'mrow__logo')).toBe(true)
+    expect(view.all().some(node => node.props.class === 'mrow__model')).toBe(false)
+    await new Promise(resolve => setTimeout(resolve, 300)); await drain()
+    expect(store.get('default')?.models).toEqual([model])
+    expect(store.get('default')?.enabled).toBe(false)
+  })
+
+  it('adds and removes synchronized models directly and clears all instance models without losing remaining metadata', async () => {
+    const metadata = { name: '自动模型', reasoning: true, multimodal: true, toolCall: true, audioInput: true, videoInput: true, contextWindow: 200000, maxTokens: 64000 }
+    const existing = { ...model, multimodal: false, toolCall: false }
+    const enriched = { ...existing, audioInput: true }
+    host.api.listModelProviderModels.mockResolvedValue({ models: ['test', 'new-model'], metadata: { test: { reasoning: false, multimodal: true, toolCall: true, audioInput: true }, 'new-model': metadata } })
+    store.save({ ...original, models: [existing, { ...model, id: 'manual-model' }] })
+    const view = setup(); await drain()
+    await view.click(view.find(node => node.type === 'ElButton' && text(node).includes('同步模型')))
+    expect(view.find(node => node.type === 'drawer').props.title).toBe('深度求索 模型')
+    expect(text(view.find(node => node.props.class === 'disc-count'))).toBe('2')
+    expect(view.find(node => node.props['aria-label'] === '移除 test').props['aria-pressed']).toBe(true)
+    const icons = (node: VueTestNode): string[] => node.props.role === 'img' ? [node.props['aria-label'] as string] : node.children.flatMap(icons)
+    expect(icons(view.find(node => node.props['aria-label'] === '移除 test'))).toEqual(['文本', '音频', '推理'])
+    expect(icons(view.find(node => node.props['aria-label'] === '添加 new-model'))).toEqual(['文本', '视觉', '音频', '视频', '推理', '工具'])
+    await view.click(view.find(node => node.props['aria-label'] === '添加 new-model'))
+    expect(view.find(node => node.props['aria-label'] === '移除 new-model').props['aria-pressed']).toBe(true)
+    await new Promise(resolve => setTimeout(resolve, 300)); await drain()
+    expect(store.get('default')?.models).toEqual([enriched, { ...model, id: 'manual-model' }, { id: 'new-model', enabled: true, ...metadata }])
+    const row = view.all().find(node => node.props.class === 'mrow' && text(node).includes('自动模型'))!
+    expect(icons(row)).toEqual(['文本', '视觉', '音频', '视频', '推理', '工具'])
+    await view.click(view.find(node => node.props['aria-label'] === '移除 new-model'))
+    await new Promise(resolve => setTimeout(resolve, 300)); await drain()
+    expect(store.get('default')?.models).toEqual([enriched, { ...model, id: 'manual-model' }])
+    await view.click(view.find(node => node.props.class === 'disc-clear'))
+    expect(view.find(node => node.props.class === 'disc-clear').props.disabled).toBe(true)
+    await new Promise(resolve => setTimeout(resolve, 300)); await drain()
+    expect(store.get('default')?.models).toEqual([])
+    expect(store.getSecret('default')).toBe('original-key')
+    expect(host.api.listModelProviderModels).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['deepseek', 'https://api.deepseek.com', 'https://api-docs.deepseek.com/zh-cn/'],
+    ['glm', 'https://open.bigmodel.cn/api/paas/v4', 'https://open.bigmodel.cn/console/modelcenter/square'],
+    ['glm', 'https://api.z.ai/api/paas/v4', 'https://docs.z.ai/api-reference/introduction'],
+    ['kimi', 'https://api.moonshot.cn/v1', 'https://platform.kimi.com/docs/get-api-key'],
+    ['kimi', 'https://api.moonshot.ai/v1', 'https://platform.moonshot.ai/docs/'],
+    ['minimax', 'https://api.minimaxi.com/v1', 'https://platform.minimax.io/document/Models'],
+    ['qwen', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'https://platform.qianwenai.com/docs/developer-guides/getting-started/introduction'],
+    ['ollama', 'http://127.0.0.1:11434/v1', 'https://ollama.com/library'],
+  ])('opens the corresponding model documentation for %s at %s', async (providerKey, endpoint, href) => {
+    addInstance({ id: 'docs-case', name: 'Docs instance', providerKey: providerKey as ModelProviderInput['providerKey'], slug: providerKey, endpoint })
+    host.preferences.modelProviderExpanded = [providerKey]
+    const view = setup(); await drain()
+    await view.click(view.row('Docs instance', 'instance'))
+    expect(view.find(node => node.type === 'a' && node.props['aria-label'] === '模型文档').props).toMatchObject({ href, target: '_blank', rel: 'noopener noreferrer' })
+    expect(view.all().some(node => node.props.class === 'mtoolbar')).toBe(false)
+    expect(view.all().some(node => node.props['aria-label'] === '搜索模型' && node.type === 'input')).toBe(false)
+  })
+
+  it('shows domestic and international built-in instances with their own documentation', async () => {
+    store.ensureBuiltinInstances()
+    host.preferences.modelProviderExpanded = ['glm', 'kimi']
+    const view = setup(); await drain()
+    expect(view.children()).toEqual(['智谱开放平台', 'z.ai', '月之暗面', 'Moonshot'])
+    expect(view.row('月之暗面')).toBeDefined()
+    for (const [name, href] of [
+      ['智谱开放平台', 'https://open.bigmodel.cn/console/modelcenter/square'],
+      ['z.ai', 'https://docs.z.ai/api-reference/introduction'],
+      ['月之暗面', 'https://platform.kimi.com/docs/get-api-key'],
+      ['Moonshot', 'https://platform.moonshot.ai/docs/'],
+    ]) {
+      await view.click(view.row(name, 'instance'))
+      expect(view.find(node => node.type === 'a' && node.props['aria-label'] === '模型文档').props.href).toBe(href)
+    }
+  })
+
   it('displays the provider name for a default instance with a legacy name', async () => {
     store.save({ ...original, name: '深度求索 / DeepSeek' })
     addInstance()
@@ -70,7 +224,7 @@ describe('two-level model service tree', () => {
     expect(view.children()).toEqual(['深度求索1', '深度求索'])
     await view.click(view.row('深度求索', 'instance'))
     expect(text(view.find(node => node.props.class === 'panel__ep'))).toBe('深度求索')
-    expect(store.get('default')?.name).toBe('深度求索 / DeepSeek')
+    expect(store.get('default')?.name).toBe('深度求索')
     expect(store.getSecret('default')).toBe('original-key')
     expect(store.get('default')?.models).toEqual([model])
   })
@@ -97,7 +251,7 @@ describe('two-level model service tree', () => {
     expect(view.row('深度求索').children.some(node => node.props['aria-label'] === '深度求索 操作')).toBe(false)
     expect(view.all().some(node => node.props['aria-label'] === '收起 深度求索')).toBe(true)
     const slot = view.row('深度求索').children.find(node => node.props.class === 'row__slot')!
-    expect(slot.children.some(node => node.props.class === 'dot')).toBe(false)
+    expect(slot.children.some(node => node.props.class === 'dot')).toBe(true)
     await view.click(view.find(node => node.props['aria-label'] === '智谱 操作'))
     expect(view.menuItems()).toEqual(['添加实例'])
     expect(view.all().filter(node => node.type === 'AppIcon' && node.props.name === 'lucide:ellipsis-vertical').length).toBeGreaterThan(0)

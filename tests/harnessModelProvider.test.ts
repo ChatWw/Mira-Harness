@@ -7,6 +7,15 @@ const configuredModel: ProviderModelConfig = { id: 'local-model', enabled: true,
 const provider = { id: 'local', providerKey: 'ollama', name: 'Local', endpoint: 'http://127.0.0.1:12345/v1', models: [configuredModel], enabled: true, hasApiKey: false, createdAt: 0, updatedAt: 0 } as ModelProviderSummary
 
 describe('createHarnessModelProvider', () => {
+  it('uses the configured context window and ignores a retired input limit without changing the request ID', () => {
+    const configured = { ...configuredModel, name: '我的模型', contextWindow: 128000, maxInputTokens: 96000, maxTokens: 32000 }
+    const { model } = createHarnessModelProvider(provider, configured, '')
+    expect(model).toMatchObject({ id: configuredModel.id, name: '我的模型', contextWindow: 128000, maxTokens: 32000 })
+  })
+  it.each(['cn', 'ai'])('uses the versioned Moonshot %s base URL in the agent SDK', region => {
+    const { model } = createHarnessModelProvider({ ...provider, providerKey: 'kimi', endpoint: `https://api.moonshot.${region}` }, configuredModel, 'test-key')
+    expect(model.baseUrl).toBe(`https://api.moonshot.${region}/v1`)
+  })
   it.each(['openai-completions', 'openai-responses', 'anthropic-messages'] as const)('selects the configured %s adapter', protocol => {
     const { model } = createHarnessModelProvider({ ...provider, protocol }, configuredModel, '')
     expect(model.api).toBe(protocol)

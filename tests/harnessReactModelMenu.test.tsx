@@ -37,6 +37,14 @@ async function fixture(options = models) {
 }
 
 describe('Mira provider model menu', () => {
+  it('searches the display name while retaining the exact request model ID on selection', async () => {
+    const option = { ...models[0], modelName: '手动模型名称' }
+    const view = await fixture([option]); await view.search('手动模型')
+    expect(document.querySelector('[role="menuitemradio"]')?.textContent).toContain('手动模型名称')
+    await key(view.input, 'ArrowDown'); await key(document.activeElement as HTMLElement, 'Enter')
+    expect(view.selected).toHaveBeenCalledExactlyOnceWith(option)
+    expect(view.selected.mock.calls[0][0].modelId).toBe('b:c')
+  })
   it('returns from a provider submenu to the model menu on Escape before closing the model menu', async () => {
     const view = await fixture()
     await key(view.input, 'ArrowDown')

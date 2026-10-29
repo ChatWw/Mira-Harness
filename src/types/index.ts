@@ -175,8 +175,10 @@ export interface PlatformApi {
   listModelServices(): Promise<import('@/config/harness').ModelServiceSummary[]>
   getModelConfigPath(): Promise<string>
   getModelProviderApiKey(id: string): Promise<string>
+  getModelProviderApiKeys(id: string): Promise<import('../config/harness').ModelApiKey[]>
   openModelConfigFile(): Promise<string>
   listModelProviderModels(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelListResult>
+  lookupModelMetadata(modelId: string): Promise<import('@/config/harness').ModelMetadataResult>
   saveModelProvider(provider: import('@/config/harness').ModelProviderInput): Promise<import('@/config/harness').ModelProviderSummary>
   deleteModelProvider(id: string): Promise<void>
   deleteModelService(id: string): Promise<void>

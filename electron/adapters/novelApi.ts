@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { modelApiBaseUrl } from '../../src/config/modelProtocol'
 import { isModelProviderAvailable, providerModel, type ModelSelection } from '../../src/config/harness'
 import type { PlatformDatabase } from '../storage/database'
 import { corsHeadersFor } from './localMicroAppServer'
@@ -6,7 +7,7 @@ import { corsHeadersFor } from './localMicroAppServer'
 const NOVEL_MODEL_ROLES = new Set(['authoring', 'automation'])
 
 function normalizeEndpoint(endpoint: string) {
-  const trimmed = endpoint.trim().replace(/\/+$/, '')
+  const trimmed = modelApiBaseUrl(endpoint)
   if (!trimmed) return ''
   return /\/chat\/completions$/i.test(trimmed) ? trimmed : `${trimmed}/chat/completions`
 }

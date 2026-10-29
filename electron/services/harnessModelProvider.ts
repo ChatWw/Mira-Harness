@@ -1,4 +1,4 @@
-import { modelProtocol } from '../../src/config/modelProtocol'
+import { modelApiBaseUrl, modelProtocol } from '../../src/config/modelProtocol'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { createModels, createProvider } from '@earendil-works/pi-ai'
@@ -15,9 +15,10 @@ export function supportsHarnessImages(configuredModel: ProviderModelConfig) {
 export function createHarnessModelProvider(provider: ModelProviderSummary, configuredModel: ProviderModelConfig, apiKey: string, trace?: MiraModelTraceContext) {
   const protocol = modelProtocol(provider.protocol)
   // Anthropic SDK adds /v1/messages itself; accept either form shown by the settings preview.
-  const baseUrl = protocol === 'anthropic-messages' ? provider.endpoint.replace(/\/(?:v1\/messages|v1)\/?$/, '') : provider.endpoint
+  const endpoint = modelApiBaseUrl(provider.endpoint)
+  const baseUrl = protocol === 'anthropic-messages' ? endpoint.replace(/\/(?:v1\/messages|v1)\/?$/, '') : endpoint
   const model = {
-    id: configuredModel.id, name: configuredModel.id, api: protocol, provider: 'mira-openai', baseUrl,
+    id: configuredModel.id, name: configuredModel.name || configuredModel.id, api: protocol, provider: 'mira-openai', baseUrl,
     reasoning: configuredModel.reasoning, compat: configuredModel.reasoning ? { supportsReasoningEffort: true } : undefined,
     input: supportsHarnessImages(configuredModel) ? ['text', 'image'] : ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: configuredModel.contextWindow || DEFAULT_CONTEXT_WINDOW,
     // 未显式配置时沿用旧默认值；配置后按模型实际上限发送。
