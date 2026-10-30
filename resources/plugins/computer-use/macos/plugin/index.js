@@ -49,6 +49,7 @@ let closed = false
 const track = child => { children.add(child); child.once('exit', () => children.delete(child)); return child }
 export function dispose() {
   closed = true
+  clearInterval(configTimer)
   for (const child of children) child.kill('SIGKILL')
   children.clear()
   for (const dir of scratch) removeDir(dir)
@@ -70,6 +71,11 @@ let cursorStarting = null
 
 const cursorOn = () => readConfig().showCursor !== false
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// Existing MCP sessions also follow the persisted switch; only their own overlay is stopped.
+const configTimer = setInterval(() => {
+  try { if (!cursorOn()) for (const child of children) if (child.spawnfile === OVERLAY) child.kill('SIGTERM') } catch {}
+}, 500)
+configTimer.unref()
 
 function fifoOpen() {
   try {
@@ -105,7 +111,7 @@ async function startCursor() {
 export async function prepareFeedback(name) {
   await ensureCursor()
   const labels = { desktop_click: '点击', desktop_type: '输入文字', desktop_launch: '打开应用', desktop_scroll: '滚动', desktop_drag: '拖拽', desktop_key: '按键' }
-  cursorSay('label ' + (labels[name] ?? '操作电脑'))
+  cursorSay('show-current', 'label ' + (labels[name] ?? '操作电脑'))
 }
 
 /** 给浮层发几行指令（move / label / click …）。浮层没在跑就算了，绝不拖慢操作。 */

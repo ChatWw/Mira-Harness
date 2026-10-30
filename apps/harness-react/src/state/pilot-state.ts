@@ -115,7 +115,7 @@ export interface PilotHost {
   getArchivedSnapshot?(): Promise<HarnessArchivedSnapshot>
   deleteArchivedSessions?(snapshotId: string): Promise<HarnessArchivedDeletionResult>
   searchConversations?(query: string): Promise<HarnessConversationSearchResult[]>
-  onHarnessControl?(listener: (action: MiraHarnessControlAction) => void): () => void
+  onHarnessControl?(listener: (action: MiraHarnessControlAction, sessionId?: string) => void): () => void
   publishHarnessControls?(state: MiraHarnessControlsState): void
   onFullViewToggle?(listener: () => void): () => void
   onCommandCenterOpen?(listener: (focusRequestId?: string) => void): () => void
@@ -165,6 +165,9 @@ export interface PilotHost {
   listPromptCommands?(scope: { projectId?: string; sessionId?: string }): Promise<import('../../../../src/config/miraPromptCommands').MiraPromptCommandItem[]>
   listUserAgents?(scope: { projectId?: string; sessionId?: string }): Promise<import('../../../../src/config/miraUserAgents').MiraUserAgentItem[]>
   listPlugins?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
+  getComputerUseStatus?(): Promise<import('../../../../src/config/miraComputerUse').MiraComputerStatus>
+  setComputerUseCursor?(showCursor: boolean): Promise<void>
+  openComputerUsePermission?(permission: import('../../../../src/config/miraComputerUse').MiraComputerPermission): Promise<void>
   importLocalPlugin?(): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[] | null>
   setPluginEnabled?(id: string, enabled: boolean): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
   removePlugin?(id: string): Promise<import('../../../../src/config/miraPlugins').MiraPluginItem[]>
@@ -895,7 +898,7 @@ export class PilotController {
     } catch { return { ...result, refreshError: '删除操作已完成，但任务列表刷新失败，请重试刷新。' } }
   }
   searchConversations(query: string) { return this.require('searchConversations')(query) }
-  onHarnessControl(listener: (action: MiraHarnessControlAction) => void) { return this.host.onHarnessControl?.(listener) || (() => undefined) }
+  onHarnessControl(listener: (action: MiraHarnessControlAction, sessionId?: string) => void) { return this.host.onHarnessControl?.(listener) || (() => undefined) }
   publishHarnessControls(state: MiraHarnessControlsState) { this.host.publishHarnessControls?.(state) }
   onFullViewToggle(listener: () => void) { return this.host.onFullViewToggle?.(listener) || (() => undefined) }
   onCommandCenterOpen(listener: (focusRequestId?: string) => void) { return this.host.onCommandCenterOpen?.(listener) || (() => undefined) }
@@ -1061,6 +1064,9 @@ export class PilotController {
   get supportsUserAgents() { return Boolean(this.host.listUserAgents) }
   listUserAgents(scope: { projectId?: string; sessionId?: string }) { return this.require('listUserAgents')(scope) }
   listPlugins() { return this.require('listPlugins')() }
+  getComputerUseStatus() { return this.require('getComputerUseStatus')() }
+  setComputerUseCursor(showCursor: boolean) { return this.require('setComputerUseCursor')(showCursor) }
+  openComputerUsePermission(permission: import('../../../../src/config/miraComputerUse').MiraComputerPermission) { return this.require('openComputerUsePermission')(permission) }
   importLocalPlugin() { return this.require('importLocalPlugin')() }
   setPluginEnabled(id: string, enabled: boolean) { return this.require('setPluginEnabled')(id, enabled) }
   removePlugin(id: string) { return this.require('removePlugin')(id) }

@@ -139,6 +139,9 @@ export interface PlatformApi {
   getPathForFile(file: File): string
   getSnapshot(): Promise<PlatformSnapshot>
   savePreference(key: string, value: unknown): Promise<void>
+  getNotificationStatus(): Promise<import('@/config/desktopNotifications').DesktopNotificationStatus>
+  openNotificationSettings(): Promise<void>
+  onNotificationSession(listener: (sessionId: string) => void): () => void
   updateMenus(menus: MenuItem[]): Promise<PlatformSnapshot>
   updateMicroApps(apps: MicroApp[]): Promise<PlatformSnapshot>
   selectMicroAppDirectory(): Promise<string | null>

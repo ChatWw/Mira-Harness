@@ -1,8 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
 import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
 import { FirstPartyHarnessHost } from '../apps/harness-react/src/platform/first-party-host'
+import { PilotController } from '../apps/harness-react/src/state/pilot-state'
 
 describe('first-screen contracts', () => {
+  it('passes computer settings from the workbench controller through the authorized host', async () => {
+    const port = { onmessage: undefined as ((message: { data: unknown }) => void) | undefined, start: vi.fn(), close: vi.fn(), postMessage: vi.fn() }
+    const host = new FirstPartyHarnessHost(port as unknown as MessagePort), controller = new PilotController(host)
+    const status = controller.getComputerUseStatus()
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '1', method: 'harness.computer-use.status', params: undefined })
+    port.onmessage!({ data: { type: 'mira:response', id: '1', ok: true, value: { platform: 'darwin' } } })
+    await expect(status).resolves.toEqual({ platform: 'darwin' })
+    const toggle = controller.setComputerUseCursor(false)
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '2', method: 'harness.computer-use.set-cursor', params: { showCursor: false } })
+    port.onmessage!({ data: { type: 'mira:response', id: '2', ok: true } }); await toggle
+    const permission = controller.openComputerUsePermission('accessibility')
+    expect(port.postMessage).toHaveBeenLastCalledWith({ type: 'mira:request', id: '3', method: 'harness.computer-use.open-permission', params: { permission: 'accessibility' } })
+    port.onmessage!({ data: { type: 'mira:response', id: '3', ok: true } }); await permission
+    host.close()
+  })
   it('preserves the expected run ID at both stop boundaries and rejects invalid IDs', () => {
     const first = parseFirstPartyHarnessCall('run.abort', { sessionId: 's', expectedRunId: 'run-1', injected: 'other' })
     const { method, ...params } = first

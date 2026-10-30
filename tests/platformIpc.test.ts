@@ -88,6 +88,19 @@ function register(options: Partial<PlatformIpcDependencies> = {}) {
 }
 
 describe('platform IPC registration', () => {
+  it('keeps computer permission and cursor settings behind the desktop owner grant', async () => {
+    const computerSettings = { status: vi.fn(async () => ({ platform: 'darwin' })), setCursor: vi.fn(), openPermission: vi.fn(async () => undefined) }
+    const { invoke } = register({ computerSettings: computerSettings as never, harnessRuntime: {} as never })
+    const grant = invoke('platform:create-first-party-grant', 'mira-harness') as string
+    await expect(invoke('platform:first-party-harness', grant, 'computer-use.status')).resolves.toEqual({ platform: 'darwin' })
+    invoke('platform:first-party-harness', grant, 'computer-use.set-cursor', { showCursor: false })
+    expect(computerSettings.setCursor).toHaveBeenCalledExactlyOnceWith(false)
+    await invoke('platform:first-party-harness', grant, 'computer-use.open-permission', { permission: 'accessibility' })
+    expect(computerSettings.openPermission).toHaveBeenCalledExactlyOnceWith('accessibility')
+    expect(() => invoke('platform:first-party-harness', 'invalid', 'computer-use.set-cursor', { showCursor: true })).toThrow('授权无效')
+    expect(() => invoke('platform:first-party-harness', grant, 'computer-use.open-permission', { permission: 'arbitrary' })).toThrow('权限类型无效')
+    expect(computerSettings.setCursor).toHaveBeenCalledOnce()
+  })
   it('keeps LAN controls on the desktop owner grant', async () => {
     const remoteControl = vi.fn(async () => ({ enabled: false, urls: [] }))
     const { invoke } = register({ remoteControl, harnessRuntime: {} as never })

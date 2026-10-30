@@ -228,6 +228,13 @@ export function parseFirstPartyHarnessCall(method: string, raw: unknown) {
   if (method === 'plugin-marketplace.add-source') return { method, source: string(fields(raw).source, '市场来源', 2048) } as const
   if (method === 'plugin-marketplace.remove-source') return { method, id: string(fields(raw).id, '市场 ID', 120) } as const
   if (method === 'plugins.list' || method === 'plugins.import') return { method } as const
+  if (method === 'computer-use.status') return { method } as const
+  if (method === 'computer-use.set-cursor') return { method, showCursor: boolean(fields(raw).showCursor, '光标开关') } as const
+  if (method === 'computer-use.open-permission') {
+    const permission = fields(raw).permission
+    if (permission !== 'screen-recording' && permission !== 'accessibility') throw new Error('系统权限类型无效')
+    return { method, permission } as const
+  }
   if (method === 'agents.list') {
     const params = raw === undefined ? {} : fields(raw)
     const projectId = optionalString(params.projectId, '项目 ID'), sessionId = optionalString(params.sessionId, '会话 ID')

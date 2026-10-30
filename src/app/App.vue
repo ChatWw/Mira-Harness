@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { isNavigationFailure, NavigationFailureType, useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useLayoutStore } from '@/stores/layout'
 import { useHarnessStore } from '@/stores/harness'
@@ -64,6 +64,7 @@ function openSettingsPage(path: string) {
 let removeWindowNavigateListener: (() => void) | undefined
 let removeWindowCloseListener: (() => void) | undefined
 let removeHarnessEventListener: (() => void) | undefined
+let removeNotificationListener: (() => void) | undefined
 
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown)
@@ -74,12 +75,18 @@ onMounted(() => {
     if (!request.defaultPrevented) void window.platform?.windowCommand('close')
   })
   removeHarnessEventListener = getPlatformApi()?.onHarnessEvent(harnessStore.applyEvent)
+  removeNotificationListener = getPlatformApi()?.onNotificationSession?.(async sessionId => {
+    const failure = await router.push('/workspace/harness-react')
+    if (isNavigationFailure(failure) && !isNavigationFailure(failure, NavigationFailureType.duplicated)) return
+    appNavigation.openNotificationSession(sessionId)
+  })
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener?.()
   removeWindowCloseListener?.()
   removeHarnessEventListener?.()
+  removeNotificationListener?.()
 })
 // 主题已在 store 初始化时应用
 </script>

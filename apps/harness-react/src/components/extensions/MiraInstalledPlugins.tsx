@@ -4,9 +4,10 @@ import { MiraPluginMenu } from './MiraPluginMenu'
 import { useEffect, useRef, useState } from 'react'
 import { MiraPluginAvatar, pluginLabel } from './MiraPluginAvatar'
 import { FolderPlus, LoaderCircle, MessageSquare } from 'lucide-react'
+import type { MiraComputerSettingsHost } from '../../../../../src/config/miraComputerUse'
 import type { MiraPluginItem } from '../../../../../src/config/miraPlugins'
 
-export interface MiraPluginHost {
+export interface MiraPluginHost extends Partial<MiraComputerSettingsHost> {
   listPlugins(): Promise<MiraPluginItem[]>
   importLocalPlugin(): Promise<MiraPluginItem[] | null>
   setPluginEnabled(id: string, enabled: boolean): Promise<MiraPluginItem[]>
@@ -60,7 +61,7 @@ export function MiraInstalledPlugins({ host, query = '', refreshRevision = 0, on
       {!item ? <p className="mira-market-empty">{busy ? '正在读取插件详情…' : '插件已移除登记'}</p> : <MiraPluginDetail item={item} disabled={cannotTry} onPrompt={onTryPlugin ? prompt => void change(async () => { await onTryPlugin(item.id, prompt); return null }, '') : undefined} actions={<>
         <MiraPluginMenu name={item.name} enabled={item.enabled} disabled={busy} onToggle={() => void change(() => host.setPluginEnabled(item.id, !item.enabled), item.enabled ? '插件已停用，后续调用不可用。' : '插件已启用；新会话可使用。')} onRemove={() => void change(() => host.removePlugin(item.id), '已移除插件登记，原目录及文件保留。')} />
         {onTryPlugin && <button className="mira-plugin-try-now" type="button" aria-label={`试用插件 ${item.name}`} disabled={cannotTry} onClick={() => void change(async () => { await onTryPlugin(item.id); return null }, '')}><MessageSquare size={14} />立即试用</button>}
-      </>} advanced={<>
+      </>} computerSettings={host} advanced={<>
         {item.hooks?.map(hook => <div key={hook.id}><strong>{hook.event} · {hook.matcher || '匹配全部'}</strong><pre>{hook.command} {hook.args.join(' ')}</pre><p>{hook.unavailableReason || '在 Hooks 设置中审阅并授权后运行'}</p></div>)}
         {item.hookDiagnostics?.map((diagnostic, index) => <p key={index}>{diagnostic}</p>)}
         {host.navigate && Boolean(item.hooks?.length || item.hookDiagnostics?.length) && <button className="mira-market-install" type="button" disabled={busy} onClick={() => void reviewHooks(item.id)}>审阅 Hooks</button>}

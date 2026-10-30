@@ -13,7 +13,7 @@ import { MiraPluginMenu } from './MiraPluginMenu'
 type PluginOperation = { kind: 'install' | 'enable' | 'disable' | 'remove' | 'try'; item: MiraPluginMarketItem; prompt?: string }
 const operationNames = { install: '安装', enable: '启用', disable: '停用', remove: '移除登记', try: '试用' }
 
-export interface MiraPublicPluginHost extends Partial<Pick<MiraPluginHost, 'setPluginEnabled' | 'removePlugin'>> {
+export interface MiraPublicPluginHost extends Partial<Pick<MiraPluginHost, 'setPluginEnabled' | 'removePlugin' | 'getComputerUseStatus' | 'setComputerUseCursor' | 'openComputerUsePermission'>> {
   browsePluginMarket(refresh?: boolean): Promise<MiraPluginMarketCatalog>
   getPluginMarketDetail(id: string): Promise<MiraPluginMarketDetail>
   installMarketPlugin(id: string): Promise<MiraPluginMarketItem>
@@ -87,7 +87,7 @@ export function MiraPublicPlugins({ host, query = '', selectedId, refreshRevisio
     {catalog?.errors?.map((error, index) => <p className="mira-market-error" role="status" key={index}>{error}</p>)}
     {feedback && <p className="mira-market-feedback" role="status">{feedback}</p>}
     {busy ? <p className="mira-market-loading" role="status"><LoaderCircle size={16} className="mira-market-spin" />{selectedId ? '正在读取插件详情…' : '正在读取公开插件…'}</p> : selectedId ? detail && <>
-      <MiraPluginDetail item={detail} actions={action(detail)} disabled={busy || Boolean(installing) || Boolean(detail.unavailableReason)} onPrompt={onTryPlugin ? prompt => void perform({ kind: 'try', item: detail, prompt }) : undefined} advanced={<>
+      <MiraPluginDetail item={detail} computerSettings={host} actions={action(detail)} disabled={busy || Boolean(installing) || Boolean(detail.unavailableReason)} onPrompt={onTryPlugin ? prompt => void perform({ kind: 'try', item: detail, prompt }) : undefined} advanced={<>
         <dl><dt>仓库</dt><dd>{detail.repositoryUrl || detail.sourceName}</dd><dt>来源</dt><dd>{detail.marketplace}</dd></dl>
         {detail.files.length > 0 && <ul>{detail.files.map(file => <li key={file.path}><code>{file.path}</code> · {formatBytes(file.size)}</li>)}</ul>}
         {detail.licenses.map(license => <details key={license.path}><summary>{license.path}</summary><pre>{license.text}</pre></details>)}

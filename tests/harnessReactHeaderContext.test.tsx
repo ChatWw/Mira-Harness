@@ -1,6 +1,5 @@
 import * as React from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import * as Tooltip from '@radix-ui/react-tooltip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HarnessWorkspaceContext, type HarnessWorkspaceContextProps } from '../apps/harness-react/src/components/workbench/HarnessWorkspaceContext'
 import type { HarnessProject } from '../src/config/harness'
@@ -25,15 +24,15 @@ function mount() {
   const render = () => { hooks.cursor = 0; tree = HarnessWorkspaceContext(props); hooks.effects.splice(0).forEach(effect => effect()) }
   const drain = async () => { for (let index = 0; index < 12; index++) { await Promise.resolve(); render() } }
   render()
-  return { controller, props, render, drain, text: () => text(tree), node: (match: (props: Record<string, unknown>, type: unknown) => boolean) => find(tree, match)!, open: () => (find(tree, (_, type) => type === DropdownMenu.Root)!.onOpenChange as (open: boolean) => void)(true), hover: () => (find(tree, (_, type) => type === Tooltip.Root)!.onOpenChange as (open: boolean) => void)(true), unmount: () => hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
+  return { controller, props, render, drain, text: () => text(tree), node: (match: (props: Record<string, unknown>, type: unknown) => boolean) => find(tree, match)!, open: () => (find(tree, (_, type) => type === DropdownMenu.Root)!.onOpenChange as (open: boolean) => void)(true), unmount: () => hooks.slots.forEach(slot => { slot.cleanup?.(); slot.cleanup = undefined }) }
 }
 
 describe('Header project context shows real read-only Git information', () => {
-  it('shows known project branch and queries lazily only once while menu and hover load together', async () => {
+  it('shows known project branch and queries lazily only once while opening with a pending request', async () => {
     const view = mount()
     expect(view.text()).toContain('mira/p'); expect(view.controller.listGitBranches).not.toHaveBeenCalled()
     const loading = deferred<unknown>(); view.controller.listGitBranches.mockReturnValueOnce(loading.promise as never)
-    view.open(); view.hover(); await view.drain()
+    view.open(); view.open(); await view.drain()
     expect(view.controller.listGitBranches).toHaveBeenCalledExactlyOnceWith('p')
     expect(view.node(p => p['aria-label'] === '正在读取 Git 分支')).toBeDefined()
     loading.resolve([{ name: 'mira/live', current: true, uncommittedFileCount: 3 }]); await view.drain()
@@ -42,7 +41,7 @@ describe('Header project context shows real read-only Git information', () => {
   })
   it('does not query or invent a branch for a personal working directory or a non-Git project', async () => {
     const view = mount(); view.props.project = undefined; view.props.directory = '/personal/git-looking-path'; view.render()
-    view.open(); view.hover(); await view.drain()
+    view.open(); await view.drain()
     expect(view.text()).toContain('个人工作区'); expect(view.text()).not.toContain('当前分支'); expect(view.text()).not.toContain('mira/p')
     view.props.project = { ...project(), isGitRepository: false }; view.render(); view.open(); await view.drain()
     expect(view.text()).not.toContain('mira/p'); expect(view.controller.listGitBranches).not.toHaveBeenCalled()

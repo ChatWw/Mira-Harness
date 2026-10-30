@@ -11,6 +11,7 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
   let owner: symbol | undefined
   let send: ((command: MiraAppNavigationCommand) => boolean) | undefined
   let savedSnapshot: MiraAppNavigationSnapshot | undefined
+  let pendingSessionId: string | undefined
 
   function getSavedSnapshot(appId: string) {
     return appId === 'mira-harness' ? readMiraAppNavigationSnapshot(savedSnapshot) : undefined
@@ -32,6 +33,7 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
         if (!isCurrent()) return
         const next = readMiraHarnessControlsState(value)
         if (next) controls.value = next
+        if (next && pendingSessionId && sendControl?.({ type: 'mira:harness-control', action: 'open-session', sessionId: pendingSessionId })) pendingSessionId = undefined
       },
       reset() { if (isCurrent()) { state.value = null; controls.value = null } },
       release() { if (isCurrent()) { owner = undefined; send = undefined; sendControl = undefined; state.value = null; controls.value = null } },
@@ -43,6 +45,11 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     const previous = savedSnapshot
     const entries = [...(previous?.entries.slice(0, previous.cursor + 1) ?? []), { kind: 'extensions' as const }].slice(-50)
     savedSnapshot = { entries, cursor: entries.length - 1, detached: false }
+  }
+
+  function openNotificationSession(sessionId: string) {
+    pendingSessionId = sessionId
+    if (controls.value && sendControl?.({ type: 'mira:harness-control', action: 'open-session', sessionId })) pendingSessionId = undefined
   }
 
   function go(direction: MiraAppNavigationDirection) {
@@ -59,5 +66,5 @@ export const useAppNavigationStore = defineStore('appNavigation', () => {
     return Boolean(controls.value && sendControl?.({ type: 'mira:harness-control', action }))
   }
 
-  return { state, controls, control, register, getSavedSnapshot, openExtensions, go }
+  return { state, controls, control, register, getSavedSnapshot, openExtensions, openNotificationSession, go }
 })

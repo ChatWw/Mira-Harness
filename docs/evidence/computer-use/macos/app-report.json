@@ -1,0 +1,23 @@
+{
+  "boundary": "Real built Electron application with an isolated profile; real Vue/React/MessageChannel/granted IPC/native helper; persisted cursor setting across app restart. No permission changes, external model requests or installer acceptance.",
+  "checks": [
+    "Builtin computer-use detail exposes actual native component and permission status through the complete desktop bridge",
+    "Actual UI switch persists to the isolated Mira config; checked switch remains visible under hover in both themes",
+    "Saved cursor preference survives a full Electron restart and can be enabled again through the actual plugin page"
+  ],
+  "errors": [],
+  "hoverColors": [
+    {
+      "theme": "light",
+      "beforeHover": "rgb(0, 0, 0)",
+      "duringHover": "rgb(0, 0, 0)",
+      "primary": "rgb(0, 0, 0)"
+    },
+    {
+      "theme": "dark",
+      "beforeHover": "rgb(255, 255, 255)",
+      "duringHover": "rgb(255, 255, 255)",
+      "primary": "rgb(255, 255, 255)"
+    }
+  ]
+}

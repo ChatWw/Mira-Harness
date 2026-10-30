@@ -10,7 +10,7 @@ export interface MiraComputerFeedback {
   close(): Promise<void>
 }
 export interface MiraComputerConnection { transport: Transport; feedback: MiraComputerFeedback }
-export interface MiraComputerOptions { resourceRoot: string; platform?: NodeJS.Platform; executable?: string }
+export interface MiraComputerOptions { resourceRoot: string; platform?: NodeJS.Platform; executable?: string; configPath?: string }
 
 export function miraComputerLaunch(options: MiraComputerOptions) {
   const platform = options.platform ?? process.platform
@@ -19,7 +19,7 @@ export function miraComputerLaunch(options: MiraComputerOptions) {
   const script = join(root, platform === 'win32' ? 'mcp/server.mjs' : 'server.mjs')
   if (!existsSync(script) || (platform === 'darwin' && ['dsh-cu', 'dsh-cursor-overlay'].some(name => !existsSync(join(root, 'plugin/bin', name))))) throw new Error('Mira 电脑控制组件缺失，请修复安装；开发环境请运行 npm run tools:build')
   return { command: options.executable ?? process.execPath, args: [script], cwd: root,
-    env: { ...getDefaultEnvironment(), ELECTRON_RUN_AS_NODE: '1', ...(platform === 'win32' ? { PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD', WCU_SETTINGS_JSON: JSON.stringify({ indicatorText: 'Mira 正在控制电脑', browserFirst: false }) } : {}) }, stderr: 'ignore' as const }
+    env: { ...getDefaultEnvironment(), ELECTRON_RUN_AS_NODE: '1', ...(platform === 'win32' ? { PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD', WCU_SETTINGS_JSON: JSON.stringify({ indicatorText: 'Mira 正在控制电脑', browserFirst: false }) } : options.configPath ? { MIRA_CU_CONFIG: options.configPath } : {}) }, stderr: 'ignore' as const }
 }
 
 /** Let native helpers release held input and remove overlays before the stdio parent exits. */

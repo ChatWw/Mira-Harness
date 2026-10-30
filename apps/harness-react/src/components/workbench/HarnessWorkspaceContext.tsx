@@ -30,12 +30,13 @@ export function HarnessWorkspaceContext({ controller, project, sessionId, direct
   const identity = JSON.stringify([project?.id, directory])
   const gitAvailable = Boolean(project?.isGitRepository && project.directoryExists)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [hintOpen, setHintOpen] = useState(false)
   const [details, setDetails] = useState<BranchDetails>({ identity, loading: false })
   const revision = useRef(0)
   const pending = useRef(false)
   useEffect(() => {
     revision.current++; pending.current = false
-    setDetails({ identity, loading: false }); setMenuOpen(false)
+    setDetails({ identity, loading: false }); setMenuOpen(false); setHintOpen(false)
     return () => { revision.current++; pending.current = false }
   }, [controller, identity, gitAvailable, project?.gitBranch])
 
@@ -63,8 +64,11 @@ export function HarnessWorkspaceContext({ controller, project, sessionId, direct
     {branch && current.count !== undefined && <p className="mira-context-feedback">{current.count ? `${current.count} 个未提交文件` : '工作树干净'}</p>}
   </>
   const portal = document.getElementById('root')
-  return <Tooltip.Provider delayDuration={300}><DropdownMenu.Root open={menuOpen} onOpenChange={open => { setMenuOpen(open); if (open) void refreshBranches() }}>
-    <Tooltip.Root open={menuOpen ? false : undefined} onOpenChange={open => { if (open) void refreshBranches() }}><Tooltip.Trigger asChild><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="工作目录信息"><FolderOpen size={16} /></button></DropdownMenu.Trigger></Tooltip.Trigger><Tooltip.Portal container={portal}><Tooltip.Content className="mira-context-tooltip" side="bottom" align="start" sideOffset={6}>{info}{current.error && <p className="mira-context-feedback">Git 分支读取失败</p>}</Tooltip.Content></Tooltip.Portal></Tooltip.Root>
+  return <Tooltip.Provider delayDuration={300} disableHoverableContent><DropdownMenu.Root open={menuOpen} onOpenChange={open => { setMenuOpen(open); setHintOpen(false); if (open) void refreshBranches() }}>
+    <Tooltip.Root open={hintOpen && !menuOpen} onOpenChange={open => setHintOpen(open && !menuOpen)}>
+      <Tooltip.Trigger asChild onFocus={event => event.preventDefault()}><DropdownMenu.Trigger asChild><button type="button" className="mira-header-tool" aria-label="工作目录信息"><FolderOpen size={16} /></button></DropdownMenu.Trigger></Tooltip.Trigger>
+      {!menuOpen && <Tooltip.Portal container={portal}><Tooltip.Content className="mira-sidebar-tooltip" side="bottom" sideOffset={6}>工作目录</Tooltip.Content></Tooltip.Portal>}
+    </Tooltip.Root>
     <DropdownMenu.Portal container={portal}><DropdownMenu.Content align="start" sideOffset={6} className="mira-session-menu mira-context-menu">
       <div className="mira-context-info">{info}</div>
       {current.error && <div className="mira-context-error" role="alert"><CircleAlert size={13} /><span>{current.error}</span></div>}

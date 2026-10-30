@@ -38,11 +38,12 @@ describe('platform computer sessions', () => {
     for (const path of ['windows/mcp', 'macos/plugin/bin']) mkdirSync(join(root, path), { recursive: true })
     for (const path of ['windows/mcp/server.mjs', 'macos/server.mjs', 'macos/plugin/bin/dsh-cu', 'macos/plugin/bin/dsh-cursor-overlay']) writeFileSync(join(root, path), 'fixture')
     for (const [platform, script] of [['win32', 'windows/mcp/server.mjs'], ['darwin', 'macos/server.mjs']] as const) {
-      const launch = miraComputerLaunch({ resourceRoot: root, platform, executable: '/owned/Mira' })
+      const launch = miraComputerLaunch({ resourceRoot: root, platform, executable: '/owned/Mira', configPath: '/owned/computer-use.json' })
       expect(launch.command).toBe('/owned/Mira')
       expect(launch.args).toEqual([join(root, script)])
       expect(launch.env.ELECTRON_RUN_AS_NODE).toBe('1')
       if (platform === 'win32') expect(launch.env.PATHEXT).toContain('.EXE')
+      if (platform === 'darwin') expect(launch.env.MIRA_CU_CONFIG).toBe('/owned/computer-use.json')
     }
     expect(() => miraComputerLaunch({ resourceRoot: root, platform: 'linux' })).toThrow('Windows 和 macOS')
     rmSync(join(root, 'macos/plugin/bin/dsh-cu'))

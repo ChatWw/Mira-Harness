@@ -35,6 +35,53 @@
       <h2 id="appearance-heading" class="settings-heading">外观</h2>
       <AppearanceSettings />
     </section>
+    <section class="general-settings" aria-labelledby="notifications-heading">
+      <h2 id="notifications-heading" class="settings-heading">通知</h2>
+      <div class="settings-list">
+        <div class="settings-row">
+          <div class="settings-row__copy" role="status">
+            <span class="settings-row__label">{{ notificationStatus?.supported === false ? '系统不支持桌面通知' : '系统通知' }}</span>
+            <span class="settings-row__hint">{{ notificationError || notificationStatus?.error || '在系统设置中允许 Mira 发送通知。提醒方式和声音也受系统通知与专注模式设置影响。' }}</span>
+          </div>
+          <el-button :disabled="openingNotificationSettings || !notificationStatus?.settingsAvailable" @click="openNotificationSettings">打开系统设置</el-button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">轮次完成通知</span>
+            <span class="settings-row__hint">设置 Mira 完成一轮回复后何时提醒你。</span>
+          </div>
+          <el-select class="language-picker" :disabled="notificationsDisabled" :model-value="notificationSettings.completion" aria-label="轮次完成通知" @update:model-value="setNotificationSetting('completion', $event)">
+            <el-option label="从不" value="never" />
+            <el-option label="仅在未聚焦时" value="unfocused" />
+            <el-option label="始终" value="always" />
+          </el-select>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">启用权限通知</span>
+            <span class="settings-row__hint">在操作需要授权或方案需要确认时显示提醒。</span>
+          </div>
+          <el-switch :disabled="notificationsDisabled" :model-value="notificationSettings.permissions" aria-label="启用权限通知" @update:model-value="setNotificationSetting('permissions', $event)" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">启用问题通知</span>
+            <span class="settings-row__hint">在需要回答问题才能继续时显示提醒。</span>
+          </div>
+          <el-switch :disabled="notificationsDisabled" :model-value="notificationSettings.questions" aria-label="启用问题通知" @update:model-value="setNotificationSetting('questions', $event)" />
+        </div>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">通知提示音</span>
+            <span class="settings-row__hint">轮次完成、请求权限和提问时的提示音。</span>
+          </div>
+          <el-select class="language-picker" :disabled="notificationsDisabled" :model-value="notificationSettings.sound" aria-label="通知提示音" @update:model-value="setNotificationSetting('sound', $event)">
+            <el-option label="默认" value="default" />
+            <el-option label="静音" value="silent" />
+          </el-select>
+        </div>
+      </div>
+    </section>
     <section class="general-settings" aria-labelledby="window-heading">
       <h2 id="window-heading" class="settings-heading">窗口</h2>
       <div class="settings-list">
@@ -65,7 +112,8 @@
 
 <script setup lang="ts">
 import { onBeforeRouteLeave } from 'vue-router'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { DESKTOP_NOTIFICATIONS_KEY, readDesktopNotifications, type DesktopNotifications, type DesktopNotificationStatus } from '@/config/desktopNotifications'
 import { platformPreferences } from '@/config/runtime'
 import { getPlatformApi } from '@/platform'
 import { getPreference } from '@/platform'
@@ -77,8 +125,33 @@ import SettingsPageShell from '../settings/components/SettingsPageShell.vue'
 const { saving, save } = useSettingsPreference()
 onMounted(async () => {
   const snapshot = await getPlatformApi()?.getSnapshot()
-  if (snapshot) platformPreferences.keepComputerAwake = snapshot.preferences.keepComputerAwake === true
+  if (snapshot) {
+    platformPreferences.keepComputerAwake = snapshot.preferences.keepComputerAwake === true
+    platformPreferences[DESKTOP_NOTIFICATIONS_KEY] = snapshot.preferences[DESKTOP_NOTIFICATIONS_KEY]
+  }
 })
+const notificationStatus = ref<DesktopNotificationStatus>()
+const notificationError = ref('')
+const openingNotificationSettings = ref(false)
+const notificationSettings = computed(() => readDesktopNotifications(getPreference(DESKTOP_NOTIFICATIONS_KEY, undefined)))
+const notificationsDisabled = computed(() => Boolean(saving.value) || notificationStatus.value?.supported === false)
+async function refreshNotificationStatus() {
+  try {
+    notificationStatus.value = await getPlatformApi()?.getNotificationStatus()
+    notificationError.value = ''
+  } catch { notificationError.value = '无法检查通知状态，请在系统设置中检查 Mira 的通知权限。' }
+}
+function setNotificationSetting<K extends keyof DesktopNotifications>(key: K, value: DesktopNotifications[K]) {
+  void save(DESKTOP_NOTIFICATIONS_KEY, { ...notificationSettings.value, [key]: value })
+}
+async function openNotificationSettings() {
+  openingNotificationSettings.value = true
+  try { await getPlatformApi()?.openNotificationSettings() }
+  catch { notificationError.value = '无法打开系统设置，请手动前往系统的通知设置。' }
+  finally { openingNotificationSettings.value = false }
+}
+onMounted(() => { void refreshNotificationStatus(); window.addEventListener('focus', refreshNotificationStatus) })
+onUnmounted(() => window.removeEventListener('focus', refreshNotificationStatus))
 const hardwareAcceleration = computed(() => getPreference<boolean>('desktopChromiumHardwareAccelerationEnabled', true) !== false)
 const keepComputerAwake = computed(() => getPreference<boolean>('keepComputerAwake', false) === true)
 function setHardwareAcceleration(value: boolean) { void save('desktopChromiumHardwareAccelerationEnabled', value) }

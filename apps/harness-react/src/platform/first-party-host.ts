@@ -27,7 +27,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
   private listeners = new Set<(event: HarnessEvent) => void>()
   private browserListeners = new Set<(event: PilotBrowserEvent) => void>()
-  private controlListeners = new Set<(action: MiraHarnessControlAction) => void>()
+  private controlListeners = new Set<(action: MiraHarnessControlAction, sessionId?: string) => void>()
   private fullViewListeners = new Set<() => void>()
   private commandCenterListeners = new Set<(focusRequestId?: string) => void>()
   private navigationCommandListeners = new Set<(command: MiraAppNavigationCommand) => void>()
@@ -66,7 +66,7 @@ export class FirstPartyHarnessHost implements PilotHost {
         return
       }
       const control = readMiraHarnessControlCommand(data)
-      if (control) { this.controlListeners.forEach(listener => listener(control.action)); return }
+      if (control) { this.controlListeners.forEach(listener => control.sessionId ? listener(control.action, control.sessionId) : listener(control.action)); return }
       if (data?.type === 'mira:full-view-toggle' && Object.keys(data).length === 1) { this.fullViewListeners.forEach(listener => listener()); return }
       if (data?.type === 'mira:command-center-open' && !Array.isArray(data) && Object.keys(data).every(key => key === 'type' || key === 'focusRequestId') && (data.focusRequestId === undefined || typeof data.focusRequestId === 'string' && data.focusRequestId.length > 0 && data.focusRequestId.length <= 128)) { this.commandCenterListeners.forEach(listener => listener(data.focusRequestId)); return }
       if (data?.type === 'mira:prepare-leave' && typeof data.id === 'string') {
@@ -174,7 +174,7 @@ export class FirstPartyHarnessHost implements PilotHost {
   setTheme = (theme: 'system' | 'light' | 'dark') => this.request<{ theme: string; zoomFactor: number }>('appearance.set-theme', { theme })
   zoom = (action: 'zoomIn' | 'zoomOut' | 'resetZoom') => this.request<{ theme: string; zoomFactor: number }>('appearance.zoom', { action })
   toggleTheme = () => this.request<'light' | 'dark'>('appearance.toggle-theme', undefined)
-  onHarnessControl = (listener: (action: MiraHarnessControlAction) => void) => { this.controlListeners.add(listener); return () => { this.controlListeners.delete(listener) } }
+  onHarnessControl = (listener: (action: MiraHarnessControlAction, sessionId?: string) => void) => { this.controlListeners.add(listener); return () => { this.controlListeners.delete(listener) } }
   publishHarnessControls = (state: MiraHarnessControlsState) => { if (!this.closed) this.port.postMessage(state) }
   onFullViewToggle = (listener: () => void) => { this.fullViewListeners.add(listener); return () => { this.fullViewListeners.delete(listener) } }
   onCommandCenterOpen = (listener: (focusRequestId?: string) => void) => { this.commandCenterListeners.add(listener); return () => { this.commandCenterListeners.delete(listener) } }
@@ -294,6 +294,9 @@ export class FirstPartyHarnessHost implements PilotHost {
   setSessionMcpServers = (id: string, serverIds: string[]) => this.call<void>('session.set-mcp-servers', { id, serverIds })
   setSessionDelegation = (id: string, enabled: boolean) => this.call<void>('session.set-delegation', { id, enabled })
   listPlugins = () => this.call<MiraPluginItem[]>('plugins.list')
+  getComputerUseStatus = () => this.call<import('../../../../src/config/miraComputerUse').MiraComputerStatus>('computer-use.status')
+  setComputerUseCursor = (showCursor: boolean) => this.call<void>('computer-use.set-cursor', { showCursor })
+  openComputerUsePermission = (permission: import('../../../../src/config/miraComputerUse').MiraComputerPermission) => this.call<void>('computer-use.open-permission', { permission })
   listPluginCatalog = (sessionId?: string) => this.call<MiraPluginItem[]>('plugins.catalog', { sessionId })
   listPromptCommands = (scope: { projectId?: string; sessionId?: string }) => this.call<import('../../../../src/config/miraPromptCommands').MiraPromptCommandItem[]>('commands.list', scope)
   listUserAgents = (scope: { projectId?: string; sessionId?: string }) => this.call<import('../../../../src/config/miraUserAgents').MiraUserAgentItem[]>('agents.list', scope)

@@ -1,5 +1,7 @@
 # 电脑控制后端迁移验收
 
+2026-10-30 macOS 补充：已加入电脑控制详情页的原生权限检测、系统授权入口和持久光标设置，修复首次输入 / 按键 / 打开应用时浮层未显示。当前 Mac 原生与完整应用证据见 [macos/README.md](macos/README.md)；下方为先前 Windows 迁移阶段的验收记录。
+
 2026-10-30：`computer-use` 升级至 0.4.0。同一个入口按系统选择 Windows / macOS 后端，移除 Cua 的运行解析器、下载构建脚本、插件声明、许可文件和打包资源项。
 
 - Windows 来源：[Yu-tao-Li/dsh-computer-use-win](https://github.com/Yu-tao-Li/dsh-computer-use-win)，固定 revision `6fb642129595a6357588c70812974951db304662`。采用完整独立 MCP + PowerShell 原生后端，保留控制提示、指针反馈与 Esc。UIA 是可选能力，截图 / OCR / 坐标操作独立可用。

@@ -988,10 +988,13 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
   shellNewTask.current = newConversation
   const shellOpenExtensions = useRef(() => showView('extensions'))
   shellOpenExtensions.current = () => showView('extensions')
-  useEffect(() => controller.onHarnessControl(action => {
+  const shellOpenSession = useRef(openTask)
+  shellOpenSession.current = openTask
+  useEffect(() => controller.onHarnessControl((action, sessionId) => {
     if (action === 'toggle-sidebar') setSessionsOpen(value => !value)
     else if (action === 'new-task') void shellNewTask.current()
     else if (action === 'open-extensions') void shellOpenExtensions.current().catch(error => controller.reportError(error))
+    else if (action === 'open-session' && sessionId) void shellOpenSession.current(sessionId).catch(error => controller.reportError(error))
   }), [controller])
 
   function openSessions() {

@@ -1,4 +1,4 @@
-// DSH 桌面光标浮层 —— 点击穿透、不激活应用、永远置顶
+// Mira 桌面光标浮层 —— 点击穿透、不激活应用、永远置顶
 //
 // 用法：
 //   dsh-cursor-overlay [--fifo 路径] [--size 26] [--idle 60]
@@ -9,7 +9,8 @@
 //   click [n]        按一下（尖端缩一下 + 一圈淡波纹；n=2 双击两圈）
 //   down / up        拖拽：按住（缩一点 + 尖端一圈光晕）/ 松开
 //   scroll <±1>      滚动提示（箭头右上角一个小圆，往滚动方向轻轻滑一下）
-//   label <文字>     名牌从「DSH」展开成「DSH · 点击 发送」，过会儿收回；不带文字就立刻收回
+//   label <文字>     名牌从「Mira」展开成「Mira · 点击 发送」，过会儿收回；不带文字就立刻收回
+//   show-current     首次操作在系统指针位置显示；已显示时保留操作位置
 //   hide             隐藏
 //   lens <x> <y>     在 (x,y) 显示"工作中"旋转球（Codex 的 SkyLensView 同款素材，45 帧）
 //   lenshide         收起旋转球
@@ -803,6 +804,12 @@ func handle(_ line: String) {
     let parts = line.split(separator: " ").map(String.init)
     guard let op = parts.first else { return }
     switch op {
+    case "show-current":
+        if !controller.visible {
+            let point = NSEvent.mouseLocation
+            let top = NSScreen.screens.first?.frame.maxY ?? 0
+            controller.show(x: Double(point.x), y: Double(top - point.y), animate: false)
+        }
     case "show" where parts.count >= 3:
         if let x = Double(parts[1]), let y = Double(parts[2]) {
             controller.show(x: x, y: y, animate: false)

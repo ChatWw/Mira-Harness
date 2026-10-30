@@ -5,10 +5,13 @@ import type { ReactNode } from 'react'
 import { Anchor, Bot, Server, Terminal, WandSparkles } from 'lucide-react'
 import type { MiraPluginItem, MiraPluginMarketItem } from '../../../../../src/config/miraPlugins'
 import { MiraPluginAvatar, pluginLabel } from './MiraPluginAvatar'
+import { MiraComputerUseSettings } from './MiraComputerUseSettings'
+import type { MiraComputerSettingsHost } from '../../../../../src/config/miraComputerUse'
 
-export function MiraPluginDetail({ item, actions, advanced, onPrompt, disabled }: {
+export function MiraPluginDetail({ item, actions, advanced, onPrompt, disabled, computerSettings }: {
   item: MiraPluginItem | MiraPluginMarketItem; actions: ReactNode; advanced?: ReactNode
   onPrompt?: (prompt: string) => void; disabled?: boolean
+  computerSettings?: Partial<MiraComputerSettingsHost>
 }) {
   const local = 'conflicts' in item ? item : undefined
   const groups = [
@@ -25,6 +28,7 @@ export function MiraPluginDetail({ item, actions, advanced, onPrompt, disabled }
       {item.unavailableReason && <p role="status">{item.unavailableReason}</p>}
       {local?.error && <p role="alert">{local.error}</p>}
     </div>
+    {item.id === 'computer-use@mira-builtin' && (local || 'installed' in item && item.installed) && computerSettings?.getComputerUseStatus && computerSettings.setComputerUseCursor && computerSettings.openComputerUsePermission && <MiraComputerUseSettings host={computerSettings as MiraComputerSettingsHost} />}
     {groups.filter(group => group.items.length > 0).map(({ title, Icon, items }) => <section className="mira-plugin-detail-group" key={title}>
       <h2>{title}<span>{items.length}</span></h2><ul>{items.map(component => <li key={component.name}>
         <span className="mira-plugin-component-icon"><Icon size={16} /></span><div><strong>{component.name}</strong><MarketIconHint label={component.description}><p>{component.description}</p></MarketIconHint></div>

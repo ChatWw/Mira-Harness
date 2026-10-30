@@ -22,6 +22,9 @@ import { createRemoteHarness } from './services/miraRemoteHarness'
 import { miraBrowserAutomation } from './services/miraBrowserAutomation'
 import { applyHardwareAcceleration } from './bootstrap/hardwareAcceleration'
 import { AutomationKeepAwake } from './services/automationKeepAwake'
+import { MiraNotifications } from './services/miraNotifications'
+import { registerNotificationIpc } from './ipc/notificationIpc'
+import { isResourceManagerWindow } from './bootstrap/resourceManager'
 
 const keepAwake = new AutomationKeepAwake(powerSaveBlocker)
 let keepAwakeTimer: ReturnType<typeof setInterval> | undefined
@@ -30,6 +33,7 @@ let services: PlatformServices | undefined
 let lanRemote: MiraLanRemote | undefined
 let shutdown: Promise<void> | undefined
 let shutdownComplete = false
+let notifications: MiraNotifications | undefined
 const terminalSessions = new HarnessTerminalSessions()
 const workspaceWatch = new HarnessWorkspaceWatch()
 const testHome = !app.isPackaged && process.env.MIRA_TEST_HOME ? resolve(process.env.MIRA_TEST_HOME) : undefined
@@ -54,6 +58,18 @@ function publishHarnessEvent(event: HarnessEvent) {
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
   services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
+  notifications = new MiraNotifications(services.database, () => BrowserWindow.getAllWindows().find(window => !isResourceManagerWindow(window)), sessionId => {
+    showMainWindow()
+    const window = BrowserWindow.getAllWindows().find(window => !isResourceManagerWindow(window))
+    if (!window) return
+    if (window.isMinimized()) window.restore()
+    const navigate = () => window.webContents.send('notifications:open-session', sessionId)
+    if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', navigate)
+    else navigate()
+  })
+  services.harnessRuntime.onPublicEvent(event => notifications?.handle(event))
+  registerNotificationIpc(notifications)
+  if (process.platform === 'win32') app.setAppUserModelId('com.wujinbo.mira')
   let remoteOwner: import('electron').WebContents | undefined
   const remoteHarness = createRemoteHarness(services.database, services.harnessRuntime, () => {
     if (!remoteOwner || remoteOwner.isDestroyed()) throw new Error('电脑窗口已关闭，请重新开启远程控制')
@@ -70,7 +86,7 @@ app.whenReady().then(async () => {
     const enabled = services.database.getSnapshot().preferences.keepComputerAwake === true
     keepAwake.update(enabled, enabled)
   }, 1000)
-  registerPlatformIpcHandlers({ remoteControl, database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
+  registerPlatformIpcHandlers({ computerSettings: services.computerSettings, remoteControl, database: services.database, harnessRuntime: services.harnessRuntime, flows: services.miraFlowController, localMicroAppServer: services.localMicroAppServer, workspaceMedia: services.workspaceMedia, workspaceHtml: services.workspaceHtml, legacyNovelApiToken: services.legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, skillMarketplace: services.skillMarketplace, automationScheduler: services.automationScheduler })
   ipcMain.handle('mira:browser-bind', (event, sessionId, browserId, guestId) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('浏览器绑定仅允许主窗口调用')
     if (typeof sessionId !== 'string' || typeof browserId !== 'string' || !Number.isSafeInteger(guestId)) throw new Error('浏览器绑定参数无效')
@@ -105,6 +121,7 @@ app.on('before-quit', event => {
   isQuitting = true
   clearInterval(keepAwakeTimer)
   keepAwake.dispose()
+  notifications?.dispose()
   BrowserWindow.getAllWindows().forEach(window => { if (!window.isDestroyed()) window.hide() })
   destroyTray()
   services?.automationScheduler.stop()

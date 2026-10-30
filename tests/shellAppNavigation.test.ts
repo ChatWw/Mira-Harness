@@ -5,14 +5,15 @@ import App from '../src/app/App.vue'
 import Layout from '../src/layouts/index.vue'
 import { useAppNavigationStore } from '../src/stores/appNavigation'
 import { createVueNodeRenderer, withVueClientRender } from './helpers/vueNodeRenderer'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
-const environment = vi.hoisted(() => ({ route: { path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} }, push: vi.fn(), search: vi.fn(), toggleTheme: vi.fn(), close: undefined as undefined | (() => void), removeClose: vi.fn(), windowCommand: vi.fn(async () => undefined) }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: environment.route }, push: environment.push }), useRoute: () => environment.route }))
+const environment = vi.hoisted(() => ({ api: undefined as any, route: { path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} }, push: vi.fn(), search: vi.fn(), toggleTheme: vi.fn(), close: undefined as undefined | (() => void), removeClose: vi.fn(), windowCommand: vi.fn(async () => undefined) }))
+vi.mock('vue-router', async importOriginal => ({ ...await importOriginal<typeof import('vue-router')>(), useRouter: () => ({ currentRoute: { value: environment.route }, push: environment.push }), useRoute: () => environment.route }))
 vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ toggleThemeModeWithTransition: environment.toggleTheme }) }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: () => ({ config: { componentSize: 'default' } }) }))
 vi.mock('@/stores/harness', () => ({ useHarnessStore: () => ({ applyEvent: vi.fn() }) }))
 vi.mock('@/stores/commandPalette', () => ({ useCommandPaletteStore: () => ({ open: environment.search }) }))
-vi.mock('@/platform', () => ({ getPlatformApi: () => undefined }))
+vi.mock('@/platform', () => ({ getPlatformApi: () => environment.api }))
 vi.mock('@/hooks/useLoading', () => ({ useLoading: () => ({ active: { value: false }, text: { value: '' } }) }))
 vi.mock('@/config/runtime', () => ({ applications: [{ code: 'main', name: 'Mira Harness' }], findRuntimeMicroApp: () => undefined }))
 vi.mock('@/config/navigation', () => ({ getAppCodeFromPath: () => 'main', getApplicationEntryPath: () => '/workspace/harness-react', navigateToPath: vi.fn() }))
@@ -48,6 +49,7 @@ function connect() {
 }
 
 beforeEach(() => {
+  environment.api = undefined
   setActivePinia(createPinia()); environment.route = reactive({ path: '/workspace/harness-react', fullPath: '/workspace/harness-react', query: {} })
   environment.push.mockClear(); environment.search.mockClear(); environment.toggleTheme.mockClear(); modals = []
   documentEvents = new EventTarget()
@@ -157,6 +159,39 @@ describe('Shell navigation shortcuts', () => {
 })
 
 describe('Shell navigation controls', () => {
+  it('opens notification sessions on the current or returning route, but respects a blocked settings draft', async () => {
+    let listener!: (sessionId: string) => Promise<void>
+    const remove = vi.fn()
+    environment.api = { onHarnessEvent: () => () => undefined, onNotificationSession: (callback: typeof listener) => { listener = callback; return remove } }
+    mount(ActualApp)
+    const store = useAppNavigationStore(), send = vi.fn(() => true)
+    store.register('mira-harness', vi.fn(() => true), send).receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    environment.push.mockResolvedValueOnce(undefined)
+    await listener('returning')
+    expect(send).toHaveBeenLastCalledWith({ type: 'mira:harness-control', action: 'open-session', sessionId: 'returning' })
+    const router = createRouter({ history: createMemoryHistory(), routes: ['/workspace/harness-react', '/settings/general'].map(path => ({ path, component: { render: () => null } })) })
+    await router.push('/workspace/harness-react')
+    const duplicate = await router.push('/workspace/harness-react')
+    environment.push.mockResolvedValueOnce(duplicate); await listener('current')
+    expect(send).toHaveBeenLastCalledWith({ type: 'mira:harness-control', action: 'open-session', sessionId: 'current' })
+    await router.push('/settings/general'); router.beforeEach(() => false)
+    const blocked = await router.push('/workspace/harness-react')
+    environment.push.mockResolvedValueOnce(blocked); await listener('blocked')
+    expect(send).toHaveBeenCalledTimes(2)
+    mounts.pop()!.unmount(); expect(remove).toHaveBeenCalledOnce()
+  })
+  it('queues notification navigation until the workbench reports ready, and targets the latest session', () => {
+    const store = useAppNavigationStore(), send = vi.fn(() => true)
+    store.openNotificationSession('old'); store.openNotificationSession('current')
+    const owner = store.register('mira-harness', vi.fn(() => true), send)
+    expect(send).not.toHaveBeenCalled()
+    owner.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: true })
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'mira:harness-control', action: 'open-session', sessionId: 'current' })
+    owner.receiveControls({ type: 'mira:harness-controls-state', sidebarOpen: false })
+    expect(send).toHaveBeenCalledOnce()
+    store.openNotificationSession('next')
+    expect(send).toHaveBeenLastCalledWith({ type: 'mira:harness-control', action: 'open-session', sessionId: 'next' })
+  })
   it('unmounts global search while settings cover the retained shell', async () => {
     const renderer = mount(ActualLayout)
     const search = () => renderer.all().filter(node => node.props['data-search-bar'])

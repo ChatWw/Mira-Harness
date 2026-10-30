@@ -163,3 +163,24 @@
 .mira-plugin-detail-advanced { padding-top: 16px; border-top: 1px solid var(--mira-border); font-size: 14px; }
 .mira-plugin-detail-advanced > summary { color: var(--mira-foreground-subtle); cursor: pointer; }
 .mira-plugin-detail-advanced pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.mira-computer-settings { font-size: 14px; line-height: 20px; }
+.mira-computer-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--mira-border); padding-bottom: 8px; }
+.mira-computer-settings-heading h2 { padding: 0; border: 0; }
+.mira-computer-settings button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--mira-border); border-radius: 7px; background: var(--mira-background); color: var(--mira-foreground); font-size: 13px; white-space: nowrap; }
+.mira-computer-settings button:not([role="switch"]):hover:not(:disabled) { background: var(--mira-surface); }
+.mira-computer-settings button:focus-visible { outline: 2px solid var(--mira-primary); outline-offset: 3px; }
+.mira-computer-settings button:disabled { opacity: .5; cursor: not-allowed; }
+.mira-computer-readiness { display: flex; align-items: flex-start; gap: 10px; padding: 16px 0; }
+.mira-computer-readiness > svg { flex-shrink: 0; margin-top: 1px; }
+.mira-computer-settings strong { font-weight: 500; }
+.mira-computer-settings p { margin: 4px 0 0; color: var(--mira-foreground-subtle); overflow-wrap: anywhere; }
+.mira-computer-settings .mira-market-error { color: var(--mira-destructive); margin-bottom: 12px; }
+.mira-computer-setting-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid var(--mira-border); }
+.mira-computer-setting-row > div { flex: 1; min-width: 0; }
+.mira-computer-setting-row > span { flex-shrink: 0; color: var(--mira-foreground-subtle); font-size: 13px; }
+.mira-computer-settings .mira-computer-ready { color: var(--mira-success); }
+.mira-computer-settings .mira-computer-switch { flex-shrink: 0; justify-content: flex-start; width: 36px; min-height: 22px; padding: 2px; border: 0; border-radius: 11px; background: var(--mira-foreground-subtle); }
+.mira-computer-settings .mira-computer-switch[aria-checked="true"] { background: var(--mira-primary); }
+.mira-computer-switch > span { width: 18px; height: 18px; border-radius: 50%; background: var(--mira-primary-foreground); }
+.mira-computer-switch[aria-checked="true"] > span { margin-left: 14px; }

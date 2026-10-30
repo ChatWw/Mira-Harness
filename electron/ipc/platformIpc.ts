@@ -36,6 +36,7 @@ import { HarnessHookCatalog } from '../services/harnessHookCatalog'
 import { isMiraPluginId } from '../../src/config/miraPlugins'
 
 export interface PlatformIpcDependencies {
+  computerSettings?: import('../services/miraComputerSettings').MiraComputerSettings
   remoteControl?: (sender: import('electron').WebContents, action: import('../../src/config/miraRemote').MiraRemoteAction, id?: string) => Promise<import('../../src/config/miraRemote').MiraRemoteStatus>
   workspaceHtml?: MiraWorkspaceHtml
   workspaceMedia?: MiraWorkspaceMedia
@@ -76,7 +77,7 @@ function resolveFirstPartyGrant(event: { sender: { id: number }; senderFrame?: {
   return { grant, manifest }
 }
 
-export function registerPlatformIpcHandlers({ remoteControl, database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, workspaceHtml, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
+export function registerPlatformIpcHandlers({ computerSettings, remoteControl, database, harnessRuntime, flows, localMicroAppServer, workspaceMedia, workspaceHtml, legacyNovelApiToken, terminalSessions, workspaceWatch, mcpConfigStore, mcpManager, skillMarketplace, automationScheduler, firstPartyManifests = firstPartyAppManifests, firstPartyGrantStore = new FirstPartyGrantStore(), fetchImpl = fetch }: PlatformIpcDependencies) {
   const userAgents = (call: ReturnType<typeof parseFirstPartyHarnessCall>) => {
     if (!['agents.list', 'agents.read', 'agents.save', 'agents.delete', 'agents.setEnabled'].includes(call.method)) throw new Error('智能体请求无效')
     let directory: string | undefined
@@ -510,6 +511,14 @@ export function registerPlatformIpcHandlers({ remoteControl, database, harnessRu
       case 'session.set-delegation': return database.harness.setDelegationEnabled(call.id, call.enabled)
       case 'projects.reorder': return database.harness.reorderProjects(call.ids)
       case 'plugins.list': return database.plugins.list()
+      case 'computer-use.status':
+      case 'computer-use.set-cursor':
+      case 'computer-use.open-permission': {
+        if (!computerSettings) throw new Error('电脑控制设置不可用')
+        if (call.method === 'computer-use.status') return computerSettings.status()
+        if (call.method === 'computer-use.set-cursor') return computerSettings.setCursor(call.showCursor)
+        return computerSettings.openPermission(call.permission)
+      }
       case 'agent-models.list': return database.agentModels.list()
       case 'agent-models.set': return database.agentModels.set(call.target, call.modelSelection)
       case 'agents.list':

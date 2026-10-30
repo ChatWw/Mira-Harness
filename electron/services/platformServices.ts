@@ -8,6 +8,7 @@ import { MiraFlowController } from './flows/miraFlowController'
 import { McpConfigStore } from '../storage/mcpConfigStore'
 import { McpManager } from '../adapters/mcpManager'
 import { createMiraComputerConnection } from './miraComputerUse'
+import { MiraComputerSettings } from './miraComputerSettings'
 import { PythonEnvironment } from '../adapters/pythonEnv'
 import { saveAutomationTask } from '../ipc/automationIpc'
 import { AutomationScheduler } from './automationScheduler'
@@ -15,7 +16,7 @@ import { SkillMarketplaceService } from './skillMarketplace'
 import type { MiraPaths } from '../storage/miraPaths'
 import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from '../storage/miraDataMigration'
 import type { HarnessEvent } from '../../src/config/harness'
-import { app, net, safeStorage, session } from 'electron'
+import { app, net, safeStorage, session, shell } from 'electron'
 import { MiraMcpCredentialStore } from '../storage/miraMcpCredentialStore'
 import { MiraMcpAuthorization } from './miraMcpAuthorization'
 import { join, resolve } from 'node:path'
@@ -25,6 +26,7 @@ import { MiraWorkspaceMedia } from './miraWorkspaceMedia'
 const TRASH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 
 export interface PlatformServices {
+  computerSettings: MiraComputerSettings
   workspaceHtml: MiraWorkspaceHtml
   workspaceMedia: MiraWorkspaceMedia
   database: PlatformDatabase
@@ -70,8 +72,10 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     encryptString: value => safeStorage.encryptString(value), decryptString: value => safeStorage.decryptString(value),
     isAvailable: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
   }))
+  const computerOptions = { resourceRoot: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'), 'plugins/computer-use'), configPath: join(miraPaths.config, 'computer-use.json') }
+  const computerSettings = new MiraComputerSettings({ ...computerOptions, openExternal: url => shell.openExternal(url) })
   const mcpManager = new McpManager(mcpAuthorization.fork(), mcpAuthorization,
-    () => createMiraComputerConnection({ resourceRoot: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'), 'plugins/computer-use') }))
+    () => createMiraComputerConnection(computerOptions))
   const harnessRuntime = new HarnessRuntime(database, mcpManager, publishHarnessEvent, mcpConfigStore,
     resolveMiraRipgrepPath({ appPath: app.getAppPath(), isPackaged: app.isPackaged, resourcesPath: process.resourcesPath }),
     electronWebRequest)
@@ -100,5 +104,5 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     database.savePreference('localMicroAppPort', localMicroAppServer.port)
   }
 
-  return { workspaceHtml, workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, pythonEnvironment, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
+  return { computerSettings, workspaceHtml, workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, pythonEnvironment, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
 }

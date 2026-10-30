@@ -356,8 +356,8 @@
 .mira-context-menu { width: 290px; max-width: min(290px, calc(100vw - 24px)); }
 .mira-context-path { margin: 0; padding: 4px 8px 10px; overflow-wrap: anywhere; color: var(--color-foreground); font-size: 12px; }
 .mira-context-info { padding: 8px; }
-.mira-context-info > strong, .mira-context-tooltip > strong { display: block; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; }
-.mira-context-info .mira-context-path, .mira-context-tooltip .mira-context-path { padding: 5px 0 8px; }
+.mira-context-info > strong { display: block; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; }
+.mira-context-info .mira-context-path { padding: 5px 0 8px; }
 .mira-context-branch { display: flex; min-width: 0; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--color-border); color: var(--color-foreground); font-size: 12px; }
 .mira-context-branch > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mira-context-branch > svg { flex: none; }
@@ -365,8 +365,6 @@
 .mira-context-error { display: flex; align-items: start; gap: 5px; padding: 0 8px 6px; color: var(--color-destructive); font-size: 11px; }
 .mira-context-error > svg { flex: none; margin-top: 2px; }
 .mira-context-error > span { min-width: 0; overflow-wrap: anywhere; }
-.mira-context-tooltip { z-index: 70; width: 290px; max-width: calc(100vw - 24px); padding: 12px; border: 1px solid var(--color-popover-border); border-radius: 6px; background: var(--color-popover); color: var(--color-foreground); box-shadow: 0 6px 18px rgb(0 0 0 / 12%); }
-.mira-context-tooltip, [data-radix-popper-content-wrapper]:has(.mira-context-tooltip) { pointer-events: none; }
 .mira-thread-rename { display: flex; min-width: 0; align-items: center; gap: 3px; }
 .mira-thread-rename input { width: min(280px, 28vw); min-width: 70px; height: 28px; padding: 3px 6px; border: 1px solid var(--color-input-border-focused); border-radius: 5px; color: var(--color-foreground); background: var(--color-card); }
 .mira-thread-rename button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 5px; color: var(--color-foreground-subtle); background: transparent; }

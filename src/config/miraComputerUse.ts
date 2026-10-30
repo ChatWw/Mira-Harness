@@ -1,6 +1,22 @@
 /** Public summaries for the bundled platform computer backends. Never infer desktop tools from arbitrary MCP names. */
 export const MIRA_COMPUTER_SERVER_ID = 'plugin:computer-use@mira-builtin:desktop'
 
+export type MiraComputerPermission = 'screen-recording' | 'accessibility'
+export interface MiraComputerStatus {
+  platform: string
+  engineAvailable: boolean
+  cursorAvailable: boolean
+  screenRecording: boolean | null
+  accessibility: boolean | null
+  showCursor: boolean
+  error?: string
+}
+export interface MiraComputerSettingsHost {
+  getComputerUseStatus(): Promise<MiraComputerStatus>
+  setComputerUseCursor(showCursor: boolean): Promise<void>
+  openComputerUsePermission(permission: MiraComputerPermission): Promise<void>
+}
+
 export interface MiraComputerUseStep {
   action: string
   target: string

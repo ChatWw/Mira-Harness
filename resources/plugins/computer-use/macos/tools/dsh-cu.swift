@@ -189,6 +189,22 @@ switch cmd {
 case "version":
     print(ENGINE_PROTOCOL)
 
+case "permissions":
+    let status: [String: Bool] = ["screenRecording": CGPreflightScreenCaptureAccess(), "accessibility": AXIsProcessTrusted()]
+    let data = try! JSONSerialization.data(withJSONObject: status, options: [.sortedKeys])
+    print(String(data: data, encoding: .utf8)!)
+
+case "request-permission":
+    guard args.count == 2 else { fail("缺少权限类型") }
+    switch args[1] {
+    case "screen-recording":
+        _ = CGRequestScreenCaptureAccess()
+    case "accessibility":
+        _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+    default:
+        fail("系统权限类型无效")
+    }
+
 case "features":
     // window-shot：observe / find --pid / shot --pid 按窗口号截窗口本身
     print("window-shot")

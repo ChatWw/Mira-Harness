@@ -7,6 +7,7 @@ import { harnessApi } from './preload/harnessApi'
 import { automationApi } from './preload/automationApi'
 import { mcpApi } from './preload/mcpApi'
 import { miraFlowApi } from './preload/miraFlowApi'
+import { notificationApi } from './preload/notificationApi'
 
 contextBridge.exposeInMainWorld('platform', {
   ...platformApi,
@@ -17,4 +18,5 @@ contextBridge.exposeInMainWorld('platform', {
   ...automationApi,
   ...mcpApi,
   ...miraFlowApi,
+  ...notificationApi,
 })
