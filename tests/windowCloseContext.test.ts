@@ -6,7 +6,7 @@ import { windowApi } from '../electron/preload/windowApi'
 const about = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock('../electron/bootstrap/miraAbout', () => ({ showMiraAboutDialog: about }))
 
-const electron = vi.hoisted(() => ({ menu: [] as any[], focused: undefined as any, on: vi.fn(), off: vi.fn() }))
+const electron = vi.hoisted(() => ({ menu: [] as any[], focused: undefined as any, on: vi.fn(), off: vi.fn(), openExternal: vi.fn(async () => undefined) }))
 vi.mock('electron', () => ({
   app: { isPackaged: true }, BrowserWindow: class {
     static getFocusedWindow() { return electron.focused }
@@ -30,11 +30,26 @@ vi.mock('electron', () => ({
   },
   Menu: { buildFromTemplate: (template: any[]) => template, setApplicationMenu: (template: any[]) => { electron.menu = template } },
   screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
-  nativeImage: {}, shell: {}, Tray: class {}, webUtils: {}, webFrame: { getZoomFactor: () => 1.1 },
+  nativeImage: {}, shell: { openExternal: electron.openExternal }, Tray: class {}, webUtils: {}, webFrame: { getZoomFactor: () => 1.1 },
   ipcRenderer: { on: electron.on, removeListener: electron.off },
 }))
 afterEach(() => vi.restoreAllMocks())
 beforeEach(() => { electron.menu = []; electron.focused = undefined; vi.clearAllMocks() })
+
+it('opens web and email links in the system handler without creating a window or accepting other protocols', () => {
+  const window = createMainWindow({
+    getCloseWindowBehavior: () => 'quit', isQuitting: () => false,
+    legacyNovelApi: { baseUrl: 'http://127.0.0.1:1234/', token: 'test' },
+  })
+  const open = (window.webContents.setWindowOpenHandler as any).mock.calls[0][0]
+  for (const url of ['https://github.com/ChatWw/Mira-Harness', 'http://example.com', 'mailto:tuyn53@163.com']) {
+    expect(open({ url })).toEqual({ action: 'deny' })
+    expect(electron.openExternal).toHaveBeenCalledExactlyOnceWith(url)
+    electron.openExternal.mockClear()
+  }
+  for (const url of ['file:///tmp/example', 'javascript:alert(1)', 'custom:example']) expect(open({ url })).toEqual({ action: 'deny' })
+  expect(electron.openExternal).not.toHaveBeenCalled()
+})
 
 it('reapplies the latest saved zoom after every main-page reload rather than the creation value', () => {
   let level: unknown = 1

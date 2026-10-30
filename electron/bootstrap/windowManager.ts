@@ -151,7 +151,7 @@ export function createMainWindow(options: WindowManagerOptions) {
     window.hide()
   })
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) void shell.openExternal(url)
+    if (/^(https?:|mailto:)/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
   window.webContents.on('will-attach-webview', (event, preferences, params) => {
