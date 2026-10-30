@@ -12,10 +12,10 @@ const bridge = vi.hoisted(() => ({
   frameProps: undefined as undefined | { active?: boolean; navigationSnapshot?: MiraAppNavigationSnapshot; toggleTheme?: () => Promise<'light' | 'dark'>; context?: { theme: 'light' | 'dark' } },
   themeToggle: vi.fn(), themeStore: undefined as undefined | { themeMode: 'light' | 'dark' },
   closeContext: vi.fn<() => Promise<boolean>>(async () => true), windowCommand: vi.fn(async (_action: string) => undefined),
-  leave: undefined as undefined | (() => Promise<boolean>),
-  route: { name: 'HarnessReact' },
+  leave: undefined as undefined | (() => Promise<boolean>), update: undefined as undefined | (() => Promise<boolean>),
+  route: { name: 'HarnessReact', fullPath: '/workspace/harness-react', query: {} as Record<string, string> },
 }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: bridge.route } }), onBeforeRouteLeave: (callback: () => Promise<boolean>) => { bridge.leave = callback } }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ currentRoute: { value: bridge.route } }), useRoute: () => bridge.route, onBeforeRouteLeave: (callback: () => Promise<boolean>) => { bridge.leave = callback }, onBeforeRouteUpdate: (callback: () => Promise<boolean>) => { bridge.update = callback } }))
 vi.mock('@/platform', () => ({ getPlatformApi: () => ({ resolveLocalMicroAppUrl: bridge.resolveUrl, windowCommand: bridge.windowCommand }) }))
 vi.mock('@/platform/firstPartyNavigation', () => ({ navigateHarnessHost: vi.fn() }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: () => ({ config: { themeTransitionAnimation: false } }) }))
@@ -46,7 +46,7 @@ async function mount() {
 beforeEach(() => {
   setActivePinia(createPinia()); bridge.send.mockReset().mockReturnValue(true); bridge.prepareLeave.mockReset().mockResolvedValue(undefined); bridge.resolveUrl.mockClear()
   bridge.frameProps = undefined; bridge.state = undefined; bridge.reset = undefined; bridge.leave = undefined
-  bridge.route = reactive({ name: 'HarnessReact' })
+  bridge.route = reactive({ name: 'HarnessReact', fullPath: '/workspace/harness-react', query: {} as Record<string, string> })
   bridge.themeStore!.themeMode = 'light'; bridge.themeToggle.mockClear()
   bridge.closeContext.mockReset().mockResolvedValue(true); bridge.windowCommand.mockClear()
   vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('navigator', { language: 'zh-CN' })

@@ -42,13 +42,12 @@ describe('Mira shell settings consolidation', () => {
     expect(appearance).not.toContain('多标签页')
   })
 
-  it('redirects retired settings routes to the general settings page', () => {
+  it('removes retired settings routes', () => {
     const router = readSource('src/router/index.ts')
 
     for (const legacyPath of ['/system/components/loading', '/system/components/icon-selector', '/system/menus', '/system/micro-apps', '/system/backup-preferences']) {
-      expect(router).toContain(`path: '${legacyPath}'`)
+      expect(router).not.toContain(`path: '${legacyPath}'`)
     }
-    expect(router.match(/redirect: '\/settings\/general'/g)).toHaveLength(5)
     expect(router).not.toContain("path: '/settings/backup-preferences'")
     expect(readSource('src/pages/backend/settings/components/SettingsSiderMenu.vue')).not.toContain('backup-preferences')
     expect(existsSync(resolve('src/pages/backend/backupPreferences/index.vue'))).toBe(false)

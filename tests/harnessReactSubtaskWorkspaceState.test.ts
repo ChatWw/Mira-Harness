@@ -6,16 +6,16 @@ beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(NOW))
 afterEach(() => vi.restoreAllMocks())
 
 describe('run and subtask workspace owners', () => {
-  it('keeps independent terminal resources with unique directory labels, legacy restore and closed-tab ownership', () => {
+  it('keeps independent terminal resources with unique directory labels, closed-tab ownership', () => {
     const first = createWorkspaceTerminalTab('/project/Mira/', [])
     const second = createWorkspaceTerminalTab('/project/Mira', [first])
     expect(first.id).not.toBe(second.id); expect(first.label).toBe('Mira'); expect(second.label).toBe('Mira 2')
-    expect(isWorkspaceTerminalTab(first.id)).toBe(true); expect(isWorkspaceTerminalTab('terminal')).toBe(true)
+    expect(isWorkspaceTerminalTab(first.id)).toBe(true); expect(isWorkspaceTerminalTab('terminal')).toBe(false)
     const open = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), first), second)
     const closed = readWorkspaceSessions({ parent: closeWorkspaceTab(open, first.id) }).parent
     expect(closed.tabs).toEqual([{ ...second, openedAt: NOW }]); expect(closed.recentClosedTabs).toEqual([{ ...first, openedAt: NOW, closedAt: NOW }])
     expect(restoreWorkspaceTab(closed, first.id).tabs).toEqual([{ ...second, openedAt: NOW }, { ...first, openedAt: NOW }])
-    expect(readWorkspaceSessions({ parent: { tabs: [{ id: 'terminal', label: '旧终端' }, { id: 'terminal:../bad', label: '拒绝' }] } }).parent.tabs).toEqual([{ id: 'terminal', label: '旧终端' }])
+    expect(readWorkspaceSessions({ parent: { tabs: [{ id: 'terminal', label: '旧终端' }, { id: 'terminal:../bad', label: '拒绝' }] } }).parent.tabs).toEqual([])
   })
   it('restores independent side tabs and rejects mismatched child identities', () => {
     const first = createWorkspaceSideConversationTab('child-a'), second = createWorkspaceSideConversationTab('child-b')

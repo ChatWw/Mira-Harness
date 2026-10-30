@@ -4,12 +4,6 @@ import type { LayoutConfig } from '@/types'
 import { getPreference, savePreference } from '@/platform'
 
 export const APP_NAME = 'Mira Harness'
-const SUPPORTED_SIDEBAR_STYLES: LayoutConfig['sidebarStyle'][] = ['embedded', 'floating', 'docked']
-const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'headerHeight', 'showBreadcrumb', 'breadcrumbIcon', 'breadcrumbStyle', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
-const LEGACY_TAB_STYLE_MAP: Record<string, LayoutConfig['tabStyle']> = {
-  chrome: 'personalized',
-  plain: 'square',
-}
 const ANIMATION_DURATION_MAP: Record<LayoutConfig['animationSpeed'], string> = {
   fast: '0.2s',
   normal: '0.3s',
@@ -38,106 +32,22 @@ const CORNER_RADIUS_VALUES: Record<LayoutConfig['cornerRadius'], Record<string, 
 }
 
 const DEFAULT_CONFIG: LayoutConfig = {
-  sidebarStyle: 'embedded',
-  uniqueOpened: false,
-  showLogo: false,
-  enableTabs: true,
-  tabStyle: 'card',
-  showTabIcon: true,
-  tabPersist: false,
-  enableContentLayoutSettings: false,
   contentMaxWidth: 'full',
   contentPadding: 'compact',
   pageTransition: 'fade-slide',
   animationSpeed: 'normal',
   themeTransitionAnimation: false,
-  titleShimmerAnimation: false,
   cornerRadius: 'medium',
   componentSize: 'default',
-  watermark: false,
-  watermarkText: '',
   dynamicTitle: true,
 }
 
 export const useLayoutStore = defineStore('layout', () => {
   // 布局配置
-  const storedLayout = getPreference<Record<string, unknown>>('layout', {})
-  const normalizedLayout = Object.fromEntries(Object.entries(storedLayout).filter(([key]) => !REMOVED_LAYOUT_KEYS.has(key))) as Partial<LayoutConfig>
-  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...normalizedLayout })
-  if (Object.keys(normalizedLayout).length !== Object.keys(storedLayout).length) {
-    savePreference('layout', config.value)
-  }
-
-  function setSidebarStyle(style: LayoutConfig['sidebarStyle']) {
-    config.value.sidebarStyle = style
-  }
-
-  function setUniqueOpened(value: boolean) {
-    config.value.uniqueOpened = value
-  }
-
-  function toggleLogo() {
-    config.value.showLogo = !config.value.showLogo
-  }
-
-  function setShowLogo(value: boolean) {
-    config.value.showLogo = value
-  }
-
-  // 多标签页设置
-  function setEnableTabs(value: boolean) {
-    config.value.enableTabs = value
-  }
-
-  function setTabStyle(style: LayoutConfig['tabStyle']) {
-    config.value.tabStyle = style
-  }
-
-  function setShowTabIcon(value: boolean) {
-    config.value.showTabIcon = value
-  }
-
-  function setTabPersist(value: boolean) {
-    config.value.tabPersist = value
-  }
-
-  // 内容区设置
-  function setEnableContentLayoutSettings(value: boolean) {
-    config.value.enableContentLayoutSettings = value
-  }
-
-  function setContentMaxWidth(width: LayoutConfig['contentMaxWidth']) {
-    config.value.contentMaxWidth = width
-  }
-
-  function setContentPadding(padding: LayoutConfig['contentPadding']) {
-    config.value.contentPadding = padding
-  }
-
-  // 动画设置
-  function setPageTransition(transition: LayoutConfig['pageTransition']) {
-    config.value.pageTransition = transition
-  }
-
-  function setAnimationSpeed(speed: LayoutConfig['animationSpeed']) {
-    config.value.animationSpeed = speed
-  }
+  const config = ref<LayoutConfig>({ ...DEFAULT_CONFIG, ...getPreference<Partial<LayoutConfig>>('layout', {}) })
 
   function setThemeTransitionAnimation(value: boolean) {
     config.value.themeTransitionAnimation = value
-  }
-
-  function setTitleShimmerAnimation(value: boolean) {
-    config.value.titleShimmerAnimation = value
-  }
-
-  // 样式设置
-  function setCornerRadius(radius: LayoutConfig['cornerRadius']) {
-    config.value.cornerRadius = radius
-  }
-
-  function setComponentSize(size: LayoutConfig['componentSize']) {
-    config.value.componentSize = size
   }
 
   function applyCornerRadius(radius: LayoutConfig['cornerRadius']) {
@@ -157,30 +67,6 @@ export const useLayoutStore = defineStore('layout', () => {
     document.documentElement.style.setProperty('--cp-animation-duration', ANIMATION_DURATION_MAP[speed])
   }
 
-  // 水印设置
-  function setWatermark(value: boolean) {
-    config.value.watermark = value
-  }
-
-  function setWatermarkText(text: string) {
-    config.value.watermarkText = text
-  }
-
-  // 动态标题
-  function setDynamicTitle(value: boolean) {
-    config.value.dynamicTitle = value
-  }
-
-  // 重置配置
-  function resetConfig() {
-    config.value = { ...DEFAULT_CONFIG }
-  }
-
-  // 复制配置为 JSON
-  function copyConfig(): string {
-    return JSON.stringify(config.value, null, 2)
-  }
-
   watch(
     () => config.value.cornerRadius,
     applyCornerRadius,
@@ -195,81 +81,8 @@ export const useLayoutStore = defineStore('layout', () => {
     { immediate: true }
   )
 
-  watch(
-    () => config.value.sidebarStyle,
-    (style) => {
-      if (!SUPPORTED_SIDEBAR_STYLES.includes(style)) {
-        config.value.sidebarStyle = DEFAULT_CONFIG.sidebarStyle
-      }
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => config.value.showTabIcon,
-    (value) => {
-      if (typeof value !== 'boolean') {
-        config.value.showTabIcon = DEFAULT_CONFIG.showTabIcon
-      }
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => config.value.tabStyle,
-    (style) => {
-      const normalizedStyle = LEGACY_TAB_STYLE_MAP[style as string]
-      if (normalizedStyle) {
-        config.value.tabStyle = normalizedStyle
-      }
-    },
-    { immediate: true }
-  )
-
   return {
     config,
-    setSidebarStyle,
-    setUniqueOpened,
-    toggleLogo,
-    setShowLogo,
-    setEnableTabs,
-    setTabStyle,
-    setShowTabIcon,
-    setTabPersist,
-    setEnableContentLayoutSettings,
-    setContentMaxWidth,
-    setContentPadding,
-    setPageTransition,
-    setAnimationSpeed,
     setThemeTransitionAnimation,
-    setTitleShimmerAnimation,
-    setCornerRadius,
-    setComponentSize,
-    setWatermark,
-    setWatermarkText,
-    setDynamicTitle,
-    resetConfig,
-    copyConfig,
   }
-}, {
-  persist: window.platform ? false : {
-    key: 'cp-layout-config',
-    storage: localStorage,
-    pick: ['config'],
-    afterHydrate: ({ store }) => {
-      delete (store.config as Record<string, unknown>).sidebarCollapseAnimation
-      if (!SUPPORTED_SIDEBAR_STYLES.includes(store.config.sidebarStyle)) {
-        store.config.sidebarStyle = DEFAULT_CONFIG.sidebarStyle
-      }
-      if (typeof store.config.dynamicTitle !== 'boolean') {
-        store.config.dynamicTitle = DEFAULT_CONFIG.dynamicTitle
-      }
-      if (typeof store.config.enableContentLayoutSettings !== 'boolean') {
-        store.config.enableContentLayoutSettings = DEFAULT_CONFIG.enableContentLayoutSettings
-        store.config.contentMaxWidth = DEFAULT_CONFIG.contentMaxWidth
-        store.config.contentPadding = DEFAULT_CONFIG.contentPadding
-      }
-      store.$persist()
-    },
-  },
 })

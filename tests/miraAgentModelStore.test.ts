@@ -13,8 +13,8 @@ const resources: Array<{ directory: string; database: Database.Database }> = []
 afterEach(() => resources.splice(0).forEach(({ directory, database }) => { database.close(); rmSync(directory, { recursive: true, force: true }) }))
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'mira-agent-models-')), database = new Database(join(directory, 'state.sqlite'))
-  resources.push({ directory, database }); database.exec('CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE model_role_bindings(role TEXT PRIMARY KEY, provider_id TEXT, model_id TEXT)')
-  const paths = new MiraPaths(directory).ensure(), models = new ModelConfigStore(database, paths), plugins = new MiraPluginStore(paths)
+  resources.push({ directory, database }); database.exec('CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+  const paths = new MiraPaths(directory).ensure(), models = new ModelConfigStore(paths), plugins = new MiraPluginStore(paths)
   const provider = models.save({ providerKey: 'custom', name: 'Actual provider', endpoint: 'https://models.example/v1', apiKey: 'private-model-key', enabled: true, models: [{ id: 'plain-model', enabled: true, reasoning: false, contextWindow: 64000 }, { id: 'reason-model', enabled: true, reasoning: true, contextWindow: 64000 }] })
   const pluginRoot = join(directory, 'plugin'), profilePath = join(pluginRoot, 'agents/auditor.md')
   mkdirSync(join(pluginRoot, '.mira-plugin'), { recursive: true }); mkdirSync(join(pluginRoot, 'agents'))

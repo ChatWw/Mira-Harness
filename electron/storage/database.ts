@@ -30,11 +30,8 @@ import { validateSnapshot } from '../../src/config/platformValidation'
 import { DEFAULT_ASSISTANT_TONE, isModelProviderAvailable, type HarnessHistoryPage, type HarnessHistoryQuery, type HarnessUsageStats } from '../../src/config/harness'
 import type { MenuItem, MicroApp, PlatformSnapshot } from '../../src/types'
 
-const CURRENT_SCHEMA_VERSION = 30
 const PROTECTED_MENU_ID_SET = new Set(PROTECTED_MAIN_MENU_IDS)
-const REMOVED_BUILT_IN_MAIN_MENU_IDS = new Set(['dashboard', 'functional-components', 'system-management'])
 const DEFAULT_PREFERENCES = { loadingStyle: 'cube-grid', showContextUsage: true, sendShortcut: 'enter', assistantTone: DEFAULT_ASSISTANT_TONE }
-const REMOVED_LAYOUT_KEYS = new Set(['mode', 'sidebarWidth', 'collapsedWidth', 'headerHeight', 'showBreadcrumb', 'breadcrumbIcon', 'breadcrumbStyle', 'showFooter', 'footerStyle', 'footerHeight', 'footerCopyright', 'footerYearMode', 'footerYearStart', 'footerYearEnd', 'footerIcp', 'footerIcpLink', 'footerLinks'])
 const HARNESS_COMPOSER_PREFERENCE = 'first-party.mira-harness.harness-react-composer-drafts'
 const HARNESS_SIDEBAR_PREFERENCE = 'first-party.mira-harness.session-drawer'
 
@@ -42,7 +39,7 @@ function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 
 function removeProtectedMenus(menus: MenuItem[]): MenuItem[] {
   return menus
-    .filter(menu => !PROTECTED_MENU_ID_SET.has(menu.id) && !REMOVED_BUILT_IN_MAIN_MENU_IDS.has(menu.id))
+    .filter(menu => !PROTECTED_MENU_ID_SET.has(menu.id))
     .map(menu => ({ ...menu, children: menu.children ? removeProtectedMenus(menu.children) : undefined }))
 }
 
@@ -95,7 +92,7 @@ export class PlatformDatabase {
     this.filePath = this.paths.stateDatabase()
     this.database = new Database(this.filePath)
     this.novels = new NovelStore(this.database)
-    this.models = new ModelConfigStore(this.database, this.paths)
+    this.models = new ModelConfigStore(this.paths)
     this.harness = new HarnessStore(this.database, this.paths)
     this.goals = new HarnessGoalStore(this.database)
     this.flowJournal = new MiraFlowJournal(this.database)
@@ -113,7 +110,7 @@ export class PlatformDatabase {
     this.promptHistory = new MiraPromptHistoryStore(this.database)
     this.automations = new AutomationStore(this.database)
     this.database.pragma('journal_mode = WAL')
-    this.migrate()
+    this.initialize()
     this.goals.initialize()
     this.flowJournal.initialize()
     this.flowActors.initialize()
@@ -144,8 +141,7 @@ export class PlatformDatabase {
     try {
       if (sidebarRow) {
         const sidebar: unknown = JSON.parse(sidebarRow.value)
-        // hiddenProjectIds 是已下线的旧键：仍容忍历史偏好文件，新的写入不再包含它。
-        if (!isObject(sidebar) || Object.keys(sidebar).some(key => !['expandedProjectIds', 'collapsedProjectIds', 'view', 'projectView', 'sort', 'groups', 'hiddenProjectIds', 'ungroupedSessionOrder', 'groupedRootOrder'].includes(key))) return
+        if (!isObject(sidebar) || Object.keys(sidebar).some(key => !['expandedProjectIds', 'collapsedProjectIds', 'view', 'projectView', 'sort', 'groups', 'ungroupedSessionOrder', 'groupedRootOrder'].includes(key))) return
         const retain = (ids: unknown) => {
           if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) throw new Error('未知分组格式')
           ids.forEach(id => { if (id) retained.add(id) })
@@ -236,7 +232,7 @@ export class PlatformDatabase {
     return { sessionIds: retained, references, protectedOwners }
   }
 
-  private migrate() {
+  private initialize() {
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -245,9 +241,7 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS harness_input_history (workspace_key TEXT PRIMARY KEY, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS novel_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS model_providers (id TEXT PRIMARY KEY, provider_key TEXT, name TEXT NOT NULL, endpoint TEXT NOT NULL, api_key BLOB, models TEXT NOT NULL, enabled INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
+      CREATE TABLE IF NOT EXISTS harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', roots TEXT NOT NULL DEFAULT '[]', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
       CREATE TABLE IF NOT EXISTS harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, draft_state TEXT, parent_session_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
@@ -260,7 +254,7 @@ export class PlatformDatabase {
       CREATE TABLE IF NOT EXISTS harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS automation_tasks (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_type TEXT NOT NULL, cron_expression TEXT,
-        trigger_scheduled_at INTEGER, trigger_human_label TEXT,
+        trigger_scheduled_at INTEGER, trigger_human_label TEXT, schedule_rule TEXT,
         project_id TEXT NOT NULL, target_type TEXT NOT NULL, target_session_id TEXT, prompt TEXT NOT NULL,
         provider_id TEXT NOT NULL, model_id TEXT NOT NULL, thinking_level TEXT, permission_mode TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1, template_id TEXT, valid_from INTEGER, valid_until INTEGER, ended_at INTEGER,
@@ -274,174 +268,23 @@ export class PlatformDatabase {
       CREATE INDEX IF NOT EXISTS idx_automation_runs_task_time ON automation_runs(task_id, completed_at DESC);
       CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);
     `)
-    const projectColumns = this.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
-    if (!projectColumns.some(column => column.name === 'roots')) {
-      this.database.exec("ALTER TABLE harness_projects ADD COLUMN roots TEXT NOT NULL DEFAULT '[]'")
-    }
-    if (!projectColumns.some(column => column.name === 'icon')) {
-      this.database.exec("ALTER TABLE harness_projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'FolderOpened'")
-    }
-    const sessionColumns = this.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
-    if (!sessionColumns.some(column => column.name === 'pinned')) {
-      this.database.exec('ALTER TABLE harness_sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
-    }
-    if (!sessionColumns.some(column => column.name === 'unread')) {
-      this.database.exec('ALTER TABLE harness_sessions ADD COLUMN unread INTEGER NOT NULL DEFAULT 0')
-    }
-    if (!sessionColumns.some(column => column.name === 'archived_at')) {
-      this.database.exec('ALTER TABLE harness_sessions ADD COLUMN archived_at INTEGER')
-    }
-    if (!sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
-    if (!sessionColumns.some(column => column.name === 'parent_session_id')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN parent_session_id TEXT')
-    const projectOrderMissing = !projectColumns.some(column => column.name === 'sort_order')
-    const sessionOrderMissing = !sessionColumns.some(column => column.name === 'sort_order')
-    if (projectOrderMissing || sessionOrderMissing) {
-      this.backup()
-      this.database.transaction(() => {
-        if (projectOrderMissing) this.database.exec('ALTER TABLE harness_projects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0')
-        if (sessionOrderMissing) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0')
-      })()
-    }
-    const providerColumns = this.database.prepare('PRAGMA table_info(model_providers)').all() as Array<{ name: string }>
-    if (!providerColumns.some(column => column.name === 'provider_key')) {
-      this.database.exec('ALTER TABLE model_providers ADD COLUMN provider_key TEXT')
-    }
-    const automationTaskColumns = this.database.prepare('PRAGMA table_info(automation_tasks)').all() as Array<{ name: string }>
-    const addAutomationTaskColumn = (name: string, type: string) => {
-      if (!automationTaskColumns.some(column => column.name === name)) this.database.exec(`ALTER TABLE automation_tasks ADD COLUMN ${name} ${type}`)
-    }
-    addAutomationTaskColumn('trigger_scheduled_at', 'INTEGER')
-    addAutomationTaskColumn('trigger_human_label', 'TEXT')
-    addAutomationTaskColumn('schedule_rule', 'TEXT')
-    addAutomationTaskColumn('template_id', 'TEXT')
-    addAutomationTaskColumn('valid_from', 'INTEGER')
-    addAutomationTaskColumn('valid_until', 'INTEGER')
-    addAutomationTaskColumn('ended_at', 'INTEGER')
-    const automationRunColumns = this.database.prepare('PRAGMA table_info(automation_runs)').all() as Array<{ name: string }>
-    if (!automationRunColumns.some(column => column.name === 'retried_from')) this.database.exec('ALTER TABLE automation_runs ADD COLUMN retried_from TEXT')
-    this.models.migrateLegacyBindings()
-    this.models.migrateLegacyProviderReferences()
     const seeded = Boolean(this.database.prepare('SELECT 1 FROM meta WHERE key = ?').get('seeded'))
     if (!seeded) {
       this.writeSnapshot({ mainMenus: clone(defaultsMenus), microApps: clone(defaultMicroApps), preferences: clone(DEFAULT_PREFERENCES) })
       this.database.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
-    } else {
-      const versionRow = this.database.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as { value?: string } | undefined
-      const version = Number(versionRow?.value || 1)
-      if (version < 22) this.database.exec('DROP TABLE IF EXISTS memories; DROP TABLE IF EXISTS memory_settings;')
-      if (version < 11) {
-        const snapshot = this.getSnapshot()
-        this.backup()
-        this.writeSnapshot({
-          ...snapshot,
-          // 开发预览阶段不兼容旧菜单结构，升级时直接使用当前默认菜单。
-          mainMenus: clone(defaultsMenus),
-          microApps: version < 3 ? [] : snapshot.microApps,
-        })
-        this.database.prepare("DELETE FROM preferences WHERE key IN ('tabs', 'recentCommands')").run()
-      }
-      if (version < 12) {
-        const hasNovelApp = this.database.prepare('SELECT 1 FROM micro_apps WHERE code = ?').get('ai-novel')
-        if (!hasNovelApp) {
-          this.backup()
-          const insertApp = this.database.prepare('INSERT INTO micro_apps(id, code, payload) VALUES (?, ?, ?)')
-          for (const app of defaultMicroApps) {
-            if (app.code === 'ai-novel') insertApp.run(app.id, app.code, JSON.stringify(app))
-          }
-        }
-      }
-      if (version < 13) {
-        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
-        const builtin = defaultMicroApps.find(app => app.code === 'ai-novel')
-        if (row?.payload && builtin) {
-          const current = JSON.parse(row.payload) as MicroApp
-          this.backup()
-          this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(JSON.stringify({
-            ...current,
-            // legacy 小说页面使用全局 CSS/DOM，必须用 iframe 做完整隔离。
-            entry: builtin.entry,
-            integrationMode: builtin.integrationMode,
-            runtimeConfig: builtin.runtimeConfig,
-          }), 'ai-novel')
-        }
-      }
-      if (version < 14) {
-        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
-        if (row?.payload) {
-          const current = JSON.parse(row.payload) as MicroApp
-          const menus = (current.menus || []).map(menu =>
-            menu.id === 'ai_novel_home' ? { ...menu, showPageHeader: false } : menu,
-          )
-          this.backup()
-          this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(JSON.stringify({ ...current, menus }), 'ai-novel')
-        }
-      }
-      if (version < 15) {
-        const row = this.database.prepare('SELECT payload FROM micro_apps WHERE code = ?').get('ai-novel') as { payload?: string } | undefined
-        const builtin = defaultMicroApps.find(app => app.code === 'ai-novel')
-        if (row?.payload && builtin) {
-          const current = JSON.parse(row.payload) as MicroApp
-          // 编辑器往返曾把根级菜单路径拼成 /micro/ai-novel/ai-novel 并误改状态，
-          // 缺少首页菜单时按内置配置恢复，保证 showPageHeader 等菜单配置可命中。
-          const builtinHomePath = builtin.menus?.find(menu => menu.target?.type === 'microapp')?.path
-          const hasHomeMenu = builtinHomePath
-            ? (current.menus || []).some(menu => menu.path === builtinHomePath)
-            : false
-          if (builtinHomePath && !hasHomeMenu) {
-            this.backup()
-            this.database.prepare('UPDATE micro_apps SET payload = ? WHERE code = ?').run(
-              JSON.stringify({ ...current, menus: builtin.menus }),
-              'ai-novel',
-            )
-          }
-        }
-      }
-      if (version < 16) {
-        const snapshot = this.getSnapshot()
-        this.backup()
-        this.writeSnapshot({
-          ...snapshot,
-          mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus),
-          microApps: snapshot.microApps.filter(app => app.code !== 'ai-novel'),
-        })
-      }
-      if (version < 17) {
-        const snapshot = this.getSnapshot()
-        this.backup()
-        this.writeSnapshot({ ...snapshot, mainMenus: normalizeProtectedMainMenus(snapshot.mainMenus) })
-        this.savePreference('novelModelProfilesMigratedAt', Date.now())
-      }
-      if (version < 25) this.harness.migrateStructuredSessions()
-    }
-    const layoutRow = this.database.prepare('SELECT value FROM preferences WHERE key = ?').get('layout') as { value?: string } | undefined
-    if (layoutRow?.value) {
-      try {
-        const layout = JSON.parse(layoutRow.value) as Record<string, unknown>
-        if (layout && typeof layout === 'object' && !Array.isArray(layout)) {
-          const normalizedLayout = Object.fromEntries(Object.entries(layout).filter(([key]) => !REMOVED_LAYOUT_KEYS.has(key)))
-          if (Object.keys(normalizedLayout).length !== Object.keys(layout).length) this.savePreference('layout', normalizedLayout)
-        }
-      } catch {
-        // Ignore malformed legacy layout preferences and let the renderer use defaults.
-      }
     }
     let workspaceSettings = this.novels.getSettings()
     if (workspaceSettings.modelSelection) {
       const provider = this.models.get(workspaceSettings.modelSelection.providerId)
       if (!provider) workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: undefined })
-      else if (provider.id !== workspaceSettings.modelSelection.providerId) workspaceSettings = this.novels.saveSettings({ ...workspaceSettings, modelSelection: { ...workspaceSettings.modelSelection, providerId: provider.id } })
     }
     if (!workspaceSettings.modelSelection) {
       const provider = this.models.list().find(item => isModelProviderAvailable(item))
       const model = provider?.models.find(item => item.enabled)
       if (provider && model) this.novels.saveSettings({ ...workspaceSettings, modelSelection: { providerId: provider.id, modelId: model.id } })
     }
-    // The settings page and automation banner share one global keep-awake preference.
-    this.database.prepare("INSERT OR IGNORE INTO preferences(key, value) SELECT 'keepComputerAwake', value FROM preferences WHERE key IN ('first-party.mira-harness.keepAwakeDuringSessions', 'keepAwakeDuringSessions') ORDER BY key LIMIT 1").run()
-    this.database.prepare("DELETE FROM preferences WHERE key IN ('first-party.mira-harness.keepAwakeDuringSessions', 'keepAwakeDuringSessions')").run()
     const insertPreference = this.database.prepare('INSERT OR IGNORE INTO preferences(key, value) VALUES (?, ?)')
     Object.entries(DEFAULT_PREFERENCES).forEach(([key, value]) => insertPreference.run(key, JSON.stringify(value)))
-    this.database.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('schemaVersion', ?)").run(String(CURRENT_SCHEMA_VERSION))
   }
 
   getSnapshot(): PlatformSnapshot {

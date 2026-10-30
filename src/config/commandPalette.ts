@@ -1,6 +1,5 @@
 import { applications, microMenus, runtimeNavigation } from '@/config/runtime'
 import { getApplicationEntryPath, isMenuVisible } from '@/config/navigation'
-import { useHarnessStore } from '@/stores/harness'
 import type { MenuItem } from '@/types'
 
 export type CommandNavigationCategory = 'page' | 'application' | 'session'
@@ -39,11 +38,7 @@ export function getCommandNavigationItems(): CommandNavigationItem[] {
       id: `application-${app.code}`, title: app.name, icon: app.icon,
       path: getApplicationEntryPath(app.code), category: 'application', parent: '应用',
     }))
-  let sessionItems: CommandNavigationItem[] = []
-  try {
-    sessionItems = useHarnessStore().sessions.map(session => ({ id: `session-${session.id}`, title: session.title, icon: 'ChatDotRound', path: `/workspace/chat/${session.id}`, category: 'session' as const, parent: session.projectName || '最近对话' }))
-  } catch { /* command palette can be queried before Pinia is mounted */ }
-  return [...pageItems, ...applicationItems, ...sessionItems]
+  return [...pageItems, ...applicationItems]
 }
 
 export function findCommandNavigation(id: string) {

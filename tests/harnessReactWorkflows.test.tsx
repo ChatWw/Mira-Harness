@@ -6,7 +6,6 @@ import { MiraWorkflowsView, MiraAutomationTitleSwitch } from '../apps/harness-re
 import { MiraWorkflowMetaForm } from '../apps/harness-react/src/components/workflows/MiraWorkflowMetaForm'
 import { MiraWorkflowRunControls } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunControls'
 import { useMiraWorkflowActivityIndex } from '../apps/harness-react/src/components/workflows/MiraWorkflowActivity'
-import { MiraWorkflowEditor } from '../apps/harness-react/src/components/workflows/MiraWorkflowEditor'
 import { MiraWorkflowLaunch } from '../apps/harness-react/src/components/workflows/MiraWorkflowLaunch'
 import { MiraWorkflowRunPane } from '../apps/harness-react/src/components/workflows/MiraWorkflowRunPane'
 import { MiraWorkflowSavedRunActions } from '../apps/harness-react/src/components/workflows/MiraWorkflowSavedRunActions'
@@ -103,29 +102,6 @@ describe('workflow hub, editor and real launch interactions', () => {
     expect(document.querySelector('[aria-label="编辑工作流定义"]')).toBeNull()
     await click('自动化')
     expect(document.querySelector('[aria-label="工作流工作台"]')).not.toBeNull()
-  })
-  it('does not save after authoritative compile rejection and preserves the script', async () => {
-    const view = hostFixture(request => { if (request.action === 'definitions.preview') throw new Error('3:5 找不到名称 broken') })
-    await mount(<MiraWorkflowEditor host={view.host} document={definition} projectId={project.id} projects={[project]} onBack={vi.fn()} onSaved={vi.fn()} />)
-    await change('工作流源码', 'return broken;'); await click('保存工作流')
-    expect(view.request.mock.calls.map(([request]) => request.action)).toEqual(['definitions.preview'])
-    expect(document.querySelector<HTMLTextAreaElement>('[aria-label="工作流源码"]')!.value).toBe('return broken;')
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain('3:5')
-  })
-  it('previews then saves the same source revision, including repeated saves', async () => {
-    const view = hostFixture(request => request.action === 'definitions.preview' ? { next: definition } : request.action === 'definitions.save' ? { ...definition, revision: 'c'.repeat(64) } : undefined)
-    const saved = vi.fn()
-    await mount(<MiraWorkflowEditor host={view.host} document={definition} projectId={project.id} projects={[project]} onBack={vi.fn()} onSaved={saved} />)
-    await click('保存工作流'); await click('保存工作流')
-    expect(view.request.mock.calls.map(([request]) => request.action)).toEqual(['definitions.preview', 'definitions.save', 'definitions.preview', 'definitions.save'])
-    expect(view.request.mock.calls[3][0]).toMatchObject({ input: { expectedRevision: 'c'.repeat(64), script: definition.script } }); expect(saved).toHaveBeenCalledTimes(2)
-  })
-  it('requires discard confirmation for modified code and keeps editing on cancel', async () => {
-    const onBack = vi.fn(), view = hostFixture()
-    await mount(<MiraWorkflowEditor host={view.host} document={definition} projects={[project]} onBack={onBack} onSaved={vi.fn()} />)
-    await change('工作流源码', 'return "changed";'); await click('返回工作流')
-    expect(onBack).not.toHaveBeenCalled(); expect(document.querySelector('[role="dialog"]')?.textContent).toContain('放弃工作流修改')
-    await click('继续编辑'); expect(document.querySelector<HTMLTextAreaElement>('[aria-label="工作流源码"]')!.value).toBe('return "changed";')
   })
   it('validates typed parameters locally and leaves rejected launch inputs intact', async () => {
     const view = hostFixture(() => { throw new Error('项目已变化，请刷新') }), accepted = vi.fn(async () => undefined)

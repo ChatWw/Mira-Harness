@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -34,7 +33,7 @@ Object.assign(components, {
   ElDropdown: defineComponent({ setup: (_, { attrs, slots, expose }) => { expose({ handleOpen: host.openMenu, handleClose: vi.fn() }); return () => h('ElDropdown', attrs, slots.dropdown?.()) } }),
 })
 const mounted: Array<{ unmount(): void }> = []
-let database: Database.Database, directory: string, store: ModelConfigStore
+let directory: string, store: ModelConfigStore
 const text = (node: VueTestNode): string => node.text + node.children.map(text).join('')
 const model = { id: 'test', enabled: true, reasoning: true, contextWindow: 128000 }
 const original: ModelProviderInput = { id: 'default', providerKey: 'deepseek', slug: 'deepseek', builtin: true, name: '深度求索', endpoint: 'https://api.deepseek.com/v1', authMode: 'api-key', protocol: 'openai-completions', apiKey: 'original-key', enabled: true, models: [model] }
@@ -54,9 +53,7 @@ function setup() {
 beforeEach(() => {
   vi.stubGlobal('window', { setTimeout, clearTimeout })
   directory = mkdtempSync(join(tmpdir(), 'mira-model-tree-'))
-  database = new Database(':memory:')
-  database.exec('CREATE TABLE model_role_bindings (role TEXT PRIMARY KEY, provider_id TEXT, model_id TEXT)')
-  store = new ModelConfigStore(database, directory)
+  store = new ModelConfigStore(directory)
   store.save(original)
   host.preferences = { modelProviderExpanded: ['deepseek'] }
   host.confirm.mockClear(); host.openMenu.mockClear()
@@ -71,7 +68,7 @@ beforeEach(() => {
     deleteModelService: vi.fn(async (id: string) => store.deleteService(id)),
   }
 })
-afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); database.close(); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
+afterEach(() => { mounted.splice(0).forEach(app => app.unmount()); rmSync(directory, { recursive: true, force: true }); vi.unstubAllGlobals() })
 
 describe('two-level model service tree', () => {
   it('updates the more-settings arrow and expanded state in both directions', async () => {
@@ -127,7 +124,7 @@ describe('two-level model service tree', () => {
     expect(store.services().find(service => service.id === 'myicons')?.logo).toBe('lobehub:deepseek')
     const row = view.row('我的聚合平台')
     expect(row.children.find(node => node.props.class === 'row__logo')?.children[0].props['data-brand']).toBe('deepseek')
-    expect(new ModelConfigStore(database, directory).services().find(service => service.id === 'myicons')?.logo).toBe('lobehub:deepseek')
+    expect(new ModelConfigStore(directory).services().find(service => service.id === 'myicons')?.logo).toBe('lobehub:deepseek')
   })
 
   it('resets selected and uploaded avatars to the name initial and provides an empty search state', async () => {
@@ -222,7 +219,7 @@ describe('two-level model service tree', () => {
     const docsLink = view.find(node => node.type === 'a' && node.props['aria-label'] === '模型文档')
     expect(docsLink.props.href).toBe(docs)
     expect(text(docsLink)).toBe('')
-    expect(new ModelConfigStore(database, directory).get(saved.id)).toEqual(saved)
+    expect(new ModelConfigStore(directory).get(saved.id)).toEqual(saved)
     expect(() => store.deleteService(providerKey)).toThrow('内置服务商不能删除')
     expect(() => store.delete(saved.id)).toThrow('默认实例不能删除')
     await view.click(view.row(name))
@@ -386,18 +383,6 @@ describe('two-level model service tree', () => {
     }
   })
 
-  it('displays the provider name for a default instance with a legacy name', async () => {
-    store.save({ ...original, name: '深度求索 / DeepSeek' })
-    addInstance()
-    const view = setup(); await drain()
-    expect(view.children()).toEqual(['深度求索1', '深度求索'])
-    await view.click(view.row('深度求索', 'instance'))
-    expect(text(view.find(node => node.props.class === 'panel__ep'))).toBe('深度求索')
-    expect(store.get('default')?.name).toBe('深度求索')
-    expect(store.getSecret('default')).toBe('original-key')
-    expect(store.get('default')?.models).toEqual([model])
-  })
-
   it.each(['empty', 'flat', 'expanded'])('shows only add-instance on the %s provider menu', async kind => {
     if (kind === 'expanded') addInstance()
     const view = setup(); await drain()
@@ -498,7 +483,7 @@ describe('two-level model service tree', () => {
     expect(store.list().map(item => item.id)).toEqual(['default'])
     expect(store.getSecret('default')).toBe('original-key')
     expect(store.get('default')?.models).toEqual([model])
-    store = new ModelConfigStore(database, directory)
+    store = new ModelConfigStore(directory)
     const reopened = setup(); await drain()
     expect(reopened.children()).toEqual([])
     await reopened.context(reopened.row('深度求索'))
@@ -586,7 +571,7 @@ describe('two-level model service tree', () => {
     expect(store.services().some(item => item.id === 'myProvider')).toBe(false)
     expect(store.get('default')).toBeDefined()
     expect(ElMessage.success).not.toHaveBeenCalled()
-    store = new ModelConfigStore(database, directory)
+    store = new ModelConfigStore(directory)
     expect(store.services().some(item => item.id === 'myProvider')).toBe(false)
   })
 

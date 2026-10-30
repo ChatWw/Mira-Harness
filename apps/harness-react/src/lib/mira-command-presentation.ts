@@ -2,7 +2,7 @@ import type { HarnessSession, ToolCallRecord } from '../../../../src/config/harn
 
 export type MiraExplorationKind = 'read' | 'list' | 'search'
 
-/** The public input has a truncation flag; legacy target is only a display fallback. */
+/** The public input has a truncation flag; target provides a display label when input is truncated. */
 export function miraCompleteCommand(tool: ToolCallRecord): string | undefined {
   if (tool.tool !== 'bash' || !tool.input || tool.input.truncated) return undefined
   try {

@@ -20,19 +20,14 @@ export function parseFirstPartyNavigationPath(path: string) {
 }
 
 const harnessQueryKeys: Record<string, readonly string[]> = {
-  '/workspace/chat': ['draft'],
   [HARNESS_WORKBENCH_PATH]: [],
-  '/workspace/projects': [],
-  '/workspace/automations': [],
-  '/workspace/usage': [],
   '/settings/commands': ['from', 'project'],
   '/settings/agents': ['from', 'project'],
   '/settings/hooks': ['from', 'project', 'plugin'],
-  '/workspace/history': ['q', 'project', 'model', 'status', 'range', 'archive', 'sort', 'page'],
   ...Object.fromEntries([
-    '/settings', '/settings/conversation', '/settings/file-trash', '/settings/archives', '/settings/general', '/settings/permissions', '/settings/appearance', '/settings/personalization',
+    '/settings', '/settings/conversation', '/settings/file-trash', '/settings/archives', '/settings/general', '/settings/personalization',
     '/settings/keyboard-shortcuts', '/settings/app-extensions', '/settings/model-config', '/settings/mcp', '/settings/plugins',
-    '/settings/python-environment', '/settings/git', '/settings/file-search',
+    '/settings/file-search',
     '/settings/about', '/settings/usage',
   ].map(path => [path, ['from']])),
 }

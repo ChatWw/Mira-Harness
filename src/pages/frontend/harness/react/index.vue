@@ -1,6 +1,6 @@
 <template>
   <main class="harness-react-host">
-    <p v-if="error" class="harness-react-host__error" role="alert">{{ error }} <router-link to="/workspace/chat">使用旧版工作台</router-link></p>
+    <p v-if="error" class="harness-react-host__error" role="alert">{{ error }}</p>
     <p v-else-if="!url" class="harness-react-host__loading">正在加载 Harness…</p>
     <FirstPartyFrame v-else ref="appFrame" :url="url" title="Mira Harness" :manifest="manifest" :api="api!" :context="context" :active="active" :toggle-theme="toggleShellTheme" :get-appearance="getAppearance" :set-theme="setShellTheme" route="/" :navigate="navigate" :navigation-snapshot="navigationSnapshot" @controls-state="navigationOwner.receiveControls" @navigation-state="navigationOwner.receive" @navigation-reset="navigationOwner.reset" @error="error = $event" />
     <p v-if="routeError" class="harness-react-host__route-error" role="alert">{{ routeError }}</p>
@@ -55,7 +55,7 @@ function closeContext(event: Event) {
   })()
 }
 onBeforeUnmount(() => { disposed = true; navigationOwner.release(); window.removeEventListener('mira:open-harness-command-center', openCommandCenter); window.removeEventListener('mira:close-active-context', closeContext) })
-onBeforeRouteLeave(async () => {
+async function prepareNavigation() {
   if (!url.value || error.value) return true
   routeError.value = ''
   try {
@@ -66,7 +66,8 @@ onBeforeRouteLeave(async () => {
     routeError.value = cause instanceof Error ? cause.message : '草稿保存失败，已保留当前页面'
     return false
   }
-})
+}
+onBeforeRouteLeave(prepareNavigation)
 onMounted(async () => {
   window.addEventListener('mira:open-harness-command-center', openCommandCenter)
   window.addEventListener('mira:close-active-context', closeContext)
@@ -78,7 +79,6 @@ onMounted(async () => {
 
 <style scoped>
 .harness-react-host { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; color: var(--cp-text); background: var(--cp-bg); }
-.harness-react-host__error a { color: var(--cp-text-secondary); }
 .harness-react-host__error, .harness-react-host__loading { padding: 24px; font-size: 13px; }
 .harness-react-host__route-error { position: absolute; z-index: 3; top: 12px; right: 16px; max-width: min(460px, calc(100% - 32px)); margin: 0; padding: 10px 14px; border: 1px solid var(--cp-border); border-radius: 8px; color: var(--cp-text); background: var(--cp-bg); box-shadow: 0 4px 16px rgb(0 0 0 / .12); font-size: 13px; line-height: 1.5; }
 </style>

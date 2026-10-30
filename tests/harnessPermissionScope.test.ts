@@ -2,14 +2,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('harness permission scope', () => {
-  it('preserves the legacy Vue composer contract while the settings describe new-task defaults', () => {
-    const composerSource = readFileSync(new URL('../src/pages/frontend/harness/components/HarnessComposer.vue', import.meta.url), 'utf8')
-    const facadeSource = readFileSync(new URL('../src/pages/frontend/harness/useHarnessPageFacade.ts', import.meta.url), 'utf8')
+  it('describes new-task permissions in the active conversation settings', () => {
     const generalSettingsSource = readFileSync(new URL('../src/pages/backend/conversation/index.vue', import.meta.url), 'utf8')
 
-    expect(composerSource).toContain('const selectedPermissionMode = computed<PermissionMode>(() => props.permissionConfig.globalDefaultMode)')
-    expect(facadeSource).toContain('globalDefaultMode: action.permissionMode')
-    expect(facadeSource).not.toContain('store.setSessionPermission(store.activeSession.id, action.permissionMode)')
     expect(generalSettingsSource).toContain(':model-value="config.globalDefaultMode"')
     expect(generalSettingsSource).toContain('v-if="permissionConfigLoaded"')
     expect(generalSettingsSource).toContain('class="permission-mode-placeholder"')

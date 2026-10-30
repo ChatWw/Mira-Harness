@@ -4,9 +4,6 @@ import type { ThemeMode, ThemePreference } from '@/types'
 import {
   DEFAULT_PRIMARY_PRESET_ID,
   DEFAULT_THEME_MODE,
-  THEME_STORAGE_KEY,
-  LEGACY_PRIMARY_COLOR_STORAGE_KEY,
-  PRIMARY_PRESET_STORAGE_KEY,
   PRESET_COLORS,
 } from '@/config/theme'
 import { getPreference, savePreference } from '@/platform'
@@ -36,7 +33,7 @@ function isThemePreference(value: unknown): value is ThemePreference {
 }
 
 export const useThemeStore = defineStore('theme', () => {
-  const storedThemePreference = getPreference('themeMode', localStorage.getItem(THEME_STORAGE_KEY))
+  const storedThemePreference = getPreference('themeMode', DEFAULT_THEME_MODE)
   const normalizedStoredThemePreference = isThemePreference(storedThemePreference)
     ? storedThemePreference
     : DEFAULT_THEME_MODE
@@ -45,11 +42,9 @@ export const useThemeStore = defineStore('theme', () => {
   )
   const themeMode = ref<ThemeMode>(resolveThemeMode(normalizedStoredThemePreference))
   const presetColors = PRESET_COLORS
-  localStorage.removeItem(LEGACY_PRIMARY_COLOR_STORAGE_KEY)
-  const storedPresetId = getPreference('primaryPreset', localStorage.getItem(PRIMARY_PRESET_STORAGE_KEY))
+  const storedPresetId = getPreference('primaryPreset', DEFAULT_PRIMARY_PRESET_ID)
   const primaryPresetId = ref(DEFAULT_PRIMARY_PRESET_ID)
   if (storedPresetId !== null && storedPresetId !== DEFAULT_PRIMARY_PRESET_ID) {
-    localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, DEFAULT_PRIMARY_PRESET_ID)
     savePreference('primaryPreset', DEFAULT_PRIMARY_PRESET_ID)
   }
   const activePreset = computed(
@@ -80,7 +75,6 @@ export const useThemeStore = defineStore('theme', () => {
     if (!presetColors.some(preset => preset.id === id)) return
 
     primaryPresetId.value = id
-    localStorage.setItem(PRIMARY_PRESET_STORAGE_KEY, id)
     savePreference('primaryPreset', id)
     applyTheme()
   }
@@ -179,7 +173,6 @@ export const useThemeStore = defineStore('theme', () => {
     if (themePreference.value === normalizedPreference && themeMode.value === nextMode) return
 
     themePreference.value = normalizedPreference
-    localStorage.setItem(THEME_STORAGE_KEY, normalizedPreference)
     savePreference('themeMode', normalizedPreference)
     if (themeMode.value === nextMode) return
     themeMode.value = nextMode

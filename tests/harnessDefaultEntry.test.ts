@@ -14,7 +14,7 @@ vi.mock('vue-router', async importOriginal => {
   return { ...actual, createWebHistory: () => actual.createMemoryHistory(), createWebHashHistory: () => actual.createMemoryHistory() }
 })
 
-let router: Router, syncBusinessRoutes: () => void, applyManagementSnapshot: (snapshot: PlatformSnapshot) => void
+let router: Router, syncBusinessRoutes: () => void
 const snapshot = (mainMenus: MenuItem[] = []): PlatformSnapshot => ({ mainMenus, microApps: [], preferences: {} })
 function stubPages() {
   for (const record of router.getRoutes()) {
@@ -27,13 +27,12 @@ function restoreRoutes(mainMenus: MenuItem[] = []) {
 beforeAll(async () => {
   vi.stubGlobal('window', { platform: {}, location: { protocol: 'file:' } })
   ;({ default: router, syncBusinessRoutes } = await import('../src/router'))
-  ;({ applyManagementSnapshot } = await import('../src/pages/backend/platformManagement'))
 })
 beforeEach(() => restoreRoutes())
 afterAll(() => vi.unstubAllGlobals())
 
 describe('official React Harness entry', () => {
-  it.each(['/', '/workspace'])('opens the packaged React workbench directly from %s', async path => {
+  it.each(['/'])('opens the packaged React workbench directly from %s', async path => {
     await router.push(path)
     expect(router.currentRoute.value.path).toBe(HARNESS_WORKBENCH_PATH)
     expect(router.currentRoute.value.name).toBe('HarnessReact')
@@ -48,14 +47,16 @@ describe('official React Harness entry', () => {
   })
 
   it.each([
-    '/workspace/chat/legacy%20session?source=history#reply',
-    '/workspace/chat?draft=unsent%20text',
-    '/workspace/history?q=notes&archive=archived&page=2',
-    '/workspace/projects', '/workspace/automations', '/workspace/usage',
-  ])('retains explicit legacy links and their session/draft identities: %s', async path => {
+    '/workspace', '/workspace/chat', '/workspace/chat/old-session', '/workspace/projects',
+    '/workspace/history', '/workspace/automations', '/workspace/usage',
+    '/workspace/harness-pilot', '/workspace/harness-prototype',
+    '/settings/python-environment', '/settings/git', '/settings/permissions',
+    '/settings/appearance', '/settings/ai-novel', '/settings/unknown',
+    '/system/components/loading', '/system/components/icon-selector', '/system/menus',
+    '/system/micro-apps', '/system/backup-preferences',
+  ])('does not expose the removed entry %s', async path => {
     await router.push(path)
-    expect(router.currentRoute.value.fullPath).toBe(path)
-    if (path.includes('/legacy%20session')) expect(router.currentRoute.value.params.id).toBe('legacy session')
+    expect(router.currentRoute.value.name).toBe('NotFound')
   })
 
   it('keeps unknown links on the error page and defaults settings return to React', async () => {
@@ -81,37 +82,4 @@ describe('official React Harness entry', () => {
     } finally { app.unmount() }
   })
 
-  it.each([
-    HARNESS_WORKBENCH_PATH, '/workspace/chat/legacy%20session?source=history#reply',
-    '/workspace/chat?draft=unsent%20text', '/workspace/history?q=notes&archive=archived',
-    '/workspace/projects', '/workspace/automations', '/workspace/usage', '/settings/general', '/404',
-  ])('does not redirect a valid static page after applying a settings snapshot: %s', async path => {
-    await router.push(path)
-    const replace = vi.spyOn(router, 'replace')
-    try {
-      applyManagementSnapshot(snapshot())
-      expect(replace).not.toHaveBeenCalled()
-      expect(router.currentRoute.value.fullPath).toBe(path)
-    } finally { replace.mockRestore() }
-  })
-
-  it('returns a removed configurable page to the official React host', async () => {
-    const removed: MenuItem = { id: 'retired-page', title: '旧页面', type: 'menu', path: '/retired-page', target: { type: 'component', componentKey: 'aiNovel' } }
-    restoreRoutes([removed]); await router.push('/retired-page')
-    expect(router.currentRoute.value.fullPath).toBe('/retired-page')
-    applyManagementSnapshot(snapshot())
-    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe(HARNESS_WORKBENCH_PATH))
-    expect(router.currentRoute.value.name).toBe('HarnessReact')
-  })
-
-  it('retains a configurable page that remains present in the new snapshot', async () => {
-    const retained: MenuItem = { id: 'retained-page', title: '保留页面', type: 'menu', path: '/retained-page', target: { type: 'component', componentKey: 'aiNovel' } }
-    restoreRoutes([retained]); await router.push('/retained-page?chapter=3')
-    const replace = vi.spyOn(router, 'replace')
-    try {
-      applyManagementSnapshot(snapshot([retained]))
-      expect(replace).not.toHaveBeenCalled()
-      expect(router.currentRoute.value.fullPath).toBe('/retained-page?chapter=3')
-    } finally { replace.mockRestore() }
-  })
 })

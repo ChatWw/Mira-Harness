@@ -11,7 +11,6 @@ export const PLATFORM_API_VERSION = { major: 1, minor: 0 } as const
 
 export interface FirstPartyAppManifest {
   appId: string
-  legacyIds: string[]
   enabled: boolean
   trustedSource: FirstPartyAppSource
   entry: { path: string }
@@ -27,7 +26,6 @@ const CAPABILITY_SET = new Set<string>(FIRST_PARTY_CAPABILITIES)
 
 export const firstPartyAppManifests: readonly FirstPartyAppManifest[] = [{
   appId: 'mira-harness',
-  legacyIds: [],
   enabled: true,
   trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
   entry: { path: 'index.html' },
@@ -55,8 +53,6 @@ function compareVersions(left: string, right: string) {
 
 export function validateFirstPartyAppManifest(manifest: FirstPartyAppManifest) {
   if (!manifest || !APP_ID_PATTERN.test(manifest.appId)) throw new Error('第一方应用 ID 无效')
-  if (!Array.isArray(manifest.legacyIds) || manifest.legacyIds.some(id => !APP_ID_PATTERN.test(id))) throw new Error('第一方应用历史 ID 无效')
-  if (new Set(manifest.legacyIds).size !== manifest.legacyIds.length || manifest.legacyIds.includes(manifest.appId)) throw new Error('第一方应用历史 ID 必须唯一且不能等于当前 ID')
   if (typeof manifest.enabled !== 'boolean') throw new Error('第一方应用启用状态无效')
   const entryPath = manifest.entry?.path
   if (typeof entryPath !== 'string' || !/^[a-zA-Z0-9._/-]+$/.test(entryPath)
@@ -86,7 +82,7 @@ export function validateFirstPartyAppManifest(manifest: FirstPartyAppManifest) {
 }
 
 export function resolveFirstPartyAppManifest(app: MicroApp, manifests: readonly FirstPartyAppManifest[] = firstPartyAppManifests, currentShellVersion = shellVersion) {
-  const manifest = manifests.find(item => item.enabled && (item.appId === app.code || item.legacyIds.includes(app.code)))
+  const manifest = manifests.find(item => item.enabled && item.appId === app.code)
   if (!manifest || app.id !== `micro-${app.code}` || app.entry.type !== 'builtin' || manifest.trustedSource.type !== 'builtin') return undefined
   if (app.entry.package !== manifest.trustedSource.packagePath) return undefined
   validateFirstPartyAppManifest(manifest)

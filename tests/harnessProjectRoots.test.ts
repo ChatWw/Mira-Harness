@@ -2,7 +2,6 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MiraPaths } from '../electron/storage/miraPaths'
 import { PlatformDatabase } from '../electron/storage/database'
 
 const cleanups: Array<() => void> = []
@@ -67,17 +66,10 @@ describe('project source folders', () => {
     expect(store.selectFileReferences(f.project.id, [join(f.a, 'file.txt')], f.a)[0].path).toBe('file.txt')
   })
 
-  it.each([false, true])('restores trash to its original folder after primary changes (legacy: %s)', legacy => {
+  it('restores trash to its original folder after primary changes', () => {
     const f = fixture(), store = f.db.harness, task = store.createSession(f.project.id)
-    let token: string
-    if (legacy) {
-      token = '1700000000000-legacy'
-      const trash = join(new MiraPaths(f.root).projectTrash(f.project.id), token)
-      mkdirSync(trash, { recursive: true }); writeFileSync(join(trash, 'before.txt'), 'before switch')
-    } else {
-      writeFileSync(join(f.a, 'before.txt'), 'before switch')
-      token = store.moveToTrash(task.id, 'before.txt').token
-    }
+    writeFileSync(join(f.a, 'before.txt'), 'before switch')
+    const token = store.moveToTrash(task.id, 'before.txt').token
     store.updateProject(f.project.id, { name: 'Project', roots: [f.a, f.b], primaryRoot: f.b })
     store.restoreTrash(f.project.id, token)
     expect(readFileSync(join(f.a, 'before.txt'), 'utf8')).toBe('before switch')

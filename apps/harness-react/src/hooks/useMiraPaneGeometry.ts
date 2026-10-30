@@ -62,11 +62,7 @@ export function useMiraPaneGeometry(options: Options) {
     const panel = workspacePanelRef.current
     if (!element || !panel) return
     const bodyWidth = bodyRef.current?.getBoundingClientRect().width ?? 0
-    const ratio = miraWorkspaceRatio(preferences.current.workspaceRatio, bodyWidth, preferences.current.legacyWorkspace)
-    if (preferences.current.legacyWorkspace && bodyWidth > 0) {
-      preferences.current = { ...preferences.current, workspaceRatio: ratio, legacyWorkspace: undefined }
-      save()
-    }
+    const ratio = miraWorkspaceRatio(preferences.current.workspaceRatio, bodyWidth)
     const applyTarget = () => { if (workspaceOpen) panel.resize(`${ratio * 100}%`); else panel.collapse() }
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (motion.matches || document.hidden || windowResizing.current) {

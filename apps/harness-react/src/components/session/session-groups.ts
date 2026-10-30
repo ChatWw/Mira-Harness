@@ -6,7 +6,7 @@
 import type { HarnessProject, HarnessSession, HarnessSessionSummary } from '../../../../../src/config/harness'
 import type { SidebarGroupingOrder, SidebarRootItem, SidebarTaskGroup } from './sidebar-preferences'
 
-/** One root layer, as in ZCode's grouped view; legacy preferences keep groups first. */
+/** One root layer, as in ZCode's grouped view; unordered items follow the saved entries. */
 export function sidebarRootItems(groups: SidebarTaskGroup[], sessionIds: string[], order: SidebarRootItem[]) {
   const pending = new Map<string, SidebarRootItem>([...groups.map(group => ({ type: 'group' as const, id: group.id })), ...sessionIds.map(id => ({ type: 'session' as const, id }))].map(item => [`${item.type}:${item.id}`, item]))
   const items: SidebarRootItem[] = []
@@ -97,7 +97,7 @@ export interface SessionBadgeInput {
   pending: boolean
 }
 
-/** 徽标优先级与 Vue 侧边栏一致：计划状态 > 等待审批 > 运行中 > 未读。 */
+/** 徽标优先级：计划状态 > 等待审批 > 运行中 > 未读。 */
 export function sessionBadge(summary: HarnessSessionSummary, input: SessionBadgeInput): { kind: SessionBadgeKind; label: string } | undefined {
   if (summary.planStatus && summary.planStatus !== 'completed' && summary.planStatus !== 'cancelled') return { kind: 'plan', label: planStatusLabel(summary.planStatus) }
   if (input.pending) return { kind: 'waiting', label: '等待审批' }
@@ -106,7 +106,7 @@ export function sessionBadge(summary: HarnessSessionSummary, input: SessionBadge
   return undefined
 }
 
-/** 复制为 Markdown 的格式与 Vue 工作台保持一致。 */
+/** 会话复制为 Markdown，保留标题与用户、助手消息。 */
 export function sessionMarkdown(session: HarnessSession) {
   const messages = session.messages.filter(message => !message.internal && message.content.trim())
   const body = messages.map(message => `## ${message.role === 'user' ? '用户' : 'Mira'}\n\n${message.content.trim()}`).join('\n\n')

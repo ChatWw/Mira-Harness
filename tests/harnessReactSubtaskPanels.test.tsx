@@ -30,7 +30,7 @@ describe('real subtask DTO side panels', () => {
   it('renders saved task, activities, report, error, usage and only its real child tools', async () => {
     const task = { ...child(), report: '实际报告', files: [{ path: 'src/config.ts' }], error: { code: 'check_failed', message: '实际检查失败' }, usage: { input: 7, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 10 } }
     const source = session(task)
-    source.toolCalls = [{ id: 'owned', tool: 'read', target: '实际子工具', status: 'ok', createdAt: 3, subtaskId: 'child-a' }, { id: 'other', tool: 'read', target: '其他子工具', status: 'ok', createdAt: 3, subtaskId: 'child-b' }]
+    source.toolCalls = [{ id: 'owned', tool: 'read', target: '实际子工具', status: 'ok', createdAt: 3, runId: 'run-a', subtaskId: 'child-a' }, { id: 'other', tool: 'read', target: '其他子工具', status: 'ok', createdAt: 3, runId: 'run-a', subtaskId: 'child-b' }]
     Object.assign(task, { transcript: '不能渲染的内部聊天', thinking: '不能渲染的内部推理' })
     const view = props({ session: source })
     await render(<MiraSubtaskPanel {...view} />)

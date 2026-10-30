@@ -7,7 +7,7 @@ import { parseFirstPartyHarnessCall } from '../src/platform/firstPartyHarness'
 
 const manifest: FirstPartyAppManifest = {
   appId: 'mira-novel-studio',
-  legacyIds: ['ai-novel'],
+
   enabled: true,
   trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
   entry: { path: 'index.html' },

@@ -37,7 +37,6 @@ let notifications: MiraNotifications | undefined
 const terminalSessions = new HarnessTerminalSessions()
 const workspaceWatch = new HarnessWorkspaceWatch()
 const testHome = !app.isPackaged && process.env.MIRA_TEST_HOME ? resolve(process.env.MIRA_TEST_HOME) : undefined
-const legacyUserDataPath = testHome ? join(testHome, 'legacy-user-data') : app.getPath('userData')
 const miraPaths = new MiraPaths(testHome ?? app.getPath('home')).ensure()
 
 // Keep Mira's data portable and inspectable under the user's home directory on every desktop OS.
@@ -57,7 +56,7 @@ function publishHarnessEvent(event: HarnessEvent) {
 
 app.whenReady().then(async () => {
   setupDevelopmentDockIcon()
-  services = await createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent })
+  services = await createPlatformServices({ miraPaths, publishHarnessEvent })
   notifications = new MiraNotifications(services.database, () => BrowserWindow.getAllWindows().find(window => !isResourceManagerWindow(window)), sessionId => {
     showMainWindow()
     const window = BrowserWindow.getAllWindows().find(window => !isResourceManagerWindow(window))
@@ -101,7 +100,7 @@ app.whenReady().then(async () => {
   registerMcpIpcHandlers({ mcpConfigStore: services.mcpConfigStore, mcpManager: services.mcpManager, database: services.database, mcpAuthorization: services.mcpAuthorization })
   registerModelIpcHandlers({ database: services.database })
   registerHarnessProjectIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, automationScheduler: services.automationScheduler, miraPaths, workspaceWatch })
-  registerHarnessSessionIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, mcpConfigStore: services.mcpConfigStore, pythonEnvironment: services.pythonEnvironment, workspaceWatch })
+  registerHarnessSessionIpcHandlers({ database: services.database, harnessRuntime: services.harnessRuntime, workspaceWatch })
   registerHarnessWorkspaceIgnoreIpcHandlers(services.database)
   // Windows uses application-drawn controls, so theme transitions no longer touch native title-bar chrome.
   registerWindowIpcHandlers()

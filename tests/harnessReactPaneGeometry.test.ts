@@ -83,10 +83,8 @@ describe('Mira desktop panel geometry', () => {
     await flush()
     expect(view.host.setPreference).not.toHaveBeenCalled()
   })
-  it('restores ratios and migrates legacy pixel width against the available body', () => {
-    expect(miraPanePreferences({ sessions: 999, workspaceRatio: .9 })).toEqual({ sessions: 420, workspaceRatio: .65, legacyWorkspace: undefined })
-    const legacy = miraPanePreferences({ sessions: 280, workspace: 420 })
-    expect(miraWorkspaceRatio(legacy.workspaceRatio, 1200, legacy.legacyWorkspace)).toBe(.35)
+  it('restores ratios and constrains them against the available body', () => {
+    expect(miraPanePreferences({ sessions: 999, workspaceRatio: .9 })).toEqual({ sessions: 420, workspaceRatio: .65 })
     expect(miraWorkspaceRatio(.1, 800)).toBe(.3)
     expect(miraPanePreferences({ sessions: NaN, workspaceRatio: Infinity })).toMatchObject({ sessions: 280, workspaceRatio: .45 })
   })

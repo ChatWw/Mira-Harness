@@ -158,7 +158,7 @@ type MiraResponse =
 | --- | --- | --- |
 | API key、供应商完整配置 | Mira 主进程 | 不可见 |
 | 模型调用 | Mira 平台服务 | 仅得到请求结果和稳定错误 |
-| `novel_projects` 兼容存储 | Mira 过渡平台服务 | 只能通过 `novel.*` 访问自己的作品 |
+| `novel_projects` 存储 | Mira 平台服务 | 只能通过 `novel.*` 访问自己的作品 |
 | 编辑器草稿和页面状态 | Novel Studio | 可在应用内恢复，不能写入宿主版本目录 |
 | Harness 长任务和审批 | Mira Harness 运行时 | v1 不通过小说 SDK 直接操作 |
 | 应用静态资源 | 安装器/应用中心 | 只读版本目录 |

@@ -1,4 +1,13 @@
-import type { AutomationTemplate } from '../../../../../src/pages/frontend/harness/automations/automationTemplates'
+import type { AutomationTrigger } from '../../../../../src/config/harness'
+
+export type AutomationTemplate = {
+  id: string
+  name: string
+  description: string
+  icon: string
+  prompt: string
+  trigger: AutomationTrigger
+}
 
 // The four scheduled scenes shown by ZCode's automation catalog; local prompts use Mira's project context.
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [

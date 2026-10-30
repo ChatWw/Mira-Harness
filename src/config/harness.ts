@@ -46,7 +46,7 @@ export interface HarnessSkillMarketDetail extends HarnessSkillMarketItem {
   totalBytes: number
 }
 export type AssistantTone = 'casual' | 'professional'
-export type MemorySource = 'auto' | 'explicit' | 'manual' | 'legacy'
+export type MemorySource = 'auto' | 'explicit' | 'manual'
 export type MemorySensitivity = 'none' | 'personal' | 'secret'
 export type MemoryLifecycleStatus = 'candidate' | 'no_memory' | 'blocked_secret' | 'needs_confirmation' | 'saved' | 'duplicate' | 'failed' | 'rejected'
 
@@ -56,7 +56,7 @@ export interface MemoryCandidate {
   messageId?: string
   scope: 'global' | 'project'
   projectId?: string
-  source: Exclude<MemorySource, 'legacy'>
+  source: MemorySource
   decision: 'save' | 'no_memory'
   sensitivity: MemorySensitivity
   content?: string
@@ -131,16 +131,6 @@ export function shouldSendWithShortcut(shortcut: SendShortcut, event: Pick<Keybo
 
 export const DEFAULT_CONTEXT_WINDOW = 256000
 export const CONTEXT_COMPACTION_THRESHOLD = 0.8
-export const OPEN_HARNESS_PROJECT_DIALOG_EVENT = 'mira:open-harness-project-dialog'
-
-export interface HarnessProjectDialogRequest {
-  project?: HarnessProject
-  removeProjectId?: string
-  onCreated?: (projectId: string) => void
-  onUpdated?: () => void
-  onRemoved?: () => void
-}
-
 export function shouldAutoCompactContext(usedTokens: number, contextWindow: number) {
   return usedTokens >= contextWindow * CONTEXT_COMPACTION_THRESHOLD
 }
@@ -288,7 +278,7 @@ export interface HarnessSubtask {
   startedAt?: number
   completedAt?: number
   activities: HarnessRunActivity[]
-  /** Ordered public assistant output. Undefined on legacy child records. */
+  /** Ordered public assistant output, when the subtask produces assistant segments. */
   parts?: HarnessMessagePart[]
   report?: string
   error?: HarnessSubtaskError
@@ -422,7 +412,7 @@ export interface HarnessSource {
 }
 
 export interface HarnessMessage {
-  /** Actual model of this assistant segment; absent on legacy history. */
+  /** Actual model of an assistant segment; user and host messages have no model. */
   model?: HarnessRunModel
   /** Host-created, model-only command results. Never supplied by renderer input. */
   backgroundCommands?: Array<{ runId: string; toolId: string }>
@@ -431,7 +421,7 @@ export interface HarnessMessage {
   content: string
   /** Original slash stays visible; the host-resolved prompt is frozen for model history. */
   command?: MiraPluginCommandInput | MiraPromptCommandInput
-  /** Optional on legacy history; never infer old text/tool ordering from timestamps. */
+  /** Agent run that produced the message; user and host messages may have no run. */
   runId?: string
   delivery?: 'guide'
   submissionId?: string
@@ -821,11 +811,11 @@ export function isProjectIcon(value?: string) {
 
 export interface HarnessEvent {
   sessionId: string
-  /** 公开事件的幂等标识；旧版本事件可能没有该字段。 */
+  /** 运行事件的幂等标识。 */
   eventId?: string
-  /** 一次 Agent 运行的标识；旧版本事件可能没有该字段。 */
+  /** 所属 Agent 运行的标识。 */
   runId?: string
-  /** 同一运行内单调递增的序列号；旧版本事件可能没有该字段。 */
+  /** 同一运行内单调递增的序列号。 */
   sequence?: number
   /** 主进程产生事件的时间。 */
   occurredAt?: number

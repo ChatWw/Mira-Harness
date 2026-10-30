@@ -127,7 +127,7 @@ async function fixture(delayed = false, faviconUrl?: string) {
   const container = document.createElement('div'); container.id = 'root'; document.body.append(container); root = createRoot(container)
   let finishClose: (() => void) | undefined
   function View() {
-    const [state, setState] = useState(() => openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), { id: 'terminal:a', label: 'Mira' }), { id: 'browser', label: '浏览器', faviconUrl }))
+    const [state, setState] = useState(() => openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), { id: 'terminal:a', label: 'Mira' }), { id: 'browser:a', label: '浏览器', faviconUrl }))
     const close = (id: WorkspaceTabId) => { const apply = () => setState(previous => closeWorkspaceTab(previous, id)); if (delayed) finishClose = apply; else apply() }
     return <><WorkspaceTabs tabs={state.tabs} active={state.activeTab} changes={0} recentClosedTabs={state.recentClosedTabs} onOpen={() => undefined} onActivate={id => setState(previous => ({ ...previous, activeTab: id }))} onClose={close} onCloseOthers={() => undefined} onCloseAll={() => undefined} onReopen={() => undefined} onReorder={() => undefined} onDismiss={() => undefined} /><textarea aria-label="main draft" /></>
   }
@@ -139,7 +139,7 @@ async function fixture(delayed = false, faviconUrl?: string) {
 describe('resource strip close focus', () => {
   it('shows a real browser icon and falls back to the globe on image failure without losing the tab', async () => {
     const view = await fixture(false, 'https://mira.test/icon.png')
-    const tab = view.container.querySelector('[data-workspace-tab-id="browser"]')!, image = tab.querySelector('img')!
+    const tab = view.container.querySelector('[data-workspace-tab-id="browser:a"]')!, image = tab.querySelector('img')!
     expect(image.getAttribute('src')).toBe('https://mira.test/icon.png'); expect(image.getAttribute('alt')).toBe(''); expect(image.referrerPolicy).toBe('no-referrer')
     await act(async () => image.dispatchEvent(new Event('error')))
     expect(tab.querySelector('img')).toBeNull(); expect(tab.querySelector('.pilot-side-tab__select > svg')).not.toBeNull()

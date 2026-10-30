@@ -1,31 +1,14 @@
 import { modelProtocol, type ModelProtocol } from '../../src/config/modelProtocol'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import type Database from 'better-sqlite3'
-import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, MODEL_PROVIDER_BUILTIN_INSTANCES, type ModelPricing, type ModelProviderAuthMode, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding, type ProviderModelConfig } from '../../src/config/harness'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { DEFAULT_CONTEXT_WINDOW, inferModelReasoning, MODEL_PROVIDER_PRESETS, MODEL_PROVIDER_BUILTIN_INSTANCES, type ModelProviderAuthMode, type ModelProviderInput, type ModelProviderKey, type ModelProviderSummary, type ModelRoleBinding, type ProviderModelConfig } from '../../src/config/harness'
 import { MiraPaths } from './miraPaths'
 import { normalizePricing } from '../services/usageCost'
 import type { ModelApiKey, ModelServiceSummary } from '../../src/config/harness'
 
-type LegacyJsonModelRecord = {
-  id: string
-  providerKey?: ModelProviderKey
-  name: string
-  endpoint: string
-  apiKey?: string
-  model: string
-  reasoning?: boolean
-  contextWindow?: number
-  pricing?: ModelPricing
-  enabled?: boolean
-  createdAt?: number
-  updatedAt?: number
-}
-
 type JsonProviderRecord = {
   id: string
   builtin?: boolean
-  legacyIds?: string[]
   providerKey: ModelProviderKey
   slug?: string
   name: string
@@ -111,7 +94,7 @@ function normalizeApiKeys(values: ModelApiKey[]) {
 }
 
 function recordApiKeys(record: JsonProviderRecord): ModelApiKey[] {
-  return record.apiKeys ?? (record.apiKey ? [{ id: `${record.id}-default`, label: '', value: record.apiKey }] : [])
+  return record.apiKeys ?? []
 }
 
 function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
@@ -123,7 +106,6 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
   return {
     id: item.id,
     ...(typeof item.builtin === 'boolean' ? { builtin: item.builtin } : {}),
-    ...(Array.isArray(item.legacyIds) ? { legacyIds: item.legacyIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())) } : {}),
     providerKey: key,
     ...(normalizeSlug(item.slug) ? { slug: normalizeSlug(item.slug) } : {}),
     name: item.name.trim(),
@@ -139,37 +121,22 @@ function normalizeProvider(value: unknown): JsonProviderRecord | undefined {
   }
 }
 
-function isLegacyRecord(value: unknown): value is LegacyJsonModelRecord {
-  if (!value || typeof value !== 'object') return false
-  const item = value as Partial<LegacyJsonModelRecord>
-  return typeof item.id === 'string' && typeof item.name === 'string' && typeof item.endpoint === 'string' && typeof item.model === 'string'
-}
-
 export class ModelConfigStore {
   private readonly configPath: string
 
-  constructor(private readonly database: Database.Database, input: MiraPaths | string) {
+  constructor(input: MiraPaths | string) {
     const paths = typeof input === 'string' ? new MiraPaths(input) : input
     this.configPath = paths.modelsConfig()
     mkdirSync(paths.config, { recursive: true })
     if (!existsSync(this.configPath)) this.writeDocument({ version: 2, providers: [], bindings: {} })
-    else this.migrateV1Document()
   }
 
   path() { return this.configPath }
 
   ensureBuiltinInstances() {
     const document = this.readDocument(), now = Date.now()
-    const matched = new Set<string>()
-    const hostname = (endpoint: string) => { try { return new URL(endpoint).hostname } catch { return '' } }
     for (const preset of MODEL_PROVIDER_BUILTIN_INSTANCES) {
-      const instances = document.providers.filter(item => serviceId(item) === preset.providerKey && item.builtin && !matched.has(item.id))
-      let record = instances.find(item => item.name === preset.name)
-        || instances.find(item => hostname(item.endpoint) === hostname(preset.endpoint))
-      // 旧默认连接可能使用代理地址；国内实例承接它，保持 ID、密钥、模型和会话引用。
-      if (!record && preset.id.endsWith('-cn')) record = instances.find(item => !MODEL_PROVIDER_BUILTIN_INSTANCES.some(other => other.providerKey === preset.providerKey && other.id.endsWith('-intl') && (item.id === other.id || item.name === other.name || hostname(item.endpoint) === hostname(other.endpoint))))
-      if (record) { record.name = preset.name; matched.add(record.id) }
-      else document.providers.push({ id: randomUUID(), builtin: true, providerKey: preset.providerKey, slug: preset.providerKey, name: preset.name, endpoint: preset.endpoint, apiKey: '', authMode: 'api-key', protocol: 'openai-completions', models: [], enabled: false, createdAt: now, updatedAt: now })
+      if (!document.providers.some(item => item.id === preset.id)) document.providers.push({ id: preset.id, builtin: true, providerKey: preset.providerKey, slug: preset.providerKey, name: preset.name, endpoint: preset.endpoint, apiKey: '', apiKeys: [], authMode: 'api-key', protocol: 'openai-completions', models: [], enabled: false, createdAt: now, updatedAt: now })
     }
     for (const key of ['glm', 'kimi'] as const) {
       const preset = MODEL_PROVIDER_BUILTIN_INSTANCES.find(item => item.providerKey === key)!
@@ -181,87 +148,11 @@ export class ModelConfigStore {
     this.writeDocument(document)
   }
 
-  private migrateV1Document() {
-    let parsed: unknown
-    try { parsed = JSON.parse(readFileSync(this.configPath, 'utf8')) } catch { return }
-    if (!Array.isArray(parsed) && parsed && typeof parsed === 'object' && (parsed as { version?: unknown }).version === 2) return
-    const source = Array.isArray(parsed) ? { providers: parsed, bindings: {} } : parsed && typeof parsed === 'object' ? parsed as { providers?: unknown, bindings?: unknown } : {}
-    const legacy = Array.isArray(source.providers) ? source.providers.filter(isLegacyRecord) : []
-    const grouped = new Map<string, JsonProviderRecord>()
-    const canonicalIds = new Map<string, string>()
-
-    legacy.forEach(item => {
-      const key = providerKey(item.providerKey, item.name, item.endpoint)
-      const endpoint = normalizeEndpoint(item.endpoint)
-      const apiKey = typeof item.apiKey === 'string' ? item.apiKey : ''
-      const groupKey = `${key}\u0000${endpoint.toLocaleLowerCase()}\u0000${apiKey}`
-      const existing = grouped.get(groupKey)
-      const model = normalizeModel({ id: item.model, enabled: item.enabled, reasoning: item.reasoning, contextWindow: item.contextWindow, pricing: item.pricing })
-      if (!existing) {
-        const record: JsonProviderRecord = {
-          id: item.id,
-          providerKey: key,
-          name: item.name.trim(),
-          endpoint,
-          apiKey,
-          authMode: defaultAuthMode(key),
-          models: model ? [model] : [],
-          enabled: item.enabled !== false,
-          createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
-          updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
-        }
-        grouped.set(groupKey, record)
-        canonicalIds.set(item.id, record.id)
-        return
-      }
-      canonicalIds.set(item.id, existing.id)
-      existing.legacyIds = [...new Set([...(existing.legacyIds || []), item.id])]
-      if (model && !existing.models.some(candidate => candidate.id === model.id)) existing.models.push(model)
-      existing.enabled = existing.enabled || item.enabled !== false
-      existing.createdAt = Math.min(existing.createdAt, typeof item.createdAt === 'number' ? item.createdAt : existing.createdAt)
-      existing.updatedAt = Math.max(existing.updatedAt, typeof item.updatedAt === 'number' ? item.updatedAt : existing.updatedAt)
-    })
-
-    const rawBindings = source.bindings && typeof source.bindings === 'object' ? source.bindings as ModelRoleBinding : {}
-    const bindings = Object.fromEntries(Object.entries(rawBindings).flatMap(([role, selection]) => {
-      if (!selection?.providerId || !selection.modelId) return []
-      return [[role, { ...selection, providerId: canonicalIds.get(selection.providerId) || selection.providerId }]]
-    })) as ModelRoleBinding
-    const backupPath = `${this.configPath}.v1.bak`
-    if (!existsSync(backupPath)) copyFileSync(this.configPath, backupPath)
-    this.writeDocument({ version: 2, providers: [...grouped.values()], bindings })
-  }
-
   private readDocument(): ModelConfigDocument {
     try {
       const parsed = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<ModelConfigDocument>
       const providers = Array.isArray(parsed.providers) ? parsed.providers.map(normalizeProvider).filter((provider): provider is JsonProviderRecord => Boolean(provider)) : []
       const services = Array.isArray(parsed.services) ? parsed.services.map(service => ({ ...service })) : []
-      // 旧配置没有实例身份：每个内置服务商最早创建的一条为默认实例。
-      for (const preset of MODEL_PROVIDER_PRESETS.filter(item => item.key !== 'custom')) {
-        const instances = providers.filter(item => item.providerKey === preset.key)
-        const builtin = instances.find(item => item.builtin === true)
-          || instances.filter(item => item.builtin === undefined).sort((a, b) => a.createdAt - b.createdAt)[0]
-        for (const item of instances) item.builtin ??= item === builtin
-        // 兼容旧版内置名称，手动实例和自定义服务商保留原名。
-        if (preset.key === 'deepseek') {
-          const legacyName = '深度求索 / DeepSeek'
-          if (builtin && serviceId(builtin) === preset.key && builtin.name === legacyName) builtin.name = preset.name
-          const service = services.find(item => item.id === preset.key && item.providerKey === preset.key)
-          if (service?.name === legacyName) service.name = preset.name
-        }
-      }
-      // 兼容旧配置：连接 ID 与会话引用不变，仅补齐父服务商信息。
-      for (const record of [...providers].sort((a, b) => a.createdAt - b.createdAt)) {
-        const id = serviceId(record)
-        let service = services.find(item => item.id === id)
-        if (!service) {
-          service = { id, providerKey: record.providerKey, name: record.name, endpoint: record.endpoint,
-            authMode: record.authMode, protocol: modelProtocol(record.protocol), hasInstances: false }
-          services.push(service)
-        }
-        if (providers.filter(item => serviceId(item) === id).length > 1) service.hasInstances = true
-      }
       return { version: 2, providers, services, bindings: parsed.bindings && typeof parsed.bindings === 'object' ? parsed.bindings : {} }
     } catch {
       return { version: 2, providers: [], bindings: {} }
@@ -277,7 +168,7 @@ export class ModelConfigStore {
   }
 
   private recordById(id: string) {
-    return this.readRecords().find(record => record.id === id || record.legacyIds?.includes(id))
+    return this.readRecords().find(record => record.id === id)
   }
 
   private asSummary(record: JsonProviderRecord): ModelProviderSummary {
@@ -315,7 +206,7 @@ export class ModelConfigStore {
     if (!input.name.trim() || !input.endpoint.trim()) throw new Error('请填写供应商名称和 Endpoint')
     const document = this.readDocument()
     const records = document.providers
-    const existing = input.id ? records.find(record => record.id === input.id || record.legacyIds?.includes(input.id!)) : undefined
+    const existing = input.id ? records.find(record => record.id === input.id) : undefined
     const now = Date.now()
     const key = existing?.providerKey || providerKey(input.providerKey, input.name, input.endpoint)
     const slug = existing ? serviceId(existing) : normalizeSlug(input.slug) || (key === 'custom' ? normalizeSlug(input.id || randomUUID())! : key)
@@ -345,18 +236,18 @@ export class ModelConfigStore {
     }
     const models = input.models.map(normalizeModel).filter((model): model is ProviderModelConfig => Boolean(model))
       .filter((model, index, source) => source.findIndex(candidate => candidate.id === model.id) === index)
-    let apiKeys = existing ? recordApiKeys(existing) : []
+    const id = existing?.id || input.id || randomUUID()
+    let apiKeys = existing ? recordApiKeys(existing) : input.apiKey?.trim() ? [{ id: `${id}-default`, label: '', value: input.apiKey.trim() }] : []
     if (input.apiKeys !== undefined) apiKeys = normalizeApiKeys(input.apiKeys)
     const record: JsonProviderRecord = {
-      id: existing?.id || input.id || randomUUID(),
+      id,
       builtin: existing?.builtin ?? input.builtin === true,
-      ...(existing?.legacyIds?.length ? { legacyIds: existing.legacyIds } : {}),
       providerKey: key,
       slug,
       name: input.name.trim(),
       endpoint: normalizeEndpoint(input.endpoint),
       apiKey: input.clearApiKey ? '' : input.apiKey?.trim() || existing?.apiKey || '',
-      ...(input.apiKeys !== undefined || existing?.apiKey || existing?.apiKeys !== undefined ? { apiKeys } : {}),
+      apiKeys,
       authMode: input.authMode || existing?.authMode || defaultAuthMode(key),
       protocol: modelProtocol(input.protocol || existing?.protocol),
       models,
@@ -379,27 +270,24 @@ export class ModelConfigStore {
       const service = document.services?.find(item => item.id === serviceId(record))
       if (service) service.hasInstances = false
     }
+    document.bindings = Object.fromEntries(Object.entries(document.bindings).filter(([, selection]) => selection.providerId !== record.id))
     this.writeDocument(document)
-    ;[record.id, ...(record.legacyIds || [])].forEach(providerId => this.database.prepare('DELETE FROM model_role_bindings WHERE provider_id = ?').run(providerId))
   }
 
   deleteService(id: string) {
     if (MODEL_PROVIDER_PRESETS.some(preset => preset.key !== 'custom' && preset.key === id)) throw new Error('内置服务商不能删除')
     const document = this.readDocument()
     const removed = document.providers.filter(record => serviceId(record) === id)
-    const removedIds = new Set(removed.flatMap(record => [record.id, ...(record.legacyIds || [])]))
+    const removedIds = new Set(removed.map(record => record.id))
     document.providers = document.providers.filter(record => serviceId(record) !== id)
     document.services = document.services?.filter(service => service.id !== id)
     document.bindings = Object.fromEntries(Object.entries(document.bindings).filter(([, selection]) => !removedIds.has(selection.providerId)))
     this.writeDocument(document)
-    this.database.transaction(() => {
-      for (const providerId of removedIds) this.database.prepare('DELETE FROM model_role_bindings WHERE provider_id = ?').run(providerId)
-    })()
   }
 
   bindings(): ModelRoleBinding {
     const records = this.readRecords()
-    const canonicalId = (id: string) => records.find(record => record.id === id || record.legacyIds?.includes(id))?.id
+    const canonicalId = (id: string) => records.find(record => record.id === id)?.id
     return Object.fromEntries(Object.entries(this.readDocument().bindings).flatMap(([role, selection]) => {
       if (!selection?.providerId || !selection.modelId) return []
       const providerId = canonicalId(selection.providerId)
@@ -409,7 +297,7 @@ export class ModelConfigStore {
 
   saveBindings(bindings: ModelRoleBinding) {
     const records = this.readRecords()
-    const canonicalId = (id: string) => records.find(record => record.id === id || record.legacyIds?.includes(id))?.id
+    const canonicalId = (id: string) => records.find(record => record.id === id)?.id
     const document = this.readDocument()
     document.bindings = Object.fromEntries(Object.entries(bindings).flatMap(([role, selection]) => {
       if (!selection?.providerId || !selection.modelId) return []
@@ -420,33 +308,4 @@ export class ModelConfigStore {
     return this.bindings()
   }
 
-  migrateLegacyProviderReferences() {
-    const replacements = this.readRecords().flatMap(record => (record.legacyIds || []).map(legacyId => ({ legacyId, providerId: record.id })))
-    if (!replacements.length) return
-    const existingTables = new Set((this.database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name))
-    const targets = [
-      ['model_role_bindings', 'provider_id'],
-      ['harness_sessions', 'model_provider_id'],
-      ['harness_projects', 'default_model_provider_id'],
-      ['automation_tasks', 'provider_id'],
-    ] as const
-    this.database.transaction(() => {
-      replacements.forEach(({ legacyId, providerId }) => targets.forEach(([table, column]) => {
-        if (existingTables.has(table)) this.database.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?`).run(providerId, legacyId)
-      }))
-    })()
-  }
-
-  migrateLegacyBindings() {
-    const document = this.readDocument()
-    if (Object.keys(document.bindings).length) return
-    const records = document.providers
-    const canonicalId = (id: string) => records.find(record => record.id === id || record.legacyIds?.includes(id))?.id
-    const rows = this.database.prepare('SELECT role, provider_id, model_id FROM model_role_bindings').all() as Array<{ role: keyof ModelRoleBinding, provider_id: string, model_id: string }>
-    const bindings = Object.fromEntries(rows.flatMap(row => {
-      const providerId = canonicalId(row.provider_id)
-      return providerId ? [[row.role, { providerId, modelId: row.model_id }]] : []
-    })) as ModelRoleBinding
-    if (Object.keys(bindings).length) this.writeDocument({ ...document, bindings })
-  }
 }

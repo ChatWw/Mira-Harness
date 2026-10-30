@@ -4,7 +4,7 @@ import type { MicroApp } from '../src/types'
 
 const manifest: FirstPartyAppManifest = {
   appId: 'mira-novel-studio',
-  legacyIds: ['ai-novel'],
+
   enabled: false,
   trustedSource: { type: 'github-release', repository: 'ChatWw/Mira-Novel-Studio', releaseTag: 'v0.1.0', sha256: 'a'.repeat(64) },
   entry: { path: 'index.html' },
@@ -32,11 +32,6 @@ describe('first-party application manifest contract', () => {
 
   it('rejects an invalid release digest before any package can be considered trusted', () => {
     expect(() => validateFirstPartyAppManifest({ ...manifest, trustedSource: { ...manifest.trustedSource, sha256: 'not-a-digest' } })).toThrow('应用包摘要无效')
-  })
-
-  it('rejects duplicate or self-referential legacy IDs', () => {
-    expect(() => validateFirstPartyAppManifest({ ...manifest, legacyIds: ['ai-novel', 'ai-novel'] })).toThrow('历史 ID 必须唯一')
-    expect(() => validateFirstPartyAppManifest({ ...manifest, legacyIds: ['mira-novel-studio'] })).toThrow('不能等于当前 ID')
   })
 
   it('rejects capabilities outside the known platform contract', () => {

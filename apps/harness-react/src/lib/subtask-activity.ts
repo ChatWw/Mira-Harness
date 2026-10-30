@@ -33,15 +33,7 @@ export function selectMiraSubtask(session: HarnessSession | undefined, runId: st
   if (!session || !run) return undefined
   const matches = run.subtasks.filter(task => task.id === subtaskId)
   if (matches.length !== 1) return undefined
-  // A legacy child tool has no run ID. Repeated snapshots of one run are one
-  // owner, but another run (or an unidentified legacy run) makes it ambiguous.
-  const owners = new Set<string | undefined>()
-  if (session.activeRun?.subtasks.some(task => task.id === subtaskId)) owners.add(session.activeRun.id)
-  for (const message of session.messages) {
-    if (message.role === 'assistant' && message.run?.subtasks?.some(task => task.id === subtaskId)) owners.add(message.runId)
-  }
-  const uniqueOwner = owners.size === 1 && owners.has(runId)
-  const tools = session.toolCalls.filter(tool => tool.subtaskId === subtaskId && (tool.runId !== undefined ? tool.runId === runId : uniqueOwner))
+  const tools = session.toolCalls.filter(tool => tool.subtaskId === subtaskId && tool.runId === runId)
   return { run, subtask: matches[0], tools }
 }
 
@@ -50,11 +42,6 @@ export function findMiraDelegateSubtask(session: HarnessSession | undefined, run
   if (!run) return undefined
   const delegates = run.tools.filter(tool => tool.tool === 'delegate_task')
   if (delegates.filter(tool => tool.id === toolId).length !== 1) return undefined
-  const matches = run.subtasks.filter(task => {
-    const exact = delegates.filter(tool => tool.id === task.parentToolCallId)
-    if (exact.length) return exact.length === 1 && exact[0].id === toolId
-    const legacy = delegates.filter(tool => tool.providerCallId === task.parentToolCallId)
-    return legacy.length === 1 && legacy[0].id === toolId
-  })
+  const matches = run.subtasks.filter(task => task.parentToolCallId === toolId)
   return matches.length === 1 ? matches[0] : undefined
 }

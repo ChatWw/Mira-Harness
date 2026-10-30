@@ -1,14 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { writeBuildLog } from './write-build-log.mjs'
+import { resolve } from 'node:path'
 
-const startedAt = new Date()
-const startedAtNanoseconds = process.hrtime.bigint()
+const run = (script, args = []) => execFileSync(process.execPath, [resolve(script), ...args], { stdio: 'inherit' })
 
-execFileSync('vue-tsc', { stdio: 'inherit' })
-execFileSync('vite', ['build'], { stdio: 'inherit' })
-execFileSync(process.execPath, ['scripts/build-harness-react.mjs'], { stdio: 'inherit' })
-
-writeBuildLog({
-  startedAt,
-  durationMilliseconds: Number(process.hrtime.bigint() - startedAtNanoseconds) / 1e6,
-})
+run('node_modules/vue-tsc/bin/vue-tsc.js', ['--noEmit'])
+run('node_modules/typescript/bin/tsc', ['--noEmit', '-p', 'apps/harness-react/tsconfig.json'])
+run('scripts/build-harness-react.mjs')
+run('scripts/build-mira-flow.mjs')
+run('scripts/build-mira-tools.mjs')
+run('node_modules/electron-vite/bin/electron-vite.js', ['build'])

@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue'
-import { canonicalMicroAppCode, microApps as defaultMicroApps } from './microApps'
+import { microApps as defaultMicroApps } from './microApps'
 import { mainMenus as defaultMainMenus } from './menus'
 import type { ApplicationOption, MenuItem, MicroApp, PlatformSnapshot } from '@/types'
 
@@ -33,7 +33,5 @@ export function applyPlatformSnapshot(snapshot: PlatformSnapshot) {
 }
 
 export function findRuntimeMicroApp(code: string): MicroApp | undefined {
-  const canonicalCode = canonicalMicroAppCode(code)
   return runtimeNavigation.microApps.find(app => app.code === code)
-    || runtimeNavigation.microApps.find(app => app.code === canonicalCode)
 }

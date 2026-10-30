@@ -489,9 +489,8 @@ export class PilotController {
       if (isCurrent && !isCurrent()) { this.update({ sessionLoading: false }); return false }
       const lastUsedSelection = this.availableSelection({ providerId: session.modelProviderId, modelId: session.modelId, thinkingLevel: session.modelThinkingLevel })
       const defaultSelection = this.availableSelection(this.defaultSelection)
-      const legacySelection = !this.sideSession && session.modelThinkingLevel === undefined && lastUsedSelection && defaultSelection?.providerId === lastUsedSelection.providerId && defaultSelection.modelId === lastUsedSelection.modelId ? defaultSelection : lastUsedSelection
       // 未发送配置恢复当前 owner 偏好；新旁路只继承主任务已生效的配置。
-      const selection = this.availableSelection(savedSelection) ?? legacySelection ?? (session.modelProviderId || session.modelId ? undefined : defaultSelection)
+      const selection = this.availableSelection(savedSelection) ?? lastUsedSelection ?? (session.modelProviderId || session.modelId ? undefined : defaultSelection)
       if (selection) this.sessionSelections.set(id, selection)
       const permissions = { ...this.state.pendingPermissions }
       if (permissionRevision === this.permissionRevision) {
@@ -1460,7 +1459,7 @@ export class PilotController {
     const index = session.toolCalls.findIndex(tool => tool.id === patch.id)
     const previous = session.toolCalls[index]
     if (previous?.runId && runId && previous.runId !== runId) return false
-    // Older hosts can send only a patch; keep their authoritative snapshot fallback.
+    // A missed tool creation event requires an authoritative snapshot before applying a patch.
     if (!previous && (typeof patch.tool !== 'string' || !Number.isFinite(patch.createdAt) || !['running', 'waiting-confirm', 'ok', 'failed', 'cancelled'].includes(String(patch.status)))) return true
     if (previous && ['ok', 'failed', 'cancelled'].includes(previous.status) && ['running', 'waiting-confirm'].includes(String(patch.status))) return false
     const tool = { ...previous, ...patch, ...(runId ? { runId } : {}) } as ToolCallRecord

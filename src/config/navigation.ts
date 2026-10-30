@@ -1,7 +1,6 @@
 import type { Router } from 'vue-router'
 import type { MenuItem, MicroApp } from '@/types'
 import { resolveHttpUrl, resolveIframePolicy } from './iframe'
-import { canonicalMicroAppCode, LEGACY_MICRO_APP_CODE_ALIASES } from './microApps'
 import { applications, findRuntimeMicroApp, microMenus, runtimeNavigation } from './runtime'
 import { HARNESS_WORKBENCH_PATH } from '@/platform/firstPartyNavigation'
 
@@ -61,8 +60,7 @@ export function isWorkspacePath(path: string) {
 }
 
 export function getMenusForApp(appCode: string) {
-  const canonicalCode = canonicalMicroAppCode(appCode)
-  return canonicalCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || microMenus.value[canonicalCode] || []
+  return appCode === 'main' ? runtimeNavigation.mainMenus : microMenus.value[appCode] || []
 }
 
 export function getVisibleMenusForPath(path: string) {
@@ -100,21 +98,18 @@ export function resolveNavigation(path: string): ResolvedNavigation {
 }
 
 export function getApplicationEntryPath(code: string) {
-  const canonicalCode = canonicalMicroAppCode(code)
-  if (canonicalCode === 'main' || canonicalCode === 'mira-harness') return HARNESS_WORKBENCH_PATH
-  const menus = microMenus.value[code] || microMenus.value[canonicalCode] || []
+  if (code === 'main' || code === 'mira-harness') return HARNESS_WORKBENCH_PATH
+  const menus = microMenus.value[code] || []
   return flattenMenus(getVisibleMenus(menus)).find(menu => menu.path && menu.target)?.path
-    || `/micro/${canonicalCode}`
+    || `/micro/${code}`
 }
 
 export function getMicroAppChildPath(app: MicroApp, platformPath: string) {
   const menu = findMenuByPath(app.menus || [], platformPath)
   if (menu?.target?.type === 'microapp') return menu.target.childPath
 
-  const codes = [app.code, ...Object.entries(LEGACY_MICRO_APP_CODE_ALIASES)
-    .filter(([, canonicalCode]) => canonicalCode === app.code)
-    .map(([legacyCode]) => legacyCode)]
-  const prefix = codes.map(code => `/micro/${code}`).find(value => platformPath === value || platformPath.startsWith(`${value}/`))
+  const base = `/micro/${app.code}`
+  const prefix = platformPath === base || platformPath.startsWith(`${base}/`) ? base : undefined
   return prefix ? platformPath.slice(prefix.length) : ''
 }
 

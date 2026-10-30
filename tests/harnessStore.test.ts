@@ -12,30 +12,25 @@ import { McpConfigStore } from '../electron/storage/mcpConfigStore'
 import { shouldGenerateAutoTitle, type HarnessMessage } from '../src/config/harness'
 
 describe('persistent Mira input history', () => {
-  it('projects persistent automation origin and recognizes older run-owned sessions', () => {
+  it('persists automation origin even after its automation is removed', () => {
     const root = mkdtempSync(join(tmpdir(), 'mira-session-automation-'))
     let database = new PlatformDatabase(root)
     try {
       const session = database.harness.createSession()
       database.harness.updateSession({ ...session, automationId: 'deleted-automation' })
       database.harness.addMessage(session.id, 'user', '自动化执行')
-      const legacy = database.harness.createSession()
-      const connection = new Database(new MiraPaths(root).stateDatabase())
-      connection.prepare("INSERT INTO automation_runs (id, task_id, source, status, session_id, snapshot) VALUES (?, ?, 'manual', 'completed', ?, '{}')").run('legacy-run', 'legacy-automation', legacy.id)
-      connection.close()
-      expect(database.harness.listSessions().find(item => item.id === legacy.id)?.automationId).toBe('legacy-automation')
       database.close(); database = new PlatformDatabase(root)
       expect(database.harness.listSessions().find(item => item.id === session.id)?.automationId).toBe('deleted-automation')
       expect(database.harness.getSession(session.id).automationId).toBe('deleted-automation')
     } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
-  it('preserves project configuration across startup migrations while moving only recognized legacy trash', () => {
+  it('preserves current project configuration across repeated startup', () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'mira-project-config-startup-'))), directory = join(root, 'project')
     let database = new PlatformDatabase(root)
     try {
       mkdirSync(directory)
-      const project = database.harness.createProject(directory)
+      database.harness.createProject(directory)
       const config = new McpConfigStore(root).forProject(directory).save({ name: 'Restart-safe tools', command: 'node', args: ['server.mjs'], enabled: true })
       const retained = new Map<string, string>([
         ['mcp.json', readFileSync(join(directory, '.mira', 'mcp.json'), 'utf8')],
@@ -44,15 +39,10 @@ describe('persistent Mira input history', () => {
         ['trash/unknown/notes.md', 'Unrecognized user data\n'], ['extra-config.json', '{"custom":true}\n'],
       ])
       for (const [path, value] of retained) { mkdirSync(join(directory, '.mira', path, '..'), { recursive: true }); writeFileSync(join(directory, '.mira', path), value) }
-      const token = '1700000000000-a1b2c3d4', legacy = join(directory, '.mira', 'trash', token)
-      mkdirSync(legacy, { recursive: true }); writeFileSync(join(legacy, 'recover.txt'), 'Recoverable project file\n')
       for (let restart = 0; restart < 3; restart++) {
         database.close(); database = new PlatformDatabase(root)
-        database.harness.migrateLegacyStorage()
         for (const [path, value] of retained) expect(readFileSync(join(directory, '.mira', path), 'utf8')).toBe(value)
         expect(new McpConfigStore(root).forProject(directory).list()).toMatchObject([{ id: config.id, enabled: true }])
-        expect(readFileSync(join(new MiraPaths(root).projectTrash(project.id), token, 'recover.txt'), 'utf8')).toBe('Recoverable project file\n')
-        expect(existsSync(legacy)).toBe(false)
       }
     } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
@@ -102,7 +92,7 @@ function createStore() {
   const database = new Database(':memory:')
   database.exec(`
     CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'FolderOpened', directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);
-    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0, archived_at INTEGER, sort_order INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, draft_state TEXT, parent_session_id TEXT);
     CREATE TABLE harness_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
   return { root, database, store: new HarnessStore(database, new MiraPaths(root)) }
@@ -413,44 +403,6 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('adds the default icon when opening a legacy project database', () => {
-    const root = mkdtempSync(join(tmpdir(), 'mira-harness-migration-'))
-    const directory = join(root, 'legacy-project')
-    mkdirSync(directory)
-    const paths = new MiraPaths(root).ensure()
-    const legacy = new Database(paths.stateDatabase())
-    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE harness_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, default_model_provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_session_at INTEGER);')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '17')
-    legacy.prepare('INSERT INTO harness_projects(id, name, directory, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run('legacy', '旧项目', directory, Date.now(), Date.now())
-    legacy.close()
-
-    const database = new PlatformDatabase(root)
-    expect(database.harness.getProject('legacy').icon).toBe('FolderOpened')
-    const columns = database.database.prepare('PRAGMA table_info(harness_projects)').all() as Array<{ name: string }>
-    expect(columns.some(column => column.name === 'sort_order')).toBe(true)
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  it('adds archive and unread columns when opening a pre-history database', () => {
-    const root = mkdtempSync(join(tmpdir(), 'mira-history-migration-'))
-    const paths = new MiraPaths(root).ensure()
-    const legacy = new Database(paths.stateDatabase())
-    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE harness_sessions (id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL, model_provider_id TEXT, model_id TEXT, permission_mode TEXT NOT NULL, status TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, path TEXT NOT NULL, working_directory TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '22')
-    legacy.close()
-
-    const database = new PlatformDatabase(root)
-    const columns = database.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
-    expect(columns.some(column => column.name === 'archived_at')).toBe(true)
-    expect(columns.some(column => column.name === 'unread')).toBe(true)
-    expect(columns.some(column => column.name === 'sort_order')).toBe(true)
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
   it('persists unread state and moves a session to an existing project', () => {
     const { root, database, store } = createStore()
     const directoryA = join(root, 'project-a')
@@ -609,27 +561,6 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('removes legacy SQLite memory tables without affecting file memory', () => {
-    const root = mkdtempSync(join(tmpdir(), 'mira-memory-schema-'))
-    const paths = new MiraPaths(root).ensure()
-    const legacy = new Database(paths.stateDatabase())
-    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE memories (id TEXT PRIMARY KEY, content TEXT NOT NULL); CREATE TABLE memory_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '21')
-    legacy.close()
-
-    const database = new PlatformDatabase(root)
-    const state = new Database(paths.stateDatabase(), { readonly: true })
-    expect(state.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('memories', 'memory_settings')").all()).toEqual([])
-    expect(database.memories.enabled()).toBe(false)
-    database.memories.setEnabled(true)
-    database.memories.remember('global', '用户偏好简洁回复')
-    expect(readFileSync(paths.globalMemory(), 'utf8')).toContain('用户偏好简洁回复')
-    state.close()
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
   it('reports missing project directories without failing the project list', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'missing-project')
@@ -660,55 +591,6 @@ describe('HarnessStore', () => {
 
     database.close()
     rmSync(root, { recursive: true, force: true })
-  })
-
-  it('backfills the shared workspace for legacy unassigned sessions', () => {
-    const { root, database, store } = createStore()
-    const session = store.createSession()
-    const updatedAt = session.updatedAt
-    database.prepare('UPDATE harness_sessions SET working_directory = NULL WHERE id = ?').run(session.id)
-    database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify({ ...session, workingDirectory: undefined, unread: undefined }), session.id)
-
-    const restored = store.getSession(session.id)
-
-    expect(restored.workingDirectory).toBe(join(root, '.mira', 'workspace'))
-    expect(restored.unread).toBe(false)
-    expect(database.prepare('SELECT working_directory FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ working_directory: join(root, '.mira', 'workspace') })
-    expect(database.prepare('SELECT unread FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ unread: 0 })
-    expect(restored.updatedAt).toBe(updatedAt)
-
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  it.each(['structured', 'file'] as const)('migrates an unassigned %s snapshot without losing legacy plan questions or historical dates', source => {
-    const { root, database, store } = createStore()
-    try {
-      const session = store.createSession()
-      const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
-      const legacy = { ...session, workingDirectory: undefined, unread: undefined,
-        messages: [{ id: 'legacy-user', role: 'user', content: '保留历史问题', createdAt: 123 }],
-        activePlan: { id: 'legacy-plan', status: 'ready', request: '旧请求', understanding: '旧理解', steps: [], risks: [], questions: [{ question: '需要保留的问题', context: '旧背景' }], createdAt: 123, updatedAt: 124 },
-      }
-      database.prepare('UPDATE harness_sessions SET working_directory = NULL WHERE id = ?').run(session.id)
-      if (source === 'structured') database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify(legacy), session.id)
-      else {
-        database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
-        writeFileSync(row.path, JSON.stringify(legacy), 'utf8')
-      }
-      const restored = store.getSession(session.id)
-      expect(restored.workingDirectory).toBe(join(root, '.mira', 'workspace'))
-      expect(restored.updatedAt).toBe(session.updatedAt)
-      expect(restored.messages).toEqual(legacy.messages)
-      expect(restored.activePlan).toMatchObject({ id: 'legacy-plan', status: 'awaiting_confirmation', createdAt: 123, updatedAt: 124 })
-      expect(restored.activePlan).not.toHaveProperty('questions')
-      expect(restored.pendingInteraction).toMatchObject({ kind: 'question', status: 'waiting', questions: [{ id: 'legacy-1', question: '需要保留的问题', context: '旧背景' }] })
-      expect(database.prepare('SELECT working_directory FROM harness_sessions WHERE id = ?').get(session.id)).toEqual({ working_directory: restored.workingDirectory })
-      const persisted = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
-      expect(JSON.parse(persisted.payload)).toEqual(restored)
-      expect(JSON.parse(readFileSync(row.path, 'utf8'))).toEqual(restored)
-      expect(store.getSession(session.id)).toEqual(restored)
-    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
   it('defaults delegation on and marks stale child tasks interrupted at startup recovery', () => {
@@ -849,23 +731,6 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('uses directory modification time for legacy trash tokens without a timestamp', () => {
-    const { root, database, store } = createStore()
-    const directory = join(root, 'demo-project')
-    mkdirSync(directory)
-    const project = store.createProject(directory, 'Demo 项目')
-    const legacy = join(root, '.mira', 'trash', project.id, 'legacy-token')
-    mkdirSync(legacy, { recursive: true })
-    writeFileSync(join(legacy, 'note.txt'), 'legacy', 'utf8')
-
-    const entry = store.listTrash(project.id)[0]
-    expect(entry).toMatchObject({ token: 'legacy-token', paths: ['note.txt'] })
-    expect(entry.deletedAt).toBeGreaterThan(0)
-
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
   it('persists pinned sessions in the session index and file', () => {
     const { root, database, store } = createStore()
     const session = store.createSession()
@@ -909,8 +774,6 @@ describe('HarnessStore', () => {
     expect(store.applyAutoTitle(session.id, '过期自动标题', nextRevision!)).toBeUndefined()
     expect(store.getSession(session.id)).toMatchObject({ title: '人工标题', titleSource: 'manual' })
 
-    const legacy = (store as any).parseSession(JSON.stringify({ ...session, titleSource: undefined, titleRevision: undefined }))
-    expect(legacy).toMatchObject({ titleSource: 'manual', titleRevision: 0 })
 
     database.close()
     rmSync(root, { recursive: true, force: true })
@@ -976,7 +839,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('persists validated Git settings with safe defaults for legacy values', () => {
+  it('persists validated Git settings with safe defaults', () => {
     const { root, database, store } = createStore()
     expect(store.getGitConfig()).toMatchObject({ branchPrefix: 'mira/', pullRequestMergeMethod: 'merge', alwaysForcePush: false, createDraftPullRequest: true, reviewDelivery: 'inline' })
 
@@ -1035,7 +898,7 @@ describe('HarnessStore', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('removes legacy empty sessions and keeps sessions with user messages', () => {
+  it('removes empty sessions and keeps sessions with user messages', () => {
     const { root, database, store } = createStore()
     const directory = join(root, 'demo-project')
     mkdirSync(directory)
@@ -1241,30 +1104,6 @@ describe('HarnessStore', () => {
     } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
   })
 
-  it('normalizes legacy ready plans and questions through full persistence before continuing a reply', () => {
-    const { root, database, store } = createStore()
-    try {
-      const session = store.createSession()
-      session.messages = [{ id: 'prompt', role: 'user', content: '旧方案问题', createdAt: 1 }]
-      session.activeRun = { id: 'run', messageId: 'live', startedAt: 2, activities: [], subtasks: [] }
-      store.updateSession(session)
-      const plan = { id: 'legacy-plan', status: 'ready', request: '请求', understanding: '理解', steps: [], risks: [], createdAt: 1, updatedAt: 1, questions: [{ question: '是否继续？' }] }
-      database.prepare('UPDATE harness_session_state SET payload = ? WHERE session_id = ?').run(JSON.stringify({ ...session, activePlan: plan }), session.id)
-      database.prepare('INSERT INTO harness_plans(session_id, plan_id, payload, updated_at) VALUES (?, ?, ?, ?)').run(session.id, plan.id, JSON.stringify(plan), 1)
-      database.exec(`CREATE TEMP TABLE rewritten_messages (message_id TEXT);
-        CREATE TEMP TRIGGER count_legacy_plan_rewrite BEFORE DELETE ON harness_messages BEGIN INSERT INTO rewritten_messages VALUES (OLD.message_id); END;`)
-      const saved = store.appendAssistantDelta(session.id, '继续制定方案', { runId: 'run', messageId: 'live', parts: [] })
-      expect(database.prepare('SELECT message_id FROM rewritten_messages').all()).toEqual([{ message_id: 'prompt' }])
-      expect(saved.activePlan).toMatchObject({ id: plan.id, status: 'awaiting_confirmation' })
-      expect(saved.activePlan).not.toHaveProperty('questions')
-      expect(saved.pendingInteraction).toMatchObject({ kind: 'question', status: 'waiting', questions: [{ id: 'legacy-1', question: '是否继续？' }] })
-      const storedPlan = database.prepare('SELECT payload FROM harness_plans WHERE session_id = ?').get(session.id) as { payload: string }
-      expect(JSON.parse(storedPlan.payload)).toEqual(saved.activePlan)
-      const state = database.prepare('SELECT payload FROM harness_session_state WHERE session_id = ?').get(session.id) as { payload: string }
-      expect(JSON.parse(state.payload)).toEqual(saved)
-    } finally { database.close(); rmSync(root, { recursive: true, force: true }) }
-  })
-
   it('repairs an absent structured plan row instead of silently taking the assistant-only path', () => {
     const { root, database, store } = createStore()
     try {
@@ -1379,36 +1218,6 @@ describe('HarnessStore', () => {
     expect(() => JSON.parse(readFileSync(row.path, 'utf8'))).not.toThrow()
     expect(existsSync(`${row.path}.${process.pid}.tmp`)).toBe(false)
 
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  it('migrates legacy session JSON into structured tables and keeps a recovery backup', () => {
-    const { root, database, store } = createStore()
-    const session = store.createSession()
-    store.addMessage(session.id, 'user', '迁移测试')
-    const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
-    database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
-    database.prepare('DELETE FROM harness_messages WHERE session_id = ?').run(session.id)
-
-    store.migrateStructuredSessions()
-
-    expect(store.getSession(session.id).messages.at(-1)?.content).toBe('迁移测试')
-    expect(database.prepare('SELECT COUNT(*) AS count FROM harness_messages WHERE session_id = ?').get(session.id)).toEqual({ count: 1 })
-    expect(existsSync(`${row.path}.legacy.bak`)).toBe(true)
-    database.close()
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  it('keeps the source JSON when structured migration fails', () => {
-    const { root, database, store } = createStore()
-    const session = store.createSession()
-    const row = database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(session.id) as { path: string }
-    database.prepare('DELETE FROM harness_session_state WHERE session_id = ?').run(session.id)
-    writeFileSync(row.path, '{broken', 'utf8')
-
-    expect(() => store.migrateStructuredSessions()).toThrow()
-    expect(readFileSync(row.path, 'utf8')).toBe('{broken')
     database.close()
     rmSync(root, { recursive: true, force: true })
   })

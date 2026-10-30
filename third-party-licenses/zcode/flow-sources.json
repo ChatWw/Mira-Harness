@@ -435,11 +435,6 @@
       "sourceSha256": "8535b22e41cf63ecd93e6179e39389f3dda919446597d5ad0d6514a62889d3dc"
     },
     {
-      "source": "apps/zcode-cli/packages/dynamic-workflow/src/projections.ts",
-      "target": "packages/mira-flow-kit/src/mira-projections.ts",
-      "sourceSha256": "7c31b47d8c243368511cea0542c600c90b4d98e09eb0e87571756dcf5ddca26d"
-    },
-    {
       "source": "apps/zcode-cli/packages/dynamic-workflow/src/schema/actor-submit-profiles.ts",
       "target": "packages/mira-flow-kit/src/schema/mira-actor-submit-profiles.ts",
       "sourceSha256": "ab3aff8a609722ba4854c1f04f3738a6dbe6588812fa946f4ac56da8628d3fb7"

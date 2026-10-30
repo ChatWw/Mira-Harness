@@ -5,7 +5,7 @@
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'git' | 'changes' | 'terminal' | 'browser' | 'side-chat'
-export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat'> | `new-tab:${string}` | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `file-manager:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
+export type WorkspaceTabId = Exclude<WorkspaceResourceId, 'files' | 'side-chat' | 'terminal' | 'browser'> | `new-tab:${string}` | `browser:${string}` | `terminal:${string}` | `side-chat:${string}` | `task:${string}` | `file:${string}` | `file-manager:${string}` | `subtask:${string}` | `workflow:${string}` | `plan:${string}` | `command:${string}` | `command-output:${string}` | `trace:${string}`
 export type WorkspaceHtmlSource = { path: string } & ({ projectId: string; rootPath?: string } | { sessionId: string })
 export type WorkspaceWorkflowDetail = { kind: 'actor'; siteId: string; ordinal: number } | { kind: 'operations'; phaseId: string; participantId?: string } | { kind: 'artifact'; artifactId: string; version: number }
 export type WorkspaceTab = { id: WorkspaceTabId; label: string; path?: string; projectId?: string; rootPath?: string; fileManager?: { directory: string; sessionId?: string }; planToolId?: string; commandToolId?: string; fullCommandOutput?: true; runId?: string; workflowSessionId?: string; workflowDetail?: WorkspaceWorkflowDetail; subtaskId?: string; childSessionId?: string; taskSessionId?: string; traceSessionId?: string; url?: string; htmlSource?: WorkspaceHtmlSource; faviconUrl?: string | null; openedAt?: number; closedAt?: number }
@@ -16,7 +16,6 @@ export type WorkspaceSessionState = {
   selectedFilePath?: string
   expandedFilePaths: string[]
   selectedChangeId?: string
-  browserUrl: string
   recentClosedTabs: WorkspaceTab[]
   taskLayout?: MiraTaskLayout
 }
@@ -39,8 +38,8 @@ export function workspaceTabLabel(id: WorkspaceResourceId | WorkspaceTabId) {
   return { overview: '调用轨迹', git: 'Git 更改', files: '文件', changes: '变更', terminal: '终端', browser: '浏览器', 'side-chat': '侧边栏对话' }[id as WorkspaceResourceId]
 }
 
-export function isWorkspaceTerminalTab(id: string): boolean { return id === 'terminal' || id.startsWith('terminal:') }
-export function isWorkspaceBrowserTab(id: string): boolean { return id === 'browser' || id.startsWith('browser:') }
+export function isWorkspaceTerminalTab(id: string): boolean { return id.startsWith('terminal:') }
+export function isWorkspaceBrowserTab(id: string): boolean { return id.startsWith('browser:') }
 export function createWorkspaceNewTab(): WorkspaceTab {
   return { id: `new-tab:${crypto.randomUUID()}`, label: '新标签页' }
 }
@@ -138,7 +137,7 @@ export function replaceWorkspaceTask(state: WorkspaceSessionState, previousId: s
 }
 
 export function createWorkspaceSession(): WorkspaceSessionState {
-  return { tabs: [], activeTab: 'overview', fileTreeOpen: false, expandedFilePaths: [], browserUrl: '', recentClosedTabs: [] }
+  return { tabs: [], activeTab: 'overview', fileTreeOpen: false, expandedFilePaths: [], recentClosedTabs: [] }
 }
 
 export function withoutWorkspaceTaskOwners(sessions: Record<string, WorkspaceSessionState>, removed: ReadonlySet<string>): Record<string, WorkspaceSessionState> {
@@ -199,7 +198,7 @@ export function restoreWorkspaceTab(state: WorkspaceSessionState, id: WorkspaceT
   if (!tab) return state
   if (tab.taskSessionId) return placeWorkspaceTask(state, tab, '$primary', 'right')
   if (isWorkspaceBrowserTab(tab.id)) {
-    const reopened = { ...createWorkspaceBrowserTab(tab.url || (tab.id === 'browser' ? state.browserUrl : '')), label: tab.label, ...(tab.htmlSource ? { htmlSource: tab.htmlSource } : {}), ...(tab.faviconUrl === undefined ? {} : { faviconUrl: tab.faviconUrl }) }
+    const reopened = { ...createWorkspaceBrowserTab(tab.url || ''), label: tab.label, ...(tab.htmlSource ? { htmlSource: tab.htmlSource } : {}), ...(tab.faviconUrl === undefined ? {} : { faviconUrl: tab.faviconUrl }) }
     return openWorkspaceTab({ ...state, recentClosedTabs: state.recentClosedTabs.filter(item => item.id !== id) }, reopened)
   }
   return openWorkspaceTab(state, tab)
@@ -221,7 +220,7 @@ export function labelWorkspaceTab(state: WorkspaceSessionState, id: WorkspaceTab
 
 export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceSessionState> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  const validIds = new Set<WorkspaceTabId>(['overview', 'git', 'changes', 'terminal', 'browser'])
+  const validIds = new Set<WorkspaceTabId>(['overview', 'git', 'changes'])
   return Object.fromEntries(Object.entries(value).flatMap(([sessionId, raw]) => {
     if (!sessionId || !raw || typeof raw !== 'object' || Array.isArray(raw)) return []
     const data = raw as Partial<WorkspaceSessionState>
@@ -271,7 +270,7 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
           if (typeof tab.runId === 'string' && tab.runId.length > 0 && tab.runId.length <= 512 && !/[\u0000-\u001f]/.test(tab.runId) && typeof tab.commandToolId === 'string' && tab.commandToolId.length > 0 && tab.commandToolId.length <= 512 && !/[\u0000-\u001f]/.test(tab.commandToolId) && tab.id === createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label).id) tabs.push(createWorkspaceCommandTab(tab.runId, tab.commandToolId, tab.label))
         } else if (tab.id.startsWith('subtask:')) {
           if (typeof tab.runId === 'string' && tab.runId && typeof tab.subtaskId === 'string' && tab.subtaskId && tab.id === createWorkspaceSubtaskTab(tab.runId, tab.subtaskId, tab.label).id) tabs.push({ id: tab.id, label: tab.label, runId: tab.runId, subtaskId: tab.subtaskId })
-        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'git' && typeof tab.projectId === 'string' ? { projectId: tab.projectId } : {}), ...(tab.id === 'browser' && tab.faviconUrl !== undefined ? { faviconUrl: miraBrowserFavicon(tab.faviconUrl) ?? null } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })
+        } else if (validIds.has(tab.id)) tabs.push({ id: tab.id, label: tab.label, ...(tab.id === 'git' && typeof tab.projectId === 'string' ? { projectId: tab.projectId } : {}), ...(tab.id === 'overview' && typeof tab.runId === 'string' && tab.runId ? { runId: tab.runId } : {}) })
         const accepted = tabs[tabs.length - 1]
         if (accepted?.id === tab.id) for (const field of ['openedAt', 'closedAt'] as const) {
           if (Number.isSafeInteger(tab[field]) && tab[field] > 0 && tab[field] <= 8_640_000_000_000_000) accepted[field] = tab[field]
@@ -283,12 +282,10 @@ export function readWorkspaceSessions(value: unknown): Record<string, WorkspaceS
     const state: WorkspaceSessionState = {
       tabs,
       activeTab: tabs.some(tab => tab.id === data.activeTab) ? data.activeTab! : tabs[tabs.length - 1]?.id ?? 'overview',
-      // The old files tab becomes a drawer entry; it must not revive the nested tree/preview pane.
-      fileTreeOpen: data.fileTreeOpen === true || (Array.isArray(data.tabs) && data.tabs.some(tab => tab && typeof tab === 'object' && (tab.id as string) === 'files' && typeof tab.label === 'string')),
+      fileTreeOpen: data.fileTreeOpen === true,
       selectedFilePath: isWorkspaceRelativePath(data.selectedFilePath) ? data.selectedFilePath : undefined,
       expandedFilePaths: Array.isArray(data.expandedFilePaths) ? [...new Set(data.expandedFilePaths.filter(isWorkspaceRelativePath))] : [],
       selectedChangeId: typeof data.selectedChangeId === 'string' ? data.selectedChangeId : undefined,
-      browserUrl: typeof data.browserUrl === 'string' && /^https?:\/\//i.test(data.browserUrl) ? data.browserUrl : '',
       recentClosedTabs: readTabs(data.recentClosedTabs).filter(tab => !tabs.some(open => open.id === tab.id)).slice(0, RECENT_WORKSPACE_LIMIT),
       ...(tabs.some(tab => tab.taskSessionId) ? { taskLayout: readMiraTaskLayout(data.taskLayout, tabs.flatMap(tab => tab.taskSessionId ? [tab.taskSessionId] : [])) } : data.taskLayout ? { taskLayout: miraInitialTaskLayout() } : {}),
     }

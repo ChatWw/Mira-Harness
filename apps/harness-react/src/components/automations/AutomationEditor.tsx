@@ -10,7 +10,7 @@ import { AutomationSelect } from './AutomationControls'
 import { AutomationComposerToolbar } from './AutomationComposerToolbar'
 import { AutomationSchedule } from './AutomationSchedule'
 import type { HarnessProject, HarnessSessionSummary, ModelProviderSummary, PermissionConfig } from '../../../../../src/config/harness'
-import { formatAutomationTime } from '../../../../../src/pages/frontend/harness/automations/automationPresentation'
+import { formatAutomationTime } from '../../../../../src/config/automationPresentation'
 import { automationModels, automationTriggerForForm, type AutomationForm } from './automation-form'
 import type { AutomationsHost } from './automation-host'
 

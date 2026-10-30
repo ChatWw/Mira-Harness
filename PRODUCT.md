@@ -24,11 +24,11 @@ Electron 持有桌面、模型、文件和 Harness 执行能力；Vue + Wujie �
 
 ## Capabilities and Constraints
 
-Harness 保留现有会话、计划、审批、工具、取消、恢复与成果语义；React 正式入口经第一方 MessageChannel + grant 连接 Electron 服务，不直接取得模型密钥或完整 preload。Shell 只维护浅色/深色主题及公共入口；应用各自决定内部导航和工作区布局。Wujie pilot/prototype 是开发辅助，不能代表正式入口验收。当前分支只面向 Electron 桌面；2026-10-08 用户已授权直接对齐 ZCode 界面与源码，第一轮开发态 UI/交互桌面验收完成，安装包、Windows、真实模型和整体发布关口仍需单独记录。
+Harness 保留现有会话、计划、审批、工具、取消、恢复与成果语义；React 正式入口经第一方 MessageChannel + grant 连接 Electron 服务，不直接取得模型密钥或完整 preload。Shell 只维护浅色/深色主题及公共入口；应用各自决定内部导航和工作区布局。当前分支只面向 Electron 桌面；安装包、Windows、真实模型和整体发布关口需单独验收。
 
 ## Product Principles
 
 - 任务从提交、必要确认到成果交付应保持连续，并可重新进入会话继续工作。
 - 执行能力和数据由宿主持有，应用界面可以独立替换，不复制运行时。
 - 平台只绘制公共窗口与入口；应用拥有本领域的导航和操作流程。
-- 用户数据和既有会话在界面迁移期间保持可恢复，旧入口在验收前保留。
+- 首次发行使用当前 React 工作台与当前数据结构，删除开发阶段旧入口、历史别名和版本迁移；当前会话正常持久化并支持重启恢复。

@@ -14,7 +14,6 @@ import { EventEmitter } from 'node:events'
 
 const electron = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => unknown>() }))
 vi.mock('electron', () => ({ ipcMain: { handle: (name: string, handler: (...args: any[]) => unknown) => electron.handlers.set(name, handler) }, BrowserWindow: { fromWebContents: () => null, getFocusedWindow: () => null }, dialog: {}, shell: {} }))
-import { registerHarnessProjectIpcHandlers } from '../electron/ipc/harnessProjectIpc'
 import { registerPlatformIpcHandlers } from '../electron/ipc/platformIpc'
 
 vi.mock('node:child_process', async importOriginal => { const actual = await importOriginal<typeof import('node:child_process')>(); return { ...actual, execFile: vi.fn(actual.execFile) } })
@@ -40,21 +39,11 @@ async function setup() {
   const database = new PlatformDatabase(join(root, 'state')); cleanup.push(() => database.close())
   const project = database.harness.createProject(directory), session = database.harness.createSession(project.id)
   const runtime = new HarnessRuntime(database, {} as never)
-  registerHarnessProjectIpcHandlers({ database, harnessRuntime: runtime } as never)
   const invoke = (name: string, ...params: unknown[]) => Promise.resolve().then(() => electron.handlers.get(name)!({ sender: {} }, ...params))
   return { root, directory, database, runtime, project, session, invoke }
 }
 
 describe('controlled project Git actions', () => {
-  it('rejects the legacy checkout before touching a repository while another project session is reserved', async () => {
-    const view = await setup()
-    const token = (view.runtime as any).runCoordinator.reserve(view.session.id)
-    try {
-      await expect(view.invoke('harness:checkout-git-branch', view.project.id, 'topic')).rejects.toThrow('请先停止项目任务并处理待发送消息')
-      expect(git(view.directory, 'branch', '--show-current')).toBe('main')
-      expect(await readFile(join(view.directory, 'note.txt'), 'utf8')).toBe('original\n')
-    } finally { (view.runtime as any).runCoordinator.release(view.session.id, token) }
-  })
 
   it('reads authoritative branches, switches cleanly and creates a new Mira branch without a model', async () => {
     const { directory, runtime, project } = await setup()
@@ -66,14 +55,6 @@ describe('controlled project Git actions', () => {
     expect(switched.branchName).toBe('topic'); expect(switched.snapshotToken).not.toBe(initial.snapshotToken)
     const created = await runtime.createGitBranch(project.id, 'mira/new-task', switched.snapshotToken)
     expect(created.branchName).toBe('mira/new-task'); expect(git(directory, 'branch', '--show-current')).toBe('mira/new-task')
-  })
-
-  it('preserves the old Vue branch-array response while using the guarded asynchronous service', async () => {
-    const { directory, project, invoke } = await setup()
-    const switched = await invoke('harness:checkout-git-branch', project.id, 'topic')
-    expect(switched).toEqual([{ name: 'main', current: false }, { name: 'topic', current: true }])
-    expect(await invoke('harness:create-and-checkout-git-branch', project.id, 'mira/vue')).toContainEqual({ name: 'mira/vue', current: true })
-    expect(git(directory, 'branch', '--show-current')).toBe('mira/vue')
   })
 
   it('does not force, discard, stash or write files when a dirty conflict blocks checkout', async () => {

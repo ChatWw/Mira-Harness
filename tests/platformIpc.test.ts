@@ -840,7 +840,7 @@ describe('platform IPC registration', () => {
 
   it('keeps first-party model credentials in the host channel', async () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      appId: 'mira-novel-studio', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['models:text.generate'],
@@ -858,7 +858,7 @@ describe('platform IPC registration', () => {
 
   it('does not allow an embedded frame to create or use a host grant', async () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      appId: 'mira-novel-studio', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['models:text.generate'],
@@ -1003,7 +1003,7 @@ describe('platform IPC registration', () => {
 
   it('keeps first-party novel storage behind the owning grant', () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      appId: 'mira-novel-studio', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['storage:novel-projects'],
@@ -1026,7 +1026,7 @@ describe('platform IPC registration', () => {
 
   it('denies novel storage to grants without the storage capability or novel identity', () => {
     const base: FirstPartyAppManifest = {
-      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      appId: 'mira-novel-studio', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: [],
@@ -1042,7 +1042,7 @@ describe('platform IPC registration', () => {
 
   it('confines Harness calls to the owning renderer and an active workbench grant', () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-harness', legacyIds: [], enabled: true,
+      appId: 'mira-harness', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
@@ -1065,7 +1065,7 @@ describe('platform IPC registration', () => {
 
   it('rejects personal-workspace file selection before opening a picker and preserves project-file validation', async () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-harness', legacyIds: [], enabled: true,
+      appId: 'mira-harness', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
@@ -1159,7 +1159,7 @@ describe('platform IPC registration', () => {
 
   it('preserves browser resource identity through main-process validation and rejects unauthorized navigation', () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-harness', legacyIds: [], enabled: true,
+      appId: 'mira-harness', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
@@ -1185,7 +1185,7 @@ describe('platform IPC registration', () => {
 
   it('releases deleted task browser views while keeping grants and live controls checked', () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-harness', legacyIds: [], enabled: true,
+      appId: 'mira-harness', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
@@ -1206,7 +1206,7 @@ describe('platform IPC registration', () => {
     try {
       await writeFile(join(root, 'README.md'), '# Mira\n')
       const manifest: FirstPartyAppManifest = {
-        appId: 'mira-harness', legacyIds: [], enabled: true,
+        appId: 'mira-harness', enabled: true,
         trustedSource: { type: 'builtin', packagePath: 'harness-react-app' },
         entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
         apiCompatibility: { major: 1 }, capabilities: ['harness:workbench'],
@@ -1426,7 +1426,7 @@ describe('platform IPC registration', () => {
 
   it('rejects unregistered apps, missing capabilities, and malformed model requests', async () => {
     const manifest: FirstPartyAppManifest = {
-      appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+      appId: 'mira-novel-studio', enabled: true,
       trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
       entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
       apiCompatibility: { major: 1 }, capabilities: [],
@@ -1451,7 +1451,7 @@ describe('platform IPC registration', () => {
     await server.start([])
     try {
       const manifest: FirstPartyAppManifest = {
-        appId: 'mira-novel-studio', legacyIds: [], enabled: true,
+        appId: 'mira-novel-studio', enabled: true,
         trustedSource: { type: 'builtin', packagePath: 'novel-studio' },
         entry: { path: 'index.html' }, shellCompatibility: { minVersion: '0.0.10' },
         apiCompatibility: { major: 1 }, capabilities: ['models:text.generate'],

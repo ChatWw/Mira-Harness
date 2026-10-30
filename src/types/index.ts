@@ -197,12 +197,6 @@ export interface PlatformApi {
   importHarnessSkill(): Promise<import('@/config/harness').HarnessSkill[]>
   testModelProvider(provider: import('@/config/harness').ModelProviderInput, modelId: string): Promise<{ ok: boolean, text: string }>
   listHarnessProjects(): Promise<import('@/config/harness').HarnessProject[]>
-  reorderHarnessProjects(ids: string[]): Promise<import('@/config/harness').HarnessProject[]>
-  openHarnessProjectDirectory(id: string): Promise<string>
-  selectHarnessProjectDirectory(): Promise<string | null>
-  createHarnessProject(input?: import('@/config/harness').HarnessProjectCreateInput): Promise<import('@/config/harness').HarnessProject | null>
-  renameHarnessProject(id: string, name: string, icon?: string): Promise<import('@/config/harness').HarnessProject>
-  deleteHarnessProject(id: string): Promise<void>
   getGlobalInstructions(): Promise<string>
   saveGlobalInstructions(content: string): Promise<string>
   getGlobalInstructionsPath(): Promise<string>
@@ -211,19 +205,7 @@ export interface PlatformApi {
   setHarnessMemoryEnabled(enabled: boolean): Promise<boolean>
   getHarnessMemoryPath(): Promise<string>
   resetHarnessMemory(): Promise<number>
-  listHarnessMemory(scope: 'global' | 'project', projectId?: string): Promise<import('@/config/harness').HarnessMemoryEntry[]>
-  rememberHarnessMemory(content: string): Promise<import('@/config/harness').HarnessMemoryEntry>
-  updateHarnessMemory(scope: 'global' | 'project', id: string, content: string, projectId?: string): Promise<import('@/config/harness').HarnessMemoryEntry>
-  deleteHarnessMemory(scope: 'global' | 'project', id: string, projectId?: string): Promise<void>
-  listPendingHarnessMemory(): Promise<import('@/config/harness').MemoryCandidate[]>
-  discardHarnessMemory(candidateId: string): Promise<void>
-  retryHarnessMemory(candidateId: string): Promise<void>
-  respondHarnessMemoryConfirmation(requestId: string, approved: boolean): Promise<void>
-  listHarnessGitBranches(projectId: string): Promise<import('@/config/harness').HarnessGitBranch[]>
-  checkoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
-  createAndCheckoutHarnessGitBranch(projectId: string, branchName: string): Promise<import('@/config/harness').HarnessGitBranch[]>
   listHarnessSessions(query?: string): Promise<import('@/config/harness').HarnessSessionSummary[]>
-  reorderHarnessSessions(scope: import('@/config/harness').HarnessSessionOrderScope, ids: string[]): Promise<import('@/config/harness').HarnessSessionSummary[]>
   queryHarnessHistory(query: import('@/config/harness').HarnessHistoryQuery): Promise<import('@/config/harness').HarnessHistoryPage>
   queryHarnessUsage(): Promise<import('@/config/harness').HarnessUsageStats>
   listAutomationTasks(): Promise<import('@/config/harness').AutomationTask[]>
@@ -237,39 +219,12 @@ export interface PlatformApi {
   runAutomationNow(taskId: string): Promise<import('@/config/harness').AutomationRun>
   retryAutomationRun(runId: string): Promise<import('@/config/harness').AutomationRun>
   abortAutomationRun(taskId: string): Promise<void>
-  createHarnessSession(projectId?: string): Promise<import('@/config/harness').HarnessSession>
   getHarnessSession(id: string): Promise<import('@/config/harness').HarnessSession>
-  pauseHarnessGoal(id: string, revision: number, goalId: string): Promise<import('@/config/miraGoals').HarnessGoal>
-  resumeHarnessGoal(id: string, revision: number, goalId: string, selection: import('@/config/harness').ModelSelection, permissionMode?: import('@/config/harness').PermissionMode): Promise<import('@/config/miraGoals').HarnessGoal>
-  updateHarnessGoalBudget(id: string, budget: number | null, revision: number, goalId: string): Promise<import('@/config/miraGoals').HarnessGoal>
-  clearHarnessGoal(id: string, revision: number, goalId: string): Promise<void>
   readHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
   transformHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, transform: import('@/config/harness').HarnessWorkspaceSearchIgnoreTransform): Promise<{ content: string }>
   writeHarnessWorkspaceSearchIgnore(target: import('@/config/harness').HarnessWorkspaceSearchIgnoreTarget, content: string, revision: string): Promise<import('@/config/harness').HarnessWorkspaceSearchIgnoreDocument>
-  setHarnessSessionPermission(id: string, permissionMode: import('@/config/harness').PermissionMode): Promise<import('@/config/harness').HarnessSession>
-  setHarnessActiveSkills(id: string, skillIds: string[]): Promise<import('@/config/harness').HarnessSession>
-  setHarnessActiveMcpServers(id: string, serverIds: string[]): Promise<import('@/config/harness').HarnessSession>
-  setHarnessDelegationEnabled(id: string, enabled: boolean): Promise<import('@/config/harness').HarnessSession>
-  saveHarnessProjectMemory(id: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
-  setHarnessSessionPinned(id: string, pinned: boolean): Promise<import('@/config/harness').HarnessSession>
-  setHarnessSessionUnread(id: string, unread: boolean): Promise<import('@/config/harness').HarnessSession>
-  moveHarnessSession(id: string, projectId?: string): Promise<import('@/config/harness').HarnessSession>
-  renameHarnessSession(id: string, title: string): Promise<import('@/config/harness').HarnessSession>
-  archiveHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   restoreHarnessSessions(ids: string[]): Promise<import('@/config/harness').HarnessSession[]>
   deleteHarnessSession(id: string): Promise<void>
-  deleteHarnessSessions(ids: string[]): Promise<void>
-  openHarnessSessionProject(id: string, target: 'file-manager' | 'terminal'): Promise<string>
-  listHarnessProjectFiles(projectId: string, query?: string): Promise<import('@/config/harness').HarnessFileReference[]>
-  selectHarnessFiles(projectId: string): Promise<import('@/config/harness').HarnessFileReference[]>
-  attachHarnessDirectory(sessionId: string): Promise<import('@/config/harness').HarnessSession | null>
-  runHarnessMessage(sessionId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection, planning?: boolean): Promise<void>
-  confirmHarnessPlan(sessionId: string, planId: string, selection?: import('@/config/harness').ModelSelection): Promise<unknown>
-  answerHarnessInteraction(sessionId: string, interactionId: string, answers: import('@/config/harness').HarnessUserAnswer[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
-  continueHarnessPlan(sessionId: string, planId: string, message: string, references?: import('@/config/harness').HarnessFileReference[], selection?: import('@/config/harness').ModelSelection): Promise<unknown>
-  cancelHarnessPlan(sessionId: string, planId: string): Promise<unknown>
-  rerunHarness(sessionId: string, selection?: import('@/config/harness').ModelSelection): Promise<void>
-  editAndRerunHarnessMessage(sessionId: string, messageId: string, content: string, selection?: import('@/config/harness').ModelSelection, references?: import('@/config/harness').HarnessFileReference[]): Promise<void>
   listMcpServers(scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpServerRecord[]>
   discoverExternalMcpServers(): Promise<import('@/config/miraMcp').MiraExternalMcpSource[]>
   importExternalMcpServers(ids: string[]): Promise<import('@/config/miraMcp').MiraMcpImportResult[]>
@@ -277,30 +232,17 @@ export interface PlatformApi {
   deleteMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<void>
   reconnectMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection>
   authorizeMcpServer(id: string, scope?: import('@/config/miraMcp').MiraMcpScope): Promise<import('@/config/miraMcp').MiraMcpConnection | undefined>
-  abortHarnessRun(sessionId: string): Promise<void>
-  stopHarnessSubtasks(sessionId: string, ids?: string[]): Promise<void>
-  backgroundHarnessCommand(sessionId: string, runId: string, toolId: string): Promise<void>
-  stopHarnessCommand(sessionId: string, runId: string, toolId: string): Promise<void>
-  readHarnessCommandOutput(sessionId: string, runId: string, toolId: string): Promise<string>
   getHarnessPermissionConfig(): Promise<import('@/config/harness').PermissionConfig>
   saveHarnessPermissionConfig(config: import('@/config/harness').PermissionConfig): Promise<import('@/config/harness').PermissionConfig>
-  getHarnessGitConfig(): Promise<import('@/config/harness').HarnessGitConfig>
-  saveHarnessGitConfig(config: import('@/config/harness').HarnessGitConfig): Promise<import('@/config/harness').HarnessGitConfig>
   listHarnessTrash(projectId?: string): Promise<import('@/config/harness').HarnessTrashEntry[]>
   restoreHarnessTrash(projectId: string, token: string): Promise<void>
   bindHostedBrowser?(sessionId: string, browserId: string, guestId: number): Promise<void>
   onHarnessEvent(listener: (event: import('@/config/harness').HarnessEvent) => void): () => void
-  respondHarnessPermission(requestId: string, allowed: boolean): Promise<void>
-  listPendingHarnessPermissions(sessionId: string): Promise<import('@/config/harness').HarnessPermissionRequest[]>
-  getPythonStatus(): Promise<{ ready: boolean, path: string, version: string, bundled: boolean }>
-  pythonExec(script: string, args?: string[]): Promise<{ stdout: string, stderr: string, code: number }>
-  pythonInstallPackage(packageName: string): Promise<{ stdout: string, stderr: string, code: number }>
 }
 
 // 关闭窗口时的行为
 export type CloseWindowBehavior = 'background' | 'quit'
 
-export type SidebarStyle = 'embedded' | 'floating' | 'docked'
 
 // 页面切换动画
 export type PageTransition = 'fade' | 'fade-slide' | 'slide-up' | 'slide-right' | 'zoom' | 'none'
@@ -311,27 +253,15 @@ export type ContentPadding = 'compact' | 'normal' | 'comfortable'
 export type CornerRadius = 'sharp' | 'medium' | 'rounded'
 export type ComponentSize = 'large' | 'default' | 'small'
 export type AnimationSpeed = 'fast' | 'normal' | 'slow'
-export type TabStyle = 'default' | 'personalized' | 'square' | 'card'
 
 // 布局配置
 export interface LayoutConfig {
-  sidebarStyle: SidebarStyle
-  uniqueOpened: boolean
-  showLogo: boolean
-  enableTabs: boolean
-  tabStyle: TabStyle
-  showTabIcon: boolean
-  tabPersist: boolean
-  enableContentLayoutSettings: boolean
   contentMaxWidth: ContentWidth
   contentPadding: ContentPadding
   pageTransition: PageTransition
   animationSpeed: AnimationSpeed
   themeTransitionAnimation: boolean
-  titleShimmerAnimation: boolean
   cornerRadius: CornerRadius
   componentSize: ComponentSize
-  watermark: boolean
-  watermarkText: string
   dynamicTitle: boolean
 }

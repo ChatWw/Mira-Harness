@@ -61,7 +61,7 @@ function readPreferences(raw: unknown): SidebarPreferences {
     projectView: value.projectView === 'timeline' ? 'timeline' : 'collections',
     sort: value.sort === 'created' || value.sort === 'manual' ? value.sort : 'updated',
     ...(Array.isArray(value.manualSessionScopes) ? { manualSessionScopes: strings(value.manualSessionScopes) } : {}),
-    groupSort: value.groupSort === 'created' ? 'created' : value.groupSort === 'manual' || value.groupSort === undefined && value.sort === 'manual' ? 'manual' : 'updated',
+    groupSort: value.groupSort === 'created' ? 'created' : value.groupSort === 'manual' ? 'manual' : 'updated',
     groups,
     ungroupedSessionOrder: strings(value.ungroupedSessionOrder),
     groupedRootOrder,

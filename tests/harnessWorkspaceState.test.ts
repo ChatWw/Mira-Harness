@@ -79,7 +79,7 @@ describe('React Harness workspace state', () => {
     expect(replaceWorkspaceTask(next, 'missing', createWorkspaceTaskTab('e', '不存在'))).toBe(next)
   })
 
-  it('migrates excess legacy task tabs to the reopen list instead of retaining invisible group members', () => {
+  it('enforces task pane capacity while retaining excess tasks in the reopen list', () => {
     const tasks = ['b', 'c', 'd', 'e', 'f'].map(id => createWorkspaceTaskTab(id, `Task ${id}`))
     const restored = readWorkspaceSessions({ a: { ...createWorkspaceSession(), tabs: [...tasks, createWorkspaceFileTab('notes.md')], activeTab: 'task:f' } }).a
     expect(restored.tabs.flatMap(tab => tab.taskSessionId ? [tab.taskSessionId] : [])).toEqual(['b', 'c', 'd'])
@@ -180,7 +180,7 @@ describe('React Harness workspace state', () => {
     expect(reopened.tabs[0]).toMatchObject({ label: browser.label, url: browser.url, faviconUrl: browser.faviconUrl }); expect(reopened.tabs[0].id).not.toBe(browser.id)
     for (const faviconUrl of [null, 'file:///tmp/icon.png', 'javascript:alert(1)', 'https://user:secret@mira.test/icon']) {
       expect(readWorkspaceSessions({ a: { tabs: [{ ...browser, faviconUrl }] } }).a.tabs[0].faviconUrl).toBeNull()
-      expect(readWorkspaceSessions({ a: { tabs: [{ id: 'browser', label: 'legacy', faviconUrl }] } }).a.tabs[0].faviconUrl).toBeNull()
+      expect(readWorkspaceSessions({ a: { tabs: [{ id: 'browser', label: 'removed' }] } }).a.tabs).toEqual([])
     }
   })
   it('persists independent browser URLs and titles while discarding invalid resource identities', () => {
@@ -198,23 +198,18 @@ describe('React Harness workspace state', () => {
     expect(restored).toMatchObject({ label: browser.label, url: browser.url }); expect(reopened.tabs).toContainEqual({ ...kept, openedAt: NOW })
     expect(reopened.recentClosedTabs).toEqual([]); expect(restoreWorkspaceTab(reopened, browser.id)).toBe(reopened)
   })
-  it('migrates a closed legacy browser using the stored session URL into a fresh resource', () => {
-    const old = readWorkspaceSessions({ a: { tabs: [], browserUrl: 'https://mira.test/legacy', recentClosedTabs: [{ id: 'browser', label: 'Legacy page' }] } }).a
-    const restored = restoreWorkspaceTab(old, 'browser')
-    expect(restored.tabs).toEqual([{ id: restored.activeTab, label: 'Legacy page', url: old.browserUrl, openedAt: NOW }]); expect(restored.activeTab).toMatch(/^browser:/)
-  })
   it('starts with an empty launcher until a tool is opened', () => {
-    expect(createWorkspaceSession()).toEqual({ tabs: [], activeTab: 'overview', fileTreeOpen: false, expandedFilePaths: [], browserUrl: '', recentClosedTabs: [] })
+    expect(createWorkspaceSession()).toEqual({ tabs: [], activeTab: 'overview', fileTreeOpen: false, expandedFilePaths: [], recentClosedTabs: [] })
   })
 
   it('keeps each session tab selection and browser URL independent', () => {
-    const alpha = { ...openWorkspaceTab(createWorkspaceSession(), { id: 'terminal', label: '终端' }), browserUrl: 'https://example.com' }
+    const alpha = openWorkspaceTab(createWorkspaceSession(), createWorkspaceBrowserTab('https://example.com'))
     const beta = openWorkspaceTab(createWorkspaceSession(), { id: 'changes', label: '变更' })
     const sessions = { alpha, beta }
-    expect(sessions.alpha.activeTab).toBe('terminal')
-    expect(sessions.alpha.browserUrl).toBe('https://example.com')
+    expect(sessions.alpha.activeTab).toMatch(/^browser:/)
+    expect(sessions.alpha.tabs[0].url).toBe('https://example.com')
     expect(sessions.beta.tabs.map(tab => tab.id)).toEqual(['changes'])
-    expect(sessions.beta.browserUrl).toBe('')
+    expect(sessions.beta.tabs[0].url).toBeUndefined()
   })
 
   it('does not duplicate tabs and returns to the last available tab when closing', () => {
@@ -236,21 +231,14 @@ describe('React Harness workspace state', () => {
 
   it('preserves the active selection when closing another tab', () => {
     const file = createWorkspaceFileTab('notes.ts')
-    const state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'terminal', label: '终端' })
-    expect(closeWorkspaceTab(state, file.id)).toMatchObject({ activeTab: 'terminal', tabs: [{ id: 'terminal' }] })
+    const state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'terminal:test', label: '终端' })
+    expect(closeWorkspaceTab(state, file.id)).toMatchObject({ activeTab: 'terminal:test', tabs: [{ id: 'terminal:test' }] })
   })
 
   it('restores valid per-session preferences without trusting malformed stored tabs or URLs', () => {
-    expect(readWorkspaceSessions({ a: { tabs: [{ id: 'terminal', label: '终端' }, { id: 'terminal', label: '重复' }, { id: 'unknown', label: '无效' }], activeTab: 'terminal', browserUrl: 'https://example.com' }, b: { tabs: [], activeTab: 'browser', browserUrl: 'javascript:alert(1)' } })).toMatchObject({
-      a: { tabs: [{ id: 'terminal', label: '终端' }], activeTab: 'terminal', browserUrl: 'https://example.com' },
-      b: { tabs: [], activeTab: 'overview', browserUrl: '' },
-    })
-  })
-
-  it('preserves a legacy overview while migrating its old files tab to the independent drawer', () => {
-    expect(readWorkspaceSessions({ legacy: { tabs: [{ id: 'overview', label: '任务活动' }, { id: 'files', label: '文件' }], activeTab: 'overview' }, fallback: { tabs: [{ id: 'files', label: '文件' }, { id: 'browser', label: '浏览器' }], activeTab: 'overview' } })).toMatchObject({
-      legacy: { tabs: [{ id: 'overview', label: '任务活动' }], activeTab: 'overview', fileTreeOpen: true },
-      fallback: { tabs: [{ id: 'browser', label: '浏览器' }], activeTab: 'browser', fileTreeOpen: true },
+    expect(readWorkspaceSessions({ a: { tabs: [{ id: 'terminal:test', label: '终端' }, { id: 'terminal:test', label: '重复' }, { id: 'unknown', label: '无效' }], activeTab: 'terminal:test' }, b: { tabs: [], activeTab: 'browser:test' } })).toMatchObject({
+      a: { tabs: [{ id: 'terminal:test', label: '终端' }], activeTab: 'terminal:test' },
+      b: { tabs: [], activeTab: 'overview' },
     })
   })
 
@@ -262,30 +250,30 @@ describe('React Harness workspace state', () => {
   it('selects the tab to the right of a closed active tab, or the left at the end', () => {
     const file = createWorkspaceFileTab('notes.ts')
     const files = openWorkspaceTab(createWorkspaceSession(), file)
-    const terminal = openWorkspaceTab(files, { id: 'terminal', label: '终端' })
-    const browser = openWorkspaceTab(terminal, { id: 'browser', label: '浏览器' })
-    expect(closeWorkspaceTab({ ...browser, activeTab: file.id }, file.id).activeTab).toBe('terminal')
-    expect(closeWorkspaceTab({ ...browser, activeTab: 'terminal' }, 'terminal').activeTab).toBe('browser')
-    expect(closeWorkspaceTab(browser, 'browser').activeTab).toBe('terminal')
+    const terminal = openWorkspaceTab(files, { id: 'terminal:test', label: '终端' })
+    const browser = openWorkspaceTab(terminal, { id: 'browser:test', label: '浏览器' })
+    expect(closeWorkspaceTab({ ...browser, activeTab: file.id }, file.id).activeTab).toBe('terminal:test')
+    expect(closeWorkspaceTab({ ...browser, activeTab: 'terminal:test' }, 'terminal:test').activeTab).toBe('browser:test')
+    expect(closeWorkspaceTab(browser, 'browser:test').activeTab).toBe('terminal:test')
   })
 
   it('reorders tabs without changing the active tab or resource preferences', () => {
     const file = createWorkspaceFileTab('notes.ts')
-    const state = { ...openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'browser', label: '浏览器' }), browserUrl: 'https://example.com' }
-    const moved = reorderWorkspaceTabs(state, 'browser', file.id)
-    expect(moved.tabs.map(tab => tab.id)).toEqual(['browser', file.id])
-    expect(moved).toMatchObject({ activeTab: 'browser', browserUrl: 'https://example.com' })
+    const state = openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'browser:test', label: '浏览器', url: 'https://example.com' })
+    const moved = reorderWorkspaceTabs(state, 'browser:test', file.id)
+    expect(moved.tabs.map(tab => tab.id)).toEqual(['browser:test', file.id])
+    expect(moved).toMatchObject({ activeTab: 'browser:test', tabs: [{ url: 'https://example.com' }, file] })
     expect(reorderWorkspaceTabs(state, file.id, file.id)).toBe(state)
-    expect(reorderWorkspaceTabs(state, 'terminal', file.id)).toBe(state)
+    expect(reorderWorkspaceTabs(state, 'terminal:test', file.id)).toBe(state)
   })
 
   it('closes other tabs and selects the kept tab, then closes all back to the launcher', () => {
     const file = createWorkspaceFileTab('notes.ts')
-    const state = openWorkspaceTab(openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'terminal', label: '终端' }), { id: 'browser', label: '浏览器' })
+    const state = openWorkspaceTab(openWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), file), { id: 'terminal:test', label: '终端' }), { id: 'browser:test', label: '浏览器' })
     const remaining = closeOtherWorkspaceTabs(state, file.id)
-    expect(remaining).toMatchObject({ tabs: [file], activeTab: file.id, recentClosedTabs: [{ id: 'terminal' }, { id: 'browser' }] })
+    expect(remaining).toMatchObject({ tabs: [file], activeTab: file.id, recentClosedTabs: [{ id: 'terminal:test' }, { id: 'browser:test' }] })
     const empty = closeAllWorkspaceTabs(remaining)
-    expect(empty).toMatchObject({ tabs: [], activeTab: 'overview', recentClosedTabs: [file, { id: 'terminal' }, { id: 'browser' }] })
+    expect(empty).toMatchObject({ tabs: [], activeTab: 'overview', recentClosedTabs: [file, { id: 'terminal:test' }, { id: 'browser:test' }] })
     expect(closeOtherWorkspaceTabs(state, 'changes')).toBe(state)
     expect(closeAllWorkspaceTabs(empty)).toBe(empty)
   })
@@ -294,11 +282,11 @@ describe('React Harness workspace state', () => {
     const file = createWorkspaceFileTab('src/notes.ts')
     const renamed = { ...file, label: 'My notes' }
     const alpha = closeWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), renamed), file.id)
-    const beta = closeWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), { id: 'terminal', label: '终端' }), 'terminal')
+    const beta = closeWorkspaceTab(openWorkspaceTab(createWorkspaceSession(), { id: 'terminal:test', label: '终端' }), 'terminal:test')
     const restored = restoreWorkspaceTab(alpha, file.id)
     expect(restored).toMatchObject({ tabs: [renamed], activeTab: file.id, recentClosedTabs: [] })
-    expect(beta.recentClosedTabs).toEqual([{ id: 'terminal', label: '终端', openedAt: NOW, closedAt: NOW }])
-    expect(restoreWorkspaceTab(alpha, 'terminal')).toBe(alpha)
+    expect(beta.recentClosedTabs).toEqual([{ id: 'terminal:test', label: '终端', openedAt: NOW, closedAt: NOW }])
+    expect(restoreWorkspaceTab(alpha, 'terminal:test')).toBe(alpha)
   })
 
   it('removes reopened resources from recent history and remembers only their newest label', () => {
@@ -311,7 +299,7 @@ describe('React Harness workspace state', () => {
 
   it('restores sanitized recent history and excludes resources already open', () => {
     const file = createWorkspaceFileTab('notes.ts')
-    const restored = readWorkspaceSessions({ alpha: { tabs: [{ id: 'browser', label: '浏览器' }], recentClosedTabs: [null, { ...file, label: 2 }, file, { ...file, label: 'duplicate.ts' }, { id: 'browser', label: 'already open' }, { id: 'unknown', label: '无效' }] }, beta: { tabs: [] } })
+    const restored = readWorkspaceSessions({ alpha: { tabs: [{ id: 'browser:test', label: '浏览器' }], recentClosedTabs: [null, { ...file, label: 2 }, file, { ...file, label: 'duplicate.ts' }, { id: 'browser:test', label: 'already open' }, { id: 'unknown', label: '无效' }] }, beta: { tabs: [] } })
     expect(restored.alpha.recentClosedTabs).toEqual([file])
     expect(restored.beta.recentClosedTabs).toEqual([])
   })
@@ -350,12 +338,6 @@ describe('React Harness workspace state', () => {
     expect(state.tabs).toEqual([valid])
     expect(state.activeTab).toBe(valid.id)
     expect(state.recentClosedTabs).toEqual([createWorkspaceFileTab('tests/notes.ts')])
-  })
-
-  it('migrates an active legacy files-only view to the drawer and empty right-side launcher', () => {
-    const state = readWorkspaceSessions({ old: { tabs: [{ id: 'files', label: 'notes.ts' }], activeTab: 'files', fileTreeOpen: false, recentClosedTabs: [{ id: 'files', label: 'old.ts' }] } }).old
-    expect(state).toMatchObject({ tabs: [], activeTab: 'overview', fileTreeOpen: true, recentClosedTabs: [], expandedFilePaths: [] })
-    expect(state.selectedFilePath).toBeUndefined()
   })
 
   it('does not reopen a drawer for malformed legacy tabs or recently closed legacy files', () => {

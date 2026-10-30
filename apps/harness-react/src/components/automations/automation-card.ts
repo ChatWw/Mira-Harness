@@ -2,7 +2,7 @@
  * Mira adaptation of ZCode automationCardSchedule / automationFormat.
  * License: third-party-licenses/zcode/. */
 import type { AutomationTask } from '../../../../../src/config/harness'
-import { triggerLabel, formatAutomationTime } from '../../../../../src/pages/frontend/harness/automations/automationPresentation'
+import { triggerLabel, formatAutomationTime } from '../../../../../src/config/automationPresentation'
 
 export function automationCardSchedule(task: AutomationTask): string {
   if (task.trigger.type !== 'cron') return triggerLabel(task)

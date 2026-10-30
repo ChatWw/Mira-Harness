@@ -1,6 +1,5 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import ElementPlus, { ElTooltip } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
@@ -26,9 +25,6 @@ async function bootstrap() {
   syncBusinessRoutes()
   const app = createApp(App)
   const pinia = createPinia()
-
-// 注册持久化插件
-  pinia.use(piniaPluginPersistedstate)
 
   app.component('AppIcon', AppIcon)
 

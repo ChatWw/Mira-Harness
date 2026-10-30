@@ -146,17 +146,6 @@ describe('persistent task-owned net changes through real write/edit tools', () =
     expect(f.summary()).toMatchObject({ added: 1, removed: 1, incomplete: false })
   })
 
-  it('never manufactures baselines for old successful operations, and counts their operation history', async () => {
-    const f = fixture()
-    for (const id of ['legacy-1', 'legacy-2']) f.database.harness.recordTool(f.session.id, { id, tool: 'edit', target: 'legacy.txt', status: 'ok', createdAt: 1 })
-    f.database.harness.recordTool(f.session.id, { id: 'failed', tool: 'write', target: 'failed.txt', status: 'failed', createdAt: 2 })
-    expect(f.summary()).toMatchObject({ added: 0, removed: 0, incomplete: true, files: [{ path: 'legacy.txt', writes: 2, unavailable: true }] })
-    writeFileSync(join(f.projectDirectory, 'legacy.txt'), 'already changed\n')
-    await f.write('legacy.txt', 'new version\n')
-    expect(f.summary()).toMatchObject({ added: 0, removed: 0, incomplete: true, files: [{ path: 'legacy.txt', writes: 3, unavailable: true }] })
-    expect(f.summary()!.files[0]!.diff).toBeUndefined()
-  })
-
   it('keeps an unreadable initial baseline unknown after later readable writes and a restart', async () => {
     const f = fixture()
     writeFileSync(join(f.projectDirectory, 'binary.txt'), Buffer.from([65, 0, 66]))

@@ -5,7 +5,7 @@ import { HARNESS_WORKBENCH_PATH, navigateHarnessHost, parseFirstPartyNavigationP
 function router() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [HARNESS_WORKBENCH_PATH, '/settings/general', '/settings/mcp', '/settings/personalization', '/workspace/usage'].map(path => ({ path, component: {} })),
+    routes: [HARNESS_WORKBENCH_PATH, '/settings/general', '/settings/mcp', '/settings/personalization', '/settings/usage'].map(path => ({ path, component: {} })),
   })
 }
 
@@ -23,7 +23,7 @@ describe('first-party Harness navigation', () => {
     expect(() => resolveHarnessNavigationPath('/settings/hooks?file=%2Ftmp%2Fhooks.json')).toThrow('导航参数')
     expect(resolveHarnessNavigationPath('/settings/hooks?plugin=reviewed%40local')).toBe('/settings/hooks?plugin=reviewed%40local&from=%2Fworkspace%2Fharness-react')
   })
-  it.each(['/settings/permissions', '/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts', '/settings/usage'])('opens the existing settings route and retains its React return path: %s', path => {
+  it.each(['/settings/general', '/settings/mcp', '/settings/personalization', '/settings/model-config', '/settings/keyboard-shortcuts', '/settings/usage'])('opens the existing settings route and retains its React return path: %s', path => {
     const target = new URL(resolveHarnessNavigationPath(path), 'https://mira.invalid')
     expect(target.pathname).toBe(path)
     expect(target.searchParams.get('from')).toBe(HARNESS_WORKBENCH_PATH)
@@ -31,17 +31,12 @@ describe('first-party Harness navigation', () => {
   })
 
   it('preserves an explicitly encoded return path, including the original application query', () => {
-    const from = '/workspace/chat?draft=unsent%20text'
+    const from = '/novel?chapter=draft%20text'
     const path = `/settings/personalization?from=${encodeURIComponent(from)}`
     expect(parseFirstPartyNavigationPath(path).pathname).toBe('/settings/personalization')
     const target = new URL(resolveHarnessNavigationPath(path), 'https://mira.invalid')
     expect(target.searchParams.get('from')).toBe(from)
     expect(resolveSettingsReturnPath(target.searchParams.get('from'))).toBe(from)
-  })
-
-  it('opens the real usage route and preserves the supported history query', () => {
-    expect(resolveHarnessNavigationPath('/workspace/usage')).toBe('/workspace/usage')
-    expect(resolveHarnessNavigationPath('/workspace/history?q=notes&archive=archived&sort=created-desc&page=2')).toBe('/workspace/history?q=notes&archive=archived&sort=created-desc&page=2')
   })
 
   it.each(['/settings/conversation', '/settings/file-trash', '/settings/archives'])('accepts reorganized settings with a preserved return path: %s', path => {

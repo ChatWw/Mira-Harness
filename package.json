@@ -12,16 +12,14 @@
     "micro-frontend"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run desktop:dev",
     "build": "node scripts/build.mjs",
     "test": "vitest run",
     "pretest": "node scripts/generate-mira-flow-libs.mjs",
     "flow:build": "node scripts/build-mira-flow.mjs",
     "tools:build": "node scripts/build-mira-tools.mjs",
-    "preview": "vite preview",
     "postinstall": "node scripts/prepare-node-pty.mjs",
     "desktop:dev": "electron-vite dev",
-    "harness:dev": "node scripts/dev-harness-react.mjs",
     "harness:build": "node scripts/build-harness-react.mjs",
     "predesktop:dev": "npm run harness:build && npm run flow:build && npm run tools:build",
     "predesktop:build": "npm run harness:build && npm run flow:build && npm run tools:build",
@@ -61,33 +59,42 @@
       {
         "from": "dist/harness-react-app",
         "to": "harness-react-app",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "dist/mira-flow-host",
         "to": "mira-flow-host",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "dist/mira-tools/ripgrep",
         "to": "tools/ripgrep",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "resources/python",
         "to": "python",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "resources/plugins",
         "to": "plugins",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "1.2.4",
-    "@assistant-ui/react": "0.15.22",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@earendil-works/pi-agent-core": "^0.84.1",
@@ -113,7 +120,6 @@
     "@radix-ui/react-tabs": "1.1.21",
     "@radix-ui/react-tooltip": "1.2.16",
     "@streamdown/cjk": "^1.0.3",
-    "@streamdown/code": "^1.1.1",
     "@tailwindcss/cli": "^4.3.3",
     "@tanstack/react-virtual": "3.14.13",
     "@wangeditor-next/editor": "^6.2.0",
@@ -121,7 +127,6 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "better-sqlite3": "^13.0.2",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
     "diff": "^8.0.4",
@@ -137,7 +142,6 @@
     "node-pty": "^1.1.0",
     "pdfjs-dist": "5.4.296",
     "pinia": "^3.0.4",
-    "pinia-plugin-persistedstate": "^4.7.1",
     "pinyin-pro": "^3.28.2",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
@@ -157,7 +161,6 @@
     "unified": "11.0.5",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4",
-    "vuedraggable": "^4.1.0",
     "wujie-vue3": "^2.1.0",
     "yaml": "2.9.0"
   },

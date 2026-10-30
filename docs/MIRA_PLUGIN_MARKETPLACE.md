@@ -41,4 +41,4 @@
 
 市场与组件测试覆盖内置登记、停用/移除持久化、重新安装、本地来源、HTTPS 哈希失败回滚、无效名称和交互。文档脚本已用真实 DOCX/PPTX/XLSX 创建并回读，检查拒绝覆盖已有文件；插件创建器已检查清单和重复创建。
 
-`scripts/verify-plugin-market.mjs` 用真实 React 组件和应用样式、模拟宿主在 Chromium 中检查浅色、深色、窄屏、详情、来源对话框与示例提示词。结果在 `docs/assets/mira-plugin-market/`。此检查不替代原生 Electron 操作；Windows-MCP / Playwright MCP 的真实启动和桌面操作仍待验证。
+当前回归测试见 `tests/miraPluginMarketplace.test.ts`、`tests/harnessReactPluginInventory.test.tsx`。真实安装包中的原生工具启动与桌面操作需要另行验收。

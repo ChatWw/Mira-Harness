@@ -9,19 +9,17 @@ export const MIRA_PANE_TRANSITION_MS = 240
 
 export function miraSidebarWidth(width: number) { return Math.min(420, Math.max(280, width)) }
 
-export function miraPanePreferences(value: unknown): { sessions: number; workspaceRatio: number; legacyWorkspace?: number } {
+export function miraPanePreferences(value: unknown): { sessions: number; workspaceRatio: number } {
   const saved = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
   return {
     sessions: finite(saved.sessions) ? miraSidebarWidth(saved.sessions) : 280,
     workspaceRatio: finite(saved.workspaceRatio) && saved.workspaceRatio > 0 ? Math.min(MIRA_WORKSPACE_MAX_RATIO, saved.workspaceRatio) : MIRA_WORKSPACE_RATIO,
-    legacyWorkspace: !finite(saved.workspaceRatio) && finite(saved.workspace) && saved.workspace > 0 ? saved.workspace : undefined,
   }
 }
 
-export function miraWorkspaceRatio(ratio: number, bodyWidth: number, legacyWidth?: number) {
-  const preferred = legacyWidth && bodyWidth > 0 ? legacyWidth / bodyWidth : ratio
-  return Math.min(MIRA_WORKSPACE_MAX_RATIO, Math.max(bodyWidth > 0 ? Math.min(MIRA_WORKSPACE_MAX_RATIO, MIRA_WORKSPACE_MIN_WIDTH / bodyWidth) : 0, preferred))
+export function miraWorkspaceRatio(ratio: number, bodyWidth: number) {
+  return Math.min(MIRA_WORKSPACE_MAX_RATIO, Math.max(bodyWidth > 0 ? Math.min(MIRA_WORKSPACE_MAX_RATIO, MIRA_WORKSPACE_MIN_WIDTH / bodyWidth) : 0, ratio))
 }
 
 export function miraNarrowPaneAction(chatWidth: number, workspaceOpen: boolean, sessionsOpen: boolean) {

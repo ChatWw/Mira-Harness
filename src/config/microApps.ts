@@ -1,15 +1,5 @@
 import type { MicroApp } from '@/types'
 
-export const MIRA_NOVEL_STUDIO_CODE = 'mira-novel-studio' as const
-
-export const LEGACY_MICRO_APP_CODE_ALIASES: Readonly<Record<string, string>> = {
-  'ai-novel': MIRA_NOVEL_STUDIO_CODE,
-}
-
-export function canonicalMicroAppCode(code: string) {
-  return LEGACY_MICRO_APP_CODE_ALIASES[code] || code
-}
-
 // 内置微应用编码：入口锁定，只允许停用/启用，不可删除。
 export const BUILT_IN_MICRO_APP_CODES = ['mira-harness'] as const
 
@@ -45,5 +35,4 @@ export function withBuiltInMicroApps(apps: MicroApp[]): MicroApp[] {
 
 export function findMicroApp(code: string) {
   return microApps.find(app => app.code === code)
-    || microApps.find(app => app.code === canonicalMicroAppCode(code))
 }

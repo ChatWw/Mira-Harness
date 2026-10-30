@@ -18,7 +18,3 @@ export const PRESET_COLORS: ThemeColorPreset[] = [
 
 export const DEFAULT_PRIMARY_PRESET_ID = 'monochrome'
 export const DEFAULT_THEME_MODE = 'light'
-
-export const THEME_STORAGE_KEY = 'cp-theme-mode'
-export const PRIMARY_PRESET_STORAGE_KEY = 'cp-primary-preset'
-export const LEGACY_PRIMARY_COLOR_STORAGE_KEY = 'cp-primary-color'

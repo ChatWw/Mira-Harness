@@ -53,10 +53,10 @@ describe('Harness sidebar persisted preferences', () => {
   it.each([
     { saved: {}, expected: 'updated' },
     { saved: { sort: 'created' }, expected: 'updated' },
-    { saved: { sort: 'manual' }, expected: 'manual' },
+    { saved: { sort: 'manual' }, expected: 'updated' },
     { saved: { sort: 'manual', groupSort: 'updated' }, expected: 'updated' },
     { saved: { sort: 'created', groupSort: 'manual' }, expected: 'manual' },
-  ])('restores group sorting independently with legacy migration: $saved', async ({ saved, expected }) => {
+  ])('restores group sorting independently: $saved', async ({ saved, expected }) => {
     const store = new SidebarPreferenceStore(async () => saved, async () => undefined)
     await store.load()
     expect(store.getSnapshot().preferences.groupSort).toBe(expected)
@@ -67,7 +67,7 @@ describe('Harness sidebar persisted preferences', () => {
     const store = new SidebarPreferenceStore(() => reading.promise, write)
     const load = store.load()
     store.change({ sort: 'created', view: 'project' })
-    reading.resolve({ sort: 'manual', view: 'group', expandedProjectIds: ['project', 'project', null] })
+    reading.resolve({ sort: 'manual', groupSort: 'manual', view: 'group', expandedProjectIds: ['project', 'project', null] })
     await load; await store.save()
     expect(store.getSnapshot().preferences).toEqual({ projectSectionOpen: true, personalSectionOpen: true, sectionOrder: ['projects', 'personal'], sort: 'created', groupSort: 'manual', view: 'project', projectView: 'collections', expandedProjectIds: ['project'], collapsedProjectIds: [], groups: [], ungroupedSessionOrder: [], groupedRootOrder: [] })
     expect(write).toHaveBeenLastCalledWith(store.getSnapshot().preferences)

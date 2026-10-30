@@ -9,12 +9,10 @@ import { McpConfigStore } from '../storage/mcpConfigStore'
 import { McpManager } from '../adapters/mcpManager'
 import { createMiraComputerConnection } from './miraComputerUse'
 import { MiraComputerSettings } from './miraComputerSettings'
-import { PythonEnvironment } from '../adapters/pythonEnv'
 import { saveAutomationTask } from '../ipc/automationIpc'
 import { AutomationScheduler } from './automationScheduler'
 import { SkillMarketplaceService } from './skillMarketplace'
 import type { MiraPaths } from '../storage/miraPaths'
-import { completeMiraDataMigration, prepareMiraDataMigration, removeLegacyUserDataFiles } from '../storage/miraDataMigration'
 import type { HarnessEvent } from '../../src/config/harness'
 import { app, net, safeStorage, session, shell } from 'electron'
 import { MiraMcpCredentialStore } from '../storage/miraMcpCredentialStore'
@@ -34,7 +32,6 @@ export interface PlatformServices {
   legacyNovelApiToken: string
   harnessRuntime: HarnessRuntime
   miraFlowController: MiraFlowController
-  pythonEnvironment: PythonEnvironment
   mcpConfigStore: McpConfigStore
   mcpManager: McpManager
   mcpAuthorization: MiraMcpAuthorization
@@ -43,17 +40,12 @@ export interface PlatformServices {
   cleanupExpiredTrash: () => void
 }
 
-export async function createPlatformServices({ miraPaths, legacyUserDataPath, publishHarnessEvent }: {
+export async function createPlatformServices({ miraPaths, publishHarnessEvent }: {
   miraPaths: MiraPaths
-  legacyUserDataPath: string
   publishHarnessEvent: (event: HarnessEvent) => void
 }): Promise<PlatformServices> {
-  prepareMiraDataMigration(miraPaths, legacyUserDataPath)
   const database = new PlatformDatabase(miraPaths)
   database.models.ensureBuiltinInstances()
-  database.harness.migrateLegacyStorage()
-  completeMiraDataMigration(miraPaths, legacyUserDataPath)
-  if (legacyUserDataPath !== miraPaths.root) removeLegacyUserDataFiles(legacyUserDataPath)
 
   const cleanupExpiredTrash = () => {
     try {
@@ -88,7 +80,6 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
   try { void mcpManager.refresh(mcpConfigStore.list()) }
   catch { console.error('[mcp] MCP 配置读取失败；请在设置中检查配置文件后重试') }
   automationScheduler.start()
-  const pythonEnvironment = new PythonEnvironment()
   const workspaceHtml = new MiraWorkspaceHtml()
   const workspaceMedia = new MiraWorkspaceMedia()
   const localMicroAppServer = new LocalMicroAppServer({
@@ -104,5 +95,5 @@ export async function createPlatformServices({ miraPaths, legacyUserDataPath, pu
     database.savePreference('localMicroAppPort', localMicroAppServer.port)
   }
 
-  return { computerSettings, workspaceHtml, workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, pythonEnvironment, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
+  return { computerSettings, workspaceHtml, workspaceMedia, database, localMicroAppServer, legacyNovelApiToken, harnessRuntime, miraFlowController, mcpConfigStore, mcpManager, mcpAuthorization, automationScheduler, skillMarketplace, cleanupExpiredTrash }
 }

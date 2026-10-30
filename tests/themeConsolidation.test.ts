@@ -7,7 +7,7 @@ afterEach(() => {
   for (const key of Object.keys(platformPreferences)) delete platformPreferences[key]
 })
 
-describe('legacy theme preferences', () => {
+describe('desktop theme preferences', () => {
   it('preserves system preference, follows OS changes, and toggles only explicit light and dark', async () => {
     const values = new Map<string, string>()
     const localStorage = {
@@ -44,7 +44,7 @@ describe('legacy theme preferences', () => {
     expect(platformPreferences.themeMode).toBe('system')
     expect(platformPreferences.primaryPreset).toBe('monochrome')
     expect(values.get('cp-theme-mode')).toBeUndefined()
-    expect(values.get('cp-primary-preset')).toBe('monochrome')
+    expect(values.size).toBe(0)
 
     dark = false; systemChanged?.()
     expect(theme.themeMode).toBe('light')

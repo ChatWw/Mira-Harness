@@ -58,10 +58,10 @@ describe('Mira read-only run activity selection', () => {
 })
 
 describe('Mira child tool ownership', () => {
-  it('keeps explicit child tools in their exact run and allows legacy tools for one run owner', () => {
+  it('keeps only explicit child tools in their exact run', () => {
     const own = tool('own', { subtaskId: 'child' }), legacy = tool('legacy', { subtaskId: 'child', runId: undefined })
     const source = session({ messages: [assistant('first', 'run', summary([child()])), assistant('final', 'run', summary([child()]))], activeRun: { id: 'run', startedAt: 1, activities: [], subtasks: [child()] }, toolCalls: [own, legacy, tool('cross-run', { subtaskId: 'child', runId: 'other' }), tool('other-child', { subtaskId: 'other' }), tool('parent')] })
-    expect(selectMiraSubtask(source, 'run', 'child')?.tools).toEqual([own, legacy])
+    expect(selectMiraSubtask(source, 'run', 'child')?.tools).toEqual([own])
   })
 
   it('rejects legacy tools when a child ID is owned by multiple runs, while retaining explicit records', () => {
@@ -94,10 +94,10 @@ describe('Mira delegate parent identity resolution', () => {
     expect(findMiraDelegateSubtask(source, 'run', second.id)).toBe(secondChild)
   })
 
-  it('resolves a raw provider parent only when its delegate candidate is unique in the whole run', () => {
+  it('does not infer public parents from provider IDs', () => {
     const delegate = tool('run:response-1:call'), task = child()
     const source = session({ messages: [assistant('run', 'run', summary([task]))], toolCalls: [delegate, tool('other:response-1:call', { runId: 'other' }), tool('child-delegate', { subtaskId: 'child' }), tool('read', { tool: 'read' })] })
-    expect(findMiraDelegateSubtask(source, 'run', delegate.id)).toBe(task)
+    expect(findMiraDelegateSubtask(source, 'run', delegate.id)).toBeUndefined()
     source.toolCalls.push(tool('run:response-2:call'))
     expect(findMiraDelegateSubtask(source, 'run', delegate.id)).toBeUndefined()
     expect(findMiraDelegateSubtask(source, 'run', 'run:response-2:call')).toBeUndefined()
@@ -116,7 +116,7 @@ describe('Mira delegate parent identity resolution', () => {
   })
 
   it('rejects multiple children or duplicate public tool records rather than picking the first', () => {
-    const delegate = tool('public'), source = session({ messages: [assistant('run', 'run', summary([child('first', 'public'), child('second', 'call')]))], toolCalls: [delegate] })
+    const delegate = tool('public'), source = session({ messages: [assistant('run', 'run', summary([child('first', 'public'), child('second', 'public')]))], toolCalls: [delegate] })
     expect(findMiraDelegateSubtask(source, 'run', 'public')).toBeUndefined()
     source.messages = [assistant('run', 'run', summary([child('first', 'public')]))]
     source.toolCalls.push({ ...delegate })

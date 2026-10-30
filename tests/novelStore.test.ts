@@ -1,13 +1,7 @@
 import Database from 'better-sqlite3'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createNovelProject, EMPTY_NOVEL_MODEL_PROFILES, toNovelProjectSummary } from '../src/config/novel'
-import { PlatformDatabase } from '../electron/storage/database'
-import { MiraPaths } from '../electron/storage/miraPaths'
 import { NovelStore } from '../electron/storage/novelStore'
-import { AI_NOVEL_MENU } from '../src/config/menus'
 
 function createStore() {
   const database = new Database(':memory:')
@@ -74,26 +68,5 @@ describe('novel domain defaults', () => {
       authoring: { endpoint: '', apiKey: '', modelId: '' },
       automation: { endpoint: '', apiKey: '', modelId: '' },
     })
-  })
-})
-
-describe('platform database migration', () => {
-  it('removes the legacy overview and replaces the novel micro-app with the protected native page', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'mira-novel-migration-'))
-    const paths = new MiraPaths(directory).ensure()
-    const legacy = new Database(paths.stateDatabase())
-    legacy.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE menus (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE micro_apps (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, payload TEXT NOT NULL); CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded', '1')
-    legacy.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('schemaVersion', '15')
-    legacy.prepare('INSERT INTO menus(id, payload) VALUES (?, ?)').run('dashboard', JSON.stringify({ id: 'dashboard', title: '概览', type: 'menu', path: '/dashboard', target: { type: 'component', componentKey: 'dashboard' } }))
-    legacy.prepare('INSERT INTO micro_apps(id, code, payload) VALUES (?, ?, ?)').run('micro-ai-novel', 'ai-novel', JSON.stringify({ id: 'micro-ai-novel', code: 'ai-novel' }))
-    legacy.close()
-
-    const database = new PlatformDatabase(directory)
-    expect(database.getSnapshot().microApps.map(app => app.code)).toEqual(['mira-harness'])
-    expect(database.getSnapshot().mainMenus.map(menu => menu.id)).toEqual([AI_NOVEL_MENU.id])
-    expect(database.novels.listProjects()).toEqual([])
-    database.close()
-    rmSync(directory, { recursive: true, force: true })
   })
 })

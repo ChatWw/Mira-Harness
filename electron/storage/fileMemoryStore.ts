@@ -68,7 +68,7 @@ export class FileMemoryStore {
 
   context(scope: MemoryScope, query: string, projectId?: string) { return this.search(scope, query, projectId).map(entry => `- [${entry.id}] ${entry.content}`).join('\n') }
 
-  remember(scope: MemoryScope, content: string, projectId?: string, options: { source?: Exclude<MemorySource, 'legacy'>, sourceSessionId?: string, sensitivity?: MemorySensitivity, allowPersonal?: boolean } = {}) {
+  remember(scope: MemoryScope, content: string, projectId?: string, options: { source?: MemorySource, sourceSessionId?: string, sensitivity?: MemorySensitivity, allowPersonal?: boolean } = {}) {
     const value = normalize(content).slice(0, MAX_MEMORY_CONTENT)
     if (!value) throw new Error('记忆内容不能为空')
     const classified = classifyMemoryContent(value)
@@ -140,7 +140,7 @@ export class FileMemoryStore {
       if (!content) return []
       const id = match[1] || `manual-${entryId(`${index}:${content}`)}`
       const meta = metadata[id] || {}
-      return [{ id, content, scope, projectId, source: meta.source || 'legacy', sourceSessionId: meta.sourceSessionId, sensitivity: meta.sensitivity || classifyMemoryContent(content).sensitivity, createdAt: meta.createdAt || fallbackTime, updatedAt: meta.updatedAt || fallbackTime }]
+      return [{ id, content, scope, projectId, source: meta.source || 'manual', sourceSessionId: meta.sourceSessionId, sensitivity: meta.sensitivity || classifyMemoryContent(content).sensitivity, createdAt: meta.createdAt || fallbackTime, updatedAt: meta.updatedAt || fallbackTime }]
     })
   }
 

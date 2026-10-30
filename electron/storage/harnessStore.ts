@@ -2,7 +2,7 @@ import { resolveAvailablePermission } from '../../src/config/harnessPermissions'
 import { buildHarnessAppUsage } from '../../src/config/harnessUsage'
 import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { closeSync, cpSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type Database from 'better-sqlite3'
 import {
@@ -44,7 +44,6 @@ import {
   type PermissionMode,
   type ToolCallRecord,
 } from '../../src/config/harness'
-import { atomicMove } from './miraDataMigration'
 import { buildMiraTaskFileChange, type MiraTaskFileSnapshot } from '../services/miraTaskChanges'
 import type { MiraTaskChangeSummary, MiraTaskChangedFile } from '../../src/config/miraTaskChanges'
 import { miraCheckpointPathStable, miraCheckpointText, type MiraFileCheckpoint, type MiraFileRewindJournal, type MiraFileRewindOperation } from '../services/miraFileRewind'
@@ -64,10 +63,7 @@ const TEMPORARY_PROJECT_ID = '__temporary__'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
 function now() { return Date.now() }
-function trashTime(token: string, directory: string) {
-  const value = Number(token.match(/^(\d+)-/)?.[1])
-  return Number.isFinite(value) && value > 0 ? value : statSync(directory).mtimeMs
-}
+function trashTime(token: string) { return Number(token.match(/^(\d+)-/)?.[1]) }
 function trashPaths(root: string, relativePath = ''): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap(entry => {
     const next = relativePath ? join(relativePath, entry.name) : entry.name
@@ -144,9 +140,6 @@ export class HarnessStore {
   }
 
   private ensureStructuredSchema() {
-    const sessionColumns = this.database.prepare('PRAGMA table_info(harness_sessions)').all() as Array<{ name: string }>
-    if (sessionColumns.length && !sessionColumns.some(column => column.name === 'draft_state')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN draft_state TEXT')
-    if (sessionColumns.length && !sessionColumns.some(column => column.name === 'parent_session_id')) this.database.exec('ALTER TABLE harness_sessions ADD COLUMN parent_session_id TEXT')
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS harness_session_state (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS harness_messages (session_id TEXT NOT NULL, message_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, message_id));
@@ -158,12 +151,10 @@ export class HarnessStore {
       CREATE TABLE IF NOT EXISTS harness_subtasks (session_id TEXT NOT NULL, run_id TEXT NOT NULL, subtask_id TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(session_id, run_id, subtask_id));
       CREATE TABLE IF NOT EXISTS harness_attachments (session_id TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, id));
       CREATE TABLE IF NOT EXISTS harness_task_files (session_id TEXT NOT NULL, path TEXT NOT NULL, first_content TEXT, first_known INTEGER NOT NULL, public_payload TEXT NOT NULL, PRIMARY KEY(session_id, path));
-      CREATE TABLE IF NOT EXISTS harness_file_checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, tool_id TEXT NOT NULL, message_id TEXT NOT NULL, message_chain TEXT NOT NULL, directory TEXT NOT NULL, path TEXT NOT NULL, before_content TEXT, before_known INTEGER NOT NULL, after_content TEXT, after_known INTEGER NOT NULL DEFAULT 0, settled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE(session_id, tool_id));
+      CREATE TABLE IF NOT EXISTS harness_file_checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, tool_id TEXT NOT NULL, message_id TEXT NOT NULL, message_chain TEXT NOT NULL, directory TEXT NOT NULL, path TEXT NOT NULL, before_content TEXT, before_known INTEGER NOT NULL, after_content TEXT, after_known INTEGER NOT NULL DEFAULT 0, settled INTEGER NOT NULL DEFAULT 0, rewind_id TEXT, created_at INTEGER NOT NULL, UNIQUE(session_id, tool_id));
       CREATE INDEX IF NOT EXISTS harness_file_checkpoints_owner ON harness_file_checkpoints(session_id, created_at, sequence);
       CREATE TABLE IF NOT EXISTS harness_file_rewinds (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, message_id TEXT NOT NULL, directory TEXT NOT NULL, payload TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', created_at INTEGER NOT NULL);
     `)
-    const checkpointColumns = this.database.prepare('PRAGMA table_info(harness_file_checkpoints)').all() as Array<{ name: string }>
-    if (!checkpointColumns.some(column => column.name === 'rewind_id')) this.database.exec('ALTER TABLE harness_file_checkpoints ADD COLUMN rewind_id TEXT')
   }
 
   private sessionPath(session: HarnessSession) { return this.paths.session(session.id) }
@@ -349,20 +340,6 @@ export class HarnessStore {
     }
   }
 
-  migrateStructuredSessions() {
-    const rows = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
-    const migrate = this.database.transaction(() => {
-      for (const row of rows) {
-        const raw = readFileSync(row.path, 'utf8')
-        const session = this.parseSession(raw)
-        const backupPath = `${row.path}.legacy.bak`
-        if (!existsSync(backupPath)) copyFileSync(row.path, backupPath)
-        this.persistStructuredSession(session)
-      }
-    })
-    migrate()
-  }
-
   private parseSession(raw: string | Partial<HarnessSession>): HarnessSession {
     const value = typeof raw === 'string' ? JSON.parse(raw) as Partial<HarnessSession> : raw
     if (value.version !== 1 || !value.id || !Array.isArray(value.messages) || !Array.isArray(value.toolCalls)) throw new Error('会话文件格式无效')
@@ -375,16 +352,6 @@ export class HarnessStore {
       delegationEnabled: value.delegationEnabled !== false,
       archivedAt: typeof value.archivedAt === 'number' ? value.archivedAt : undefined,
     } as HarnessSession
-    const legacy = value.activePlan as (HarnessPlan & { questions?: unknown[] }) | undefined
-    if (legacy?.status === 'ready') session.activePlan = { ...legacy, status: 'awaiting_confirmation' }
-    if (session.activePlan) {
-      const { questions: _questions, ...plan } = session.activePlan as HarnessPlan & { questions?: unknown[] }
-      session.activePlan = plan
-      if (!session.pendingInteraction && Array.isArray(legacy?.questions) && legacy.questions.length) {
-        session.pendingInteraction = { id: randomUUID(), kind: 'question', status: 'waiting', questions: legacy.questions.filter((item): item is { question: string, context?: string } => Boolean(item && typeof item === 'object' && typeof (item as { question?: unknown }).question === 'string')).map((item, index) => ({ id: `legacy-${index + 1}`, question: item.question, context: item.context })), createdAt: now() }
-      }
-    }
-    if (!session.projectId && !session.workingDirectory) session.workingDirectory = this.paths.workspace
     return session
   }
 
@@ -542,8 +509,6 @@ export class HarnessStore {
     if (conflict) throw new Error('该主要目录已被其他项目使用')
     const icon = validateProjectIcon(input.icon ?? project.icon)
     this.database.transaction(() => {
-      // 旧回收站没有来源标记；切换主目录前固定其原始还原位置。
-      if (primary !== project.directory) for (const entry of this.listTrash(id)) this.database.prepare('INSERT OR IGNORE INTO harness_settings(key, value) VALUES (?, ?)').run(`trash-directory:${id}:${entry.token}`, project.directory)
       this.database.prepare('UPDATE harness_projects SET name = ?, icon = ?, directory = ?, roots = ?, updated_at = ? WHERE id = ?')
         .run(input.name.trim(), icon, primary, JSON.stringify(roots), now(), id)
     })()
@@ -694,15 +659,12 @@ export class HarnessStore {
 
   listSessions(query = ''): HarnessSessionSummary[] {
     const text = `%${query.trim()}%`
-    // Existing automation conversations predate the persistent origin field.
-    const hasAutomationRuns = this.database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'automation_runs'").get()
-    const automationSessions = new Map(hasAutomationRuns ? (this.database.prepare('SELECT session_id, task_id FROM automation_runs WHERE session_id IS NOT NULL ORDER BY started_at ASC').all() as Array<{ session_id: string; task_id: string }>).map(run => [run.session_id, run.task_id]) : [])
     const rows = this.database.prepare(`SELECT s.*, p.name AS project_name FROM harness_sessions s LEFT JOIN harness_projects p ON p.id = s.project_id
       WHERE s.archived_at IS NULL AND COALESCE(s.draft_state, '') <> 'prepared' AND s.parent_session_id IS NULL AND s.title LIKE ? ORDER BY s.pinned DESC, s.sort_order DESC, s.updated_at DESC`).all(text) as Array<SessionRow & { project_name: string | null }>
     return rows.map(row => {
       const session = this.getSession(row.id)
       return { id: row.id, title: row.title, projectId: row.project_id || undefined, projectName: row.project_name || undefined,
-      automationId: session.automationId || automationSessions.get(row.id),
+      automationId: session.automationId,
       modelProviderId: row.model_provider_id || undefined, modelId: row.model_id || undefined, permissionMode: row.permission_mode,
       status: row.status, pinned: Boolean(row.pinned), unread: Boolean(row.unread), workingDirectory: row.working_directory || this.paths.workspace, createdAt: row.created_at, updatedAt: row.updated_at,
       planStatus: this.planStatus(session), changeSummary: this.getTaskChangeSummary(row.id, false, session) }
@@ -862,19 +824,9 @@ export class HarnessStore {
       const session = this.parseSession(stored)
       session.draftState = lifecycle?.draft_state || undefined
       if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
-      if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
       return session
     }
-    const row = this.database.prepare('SELECT path FROM harness_sessions WHERE id = ?').get(id) as { path?: string } | undefined
-    if (!row?.path || !existsSync(row.path)) throw new Error('未找到会话')
-    const raw = readFileSync(row.path, 'utf8')
-    const stored = JSON.parse(raw) as Partial<HarnessSession>
-    const session = this.parseSession(stored)
-    session.draftState = lifecycle?.draft_state || undefined
-    if (!session.projectId && !stored.workingDirectory) return this.saveSession({ ...session, workingDirectory: this.paths.workspace }, true)
-    if (session.messages.some(message => message.attachments?.some(file => file.mediaType && file.content))) return this.saveSession(session, true)
-    this.persistStructuredSession(session)
-    return session
+    throw new Error('未找到会话')
   }
 
   updateSession(session: HarnessSession) { return this.saveSession(session) }
@@ -975,8 +927,6 @@ export class HarnessStore {
     const last = session.messages.at(-1)
     const { messageId, ...metadata } = ordered || {}
     const continuation = last?.role === 'assistant' && (!ordered || last.runId === ordered.runId) && (!messageId || last.id === messageId)
-    // Legacy plan normalization can also change interactions during getSession;
-    // in that case retain the complete structured migration path.
     const storedPlan = this.database.prepare('SELECT payload FROM harness_plans WHERE session_id = ?').get(id) as { payload: string } | undefined
     const incremental = Boolean(messageId && ordered?.runId && session.activeRun?.id === ordered.runId
       && session.activeRun.messageId === messageId && storedPlan?.payload === (session.activePlan ? JSON.stringify(session.activePlan) : undefined))
@@ -1538,11 +1488,9 @@ export class HarnessStore {
     const checkpoint = first && this.database.prepare('SELECT before_content, before_known FROM harness_file_checkpoints WHERE session_id = ? AND tool_id = ?').get(id, first.id) as { before_content: string | null; before_known: number } | undefined
     const turnBefore = checkpoint ? checkpoint.before_known ? checkpoint.before_content : undefined : turnTools.length === 1 ? snapshot.before : undefined
     const previous = this.database.prepare('SELECT first_content, first_known, public_payload FROM harness_task_files WHERE session_id = ? AND path = ?').get(id, path) as { first_content: string | null; first_known: number; public_payload: string } | undefined
-    const legacyWrites = !previous ? session.toolCalls.filter(record => record.id !== toolId && !record.inherited && record.status === 'ok' && ['edit', 'write', 'delete'].includes(record.tool) && record.target && resolve(record.fileChangeDirectory || session.workingDirectory!, record.target) === path).length : 0
-    const legacy = legacyWrites > 0
-    const known = previous ? Boolean(previous.first_known) : snapshot.before !== undefined && !legacy
+    const known = previous ? Boolean(previous.first_known) : snapshot.before !== undefined
     const before = known ? previous ? previous.first_content : snapshot.before : undefined
-    const writes = previous ? (JSON.parse(previous.public_payload) as MiraTaskChangedFile).writes + 1 : legacyWrites + 1
+    const writes = previous ? (JSON.parse(previous.public_payload) as MiraTaskChangedFile).writes + 1 : 1
     const file = buildMiraTaskFileChange(createHash('sha256').update(path).digest('hex'), relative(directory, path).split(sep).join('/'), tool.tool as MiraTaskChangedFile['tool'], writes, before, snapshot.after, secrets)
     const turnFile = turnBefore === before ? { ...file, writes: turnTools.length } : buildMiraTaskFileChange(file.key, file.path, file.tool, turnTools.length, turnBefore, snapshot.after, secrets)
     this.updateTool(id, toolId, { fileChangeSummary: turnFile })
@@ -1565,17 +1513,6 @@ export class HarnessStore {
       const { diff: _diff, diffTruncated: _truncated, ...metadata } = file
       return metadata
     })
-    const recorded = new Set(rows.map(row => row.path))
-    const legacyFiles = new Map<string, MiraTaskChangedFile>()
-    for (const tool of session.toolCalls) {
-      if (tool.inherited || tool.status !== 'ok' || !['edit', 'write', 'delete'].includes(tool.tool) || !tool.target || !session.workingDirectory) continue
-      const path = resolve(tool.fileChangeDirectory || session.workingDirectory, tool.target)
-      if (recorded.has(path)) continue
-      const legacy = legacyFiles.get(path)
-      if (legacy) { legacy.writes++; legacy.tool = tool.tool as MiraTaskChangedFile['tool'] }
-      else legacyFiles.set(path, { key: createHash('sha256').update(path).digest('hex'), path: relative(session.workingDirectory, path).split(sep).join('/'), tool: tool.tool as MiraTaskChangedFile['tool'], writes: 1, unavailable: true })
-    }
-    files.push(...legacyFiles.values())
     if (!files.length) return undefined
     return { files: files.sort((a, b) => a.path.localeCompare(b.path)), added: files.reduce((sum, file) => sum + (file.added || 0), 0), removed: files.reduce((sum, file) => sum + (file.removed || 0), 0), incomplete: files.some(file => file.unavailable), estimated: files.some(file => file.estimated) }
   }
@@ -1708,7 +1645,7 @@ export class HarnessStore {
         const directory = join(root, entry.name)
         try {
           const paths = trashPaths(directory)
-          return paths.length ? [{ token: entry.name, projectId: project.id, projectName: project.name, deletedAt: trashTime(entry.name, directory), paths }] : []
+          return paths.length ? [{ token: entry.name, projectId: project.id, projectName: project.name, deletedAt: trashTime(entry.name), paths }] : []
         } catch (error) {
           console.warn(`[Mira] 无法读取回收站记录：${directory}`, error)
           return []
@@ -1719,9 +1656,10 @@ export class HarnessStore {
 
   restoreTrash(projectId: string, token: string) {
     if (!/^[a-zA-Z0-9-]+$/.test(token)) throw new Error('回收站记录无效')
-    const project = this.getProject(projectId)
+    this.getProject(projectId)
     const key = `trash-directory:${projectId}:${token}`
-    const directory = (this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get(key) as { value: string } | undefined)?.value || project.directory
+    const directory = (this.database.prepare('SELECT value FROM harness_settings WHERE key = ?').get(key) as { value: string } | undefined)?.value
+    if (!directory) throw new Error('回收站来源目录缺失，无法还原')
     if (!existsSync(directory)) throw new Error('项目目录不存在，无法还原')
     const root = join(this.paths.projectTrash(projectId), token)
     if (!existsSync(root)) throw new Error('未找到回收站记录')
@@ -1742,7 +1680,7 @@ export class HarnessStore {
       for (const entry of readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
         const directory = join(root, entry.name)
         try {
-          if (trashTime(entry.name, directory) < cutoff) {
+          if (trashTime(entry.name) < cutoff) {
             rmSync(directory, { recursive: true, force: true })
             this.database.prepare('DELETE FROM harness_settings WHERE key = ?').run(`trash-directory:${project.name}:${entry.name}`)
             removed += 1
@@ -1755,26 +1693,4 @@ export class HarnessStore {
     return removed
   }
 
-  migrateLegacyStorage() {
-    const sessions = this.database.prepare('SELECT id, path FROM harness_sessions').all() as Array<{ id: string, path: string }>
-    for (const session of sessions) {
-      const target = this.paths.session(session.id)
-      if (session.path !== target && existsSync(session.path)) {
-        atomicMove(session.path, target)
-        if (!existsSync(target)) throw new Error(`迁移会话失败：${session.id}`)
-        this.database.prepare('UPDATE harness_sessions SET path = ? WHERE id = ?').run(target, session.id)
-      }
-    }
-    for (const project of this.listProjects()) {
-      const legacyTrash = join(project.directory, '.mira', 'trash')
-      const target = this.paths.projectTrash(project.id)
-      if (existsSync(legacyTrash) && lstatSync(legacyTrash).isDirectory() && !lstatSync(join(project.directory, '.mira')).isSymbolicLink()) {
-        for (const entry of readdirSync(legacyTrash, { withFileTypes: true })) {
-          // File trash used timestamp + eight UUID characters; other entries belong to project configuration.
-          if (entry.isDirectory() && /^\d+-[a-f0-9]{8}$/.test(entry.name)) atomicMove(join(legacyTrash, entry.name), join(target, entry.name))
-        }
-      }
-      // Project MCP, agents, hooks and commands now share .mira; never recursively remove its root.
-    }
-  }
 }

@@ -309,7 +309,7 @@ Mira 原创宿主适配包括第一方参数白名单/双解析、项目原生�
 
 市场目录固定到 `anthropics/skills` commit `683bc88e56f3e09ba94f7055977f3d3aa499f202`，来源清单在 `electron/services/marketplace/curated-skill-source.json`；只从固定 `raw.githubusercontent.com` 地址下载该 commit 的文件，不再依赖匿名 GitHub API，也不自动跟随 main。审核的 19 个目录中，仅 14 个包级 Apache-2.0 包可安装；特殊非开源/无许可条目排除，保留完整包、许可、上游第三方声明和来源记录。MCP 仅管理 Mira 已有本地配置，不表示具备在线 MCP 市场；Skill 文件不按 UI 文件重命名规则改写。
 
-本批限定回归与生产 React opaque iframe headless 有记录，正式桥/parser 在隔离 fixture 下执行；最新检查、截图及最后评审统一见 [首屏总记录](../../docs/MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md)，不重复旧样本数字。市场浏览器样本通过本机临时显式代理访问真实公开来源并写入隔离 `SkillStore`，不称 raw 直连或 native Electron 下载通过。桌面访问使用 Electron `net.fetch` 遵循已有系统代理，不修改系统设置；当前系统代理关闭，完整原生网络仍需实测。浏览器检查不等于新的 Electron grant/preload/IPC、实体鼠标/键盘、ZCode 同态、真实模型或性能放行。
+本批限定回归与生产 React opaque iframe headless 有记录，正式桥/parser 在隔离 fixture 下执行；最新检查、截图及最后评审统一见 Git 历史中的 `docs/MIRA_FIRST_SCREEN_ALIGNMENT_2026-10-09.md` 首屏记录，不重复旧样本数字。市场浏览器样本通过本机临时显式代理访问真实公开来源并写入隔离 `SkillStore`，不称 raw 直连或 native Electron 下载通过。桌面访问使用 Electron `net.fetch` 遵循已有系统代理，不修改系统设置；当前系统代理关闭，完整原生网络仍需实测。浏览器检查不等于新的 Electron grant/preload/IPC、实体鼠标/键盘、ZCode 同态、真实模型或性能放行。
 
 2026-10-09 20:14追加队列与父任务有序执行数据链，20:46补修饰键原子立即发送与暂停确认；本轮追加引导偏好与待应用消息，来源见上表。公开思考仅保证当前provider API key跨chunk隐藏，不声明任意凭证全面脱敏。终态渲染身份与会话级WeakMap是Mira独立适配，不复制上游完整renderer或持久化UI状态。多模态、阅读恢复/线程虚拟化、导航/搜索历史、完整同态截图与性能继续留待首屏主线，不宣布完整对齐。未移植的ZCode云账号、订阅、云分享、Goal、远控、画板与工作流不作为已完成能力；历史文件批次的通过范围不扩大。
 
@@ -339,7 +339,7 @@ macOS 拦截的 `Ctrl+Space` 不列为通过。
 不默认内置编辑器。插件市场、
 BrowserView/CDP 不列为完成。
 
-下次从正式 `/workspace/harness-react` 复验这些项目，完成/剩余清单见根 `DESIGN.md` 的第二批增量；
+下次从正式 `/workspace/harness-react` 复验这些项目，当前界面规范见根 `DESIGN.md`；
 实际操作证据继续维护于 `docs/MIRA_ZCODE_UI_ALIGNMENT_2026-10-08.md`。
 
 ## 2026-10-08 收尾增量

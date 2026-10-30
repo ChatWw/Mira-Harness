@@ -44,16 +44,6 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: 'MCP 服务' },
   },
   {
-    path: '/settings/python-environment',
-    name: 'SettingsPythonEnvironment',
-    redirect: to => ({ path: '/settings/general', query: to.query }),
-  },
-  {
-    path: '/settings/git',
-    name: 'SettingsGit',
-    redirect: to => ({ path: '/settings/general', query: to.query }),
-  },
-  {
     path: '/settings/file-search',
     name: 'SettingsFileSearch',
     component: () => import('@/pages/backend/fileSearch/index.vue'),
@@ -88,16 +78,6 @@ const staticRoutes: RouteRecordRaw[] = [
     name: 'SettingsGeneral',
     component: () => import('@/pages/backend/general/index.vue'),
     meta: { title: '常规' },
-  },
-  {
-    path: '/settings/permissions',
-    name: 'SettingsPermissions',
-    redirect: to => ({ path: '/settings/conversation', query: to.query }),
-  },
-  {
-    path: '/settings/appearance',
-    name: 'SettingsAppearance',
-    redirect: to => ({ path: '/settings/general', query: to.query }),
   },
   {
     path: '/settings/personalization/instructions',
@@ -136,37 +116,6 @@ const staticRoutes: RouteRecordRaw[] = [
     meta: { title: '关于Mira' },
   },
   {
-    path: '/settings/ai-novel',
-    name: 'SettingsAiNovel',
-    redirect: '/settings/model-config',
-    meta: { title: '模型服务' },
-  },
-  {
-    path: '/system/components/loading',
-    redirect: '/settings/general',
-  },
-  {
-    path: '/system/components/icon-selector',
-    redirect: '/settings/general',
-  },
-  {
-    path: '/system/menus',
-    redirect: '/settings/general',
-  },
-  {
-    path: '/system/micro-apps',
-    redirect: '/settings/general',
-  },
-  {
-    path: '/system/backup-preferences',
-    redirect: '/settings/general',
-  },
-  {
-    // 未知设置项回退到默认设置页，兼容旧链接
-    path: '/settings/:pathMatch(.*)*',
-    redirect: to => ({ path: '/settings/general', query: to.query }),
-  },
-  {
     path: '/404',
     name: 'NotFound',
     component: () => import('@/pages/exception/index.vue'),
@@ -180,22 +129,6 @@ const layoutRoute: RouteRecordRaw = {
   component: () => import('@/layouts/index.vue'),
   children: [
     { path: HARNESS_WORKBENCH_PATH, name: 'HarnessReact', component: () => import('@/pages/frontend/harness/react/index.vue'), meta: { title: 'Mira Harness', showPageHeader: false, noPageTransition: true } },
-    {
-      path: '/workspace',
-      redirect: HARNESS_WORKBENCH_PATH,
-      component: () => import('@/pages/frontend/harness/LegacyHarnessLayout.vue'),
-      meta: { noPageTransition: true },
-      children: [
-        { path: 'chat', name: 'HarnessChat', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: '新对话', showPageHeader: false, noPageTransition: true } },
-        { path: 'chat/:id', name: 'HarnessSession', component: () => import('@/pages/frontend/harness/index.vue'), meta: { title: 'Agent 工作台', showPageHeader: false, noPageTransition: true } },
-        { path: 'projects', name: 'HarnessProjects', component: () => import('@/pages/frontend/harness/projects/index.vue'), meta: { title: '项目', noPageTransition: true } },
-        { path: 'history', name: 'HarnessHistory', component: () => import('@/pages/frontend/harness/history/index.vue'), meta: { title: '查看全部对话', noPageTransition: true } },
-        { path: 'usage', name: 'HarnessUsage', component: () => import('@/pages/frontend/harness/usage/index.vue'), meta: { title: '用量与成本', noPageTransition: true } },
-        { path: 'automations', name: 'HarnessAutomations', component: () => import('@/pages/frontend/harness/automations/index.vue'), meta: { title: '自动化', noPageTransition: true } },
-      ],
-    },
-    ...(import.meta.env.DEV ? [{ path: '/workspace/harness-prototype', name: 'HarnessReactPrototype', component: () => import('@/pages/frontend/harness/prototype/index.vue'), meta: { title: 'Harness React 原型', showPageHeader: false, noPageTransition: true } }] : []),
-    ...(import.meta.env.DEV ? [{ path: '/workspace/harness-pilot', name: 'HarnessReactPilot', component: () => import('@/pages/frontend/harness/pilot/index.vue'), meta: { title: 'Harness React 接入试验', showPageHeader: false, noPageTransition: true } }] : []),
     {
       path: '/micro/:code/:pathMatch(.*)*',
       name: 'MicroAppHost',

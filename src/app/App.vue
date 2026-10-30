@@ -10,7 +10,6 @@ import { onMounted, onUnmounted } from 'vue'
 import { isNavigationFailure, NavigationFailureType, useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useLayoutStore } from '@/stores/layout'
-import { useHarnessStore } from '@/stores/harness'
 import { useAppNavigationStore } from '@/stores/appNavigation'
 import { miraAppNavigationShortcut } from '@/platform/appNavigation'
 import { isMiraPrimaryModifier, miraWorkbenchShortcut } from '@/platform/workbenchShortcuts'
@@ -22,7 +21,6 @@ import { useLoading } from '@/hooks/useLoading'
 
 const themeStore = useThemeStore()
 const layoutStore = useLayoutStore()
-const harnessStore = useHarnessStore()
 const appNavigation = useAppNavigationStore()
 const globalLoading = useLoading()
 const router = useRouter()
@@ -63,7 +61,6 @@ function openSettingsPage(path: string) {
 
 let removeWindowNavigateListener: (() => void) | undefined
 let removeWindowCloseListener: (() => void) | undefined
-let removeHarnessEventListener: (() => void) | undefined
 let removeNotificationListener: (() => void) | undefined
 
 onMounted(() => {
@@ -74,7 +71,6 @@ onMounted(() => {
     window.dispatchEvent(request)
     if (!request.defaultPrevented) void window.platform?.windowCommand('close')
   })
-  removeHarnessEventListener = getPlatformApi()?.onHarnessEvent(harnessStore.applyEvent)
   removeNotificationListener = getPlatformApi()?.onNotificationSession?.(async sessionId => {
     const failure = await router.push('/workspace/harness-react')
     if (isNavigationFailure(failure) && !isNavigationFailure(failure, NavigationFailureType.duplicated)) return
@@ -85,7 +81,6 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
   removeWindowNavigateListener?.()
   removeWindowCloseListener?.()
-  removeHarnessEventListener?.()
   removeNotificationListener?.()
 })
 // 主题已在 store 初始化时应用

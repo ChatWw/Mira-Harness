@@ -42,7 +42,6 @@ vi.mock('react', async importOriginal => ({
 vi.mock('../apps/harness-react/src/components/session/SessionSidebar', () => ({ SessionSidebar: 'session-sidebar', SessionMenuItems: 'session-menu', useHarnessSessionShortcuts: vi.fn() }))
 vi.mock('../src/utils/documentMotion', () => ({ installDocumentMotion: vi.fn(() => () => undefined) }))
 vi.mock('../apps/harness-react/src/hooks/useMiraSidebarMotion', () => ({ useMiraSidebarMotion: vi.fn() }))
-vi.mock('../apps/harness-react/src/hooks/useModalFocusTrap', () => ({ useModalFocusTrap: vi.fn() }))
 
 const KEY = 'harness-react-workspace'
 const workspace = (path: string) => openWorkspaceTab(createWorkspaceSession(), createWorkspaceFileTab(path))

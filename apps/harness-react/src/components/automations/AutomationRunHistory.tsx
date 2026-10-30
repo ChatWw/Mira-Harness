@@ -4,7 +4,7 @@ import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ArrowLeft, ArrowRight, ArrowUpRight, MoreHorizontal, RotateCcw, Square, Trash2 } from 'lucide-react'
 import type { AutomationRun, AutomationRunStatus, AutomationTask } from '../../../../../src/config/harness'
-import { formatAutomationTime, runStatusLabel, sourceLabel } from '../../../../../src/pages/frontend/harness/automations/automationPresentation'
+import { formatAutomationTime, runStatusLabel, sourceLabel } from '../../../../../src/config/automationPresentation'
 import { AutomationHint } from './AutomationControls'
 
 export const AUTOMATION_RUN_FILTERS: Array<[AutomationRunStatus | 'all', string]> = [['all', '全部'], ['running', '运行中'], ['completed', '完成'], ['failed', '失败'], ['skipped', '跳过'], ['interrupted', '中断']]

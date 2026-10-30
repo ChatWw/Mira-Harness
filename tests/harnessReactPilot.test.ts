@@ -3164,17 +3164,6 @@ describe('React Harness pilot controller', () => {
     restored.dispose()
   })
 
-  it('restores a matching legacy session model with the existing global reasoning preference', async () => {
-    const { host, snapshots } = fixture()
-    snapshots.set('a', { ...session('a'), modelProviderId: 'provider', modelId: 'model' })
-    const selection = { providerId: 'provider', modelId: 'model', thinkingLevel: 'high' as const }
-    Object.assign(host, { getPreference: vi.fn(async (key: string) => key === 'model-selection' ? selection : undefined) })
-    const controller = new PilotController(host)
-    await controller.start()
-    expect(controller.getSnapshot().selection).toEqual(selection)
-    controller.dispose()
-  })
-
   it.each([
     { providerId: 'missing', modelId: 'model', thinkingLevel: 'high' },
     { providerId: 'provider', modelId: 'missing', thinkingLevel: 'high' },

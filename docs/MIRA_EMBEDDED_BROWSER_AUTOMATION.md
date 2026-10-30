@@ -21,10 +21,7 @@ browser_list、browser_open、browser_navigate、browser_snapshot、browser_clic
 
 限制：首版不提供键盘按键、iframe/shadow DOM 内定位、contenteditable、下拉选择、上传、下载管理和录屏。不开放任意 JS 执行或全局远程调试端口。browser_open 需要当前任务工作台处于挂载状态；后台或切走任务时会明确超时，不借用另一任务的页面。
 
-旧任务冻结的插件声明可能拒绝更新后的 MCP：重启开发应用并新建任务、引用“浏览器操作”插件。不会自动改写历史任务快照。
-
 ## 验证
 
 - npm test -- tests/miraBrowserAutomation.test.ts tests/miraHostedBrowsers.test.ts tests/miraBrowserProtection.test.ts tests/miraBrowserViewports.test.ts
-- node scripts/verify-mira-browser-automation.mjs：真实 Electron webview、实际 MiraHostedBrowsers、MCP 握手与打开/快照/填写/点击/截图/导航/旧引用/跨任务拒绝，临时数据与本地网页。
-- 构建 React 与 electron-vite 后运行 node scripts/verify-mira-browser-workbench.mjs：隔离 MIRA_TEST_HOME，加载完整 Vue/React 工作台，验证 browser-open 真实标签页、任务身份、可见尺寸并截图。不使用真实模型或用户数据。
+- Electron 验证使用隔离 `MIRA_TEST_HOME`，通过当前工作台打开真实 webview，检查标签页与任务身份、可见尺寸、MCP 操作及跨任务拒绝；测试结束后关闭实例并删除临时数据。
