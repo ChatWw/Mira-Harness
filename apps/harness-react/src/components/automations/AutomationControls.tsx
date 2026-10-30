@@ -1,6 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode AutomationDesignPrimitives and AutomationEditView controls.
- * License: third-party-licenses/zcode/. */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'

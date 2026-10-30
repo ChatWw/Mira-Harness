@@ -1,4 +1,3 @@
-// Discovery and merge behavior follows ZCode settingsSyncService (Apache-2.0); see third-party-licenses/zcode.
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'

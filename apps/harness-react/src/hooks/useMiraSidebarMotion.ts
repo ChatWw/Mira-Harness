@@ -1,4 +1,3 @@
-// Width/opacity transition adapted from ZCode WorkspaceShellLayout (Apache-2.0).
 // Animate the real layout so conversation wrapping follows the panel, rather than
 // committing the final width and translating already-reflowed text across it.
 import { useLayoutEffect, useRef, type RefObject } from 'react'

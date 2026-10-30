@@ -1,8 +1,3 @@
-/*
- * Declaration merging, namespacing and variable compatibility follow ZCode's plugin MCP loader.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira resolves credentials on the host only; public snapshots contain revisioned descriptors.
- */
 import { createHash } from 'node:crypto'
 import { isAbsolute, resolve } from 'node:path'
 import type { MiraPluginMcpServer } from '../../src/config/miraPlugins'

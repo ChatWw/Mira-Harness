@@ -1,5 +1,3 @@
-// File actions follow ZCode OpenSplitButton; use Mira's workspace-scoped host APIs.
-// Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, Copy, ExternalLink, FolderOpen, RotateCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'

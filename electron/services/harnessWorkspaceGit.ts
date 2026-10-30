@@ -336,7 +336,7 @@ function safeGitFailure(error: unknown) {
     ? message : 'Git 状态读取失败，请重试')
 }
 
-// Git tools follow ZCode's worktree review and staged-only commit workflow.
+// Git tools review the worktree and commit staged changes only.
 async function toolsCommand(repository: BranchRepository, args: string[], assertCurrent: () => void, mutation = false) {
   const result = await branchCommand(repository, args, assertCurrent, mutation)
   if (result.code !== 0) throw new Error('Git 操作失败，请检查工作区、Git 身份或远程连接后重试')

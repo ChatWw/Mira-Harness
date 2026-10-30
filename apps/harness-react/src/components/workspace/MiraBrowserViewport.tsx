@@ -1,6 +1,3 @@
-/* Adapted from ZCode BrowserViewportToolbar / ResponsiveBrowserViewport (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Mira: separate Shell-owned guest and scoped geometry.
- * See third-party-licenses/zcode/ADAPTATIONS.md. */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject, type PointerEvent, type KeyboardEvent } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, GripHorizontal, GripVertical } from 'lucide-react'

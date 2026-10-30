@@ -1,6 +1,3 @@
-/* Read-only sheet navigation adapted from ZCode previewPaneOfficeXlsxContent.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira: local WASM, host theme observation, accessible tabs and parent error recovery. */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { XlsxViewer, setWasmSource, type XlsxViewerController } from '@extend-ai/react-xlsx'
 import { installMiraDocumentLinks } from '../../lib/mira-document-links'

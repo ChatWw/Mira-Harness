@@ -1,5 +1,3 @@
-/* Formats follow ZCode shared/media-preview.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export type MiraMediaKind = 'audio' | 'video' | 'pdf' | 'word' | 'sheet' | 'presentation'
 export const MIRA_OFFICE_PREVIEW_LIMIT = 25 * 1024 * 1024
 const formats: Record<string, { kind: MiraMediaKind; mediaType: string }> = {

@@ -1,7 +1,3 @@
-/* Scoped directory watching adapted from ZCode's workspace-file-tree data hook.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: grant-owned host subscriptions, shared file previews and lifecycle guards.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { useEffect, useMemo } from 'react'
 import type { PilotController, PilotWorkspaceFileEvent } from '../state/pilot-state'
 import { fileTreeAncestors } from './file-tree'

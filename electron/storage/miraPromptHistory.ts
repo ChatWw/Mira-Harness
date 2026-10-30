@@ -1,4 +1,3 @@
-/** Input recall behavior follows ZCode promptHistory (Apache-2.0); see third-party-licenses/zcode. */
 import { createHash } from 'node:crypto'
 import type Database from 'better-sqlite3'
 

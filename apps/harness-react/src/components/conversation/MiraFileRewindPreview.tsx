@@ -1,5 +1,3 @@
-/* File recovery preview adapted from ZCode ConversationFileRewindDialog.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Dialog from '@radix-ui/react-dialog'

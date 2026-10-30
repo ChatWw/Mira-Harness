@@ -1,7 +1,3 @@
-/* Task pane placement/resize adapted from ZCode V4WorkspaceChatArea/workbenchDragDrop.
- * Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira retains original session Controllers, task DOM and preference ownership.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { Children, isValidElement, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { miraTaskDropSide, miraTaskLayoutGeometry, resizeMiraTaskSplit, type MiraTaskLayout, type MiraTaskRect, type MiraTaskSplitSide } from '../../state/mira-task-layout'
 

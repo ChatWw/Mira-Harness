@@ -94,7 +94,7 @@
 .mira-local-plugin-actions button:hover { background: var(--mira-hover); }
 .mira-local-plugin-actions button:focus-visible { outline: 2px solid var(--mira-input-border-focused); outline-offset: 2px; }
 
-/* ZCode store geometry: 40px avatars, 24px column gap, 4px row gap, pill actions. */
+/* Store geometry: 40px avatars, 24px column gap, 4px row gap, pill actions. */
 .mira-market-heading p { margin: 20px 0 0; color: var(--mira-foreground-subtle); font-size: 14px; line-height: 20px; }
 .mira-market-avatar img { width: 66.6667%; height: 66.6667%; object-fit: contain; }
 .mira-market-strip-label, .mira-market-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -135,7 +135,7 @@
   .mira-local-plugin-actions { margin-left: 52px; }
 }
 
-/* ZCode detail: breadcrumb header, stacked avatar/title, 32px section gaps. */
+/* Detail: breadcrumb header, stacked avatar/title, 32px section gaps. */
 .mira-market[data-detail="true"] .mira-market-scroll { padding-top: 16px; }
 .mira-plugin-detail-breadcrumb { display: flex; align-items: center; gap: 8px; margin: 0 -12px 40px; font-size: 14px; }
 .mira-plugin-detail-breadcrumb button { border: 0; padding: 0; background: transparent; color: var(--mira-foreground-subtle); }

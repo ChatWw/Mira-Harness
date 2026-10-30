@@ -1,5 +1,3 @@
-/* Agent MCP selectors adapted from ZCode subagent tool policy.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 const mcpSelector = /^mcp__[A-Za-z0-9:@._-]+__(?:\*|[A-Za-z0-9:@._-]+)$/
 const miraMcpName = /^mira_mcp_[a-f0-9]{10}_[A-Za-z0-9_-]{1,28}_[a-f0-9]{8}$/
 

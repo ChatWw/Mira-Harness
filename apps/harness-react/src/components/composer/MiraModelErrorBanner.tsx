@@ -1,5 +1,3 @@
-// Adapted interaction pattern from ZCode ChatErrorBanner (Apache-2.0).
-// See third-party-licenses/zcode for the original license and notices.
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Check, CircleAlert, Copy, Settings2, X } from 'lucide-react'

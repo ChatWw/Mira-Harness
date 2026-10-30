@@ -1,4 +1,3 @@
-/* Find-bar geometry adapted from ZCode, Copyright 2026 Z.AI Co., Ltd, Apache-2.0. */
 ::highlight(mira-task-find) { color: var(--mira-foreground); background: var(--mira-find-highlight); }
 ::highlight(mira-task-find-active) { color: #171717; background: var(--mira-find-highlight-active); }
 .mira-conversation-find {

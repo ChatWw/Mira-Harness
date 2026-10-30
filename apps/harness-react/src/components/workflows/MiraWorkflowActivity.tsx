@@ -1,5 +1,3 @@
-/* Compact workflow status adapted from ZCode WorkflowRunPhasePills/TaskWorkflowRunLines.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { createContext, useEffect, useState } from 'react'
 import { Workflow } from 'lucide-react'
 import type { RunRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'

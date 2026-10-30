@@ -1,5 +1,3 @@
-// Interaction structure references ZCode ModelTrajectoryPane (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; Mira uses its own local provider records and host bridge.
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

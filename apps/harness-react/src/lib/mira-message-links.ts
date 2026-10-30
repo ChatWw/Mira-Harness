@@ -1,5 +1,3 @@
-// Markdown link routing follows ZCode markdownFileLink / ai-elements/message.
-// Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
 import { miraDocumentHref } from './mira-document-links'
 
 export function miraMessageLink(href: string, directory?: string): { kind: 'web' | 'file' | 'anchor'; target: string } | undefined {

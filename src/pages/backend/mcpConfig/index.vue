@@ -13,7 +13,6 @@
       </template>
       <div v-if="loadError" class="mcp-error" role="alert"><span>{{ loadError }}</span><el-button text :loading="loading" aria-label="重试加载 MCP 服务器" @click="load()">重试</el-button></div>
 
-      <!-- Shared create/edit layout adapted from ZCode McpServerForm/McpSettingsSection (Apache-2.0); see third-party-licenses/zcode. -->
       <header v-if="visible" class="mcp-editor-heading"><div><h1 ref="editorHeading" tabindex="-1">{{ creating ? '新建 MCP 服务器' : '编辑 MCP 服务器' }}</h1><p>{{ creating ? '填写新的 MCP 配置，保存后返回列表。' : '修改 MCP 配置，保存后返回列表。' }}</p></div><div class="mcp-editor-modes" role="group" aria-label="MCP 编辑方式"><button v-for="mode in (['form', 'json'] as const)" :key="mode" type="button" :aria-pressed="editorMode === mode" :disabled="saving" @click="changeEditorMode(mode)">{{ mode === 'form' ? '表单' : 'JSON' }}</button></div></header>
       <section v-if="visible" class="mcp-editor mcp-editor--page" aria-label="MCP 服务器配置">
         <el-form label-position="top" :disabled="saving || !!rowPending[form.id || '']" @submit.prevent="save">

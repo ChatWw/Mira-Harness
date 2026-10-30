@@ -1,6 +1,3 @@
-/* Reading controls follow ZCode components/ui/pdf-viewer.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira: one visible page, local worker/font assets, range streaming, password form. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Document, Page, pdfjs } from 'react-pdf'

@@ -1,5 +1,3 @@
-// Adapted from ZCode ToolCallBlocks/ToolLayout.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira retains its own recorded errors and clipboard boundary.
 import { useEffect, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Check, Copy } from 'lucide-react'

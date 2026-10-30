@@ -1,4 +1,3 @@
-// Layout adapted from ZCode SidePaneLauncherRow; see third-party-licenses/zcode/ADAPTATIONS.md.
 import { Activity, FileDiff, FolderOpen, Globe, LoaderCircle, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { workspaceTabLabel, type WorkspaceResourceId } from '../../state/workspace-state'
 

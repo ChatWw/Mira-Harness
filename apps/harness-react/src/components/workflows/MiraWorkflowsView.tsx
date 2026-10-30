@@ -1,5 +1,3 @@
-/* Workflow hub/card/title switch adapted from ZCode SavedWorkflowsSection/SavedWorkflowCard.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Play, Plus, RefreshCw, MoreHorizontal, Trash2, LoaderCircle, CheckCircle2, CircleAlert, CircleStop } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

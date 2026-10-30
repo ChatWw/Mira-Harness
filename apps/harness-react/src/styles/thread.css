@@ -1,6 +1,6 @@
 /* Task thread chrome: scroll containers, static markdown rendering,
    blocking interaction cards and the clarification wizard.
-   消息/composer/运行轨迹本体已迁移到 Tailwind 组件类（ZCode 令牌）。 */
+   消息/composer/运行轨迹本体使用 Tailwind 组件类与主题令牌。 */
 .pilot-thread { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .mira-summary-plans { display: flex; max-height: 192px; flex-direction: column; overflow-y: auto; }
 .mira-summary-plans button { display: flex; align-items: center; gap: 8px; flex: none; min-height: 32px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--color-foreground); text-align: left; font-size: var(--text-ui-base); }
@@ -106,7 +106,7 @@
 /* 阻断交互卡（权限 / 记忆 / 计划确认）。 */
 .pilot-action, .pilot-error { display: flex; gap: 10px; margin: 0 0 18px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #c68a18 30%, var(--color-border)); border-radius: 12px; background: var(--color-warning); font-size: 12px; }
 .pilot-action > div { min-width: 0; flex: 1; }
-/* ZCode ElicitationDialog uses a neutral popover; waiting for input is not an error. */
+/* Waiting for input uses a neutral popover. */
 .mira-task-interaction { --color-foreground-subtle: color-mix(in srgb, var(--color-foreground) 80%, var(--color-popover)); padding: 12px; gap: 12px; border-color: var(--color-border); border-radius: 16px; background: var(--color-popover); color: var(--color-foreground); font-size: var(--text-ui-base); line-height: 1.5; }
 .mira-task-interaction > svg { flex: none; margin-top: 1px; }
 .mira-task-interaction .pilot-wizard { gap: 12px; }
@@ -527,7 +527,7 @@
 }
 .mira-side-conversation .mira-composer-region { flex: none; padding: 12px; }
 .mira-side-conversation .harness-composer-region { width: 100%; }
-/* ZCode's branch divider: a quiet, clickable link at the copied history boundary. */
+/* Quiet, clickable link at the forked history boundary. */
 .mira-fork-notice { display: flex; align-items: center; gap: 12px; margin-top: 20px; color: var(--color-foreground-subtle); }
 .mira-fork-notice > span { height: 1px; flex: 1; background: var(--color-border); }
 .mira-fork-notice > button { display: flex; min-width: 0; max-width: 75%; align-items: center; gap: 6px; font-size: var(--text-ui-xs); overflow-wrap: anywhere; }
@@ -552,9 +552,9 @@
 .mira-task-grid__divider--horizontal { transform: translateX(-3px); cursor: col-resize; }
 .mira-task-grid__divider--vertical { transform: translateY(-3px); cursor: row-resize; }
 .mira-task-grid__divider:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-/* ZCode WorkbenchPane INACTIVE_PANE_OVERLAY_STYLE; clicks pass through to activate the pane. */
+/* Clicks pass through the inactive overlay to activate the pane. */
 .mira-task-grid__inactive { position: absolute; inset: 2px; z-index: 30; border-radius: 12px; background: color-mix(in oklab, var(--color-background) 34%, transparent); backdrop-filter: brightness(.94) saturate(.94); pointer-events: none; }
-/* ZCode WorkbenchPane DROP_PREVIEW_STYLE: let the conversation remain visible. */
+/* Keep the conversation visible under the drop preview. */
 .mira-task-grid__drop { position: absolute; z-index: 50; border-radius: 6px; background: color-mix(in oklab, var(--color-brand) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-brand) 34%, transparent); pointer-events: none; transition: background-color 150ms ease-out, box-shadow 150ms ease-out; }
 .mira-task-grid__drop--left { top: 4px; bottom: 4px; left: 4px; width: 50%; }
 .mira-task-grid__drop--right { top: 4px; right: 4px; bottom: 4px; width: 50%; }
@@ -588,7 +588,7 @@
 .mira-rewind-preview-section li > span { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: var(--text-ui-sm); }
 .mira-rewind-preview-section small { max-width: 60%; color: var(--color-foreground-subtle); font-size: var(--text-ui-xs); text-align: right; overflow-wrap: anywhere; }
 
-/* ZCode tool entrance and QueuedSummaryContent timing; native CSS replaces motion/react. */
+/* Tool entrance and queued summary timing use native CSS. */
 [data-mira-stream-entrance='true'] { animation: mira-stream-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes mira-stream-in { from { opacity: 0; } to { opacity: 1; } }
 .mira-summary-roll { position: relative; display: inline-flex; min-width: 0; max-width: 100%; align-items: center; overflow: hidden; vertical-align: middle; }
@@ -600,7 +600,7 @@
 
 .mira-reasoning__preview .mira-summary-roll { max-width: none; min-width: max-content; }
 
-/* File delivery and reply changes follow ZCode's result rows and disclosure. */
+/* File delivery and reply change rows. */
 .mira-deliverable-file .mira-deliverable-file__icon { display: grid; flex: none; width: 44px; height: 44px; place-items: center; border-radius: 6px; background: var(--color-background); }
 .mira-deliverable-file .mira-file-open-actions { flex: none; }
 .mira-file-open-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -641,11 +641,11 @@
 .mira-reply-changes__header .mira-message-action { display: inline-flex; flex: none; width: auto; align-items: center; gap: 5px; padding: 4px 6px; color: var(--color-foreground); white-space: nowrap; }
 .mira-reply-changes__header .mira-message-action svg { flex: none; }
 
-/* Match ZCode ControlHintTooltip sizing in the history editor. */
+/* History editor control hint sizing. */
 .mira-history-edit-hint { padding: 4px 10px; font-size: 12px; font-weight: 500; line-height: 18px; box-shadow: none; }
 .mira-history-edit-hint kbd { height: 16px; padding: 0 6px; border-radius: 6px; color: var(--color-foreground-subtle); }
 
-/* ZCode editConflict dialog: compact shell and full-window dimmed, blurred backdrop. */
+/* Edit conflict dialog: compact shell and full-window dimmed, blurred backdrop. */
 .mira-history-reset-overlay { position: fixed; inset: 0; z-index: 120; background: rgb(0 0 0 / 60%); backdrop-filter: blur(4px); }
 .mira-history-reset-dialog { position: fixed; z-index: 121; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(512px, calc(100vw - 32px)); display: grid; gap: 16px; padding: 16px; border: 1px solid var(--color-popover-border); border-radius: 16px; background: var(--color-popover); color: var(--color-foreground); box-shadow: 0 4px 12px rgb(0 0 0 / 12%); font-size: var(--text-ui-base); line-height: 1.625; -webkit-app-region: no-drag; outline: none; }
 .mira-history-reset-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

@@ -202,7 +202,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const hasStructuredPromptContext = promptDocument.parts.some((part, index) => {
     if (part.type !== 'reference') return false
     const { kind, value, text } = part.reference
-    // 对齐 ZCode：开头的内置命令标签序列化为命令，不计入上下文；其他引用仍阻止目标命令误消费。
+    // 开头的内置命令标签序列化为命令，不计入上下文；其他引用仍阻止目标命令误消费。
     return kind !== 'command' || !['/goal', '/workflow'].includes(text) || value !== `builtin:${text.slice(1)}` || promptDocument.parts.slice(0, index).some(part => part.type !== 'text' || Boolean(part.text.trim()))
   })
   const browserReferences = useMemo(() => miraBrowserReferences(promptDocument), [promptDocument])
@@ -265,7 +265,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
   const visibleModelError = !composerError && state.modelError && visibleError === state.modelError.message ? state.modelError : undefined
   const activeToken = useMemo(() => {
     const snapshot = tokenSelectionSnapshot?.owner === draftKey && tokenSelectionSnapshot.text === draft ? tokenSelectionSnapshot : null
-    // Selection-only movement keeps the discovered query and replacement span, as in ZCode.
+    // Selection-only movement keeps the discovered query and replacement span.
     const token = snapshot ? snapshot.token : findMiraPromptToken(editorText, caret.start, caret.end)
     if (!token) return null
     let offset = 0
@@ -373,7 +373,7 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
       { id: 'refresh-mcp', label: '刷新连接状态', icon: <RefreshCw size={16} />, action: { type: 'command', value: 'refresh-mcp' } },
     ] })
   }
-  // ZCode's slash panel groups command sources together, then skills and subagents.
+  // The slash panel groups command sources together, then skills and subagents.
   const visibleSuggestionSections = kind === '/' ? [
     { id: 'commands', title: suggestionSections.find(section => section.id === 'plugin-commands')?.title.includes('前 40') ? '命令 · 插件前 40 项，请输入名称筛选' : '命令', sources: ['commands', 'custom-commands', 'plugin-commands'] },
     { id: 'skills', title: '技能', sources: ['skills'] },
@@ -1632,7 +1632,6 @@ export const HarnessComposer = forwardRef<HarnessComposerHandle, HarnessComposer
               <ComposerControlHint title={selectedModel ? `${selectedModel.providerName} / ${selectedModel.modelId}` : '选择模型'} shortcut={miraShortcutLabel('M')}><DropdownMenu.Trigger type="button" className="harness-composer__menu-trigger harness-composer__model-trigger" aria-label="模型" disabled={nextConfigBlocked}><Package size={16} className="mira-composer-model-icon" /><span>{selectedModel?.modelName || selectedModel?.modelId || '管理模型'}</span><ChevronDown size={12} /></DropdownMenu.Trigger></ComposerControlHint>
               <MiraModelMenu onEscapeKeyDown={escapeConfigurationMenu} open={active && modelOpen} ownerKey={draftKey} models={availableModels} selected={selectedModel} container={portalContainer} disabled={nextConfigBlocked} onSelect={model => { if (!nextConfigBlocked && !busyRef.current) controller.select({ ...controller.getSnapshot().selection, providerId: model.providerId, modelId: model.modelId } satisfies ModelSelection) }} onManage={() => void controller.navigate('/settings/model-config')} onReturnFocus={() => { if (activeRef.current) editorRef.current?.focus() }} />
             </DropdownMenu.Root>
-            {/* Model/reasoning toolbar interaction follows ZCode; attribution is recorded in third-party-licenses/zcode. */}
             {selectedModel?.reasoning && <DropdownMenu.Root modal={false} open={active && reasoningOpen} onOpenChange={open => { setReasoningOpen(open && !nextConfigBlocked); if (open) { closeSuggestions(); setModeOpen(false); setModelOpen(false) } }}>
               <ComposerControlHint title={`推理强度：${reasoningLabel}`} shortcut={miraShortcutLabel('T')}><DropdownMenu.Trigger type="button" data-mira-toolbar-priority="3" className="harness-composer__menu-trigger harness-composer__reasoning-trigger" aria-label={`推理强度：${reasoningLabel}`} disabled={nextConfigBlocked}><Brain size={16} /><i className="mira-composer-reasoning-meter" aria-hidden="true"><i style={{ height: `${Math.max(0, COMPOSER_REASONING_CHOICES.findIndex(item => item.value === reasoningLevel)) / (COMPOSER_REASONING_CHOICES.length - 1) * 100}%` }} /></i><span>{reasoningLabel}</span><ChevronDown size={12} /></DropdownMenu.Trigger></ComposerControlHint>
               <DropdownMenu.Portal container={portalContainer}><DropdownMenu.Content align="end" side="top" sideOffset={4} className="harness-composer__menu harness-composer__reasoning-menu" {...reasoningMenuFocus.contentProps} onEscapeKeyDown={escapeConfigurationMenu}>

@@ -1,7 +1,5 @@
 import { formatConversationWorkDuration } from '../../lib/conversation-work-duration'
 import type { conversationFloatingStatus } from '../../lib/conversation-timeline'
-/* Single-instance conversation host adapted from ZCode ConversationHost (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Mira retains its controllers, editor DOM and terminals. */
 import React, { Component, createRef, createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { SidebarActionHint } from '../session/SidebarCollectionSection'

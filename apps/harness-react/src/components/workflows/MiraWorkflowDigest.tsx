@@ -1,5 +1,3 @@
-/* Conversation digest adapted from ZCode workflow timeline summary.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useState } from 'react'
 import { Maximize2, Workflow, LoaderCircle, CheckCircle2 } from 'lucide-react'
 import type { ActorRecord, ArtifactVersionRecord, RunRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'

@@ -3,12 +3,6 @@ import { MiraProjectEditor } from './MiraProjectEditor'
 import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { fileManagerLabel } from '../../lib/file-manager-label'
 import { SessionDeleteDialog } from './SessionDeleteDialog'
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode sidebar view, expansion and chronological task interactions.
- * Upstream license: third-party-licenses/zcode/.
- */
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import * as ContextMenu from '@radix-ui/react-context-menu'
@@ -509,7 +503,7 @@ export function SessionSidebar({ state, controller, width, activeSessionId = sta
 
 export const SessionDrawer = SessionSidebar
 
-/** Same date buckets as ZCode, using local calendar days across daylight-saving changes. */
+/** Use local calendar days across daylight-saving changes. */
 export function groupSidebarTimeline(sessions: HarnessSessionSummary[], sort: 'created' | 'updated', now = Date.now()) {
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)

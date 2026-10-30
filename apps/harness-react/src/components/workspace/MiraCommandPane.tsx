@@ -1,7 +1,4 @@
 import { isMiraPrimaryModifier, miraShortcutLabel } from '../../../../../src/platform/workbenchShortcuts'
-/* Output pane adapted from ZCode BackgroundBashOutputSidePane (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Mira displays canonical foreground and independent command-job snapshots. */
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, FileText, LoaderCircle, Square, TerminalSquare } from 'lucide-react'
 import type { HarnessSession } from '../../../../../src/config/harness'

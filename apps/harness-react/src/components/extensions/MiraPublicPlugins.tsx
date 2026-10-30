@@ -1,8 +1,5 @@
 import { MarketIconHint } from './MarketIconHint'
 import { MiraPluginDetail } from './MiraPluginDetail'
-/* Plugin list/detail structure follows ZCode PluginStoreListView / PluginStoreDetailView.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira downloads its fixed open-source catalog through the first-party host. */
 import { useEffect, useRef, useState } from 'react'
 import { Check, Download, LoaderCircle, MessageSquare } from 'lucide-react'
 import type { MiraPluginMarketCatalog, MiraPluginMarketDetail, MiraPluginMarketItem } from '../../../../../src/config/miraPlugins'

@@ -180,9 +180,7 @@ export class McpManager {
     return { ...(this.connections.get(serverId) || { state: 'disconnected', toolCount: 0 }) }
   }
 
-  /* MCP tool namespace adapted from ZCode. Copyright 2026 Z.AI Co., Ltd.
-   * Apache-2.0; see third-party-licenses/zcode. */
-  private toAgentTool(tool: any, client: Client, serverName: string, serverId: string, connectionError?: () => string, redact: (text: string) => string = text => text, feedback?: MiraComputerFeedback): any {
+    private toAgentTool(tool: any, client: Client, serverName: string, serverId: string, connectionError?: () => string, redact: (text: string) => string = text => text, feedback?: MiraComputerFeedback): any {
     return {
       name: `mira_mcp_${createHash('sha256').update(serverId).digest('hex').slice(0, 10)}_${tool.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28)}_${createHash('sha256').update(tool.name).digest('hex').slice(0, 8)}`,
       label: tool.name,

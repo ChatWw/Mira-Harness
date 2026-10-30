@@ -1,7 +1,3 @@
-/* Tab interaction adapted from ZCode workspaceSidePane / useAppPanels.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: session-owned state and host resource lifecycle.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { miraBrowserFavicon } from '../../../../src/platform/miraBrowserMetadata'
 import { miraInitialTaskLayout, miraTaskPaneIds, readMiraTaskLayout, removeMiraTaskPane, splitMiraTaskLayout, type MiraTaskLayout, type MiraTaskSplitSide } from './mira-task-layout'
 export type WorkspaceResourceId = 'overview' | 'files' | 'git' | 'changes' | 'terminal' | 'browser' | 'side-chat'

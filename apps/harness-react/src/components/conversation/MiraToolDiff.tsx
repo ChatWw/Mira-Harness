@@ -1,8 +1,3 @@
-/* Inline diff presentation adapted from ZCode ToolCallBlocks/renderers/EditInlineDiffContent.tsx
- * and components/ui/{highlighted-lightweight-diff-preview,lightweight-diff-preview}.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: public recorded diffs, cancellable shared worker, full text and retry.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { RotateCw } from 'lucide-react'
 import { miraCodeHighlighter, miraCodeThemes } from '../../lib/code-highlighter'

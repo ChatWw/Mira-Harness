@@ -5,8 +5,6 @@ export type MiraTraceRole = 'system' | 'user' | 'reasoning' | 'assistant' | 'too
 export const miraTraceRole: Record<MiraTraceRole, string> = { system: '系统指令', user: '用户输入', reasoning: '思考', assistant: '模型回复', 'tool-call': '工具调用', 'tool-result': '工具结果', options: '请求参数与工具定义', usage: '用量', error: '错误' }
 export const miraTraceMessageRoles: readonly MiraTraceRole[] = ['system', 'user', 'reasoning', 'assistant', 'tool-call', 'tool-result']
 export interface MiraTraceSection { id: string; role: MiraTraceRole; title: string; text: string }
-// Search behavior references ZCode ModelTrajectorySearch (Apache-2.0), Copyright 2026 Z.AI Co., Ltd.
-// Mira uses its own section model and returns offsets in the displayed original text.
 export function miraTraceTextMatches(source: string, query: string): Array<{ start: number; end: number }> {
   const needle = query.trim().toLocaleLowerCase()
   if (!needle) return []
@@ -66,7 +64,6 @@ export function miraTraceSummary(records: readonly MiraModelCall[]) {
   return { tokens, models: [...models] }
 }
 
-// Incremental input presentation references ZCode ModelTrajectoryTimeline (Apache-2.0).
 // Mira verifies the retained prefix and isolates each known agent context; persisted IO stays complete.
 export function miraTraceCalls(records: readonly MiraModelCall[], fullRequests = false) {
   const contexts = new Map<string, { messages: string[]; hasOutput: boolean }>()

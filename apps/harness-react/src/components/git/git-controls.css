@@ -106,7 +106,7 @@
 .mira-git-section > .mira-summary-resource > span:not(.mira-git-totals) { flex: 1; }
 .mira-git-section > .mira-summary-resource:hover { background: var(--color-hover); text-decoration: none; }
 
-/* ZCode GitActionMenu commit dialog. */
+/* Git commit dialog. */
 .mira-git-commit-overlay { position: fixed; inset: 0; z-index: 110; background: transparent; }
 .mira-branch-dialog.mira-git-commit { width: min(448px, calc(100vw - 32px)); padding: 0; overflow: hidden auto; border: 1px solid var(--color-popover-border); background: var(--color-popover); box-shadow: 0 10px 24px rgb(0 0 0 / 20%); font-size: var(--text-ui-base); }
 .mira-git-commit .mira-git-commit__branch { justify-content: space-between; padding: 12px 16px; }

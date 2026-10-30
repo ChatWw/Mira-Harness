@@ -1,5 +1,3 @@
-/* Hook output and matcher semantics adapted from ZCode hooks.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { randomUUID } from 'node:crypto'
 import type { ToolCallRecord } from '../../src/config/harness'
 import type { MiraHookEvent, MiraHookItem } from '../../src/config/miraHooks'

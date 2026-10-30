@@ -1,5 +1,3 @@
-// Adapted from ZCode ToolCallBlocks and QueuedSummaryContent (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 const entrances = new Set<string>()
@@ -40,7 +38,7 @@ export function MiraQueuedSummary({ contentKey, version, enabled, children }: { 
       const expected = performance.now() + 800
       timer.current = setTimeout(() => {
         timer.current = undefined; setPrevious(undefined)
-        // ZCode skips stale queued summaries after a blocked main thread.
+        // Skip stale queued summaries after a blocked main thread.
         if (performance.now() - expected > 250) queue.current = queue.current.slice(-1)
         const following = queue.current.shift()
         if (following) promote(following)

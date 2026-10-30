@@ -1,6 +1,3 @@
-/* PDF preview follows ZCode previewPanePdfContent.tsx and components/ui/pdf-viewer.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses lazy PDF.js, owner-bound range URLs and releases readers on hiding. */
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { FileText, LoaderCircle, RotateCw } from 'lucide-react'
 import type { MiraMediaPreview } from '../../../../../src/config/miraMedia'

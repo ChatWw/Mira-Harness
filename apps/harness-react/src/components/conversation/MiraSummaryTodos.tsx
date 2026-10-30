@@ -1,6 +1,3 @@
-/* Todo focus window and grouped previews adapted from ZCode ConversationStatusPanel.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira renders authoritative run activities and keeps previews scoped to their current snapshot. */
 import { useId, useRef, useState } from 'react'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { Check, ChevronLeft, CircleAlert, LoaderCircle } from 'lucide-react'

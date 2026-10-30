@@ -1,7 +1,7 @@
 import { isMiraPluginId, parseMiraPluginInvocation } from '../../../../src/config/miraPlugins'
 import type { MiraPromptDocument, MiraPromptPart, MiraPromptReference } from './prompt-editor-document'
 
-/** ZCode command chips insert invocation text; only the host expands their instructions. */
+/** Command chips insert invocation text; only the host expands their instructions. */
 export function miraPluginCommandReference(name: string): MiraPromptReference {
   const invocation = parseMiraPluginInvocation(`/${name}`)
   if (!invocation || invocation.args) throw new Error('插件命令名称无效')

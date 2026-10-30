@@ -1,5 +1,3 @@
-// Immutable artifact receipts adapted from ZCode workflow-artifact-publish.ts.
-// Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/.
 import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'

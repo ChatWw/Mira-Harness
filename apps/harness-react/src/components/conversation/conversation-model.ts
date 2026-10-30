@@ -2,8 +2,7 @@ import type { HarnessActiveRun, HarnessMessage, HarnessRunSummary, ToolCallRecor
 
 export interface TimelineRenderMessage { rendererId: string; original: HarnessMessage }
 
-/** Adapted from ZCode ProductProjection's TurnStarted model boundaries (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Unsent choices and unknown legacy history are not model facts. */
+/** Unsent model choices and unknown legacy history are not model facts. */
 export function miraModelChanges(messages: TimelineRenderMessage[], providers: Array<{ id: string; name: string }> = []) {
   const changes = new Map<string, { from: NonNullable<HarnessMessage['model']>; to: NonNullable<HarnessMessage['model']> }>()
   const names = new Map(providers.map(provider => [provider.id, provider.name]))
@@ -98,5 +97,5 @@ function buildConversationEntries(messages: HarnessMessage[], groupGuides: boole
 }
 
 export function buildConversationTurns(messages: HarnessMessage[]) { return buildConversationEntries(messages, true) }
-/** ZCode's navigation directory includes every accepted query, even guides within one task turn. */
+/** The navigation directory includes every accepted query, even guides within one task turn. */
 export function buildConversationQueries(messages: HarnessMessage[]) { return buildConversationEntries(messages, false) }

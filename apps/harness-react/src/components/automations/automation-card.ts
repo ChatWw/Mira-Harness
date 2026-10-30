@@ -1,6 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode automationCardSchedule / automationFormat.
- * License: third-party-licenses/zcode/. */
 import type { AutomationTask } from '../../../../../src/config/harness'
 import { triggerLabel, formatAutomationTime } from '../../../../../src/config/automationPresentation'
 

@@ -1,5 +1,3 @@
-// Adapted from ZCode ToolCallBlocks/renderers/explore.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Uses Mira's ordered public message parts.
 import { MiraQueuedSummary } from './MiraStreamMotion'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronRight, Search } from 'lucide-react'

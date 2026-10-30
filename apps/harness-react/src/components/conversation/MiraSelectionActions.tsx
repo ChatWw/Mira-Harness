@@ -1,6 +1,3 @@
-/* Floating selection action adapted from ZCode ConversationSelectionTooltip,
- * SelectionActionMenu and useTextSelection. Copyright 2026 Z.AI Co., Ltd.
- * Apache-2.0; see third-party-licenses/zcode. Mira scopes actions to its owner. */
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageSquare, Quote } from 'lucide-react'

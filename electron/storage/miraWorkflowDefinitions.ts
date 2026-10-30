@@ -1,6 +1,3 @@
-/* Saved workflow file codec/store semantics adapted from ZCode saved-workflows.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira: host-injected roots, byte-preserving reads, symlink guards and source CAS. */
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, closeSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, parse, resolve } from 'node:path'

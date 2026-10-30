@@ -1,6 +1,3 @@
-/* Element reference interactions adapted from ZCode lib/pptxElementReference.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses explicit session ownership and its existing versioned prompt document. */
 import { parseMiraPresentationReferences, readMiraPresentationReference, serializeMiraPresentationReference, type MiraPresentationReference } from '../../../../src/config/miraPresentation'
 import { miraBrowserReferences, restoreMiraBrowserPromptDocument } from './mira-browser-reference'
 import { serializeMiraPromptDocument, type MiraPromptDocument, type MiraPromptReference } from './prompt-editor-document'

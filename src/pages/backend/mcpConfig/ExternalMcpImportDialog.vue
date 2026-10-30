@@ -1,5 +1,4 @@
 <template>
-  <!-- Adapted from ZCode ExternalAgentImportDialog (Apache-2.0); see third-party-licenses/zcode. -->
   <el-dialog :model-value="open" title="导入外部 Agent MCP 服务器" class="mcp-import-dialog" width="672px" align-center append-to-body :show-close="false" :close-on-click-modal="!importing" :close-on-press-escape="!importing" @update:model-value="!importing && emit('update:open', $event)">
     <template #header>
       <div class="mcp-import-heading"><h2>导入外部 Agent MCP 服务器</h2><div class="mcp-import-heading__actions"><button type="button" class="mcp-import-icon" :disabled="loading || importing" aria-label="刷新外部 MCP 来源" title="刷新" @click="discover"><AppIcon name="lucide:refresh-cw" :class="{ 'is-spinning': loading }" /></button><button type="button" class="mcp-import-icon" :disabled="importing" aria-label="关闭 MCP 导入" title="关闭" @click="emit('update:open', false)"><AppIcon name="lucide:x" /></button></div></div>

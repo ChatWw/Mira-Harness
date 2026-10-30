@@ -1,5 +1,3 @@
-// File-chip interaction adapted from ZCode ToolCallBlocks/renderers/read.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira owns path authorization and preview callbacks.
 // Local Material Icon Theme SVGs use MIT; see third-party-licenses/material-icon-theme.
 import miraTypeScript from '../../assets/file-types/mira-typescript.svg'
 import miraJavaScript from '../../assets/file-types/mira-javascript.svg'

@@ -1,5 +1,3 @@
-// Help entry adapted from ZCode WorkspaceHelpMenuButton (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
 import { useRef, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Activity, CircleHelp, Info, Keyboard, MessageSquare, Settings } from 'lucide-react'

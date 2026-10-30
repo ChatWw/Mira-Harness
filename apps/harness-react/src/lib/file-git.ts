@@ -1,7 +1,3 @@
-/* Git decorations adapted from ZCode's workspace-file-tree model and statusStyles.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: bounded session-scoped readers, exact ignored cache and stale-result suppression.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import type { HarnessWorkspaceFileEntry, HarnessWorkspaceGitSnapshot, HarnessWorkspaceGitStatus } from '../../../../src/config/harness'
 import type { FileTreeRow, FileTreeSnapshot } from './file-tree'
 

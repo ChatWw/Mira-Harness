@@ -1,8 +1,3 @@
-/**
- * Adapted from ZCode packages/ui/src/mentions/nodes/PromptMentionNode.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its own reference payload, with canonical plugin:// identity for plugin chips.
- */
 import { $applyNodeReplacement, TextNode, type DOMExportOutput, type EditorConfig, type LexicalNode, type NodeKey, type SerializedTextNode } from 'lexical'
 import { decorateMiraPromptReference } from '../../lib/prompt-reference-decoration'
 import { validateMiraPromptDocument, type MiraPromptReference } from '../../lib/prompt-editor-document'

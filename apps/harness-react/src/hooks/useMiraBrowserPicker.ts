@@ -1,6 +1,3 @@
-/** Interaction adapted from ZCode useWebElementPicker.ts (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Mira binds each run to a task/resource and inserts through the Composer handle. */
 import { useEffect, useRef, useState } from 'react'
 import type { PilotController } from '../state/pilot-state'
 import type { MiraBrowserElementReference } from '../../../../src/platform/miraBrowserPicker'

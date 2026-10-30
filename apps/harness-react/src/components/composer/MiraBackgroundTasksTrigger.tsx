@@ -1,5 +1,3 @@
-/* Background task entry adapted from ZCode ConversationBackgroundWorkTrigger.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { Bot, TerminalSquare } from 'lucide-react'
 import type { HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'
 import { ComposerControlHint } from './ComposerControlHint'

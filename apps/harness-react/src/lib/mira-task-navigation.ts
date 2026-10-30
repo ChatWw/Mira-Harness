@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode quickPickConversationNavigation: workspace-scoped tasks
- * use Mira's existing sidebar order, with no wrap at either boundary.
- */
 import type { HarnessSession, HarnessSessionSummary } from '../../../../src/config/harness'
 import { isMiraPrimaryModifier } from '../../../../src/platform/workbenchShortcuts'
 import type { SidebarPreferences } from '../components/session/sidebar-preferences'

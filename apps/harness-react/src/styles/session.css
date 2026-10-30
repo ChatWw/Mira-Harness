@@ -227,7 +227,7 @@ html.mira-sidebar-dragging, html.mira-sidebar-dragging * { cursor: grabbing !imp
 .mira-profile-menu .harness-composer__menu-item, .mira-profile-submenu .harness-composer__menu-item { min-height: 32px; }
 .mira-profile-menu .harness-composer__menu-item > span, .mira-profile-submenu .harness-composer__menu-item > span { flex: 1; }
 
-/* Match ZCode DropdownMenuShortcut: plain, trailing text instead of keycaps. */
+/* Menu shortcuts use plain trailing text. */
 .mira-profile-submenu .harness-composer__menu-item > span { white-space: nowrap; }
 .mira-profile-submenu .harness-composer__menu-item > .mira-profile-shortcut { display: inline; flex: none; margin-left: auto; font-size: var(--text-ui-xs); letter-spacing: .1em; color: var(--color-foreground-subtlest); }
 .mira-profile-submenu .harness-composer__menu-item[data-highlighted] > .mira-profile-shortcut { color: var(--color-foreground-subtle); }

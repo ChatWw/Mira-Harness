@@ -1,8 +1,3 @@
-/**
- * Lexical shell and canonical clipboard adapted from ZCode LexicalChatInput,
- * mentions/promptSerialization and PromptClipboardPlugin (Apache-2.0).
- * See third-party-licenses/zcode. Mira owns the document/selection/owner contract.
- */
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type AriaAttributes } from 'react'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
@@ -251,7 +246,7 @@ const Bridge = forwardRef<MiraPromptEditorHandle, MiraPromptEditorProps>(functio
       if (!$isTextNode(spacer) || selection.anchor.offset !== 1 || spacer.getTextContent() !== ' ') return false
       const command = spacer.getPreviousSibling()
       if (!$isMiraPromptReferenceNode(command) || command.getReference().kind !== 'command' || !command.getReference().value.startsWith('builtin:')) return false
-      // 对齐 ZCode 的补位空格边界，一次退格同时移除命令标签与插入时自动补的空格。
+      // 一次退格同时移除命令标签与插入时自动补的空格。
       event?.preventDefault()
       $addUpdateTag(HISTORY_PUSH_TAG)
       command.remove(); spacer.remove()

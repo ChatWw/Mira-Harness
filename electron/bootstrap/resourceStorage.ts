@@ -1,4 +1,3 @@
-// ZCode StorageSection contract adapted to Mira's data directories (Apache-2.0).
 import { readdir, lstat, statfs } from 'node:fs/promises'
 import { join, relative, isAbsolute } from 'node:path'
 import type { MiraStorageSnapshot } from '../../src/config/resourceManager'
@@ -34,7 +33,7 @@ export async function scanResourceStorage(root: string, signal: AbortSignal): Pr
     group.entries.push({ name, path, ...result }); group.bytes += result.bytes; group.files += result.files
   }
   let volume: MiraStorageSnapshot['volume'] = null
-  try { const stat = await statfs(root); volume = { totalBytes: stat.blocks * stat.bsize, freeBytes: stat.bavail * stat.bsize } } catch { /* Unknown disk capacity is displayed explicitly, as in ZCode. */ }
+  try { const stat = await statfs(root); volume = { totalBytes: stat.blocks * stat.bsize, freeBytes: stat.bavail * stat.bsize } } catch { /* Unknown disk capacity is displayed explicitly. */ }
   signal.throwIfAborted()
   return { root, finishedAt: Date.now(), totalBytes: groups.reduce((sum, group) => sum + group.bytes, 0), volume, categories: groups, errors }
 }

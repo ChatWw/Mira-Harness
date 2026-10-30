@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation: full-page task settings, existing Mira scheduler and project/model permissions.
- * Structural reference: ZCode AutomationEditView; license: third-party-licenses/zcode/.
- */
 import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { AutomationSelect } from './AutomationControls'

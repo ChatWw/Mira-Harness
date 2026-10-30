@@ -1,5 +1,3 @@
-/* File recovery planning adapted from ZCode runtime/methods/file-rewind.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { closeSync, constants, fsyncSync, lstatSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { isUtf8 } from 'node:buffer'

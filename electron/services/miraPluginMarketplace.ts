@@ -1,5 +1,3 @@
-/* Market catalog/package separation follows ZCode pluginManagement.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; Mira host adaptation. */
 import { createHash, randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'

@@ -1,4 +1,3 @@
-<!-- Ported from ZCode StorageSection/StorageDiskCard/StorageCategoryList (Apache-2.0). -->
 <template>
   <section>
     <div class="storage-summary"><div><div class="caption subtle">Mira 总占用</div><strong class="storage-total">{{ formatBytes(snapshot?.totalBytes) }}</strong></div><span class="caption subtle">{{ scanning ? '正在计算…' : snapshot ? `上次计算 ${new Date(snapshot.finishedAt).toLocaleString()}` : '尚未计算' }}</span><button class="action" :disabled="scanning" @click="scan"><RefreshCw :size="14" />重新计算</button></div>
@@ -25,7 +24,7 @@ const categories = computed(() => [...(snapshot.value?.categories ?? [])].sort((
 const legend = computed(() => categories.value.filter(category => category.bytes > 0))
 const icons: Record<string, typeof Folder> = { sessions: Database, artifacts: FileOutput, logs: FileText, runtimes: Blocks, config: KeyRound, cache: HardDrive }
 const isMac = /Mac/.test(navigator.platform)
-// ZCode theme-zai-light usage chart palette.
+// Storage usage chart palette.
 const colors = ['#0b7fff', '#1e8a3e', '#9e77ed', '#e03131', '#e07b00', '#0aa7a7', 'var(--muted)']
 let disposed = false
 async function scan() {

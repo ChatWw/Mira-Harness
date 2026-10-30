@@ -1,5 +1,3 @@
-/* File manager layout adapted from ZCode FileManagerPane (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Mira uses captured host roots and existing previews. */
 import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { FolderOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'

@@ -2751,7 +2751,7 @@ export class HarnessRuntime {
         await prompt('系统提醒：你创建的子任务已经结束。请调用 wait_for_tasks 读取报告，整合结果后再给出最终答复；不要再创建子任务。')
       }
       if (controller.signal.aborted) throw new Error('回复已停止')
-      // Match ZCode's bounded Stop continuation, with explicit stop_hook_active input.
+      // Bound Stop continuation with explicit stop_hook_active input.
       for (let continuation = 0; continuation <= 3; continuation++) {
         const stop = await hooks!.run('Stop', { responseText: assistantText(agent.state.messages.at(-1)), stopHookActive: continuation > 0, toolCallCount: parts.filter(part => part.type === 'tool').length })
         if (stop.blocked) throw new Error(stop.blocked)
@@ -2800,7 +2800,7 @@ export class HarnessRuntime {
       const run: HarnessRunSummary = { status: 'completed', startedAt, completedAt, durationMs: completedAt - startedAt, activities, ...(subtasks?.list().length ? { subtasks: subtasks.list(), usage: { parent: pricedParentUsage, children: childUsage, total: mergeUsage([pricedParentUsage, childUsage]) } } : {}) }
       flushAssistantDelta()
       const usage = contextUsage(this.agentMessages(this.database.harness.getSession(sessionId), model), model.contextWindow)
-      // Source proportions use the actual agent request context, like ZCode's character breakdown.
+      // Source proportions use the actual agent request context, measured in characters.
       const skillChars = [...agent.state.systemPrompt.matchAll(/<skill name="[^"]*">[\s\S]*?<\/skill>/g)].reduce((total, match) => total + match[0].length, 0)
       const toolChars = (mcp: boolean) => agent!.state.tools.reduce((total, tool) => {
         if ((registeredTools!.descriptors.get(tool.name)?.risk === 'mcp') !== mcp) return total

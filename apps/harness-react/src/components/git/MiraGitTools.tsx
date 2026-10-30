@@ -1,5 +1,3 @@
-/* Git tools interaction adapted from ZCode GitSection / GitActionMenu (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { GitCommitHorizontal, GitCompare, LoaderCircle, Sparkles, CloudUpload } from 'lucide-react'

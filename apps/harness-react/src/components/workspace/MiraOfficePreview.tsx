@@ -1,6 +1,3 @@
-/* Office preview follows ZCode previewPaneOfficeContent.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses bounded, owner-authorized binary reads and lazy isolated readers. */
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FileText, LoaderCircle, RotateCw } from 'lucide-react'
 import { MIRA_OFFICE_PREVIEW_LIMIT, miraMediaFormat, type MiraMediaPreview } from '../../../../../src/config/miraMedia'

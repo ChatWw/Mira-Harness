@@ -1,12 +1,7 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode grouped task ordering; upstream license: third-party-licenses/zcode/.
- */
 import type { HarnessProject, HarnessSession, HarnessSessionSummary } from '../../../../../src/config/harness'
 import type { SidebarGroupingOrder, SidebarRootItem, SidebarTaskGroup } from './sidebar-preferences'
 
-/** One root layer, as in ZCode's grouped view; unordered items follow the saved entries. */
+/** One root layer; unordered items follow the saved entries. */
 export function sidebarRootItems(groups: SidebarTaskGroup[], sessionIds: string[], order: SidebarRootItem[]) {
   const pending = new Map<string, SidebarRootItem>([...groups.map(group => ({ type: 'group' as const, id: group.id })), ...sessionIds.map(id => ({ type: 'session' as const, id }))].map(item => [`${item.type}:${item.id}`, item]))
   const items: SidebarRootItem[] = []
@@ -22,7 +17,7 @@ export type SidebarDropTarget =
   | { type: 'group'; id: string; position: 'start' | 'end' }
   | { type: 'root'; near?: SidebarRootItem; position: 'before' | 'after' }
 
-/** Mira adaptation of ZCode moveTaskOverTask / group start/end / root around group. */
+/** Move tasks within groups or before/after groups at the root. */
 export function moveSidebarTask(order: SidebarGroupingOrder, rootIds: string[], sessionId: string, target: SidebarDropTarget): SidebarGroupingOrder | undefined {
   const originalRoots = sidebarRootItems(order.groups, rootIds, order.groupedRootOrder)
   const roots = originalRoots.filter(item => item.type !== 'session' || item.id !== sessionId)

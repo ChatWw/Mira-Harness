@@ -1,6 +1,3 @@
-// Adapted from ZCode ArchiveManagement / archive-view / useArchiveManagement.
-// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
-// Mira uses local project identities and existing Electron session APIs.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { getPlatformApi } from '@/platform'

@@ -1,6 +1,4 @@
 import { formatConversationWorkDuration } from '../../lib/conversation-work-duration'
-// Adapted from ZCode ConversationTurnGroup (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Uses Mira's ordered public message parts.
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ArrowUpRight, ChevronRight, CircleAlert } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'

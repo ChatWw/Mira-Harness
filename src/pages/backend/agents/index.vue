@@ -1,5 +1,4 @@
 <template>
-  <!-- Agent form layout adapted from ZCode (Apache-2.0); see third-party-licenses/zcode. -->
   <SettingsPageShell title="子智能体" :show-title="false">
     <template v-if="draft" #titlebar><nav class="user-agents__breadcrumb" aria-label="页面位置"><button type="button" :disabled="busy" @click="close">子智能体</button><AppIcon name="lucide:chevron-right" /><span>{{ creating ? '新建子智能体' : draft.name }}</span></nav></template>
     <section class="user-agents" :aria-busy="busy">

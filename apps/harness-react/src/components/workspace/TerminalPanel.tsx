@@ -1,4 +1,3 @@
-// Terminal focus and selection shortcuts adapted from ZCode, Copyright 2026 Z.AI Co., Ltd, Apache-2.0.
 // Keyboard paste uses xterm's native event; menu paste stays in Mira's authorized Electron PTY service.
 import { useEffect, useRef, useState } from 'react'
 import { FitAddon } from '@xterm/addon-fit'

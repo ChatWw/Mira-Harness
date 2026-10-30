@@ -1,5 +1,3 @@
-// Display zoom semantics adapted from ZCode desktopZoom (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
 import type { BrowserWindow } from 'electron'
 
 export function miraZoomLevel(value: unknown) {

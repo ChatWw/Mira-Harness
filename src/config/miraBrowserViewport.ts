@@ -1,6 +1,3 @@
-/* Viewport behavior adapted from ZCode browser-use (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Mira names, hosted-guest geometry and validation.
- * See third-party-licenses/zcode/ADAPTATIONS.md. */
 export interface MiraBrowserSize { width: number; height: number }
 export const MIRA_BROWSER_LIMITS = { width: [320, 3840], height: [320, 2160] } as const
 export const MIRA_BROWSER_ZOOMS = ['fit', '50', '75', '100', '125', '150', '200'] as const

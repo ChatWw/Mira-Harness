@@ -1,5 +1,3 @@
-// Adapted from ZCode chatSessionScrollMemory.ts (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira uses its own session/workspace scope.
 export interface ConversationScrollPosition {
   scrollTop: number
   scrollHeight: number

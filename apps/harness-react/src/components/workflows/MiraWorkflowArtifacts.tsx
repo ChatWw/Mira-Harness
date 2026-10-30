@@ -1,5 +1,3 @@
-/* Artifact row and gallery adapted from ZCode WorkflowArtifactRow/Tile and WorkflowRunArtifactsSection.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { ArrowUpRight, ChevronDown, FileText } from 'lucide-react'
 import type { ArtifactVersionRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'
 import type { MiraFlowRunIdentity } from '../../../../../src/config/miraFlowWorkbench'

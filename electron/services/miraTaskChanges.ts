@@ -1,5 +1,3 @@
-/* Task file snapshots and net diffs adapted from ZCode taskChangeSummary.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import type { ExecutionEnv } from '@earendil-works/pi-agent-core'
 import { createTwoFilesPatch, OMIT_HEADERS } from 'diff'
 import { miraTaskLineChanges, type MiraTaskChangedFile } from '../../src/config/miraTaskChanges'

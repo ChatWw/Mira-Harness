@@ -1,6 +1,3 @@
-/* CDP metrics strategy adapted from ZCode browserGuestManager (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. Mira: fixed metrics only, embedder validation,
- * per-guest serialization and native desktop zoom compensation. */
 import { webContents, type WebContents } from 'electron'
 import type { MiraBrowserSize } from '../../src/config/miraBrowserViewport'
 

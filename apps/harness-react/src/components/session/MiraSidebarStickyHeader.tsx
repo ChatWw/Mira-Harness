@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode grouped task header selection and floating header slot.
- * Upstream license: third-party-licenses/zcode/.
- */
 import { useLayoutEffect, useRef, useState } from 'react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -35,7 +29,7 @@ interface StickyHeaderProps {
 const colorLabels: Record<SidebarGroupColor, string> = { gray: '灰色', red: '红色', orange: '橙色', yellow: '黄色', green: '绿色', blue: '蓝色', purple: '紫色' }
 const EXIT_DURATION = 150
 
-/** Same geometry as ZCode: the original head is above the viewport, while its group still covers it. */
+/** The original head is above the viewport, while its group still covers it. */
 export function resolveMiraSidebarStickyGroup(scrollElement: HTMLElement, groups: readonly MiraSidebarStickyGroup[]) {
   if (scrollElement.scrollHeight <= scrollElement.clientHeight || !scrollElement.getBoundingClientRect().height) return null
   const available = new Set(groups.filter(group => !group.collapsed && !group.renaming).map(group => group.id))

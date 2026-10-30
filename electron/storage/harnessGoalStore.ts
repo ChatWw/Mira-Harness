@@ -1,5 +1,3 @@
-/* Durable session-local Goal lifecycle follows ZCode's session-target storage.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { validateMiraGoalBudget, validateMiraGoalObjective, type HarnessGoal, type HarnessGoalSetInput, type HarnessGoalVerification, type HarnessGoalPlanItem } from '../../src/config/miraGoals'

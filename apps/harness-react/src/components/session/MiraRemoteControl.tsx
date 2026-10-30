@@ -1,5 +1,3 @@
-/* Adapted from ZCode WorkspaceWebRemoteControlTrigger / WebRemoteControlDialog.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -69,7 +67,7 @@ export function MiraRemoteControl({ controller }: { controller: PilotController 
   </Dialog.Root>
 }
 
-// ZCode components/ui/toast.tsx: default top-center toast, 3s + 200ms exit.
+// Top-center toast, 3s + 200ms exit.
 function RemoteStoppedToast() {
   const [visible, setVisible] = useState(false)
   const [dismissed, setDismissed] = useState(false)

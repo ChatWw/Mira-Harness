@@ -1,5 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode AutomationEditView scheduling controls. */
 import { validateAutomationScheduleRule } from '../../../../../src/config/automationRepeat'
 import { useEffect, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

@@ -1,5 +1,3 @@
-// Adapted from ZCode conversationTurnRenderUnits (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira keeps its canonical message/part identities.
 import type { HarnessMessage, ToolCallRecord } from '../../../../src/config/harness'
 import { miraCommandExecutionStatus } from './mira-command-presentation'
 

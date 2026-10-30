@@ -1,7 +1,3 @@
-/* Gallery interaction adapted from ZCode image-preview-dialog.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: session-owned frozen attachments and native save callback.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { ArrowLeft, ArrowRight, Download, ImageOff, LoaderCircle, Minus, Plus, RotateCw, X } from 'lucide-react'

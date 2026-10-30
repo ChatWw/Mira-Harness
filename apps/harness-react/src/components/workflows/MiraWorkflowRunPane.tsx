@@ -1,5 +1,3 @@
-/* Run side pane and journal digest adapted from ZCode WorkflowRunSidePane/workflowRunPanel.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Circle, CircleX, Workflow, LoaderCircle, Play, RefreshCw, Square } from 'lucide-react'
 import type { ModelProviderSummary } from '../../../../../src/config/harness'

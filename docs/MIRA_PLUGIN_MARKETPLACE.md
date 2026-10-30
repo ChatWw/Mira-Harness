@@ -1,6 +1,6 @@
 # Mira 插件市场
 
-界面依据 ZCode 的 PluginStoreListView、PluginStoreCard、PluginStoreDetailView 和 PluginAddMenu 适配，保留项目已有 ZCode Apache-2.0 声明。Mira 的分段名称为“公共 / 本地”。
+界面参考 ZCode 的插件市场布局，由 Mira 使用自身组件、数据与安装协议实现。Mira 的分段名称为“公共 / 本地”。实际沿用的 ZCode 图标及其 Apache-2.0 许可集中记录于 `third-party-licenses/zcode/`。
 
 插件图标随客户端本地打包：PDF、Word、电子表格、演示文稿和插件创建器采用 ZCode `packages/ui/src/assets/plugin-icons/` 原始资源；技能创建器、电脑控制、浏览器操作采用 ZCode 官方定义中的 `https://cdn-zcode.z.ai/zcode/official-plugin/assets/` 下 `skill-creator/icon.png`、`zcode-cua/icon.png`、`browser-use/icon.png`。保留原色，不做深色反相。Mira 使用指南采用本项目 `src/asset/mira-app-icon.png`。头像内图形沿用 ZCode PluginIcon 的三分之二尺寸比例。运行时无需请求该 CDN；图标不包含 ZCode 插件实现内容。
 

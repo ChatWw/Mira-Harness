@@ -1,5 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode AutomationEditView history table. */
 import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ArrowLeft, ArrowRight, ArrowUpRight, MoreHorizontal, RotateCcw, Square, Trash2 } from 'lucide-react'

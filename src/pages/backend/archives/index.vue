@@ -1,5 +1,3 @@
-<!-- Layout adapted from ZCode ArchiveManagement / ArchiveGroupCard (Apache-2.0).
-     Copyright 2026 Z.AI Co., Ltd. Mira uses Vue settings and local session APIs. -->
 <template>
   <SettingsPageShell title="会话归档">
     <section class="archive-management" aria-label="会话归档">

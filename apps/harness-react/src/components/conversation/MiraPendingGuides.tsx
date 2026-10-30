@@ -1,5 +1,3 @@
-// Pending-row layout adapted from ZCode (Copyright 2026 Z.AI Co., Ltd), Apache-2.0.
-// See third-party-licenses/zcode/ADAPTATIONS.md; withdrawal and state use Mira contracts.
 import { useRef, useState } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { LoaderCircle, Undo2 } from 'lucide-react'

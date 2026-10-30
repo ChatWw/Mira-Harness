@@ -1,5 +1,3 @@
-/* Plugin Hook discovery and declarations follow ZCode's hook-sources/plugin loader.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { createHash } from 'node:crypto'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { MIRA_HOOK_DEFAULT_TIMEOUT, MIRA_HOOK_EVENTS, type MiraHookEvent } from '../../src/config/miraHooks'

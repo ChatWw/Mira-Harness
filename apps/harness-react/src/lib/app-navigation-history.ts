@@ -1,5 +1,3 @@
-// Adapted from ZCode taskNavigationHistory (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira adds guarded replay and detached draft handling.
 import { readMiraAppNavigationTarget, type MiraAppNavigationDirection, type MiraAppNavigationSnapshot, type MiraAppNavigationTarget } from '../../../../src/platform/appNavigation'
 
 export function emptyMiraNavigationHistory(): MiraAppNavigationSnapshot {

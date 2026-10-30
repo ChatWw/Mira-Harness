@@ -1,5 +1,3 @@
-/* User/project Agent Markdown semantics adapted from ZCode subagents.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'

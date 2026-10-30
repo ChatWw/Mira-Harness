@@ -1,5 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode TaskTitleOverflowText; see third-party-licenses/zcode. */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const rightFade = 'linear-gradient(to right, black 0, black calc(100% - 1.5rem), transparent 100%)'

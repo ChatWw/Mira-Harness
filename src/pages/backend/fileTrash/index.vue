@@ -1,5 +1,3 @@
-<!-- Project list layout adapted from ZCode ArchiveManagement / ArchiveGroupCard (Apache-2.0).
-     Copyright 2026 Z.AI Co., Ltd. Mira uses local file trash APIs. -->
 <template>
   <SettingsPageShell title="文件回收站">
     <section class="trash-settings" aria-labelledby="trash-heading">

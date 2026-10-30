@@ -1,6 +1,4 @@
 import { MarketIconHint } from './MarketIconHint'
-/* Installed-plugin menu interaction follows ZCode PluginStoreCard.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { MoreHorizontal, Power, Trash2 } from 'lucide-react'
 

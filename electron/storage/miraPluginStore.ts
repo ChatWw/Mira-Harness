@@ -1,8 +1,3 @@
-/*
- * Plugin manifest, namespace and reference semantics follow ZCode's plugin loader/catalog.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira reads explicitly registered local packages; it never executes installation hooks.
- */
 import { lstatSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'

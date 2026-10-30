@@ -1,4 +1,3 @@
-<!-- Ported from ZCode NetworkSection.tsx (Apache-2.0). -->
 <template>
   <section class="network-section">
     <p class="small subtle">窗口打开期间记录本机应用请求，最多保留最近 1,000 条。</p>

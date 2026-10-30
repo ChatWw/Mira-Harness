@@ -1,5 +1,3 @@
-/* Source approval metadata adapted from ZCode WorkflowPermissionBlock/SaveWorkflowPermissionBlock.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { Save, Workflow } from 'lucide-react'
 import type { MiraFlowReview } from '../../../../../src/config/miraFlowReview'
 import { MiraWorkflowTimeline } from './MiraWorkflowTimeline'

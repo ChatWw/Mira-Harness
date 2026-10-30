@@ -1,5 +1,3 @@
-/* Usage grouping and streak semantics adapted from ZCode usage-stats-builder.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export interface AppUsageDay {
   date: string
   totalTokens: number

@@ -1,5 +1,3 @@
-/* Model overrides follow ZCode's user-state projection: never rewrite plugin profiles.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import type Database from 'better-sqlite3'
 import { MIRA_SUBTASK_AGENTS } from '../../src/config/miraAgents'
 import { isModelProviderAvailable, type ModelSelection } from '../../src/config/harness'

@@ -1,5 +1,3 @@
-// Adapted from ZCode ToolCallBlocks/renderers/execute-group.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Uses only Mira's ordered public command snapshots.
 import { MiraQueuedSummary } from './MiraStreamMotion'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronRight, TerminalSquare } from 'lucide-react'

@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode purpose-section collapse and hover actions.
- * Upstream license: third-party-licenses/zcode/.
- */
 import type { ReactNode } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { useSortable } from '@dnd-kit/sortable'

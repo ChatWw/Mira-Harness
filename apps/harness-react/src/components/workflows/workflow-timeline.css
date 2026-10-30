@@ -1,4 +1,4 @@
-/* ZCode workflow timeline station/rail/pill geometry adapted to Mira tokens.
+/* Workflow face styles adapted from ZCode packages/ui/src/styles.css; Mira timeline tokens.
  * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 .mira-flow-line { min-width: 0; max-width: 100%; color: var(--mira-foreground); font-size: 12px; line-height: 1.6; }
 .mira-flow-line__header, .mira-flow-line__selection-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }

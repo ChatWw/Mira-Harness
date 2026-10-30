@@ -1,7 +1,3 @@
-/* Search and presentation adapted from ZCode sidePaneTabSearch / sidePaneTabPresentation.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: local resource metadata and identity, Chinese labels, optional real times.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { File, Activity, AudioLines, FileCode2, FileSpreadsheet, FileText, Workflow, Bot, GitCompare, Globe2, ListChecks, MessageSquare, Presentation, TerminalSquare, Users, Video } from 'lucide-react'
 import { miraMediaFormat } from '../../../../src/config/miraMedia'
 import { isWorkspaceBrowserTab, isWorkspaceTerminalTab, type WorkspaceTab } from '../state/workspace-state'

@@ -1,8 +1,5 @@
 import { useMiraGitTools, type MiraGitToolsOwner } from '../git/useMiraGitTools'
 import { MiraGitTools, MiraGitTotals } from '../git/MiraGitTools'
-/* Session plan directory adapted from ZCode ConversationStatusPanel (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Mira uses canonical submitted tool inputs and its existing approval path. */
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ArrowUpRight, Check, ChevronDown, CircleAlert, GitCompare, ListChecks, LoaderCircle, Minimize2, MoreHorizontal, Square, TerminalSquare, Users, Workflow } from 'lucide-react'

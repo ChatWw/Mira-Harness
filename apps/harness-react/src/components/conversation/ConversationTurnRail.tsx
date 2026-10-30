@@ -1,5 +1,3 @@
-// Adapted from ZCode ConversationTurnNavigator (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira retains its query/message identities.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { useVirtualizer } from '@tanstack/react-virtual'

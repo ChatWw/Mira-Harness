@@ -108,7 +108,7 @@
 .mira-message-reference > .mira-market-avatar img, .mira-message-reference > .mira-market-avatar svg { width: 14px; height: 14px; object-fit: contain; }
 .mira-prompt-reference[data-lexical-selected='true'] { background: var(--color-selected); }
 
-/* ZCode ContextAttachmentPill / WebElementContextAttachmentChip proportions. */
+/* Context attachment pill proportions. */
 .mira-browser-contexts { display: inline-flex; width: fit-content; max-width: 100%; height: 32px; align-items: center; padding-right: 6px; border-radius: 999px; color: var(--color-foreground); background: var(--color-surface); }
 .mira-browser-contexts:hover, .mira-browser-contexts:focus-within { background: var(--color-surface-hover); }
 .mira-browser-contexts__trigger { display: flex; min-width: 0; height: 32px; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border: 0; border-radius: inherit; color: inherit; background: transparent; font-size: var(--text-ui-base); font-weight: 500; }

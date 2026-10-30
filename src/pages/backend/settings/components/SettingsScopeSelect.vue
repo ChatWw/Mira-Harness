@@ -18,9 +18,6 @@
 </template>
 
 <script setup lang="ts">
-// Adapted from ZCode settings/PluginScopeMenu.tsx and components/ui/dropdown-menu.tsx.
-// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
-// See third-party-licenses/zcode/. Mira uses Vue/Element Plus and local scope names.
 import { computed, ref } from 'vue'
 import type { DropdownInstance } from 'element-plus'
 

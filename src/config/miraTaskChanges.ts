@@ -1,5 +1,3 @@
-/** Task-owned net file changes, adapted from ZCode taskChangeSummary/lineChangeStat.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export interface MiraTaskChangedFile {
   key: string
   path: string

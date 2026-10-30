@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation: task cards and full-page settings backed by Mira's existing automation scheduler.
- * Structural reference: ZCode AutomationsSection / AutomationEditView; license: third-party-licenses/zcode/.
- */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

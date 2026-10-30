@@ -1,6 +1,3 @@
-// Typography roles reference ZCode styles.css and settings/SettingsPageParts.tsx.
-// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
-// See third-party-licenses/zcode/; font families follow Mira Harness.
 .settings-page,
 body:has(.settings-page) :where(.el-popper, .el-dialog, .el-message-box) {
   --settings-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;

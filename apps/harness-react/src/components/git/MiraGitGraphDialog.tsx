@@ -1,5 +1,3 @@
-/* Git graph interaction adapted from ZCode GitGraphDialog (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { RotateCw, X } from 'lucide-react'

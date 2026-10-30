@@ -70,8 +70,6 @@
 </template>
 
 <script setup lang="ts">
-/* Hook settings semantics adapted from ZCode; Copyright 2026 Z.AI Co., Ltd.
- * Apache-2.0; see third-party-licenses/zcode. */
 import { computed, h, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'

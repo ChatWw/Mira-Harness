@@ -1,6 +1,3 @@
-/* Selection boundaries adapted from ZCode conversationSelectionGuard/Reference.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses message/part identities and canonical Lexical references. */
 import type { MiraPromptDocument, MiraPromptReference } from './prompt-editor-document'
 
 export const MIRA_SELECTION_MAX_LENGTH = 8_000

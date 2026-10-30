@@ -1,6 +1,3 @@
-/** Interaction reference: ZCode chat-input-toolbar/contextUsage.tsx.
- * Copyright 2026 Z.AI Co., Ltd.
- * Apache-2.0 provenance: third-party-licenses/zcode; Mira data and Radix integration. */
 import { useEffect, useId, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import type { HarnessContextUsage } from '../../../../../src/config/harness'

@@ -1,5 +1,3 @@
-// Geometry adapted from ZCode sidePaneLayout/animatedSidePanePanelModel (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Persistence and desktop ownership use Mira's host.
 export const MIRA_PANE_PREFERENCE_KEY = 'harness-react-pane-widths'
 export const MIRA_WORKSPACE_RATIO = .45
 export const MIRA_WORKSPACE_MIN_WIDTH = 240

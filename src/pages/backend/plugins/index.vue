@@ -33,7 +33,7 @@
   </SettingsPageShell>
 </template>
 <script setup lang="ts">
-// Follows ZCode PluginsSection's unified plugins / MCP / skills settings structure.
+// Unified plugins / MCP / skills settings structure.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'

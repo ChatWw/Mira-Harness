@@ -1,5 +1,3 @@
-<!-- ZCode UsageStatsSection / AppUsagePanel structure adapted to Mira's settings shell.
-     Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. -->
 <template>
   <SettingsPageShell title="用量统计" :show-title="false">
     <div class="app-usage">

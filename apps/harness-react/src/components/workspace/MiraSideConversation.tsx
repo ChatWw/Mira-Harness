@@ -1,6 +1,3 @@
-/* Independent side pane adapted from ZCode SelectionSideChatPane / SessionPane / ConversationHeader.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its real session runtime, shared transcript, owner drafts and IPC. */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ArrowDown, ArrowLeft, LoaderCircle, MessageSquare, X } from 'lucide-react'
 import type { PilotController } from '../../state/pilot-state'

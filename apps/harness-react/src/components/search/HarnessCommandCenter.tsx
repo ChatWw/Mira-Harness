@@ -1,10 +1,4 @@
 import { ShortcutKeys } from '../shared/ShortcutKeys'
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation: first-party commands, message-content search and session-scoped file search.
- * Structural reference: ZCode CommandCenterDialog; license: third-party-licenses/zcode/.
- */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { ArrowRight, ChevronDown, Command, File, ListFilter, LoaderCircle, MessageSquare, RefreshCw, Search, Trash2, X } from 'lucide-react'

@@ -1,5 +1,3 @@
-// Native file/video semantics reference ZCode adapters/model/transform (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; Mira's Pi provider adapter is independently implemented.
 import type { Context, ProviderStreams, UserMessage } from '@earendil-works/pi-ai'
 import type { HarnessMessageAttachment, ProviderModelConfig } from '../../src/config/harness'
 

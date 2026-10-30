@@ -1,5 +1,3 @@
-/* Run controls adapted from ZCode WorkflowRunSettingsPopover (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode/. */
 import { useEffect, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { LoaderCircle, Minus, Plus, SlidersHorizontal, Square } from 'lucide-react'

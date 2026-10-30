@@ -1,5 +1,3 @@
-/* Iteration summary adapted from ZCode conversationGoalSummaryModel/ConversationStatusPanel.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useMemo, useState } from 'react'
 import { Check, LoaderCircle, Pause, Play, Target } from 'lucide-react'
 import type { HarnessGoal, HarnessGoalVerification } from '../../../../../src/config/miraGoals'

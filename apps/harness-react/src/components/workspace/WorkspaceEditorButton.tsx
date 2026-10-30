@@ -1,7 +1,3 @@
-/* Editor affordance adapted from ZCode WorkspaceEditorButtonGroup.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: shared host preference and visible failure reporting.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useState } from 'react'
 import { Check, ChevronDown, ExternalLink, LoaderCircle, RotateCw } from 'lucide-react'

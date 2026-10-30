@@ -1,9 +1,10 @@
-// Caret-based discovery and replacement follows ZCode's prompt input interaction.
-// Source and license: third-party-licenses/zcode. Names and payloads belong to Mira.
 export type MiraPromptTrigger = '@' | '/' | '$' | '#'
 export interface MiraPromptRange { start: number; end: number }
 export interface MiraPromptToken extends MiraPromptRange { trigger: MiraPromptTrigger; query: string }
 
+/* Trigger patterns and replacement boundaries adapted from ZCode lib/promptInputTriggers.ts.
+ * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
+ * Mira adds explicit selection ranges and its own candidate payloads. */
 export function findMiraPromptToken(text: string, start: number, end = start): MiraPromptToken | null {
   if (start !== end) return null
   const prefix = text.slice(0, start)

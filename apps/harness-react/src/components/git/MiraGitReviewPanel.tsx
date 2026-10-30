@@ -1,4 +1,4 @@
-/* Repository review follows ZCode's source selector and per-file disclosure. */
+/* Repository review with source selection and per-file disclosure. */
 import { useState } from 'react'
 import { ChevronDown, RotateCw } from 'lucide-react'
 import type { HarnessProject } from '../../../../../src/config/harness'

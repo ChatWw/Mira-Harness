@@ -1,5 +1,3 @@
-<!-- Layout and interactions ported from ZCode ResourceManagerApp/resourceUsageParts (Apache-2.0). -->
-<!-- Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode. -->
 <template>
   <main class="resource-manager" data-testid="resource-manager">
     <header class="resource-header">

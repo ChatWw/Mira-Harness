@@ -1,5 +1,3 @@
-// Bottom-panel layout and terminal lifecycle adapted from ZCode (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira uses task-scoped authorized PTY sessions.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels'
 import { Plus, X } from 'lucide-react'
@@ -57,7 +55,7 @@ export function MiraBottomTerminal({ controller, sessionId, directory, retainedS
       else { expanded.current = false; panel.collapse() }
     }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { resize(); return }
-    // ZCode enables flex-grow motion only around explicit open/close commands.
+    // Enable flex-grow motion only around explicit open/close commands.
     // Leave normal panel dragging and window resizing free of transitions.
     element.classList.add('mira-terminal-panel-motion')
     transitioning.current = true

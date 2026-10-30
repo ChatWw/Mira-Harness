@@ -1,5 +1,3 @@
-// Reply summary follows ZCode ConversationFileSummaryPanel (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
 import { useId, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { HarnessFileChange } from '../../../../../src/config/harness'

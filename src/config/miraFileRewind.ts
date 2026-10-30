@@ -1,5 +1,3 @@
-/** File recovery preview adapted from ZCode ConversationFileRewindDialog.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export type MiraFileRewindReason = 'checkpoint_missing' | 'checkpoint_unavailable' | 'operation_interrupted' | 'external_modified' | 'workspace_changed' | 'file_read_failed' | 'history_limit' | 'recovery_incomplete' | 'external_path'
 export interface MiraFileRewindFile { path: string; operationCount: number; action?: 'restore' | 'delete'; reason?: MiraFileRewindReason }
 export interface MiraFileRewindPreview {

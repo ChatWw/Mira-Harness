@@ -1,4 +1,3 @@
-// Adapted from ZCode conversationFindHighlightDom (Apache-2.0), Copyright 2026 Z.AI Co., Ltd.
 // Ranges span adjacent Markdown/code token nodes without mutating React-owned DOM.
 import { taskFindOffsets, type TaskFindMatch } from './conversation-find'
 

@@ -1,6 +1,4 @@
 import { MarketIconHint } from './MarketIconHint'
-/* Layout follows ZCode PluginStoreDetailView. Copyright 2026 Z.AI Co., Ltd.
- * Apache-2.0; Mira data and actions adaptation. */
 import type { ReactNode } from 'react'
 import { Anchor, Bot, Server, Terminal, WandSparkles } from 'lucide-react'
 import type { MiraPluginItem, MiraPluginMarketItem } from '../../../../../src/config/miraPlugins'

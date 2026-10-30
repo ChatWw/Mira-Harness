@@ -1,8 +1,4 @@
 import { createPortal } from 'react-dom'
-/* File preview interaction adapted from ZCode PreviewPane.tsx / components/ui/code-viewer.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: captured-session reads, existing Shiki renderer and virtual source rows.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

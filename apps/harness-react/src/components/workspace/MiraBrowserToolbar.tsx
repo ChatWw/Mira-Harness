@@ -1,7 +1,3 @@
-/* Toolbar adapted from ZCode EmbeddedBrowserPaneParts.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: scoped host actions, Radix controls and existing Mira tokens.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import type { FormEvent } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'

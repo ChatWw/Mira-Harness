@@ -1,7 +1,3 @@
-/* Overview interaction adapted from ZCode SidePaneTabOverview.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: local resource lifecycle, unique Command values, focus and metadata.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'

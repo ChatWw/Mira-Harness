@@ -1,7 +1,3 @@
-/* File drawer adapted from ZCode's WorkspaceFileTree, RowView and data hook.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: captured Harness session, supported host actions and accessible roving focus.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import * as ContextMenu from '@radix-ui/react-context-menu'

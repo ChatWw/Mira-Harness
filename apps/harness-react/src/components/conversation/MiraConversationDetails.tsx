@@ -1,5 +1,3 @@
-// Adapted from ZCode ToolCallBlocks/ToolLayout.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira scopes in-memory open state to its own sessions.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 
 export class MiraConversationDetailMemory {

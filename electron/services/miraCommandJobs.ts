@@ -1,6 +1,3 @@
-/* Lifecycle semantics adapted from ZCode node-execution-adapter-lifecycle
- * (Apache-2.0). Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Process execution remains with Mira's approved Pi tools. */
 import type { MiraCommandJob } from '../../src/config/miraCommandJobs'
 import type { HarnessToolText } from '../../src/config/harness'
 

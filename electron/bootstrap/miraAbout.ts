@@ -1,5 +1,3 @@
-// Window behavior adapted from ZCode desktop about.ts (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'node:path'
 import { createMiraAboutDialogHtml } from './miraAboutWindow'

@@ -1,5 +1,3 @@
-// Adapted from ZCode conversationFindIndex (Apache-2.0), Copyright 2026 Z.AI Co., Ltd.
-// Mira indexes displayed Markdown text rather than hidden markup or link destinations.
 import MarkdownIt from 'markdown-it'
 import { cjk } from '@streamdown/cjk'
 import { defaultRehypePlugins, defaultRemarkPlugins, parseMarkdownIntoBlocks } from 'streamdown'

@@ -1,5 +1,3 @@
-/* ZCode AppUsagePanel / UsageHeatmap view semantics, adapted to Vue.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import type { HarnessAppUsage } from '@/config/harnessUsage'
 import { usageDateKey } from '@/config/harnessUsage'
 export const USAGE_COLORS = ['#0b7fff', '#1e8a3e', '#9e77ed', '#e03131', '#e07b00', '#0aa7a7']

@@ -1,6 +1,3 @@
-/* Scoped read-only actor drill-down follows ZCode WorkflowActorSessionSidePane.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/.
- * Mira reads bounded persisted Pi messages through the parent-owned host contract. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronLeft, ChevronRight, Hourglass, RefreshCw } from 'lucide-react'
 import type { MiraFlowActorConversationIdentity, MiraFlowActorConversationPage, MiraFlowConversationPart } from '../../../../../src/config/miraFlowWorkbench'

@@ -1,5 +1,3 @@
-/* Metadata form adapted from ZCode SavedWorkflowMetaForm/SavedWorkflowArgsTable.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useState } from 'react'
 import { LoaderCircle, Plus, X } from 'lucide-react'
 import type { MiraWorkflowMeta, MiraWorkflowArgType, MiraWorkflowArg } from '../../../../../src/config/miraWorkflows'

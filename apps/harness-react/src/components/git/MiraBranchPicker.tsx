@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode's Git branch picker and create dialog.
- * Upstream license: third-party-licenses/zcode/.
- */
 import { useEffect, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import * as Dialog from '@radix-ui/react-dialog'

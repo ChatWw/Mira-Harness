@@ -1,5 +1,3 @@
-// Adapted from ZCode's grouped-task virtual lists and shared-scroll handling (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.
 import { defaultRangeExtractor, useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 

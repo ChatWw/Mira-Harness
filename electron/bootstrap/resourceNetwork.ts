@@ -1,7 +1,9 @@
-// Bounded metadata capture adapted from ZCode networkCapture.ts (Apache-2.0).
 import { channel } from 'node:diagnostics_channel'
 import type { ClientRequest } from 'node:http'
 import type { MiraNetworkSnapshot } from '../../src/config/resourceManager'
+// URL sanitizer adapted from ZCode packages/shared/src/networkCapture.ts.
+// Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
+// Mira uses its own request capture lifecycle below.
 export function sanitizeResourceUrl(value: string) {
   try {
     const url = new URL(value)

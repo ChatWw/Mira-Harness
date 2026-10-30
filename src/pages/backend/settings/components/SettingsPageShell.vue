@@ -68,9 +68,6 @@ const isWindowsOverlay = windowChrome === 'windows-overlay'
   -webkit-app-region: drag;
 }
 
-// 布局参考 ZCode SettingsPage / SettingsPageParts；沿用 Mira 主题和 Vue 控件。
-// Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0.
-// See third-party-licenses/zcode/.
 .settings-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; margin: 4px 4px 4px 0; overflow: hidden; border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-bg); }
 .settings-main__titlebar { flex: 0 0 48px; -webkit-app-region: drag; }
 .settings-main__titlebar.has-actions { display: flex; flex-basis: 76px; align-items: center; padding: 28px 24px 8px; }

@@ -1,6 +1,3 @@
-/* Adapted from ZCode v4/composer/PptxElementReferenceChip.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its canonical prompt contexts and explicit workspace navigation. */
 import { useEffect, useId, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Presentation, Trash2, X } from 'lucide-react'

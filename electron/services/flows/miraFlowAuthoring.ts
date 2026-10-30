@@ -1,5 +1,3 @@
-/* Model authoring inputs adapted from ZCode create-workflow-source/save-workflow.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, realpath } from 'node:fs/promises'
 import { join, relative } from 'node:path'

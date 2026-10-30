@@ -1,7 +1,3 @@
-/* Mira adaptation of ZCode WorkflowTimeline/WorkflowTimelineStation/WorkflowAgentPill.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Same phase-station/rail/pill composition, Mira journal identity and theme tokens.
- * See third-party-licenses/zcode/LICENSE and NOTICE.md. */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowRight, ArrowUpRight, Bot, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleHelp, CircleX, LoaderCircle, PauseCircle, Repeat2, Terminal, X } from 'lucide-react'
 import type { ActorRecord, NodeRecord, RunRecord, StoredEvent } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'

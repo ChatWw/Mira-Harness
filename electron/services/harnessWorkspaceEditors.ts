@@ -1,7 +1,3 @@
-/* Local editor selection adapted from ZCode packages/desktop/src/main/editors.ts / openInEditor.ts.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: asynchronous bounded detection, Mira IDs, canonical workspace paths and no shell commands.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { execFile, spawn } from 'node:child_process'
 import { mkdtemp, readFile, readdir, realpath, rmdir, stat, unlink } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'

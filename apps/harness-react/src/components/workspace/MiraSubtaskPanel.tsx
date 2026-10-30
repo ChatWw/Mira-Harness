@@ -1,5 +1,3 @@
-// Child conversation structure adapted from ZCode SubagentSessionSidePane/SessionPane (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Public messages and ownership use Mira's runtime contract.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { ArrowDown, ChevronDown, FileText, LoaderCircle, Square, Users } from 'lucide-react'
 import type { HarnessMessage, HarnessRunActivity, HarnessSession, HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'

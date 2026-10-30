@@ -1,5 +1,3 @@
-/* Definition/history layout adapted from ZCode SavedWorkflowDetailView.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useEffect, useState, type ReactNode } from 'react'
 import { CheckCircle2, ChevronRight, Circle, Copy, Play } from 'lucide-react'
 import type { MiraWorkflowDocument, MiraWorkflowMeta } from '../../../../../src/config/miraWorkflows'

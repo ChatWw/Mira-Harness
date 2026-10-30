@@ -1,6 +1,4 @@
 import { ShortcutKeys } from '../shared/ShortcutKeys'
-// Find-bar presentation adapted from ZCode (Copyright 2026 Z.AI Co., Ltd), Apache-2.0.
-// State, navigation and focus restoration are owned by Mira's workbench.
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { ArrowDown, ArrowUp, FileDiff, MessageCircle, Search, X } from 'lucide-react'

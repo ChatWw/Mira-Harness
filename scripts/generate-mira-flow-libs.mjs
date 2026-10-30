@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 
 // Build-time generated data: TypeScript's Apache-2.0 lib declarations remain verbatim.
 // Adapted from ZCode dynamic-workflow/scripts/generate-libs.mjs, Apache-2.0.
+// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
+// Mira changes: local output paths and TypeScript license archival.
 const require = createRequire(import.meta.url)
 const packagePath = require.resolve('typescript/package.json')
 const version = JSON.parse(readFileSync(packagePath, 'utf8')).version

@@ -1,7 +1,3 @@
-/* Image canvas adapted from ZCode previewPaneImageContent.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: authorized inline source, native decode failure and retry states.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { useState, type SyntheticEvent } from 'react'
 import { ImageOff, LoaderCircle, RotateCw } from 'lucide-react'
 import { miraImageDisplaySize } from '../../lib/image-preview'

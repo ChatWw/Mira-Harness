@@ -1,6 +1,3 @@
-/* Workbench/launch ownership adapted from ZCode saved workflow launcher and run service.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira adaptation: canonical project roots, Electron sender and durable parent session. */
 import type { WebContents } from 'electron'
 import { createRequire } from 'node:module'
 import { realpathSync } from 'node:fs'

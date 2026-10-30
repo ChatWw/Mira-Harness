@@ -1,6 +1,3 @@
-/* Plan directory/detail interaction adapted from ZCode ConversationStatusPanel / PlanDetailSidePane.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira resolves the immutable public tool input in the owning session. */
 import type { MiraSessionPlan } from '../../../../../src/config/miraSessionPlans'
 import { MessageMarkdown } from '../conversation/markdown'
 

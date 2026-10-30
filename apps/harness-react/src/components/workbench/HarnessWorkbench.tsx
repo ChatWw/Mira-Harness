@@ -1045,7 +1045,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat || event.shiftKey || !isMiraPrimaryModifier(event)) return
       if (document.querySelector?.('[role="dialog"]:not([aria-modal="false"]), [role="menu"][data-state="open"]')) return
       const key = event.key.toLowerCase()
-      // Option 和键盘布局可能改写字符；沿 ZCode 保留物理按键回退。
+      // Option 和键盘布局可能改写字符；保留物理按键回退。
       if ((key === 'j' || event.code === 'KeyJ') && !event.altKey) { event.preventDefault(); event.stopPropagation(); toggleBottomTerminal() }
       else if ((key === 'b' || event.code === 'KeyB') && event.altKey) { event.preventDefault(); event.stopPropagation(); openWorkspace() }
     }
@@ -1200,7 +1200,7 @@ export function HarnessWorkbench({ controller }: { controller: PilotController }
     if (taskWorkspace.tabs.some(tab => tab.taskSessionId === id) || id === workspaceSessionId && mainView === 'conversation') {
       return openTaskPane(id, true, { messageId, filePath, execution })
     }
-    // ZCode sidebar selection replaces the focused secondary beside an anonymous draft.
+    // Sidebar selection replaces the focused secondary beside an anonymous draft.
     // Explicit search/detail navigation and existing groups keep their original route.
     if (!groupOwner && !controller.getSnapshot().session && mainViewRef.current === 'conversation' && !messageId && !filePath && !execution && taskPaneIds.includes(focusedPane)) {
       const replacingId = focusedPane, before = workspacePreferences.latest.draft

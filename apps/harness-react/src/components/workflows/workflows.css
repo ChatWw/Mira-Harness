@@ -1,5 +1,3 @@
-/* Mira adaptation of ZCode saved-workflow hub and journal side-pane layout.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 .mira-workflow-title-switch { display: flex; gap: 18px; align-items: baseline; }
 .mira-workflow-title-switch button { padding: 4px 0; border: 0; background: transparent; color: var(--mira-foreground-subtle); font-size: 15px; font-weight: 550; }
 .mira-workflow-title-switch button[aria-selected=true] { color: var(--mira-foreground); }
@@ -247,7 +245,7 @@
 .mira-task-summary[data-workflow-only] .mira-summary-workflows > button > svg:last-child { visibility: hidden; }
 .mira-task-summary[data-workflow-only] .mira-summary-workflows > button:hover > svg:last-child { visibility: visible; }
 
-/* ZCode completion card: published output first, four factual figures beneath a rule. */
+/* Completion card: published output first, four factual figures beneath a rule. */
 .mira-workflow-completion-figures { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; padding-top: 10px; border-top: 1px solid var(--mira-border); }
 .mira-workflow-completion-figures > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .mira-workflow-completion-figures strong { font: 500 18px/24px var(--font-mono,ui-monospace),monospace; font-variant-numeric: tabular-nums; }

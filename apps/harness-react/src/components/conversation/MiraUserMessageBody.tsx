@@ -1,5 +1,3 @@
-// Adapted from ZCode v4/ConversationUserInputBody.tsx (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira keeps message text and task identity unchanged.
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 

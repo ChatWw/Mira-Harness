@@ -1,5 +1,3 @@
-<!-- Structural reference: ZCode SkillsSection / SettingsResourceGroup / SettingsResourceHeaderActions.
-     Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0. See third-party-licenses/zcode/. -->
 <template>
   <section class="skill-settings" aria-label="技能管理">
     <p v-if="error" role="alert" class="skill-error">{{ error }}</p>
@@ -135,7 +133,7 @@ button:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 3px; }
 .mira-skill-dialog .el-dialog__headerbtn { top: 12px; right: 12px; width: 24px; height: 24px; }
 .mira-skill-dialog .el-dialog__body { padding: 20px 16px; overflow: auto; min-height: 0; }
 .el-overlay:has(.mira-skill-dialog) { backdrop-filter: blur(4px); }
-/* Match ZCode DialogContent and SkillsSection without inheriting Element's body/close styles. */
+/* Use the settings dialog layout without inheriting Element's body/close styles. */
 .el-dialog.mira-skill-detail-dialog {
   --skill-dialog-foreground: #404040;
   --skill-dialog-subtle: color-mix(in oklab, #404040 60%, transparent);

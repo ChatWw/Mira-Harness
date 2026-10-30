@@ -1,5 +1,3 @@
-// Local model-IO inspection references ZCode modelTrajectory (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; Mira records its own Pi provider calls.
 import { appendFile, mkdir, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { MiraModelCall, MiraModelTrace } from '../../src/config/miraModelTrace'

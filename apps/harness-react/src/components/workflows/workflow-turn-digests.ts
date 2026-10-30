@@ -1,5 +1,3 @@
-/* Run cards belong to their launch turn, as in ZCode workflowTurnDigests.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import type { ToolCallRecord } from '../../../../../src/config/harness'
 import type { RunRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'
 import type { TimelineRenderMessage } from '../conversation/conversation-model'

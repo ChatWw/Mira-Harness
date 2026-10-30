@@ -1,7 +1,3 @@
-/* Persistent actor/submit/transcript semantics adapted from ZCode workflow-driver.ts,
- * workflow-driver-submit-bridge.ts and workflow-driver-transcript.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira adaptation: real Pi Agent, host-injected capabilities and FIFO settlement. */
 import { createHash } from 'node:crypto'
 import { Agent, type AgentMessage, type AgentTool, type AfterToolCallContext, type AfterToolCallResult, type BeforeToolCallContext, type BeforeToolCallResult, type StreamFn, type ThinkingLevel } from '@earendil-works/pi-agent-core'
 import { Type, type Model } from '@earendil-works/pi-ai'

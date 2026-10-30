@@ -1,6 +1,3 @@
-/** Session plan directory references ZCode v4/conversationStatusPanelModel.ts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its own settled present_plan public input contract and tool ordering. */
 import type { HarnessSession, ToolCallRecord } from './harness'
 
 export interface MiraSessionPlan {

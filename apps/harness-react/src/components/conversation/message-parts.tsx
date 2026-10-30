@@ -117,7 +117,7 @@ function formatTime(createdAt: number) {
   return `${date.getFullYear() === now.getFullYear() ? '' : `${date.getFullYear()}年`}${date.getMonth() + 1}月${date.getDate()}日 ${time}`
 }
 
-/** 消息工具栏（ZCode 模式：hover 才显现）。 */
+/** 消息工具栏（hover 才显现）。 */
 export function AssistantToolbar({ message, onFork, onError }: { message?: HarnessMessage; onFork?: (requestId: string) => Promise<boolean>; onError?: (error: unknown) => void }) {
   if (!message) return null
   return <div className="mira-assistant-toolbar mt-1">

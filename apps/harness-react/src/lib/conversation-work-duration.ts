@@ -1,4 +1,4 @@
-// ZCode conversationWorkDuration: round to seconds, at most two nonzero units.
+// Round to seconds, at most two nonzero units.
 export function formatConversationWorkDuration(durationMs: number) {
   const seconds = Math.max(1, Math.round(durationMs / 1000))
   return [[Math.floor(seconds / 86400), '天'], [Math.floor(seconds % 86400 / 3600), '小时'], [Math.floor(seconds % 3600 / 60), '分钟'], [seconds % 60, '秒']]

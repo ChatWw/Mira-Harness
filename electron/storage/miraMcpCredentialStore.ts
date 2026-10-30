@@ -1,6 +1,3 @@
-/* Canonical client/token pair storage informed by ZCode mcp/oauth-credentials.ts.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira host encryption and per-configuration files; see third-party-licenses/zcode/. */
 import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'

@@ -1,5 +1,3 @@
-// Sampling and standalone window approach adapted from ZCode (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
 import { app, BrowserWindow, shell } from 'electron'
 import os from 'node:os'
 import { resolve } from 'node:path'

@@ -1,7 +1,7 @@
 import { Type } from '@earendil-works/pi-ai'
 import type { HarnessSource } from '../../src/config/harness'
 
-// 与 ZCode WebFetch 的响应预算一致，避免现代文档站的脚本体积被误判为抓取失败。
+// 留出足够的响应预算，避免现代文档站的脚本体积被误判为抓取失败。
 const MAX_FETCH_BYTES = 10 * 1024 * 1024
 const FETCH_TIMEOUT_MS = 60000
 export type WebRequest = (url: string, init: RequestInit) => Promise<Response>

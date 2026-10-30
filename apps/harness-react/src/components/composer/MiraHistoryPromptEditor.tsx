@@ -1,8 +1,5 @@
 import { MiraPluginAvatar, pluginLabel } from '../extensions/MiraPluginAvatar'
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
-/* History prompt interactions adapted from ZCode prompt-editor/ChatPromptEditor.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira reuses its authorized catalogs, canonical prompt and Radix candidate panel. */
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState, useSyncExternalStore } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Blocks, Bot, MessageSquare, Paperclip, WandSparkles, Wrench } from 'lucide-react'

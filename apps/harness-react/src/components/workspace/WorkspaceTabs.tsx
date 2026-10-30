@@ -1,8 +1,4 @@
 import type { MiraFullView } from '../../lib/side-pane-full-view'
-/* Tab strip interaction adapted from ZCode's side-pane tab components.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: local resource types, Radix primitives and session handlers.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import { miraFileTreeIcon } from '../../lib/mira-file-tree-icon'
 import { useEffect, useRef, useState } from 'react'
 import { miraBrowserFavicon } from '../../../../../src/platform/miraBrowserMetadata'

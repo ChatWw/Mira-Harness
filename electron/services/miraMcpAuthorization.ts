@@ -1,6 +1,3 @@
-/* OAuth transaction semantics adapted from ZCode mcp/oauth-interactive.ts and auth/localhost-callback.ts.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira names, single-host lifecycle fencing and SDK v1 provider; see third-party-licenses/zcode/. */
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'

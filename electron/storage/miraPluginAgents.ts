@@ -1,5 +1,3 @@
-/* Agent Markdown profile semantics adapted from ZCode subagent/profile.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { parse as parseYaml } from 'yaml'
 import { isMiraMcpToolRule, parseMiraAgentMcpServers } from '../../src/config/miraAgentToolRules'
 

@@ -1,6 +1,3 @@
-/* Adapted from ZCode packages/ui/src/previewPaneOfficeLegacyDocContent.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira: local WASM, isolated buffer lifetime, fixed read-only paper and desktop fit. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DocxEditorViewer, setWasmSource, useDocxEditor, useDocxModel, type DocModel } from '@extend-ai/react-docx'
 import { installMiraDocumentLinks } from '../../lib/mira-document-links'

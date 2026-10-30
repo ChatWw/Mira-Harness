@@ -1,5 +1,3 @@
-/* Workspace MCP ownership follows ZCode's user/workspace configuration boundary.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { McpManager } from '../adapters/mcpManager'
 import type { McpConfigStore, McpServerConfig } from '../storage/mcpConfigStore'
 

@@ -1,5 +1,3 @@
-/* Saved workflow vocabulary and argument semantics adapted from ZCode.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export type MiraWorkflowScope = 'global' | 'project'
 export type MiraWorkflowArgType = 'string' | 'number' | 'boolean' | 'json'
 export interface MiraWorkflowArg { type: MiraWorkflowArgType; description?: string; required?: boolean; default?: unknown }

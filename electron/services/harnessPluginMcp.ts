@@ -1,5 +1,3 @@
-/* Plugin MCP source and namespace semantics adapted from ZCode. Apache-2.0;
- * Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode. */
 import { McpManager } from '../adapters/mcpManager'
 import type { MiraPluginStore } from '../storage/miraPluginStore'
 import type { MiraPluginSnapshot } from '../../src/config/miraPlugins'

@@ -242,7 +242,7 @@
 .pilot-panel-shortcuts button span { white-space: nowrap; }
 .pilot-empty-panel { min-height: 220px; padding: 48px 24px; }
 
-/* ZCode keeps the conversation and terminal in separate rounded desktop frames. */
+/* Separate rounded desktop frames for the conversation and terminal. */
 .mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) { border: 0; border-radius: 0; background: transparent; }
 .mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) > .harness-thread-header { border: 1px solid var(--color-border); border-bottom: 0; border-radius: 12px 12px 0 0; background: var(--color-background); }
 .mira-conversation-frame:has(.mira-bottom-terminal[aria-hidden='false']) .mira-full-view-host[data-mode='docked'] .mira-primary-thread { border: 1px solid var(--color-border); border-top: 0; border-radius: 0 0 12px 12px; }

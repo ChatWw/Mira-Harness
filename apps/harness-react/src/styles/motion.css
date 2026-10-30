@@ -1,6 +1,4 @@
-/* Motion references ZCode's Radix UI primitives, button and hidden-document policy.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Keep Popper positioning and dialog centering separate from animated scale/translate. */
+/* Keep Popper positioning and dialog centering separate from animated scale/translate. */
 #root { --mira-motion-feedback: 120ms; --mira-motion-enter: 150ms; --mira-motion-exit: 100ms; --mira-motion-ease: cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* All actual Popper surfaces, including nested menus; triggers are outside this selector. */

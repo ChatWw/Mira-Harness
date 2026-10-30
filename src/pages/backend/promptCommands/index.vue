@@ -46,7 +46,6 @@
 </template>
 
 <script setup lang="ts">
-// Layout adapted from ZCode CommandsSection/CommandForm (Apache-2.0); see third-party-licenses/zcode.
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { parseDocument } from 'yaml'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'

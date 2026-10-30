@@ -1,6 +1,3 @@
-/* Playback presentation follows ZCode previewPaneMediaContent.tsx.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses owner-bound streaming URLs and stops playback when the panel hides. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AudioLines, LoaderCircle, RotateCw, Video } from 'lucide-react'
 import { miraMediaFormat, type MiraMediaPreview } from '../../../../../src/config/miraMedia'

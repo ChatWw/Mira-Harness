@@ -1,4 +1,3 @@
-/** Empty-input recall follows ZCode PromptHistoryPlugin (Apache-2.0); see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
 import type { PilotController } from '../state/pilot-state'
 import { miraBrowserPromptBody, restoreMiraBrowserPromptDocument } from '../lib/mira-browser-reference'

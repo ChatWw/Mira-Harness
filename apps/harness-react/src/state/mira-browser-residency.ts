@@ -1,6 +1,3 @@
-/** Adapted from ZCode browserTabResidencyPolicy / Coordinator (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Mira counts logical workspace tabs and commits storage before releasing guests. */
 export const MIRA_BROWSER_TAB_LIMIT = 32
 export interface MiraBrowserTabIdentity { sessionId: string; tabId: string }
 interface Resident extends MiraBrowserTabIdentity { opened: number; activity: number; selected: number; loading: boolean }

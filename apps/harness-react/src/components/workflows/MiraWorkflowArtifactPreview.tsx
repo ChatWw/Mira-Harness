@@ -1,5 +1,3 @@
-/* Content-type dispatch adapted from ZCode workflow-artifacts/WorkflowArtifactBody.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Download, Eye, FileText, RefreshCw, X } from 'lucide-react'
 import type { ArtifactVersionRecord } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'

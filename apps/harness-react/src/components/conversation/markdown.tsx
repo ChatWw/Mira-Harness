@@ -12,7 +12,7 @@ import { miraCodeHighlighter, miraCodeThemes, renderMiraHighlightedCode } from '
 import type { MiraHighlightResult } from '../../lib/code-highlight-protocol'
 import { MiraMarkdownCode } from './MiraStreamingCode'
 
-// 流式管线与 ZCode 相同：streamdown（CJK 断行 + shiki 代码高亮）。
+// 流式管线：streamdown（CJK 断行 + shiki 代码高亮）。
 // 两种状态共用 Worker 高亮缓存；完成态继续保留引用角标与代码复制按钮。
 const staticMarkdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
 staticMarkdown.renderer.rules.table_open = () => '<div class="markdown-table-scroll" tabindex="0" role="region" aria-label="表格"><table>\n'
@@ -43,7 +43,7 @@ function MessageLink({ href, children }: { href?: string; children?: import('rea
 }
 
 
-// ZCode rewrites local targets before Streamdown hardening, while keeping its sanitizers.
+// Rewrite local targets before Streamdown hardening, while keeping its sanitizers.
 function rewriteMessageFileLinks(options: { directory?: string }) {
   type LinkNode = { tagName?: string; properties?: { href?: unknown }; children?: LinkNode[] }
   return (tree: LinkNode) => {

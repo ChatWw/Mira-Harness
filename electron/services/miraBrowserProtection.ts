@@ -1,7 +1,4 @@
 import { miraBrowserAutomation } from './miraBrowserAutomation'
-/** Runtime protection adapted from ZCode browserGuestManager (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd.; see third-party-licenses/zcode.
- * Only a scoped boolean crosses the existing first-party grant. */
 import { session, webContents, type WebContents } from 'electron'
 
 export class MiraBrowserProtection {

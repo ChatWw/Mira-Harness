@@ -1,8 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode ProjectEditor and ProjectFolderTrustDialog.
- * Upstream license: third-party-licenses/zcode/.
- */
 import { useEffect, useId, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Folder, FolderPlus, LoaderCircle, Monitor, X } from 'lucide-react'

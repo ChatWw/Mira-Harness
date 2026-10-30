@@ -1,9 +1,3 @@
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation: fixed public Skill catalog, existing SkillStore installation and standalone workbench view.
- * Structural reference: ZCode PluginStoreListView / PluginStoreDetailView; license: third-party-licenses/zcode/.
- */
 import { useEffect, useRef, useState } from 'react'
 import { MarketIconHint } from './MarketIconHint'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

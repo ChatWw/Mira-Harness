@@ -1,5 +1,3 @@
-// Scroll-edge feedback adapted from ZCode MentionPanel/scrollMask (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode/.
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Check, CircleAlert, Info, LoaderCircle } from 'lucide-react'
 import type { MiraPromptTrigger } from '../../lib/prompt-input-triggers'

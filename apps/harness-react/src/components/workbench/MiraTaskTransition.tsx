@@ -1,6 +1,3 @@
-/* Draft motion timing adapted from ZCode ConversationBottomDockTransition.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/.
- * Mira keeps the composer mounted and animates its position across layout modes. */
 import { Component, createRef, type ReactNode } from 'react'
 
 type Props = { draft: boolean; ready?: boolean; children: ReactNode }

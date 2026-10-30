@@ -1,5 +1,3 @@
-/* Full view state/anchors adapted from ZCode side-pane-full-view/model (Apache-2.0).
- * Copyright 2026 Z.AI Co., Ltd. */
 export type MiraFullView = { surface: 'conversation' | 'resource'; floating: 'collapsed' | 'expanded' | 'minimized' }
 export type MiraFloatingAnchor = 'top-left' | 'top-right' | 'left-center' | 'right-center' | 'bottom-left' | 'bottom-center' | 'bottom-right'
 export const miraFloatingAnchors: MiraFloatingAnchor[] = ['top-left', 'top-right', 'left-center', 'right-center', 'bottom-left', 'bottom-center', 'bottom-right']

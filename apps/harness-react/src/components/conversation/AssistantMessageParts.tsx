@@ -1,5 +1,3 @@
-// Streaming reasoning preview adapted from ZCode ai-elements/reasoning (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Uses Mira's public reasoning parts and detail memory.
 import { memo, useLayoutEffect, useRef } from 'react'
 import { Brain, ChevronDown, ShieldCheck } from 'lucide-react'
 import type { HarnessMessage, HarnessMessagePart, HarnessPermissionRequest, HarnessSubtask, ToolCallRecord } from '../../../../../src/config/harness'

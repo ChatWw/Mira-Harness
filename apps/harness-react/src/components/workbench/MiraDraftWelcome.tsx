@@ -1,6 +1,3 @@
-/* Time boundaries reference ZCode ConversationDraftEmptyState.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its own brand mark and welcome composition. */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const boundaries = [5, 9, 12, 14, 18, 23]

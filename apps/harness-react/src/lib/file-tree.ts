@@ -1,7 +1,3 @@
-/* File tree behavior adapted from ZCode's workspace-file-tree implementation.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: relative-path data, complete tree navigation and session-scoped loading.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 import type { HarnessWorkspaceFileEntry } from '../../../../src/config/harness'
 
 export type FileTreeDirectory = { entries?: HarnessWorkspaceFileEntry[]; loading: boolean; error?: string }

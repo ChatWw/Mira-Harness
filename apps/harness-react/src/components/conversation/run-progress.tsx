@@ -33,7 +33,7 @@ function statusDotClass(status: string) {
 }
 
 /**
- * 消息内运行轨迹（ZCode 密度）：运行中是一条轻量 live 行，结束折叠为一行摘要，
+ * 消息内运行轨迹：运行中是一条轻量 live 行，结束折叠为一行摘要，
  * 点开才展开计划步骤 / 活动列表 / 子任务 / 用量。
  */
 export function RunProgressCard({ run, running, waiting = false, tools = [], summaryOnly = false, onStopSubtask, onOpenFile, onOpenCommand, onOpenProgress, onOpenSubtask }: { run: HarnessRunSummary; running: boolean; waiting?: boolean; tools?: ToolCallRecord[]; summaryOnly?: boolean; onStopSubtask?: (subtaskId: string) => Promise<void>; onOpenFile?: (path: string) => void; onOpenCommand?: (runId: string, toolId: string) => void; onOpenProgress?: () => void; onOpenSubtask?: (subtaskId: string) => void }) {
@@ -116,7 +116,7 @@ function RunBody({ planSteps, toolActivities, subtasks, tools, usage, onStopSubt
   </div>
 }
 
-/** ZCode's parent conversation uses a summary action; child details live in a side tab. */
+/** The parent conversation uses a summary action; child details live in a side tab. */
 export function MiraSubtaskRecord({ subtask, onOpen, onStop }: { subtask: HarnessSubtask; onOpen: () => void; onStop?: () => Promise<void> }) {
   const stoppable = subtask.status === 'running' || subtask.status === 'queued'
   const [stopping, setStopping] = useState(false)

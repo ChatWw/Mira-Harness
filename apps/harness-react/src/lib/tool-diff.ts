@@ -1,7 +1,3 @@
-/* Lightweight projection adapted from ZCode lib/patchDiffPreview.ts.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: native numbered diffs, a single recorded-line gutter, no truncation.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 export type MiraToolDiffLine = {
   kind: 'added' | 'removed' | 'context' | 'meta'
   source: string

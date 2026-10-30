@@ -1,5 +1,3 @@
-// Adapted from ZCode ConversationTimeline and conversationTimelineLiveTail (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira renders its authoritative messages in visible turns.
 import { defaultRangeExtractor, measureElement as measureVirtualElement, useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type RefObject } from 'react'
 import type { HarnessGoal } from '../../../../../src/config/miraGoals'

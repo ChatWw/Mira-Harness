@@ -1,7 +1,3 @@
-/* Address inference adapted from ZCode embeddedBrowserHelpers.
- * Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
- * Mira changes: HTTP(S)-only addresses, canonical URLs and credential rejection.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 export function normalizeMiraBrowserAddress(input: string): string | undefined {
   let value = input.trim()
   if (!value || value.length > 4096 || /\s/.test(value)) return

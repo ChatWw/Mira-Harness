@@ -1,5 +1,3 @@
-/* Agent form semantics adapted from ZCode SubagentsSection.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { parseDocument } from 'yaml'
 import type { ModelSelection } from './harness'
 import { isMiraUserAgentName, MIRA_RESERVED_USER_AGENTS, type MiraUserAgentColor } from './miraUserAgents'

@@ -128,7 +128,7 @@
 @keyframes mira-automation-spin { to { transform: rotate(360deg); } }
 @container (max-width: 640px) { .mira-automation-grid, .mira-automation-template-grid, .mira-automation-form-columns { grid-template-columns: minmax(0, 1fr); }.mira-automation-history-toolbar select { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .mira-automation-spin { animation: none; }.mira-automation-switch span::after { transition: none; } }
-/* ZCode AutomationsSection / AutomationEditView: 896px frame, 32px desktop inset. */
+/* Automation views: 896px frame, 32px desktop inset. */
 .mira-automation-scroll { padding: 56px 32px 40px; }
 .mira-automation-content, .mira-automation-content--editor { max-width: 832px; }
 .mira-automation-header { height: 44px; min-height: 44px; border: 0; padding: 8px 20px; color: var(--mira-foreground-subtle); }
@@ -286,7 +286,7 @@
 .mira-automation-keep-awake .mira-automation-switch span::after { width: 14px; height: 14px; margin: 1px; background: var(--mira-primary); }
 .mira-automation-keep-awake .mira-automation-switch input:checked + span::after { transform: translateX(16px); background: white; }
 
-/* ZCode scheduling tags, breadcrumb and end-date states. */
+/* Scheduling tags, breadcrumb and end-date states. */
 .mira-automation-back { padding: 2px 6px; border-radius: 4px; }
 .mira-automation-back:hover { background: var(--mira-hover); }
 .mira-automation-schedule-row .mira-automation-select { border-radius: 999px; background: var(--mira-hover); }
@@ -316,7 +316,7 @@
 
 .mira-automation-delete-dialog { border: 0; box-shadow: var(--shadow-dialog); }
 
-/* ZCode edit actions: white Save and quiet Run Now, independent of the create action. */
+/* Edit actions: white Save and quiet Run Now, independent of the create action. */
 .mira-automation-editor-actions .mira-automation-save { color: #000; background: #fff; font-weight: 500; }
 .mira-automation-editor-actions .mira-automation-save:hover { background: rgb(255 255 255 / 90%); }
 .mira-automation-editor-actions .mira-automation-secondary { border: 0; background: rgb(255 255 255 / 6%); font-weight: 500; }

@@ -2,10 +2,12 @@
 
 本目录集中保留 Mira Harness 使用的第三方源码许可、版权声明与来源记录。
 原始法律文本按来源原样归档；Mira 的补充说明单独记录，不改写第三方条款。
+仅参考界面布局、交互或设计后独立实现的 Mira 代码，不因此标注为第三方源码；
+实际复制或改编的代码、模板与素材保留对应的版权、许可和修改说明。
 
 | 来源 | 许可证 | 原文及改编记录 |
 | --- | --- | --- |
-| [ZCode](https://github.com/zai-org/ZCode) 3.14.3 | Apache-2.0 | [LICENSE](zcode/LICENSE)、[NOTICE](zcode/NOTICE.md)、[改编记录](zcode/ADAPTATIONS.md) |
+| [ZCode](https://github.com/zai-org/ZCode)（版本按来源清单） | Apache-2.0 | [LICENSE](zcode/LICENSE)、[NOTICE](zcode/NOTICE.md)、[复用来源与修改说明](zcode/ADAPTATIONS.md) |
 | [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) 固定核验提交 `cb1dfb6d9cb73b15681a93939983d75dbba7bf5b` | MIT | [LICENSE](material-icon-theme/LICENSE)、[图标来源及映射](material-icon-theme/README.md)；16 个本地文件类型图标随应用内联 |
 | [TanStack React Virtual](https://github.com/TanStack/virtual/tree/main/packages/react-virtual) 3.14.13 | MIT | [LICENSE](tanstack/react-virtual/LICENSE)、[版本与用途](tanstack/README.md) |
 | [React Resizable Panels](https://github.com/bvaughn/react-resizable-panels) 4.8.0 | MIT | [LICENSE](react-resizable-panels/LICENSE-MIT)、[版本与用途](react-resizable-panels/README.md)；主体对话与右面板使用库的公开 API |

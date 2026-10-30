@@ -1,5 +1,3 @@
-/* Goal lifecycle and completion prompts follow ZCode's session target contracts.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 export type HarnessGoalStatus = 'active' | 'paused' | 'budget_limited' | 'complete'
 export interface HarnessGoalPlanItem {
   id: string

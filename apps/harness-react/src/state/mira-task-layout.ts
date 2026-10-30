@@ -1,7 +1,3 @@
-/* Task split geometry adapted from ZCode paneLayoutTree/workbenchDragDrop.
- * Copyright 2026 Z.AI Co., Ltd. SPDX-License-Identifier: Apache-2.0
- * Mira uses its existing session-owned workspace preferences and task identities.
- * See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 export const MIRA_PRIMARY_TASK_PANE = '$primary'
 export type MiraTaskSplitSide = 'left' | 'right' | 'up' | 'down'
 export type MiraTaskLayout = { kind: 'task'; id: string } | { kind: 'split'; id: string; axis: 'horizontal' | 'vertical'; ratio: number; first: MiraTaskLayout; second: MiraTaskLayout }

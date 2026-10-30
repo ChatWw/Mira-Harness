@@ -1,6 +1,3 @@
-/** Adapted from ZCode ContextAttachmentPill / WebElementContextAttachmentChip.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode.
- * Mira uses its canonical references and existing Radix package directly. */
 import { useEffect, useId, useRef, useState } from 'react'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { Globe2, MousePointer2, Trash2, X } from 'lucide-react'

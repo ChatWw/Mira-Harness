@@ -1,5 +1,3 @@
-/* Authoring guidance adapted from ZCode dynamic-workflows and builtin-workflow-command.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { FACADE_DTS } from '../../packages/mira-flow-kit/src/facade/mira-dts'
 import { parseMiraPromptCommandInvocation } from '../../src/config/miraPromptCommands'
 

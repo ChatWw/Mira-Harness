@@ -1,11 +1,5 @@
 import { ShortcutKeys } from '../shared/ShortcutKeys'
 import { fileManagerLabel } from '../../lib/file-manager-label'
-/*
- * Copyright 2026 Z.AI Co., Ltd
- * SPDX-License-Identifier: Apache-2.0
- * Mira adaptation of ZCode GroupItem / WorkspaceSidebarItem interaction structure.
- * Upstream license: third-party-licenses/zcode/.
- */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'

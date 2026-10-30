@@ -1,6 +1,3 @@
-/* Copyright 2026 Z.AI Co., Ltd. Licensed under Apache-2.0.
-   Mira adaptation of ZCode's 28px workspace file rows and 12px hierarchy spacing.
-   See third-party-licenses/zcode/{LICENSE,NOTICE.md,ADAPTATIONS.md}. */
 .mira-file-drawer { display: flex; min-width: 0; min-height: 0; height: 100%; flex-direction: column; color: var(--color-foreground); background: var(--color-sidebar); }
 .mira-file-drawer__back { flex: 0 0 auto; padding: 12px 8px 8px; }
 .mira-file-drawer__back button { display: flex; width: 100%; height: 36px; align-items: center; gap: 8px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--color-foreground-subtle); background: transparent; text-align: left; font-size: 13px; }

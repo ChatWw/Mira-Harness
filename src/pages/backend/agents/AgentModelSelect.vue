@@ -23,8 +23,6 @@
 </template>
 
 <script setup lang="ts">
-// Provider submenu pattern adapted from ZCode ModelConfigSelect (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. See third-party-licenses/zcode/.
 import { computed, ref } from 'vue'
 import type { DropdownInstance } from 'element-plus'
 import { isModelProviderAvailable, type ModelProviderSummary } from '@/config/harness'

@@ -1,5 +1,3 @@
-/* History edit reset adapted from ZCode ConversationRowView / ConversationFileRewindDialog.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode. */
 import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tooltip from '@radix-ui/react-tooltip'

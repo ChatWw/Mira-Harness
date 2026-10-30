@@ -1,5 +1,3 @@
-// Adapted from ZCode conversationTurnRenderUnits, conversationTimelineLiveTail
-// and timelineRowHeightCache (Apache-2.0). Copyright 2026 Z.AI Co., Ltd.
 import type { TimelineRenderMessage } from '../components/conversation/conversation-model'
 import type { ConversationScrollPosition } from './conversation-scroll'
 

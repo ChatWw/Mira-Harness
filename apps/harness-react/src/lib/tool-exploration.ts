@@ -1,5 +1,3 @@
-// Adapted from ZCode conversationAssistantWorkItems.ts (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira groups only its explicit public tool records.
 import type { HarnessMessage, HarnessMessagePart, ToolCallRecord } from '../../../../src/config/harness'
 import { miraCommandExplorationKind, miraCompleteCommand, type MiraExplorationKind } from './mira-command-presentation'
 

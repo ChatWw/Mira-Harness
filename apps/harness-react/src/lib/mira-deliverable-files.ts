@@ -1,5 +1,3 @@
-// File-reference deliverables adapted from ZCode assistantFileReferences/PreviewCards.
-// Copyright 2026 Z.AI Co., Ltd. Apache-2.0. Mira validates within the task workspace.
 import type { HarnessFileChange } from '../../../../src/config/harness'
 
 export function miraDeliverableLabel(path: string) {

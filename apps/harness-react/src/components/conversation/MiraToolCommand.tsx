@@ -1,5 +1,3 @@
-// Adapted from ZCode ExecuteToolCallBlock/ExecuteOutput (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Mira consumes only its public tool snapshots.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown } from 'lucide-react'
 import type { ToolCallRecord } from '../../../../../src/config/harness'

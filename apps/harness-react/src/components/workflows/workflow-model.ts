@@ -1,5 +1,3 @@
-/* Workflow journal presentation adapted from ZCode workflowRunPanel.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import type { HarnessEvent, ModelProviderSummary, ModelSelection } from '../../../../../src/config/harness'
 import type { MiraFlowWorkbenchRequest } from '../../../../../src/config/miraFlowWorkbench'
 import type { ActorRecord, AskProgress, NodeRecord, RunRecord, StoredEvent } from '../../../../../packages/mira-flow-kit/src/engine/mira-types'

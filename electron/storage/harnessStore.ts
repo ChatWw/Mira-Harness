@@ -197,7 +197,7 @@ export class HarnessStore {
   private readAttachmentFile(target: string, path: string, name: string, textBytes = 0, imageBytes = 0) {
     const info = statSync(target), size = info.size
     if (info.isDirectory()) return { path, name, kind: 'directory' as const, localPath: target, content: `本地文件夹引用：${JSON.stringify(target)}\n未内联目录内容。请使用目录和文件工具按需列出、搜索与读取，遵循当前访问权限。` }
-    // 和 ZCode 一样，普通本地文件可只引用路径，不受内联正文的类型与字节上限限制。
+    // 普通本地文件可只引用路径，不受内联正文的类型与字节上限限制。
     const localReference = (fileSize = size): HarnessMessageAttachment => ({ path, name, localPath: target, size: fileSize, content: `本地文件引用：${JSON.stringify(target)}\n文件大小：${fileSize} 字节；未内联正文。请使用可用的文件工具或文档技能按需读取，并按文件实际格式处理；不要将二进制文件当作 UTF-8 文本。` })
     // 先读取有限签名，再决定文本/图片限额，避免为过大的文本分配整文件内存。
     const header = Buffer.alloc(Math.min(size, 32))

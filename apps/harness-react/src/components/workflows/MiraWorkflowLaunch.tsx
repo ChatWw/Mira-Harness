@@ -1,5 +1,3 @@
-/* Launch interaction adapted from ZCode SavedWorkflowLaunchDialog/useSavedWorkflowLauncher.
- * Copyright 2026 Z.AI Co., Ltd. Apache-2.0; see third-party-licenses/zcode/. */
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Info, LoaderCircle, Play, Workflow, X } from 'lucide-react'

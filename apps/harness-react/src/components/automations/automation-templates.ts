@@ -9,7 +9,7 @@ export type AutomationTemplate = {
   trigger: AutomationTrigger
 }
 
-// The four scheduled scenes shown by ZCode's automation catalog; local prompts use Mira's project context.
+// Scheduled task templates use Mira's project context.
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   { id: 'standup', name: '晨会动态', icon: 'target', description: '晨会动态', prompt: '汇总上一个工作日以来的提交、模块变化、CI 状态和待跟进事项，最终生成不超过 6 条的晨会口述摘要。只读分析，只使用可核实的项目与仓库信息，附相关提交或文件路径；无法读取的信息请明确说明。', trigger: { type: 'cron', expression: '0 9 * * 1-5', humanLabel: '每工作日 09:00' } },
   { id: 'risk-scan', name: '风险扫描', icon: 'activity', description: '风险扫描', prompt: '检查最近 24 小时的代码变更，识别运行错误、数据丢失、权限绕过、资源泄漏及跨端兼容等高置信风险，并附代码和文件路径。只读分析，按严重程度排列，只报告有证据支持的问题。', trigger: { type: 'cron', expression: '0 10 * * *', humanLabel: '每天 10:00' } },

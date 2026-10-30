@@ -1,6 +1,4 @@
 import { MiraRemoteControl } from './MiraRemoteControl'
-/* Sidebar menu structure follows ZCode WorkspaceSidebarFooter (Apache-2.0).
- * See third-party-licenses/zcode. Mira exposes only its local appearance and settings actions. */
 import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChartNoAxesColumn, Check, ChevronRight, Maximize, Palette, Settings, ZoomIn, ZoomOut } from 'lucide-react'

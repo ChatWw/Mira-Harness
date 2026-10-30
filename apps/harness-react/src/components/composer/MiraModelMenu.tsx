@@ -27,7 +27,6 @@ type MiraModelMenuProps = {
 
 const modelKey = (model: MiraModelOption) => JSON.stringify([model.providerId, model.modelId])
 
-// Provider submenus adapted from ZCode ModelConfigSelect; see third-party-licenses/zcode.
 export function MiraModelMenu({ open, ownerKey, models, selected, container, disabled, drilldown = false, onSelect, onManage, onReturnFocus, onEscapeKeyDown }: MiraModelMenuProps) {
   const [query, setQuery] = useState('')
   const [openProvider, setOpenProvider] = useState<string>()

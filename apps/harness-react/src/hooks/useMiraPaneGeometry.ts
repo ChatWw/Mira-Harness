@@ -1,6 +1,3 @@
-// Explicit-toggle animation and resize-idle policy adapted from ZCode
-// useAnimatedResizablePanel/WorkspaceShellLayout (Apache-2.0).
-// Copyright 2026 Z.AI Co., Ltd. Uses Mira host preferences and component names.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Layout, PanelImperativeHandle } from 'react-resizable-panels'
 import { MIRA_PANE_PREFERENCE_KEY, MIRA_PANE_TRANSITION_MS, miraNarrowPaneAction, miraPanePreferences, miraSidebarWidth, miraWorkspaceRatio } from '../lib/pane-geometry'
