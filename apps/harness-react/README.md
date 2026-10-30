@@ -11,7 +11,7 @@ Electron 桌面应用的正式工作台，经 Vue Shell 的 sandbox iframe、Mes
 在仓库根目录运行：
 
 ```bash
-npm run desktop:dev   # 先构建资源，再启动 Electron
+npm run dev           # 先构建资源，再启动 Electron
 npm run harness:build # 单独重建 React 资源，完成后刷新桌面页面
 npm run build        # 类型检查及完整生产构建
 npm test             # 现行功能回归

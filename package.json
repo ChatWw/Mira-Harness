@@ -12,20 +12,17 @@
     "micro-frontend"
   ],
   "scripts": {
-    "dev": "npm run desktop:dev",
+    "dev": "electron-vite dev",
+    "predev": "npm run harness:build && npm run flow:build && npm run tools:build",
     "build": "node scripts/build.mjs",
     "test": "vitest run",
     "pretest": "node scripts/generate-mira-flow-libs.mjs",
     "flow:build": "node scripts/build-mira-flow.mjs",
     "tools:build": "node scripts/build-mira-tools.mjs",
     "postinstall": "node scripts/prepare-node-pty.mjs",
-    "desktop:dev": "electron-vite dev",
     "harness:build": "node scripts/build-harness-react.mjs",
-    "predesktop:dev": "npm run harness:build && npm run flow:build && npm run tools:build",
-    "predesktop:build": "npm run harness:build && npm run flow:build && npm run tools:build",
-    "predesktop:build:win": "npm run harness:build && npm run flow:build && npm run tools:build",
-    "desktop:build": "electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty && electron-builder --mac dmg --arm64",
-    "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && electron-vite build && electron-rebuild --force --only better-sqlite3,node-pty --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
+    "desktop:build": "npm run build -- --skip-tools && electron-rebuild --force --only better-sqlite3,node-pty --arch arm64 && electron-builder --mac dmg --arm64",
+    "desktop:build:win": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && npm run build -- --skip-tools && electron-rebuild --force --only better-sqlite3,node-pty --arch x64 --dist-url https://npmmirror.com/mirrors/electron/ && electron-builder --win nsis"
   },
   "main": "out/main/main.js",
   "build": {

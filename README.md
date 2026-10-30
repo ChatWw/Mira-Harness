@@ -14,16 +14,18 @@ Electron 提供模型调用、Agent 执行、本地文件与数据库能力；Vu
 
 ```bash
 npm install
-npm run dev               # Electron 开发版（同 desktop:dev）
-npm run build             # Vue/React 类型检查与完整 Electron 生产构建
-npm test                  # Vitest 回归测试
-npm run desktop:build     # macOS Apple Silicon DMG
+npm run dev              # Electron 开发版
+npm run build            # Vue/React 类型检查与完整 Electron 生产构建
+npm test                 # Vitest 回归测试
+npm run desktop:build    # macOS Apple Silicon DMG
 npm run desktop:build:win # Windows x64 NSIS，需在 Windows 上运行
 ```
 
 macOS 电脑控制插件的构建需要 Xcode Command Line Tools；原生依赖和电脑控制辅助程序按目标平台构建。Windows 安装包应在 Windows 环境单独验收。
 
-`desktop:dev` 会先构建 React 工作台、工作流运行时和本地工具。修改 React 源码后运行 `npm run harness:build`，再刷新桌面页面。独立构建命令 `flow:build`、`tools:build` 用于对应资源。
+`npm run dev` 会先构建 React 工作台、工作流运行时和本地工具。修改 React 源码后运行 `npm run harness:build`，再刷新桌面页面。独立构建命令 `flow:build`、`tools:build` 用于对应资源。
+
+两个安装包命令均执行 Vue/React 类型检查和完整生产构建；本地工具由打包钩子按目标平台和架构构建一次。
 
 完整应用通过 Electron 运行，不提供独立 Web 预览或旧版 Pilot/Prototype 开发服务。
 

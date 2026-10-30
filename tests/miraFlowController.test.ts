@@ -305,9 +305,8 @@ describe('production Mira workflow controller with real SQLite/compiler/child/Pi
     expect(runs[0].presentation!.description).toBe('Actual workflow')
     expect(runs[0].presentation!.savedDefinition).toBeUndefined()
   })
-  it('ships the real compiler/runtime/licenses in ordinary desktop build hooks and resources', () => {
+  it('ships the real compiler/runtime/licenses in desktop resources', () => {
     const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8'))
-    for (const hook of ['predesktop:dev', 'predesktop:build', 'predesktop:build:win']) expect(packageJson.scripts[hook]).toContain('npm run flow:build')
     expect(packageJson.build.extraResources).toContainEqual(expect.objectContaining({ from: 'dist/mira-flow-host', to: 'mira-flow-host' }))
     expect(readFileSync(join(resourceRoot, 'third-party-licenses', 'zcode', 'LICENSE'), 'utf8')).toContain('Apache License')
     expect(readFileSync(join(resourceRoot, 'TYPESCRIPT-LICENSE.txt'), 'utf8')).toContain('Apache License')

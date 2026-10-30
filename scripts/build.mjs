@@ -7,5 +7,6 @@ run('node_modules/vue-tsc/bin/vue-tsc.js', ['--noEmit'])
 run('node_modules/typescript/bin/tsc', ['--noEmit', '-p', 'apps/harness-react/tsconfig.json'])
 run('scripts/build-harness-react.mjs')
 run('scripts/build-mira-flow.mjs')
-run('scripts/build-mira-tools.mjs')
+// Packaging prepares native tools for its target architecture in beforePack.
+if (!process.argv.includes('--skip-tools')) run('scripts/build-mira-tools.mjs')
 run('node_modules/electron-vite/bin/electron-vite.js', ['build'])
